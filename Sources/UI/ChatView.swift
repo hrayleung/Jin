@@ -74,55 +74,74 @@ struct ChatView: View {
                 }
                 
                 HStack(alignment: .bottom, spacing: 12) {
-                    VStack(spacing: 6) {
-                        Button {} label: {
-                            Image(systemName: "paperclip")
-                                .font(.system(size: 14))
-                        }
-                        .buttonStyle(.plain)
-                        .help("Attach file")
-
-                        Menu {
-                            reasoningMenuContent
-                        } label: {
-                            controlIconLabel(
-                                systemName: "brain",
-                                isActive: isReasoningEnabled,
-                                badgeText: reasoningBadgeText
-                            )
-                        }
-                        .menuStyle(.borderlessButton)
-                        .disabled(!supportsReasoningControl)
-                        .help(reasoningHelpText)
-
-                        Menu {
-                            webSearchMenuContent
-                        } label: {
-                            controlIconLabel(
-                                systemName: "globe",
-                                isActive: isWebSearchEnabled,
-                                badgeText: webSearchBadgeText
-                            )
-                        }
-                        .menuStyle(.borderlessButton)
-                        .disabled(!supportsWebSearchControl)
-                        .help(webSearchHelpText)
-                    }
-                    .padding(.bottom, 6)
-
-                    ZStack(alignment: .topLeading) {
-                        if messageText.isEmpty {
-                            Text("Type a message...")
+                    VStack(alignment: .leading, spacing: 6) {
+                        ZStack(alignment: .topLeading) {
+                            if messageText.isEmpty {
+                                Text("Type a message...")
+                                    .font(.body)
+                                    .foregroundStyle(.secondary)
+                                    .padding(.top, 8)
+                                    .padding(.leading, 5)
+                            }
+                            TextEditor(text: $messageText)
                                 .font(.body)
-                                .foregroundStyle(.secondary)
-                                .padding(.top, 8)
-                                .padding(.leading, 5)
+                                .frame(minHeight: 40, maxHeight: 160)
+                                .scrollContentBackground(.hidden) // Remove default background
+                                .background(Color.clear)
                         }
-                        TextEditor(text: $messageText)
-                            .font(.body)
-                            .frame(minHeight: 40, maxHeight: 160)
-                            .scrollContentBackground(.hidden) // Remove default background
-                            .background(Color.clear)
+
+                        Divider()
+                            .padding(.horizontal, 2)
+
+                        HStack(spacing: 6) {
+                            Button {} label: {
+                                controlIconLabel(systemName: "paperclip", isActive: false, badgeText: nil)
+                            }
+                            .buttonStyle(.plain)
+                            .help("Attach file")
+
+                            Menu {
+                                reasoningMenuContent
+                            } label: {
+                                controlIconLabel(
+                                    systemName: "brain",
+                                    isActive: isReasoningEnabled,
+                                    badgeText: reasoningBadgeText
+                                )
+                            }
+                            .menuStyle(.borderlessButton)
+                            .disabled(!supportsReasoningControl)
+                            .help(reasoningHelpText)
+
+                            Menu {
+                                webSearchMenuContent
+                            } label: {
+                                controlIconLabel(
+                                    systemName: "globe",
+                                    isActive: isWebSearchEnabled,
+                                    badgeText: webSearchBadgeText
+                                )
+                            }
+                            .menuStyle(.borderlessButton)
+                            .disabled(!supportsWebSearchControl)
+                            .help(webSearchHelpText)
+
+                            Menu {
+                                mcpToolsMenuContent
+                            } label: {
+                                controlIconLabel(
+                                    systemName: "hammer",
+                                    isActive: supportsMCPToolsControl && isMCPToolsEnabled,
+                                    badgeText: mcpToolsBadgeText
+                                )
+                            }
+                            .menuStyle(.borderlessButton)
+                            .disabled(!supportsMCPToolsControl)
+                            .help(mcpToolsHelpText)
+
+                            Spacer(minLength: 0)
+                        }
+                        .padding(.bottom, 2)
                     }
                     .padding(6)
                     .background(Color(nsColor: .controlBackgroundColor))
@@ -222,6 +241,10 @@ struct ChatView: View {
         controls.webSearch?.enabled == true
     }
 
+    private var isMCPToolsEnabled: Bool {
+        controls.mcpTools?.enabled ?? true
+    }
+
     private var supportsReasoningControl: Bool {
         guard let config = selectedReasoningConfig else { return false }
         return config.type != .none
@@ -235,6 +258,10 @@ struct ChatView: View {
         case .none:
             return false
         }
+    }
+
+    private var supportsMCPToolsControl: Bool {
+        selectedModelInfo?.capabilities.contains(.toolCalling) == true
     }
 
     private var reasoningHelpText: String {
@@ -251,6 +278,14 @@ struct ChatView: View {
         guard supportsWebSearchControl else { return "Web Search: Not supported" }
         guard isWebSearchEnabled else { return "Web Search: Off" }
         return "Web Search: \(webSearchLabel)"
+    }
+
+    private var mcpToolsHelpText: String {
+        guard supportsMCPToolsControl else { return "MCP Tools: Not supported" }
+        guard isMCPToolsEnabled else { return "MCP Tools: Off" }
+        let count = selectedMCPServerIDs.count
+        if count == 0 { return "MCP Tools: On (no servers)" }
+        return "MCP Tools: On (\(count) server\(count == 1 ? "" : "s"))"
     }
 
     private var webSearchLabel: String {
@@ -322,6 +357,27 @@ struct ChatView: View {
         }
     }
 
+    private var mcpToolsBadgeText: String? {
+        guard supportsMCPToolsControl, isMCPToolsEnabled else { return nil }
+        let count = selectedMCPServerIDs.count
+        guard count > 0 else { return nil }
+        return count > 99 ? "99+" : "\(count)"
+    }
+
+    private var eligibleMCPServers: [MCPServerConfigEntity] {
+        mcpServers
+            .filter { $0.isEnabled && $0.runToolsAutomatically }
+            .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+    }
+
+    private var selectedMCPServerIDs: Set<String> {
+        let eligibleIDs = Set(eligibleMCPServers.map(\.id))
+        if let allowlist = controls.mcpTools?.enabledServerIDs {
+            return Set(allowlist).intersection(eligibleIDs)
+        }
+        return eligibleIDs
+    }
+
     @ViewBuilder
     private func controlIconLabel(systemName: String, isActive: Bool, badgeText: String?) -> some View {
         ZStack(alignment: .bottomTrailing) {
@@ -329,6 +385,11 @@ struct ChatView: View {
                 .font(.system(size: 14))
                 .symbolRenderingMode(.hierarchical)
                 .foregroundStyle(isActive ? Color.accentColor : Color.secondary)
+                .frame(width: 28, height: 28)
+                .background(
+                    Circle()
+                        .fill(isActive ? Color.accentColor.opacity(0.18) : Color.secondary.opacity(0.10))
+                )
 
             if let badgeText, !badgeText.isEmpty {
                 Text(badgeText)
@@ -506,15 +567,13 @@ struct ChatView: View {
         isStreaming = true
 
         let providerConfig = providers.first(where: { $0.id == conversationEntity.providerID }).flatMap { try? $0.toDomain() }
-        let mcpServerConfigs = mcpServers
-            .filter { $0.isEnabled && $0.runToolsAutomatically }
-            .map { $0.toConfig() }
         let baseHistory = conversationEntity.messages
             .sorted(by: { $0.timestamp < $1.timestamp })
             .compactMap { try? $0.toDomain() }
         let systemPrompt = conversationEntity.systemPrompt?.trimmingCharacters(in: .whitespacesAndNewlines)
         let controlsToUse: GenerationControls = (try? JSONDecoder().decode(GenerationControls.self, from: conversationEntity.modelConfigData))
             ?? controls
+        let mcpServerConfigs = resolvedMCPServerConfigs(for: controlsToUse)
         let modelID = conversationEntity.modelID
 
         streamingTask = Task {
@@ -821,6 +880,113 @@ struct ChatView: View {
         }
     }
 
+    private var mcpToolsEnabledBinding: Binding<Bool> {
+        Binding(
+            get: { controls.mcpTools?.enabled ?? true },
+            set: { enabled in
+                if controls.mcpTools == nil {
+                    controls.mcpTools = MCPToolsControls(enabled: enabled)
+                } else {
+                    controls.mcpTools?.enabled = enabled
+                }
+                persistControlsToConversation()
+            }
+        )
+    }
+
+    @ViewBuilder
+    private var mcpToolsMenuContent: some View {
+        Toggle("MCP Tools", isOn: mcpToolsEnabledBinding)
+
+        if isMCPToolsEnabled {
+            if eligibleMCPServers.isEmpty {
+                Divider()
+                Text("No MCP servers enabled for automatic tool use.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else {
+                Divider()
+                Text("Servers")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                ForEach(eligibleMCPServers, id: \.id) { server in
+                    Toggle(server.name, isOn: mcpServerSelectionBinding(serverID: server.id))
+                }
+
+                if selectedMCPServerIDs.isEmpty {
+                    Divider()
+                    Text("Select at least one server.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else if controls.mcpTools?.enabledServerIDs != nil {
+                    Divider()
+                    Button("Use all servers") {
+                        resetMCPServerSelection()
+                    }
+                }
+            }
+        }
+    }
+
+    private func mcpServerSelectionBinding(serverID: String) -> Binding<Bool> {
+        Binding(
+            get: {
+                selectedMCPServerIDs.contains(serverID)
+            },
+            set: { isOn in
+                if controls.mcpTools == nil {
+                    controls.mcpTools = MCPToolsControls(enabled: true, enabledServerIDs: nil)
+                }
+
+                let eligibleIDs = Set(eligibleMCPServers.map(\.id))
+                var selected = Set(controls.mcpTools?.enabledServerIDs ?? Array(eligibleIDs))
+                if isOn {
+                    selected.insert(serverID)
+                } else {
+                    selected.remove(serverID)
+                }
+
+                let normalized = selected.intersection(eligibleIDs)
+                if normalized == eligibleIDs {
+                    controls.mcpTools?.enabledServerIDs = nil
+                } else {
+                    controls.mcpTools?.enabledServerIDs = Array(normalized).sorted()
+                }
+
+                persistControlsToConversation()
+            }
+        )
+    }
+
+    private func resetMCPServerSelection() {
+        if controls.mcpTools == nil {
+            controls.mcpTools = MCPToolsControls(enabled: true, enabledServerIDs: nil)
+        } else {
+            controls.mcpTools?.enabled = true
+            controls.mcpTools?.enabledServerIDs = nil
+        }
+        persistControlsToConversation()
+    }
+
+    private func resolvedMCPServerConfigs(for controlsToUse: GenerationControls) -> [MCPServerConfig] {
+        guard supportsMCPToolsControl else { return [] }
+        guard controlsToUse.mcpTools?.enabled ?? true else { return [] }
+
+        let eligibleServers = mcpServers
+            .filter { $0.isEnabled && $0.runToolsAutomatically }
+            .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+
+        let eligibleIDs = Set(eligibleServers.map(\.id))
+        let allowlist = controlsToUse.mcpTools?.enabledServerIDs
+        let selectedIDs = allowlist.map(Set.init) ?? eligibleIDs
+        let resolvedIDs = selectedIDs.intersection(eligibleIDs)
+
+        return eligibleServers
+            .filter { resolvedIDs.contains($0.id) }
+            .map { $0.toConfig() }
+    }
+
     private func loadControlsFromConversation() {
         if let decoded = try? JSONDecoder().decode(GenerationControls.self, from: conversationEntity.modelConfigData) {
             controls = decoded
@@ -1060,7 +1226,7 @@ struct MessageRow: View {
                         .foregroundStyle(.secondary)
                     
                     if isTool {
-                        Image(systemName: "wrench.and.screwdriver")
+                        Image(systemName: "hammer")
                             .font(.caption2)
                             .foregroundStyle(.secondary)
                     }
@@ -1153,32 +1319,92 @@ struct ContentPartView: View {
 
 struct ToolCallView: View {
     let toolCall: ToolCall
+    @State private var isExpanded = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack {
-                Image(systemName: "wrench.and.screwdriver")
-                    .font(.caption)
-                Text("Used tool: \(toolCall.name)")
-                    .font(.caption)
-                    .fontWeight(.medium)
-            }
-            .foregroundStyle(.secondary)
+        VStack(alignment: .leading, spacing: 0) {
+            Button {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    isExpanded.toggle()
+                }
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "hammer")
+                        .font(.system(size: 14))
+                        .foregroundStyle(.secondary)
 
-            if let argsJSON = try? JSONSerialization.data(withJSONObject: toolCall.arguments.mapValues { $0.value }),
-               let argsString = String(data: argsJSON, encoding: .utf8) {
-                Text(argsString)
-                    .font(.system(.caption, design: .monospaced))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(3)
-                    .padding(6)
-                    .background(Color(nsColor: .textBackgroundColor))
-                    .cornerRadius(4)
+                    Text("Tool call")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(.secondary)
+
+                    Text(toolCall.name)
+                        .font(.system(.caption, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+
+                    Spacer()
+
+                    Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(Color.secondary.opacity(0.1))
+                )
+            }
+            .buttonStyle(.plain)
+
+            if isExpanded {
+                VStack(alignment: .leading, spacing: 8) {
+                    if let argsString = formattedArgumentsJSON {
+                        Text(argsString)
+                            .font(.system(.caption, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                            .textSelection(.enabled)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                            .background(
+                                RoundedRectangle(cornerRadius: 8)
+                                    .fill(Color.secondary.opacity(0.05))
+                            )
+                    } else {
+                        Text("No arguments")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                            .background(
+                                RoundedRectangle(cornerRadius: 8)
+                                    .fill(Color.secondary.opacity(0.05))
+                            )
+                    }
+
+                    if let signature = toolCall.signature, !signature.isEmpty {
+                        Text(signature)
+                            .font(.system(.caption2, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                            .textSelection(.enabled)
+                            .padding(.horizontal, 12)
+                    }
+                }
+                .padding(.top, 4)
+                .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
-        .padding(8)
-        .background(Color(nsColor: .controlBackgroundColor))
-        .cornerRadius(6)
+        .padding(.vertical, 4)
+    }
+
+    private var formattedArgumentsJSON: String? {
+        let raw = toolCall.arguments.mapValues { $0.value }
+        guard JSONSerialization.isValidJSONObject(raw) else { return nil }
+        guard let argsJSON = try? JSONSerialization.data(withJSONObject: raw, options: [.prettyPrinted, .sortedKeys]),
+              let argsString = String(data: argsJSON, encoding: .utf8) else {
+            return nil
+        }
+        return argsString
     }
 }
 

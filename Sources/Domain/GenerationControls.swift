@@ -7,6 +7,7 @@ struct GenerationControls: Codable {
     var topP: Double?
     var reasoning: ReasoningControls?
     var webSearch: WebSearchControls?
+    var mcpTools: MCPToolsControls?
     var providerSpecific: [String: AnyCodable] = [:] // Escape hatch for provider-specific params
 
     init(
@@ -15,6 +16,7 @@ struct GenerationControls: Codable {
         topP: Double? = nil,
         reasoning: ReasoningControls? = nil,
         webSearch: WebSearchControls? = nil,
+        mcpTools: MCPToolsControls? = nil,
         providerSpecific: [String: AnyCodable] = [:]
     ) {
         self.temperature = temperature
@@ -22,7 +24,20 @@ struct GenerationControls: Codable {
         self.topP = topP
         self.reasoning = reasoning
         self.webSearch = webSearch
+        self.mcpTools = mcpTools
         self.providerSpecific = providerSpecific
+    }
+}
+
+/// MCP tool calling controls (app-provided tools via MCP servers)
+struct MCPToolsControls: Codable {
+    var enabled: Bool
+    /// Optional allowlist of MCP server IDs for this conversation. `nil` means “all enabled servers”.
+    var enabledServerIDs: [String]?
+
+    init(enabled: Bool = true, enabledServerIDs: [String]? = nil) {
+        self.enabled = enabled
+        self.enabledServerIDs = enabledServerIDs
     }
 }
 
