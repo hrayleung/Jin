@@ -9,6 +9,7 @@ struct JinApp: App {
         do {
             modelContainer = try ModelContainer(
                 for: ConversationEntity.self,
+                AssistantEntity.self,
                 MessageEntity.self,
                 ProviderConfigEntity.self,
                 MCPServerConfigEntity.self,

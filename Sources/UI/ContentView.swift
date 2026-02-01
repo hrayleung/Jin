@@ -3,17 +3,36 @@ import SwiftData
 
 struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
+    @Query(sort: \AssistantEntity.sortOrder, order: .forward) private var assistants: [AssistantEntity]
     @Query(sort: \ConversationEntity.updatedAt, order: .reverse) private var conversations: [ConversationEntity]
     @Query private var providers: [ProviderConfigEntity]
 
+    @State private var selectedAssistant: AssistantEntity?
     @State private var selectedConversation: ConversationEntity?
     @State private var didBootstrapDefaults = false
+    @State private var didBootstrapAssistants = false
     @State private var searchText = ""
+    @State private var isAssistantInspectorPresented = false
+    @State private var assistantPendingDeletion: AssistantEntity?
+    @State private var showingDeleteAssistantConfirmation = false
+    @State private var conversationPendingDeletion: ConversationEntity?
+    @State private var showingDeleteConversationConfirmation = false
 
     var body: some View {
         NavigationSplitView {
             // Sidebar: Conversation list
             VStack(spacing: 0) {
+                sidebarSearchField
+                    .padding(.horizontal, 12)
+                    .padding(.top, 12)
+
+                assistantPicker
+                    .padding(.horizontal, 12)
+                    .padding(.top, 8)
+                    .padding(.bottom, 8)
+
+                Divider()
+
                 List(selection: $selectedConversation) {
                     if !filteredConversations.isEmpty {
                         ForEach(groupedConversations, id: \.key) { period, convs in
@@ -25,6 +44,21 @@ struct ContentView: View {
                                             subtitle: "\(providerName(for: conversation.providerID)) • \(conversation.modelID)",
                                             updatedAt: conversation.updatedAt
                                         )
+                                    }
+                                    .contextMenu {
+                                        Button {
+                                            isAssistantInspectorPresented = true
+                                        } label: {
+                                            Label("Assistant Settings", systemImage: "sidebar.right")
+                                        }
+
+                                        Divider()
+
+                                        Button(role: .destructive) {
+                                            requestDeleteConversation(conversation)
+                                        } label: {
+                                            Label("Delete Chat", systemImage: "trash")
+                                        }
                                     }
                                 }
                                 .onDelete { indexSet in
@@ -43,7 +77,6 @@ struct ContentView: View {
                     }
                 }
                 .listStyle(.sidebar)
-                .searchable(text: $searchText, placement: .sidebar, prompt: "Search chats")
                 
                 // Bottom New Chat Button
                 Divider()
@@ -59,17 +92,28 @@ struct ContentView: View {
                 .background(Color(nsColor: .controlBackgroundColor))
             }
             .navigationSplitViewColumnWidth(min: 220, ideal: 260, max: 320)
-            .navigationTitle("Conversations")
+            .navigationTitle(selectedAssistant?.displayName ?? "Conversations")
             .toolbar {
-                ToolbarItem(placement: .primaryAction) {
-                     SettingsLink {
+                ToolbarItemGroup(placement: .primaryAction) {
+                    Button {
+                        isAssistantInspectorPresented.toggle()
+                    } label: {
+                        Label("Assistant Settings", systemImage: "sidebar.right")
+                    }
+
+                    SettingsLink {
                         Label("Settings", systemImage: "gearshape")
                     }
                 }
             }
         } detail: {
             if let conversation = selectedConversation {
-                ChatView(conversationEntity: conversation)
+                ChatView(
+                    conversationEntity: conversation,
+                    onRequestDeleteConversation: {
+                        requestDeleteConversation(conversation)
+                    }
+                )
                     .id(conversation.id) // Ensure view rebuilds when switching
             } else {
                 ContentUnavailableView {
@@ -86,6 +130,36 @@ struct ContentView: View {
         }
         .task {
             bootstrapDefaultProvidersIfNeeded()
+            bootstrapDefaultAssistantsIfNeeded()
+        }
+        .inspector(isPresented: $isAssistantInspectorPresented) {
+            AssistantInspectorView(
+                assistant: selectedAssistant,
+                onRequestDelete: requestDeleteAssistant
+            )
+            .frame(minWidth: 320)
+        }
+        .confirmationDialog(
+            "Delete assistant?",
+            isPresented: $showingDeleteAssistantConfirmation,
+            presenting: assistantPendingDeletion
+        ) { assistant in
+            Button("Delete", role: .destructive) {
+                deleteAssistant(assistant)
+            }
+        } message: { assistant in
+            Text("This will permanently delete “\(assistant.displayName)” and all of its chats.")
+        }
+        .confirmationDialog(
+            "Delete chat?",
+            isPresented: $showingDeleteConversationConfirmation,
+            presenting: conversationPendingDeletion
+        ) { conversation in
+            Button("Delete", role: .destructive) {
+                deleteConversation(conversation)
+            }
+        } message: { conversation in
+            Text("This will permanently delete “\(conversation.title)”.")
         }
     }
 
@@ -126,6 +200,11 @@ struct ContentView: View {
 
     private func createNewConversation() {
         bootstrapDefaultProvidersIfNeeded()
+        bootstrapDefaultAssistantsIfNeeded()
+
+        guard let assistant = selectedAssistant ?? assistants.first(where: { $0.id == "default" }) ?? assistants.first else {
+            return
+        }
 
         let providerID = providers.first(where: { $0.id == "openai" })?.id
             ?? providers.first?.id
@@ -138,7 +217,8 @@ struct ContentView: View {
             systemPrompt: nil,
             providerID: providerID,
             modelID: modelID,
-            modelConfigData: controlsData
+            modelConfigData: controlsData,
+            assistant: assistant
         )
 
         modelContext.insert(conversation)
@@ -177,10 +257,15 @@ struct ContentView: View {
 
     private var filteredConversations: [ConversationEntity] {
         let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !query.isEmpty else { return conversations }
+        let assistantFiltered = conversations.filter { conversation in
+            guard let selectedAssistant else { return true }
+            return conversation.assistant?.id == selectedAssistant.id
+        }
+
+        guard !query.isEmpty else { return assistantFiltered }
 
         let lowered = query.lowercased()
-        return conversations.filter {
+        return assistantFiltered.filter {
             $0.title.lowercased().contains(lowered)
                 || $0.modelID.lowercased().contains(lowered)
                 || providerName(for: $0.providerID).lowercased().contains(lowered)
@@ -189,6 +274,76 @@ struct ContentView: View {
 
     private func providerName(for providerID: String) -> String {
         providers.first(where: { $0.id == providerID })?.name ?? providerID
+    }
+
+    private func selectAssistant(_ assistant: AssistantEntity) {
+        selectedAssistant = assistant
+        if let selectedConversation, selectedConversation.assistant?.id != assistant.id {
+            self.selectedConversation = nil
+        }
+    }
+
+    private func createAssistant() {
+        bootstrapDefaultAssistantsIfNeeded()
+
+        let existingIDs = Set(assistants.map(\.id))
+        var counter = 1
+        var candidate = "assistant-\(counter)"
+        while existingIDs.contains(candidate) {
+            counter += 1
+            candidate = "assistant-\(counter)"
+        }
+
+        let nextSortOrder = (assistants.map(\.sortOrder).max() ?? 0) + 1
+        let assistant = AssistantEntity(
+            id: candidate,
+            name: "New Assistant",
+            icon: "sparkles",
+            assistantDescription: nil,
+            systemInstruction: "",
+            temperature: 0.1,
+            maxOutputTokens: nil,
+            truncateMessages: nil,
+            replyLanguage: nil,
+            sortOrder: nextSortOrder
+        )
+
+        modelContext.insert(assistant)
+        selectAssistant(assistant)
+        isAssistantInspectorPresented = true
+    }
+
+    private func requestDeleteAssistant(_ assistant: AssistantEntity) {
+        guard assistant.id != "default" else { return }
+        assistantPendingDeletion = assistant
+        showingDeleteAssistantConfirmation = true
+    }
+
+    private func deleteAssistant(_ assistant: AssistantEntity) {
+        if selectedConversation?.assistant?.id == assistant.id {
+            selectedConversation = nil
+        }
+
+        if selectedAssistant?.id == assistant.id {
+            selectedAssistant = assistants.first(where: { $0.id == "default" && $0.id != assistant.id })
+                ?? assistants.first(where: { $0.id != assistant.id })
+        }
+
+        modelContext.delete(assistant)
+        assistantPendingDeletion = nil
+    }
+
+    private func requestDeleteConversation(_ conversation: ConversationEntity) {
+        conversationPendingDeletion = conversation
+        showingDeleteConversationConfirmation = true
+    }
+
+    private func deleteConversation(_ conversation: ConversationEntity) {
+        modelContext.delete(conversation)
+        if selectedConversation == conversation {
+            selectedConversation = nil
+        }
+        conversationPendingDeletion = nil
     }
 
     @MainActor
@@ -316,6 +471,40 @@ struct ContentView: View {
             }
         }
     }
+
+    @MainActor
+    private func bootstrapDefaultAssistantsIfNeeded() {
+        guard !didBootstrapAssistants else { return }
+        didBootstrapAssistants = true
+
+        let defaultAssistant: AssistantEntity
+        if let existing = assistants.first(where: { $0.id == "default" }) {
+            defaultAssistant = existing
+        } else {
+            let created = AssistantEntity(
+                id: "default",
+                name: "Default",
+                icon: "laptopcomputer",
+                assistantDescription: "General-purpose assistant.",
+                systemInstruction: "",
+                temperature: 0.1,
+                maxOutputTokens: nil,
+                truncateMessages: nil,
+                replyLanguage: nil,
+                sortOrder: 0
+            )
+            modelContext.insert(created)
+            defaultAssistant = created
+        }
+
+        if selectedAssistant == nil {
+            selectedAssistant = defaultAssistant
+        }
+
+        for conversation in conversations where conversation.assistant == nil {
+            conversation.assistant = defaultAssistant
+        }
+    }
 }
 
 private struct ConversationRowView: View {
@@ -338,5 +527,133 @@ private struct ConversationRowView: View {
             .foregroundColor(.secondary)
         }
         .padding(.vertical, 4)
+    }
+}
+
+private extension AssistantEntity {
+    var displayName: String {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? id : trimmed
+    }
+}
+
+private extension ContentView {
+    var sidebarSearchField: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "magnifyingglass")
+                .foregroundStyle(.secondary)
+                .font(.system(size: 13))
+
+            TextField("Search", text: $searchText)
+                .textFieldStyle(.plain)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(Color(nsColor: .controlBackgroundColor))
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+    }
+
+    var assistantPicker: some View {
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: 84), spacing: 8)], spacing: 8) {
+            ForEach(assistants) { assistant in
+                AssistantTileView(
+                    assistant: assistant,
+                    isSelected: selectedAssistant?.id == assistant.id,
+                    onSelect: { selectAssistant(assistant) },
+                    onOpenSettings: { isAssistantInspectorPresented = true },
+                    onRequestDelete: { requestDeleteAssistant(assistant) }
+                )
+            }
+
+            Button {
+                createAssistant()
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "plus")
+                        .foregroundStyle(.secondary)
+                        .frame(width: 16)
+
+                    Text("New")
+                        .font(.system(.caption, design: .default))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+
+                    Spacer(minLength: 0)
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 8)
+                .frame(maxWidth: .infinity)
+                .background(Color(nsColor: .controlBackgroundColor).opacity(0.001))
+                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            }
+            .buttonStyle(.plain)
+            .help("Create a new assistant")
+        }
+    }
+}
+
+private struct AssistantTileView: View {
+    let assistant: AssistantEntity
+    let isSelected: Bool
+    let onSelect: () -> Void
+    let onOpenSettings: () -> Void
+    let onRequestDelete: () -> Void
+
+    var body: some View {
+        Button(action: onSelect) {
+            HStack(spacing: 8) {
+                assistantIconView
+                    .foregroundStyle(.secondary)
+                    .frame(width: 16)
+
+                Text(assistant.displayName)
+                    .font(.system(.caption, design: .default))
+                    .lineLimit(1)
+
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
+            .frame(maxWidth: .infinity)
+            .background(backgroundColor)
+            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .help(assistant.assistantDescription ?? "")
+        .contextMenu {
+            Button {
+                onOpenSettings()
+            } label: {
+                Label("Assistant Settings", systemImage: "sidebar.right")
+            }
+
+            Divider()
+
+            Button(role: .destructive) {
+                onRequestDelete()
+            } label: {
+                Label("Delete Assistant", systemImage: "trash")
+            }
+            .disabled(assistant.id == "default")
+        }
+    }
+
+    @ViewBuilder
+    private var assistantIconView: some View {
+        let trimmed = (assistant.icon ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty {
+            Image(systemName: "person.crop.circle")
+        } else if trimmed.count <= 2 {
+            Text(trimmed)
+        } else {
+            Image(systemName: trimmed)
+        }
+    }
+
+    private var backgroundColor: Color {
+        if isSelected {
+            return Color.accentColor.opacity(0.12)
+        }
+        return Color(nsColor: .controlBackgroundColor).opacity(0.001)
     }
 }

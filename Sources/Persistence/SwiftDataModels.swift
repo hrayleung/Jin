@@ -1,6 +1,56 @@
 import Foundation
 import SwiftData
 
+/// Assistant entity (SwiftData)
+@Model
+final class AssistantEntity {
+    @Attribute(.unique) var id: String
+    var name: String
+    var icon: String?
+    var assistantDescription: String?
+    var systemInstruction: String
+    var temperature: Double
+    var maxOutputTokens: Int?
+    /// `nil` means “default”.
+    var truncateMessages: Bool?
+    /// `nil` means “default”.
+    var replyLanguage: String?
+    var createdAt: Date
+    var updatedAt: Date
+    var sortOrder: Int
+
+    @Relationship(deleteRule: .cascade, inverse: \ConversationEntity.assistant)
+    var conversations: [ConversationEntity] = []
+
+    init(
+        id: String,
+        name: String,
+        icon: String? = nil,
+        assistantDescription: String? = nil,
+        systemInstruction: String = "",
+        temperature: Double = 0.1,
+        maxOutputTokens: Int? = nil,
+        truncateMessages: Bool? = nil,
+        replyLanguage: String? = nil,
+        createdAt: Date = Date(),
+        updatedAt: Date = Date(),
+        sortOrder: Int = 0
+    ) {
+        self.id = id
+        self.name = name
+        self.icon = icon
+        self.assistantDescription = assistantDescription
+        self.systemInstruction = systemInstruction
+        self.temperature = temperature
+        self.maxOutputTokens = maxOutputTokens
+        self.truncateMessages = truncateMessages
+        self.replyLanguage = replyLanguage
+        self.createdAt = createdAt
+        self.updatedAt = updatedAt
+        self.sortOrder = sortOrder
+    }
+}
+
 /// Conversation entity (SwiftData)
 @Model
 final class ConversationEntity {
@@ -13,6 +63,8 @@ final class ConversationEntity {
     var modelID: String
     var modelConfigData: Data // Codable GenerationControls
 
+    @Relationship var assistant: AssistantEntity?
+
     @Relationship(deleteRule: .cascade, inverse: \MessageEntity.conversation)
     var messages: [MessageEntity] = []
 
@@ -24,7 +76,8 @@ final class ConversationEntity {
         systemPrompt: String? = nil,
         providerID: String,
         modelID: String,
-        modelConfigData: Data
+        modelConfigData: Data,
+        assistant: AssistantEntity? = nil
     ) {
         self.id = id
         self.title = title
@@ -34,6 +87,7 @@ final class ConversationEntity {
         self.providerID = providerID
         self.modelID = modelID
         self.modelConfigData = modelConfigData
+        self.assistant = assistant
     }
 
     /// Convert to domain model

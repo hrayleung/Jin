@@ -31,6 +31,5 @@ struct MessageTextView: View {
             }
         }
         .textSelection(.enabled)
-        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }

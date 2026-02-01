@@ -5,6 +5,7 @@ import AppKit
 struct ChatView: View {
     @Environment(\.modelContext) private var modelContext
     @Bindable var conversationEntity: ConversationEntity
+    let onRequestDeleteConversation: () -> Void
     @Query private var providers: [ProviderConfigEntity]
     @Query private var mcpServers: [MCPServerConfigEntity]
 
@@ -32,30 +33,33 @@ struct ChatView: View {
     var body: some View {
         VStack(spacing: 0) {
             // Message list
-            ScrollViewReader { proxy in
-                ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 0) { // Zero spacing, controlled by padding in rows
-                        ForEach(orderedMessages) { message in
-                            MessageRow(messageEntity: message)
-                                .id(message.id)
-                        }
+            GeometryReader { geometry in
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        let bubbleMaxWidth = maxBubbleWidth(for: geometry.size.width)
+                        LazyVStack(alignment: .leading, spacing: 0) { // Zero spacing, controlled by padding in rows
+                            ForEach(orderedMessages) { message in
+                                MessageRow(messageEntity: message, maxBubbleWidth: bubbleMaxWidth)
+                                    .id(message.id)
+                            }
 
-                        // Streaming message
-                        if let streaming = streamingMessage {
-                            StreamingMessageView(state: streaming)
-                                .id("streaming")
+                            // Streaming message
+                            if let streaming = streamingMessage {
+                                StreamingMessageView(state: streaming, maxBubbleWidth: bubbleMaxWidth)
+                                    .id("streaming")
+                            }
+                            
+                            Spacer(minLength: 20)
                         }
-                        
-                        Spacer(minLength: 20)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.vertical)
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.vertical)
-                }
-                .onChange(of: conversationEntity.messages.count) { _, _ in
-                    scrollToBottom(proxy: proxy)
-                }
-                .onChange(of: streamingMessage) { _, _ in
-                    scrollToBottom(proxy: proxy)
+                    .onChange(of: conversationEntity.messages.count) { _, _ in
+                        scrollToBottom(proxy: proxy)
+                    }
+                    .onChange(of: streamingMessage) { _, _ in
+                        scrollToBottom(proxy: proxy)
+                    }
                 }
             }
 
@@ -169,9 +173,16 @@ struct ChatView: View {
         .navigationTitle(conversationEntity.title)
         .navigationSubtitle(currentModelName)
         .toolbar {
-             ToolbarItemGroup {
-                 modelPickerMenu
-             }
+            ToolbarItemGroup {
+                modelPickerMenu
+
+                Button(role: .destructive) {
+                    onRequestDeleteConversation()
+                } label: {
+                    Image(systemName: "trash")
+                }
+                .help("Delete chat")
+            }
         }
         .alert("Error", isPresented: $showingError) {
             Button("OK", role: .cancel) {}
@@ -518,6 +529,124 @@ struct ChatView: View {
         }
     }
 
+    private func maxBubbleWidth(for containerWidth: CGFloat) -> CGFloat {
+        let usable = max(0, containerWidth - 32) // Message rows add horizontal padding
+        return max(260, usable * 0.78)
+    }
+
+    private func resolvedSystemPrompt(conversationSystemPrompt: String?, assistant: AssistantEntity?) -> String? {
+        let conversationPrompt = conversationSystemPrompt?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let assistantPrompt = assistant?.systemInstruction.trimmingCharacters(in: .whitespacesAndNewlines)
+        let replyLanguage = assistant?.replyLanguage?.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        var prompt = conversationPrompt
+        if prompt?.isEmpty != false {
+            prompt = assistantPrompt
+        }
+
+        if let replyLanguage, !replyLanguage.isEmpty {
+            if prompt?.isEmpty != false {
+                prompt = "Always reply in \(replyLanguage)."
+            } else {
+                prompt = "\(prompt!)\n\nAlways reply in \(replyLanguage)."
+            }
+        }
+
+        let trimmed = prompt?.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed?.isEmpty == false ? trimmed : nil
+    }
+
+    private func truncatedHistory(_ history: [Message], contextWindow: Int, reservedOutputTokens: Int) -> [Message] {
+        guard contextWindow > 0 else { return history }
+
+        let effectiveReserved = min(max(0, reservedOutputTokens), contextWindow)
+        let budget = max(0, contextWindow - effectiveReserved)
+
+        guard history.count > 2 else { return history }
+
+        var prefix: [Message] = []
+        var index = 0
+        while index < history.count, history[index].role == .system {
+            prefix.append(history[index])
+            index += 1
+        }
+
+        var totalTokens = prefix.reduce(0) { $0 + approximateTokenCount(for: $1) }
+        var tail: [Message] = []
+
+        for message in history[index...].reversed() {
+            let tokens = approximateTokenCount(for: message)
+            if totalTokens + tokens <= budget || tail.isEmpty {
+                tail.append(message)
+                totalTokens += tokens
+                continue
+            }
+            break
+        }
+
+        return prefix + tail.reversed()
+    }
+
+    private func approximateTokenCount(for message: Message) -> Int {
+        var tokens = 4 // role/metadata overhead
+
+        for part in message.content {
+            tokens += approximateTokenCount(for: part)
+        }
+
+        if let toolCalls = message.toolCalls {
+            for call in toolCalls {
+                tokens += approximateTokenCount(for: call.name)
+                for (key, value) in call.arguments {
+                    tokens += approximateTokenCount(for: key)
+                    tokens += approximateTokenCount(for: String(describing: value.value))
+                }
+                if let signature = call.signature {
+                    tokens += approximateTokenCount(for: signature)
+                }
+            }
+        }
+
+        if let toolResults = message.toolResults {
+            for result in toolResults {
+                if let toolName = result.toolName {
+                    tokens += approximateTokenCount(for: toolName)
+                }
+                tokens += approximateTokenCount(for: result.content)
+                if let signature = result.signature {
+                    tokens += approximateTokenCount(for: signature)
+                }
+            }
+        }
+
+        return tokens
+    }
+
+    private func approximateTokenCount(for part: ContentPart) -> Int {
+        switch part {
+        case .text(let text):
+            return approximateTokenCount(for: text)
+        case .thinking(let thinking):
+            return approximateTokenCount(for: thinking.text)
+        case .redactedThinking:
+            return 16
+        case .image(let image):
+            if image.data != nil { return 1024 }
+            if image.url != nil { return 256 }
+            return 256
+        case .file(let file):
+            return approximateTokenCount(for: file.filename) + 256
+        case .audio:
+            return 1024
+        }
+    }
+
+    private func approximateTokenCount(for text: String) -> Int {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return 0 }
+        return max(1, trimmed.count / 4)
+    }
+
     private func sendMessage() {
         if isStreaming {
             streamingTask?.cancel()
@@ -570,9 +699,23 @@ struct ChatView: View {
         let baseHistory = conversationEntity.messages
             .sorted(by: { $0.timestamp < $1.timestamp })
             .compactMap { try? $0.toDomain() }
-        let systemPrompt = conversationEntity.systemPrompt?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let controlsToUse: GenerationControls = (try? JSONDecoder().decode(GenerationControls.self, from: conversationEntity.modelConfigData))
+        let assistant = conversationEntity.assistant
+        let systemPrompt = resolvedSystemPrompt(
+            conversationSystemPrompt: conversationEntity.systemPrompt,
+            assistant: assistant
+        )
+        var controlsToUse: GenerationControls = (try? JSONDecoder().decode(GenerationControls.self, from: conversationEntity.modelConfigData))
             ?? controls
+        if let assistant {
+            controlsToUse.temperature = assistant.temperature
+            if let maxOutputTokens = assistant.maxOutputTokens {
+                controlsToUse.maxTokens = maxOutputTokens
+            }
+        }
+
+        let shouldTruncateMessages = assistant?.truncateMessages ?? false
+        let modelContextWindow = selectedModelInfo?.contextWindow ?? 128000
+        let reservedOutputTokens = max(0, controlsToUse.maxTokens ?? 2048)
         let mcpServerConfigs = resolvedMCPServerConfigs(for: controlsToUse)
         let modelID = conversationEntity.modelID
 
@@ -585,6 +728,13 @@ struct ChatView: View {
                 var history = baseHistory
                 if let systemPrompt, !systemPrompt.isEmpty {
                     history.insert(Message(role: .system, content: [.text(systemPrompt)]), at: 0)
+                }
+                if shouldTruncateMessages {
+                    history = truncatedHistory(
+                        history,
+                        contextWindow: modelContextWindow,
+                        reservedOutputTokens: reservedOutputTokens
+                    )
                 }
 
                 let providerManager = ProviderManager()
@@ -1202,6 +1352,7 @@ struct ChatView: View {
 
 struct MessageRow: View {
     let messageEntity: MessageEntity
+    let maxBubbleWidth: CGFloat
 
     var body: some View {
         let isUser = messageEntity.role == "user"
@@ -1212,53 +1363,54 @@ struct MessageRow: View {
                 Spacer()
             }
 
-            VStack(alignment: .leading, spacing: 6) {
-                // Header (Sender Name)
-                HStack(spacing: 6) {
-                    if !isUser && !isTool {
-                         Image(systemName: "sparkles")
-                            .font(.caption2)
-                            .foregroundStyle(Color.accentColor)
-                    }
-                    Text(isUser ? "You" : (isTool ? "Tool Output" : "Assistant"))
-                        .font(.caption)
-                        .fontWeight(.semibold)
-                        .foregroundStyle(.secondary)
-                    
-                    if isTool {
-                        Image(systemName: "hammer")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                .padding(.horizontal, 12)
-                .padding(.top, 4)
-
-                // Message Content
-                VStack(alignment: .leading, spacing: 8) {
-                    if let message = try? messageEntity.toDomain() {
-                        ForEach(Array(message.content.enumerated()), id: \.offset) { _, part in
-                            ContentPartView(part: part)
+            ConstrainedWidth(maxBubbleWidth) {
+                VStack(alignment: .leading, spacing: 6) {
+                    // Header (Sender Name)
+                    HStack(spacing: 6) {
+                        if !isUser && !isTool {
+                            Image(systemName: "sparkles")
+                                .font(.caption2)
+                                .foregroundStyle(Color.accentColor)
                         }
+                        Text(isUser ? "You" : (isTool ? "Tool Output" : "Assistant"))
+                            .font(.caption)
+                            .fontWeight(.semibold)
+                            .foregroundStyle(.secondary)
+                        
+                        if isTool {
+                            Image(systemName: "hammer")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.top, 4)
 
-                        if let toolCalls = message.toolCalls, !toolCalls.isEmpty {
-                            VStack(alignment: .leading, spacing: 8) {
-                                ForEach(toolCalls) { call in
-                                    ToolCallView(toolCall: call)
+                    // Message Content
+                    VStack(alignment: .leading, spacing: 8) {
+                        if let message = try? messageEntity.toDomain() {
+                            ForEach(Array(message.content.enumerated()), id: \.offset) { _, part in
+                                ContentPartView(part: part)
+                            }
+
+                            if let toolCalls = message.toolCalls, !toolCalls.isEmpty {
+                                VStack(alignment: .leading, spacing: 8) {
+                                    ForEach(toolCalls) { call in
+                                        ToolCallView(toolCall: call)
+                                    }
                                 }
                             }
                         }
                     }
+                    .padding(12)
+                    .background(bubbleBackground(isUser: isUser, isTool: isTool))
+                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10)
+                            .stroke(Color(nsColor: .separatorColor), lineWidth: 0.5)
+                    )
                 }
-                .padding(12)
-                .background(bubbleBackground(isUser: isUser, isTool: isTool))
-                .clipShape(RoundedRectangle(cornerRadius: 10))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 10)
-                        .stroke(Color(nsColor: .separatorColor), lineWidth: 0.5)
-                )
             }
-            .frame(maxWidth: 800, alignment: isUser ? .trailing : .leading)
             .padding(.horizontal, 16)
             
             if !isUser {
@@ -1410,63 +1562,63 @@ struct ToolCallView: View {
 
 struct StreamingMessageView: View {
     @ObservedObject var state: StreamingMessageState
+    let maxBubbleWidth: CGFloat
 
     var body: some View {
         HStack(alignment: .top, spacing: 0) {
-            VStack(alignment: .leading, spacing: 6) {
-                HStack(spacing: 6) {
-                    Image(systemName: "sparkles")
-                        .font(.caption2)
-                        .foregroundStyle(Color.accentColor)
-                    Text("Assistant")
-                        .font(.caption)
-                        .fontWeight(.semibold)
-                        .foregroundStyle(.secondary)
-                }
-                .padding(.horizontal, 12)
-                .padding(.top, 4)
+            ConstrainedWidth(maxBubbleWidth) {
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "sparkles")
+                            .font(.caption2)
+                            .foregroundStyle(Color.accentColor)
+                        Text("Assistant")
+                            .font(.caption)
+                            .fontWeight(.semibold)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.top, 4)
 
-                VStack(alignment: .leading, spacing: 8) {
-                    if !state.thinkingContent.isEmpty {
-                        DisclosureGroup(isExpanded: .constant(true)) {
-                            Text(state.thinkingContent)
-                                .font(.system(.caption, design: .monospaced))
-                                .foregroundStyle(.secondary)
-                                .padding(8)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .background(Color(nsColor: .textBackgroundColor))
-                                .cornerRadius(6)
-                        } label: {
-                            HStack {
+                    VStack(alignment: .leading, spacing: 8) {
+                        if !state.thinkingContent.isEmpty {
+                            DisclosureGroup(isExpanded: .constant(true)) {
+                                Text(state.thinkingContent)
+                                    .font(.system(.caption, design: .monospaced))
+                                    .foregroundStyle(.secondary)
+                                    .padding(8)
+                                    .background(Color(nsColor: .textBackgroundColor))
+                                    .cornerRadius(6)
+                            } label: {
+                                HStack {
+                                    ProgressView().scaleEffect(0.5)
+                                    Text("Thinking...")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                        }
+
+                        if !state.textContent.isEmpty {
+                            MessageTextView(text: state.textContent, mode: .plainText)
+                        } else if state.thinkingContent.isEmpty {
+                            HStack(spacing: 6) {
                                 ProgressView().scaleEffect(0.5)
-                                Text("Thinking...")
+                                Text("Generating...")
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                             }
                         }
                     }
-
-                    if !state.textContent.isEmpty {
-                        MessageTextView(text: state.textContent, mode: .plainText)
-                    } else if state.thinkingContent.isEmpty {
-                        HStack(spacing: 6) {
-                            ProgressView().scaleEffect(0.5)
-                            Text("Generating...")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
+                    .padding(12)
+                    .background(Color(nsColor: .controlBackgroundColor))
+                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10)
+                            .stroke(Color(nsColor: .separatorColor), lineWidth: 0.5)
+                    )
                 }
-                .padding(12)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Color(nsColor: .controlBackgroundColor))
-                .clipShape(RoundedRectangle(cornerRadius: 10))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 10)
-                        .stroke(Color(nsColor: .separatorColor), lineWidth: 0.5)
-                )
             }
-            .frame(maxWidth: 800)
             .padding(.horizontal, 16)
             
             Spacer()

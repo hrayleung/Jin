@@ -581,6 +581,11 @@ private struct EnvPair: Identifiable, Equatable {
 }
 
 struct GeneralSettingsView: View {
+    @Environment(\.modelContext) private var modelContext
+    @Query private var conversations: [ConversationEntity]
+
+    @State private var showingDeleteAllChatsConfirmation = false
+
     var body: some View {
         Form {
             Section("Appearance") {
@@ -595,9 +600,25 @@ struct GeneralSettingsView: View {
             Section("Data") {
                 Button("Clear All Caches") {}
                 Button("Reset All Settings") {}
+                Button("Delete All Chats", role: .destructive) {
+                    showingDeleteAllChatsConfirmation = true
+                }
             }
         }
         .formStyle(.grouped)
         .padding()
+        .confirmationDialog("Delete all chats?", isPresented: $showingDeleteAllChatsConfirmation) {
+            Button("Delete All Chats", role: .destructive) {
+                deleteAllChats()
+            }
+        } message: {
+            Text("This will permanently delete all chats across all assistants.")
+        }
+    }
+
+    private func deleteAllChats() {
+        for conversation in conversations {
+            modelContext.delete(conversation)
+        }
     }
 }
