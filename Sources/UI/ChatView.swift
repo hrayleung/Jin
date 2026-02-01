@@ -1116,10 +1116,7 @@ struct ContentPartView: View {
     var body: some View {
         switch part {
         case .text(let text):
-            Text(text)
-                .font(.body)
-                .textSelection(.enabled)
-                .fixedSize(horizontal: false, vertical: true)
+            MessageTextView(text: text)
 
         case .thinking(let thinking):
             ThinkingBlockView(thinking: thinking)
@@ -1224,10 +1221,7 @@ struct StreamingMessageView: View {
                     }
 
                     if !state.textContent.isEmpty {
-                        Text(state.textContent)
-                            .font(.body)
-                            .textSelection(.enabled)
-                            .fixedSize(horizontal: false, vertical: true)
+                        MessageTextView(text: state.textContent, mode: .plainText)
                     } else if state.thinkingContent.isEmpty {
                         HStack(spacing: 6) {
                             ProgressView().scaleEffect(0.5)

@@ -15,6 +15,12 @@ mkdir -p "$DIST"
 export CLANG_MODULE_CACHE_PATH="$ROOT/.build/ModuleCache"
 mkdir -p "$CLANG_MODULE_CACHE_PATH"
 
+echo "Cleaning stale SwiftPM resource bundles…"
+shopt -s nullglob
+for bundle in "$ROOT/.build/release"/*.bundle; do
+  rm -rf "$bundle"
+done
+
 echo "Building (Release)…"
 swift build -c release --disable-sandbox
 
@@ -29,6 +35,12 @@ mkdir -p "$APP_BUNDLE/Contents/MacOS" "$APP_BUNDLE/Contents/Resources"
 cp "$BIN" "$APP_BUNDLE/Contents/MacOS/$APP_NAME"
 chmod +x "$APP_BUNDLE/Contents/MacOS/$APP_NAME"
 cp "$ROOT/Packaging/Info.plist" "$APP_BUNDLE/Contents/Info.plist"
+
+echo "Copying SwiftPM resource bundles…"
+shopt -s nullglob
+for bundle in "$ROOT/.build/release"/*.bundle; do
+  cp -R "$bundle" "$APP_BUNDLE/"
+done
 
 if [[ "${1-}" == "dmg" ]]; then
   echo "Creating .dmg…"
