@@ -1,6 +1,26 @@
 import SwiftUI
 import SwiftData
 
+private enum AssistantSidebarLayout: String {
+    case list
+    case grid
+    case dropdown
+}
+
+private enum AssistantSidebarSort: String, CaseIterable {
+    case custom
+    case name
+    case recent
+
+    var label: String {
+        switch self {
+        case .custom: return "Custom"
+        case .name: return "Name"
+        case .recent: return "Recent"
+        }
+    }
+}
+
 struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \AssistantEntity.sortOrder, order: .forward) private var assistants: [AssistantEntity]
@@ -17,88 +37,27 @@ struct ContentView: View {
     @State private var showingDeleteAssistantConfirmation = false
     @State private var conversationPendingDeletion: ConversationEntity?
     @State private var showingDeleteConversationConfirmation = false
+    @AppStorage("assistantSidebarLayout") private var assistantSidebarLayoutRaw = AssistantSidebarLayout.grid.rawValue
+    @AppStorage("assistantSidebarSort") private var assistantSidebarSortRaw = AssistantSidebarSort.custom.rawValue
+    @AppStorage("assistantSidebarShowName") private var assistantSidebarShowName = true
+    @AppStorage("assistantSidebarShowIcon") private var assistantSidebarShowIcon = true
+    @AppStorage("assistantSidebarGridColumns") private var assistantSidebarGridColumns = 3
 
     var body: some View {
         NavigationSplitView {
-            // Sidebar: Conversation list
-            VStack(spacing: 0) {
-                sidebarSearchField
-                    .padding(.horizontal, 12)
-                    .padding(.top, 12)
-
-                assistantPicker
-                    .padding(.horizontal, 12)
-                    .padding(.top, 8)
-                    .padding(.bottom, 8)
-
-                Divider()
-
-                List(selection: $selectedConversation) {
-                    if !filteredConversations.isEmpty {
-                        ForEach(groupedConversations, id: \.key) { period, convs in
-                            Section(period) {
-                                ForEach(convs) { conversation in
-                                    NavigationLink(value: conversation) {
-                                        ConversationRowView(
-                                            title: conversation.title,
-                                            subtitle: "\(providerName(for: conversation.providerID)) • \(conversation.modelID)",
-                                            updatedAt: conversation.updatedAt
-                                        )
-                                    }
-                                    .contextMenu {
-                                        Button {
-                                            isAssistantInspectorPresented = true
-                                        } label: {
-                                            Label("Assistant Settings", systemImage: "sidebar.right")
-                                        }
-
-                                        Divider()
-
-                                        Button(role: .destructive) {
-                                            requestDeleteConversation(conversation)
-                                        } label: {
-                                            Label("Delete Chat", systemImage: "trash")
-                                        }
-                                    }
-                                }
-                                .onDelete { indexSet in
-                                    deleteConversations(at: indexSet, in: convs)
-                                }
-                            }
-                        }
-                    } else if !searchText.isEmpty {
-                        ContentUnavailableView.search(text: searchText)
-                    } else {
-                         ContentUnavailableView {
-                            Label("No Conversations", systemImage: "bubble.left.and.bubble.right")
-                        } description: {
-                            Text("Start a new chat to begin.")
-                        }
-                    }
-                }
-                .listStyle(.sidebar)
-                
-                // Bottom New Chat Button
-                Divider()
-                HStack {
-                    Button(action: createNewConversation) {
-                        Label("New Chat", systemImage: "square.and.pencil")
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.large)
-                    .padding()
-                }
-                .background(Color(nsColor: .controlBackgroundColor))
+            List(selection: $selectedConversation) {
+                assistantsSection
+                chatsSection
             }
+            .listStyle(.sidebar)
+            .searchable(text: $searchText, placement: .sidebar, prompt: "Search chats")
             .navigationSplitViewColumnWidth(min: 220, ideal: 260, max: 320)
-            .navigationTitle(selectedAssistant?.displayName ?? "Conversations")
+            .navigationTitle("Chats")
+            .navigationSubtitle(selectedAssistant?.displayName ?? "Default")
             .toolbar {
                 ToolbarItemGroup(placement: .primaryAction) {
-                    Button {
-                        isAssistantInspectorPresented.toggle()
-                    } label: {
-                        Label("Assistant Settings", systemImage: "sidebar.right")
+                    Button(action: createNewConversation) {
+                        Label("New Chat", systemImage: "square.and.pencil")
                     }
 
                     SettingsLink {
@@ -112,7 +71,8 @@ struct ContentView: View {
                     conversationEntity: conversation,
                     onRequestDeleteConversation: {
                         requestDeleteConversation(conversation)
-                    }
+                    },
+                    isAssistantInspectorPresented: $isAssistantInspectorPresented
                 )
                     .id(conversation.id) // Ensure view rebuilds when switching
             } else {
@@ -125,6 +85,18 @@ struct ContentView: View {
                         createNewConversation()
                     }
                     .buttonStyle(.borderedProminent)
+                }
+                .toolbar {
+                    ToolbarItem(placement: .primaryAction) {
+                        Button {
+                            withAnimation(.easeInOut(duration: 0.15)) {
+                                isAssistantInspectorPresented.toggle()
+                            }
+                        } label: {
+                            Image(systemName: "sidebar.right")
+                        }
+                        .help("Assistant Settings")
+                    }
                 }
             }
         }
@@ -164,6 +136,91 @@ struct ContentView: View {
     }
 
     // MARK: - Helpers
+
+    private var assistantSidebarLayout: AssistantSidebarLayout {
+        AssistantSidebarLayout(rawValue: assistantSidebarLayoutRaw) ?? .grid
+    }
+
+    private var assistantSidebarSort: AssistantSidebarSort {
+        AssistantSidebarSort(rawValue: assistantSidebarSortRaw) ?? .custom
+    }
+
+    private var assistantSidebarGridColumnCount: Int {
+        max(1, min(assistantSidebarGridColumns, 4))
+    }
+
+    private var assistantSidebarEffectiveShowName: Bool {
+        assistantSidebarShowName
+    }
+
+    private var assistantSidebarEffectiveShowIcon: Bool {
+        assistantSidebarShowIcon || !assistantSidebarShowName
+    }
+
+    private var displayedAssistants: [AssistantEntity] {
+        switch assistantSidebarSort {
+        case .custom:
+            return assistants
+        case .name:
+            return assistants.sorted {
+                $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending
+            }
+        case .recent:
+            let lastConversationByAssistantID = Dictionary(grouping: conversations) { conversation in
+                conversation.assistant?.id ?? "default"
+            }
+            .mapValues { conversations in
+                conversations.map(\.updatedAt).max() ?? Date.distantPast
+            }
+
+            return assistants.sorted { lhs, rhs in
+                let lhsDate = lastConversationByAssistantID[lhs.id] ?? Date.distantPast
+                let rhsDate = lastConversationByAssistantID[rhs.id] ?? Date.distantPast
+                if lhsDate != rhsDate { return lhsDate > rhsDate }
+                return lhs.sortOrder < rhs.sortOrder
+            }
+        }
+    }
+
+    private var selectedAssistantIDBinding: Binding<String> {
+        Binding(
+            get: { selectedAssistant?.id ?? "default" },
+            set: { newValue in
+                guard let assistant = assistants.first(where: { $0.id == newValue }) else { return }
+                selectAssistant(assistant)
+            }
+        )
+    }
+
+    private var assistantSidebarGridColumnsBinding: Binding<Int> {
+        Binding(
+            get: { assistantSidebarGridColumnCount },
+            set: { newValue in
+                assistantSidebarLayoutRaw = AssistantSidebarLayout.grid.rawValue
+                assistantSidebarGridColumns = newValue
+            }
+        )
+    }
+
+    private var assistantSidebarUsesDropdownBinding: Binding<Bool> {
+        Binding(
+            get: { assistantSidebarLayout == .dropdown },
+            set: { newValue in
+                assistantSidebarLayoutRaw = newValue
+                    ? AssistantSidebarLayout.dropdown.rawValue
+                    : AssistantSidebarLayout.grid.rawValue
+            }
+        )
+    }
+
+    private var assistantSidebarSortBinding: Binding<AssistantSidebarSort> {
+        Binding(
+            get: { assistantSidebarSort },
+            set: { newValue in
+                assistantSidebarSortRaw = newValue.rawValue
+            }
+        )
+    }
 
     private var groupedConversations: [(key: String, value: [ConversationEntity])] {
         let filtered = filteredConversations
@@ -277,9 +334,11 @@ struct ContentView: View {
     }
 
     private func selectAssistant(_ assistant: AssistantEntity) {
-        selectedAssistant = assistant
-        if let selectedConversation, selectedConversation.assistant?.id != assistant.id {
-            self.selectedConversation = nil
+        withAnimation(.easeInOut(duration: 0.15)) {
+            selectedAssistant = assistant
+            if let selectedConversation, selectedConversation.assistant?.id != assistant.id {
+                self.selectedConversation = nil
+            }
         }
     }
 
@@ -344,6 +403,28 @@ struct ContentView: View {
             selectedConversation = nil
         }
         conversationPendingDeletion = nil
+    }
+
+    @ViewBuilder
+    private func assistantContextMenu(for assistant: AssistantEntity) -> some View {
+        Button {
+            selectAssistant(assistant)
+            withAnimation(.easeInOut(duration: 0.15)) {
+                isAssistantInspectorPresented = true
+            }
+        } label: {
+            Label("Assistant Settings", systemImage: "sidebar.right")
+        }
+
+        Divider()
+
+        Button(role: .destructive) {
+            selectAssistant(assistant)
+            requestDeleteAssistant(assistant)
+        } label: {
+            Label("Delete Assistant", systemImage: "trash")
+        }
+        .disabled(assistant.id == "default")
     }
 
     @MainActor
@@ -530,130 +611,296 @@ private struct ConversationRowView: View {
     }
 }
 
-private extension AssistantEntity {
-    var displayName: String {
-        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? id : trimmed
-    }
-}
-
 private extension ContentView {
-    var sidebarSearchField: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "magnifyingglass")
-                .foregroundStyle(.secondary)
-                .font(.system(size: 13))
-
-            TextField("Search", text: $searchText)
-                .textFieldStyle(.plain)
+    var conversationCountsByAssistantID: [String: Int] {
+        Dictionary(grouping: conversations) { conversation in
+            conversation.assistant?.id ?? "default"
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 8)
-        .background(Color(nsColor: .controlBackgroundColor))
-        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .mapValues(\.count)
     }
 
-    var assistantPicker: some View {
-        LazyVGrid(columns: [GridItem(.adaptive(minimum: 84), spacing: 8)], spacing: 8) {
-            ForEach(assistants) { assistant in
-                AssistantTileView(
-                    assistant: assistant,
-                    isSelected: selectedAssistant?.id == assistant.id,
-                    onSelect: { selectAssistant(assistant) },
-                    onOpenSettings: { isAssistantInspectorPresented = true },
-                    onRequestDelete: { requestDeleteAssistant(assistant) }
-                )
+    @ViewBuilder
+    var assistantsSection: some View {
+        Section {
+            switch assistantSidebarLayout {
+            case .dropdown:
+                HStack(spacing: 8) {
+                    Text("Assistant")
+                        .foregroundStyle(.secondary)
+                    Spacer(minLength: 8)
+                    Picker("", selection: selectedAssistantIDBinding) {
+                        ForEach(displayedAssistants) { assistant in
+                            Text(assistant.displayName).tag(assistant.id)
+                        }
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.menu)
+                }
+                .listRowInsets(EdgeInsets(top: 6, leading: 10, bottom: 6, trailing: 10))
+
+            case .grid:
+                LazyVGrid(
+                    columns: Array(
+                        repeating: GridItem(.flexible(minimum: 44), spacing: 8),
+                        count: assistantSidebarGridColumnCount
+                    ),
+                    spacing: 8
+                ) {
+                    ForEach(displayedAssistants) { assistant in
+                        let isSelected = selectedAssistant?.id == assistant.id
+                        Button {
+                            selectAssistant(assistant)
+                        } label: {
+                            AssistantTileView(
+                                assistant: assistant,
+                                isSelected: isSelected,
+                                showsName: assistantSidebarEffectiveShowName,
+                                showsIcon: assistantSidebarEffectiveShowIcon
+                            )
+                        }
+                        .buttonStyle(.plain)
+                        .contextMenu { assistantContextMenu(for: assistant) }
+                    }
+                }
+                .listRowInsets(EdgeInsets(top: 8, leading: 10, bottom: 8, trailing: 10))
+
+            case .list:
+                ForEach(displayedAssistants) { assistant in
+                    let isSelected = selectedAssistant?.id == assistant.id
+                    Button {
+                        selectAssistant(assistant)
+                    } label: {
+                        AssistantRowView(
+                            assistant: assistant,
+                            chatCount: conversationCountsByAssistantID[assistant.id, default: 0],
+                            isSelected: isSelected
+                        )
+                    }
+                    .buttonStyle(.plain)
+                    .listRowBackground(isSelected ? Color.accentColor.opacity(0.10) : Color.clear)
+                    .contextMenu { assistantContextMenu(for: assistant) }
+                }
             }
 
             Button {
                 createAssistant()
             } label: {
-                HStack(spacing: 8) {
-                    Image(systemName: "plus")
-                        .foregroundStyle(.secondary)
-                        .frame(width: 16)
-
-                    Text("New")
-                        .font(.system(.caption, design: .default))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-
-                    Spacer(minLength: 0)
-                }
-                .padding(.horizontal, 10)
-                .padding(.vertical, 8)
-                .frame(maxWidth: .infinity)
-                .background(Color(nsColor: .controlBackgroundColor).opacity(0.001))
-                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                Label("New Assistant", systemImage: "plus")
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.vertical, 4)
             }
             .buttonStyle(.plain)
-            .help("Create a new assistant")
+            .foregroundStyle(.secondary)
+            .help("New Assistant")
+        } header: {
+            HStack {
+                Text("Assistants")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Menu {
+                    Toggle("Assistant Name", isOn: $assistantSidebarShowName)
+                        .disabled(assistantSidebarShowName && !assistantSidebarShowIcon)
+                    Toggle("Assistant Icon", isOn: $assistantSidebarShowIcon)
+                        .disabled(assistantSidebarShowIcon && !assistantSidebarShowName)
+
+                    Divider()
+
+                    Picker("", selection: assistantSidebarGridColumnsBinding) {
+                        Text("1 Column").tag(1)
+                        Text("2 Columns").tag(2)
+                        Text("3 Columns").tag(3)
+                        Text("4 Columns").tag(4)
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.inline)
+
+                    Divider()
+
+                    Toggle("Dropdown View", isOn: assistantSidebarUsesDropdownBinding)
+
+                    Divider()
+
+                    Menu("Sort") {
+                        Picker("", selection: assistantSidebarSortBinding) {
+                            ForEach(AssistantSidebarSort.allCases, id: \.rawValue) { option in
+                                Text(option.label).tag(option)
+                            }
+                        }
+                        .labelsHidden()
+                        .pickerStyle(.inline)
+                    }
+
+                    SettingsLink {
+                        Text("Settings")
+                    }
+                } label: {
+                    Image(systemName: "slider.horizontal.3")
+                }
+                .buttonStyle(.borderless)
+                .menuIndicator(.hidden)
+                .help("Assistant view options")
+            }
         }
+    }
+
+    @ViewBuilder
+    var chatsSection: some View {
+        if !filteredConversations.isEmpty {
+            ForEach(groupedConversations, id: \.key) { period, convs in
+                Section(period) {
+                    ForEach(convs) { conversation in
+                        NavigationLink(value: conversation) {
+                            ConversationRowView(
+                                title: conversation.title,
+                                subtitle: "\(providerName(for: conversation.providerID)) • \(conversation.modelID)",
+                                updatedAt: conversation.updatedAt
+                            )
+                        }
+                        .contextMenu {
+                            Button(role: .destructive) {
+                                requestDeleteConversation(conversation)
+                            } label: {
+                                Label("Delete Chat", systemImage: "trash")
+                            }
+                        }
+                    }
+                    .onDelete { indexSet in
+                        deleteConversations(at: indexSet, in: convs)
+                    }
+                }
+            }
+        } else if !searchText.isEmpty {
+            ContentUnavailableView.search(text: searchText)
+        } else {
+            ContentUnavailableView {
+                Label("No Conversations", systemImage: "bubble.left.and.bubble.right")
+            } description: {
+                Text("Start a new chat to begin.")
+            }
+        }
+    }
+}
+
+private struct AssistantRowView: View {
+    let assistant: AssistantEntity
+    let chatCount: Int
+    let isSelected: Bool
+
+    var body: some View {
+        HStack(spacing: 10) {
+            assistantIconView
+                .foregroundStyle(isSelected ? Color.accentColor : .secondary)
+                .frame(width: 22, height: 22)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(assistant.displayName)
+                    .font(.system(.body, design: .default))
+                    .fontWeight(.medium)
+                    .lineLimit(1)
+
+                if let description = assistant.assistantDescription?.trimmingCharacters(in: .whitespacesAndNewlines), !description.isEmpty {
+                    Text(description)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+            }
+
+            Spacer(minLength: 0)
+
+            if chatCount > 0 {
+                Text("\(chatCount)")
+                    .font(.system(.caption, design: .monospaced))
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(
+                        Capsule(style: .continuous)
+                            .fill(Color.secondary.opacity(0.08))
+                    )
+                    .accessibilityLabel("\(chatCount) chats")
+            }
+        }
+        .padding(.vertical, 4)
+    }
+
+    private var assistantIconView: some View {
+        let trimmed = (assistant.icon ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        return Group {
+            if trimmed.isEmpty {
+                Image(systemName: "person.crop.circle")
+            } else if trimmed.count <= 2 {
+                Text(trimmed)
+            } else {
+                Image(systemName: trimmed)
+            }
+        }
+        .font(.system(size: 16, weight: .semibold))
     }
 }
 
 private struct AssistantTileView: View {
     let assistant: AssistantEntity
     let isSelected: Bool
-    let onSelect: () -> Void
-    let onOpenSettings: () -> Void
-    let onRequestDelete: () -> Void
+    let showsName: Bool
+    let showsIcon: Bool
 
     var body: some View {
-        Button(action: onSelect) {
-            HStack(spacing: 8) {
-                assistantIconView
-                    .foregroundStyle(.secondary)
-                    .frame(width: 16)
+        VStack(spacing: showsIcon && showsName ? 4 : 0) {
+            if showsIcon {
+                assistantIcon
+                    .frame(width: 24, height: 24)
+                    .foregroundStyle(isSelected ? Color.accentColor : .primary)
+            }
 
+            if showsName {
                 Text(assistant.displayName)
-                    .font(.system(.caption, design: .default))
+                    .font(.caption)
                     .lineLimit(1)
-
-                Spacer(minLength: 0)
+                    .minimumScaleFactor(0.8)
+                    .foregroundStyle(.primary)
             }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 8)
-            .frame(maxWidth: .infinity)
-            .background(backgroundColor)
-            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
         }
-        .buttonStyle(.plain)
-        .help(assistant.assistantDescription ?? "")
-        .contextMenu {
-            Button {
-                onOpenSettings()
-            } label: {
-                Label("Assistant Settings", systemImage: "sidebar.right")
-            }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 6)
+        .padding(.horizontal, 6)
+        .background(tileBackground)
+        .overlay(tileBorder)
+        .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+    }
 
-            Divider()
+    private var tileBackground: some View {
+        RoundedRectangle(cornerRadius: 10, style: .continuous)
+            .fill(
+                isSelected
+                    ? Color.accentColor.opacity(0.14)
+                    : Color(nsColor: .controlBackgroundColor)
+            )
+    }
 
-            Button(role: .destructive) {
-                onRequestDelete()
-            } label: {
-                Label("Delete Assistant", systemImage: "trash")
-            }
-            .disabled(assistant.id == "default")
-        }
+    private var tileBorder: some View {
+        RoundedRectangle(cornerRadius: 10, style: .continuous)
+            .stroke(
+                isSelected
+                    ? Color.accentColor.opacity(0.35)
+                    : Color(nsColor: .separatorColor).opacity(0.25),
+                lineWidth: 1
+            )
     }
 
     @ViewBuilder
-    private var assistantIconView: some View {
+    private var assistantIcon: some View {
         let trimmed = (assistant.icon ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmed.isEmpty {
             Image(systemName: "person.crop.circle")
+                .font(.system(size: 18, weight: .semibold))
         } else if trimmed.count <= 2 {
             Text(trimmed)
+                .font(.system(size: 18, weight: .semibold))
         } else {
             Image(systemName: trimmed)
+                .font(.system(size: 18, weight: .semibold))
         }
-    }
-
-    private var backgroundColor: Color {
-        if isSelected {
-            return Color.accentColor.opacity(0.12)
-        }
-        return Color(nsColor: .controlBackgroundColor).opacity(0.001)
     }
 }

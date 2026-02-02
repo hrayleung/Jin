@@ -130,12 +130,20 @@ struct FileContent: Codable {
     let filename: String
     let data: Data?
     let url: URL?
+    let extractedText: String?
 
-    init(mimeType: String, filename: String, data: Data? = nil, url: URL? = nil) {
+    init(
+        mimeType: String,
+        filename: String,
+        data: Data? = nil,
+        url: URL? = nil,
+        extractedText: String? = nil
+    ) {
         self.mimeType = mimeType
         self.filename = filename
         self.data = data
         self.url = url
+        self.extractedText = extractedText
     }
 }
 

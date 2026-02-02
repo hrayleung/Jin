@@ -386,8 +386,24 @@ actor VertexAIAdapter: LLMProviderAdapter {
                                 "data": data.base64EncodedString()
                             ]
                         ])
+                    } else if let url = image.url, url.isFileURL, let data = try? Data(contentsOf: url) {
+                        parts.append([
+                            "inlineData": [
+                                "mimeType": image.mimeType,
+                                "data": data.base64EncodedString()
+                            ]
+                        ])
                     }
-                case .thinking, .redactedThinking, .file, .audio:
+                case .file(let file):
+                    let extracted = file.extractedText?.trimmingCharacters(in: .whitespacesAndNewlines)
+                    let text: String
+                    if let extracted, !extracted.isEmpty {
+                        text = "Attachment: \(file.filename) (\(file.mimeType))\n\n\(extracted)"
+                    } else {
+                        text = "Attachment: \(file.filename) (\(file.mimeType))"
+                    }
+                    parts.append(["text": text])
+                case .thinking, .redactedThinking, .audio:
                     break
                 }
             }

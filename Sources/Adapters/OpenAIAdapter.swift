@@ -283,21 +283,41 @@ actor OpenAIAdapter: LLMProviderAdapter {
             ]
 
         case .image(let image):
-            if let url = image.url {
-                return [
-                    "type": "input_image",
-                    "image_url": url.absoluteString
-                ]
-            }
             if let data = image.data {
                 return [
                     "type": "input_image",
                     "image_url": "data:\(image.mimeType);base64,\(data.base64EncodedString())"
                 ]
             }
+            if let url = image.url {
+                if url.isFileURL, let data = try? Data(contentsOf: url) {
+                    return [
+                        "type": "input_image",
+                        "image_url": "data:\(image.mimeType);base64,\(data.base64EncodedString())"
+                    ]
+                }
+                return [
+                    "type": "input_image",
+                    "image_url": url.absoluteString
+                ]
+            }
             return nil
 
-        case .thinking, .redactedThinking, .file, .audio:
+        case .file(let file):
+            let textType = (role == .assistant) ? "output_text" : "input_text"
+            let extracted = file.extractedText?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let text: String
+            if let extracted, !extracted.isEmpty {
+                text = "Attachment: \(file.filename) (\(file.mimeType))\n\n\(extracted)"
+            } else {
+                text = "Attachment: \(file.filename) (\(file.mimeType))"
+            }
+            return [
+                "type": textType,
+                "text": text
+            ]
+
+        case .thinking, .redactedThinking, .audio:
             return nil
         }
     }

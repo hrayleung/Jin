@@ -48,9 +48,9 @@ struct SettingsView: View {
             VStack(spacing: 0) {
                 switch selectedSection {
                 case .providers:
-                    providersList
+                    providersListWithActions
                 case .mcpServers:
-                    mcpServersList
+                    mcpServersListWithActions
                 case .general, .none:
                     Text("General")
                         .font(.headline)
@@ -60,25 +60,6 @@ struct SettingsView: View {
                 }
             }
             .navigationSplitViewColumnWidth(min: 200, ideal: 230, max: 260)
-            .toolbar {
-                if selectedSection == .providers {
-                    ToolbarItem(placement: .primaryAction) {
-                        Button {
-                            showingAddProvider = true
-                        } label: {
-                            Label("Add Provider", systemImage: "plus")
-                        }
-                    }
-                } else if selectedSection == .mcpServers {
-                    ToolbarItem(placement: .primaryAction) {
-                        Button {
-                            showingAddServer = true
-                        } label: {
-                            Label("Add Server", systemImage: "plus")
-                        }
-                    }
-                }
-            }
 
         } detail: {
             // Column 3: Configuration / Detail
@@ -148,6 +129,27 @@ struct SettingsView: View {
         .listStyle(.inset)
     }
 
+    private var providersListWithActions: some View {
+        VStack(spacing: 0) {
+            providersList
+
+            Divider()
+
+            HStack {
+                Button {
+                    showingAddProvider = true
+                } label: {
+                    Label("Add Provider", systemImage: "plus")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.large)
+                .padding(12)
+            }
+            .background(Color(nsColor: .controlBackgroundColor))
+        }
+    }
+
     // MARK: - MCP Servers List
     private var mcpServersList: some View {
         List(mcpServers, selection: $selectedServerID) { server in
@@ -173,6 +175,27 @@ struct SettingsView: View {
             }
         }
         .listStyle(.inset)
+    }
+
+    private var mcpServersListWithActions: some View {
+        VStack(spacing: 0) {
+            mcpServersList
+
+            Divider()
+
+            HStack {
+                Button {
+                    showingAddServer = true
+                } label: {
+                    Label("Add Server", systemImage: "plus")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.large)
+                .padding(12)
+            }
+            .background(Color(nsColor: .controlBackgroundColor))
+        }
     }
 }
 
@@ -588,18 +611,17 @@ struct GeneralSettingsView: View {
 
     var body: some View {
         Form {
-            Section("Appearance") {
-                Toggle("Always show in menu bar", isOn: .constant(true))
-                Picker("Theme", selection: .constant("System")) {
-                    Text("System").tag("System")
-                    Text("Dark").tag("Dark")
-                    Text("Light").tag("Light")
-                }
-            }
-            
             Section("Data") {
-                Button("Clear All Caches") {}
-                Button("Reset All Settings") {}
+                Text("These actions affect local data stored on this Mac.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+
+                LabeledContent("Chats") {
+                    Text("\(conversations.count)")
+                        .font(.system(.body, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                }
+
                 Button("Delete All Chats", role: .destructive) {
                     showingDeleteAllChatsConfirmation = true
                 }

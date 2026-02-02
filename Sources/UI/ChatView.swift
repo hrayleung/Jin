@@ -1,16 +1,22 @@
 import SwiftUI
 import SwiftData
 import AppKit
+import UniformTypeIdentifiers
+import PDFKit
 
 struct ChatView: View {
     @Environment(\.modelContext) private var modelContext
     @Bindable var conversationEntity: ConversationEntity
     let onRequestDeleteConversation: () -> Void
+    @Binding var isAssistantInspectorPresented: Bool
     @Query private var providers: [ProviderConfigEntity]
     @Query private var mcpServers: [MCPServerConfigEntity]
 
     @State private var controls: GenerationControls = GenerationControls()
     @State private var messageText = ""
+    @State private var draftAttachments: [DraftAttachment] = []
+    @State private var isFileImporterPresented = false
+    @State private var isComposerDropTargeted = false
     @State private var isStreaming = false
     @State private var streamingMessage: StreamingMessageState?
     @State private var streamingTask: Task<Void, Never>?
@@ -37,15 +43,27 @@ struct ChatView: View {
                 ScrollViewReader { proxy in
                     ScrollView {
                         let bubbleMaxWidth = maxBubbleWidth(for: geometry.size.width)
+                        let assistantDisplayName = conversationEntity.assistant?.displayName ?? "Assistant"
+                        let assistantIcon = conversationEntity.assistant?.icon
                         LazyVStack(alignment: .leading, spacing: 0) { // Zero spacing, controlled by padding in rows
                             ForEach(orderedMessages) { message in
-                                MessageRow(messageEntity: message, maxBubbleWidth: bubbleMaxWidth)
+                                MessageRow(
+                                    messageEntity: message,
+                                    maxBubbleWidth: bubbleMaxWidth,
+                                    assistantDisplayName: assistantDisplayName,
+                                    assistantIcon: assistantIcon
+                                )
                                     .id(message.id)
                             }
 
                             // Streaming message
                             if let streaming = streamingMessage {
-                                StreamingMessageView(state: streaming, maxBubbleWidth: bubbleMaxWidth)
+                                StreamingMessageView(
+                                    state: streaming,
+                                    maxBubbleWidth: bubbleMaxWidth,
+                                    assistantDisplayName: assistantDisplayName,
+                                    assistantIcon: assistantIcon
+                                )
                                     .id("streaming")
                             }
                             
@@ -67,18 +85,22 @@ struct ChatView: View {
 
             // Desktop-class Composer
             VStack(spacing: 8) {
-                if !messageText.isEmpty {
-                    HStack {
-                        Spacer()
-                        Text("\(messageText.count) chars")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                    }
-                    .padding(.horizontal)
-                }
-                
                 HStack(alignment: .bottom, spacing: 12) {
                     VStack(alignment: .leading, spacing: 6) {
+                        if !draftAttachments.isEmpty {
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                HStack(spacing: 8) {
+                                    ForEach(draftAttachments) { attachment in
+                                        DraftAttachmentChip(
+                                            attachment: attachment,
+                                            onRemove: { removeDraftAttachment(attachment) }
+                                        )
+                                    }
+                                }
+                                .padding(.horizontal, 2)
+                            }
+                        }
+
                         ZStack(alignment: .topLeading) {
                             if messageText.isEmpty {
                                 Text("Type a message...")
@@ -87,22 +109,32 @@ struct ChatView: View {
                                     .padding(.top, 8)
                                     .padding(.leading, 5)
                             }
-                            TextEditor(text: $messageText)
-                                .font(.body)
+                            DroppableTextEditor(
+                                text: $messageText,
+                                isDropTargeted: $isComposerDropTargeted,
+                                font: NSFont.preferredFont(forTextStyle: .body),
+                                onDropFileURLs: handleDroppedFileURLs,
+                                onDropImages: handleDroppedImages
+                            )
                                 .frame(minHeight: 40, maxHeight: 160)
-                                .scrollContentBackground(.hidden) // Remove default background
-                                .background(Color.clear)
                         }
 
                         Divider()
                             .padding(.horizontal, 2)
 
                         HStack(spacing: 6) {
-                            Button {} label: {
-                                controlIconLabel(systemName: "paperclip", isActive: false, badgeText: nil)
+                            Button {
+                                isFileImporterPresented = true
+                            } label: {
+                                controlIconLabel(
+                                    systemName: "paperclip",
+                                    isActive: !draftAttachments.isEmpty,
+                                    badgeText: draftAttachments.isEmpty ? nil : "\(draftAttachments.count)"
+                                )
                             }
                             .buttonStyle(.plain)
-                            .help("Attach file")
+                            .help("Attach images / PDFs")
+                            .disabled(isStreaming)
 
                             Menu {
                                 reasoningMenuContent
@@ -149,20 +181,24 @@ struct ChatView: View {
                     }
                     .padding(6)
                     .background(Color(nsColor: .controlBackgroundColor))
-                    .clipShape(RoundedRectangle(cornerRadius: 6))
+                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                     .overlay(
-                        RoundedRectangle(cornerRadius: 6)
-                            .stroke(Color(nsColor: .separatorColor), lineWidth: 1)
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .stroke(Color(nsColor: .separatorColor), lineWidth: 0.5)
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .stroke(isComposerDropTargeted ? Color.accentColor : Color.clear, lineWidth: 2)
                     )
 
                     Button(action: sendMessage) {
                         Image(systemName: isStreaming ? "stop.fill" : "arrow.up.circle.fill")
                             .resizable()
                             .frame(width: 24, height: 24)
-                            .foregroundStyle(isStreaming ? .red : (messageText.isEmpty ? .gray : Color.accentColor))
+                            .foregroundStyle(isStreaming ? .red : (canSendDraft ? Color.accentColor : .gray))
                     }
                     .buttonStyle(.plain)
-                    .disabled(messageText.isEmpty && !isStreaming)
+                    .disabled(!canSendDraft && !isStreaming)
                     .padding(.bottom, 4)
                 }
                 .padding(12)
@@ -176,6 +212,15 @@ struct ChatView: View {
             ToolbarItemGroup {
                 modelPickerMenu
 
+                Button {
+                    withAnimation(.easeInOut(duration: 0.15)) {
+                        isAssistantInspectorPresented.toggle()
+                    }
+                } label: {
+                    Image(systemName: "sidebar.right")
+                }
+                .help("Assistant Settings")
+
                 Button(role: .destructive) {
                     onRequestDeleteConversation()
                 } label: {
@@ -188,6 +233,19 @@ struct ChatView: View {
             Button("OK", role: .cancel) {}
         } message: {
             Text(errorMessage ?? "Something went wrong.")
+        }
+        .fileImporter(
+            isPresented: $isFileImporterPresented,
+            allowedContentTypes: [.image, .pdf],
+            allowsMultipleSelection: true
+        ) { result in
+            switch result {
+            case .success(let urls):
+                Task { await importAttachments(from: urls) }
+            case .failure(let error):
+                errorMessage = error.localizedDescription
+                showingError = true
+            }
         }
         .sheet(isPresented: $showingThinkingBudgetSheet) {
             NavigationStack {
@@ -235,6 +293,557 @@ struct ChatView: View {
     }
     
     // MARK: - Helpers & Subviews
+
+    private enum AttachmentConstants {
+        static let maxDraftAttachments = 8
+        static let maxAttachmentBytes = 25 * 1024 * 1024
+        static let maxPDFExtractedCharacters = 120_000
+    }
+
+    private struct AttachmentImportError: LocalizedError, Sendable {
+        let message: String
+
+        var errorDescription: String? { message }
+    }
+
+    private struct DraftAttachment: Identifiable, Hashable, Sendable {
+        let id: UUID
+        let filename: String
+        let mimeType: String
+        let fileURL: URL
+        let extractedText: String?
+
+        var isImage: Bool { mimeType.hasPrefix("image/") }
+        var isPDF: Bool { mimeType == "application/pdf" }
+    }
+
+    private var trimmedMessageText: String {
+        messageText.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var canSendDraft: Bool {
+        !trimmedMessageText.isEmpty || !draftAttachments.isEmpty
+    }
+
+    private func removeDraftAttachment(_ attachment: DraftAttachment) {
+        draftAttachments.removeAll { $0.id == attachment.id }
+        try? FileManager.default.removeItem(at: attachment.fileURL)
+    }
+
+    private func handleDroppedFileURLs(_ urls: [URL]) -> Bool {
+        let uniqueURLs = Array(Set(urls))
+        guard !uniqueURLs.isEmpty else { return false }
+
+        if isStreaming {
+            errorMessage = "Stop generating to attach files."
+            showingError = true
+            return true
+        }
+
+        Task { await importAttachments(from: uniqueURLs) }
+        return true
+    }
+
+    private func handleDroppedImages(_ images: [NSImage]) -> Bool {
+        guard !images.isEmpty else { return false }
+
+        if isStreaming {
+            errorMessage = "Stop generating to attach files."
+            showingError = true
+            return true
+        }
+
+        var urls: [URL] = []
+        var errors: [String] = []
+
+        for image in images {
+            guard let url = Self.writeTemporaryPNG(from: image) else {
+                errors.append("Failed to read dropped image.")
+                continue
+            }
+            urls.append(url)
+        }
+
+        if !urls.isEmpty {
+            Task { await importAttachments(from: urls) }
+        }
+
+        if !errors.isEmpty {
+            errorMessage = errors.joined(separator: "\n")
+            showingError = true
+        }
+
+        return true
+    }
+
+    private func handleDrop(_ providers: [NSItemProvider]) -> Bool {
+        guard !providers.isEmpty else { return false }
+
+        if isStreaming {
+            errorMessage = "Stop generating to attach files."
+            showingError = true
+            return true
+        }
+
+        var didScheduleWork = false
+        let group = DispatchGroup()
+        let lock = NSLock()
+
+        var droppedFileURLs: [URL] = []
+        var droppedTextChunks: [String] = []
+        var errors: [String] = []
+
+        for provider in providers {
+            if provider.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) {
+                didScheduleWork = true
+                group.enter()
+                provider.loadItem(forTypeIdentifier: UTType.fileURL.identifier, options: nil) { item, error in
+                    defer { group.leave() }
+
+                    if let url = Self.urlFromItemProviderItem(item) {
+                        lock.lock()
+                        if url.isFileURL {
+                            droppedFileURLs.append(url)
+                        } else {
+                            droppedTextChunks.append(url.absoluteString)
+                        }
+                        lock.unlock()
+                        return
+                    }
+
+                    if let error {
+                        lock.lock()
+                        errors.append(error.localizedDescription)
+                        lock.unlock()
+                    }
+                }
+                continue
+            }
+
+            if provider.canLoadObject(ofClass: NSImage.self) {
+                didScheduleWork = true
+                group.enter()
+                _ = provider.loadObject(ofClass: NSImage.self) { object, error in
+                    defer { group.leave() }
+
+                    guard let image = object as? NSImage else {
+                        if let error {
+                            lock.lock()
+                            errors.append(error.localizedDescription)
+                            lock.unlock()
+                        }
+                        return
+                    }
+
+                    guard let tempURL = Self.writeTemporaryPNG(from: image) else {
+                        lock.lock()
+                        errors.append("Failed to read dropped image.")
+                        lock.unlock()
+                        return
+                    }
+
+                    lock.lock()
+                    droppedFileURLs.append(tempURL)
+                    lock.unlock()
+                }
+                continue
+            }
+
+            if provider.canLoadObject(ofClass: URL.self) {
+                didScheduleWork = true
+                group.enter()
+                _ = provider.loadObject(ofClass: URL.self) { object, error in
+                    defer { group.leave() }
+
+                    if let url = object {
+                        lock.lock()
+                        if url.isFileURL {
+                            droppedFileURLs.append(url)
+                        } else {
+                            droppedTextChunks.append(url.absoluteString)
+                        }
+                        lock.unlock()
+                        return
+                    }
+
+                    if let error {
+                        lock.lock()
+                        errors.append(error.localizedDescription)
+                        lock.unlock()
+                    }
+                }
+                continue
+            }
+
+            if provider.canLoadObject(ofClass: NSString.self) {
+                didScheduleWork = true
+                group.enter()
+                _ = provider.loadObject(ofClass: NSString.self) { object, error in
+                    defer { group.leave() }
+
+                    if let text = object as? String {
+                        let parsed = Self.parseDroppedString(text)
+                        lock.lock()
+                        droppedFileURLs.append(contentsOf: parsed.fileURLs)
+                        droppedTextChunks.append(contentsOf: parsed.textChunks)
+                        lock.unlock()
+                        return
+                    }
+
+                    if let error {
+                        lock.lock()
+                        errors.append(error.localizedDescription)
+                        lock.unlock()
+                    }
+                }
+                continue
+            }
+        }
+
+        guard didScheduleWork else { return false }
+
+        group.notify(queue: .main) {
+            let uniqueFileURLs = Array(Set(droppedFileURLs))
+
+            if !uniqueFileURLs.isEmpty {
+                Task { await importAttachments(from: uniqueFileURLs) }
+            } else if !droppedTextChunks.isEmpty {
+                let insertion = droppedTextChunks
+                    .joined(separator: "\n")
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                if !insertion.isEmpty {
+                    if messageText.isEmpty {
+                        messageText = insertion
+                    } else {
+                        let separator = messageText.hasSuffix("\n") ? "" : "\n"
+                        messageText += separator + insertion
+                    }
+                }
+            }
+
+            if !errors.isEmpty {
+                errorMessage = errors.joined(separator: "\n")
+                showingError = true
+            }
+        }
+
+        return true
+    }
+
+    private static func urlFromItemProviderItem(_ item: NSSecureCoding?) -> URL? {
+        if let url = item as? URL { return url }
+        if let url = item as? NSURL { return url as URL }
+        if let data = item as? Data { return URL(dataRepresentation: data, relativeTo: nil) }
+        if let string = item as? String { return URL(string: string) }
+        if let string = item as? NSString { return URL(string: string as String) }
+        return nil
+    }
+
+    private static func writeTemporaryPNG(from image: NSImage) -> URL? {
+        guard let tiff = image.tiffRepresentation,
+              let rep = NSBitmapImageRep(data: tiff),
+              let data = rep.representation(using: .png, properties: [:]) else {
+            return nil
+        }
+
+        if data.count > AttachmentConstants.maxAttachmentBytes {
+            return nil
+        }
+
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("JinDroppedImages", isDirectory: true)
+        if !FileManager.default.fileExists(atPath: dir.path) {
+            try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        }
+
+        let url = dir.appendingPathComponent(UUID().uuidString).appendingPathExtension("png")
+        do {
+            try data.write(to: url, options: [.atomic])
+            return url
+        } catch {
+            return nil
+        }
+    }
+
+    static func parseDroppedString(_ text: String) -> (fileURLs: [URL], textChunks: [String]) {
+        let lines = text
+            .split(whereSeparator: \.isNewline)
+            .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+
+        var fileURLs: [URL] = []
+        var textChunks: [String] = []
+
+        for line in lines {
+            if line.hasPrefix("file://"), let url = URL(string: line), url.isFileURL {
+                fileURLs.append(url)
+                continue
+            }
+
+            let expanded = (line as NSString).expandingTildeInPath
+            if expanded.hasPrefix("/") {
+                let url = URL(fileURLWithPath: expanded)
+                if isPotentialAttachmentFile(url) {
+                    fileURLs.append(url)
+                    continue
+                }
+            }
+
+            textChunks.append(line)
+        }
+
+        return (fileURLs: fileURLs, textChunks: textChunks)
+    }
+
+    private static func isPotentialAttachmentFile(_ url: URL) -> Bool {
+        let ext = url.pathExtension.lowercased()
+        if ext == "pdf" { return true }
+        return ext == "png" || ext == "jpg" || ext == "jpeg" || ext == "webp"
+    }
+
+    private func importAttachments(from urls: [URL]) async {
+        guard !urls.isEmpty else { return }
+        guard !isStreaming else { return }
+
+        let remainingSlots = max(0, AttachmentConstants.maxDraftAttachments - draftAttachments.count)
+        guard remainingSlots > 0 else {
+            await MainActor.run {
+                errorMessage = "You can attach up to \(AttachmentConstants.maxDraftAttachments) files per message."
+                showingError = true
+            }
+            return
+        }
+
+        let urlsToImport = Array(urls.prefix(remainingSlots))
+
+        let (newAttachments, errors) = await Task.detached(priority: .userInitiated) {
+            await Self.importAttachmentsInBackground(from: urlsToImport)
+        }.value
+
+        await MainActor.run {
+            if !newAttachments.isEmpty {
+                draftAttachments.append(contentsOf: newAttachments)
+            }
+            if !errors.isEmpty {
+                errorMessage = errors.joined(separator: "\n")
+                showingError = true
+            }
+        }
+    }
+
+    private static func importAttachmentsInBackground(from urls: [URL]) async -> ([DraftAttachment], [String]) {
+        var newAttachments: [DraftAttachment] = []
+        var errors: [String] = []
+
+        let storage: AttachmentStorageManager
+        do {
+            storage = try AttachmentStorageManager()
+        } catch {
+            return ([], ["Failed to initialize attachment storage: \(error.localizedDescription)"])
+        }
+
+        for sourceURL in urls {
+            let result = await importSingleAttachment(from: sourceURL, storage: storage)
+            switch result {
+            case .success(let attachment):
+                newAttachments.append(attachment)
+            case .failure(let error):
+                errors.append(error.localizedDescription)
+            }
+        }
+
+        return (newAttachments, errors)
+    }
+
+    private static func importSingleAttachment(from sourceURL: URL, storage: AttachmentStorageManager) async -> Result<DraftAttachment, AttachmentImportError> {
+        let didStartAccessing = sourceURL.startAccessingSecurityScopedResource()
+        defer {
+            if didStartAccessing {
+                sourceURL.stopAccessingSecurityScopedResource()
+            }
+        }
+
+        guard sourceURL.isFileURL else {
+            return .failure(AttachmentImportError(message: "Unsupported item: \(sourceURL.lastPathComponent)"))
+        }
+
+        let filename = sourceURL.lastPathComponent.isEmpty ? "Attachment" : sourceURL.lastPathComponent
+        let resourceValues = try? sourceURL.resourceValues(forKeys: [.isDirectoryKey, .fileSizeKey])
+        if resourceValues?.isDirectory == true {
+            return .failure(AttachmentImportError(message: "\(filename): folders are not supported."))
+        }
+
+        let fileSize = resourceValues?.fileSize ?? 0
+        if fileSize > AttachmentConstants.maxAttachmentBytes {
+            return .failure(AttachmentImportError(message: "\(filename): exceeds \(AttachmentConstants.maxAttachmentBytes / (1024 * 1024))MB limit."))
+        }
+
+        guard let type = UTType(filenameExtension: sourceURL.pathExtension.lowercased()) else {
+            if let convertedURL = convertImageFileToTemporaryPNG(at: sourceURL) {
+                let base = (filename as NSString).deletingPathExtension
+                let outputName = base.isEmpty ? "Image.png" : "\(base).png"
+                return await saveConvertedPNG(
+                    convertedURL,
+                    storage: storage,
+                    filename: outputName
+                )
+            }
+            return .failure(AttachmentImportError(message: "\(filename): unsupported file type."))
+        }
+
+        if type.conforms(to: .pdf) {
+            let mimeType = "application/pdf"
+            do {
+                let entity = try await storage.saveAttachment(from: sourceURL, filename: filename, mimeType: mimeType)
+                let extractedText = extractTextFromPDF(at: entity.fileURL)
+                return .success(
+                    DraftAttachment(
+                        id: entity.id,
+                        filename: entity.filename,
+                        mimeType: entity.mimeType,
+                        fileURL: entity.fileURL,
+                        extractedText: extractedText
+                    )
+                )
+            } catch {
+                return .failure(AttachmentImportError(message: "\(filename): failed to import (\(error.localizedDescription))."))
+            }
+        }
+
+        if type.conforms(to: .image) {
+            let supported: Set<String> = ["image/png", "image/jpeg", "image/webp"]
+
+            if let rawMimeType = type.preferredMIMEType {
+                let mimeType = (rawMimeType == "image/jpg") ? "image/jpeg" : rawMimeType
+                if supported.contains(mimeType) {
+                    do {
+                        let entity = try await storage.saveAttachment(from: sourceURL, filename: filename, mimeType: mimeType)
+                        return .success(
+                            DraftAttachment(
+                                id: entity.id,
+                                filename: entity.filename,
+                                mimeType: entity.mimeType,
+                                fileURL: entity.fileURL,
+                                extractedText: nil
+                            )
+                        )
+                    } catch {
+                        return .failure(AttachmentImportError(message: "\(filename): failed to import (\(error.localizedDescription))."))
+                    }
+                }
+            }
+
+            guard let convertedURL = convertImageFileToTemporaryPNG(at: sourceURL) else {
+                let rawMimeType = type.preferredMIMEType ?? "unknown"
+                return .failure(AttachmentImportError(message: "\(filename): unsupported image format (\(rawMimeType)). Use PNG/JPEG/WebP."))
+            }
+
+            let base = (filename as NSString).deletingPathExtension
+            let outputName = base.isEmpty ? "Image.png" : "\(base).png"
+            return await saveConvertedPNG(
+                convertedURL,
+                storage: storage,
+                filename: outputName
+            )
+        }
+
+        return .failure(AttachmentImportError(message: "\(filename): unsupported file type."))
+    }
+
+    private static func convertImageFileToTemporaryPNG(at url: URL) -> URL? {
+        guard let image = NSImage(contentsOf: url) else { return nil }
+        return writeTemporaryPNG(from: image)
+    }
+
+    private static func saveConvertedPNG(
+        _ pngURL: URL,
+        storage: AttachmentStorageManager,
+        filename: String
+    ) async -> Result<DraftAttachment, AttachmentImportError> {
+        do {
+            let entity = try await storage.saveAttachment(from: pngURL, filename: filename, mimeType: "image/png")
+            try? FileManager.default.removeItem(at: pngURL)
+            return .success(
+                DraftAttachment(
+                    id: entity.id,
+                    filename: entity.filename,
+                    mimeType: entity.mimeType,
+                    fileURL: entity.fileURL,
+                    extractedText: nil
+                )
+            )
+        } catch {
+            return .failure(AttachmentImportError(message: "\(filename): failed to import (\(error.localizedDescription))."))
+        }
+    }
+
+    private static func extractTextFromPDF(at url: URL) -> String? {
+        guard let document = PDFDocument(url: url) else { return nil }
+
+        var pieces: [String] = []
+        pieces.reserveCapacity(min(16, document.pageCount))
+
+        for index in 0..<document.pageCount {
+            if let pageText = document.page(at: index)?.string, !pageText.isEmpty {
+                pieces.append(pageText)
+            }
+        }
+
+        let combined = pieces.joined(separator: "\n\n")
+        let trimmed = combined.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+
+        if trimmed.count > AttachmentConstants.maxPDFExtractedCharacters {
+            let prefix = trimmed.prefix(AttachmentConstants.maxPDFExtractedCharacters)
+            return "\(prefix)\n\n[Truncated]"
+        }
+
+        return trimmed
+    }
+
+    private struct DraftAttachmentChip: View {
+        let attachment: DraftAttachment
+        let onRemove: () -> Void
+
+        var body: some View {
+            HStack(spacing: 8) {
+                Group {
+                    if attachment.isImage, let image = NSImage(contentsOf: attachment.fileURL) {
+                        Image(nsImage: image)
+                            .resizable()
+                            .scaledToFill()
+                            .frame(width: 26, height: 26)
+                            .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
+                    } else if attachment.isPDF {
+                        Image(systemName: "doc.richtext")
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Image(systemName: "doc")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .frame(width: 26, height: 26)
+
+                Text(attachment.filename)
+                    .font(.caption)
+                    .lineLimit(1)
+
+                Button(action: onRemove) {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(Color(nsColor: .controlBackgroundColor))
+            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .stroke(Color(nsColor: .separatorColor), lineWidth: 0.5)
+            )
+        }
+    }
     
     private var selectedModelInfo: ModelInfo? {
         availableModels.first(where: { $0.id == conversationEntity.modelID })
@@ -635,7 +1244,8 @@ struct ChatView: View {
             if image.url != nil { return 256 }
             return 256
         case .file(let file):
-            return approximateTokenCount(for: file.filename) + 256
+            let extractedTokens = approximateTokenCount(for: file.extractedText ?? "")
+            return approximateTokenCount(for: file.filename) + max(256, extractedTokens)
         case .audio:
             return 1024
         }
@@ -653,12 +1263,33 @@ struct ChatView: View {
             return
         }
 
-        let trimmed = messageText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return }
+        guard canSendDraft else { return }
+
+        var parts: [ContentPart] = []
+        for attachment in draftAttachments {
+            if attachment.isImage {
+                parts.append(.image(ImageContent(mimeType: attachment.mimeType, data: nil, url: attachment.fileURL)))
+            } else {
+                parts.append(
+                    .file(
+                        FileContent(
+                            mimeType: attachment.mimeType,
+                            filename: attachment.filename,
+                            data: nil,
+                            url: attachment.fileURL,
+                            extractedText: attachment.extractedText
+                        )
+                    )
+                )
+            }
+        }
+        if !trimmedMessageText.isEmpty {
+            parts.append(.text(trimmedMessageText))
+        }
 
         let message = Message(
             role: .user,
-            content: [.text(trimmed)]
+            content: parts
         )
 
         do {
@@ -666,10 +1297,15 @@ struct ChatView: View {
             messageEntity.conversation = conversationEntity
             conversationEntity.messages.append(messageEntity)
             if conversationEntity.title == "New Chat" {
-                conversationEntity.title = makeConversationTitle(from: trimmed)
+                if !trimmedMessageText.isEmpty {
+                    conversationEntity.title = makeConversationTitle(from: trimmedMessageText)
+                } else if let firstAttachment = draftAttachments.first {
+                    conversationEntity.title = makeConversationTitle(from: (firstAttachment.filename as NSString).deletingPathExtension)
+                }
             }
             conversationEntity.updatedAt = Date()
             messageText = ""
+            draftAttachments = []
         } catch {
             print("Failed to create message: \(error)")
         }
@@ -1353,6 +1989,8 @@ struct ChatView: View {
 struct MessageRow: View {
     let messageEntity: MessageEntity
     let maxBubbleWidth: CGFloat
+    let assistantDisplayName: String
+    let assistantIcon: String?
 
     var body: some View {
         let isUser = messageEntity.role == "user"
@@ -1368,11 +2006,9 @@ struct MessageRow: View {
                     // Header (Sender Name)
                     HStack(spacing: 6) {
                         if !isUser && !isTool {
-                            Image(systemName: "sparkles")
-                                .font(.caption2)
-                                .foregroundStyle(Color.accentColor)
+                            AssistantBadgeIcon(icon: assistantIcon)
                         }
-                        Text(isUser ? "You" : (isTool ? "Tool Output" : "Assistant"))
+                        Text(isUser ? "You" : (isTool ? "Tool Output" : assistantDisplayName))
                             .font(.caption)
                             .fontWeight(.semibold)
                             .foregroundStyle(.secondary)
@@ -1428,6 +2064,29 @@ struct MessageRow: View {
     }
 }
 
+private struct AssistantBadgeIcon: View {
+    let icon: String?
+
+    var body: some View {
+        Group {
+            let trimmed = (icon ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed.isEmpty {
+                Image(systemName: "sparkles")
+                    .font(.caption2)
+                    .foregroundStyle(Color.accentColor)
+            } else if trimmed.count <= 2 {
+                Text(trimmed)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else {
+                Image(systemName: trimmed)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+}
+
 struct ContentPartView: View {
     let part: ContentPart
 
@@ -1449,16 +2108,37 @@ struct ContentPartView: View {
                     .scaledToFit()
                     .frame(maxWidth: 500)
                     .cornerRadius(6)
+            } else if let url = image.url, url.isFileURL, let nsImage = NSImage(contentsOf: url) {
+                Image(nsImage: nsImage)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(maxWidth: 500)
+                    .cornerRadius(6)
+            } else if let url = image.url {
+                Link(url.absoluteString, destination: url)
+                    .font(.caption)
             }
 
         case .file(let file):
-            HStack {
+            let row = HStack {
                 Image(systemName: "doc")
                 Text(file.filename)
             }
             .padding(8)
             .background(Color(nsColor: .controlBackgroundColor))
             .cornerRadius(6)
+
+            if let url = file.url {
+                Button {
+                    NSWorkspace.shared.open(url)
+                } label: {
+                    row
+                }
+                .buttonStyle(.plain)
+                .help("Open \(file.filename)")
+            } else {
+                row
+            }
 
         case .audio:
             Label("Audio content", systemImage: "waveform")
@@ -1563,16 +2243,16 @@ struct ToolCallView: View {
 struct StreamingMessageView: View {
     @ObservedObject var state: StreamingMessageState
     let maxBubbleWidth: CGFloat
+    let assistantDisplayName: String
+    let assistantIcon: String?
 
     var body: some View {
         HStack(alignment: .top, spacing: 0) {
             ConstrainedWidth(maxBubbleWidth) {
                 VStack(alignment: .leading, spacing: 6) {
                     HStack(spacing: 6) {
-                        Image(systemName: "sparkles")
-                            .font(.caption2)
-                            .foregroundStyle(Color.accentColor)
-                        Text("Assistant")
+                        AssistantBadgeIcon(icon: assistantIcon)
+                        Text(assistantDisplayName)
                             .font(.caption)
                             .fontWeight(.semibold)
                             .foregroundStyle(.secondary)

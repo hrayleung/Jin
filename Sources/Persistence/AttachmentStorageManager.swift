@@ -2,6 +2,13 @@ import Foundation
 
 /// Attachment storage manager for file-based attachments
 actor AttachmentStorageManager {
+    struct StoredAttachment: Sendable {
+        let id: UUID
+        let filename: String
+        let mimeType: String
+        let fileURL: URL
+    }
+
     private let fileManager = FileManager.default
     private let baseURL: URL
 
@@ -25,28 +32,34 @@ actor AttachmentStorageManager {
     }
 
     /// Save attachment and return file URL
-    func saveAttachment(data: Data, filename: String, mimeType: String) throws -> AttachmentEntity {
+    func saveAttachment(data: Data, filename: String, mimeType: String) throws -> StoredAttachment {
         let id = UUID()
         let fileExtension = fileExtension(for: mimeType) ?? (filename as NSString).pathExtension
         let fileURL = baseURL.appendingPathComponent("\(id.uuidString).\(fileExtension)")
 
         try data.write(to: fileURL)
 
-        return AttachmentEntity(
-            id: id,
-            filename: filename,
-            mimeType: mimeType,
-            fileURL: fileURL
-        )
+        return StoredAttachment(id: id, filename: filename, mimeType: mimeType, fileURL: fileURL)
+    }
+
+    /// Save attachment by copying a file URL (preferred for larger files)
+    func saveAttachment(from sourceURL: URL, filename: String, mimeType: String) throws -> StoredAttachment {
+        let id = UUID()
+        let fileExtension = fileExtension(for: mimeType) ?? sourceURL.pathExtension
+        let fileURL = baseURL.appendingPathComponent("\(id.uuidString).\(fileExtension)")
+
+        try fileManager.copyItem(at: sourceURL, to: fileURL)
+
+        return StoredAttachment(id: id, filename: filename, mimeType: mimeType, fileURL: fileURL)
     }
 
     /// Load attachment data
-    func loadAttachment(_ attachment: AttachmentEntity) throws -> Data {
+    func loadAttachment(_ attachment: StoredAttachment) throws -> Data {
         try Data(contentsOf: attachment.fileURL)
     }
 
     /// Delete attachment file
-    func deleteAttachment(_ attachment: AttachmentEntity) throws {
+    func deleteAttachment(_ attachment: StoredAttachment) throws {
         if fileManager.fileExists(atPath: attachment.fileURL.path) {
             try fileManager.removeItem(at: attachment.fileURL)
         }

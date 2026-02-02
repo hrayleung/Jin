@@ -6,152 +6,144 @@ struct AssistantInspectorView: View {
     let onRequestDelete: (AssistantEntity) -> Void
 
     var body: some View {
-        if let assistant {
-            AssistantSettingsFormView(
-                assistant: assistant,
-                onRequestDelete: onRequestDelete
-            )
-        } else {
-            ContentUnavailableView("Select an Assistant", systemImage: "person.crop.circle")
-                .padding()
+        Group {
+            if let assistant {
+                AssistantSettingsEditorView(
+                    assistant: assistant,
+                    onRequestDelete: onRequestDelete
+                )
+            } else {
+                ContentUnavailableView("Select an Assistant", systemImage: "person.crop.circle")
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .padding(.top, 36)
+            }
         }
+        .background(Color(nsColor: .windowBackgroundColor))
     }
 }
 
-private struct AssistantSettingsFormView: View {
-    private enum FocusField: Hashable {
-        case id
-    }
-
-    @Query(sort: \AssistantEntity.sortOrder, order: .forward) private var assistants: [AssistantEntity]
+private struct AssistantSettingsEditorView: View {
     @Bindable var assistant: AssistantEntity
 
     let onRequestDelete: (AssistantEntity) -> Void
 
-    @State private var idDraft = ""
     @State private var customReplyLanguageDraft = ""
-    @State private var idValidationMessage: String?
-    @FocusState private var focusedField: FocusField?
 
     var body: some View {
         Form {
             Section {
-                Text("Assistant settings are used as default settings for every chat.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                HStack(alignment: .top, spacing: 12) {
+                    assistantIcon
+                        .frame(width: 32, height: 32)
+
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(assistant.displayName)
+                            .font(.headline)
+
+                        Text("Defaults used when starting a new chat with this assistant.")
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Spacer(minLength: 0)
+                }
+                .padding(.vertical, 2)
             }
 
             Section("Identity") {
-                HStack(alignment: .firstTextBaseline, spacing: 10) {
-                    TextField("ID", text: $idDraft)
-                        .focused($focusedField, equals: .id)
-                        .textFieldStyle(.roundedBorder)
-                        .disabled(assistant.id == "default")
-                        .onSubmit {
-                            commitAssistantIDIfValid()
-                        }
-                        .onChange(of: focusedField) { oldValue, newValue in
-                            guard oldValue == .id, newValue != .id else { return }
-                            commitAssistantIDIfValid()
-                        }
-
-                    if let message = idValidationMessage, !message.isEmpty {
-                        Text(message)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
+                TextField("Name", text: nameBinding)
 
                 HStack(spacing: 10) {
-                    TextField("Icon (SF Symbol)", text: iconBinding)
-                        .textFieldStyle(.roundedBorder)
-
+                    TextField("Icon", text: iconBinding, prompt: Text("SF Symbol or emoji"))
                     iconPreview
-                        .frame(width: 22, height: 22)
+                        .frame(width: 24, height: 24)
                         .foregroundStyle(.secondary)
                         .help("Preview")
                 }
 
-                TextField("Name", text: nameBinding)
-                    .textFieldStyle(.roundedBorder)
-
-                TextField("Description", text: descriptionBinding, axis: .vertical)
-                    .textFieldStyle(.roundedBorder)
-                    .lineLimit(3...8)
+                TextField("Description", text: descriptionBinding, prompt: Text("Optional"), axis: .vertical)
+                    .lineLimit(2...4)
             }
 
-            Section("Behavior") {
+            Section("Prompt") {
                 systemInstructionEditor
+            }
 
-                VStack(alignment: .leading, spacing: 6) {
-                    HStack {
-                        Text("Temperature")
-                        Spacer()
+            Section("Generation") {
+                LabeledContent("Temperature") {
+                    HStack(spacing: 10) {
+                        Slider(value: temperatureBinding, in: 0...2, step: 0.05)
+                            .frame(maxWidth: 220)
+
                         Text(assistant.temperature, format: .number.precision(.fractionLength(2)))
+                            .font(.system(.caption, design: .monospaced))
                             .foregroundStyle(.secondary)
                             .monospacedDigit()
+                            .frame(width: 44, alignment: .trailing)
                     }
-                    Slider(value: temperatureBinding, in: 0...2, step: 0.05)
-                    HStack {
-                        Text("Precise")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        Spacer()
-                        Text("Creative")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                .padding(.vertical, 4)
-
-                TextField("Max output tokens", text: maxOutputTokensBinding, prompt: Text("Default"))
-                    .textFieldStyle(.roundedBorder)
-                    .font(.system(.body, design: .monospaced))
-
-                Picker("Truncate messages", selection: truncateMessagesSettingBinding) {
-                    ForEach(TriStateSetting.allCases) { item in
-                        Text(item.label).tag(item)
-                    }
-                }
-                .pickerStyle(.menu)
-
-                Picker("Reply language", selection: replyLanguageSelectionBinding) {
-                    ForEach(ReplyLanguageOption.allCases) { option in
-                        Text(option.label).tag(option)
-                    }
-                }
-                .pickerStyle(.menu)
-
-                if replyLanguageSelectionBinding.wrappedValue == .custom {
-                    TextField("Custom reply language", text: $customReplyLanguageDraft, prompt: Text("e.g. English, 中文, 日本語"))
-                        .textFieldStyle(.roundedBorder)
-                        .onChange(of: customReplyLanguageDraft) { _, newValue in
-                            let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
-                            assistant.replyLanguage = trimmed.isEmpty ? nil : trimmed
-                            assistant.updatedAt = Date()
-                        }
                 }
             }
 
             Section {
-                Button(role: .destructive) {
-                    onRequestDelete(assistant)
+                DisclosureGroup {
+                    LabeledContent("Assistant ID") {
+                        Text(assistant.id)
+                            .font(.system(.body, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                            .textSelection(.enabled)
+                    }
+
+                    TextField("Max tokens", text: maxOutputTokensBinding, prompt: Text("Default"))
+                        .font(.system(.body, design: .monospaced))
+
+                    Picker("Truncate history", selection: truncateMessagesSettingBinding) {
+                        ForEach(TriStateSetting.allCases) { item in
+                            Text(item.label).tag(item)
+                        }
+                    }
+                    .pickerStyle(.menu)
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        Picker("Reply language", selection: replyLanguageSelectionBinding) {
+                            ForEach(ReplyLanguageOption.allCases) { option in
+                                Text(option.label).tag(option)
+                            }
+                        }
+                        .pickerStyle(.menu)
+
+                        if replyLanguageSelectionBinding.wrappedValue == .custom {
+                            TextField("Custom language", text: $customReplyLanguageDraft, prompt: Text("e.g. English, 中文, 日本語"))
+                                .textFieldStyle(.roundedBorder)
+                                .onChange(of: customReplyLanguageDraft) { _, newValue in
+                                    let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
+                                    assistant.replyLanguage = trimmed.isEmpty ? nil : trimmed
+                                    assistant.updatedAt = Date()
+                                }
+                        }
+                    }
                 } label: {
-                    Label("Delete assistant", systemImage: "trash")
+                    Text("Advanced")
                 }
-                .disabled(assistant.id == "default")
+            }
+
+            if assistant.id != "default" {
+                Section("Danger Zone") {
+                    Button(role: .destructive) {
+                        onRequestDelete(assistant)
+                    } label: {
+                        Label("Delete assistant", systemImage: "trash")
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                }
             }
         }
         .formStyle(.grouped)
-        .padding()
+        .scrollContentBackground(.hidden)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .onAppear {
-            idDraft = assistant.id
             syncCustomReplyLanguageDraft()
-        }
-        .onChange(of: assistant.id) { _, newValue in
-            if idDraft != newValue {
-                idDraft = newValue
-            }
         }
         .onChange(of: assistant.replyLanguage) { _, _ in
             syncCustomReplyLanguageDraft()
@@ -159,19 +151,27 @@ private struct AssistantSettingsFormView: View {
     }
 
     private var systemInstructionEditor: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("System instruction")
-                .font(.subheadline)
-            ZStack(alignment: .topLeading) {
-                TextEditor(text: systemInstructionBinding)
-                    .frame(minHeight: 120)
+        ZStack(alignment: .topLeading) {
+            TextEditor(text: systemInstructionBinding)
+                .font(.body)
+                .frame(minHeight: 140)
+                .scrollContentBackground(.hidden)
+                .padding(8)
+                .background(
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .fill(Color(nsColor: .textBackgroundColor))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .stroke(Color(nsColor: .separatorColor), lineWidth: 1)
+                )
 
-                if assistant.systemInstruction.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    Text("Act as …")
-                        .foregroundStyle(.tertiary)
-                        .padding(.top, 8)
-                        .padding(.leading, 6)
-                }
+            if assistant.systemInstruction.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                Text("Act as …")
+                    .foregroundStyle(.tertiary)
+                    .padding(.top, 14)
+                    .padding(.leading, 14)
+                    .allowsHitTesting(false)
             }
         }
     }
@@ -183,12 +183,34 @@ private struct AssistantSettingsFormView: View {
                 Image(systemName: "person.crop.circle")
             } else if trimmed.count <= 2 {
                 Text(trimmed)
-                    .font(.system(size: 18))
+                    .font(.system(size: 16, weight: .semibold))
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 Image(systemName: trimmed)
             }
         }
+    }
+
+    private var assistantIcon: some View {
+        Group {
+            let trimmed = (assistant.icon ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed.isEmpty {
+                Image(systemName: "sparkles")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(Color.accentColor)
+            } else if trimmed.count <= 2 {
+                Text(trimmed)
+                    .font(.system(size: 16))
+            } else {
+                Image(systemName: trimmed)
+                    .font(.system(size: 16, weight: .semibold))
+            }
+        }
+        .frame(width: 32, height: 32)
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(Color(nsColor: .controlBackgroundColor))
+        )
     }
 
     private func syncCustomReplyLanguageDraft() {
@@ -197,40 +219,6 @@ private struct AssistantSettingsFormView: View {
             return
         }
         customReplyLanguageDraft = assistant.replyLanguage ?? ""
-    }
-
-    private func commitAssistantIDIfValid() {
-        guard assistant.id != "default" else {
-            idDraft = assistant.id
-            idValidationMessage = nil
-            return
-        }
-
-        let trimmed = idDraft.trimmingCharacters(in: .whitespacesAndNewlines)
-
-        guard !trimmed.isEmpty else {
-            idValidationMessage = "ID can’t be empty."
-            return
-        }
-
-        guard trimmed.range(of: "^[A-Za-z0-9_-]+$", options: .regularExpression) != nil else {
-            idValidationMessage = "Use letters, numbers, '-' or '_'."
-            return
-        }
-
-        let conflict = assistants.contains(where: { $0.id == trimmed && $0 !== assistant })
-        guard !conflict else {
-            idValidationMessage = "ID already exists."
-            return
-        }
-
-        if assistant.id != trimmed {
-            assistant.id = trimmed
-            assistant.updatedAt = Date()
-        }
-
-        idDraft = trimmed
-        idValidationMessage = nil
     }
 
     private var nameBinding: Binding<String> {
@@ -319,7 +307,9 @@ private struct AssistantSettingsFormView: View {
             }
         }
     }
+}
 
+private extension AssistantSettingsEditorView {
     private var truncateMessagesSettingBinding: Binding<TriStateSetting> {
         Binding(
             get: {
@@ -403,4 +393,3 @@ private struct AssistantSettingsFormView: View {
         )
     }
 }
-

@@ -291,7 +291,28 @@ actor AnthropicAdapter: LLMProviderAdapter {
                                 "data": data.base64EncodedString()
                             ]
                         ])
+                    } else if let url = image.url, url.isFileURL, let data = try? Data(contentsOf: url) {
+                        content.append([
+                            "type": "image",
+                            "source": [
+                                "type": "base64",
+                                "media_type": image.mimeType,
+                                "data": data.base64EncodedString()
+                            ]
+                        ])
                     }
+                case .file(let file):
+                    let extracted = file.extractedText?.trimmingCharacters(in: .whitespacesAndNewlines)
+                    let text: String
+                    if let extracted, !extracted.isEmpty {
+                        text = "Attachment: \(file.filename) (\(file.mimeType))\n\n\(extracted)"
+                    } else {
+                        text = "Attachment: \(file.filename) (\(file.mimeType))"
+                    }
+                    content.append([
+                        "type": "text",
+                        "text": text
+                    ])
                 default:
                     break
                 }
