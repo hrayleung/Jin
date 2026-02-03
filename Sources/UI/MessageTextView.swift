@@ -1,5 +1,8 @@
 import SwiftUI
 import MarkdownView
+#if canImport(LaTeXSwiftUI)
+import LaTeXSwiftUI
+#endif
 
 struct MessageTextView: View {
     enum RenderingMode {
@@ -19,10 +22,7 @@ struct MessageTextView: View {
         Group {
             switch mode {
             case .markdown:
-                MarkdownView(text)
-                    .font(.body)
-                    .markdownMathRenderingEnabled()
-                    .fixedSize(horizontal: false, vertical: true)
+                markdownBody
 
             case .plainText:
                 Text(text)
@@ -31,5 +31,22 @@ struct MessageTextView: View {
             }
         }
         .textSelection(.enabled)
+    }
+
+    @ViewBuilder
+    private var markdownBody: some View {
+        #if canImport(LaTeXSwiftUI)
+        MarkdownView(text.normalizingInlineMathDelimiters())
+            .font(.body)
+            .markdownMathRenderingEnabled()
+            .renderingStyle(.empty)
+            .ignoreStringFormatting()
+            .fixedSize(horizontal: false, vertical: true)
+        #else
+        MarkdownView(text.normalizingInlineMathDelimiters())
+            .font(.body)
+            .markdownMathRenderingEnabled()
+            .fixedSize(horizontal: false, vertical: true)
+        #endif
     }
 }
