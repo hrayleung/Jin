@@ -59,10 +59,12 @@ struct ContentView: View {
                     Button(action: createNewConversation) {
                         Label("New Chat", systemImage: "square.and.pencil")
                     }
+                    .keyboardShortcut("n", modifiers: [.command])
 
                     SettingsLink {
                         Label("Settings", systemImage: "gearshape")
                     }
+                    .keyboardShortcut(",", modifiers: [.command])
                 }
             }
         } detail: {
@@ -96,6 +98,7 @@ struct ContentView: View {
                             Image(systemName: "sidebar.right")
                         }
                         .help("Assistant Settings")
+                        .keyboardShortcut("i", modifiers: [.command])
                     }
                 }
             }
@@ -692,6 +695,7 @@ private extension ContentView {
             .buttonStyle(.plain)
             .foregroundStyle(.secondary)
             .help("New Assistant")
+            .keyboardShortcut("n", modifiers: [.command, .shift])
         } header: {
             HStack {
                 Text("Assistants")

@@ -6,6 +6,10 @@ struct ProviderConfigFormView: View {
     @State private var apiKey = ""
     @State private var serviceAccountJSON = ""
     @State private var showingAPIKey = false
+    @State private var storeCredentialsInKeychain = true
+    @State private var hasInitializedCredentialStorage = false
+    @State private var credentialSaveError: String?
+    @State private var credentialSaveTask: Task<Void, Never>?
     @State private var testStatus: TestStatus = .idle
     @State private var isFetchingModels = false
     @State private var modelsError: String?
@@ -14,6 +18,7 @@ struct ProviderConfigFormView: View {
     @State private var selectedModelIDs: Set<ModelInfo.ID> = []
 
     private let providerManager = ProviderManager()
+    private let keychainManager = KeychainManager()
 
     var body: some View {
         Form {
@@ -33,6 +38,19 @@ struct ProviderConfigFormView: View {
                     .help("Default endpoint is pre-filled. Change only if you know what you’re doing.")
                 }
 
+                Toggle("Store credentials in Keychain", isOn: $storeCredentialsInKeychain)
+                    .help("Keychain is more secure, but unsigned builds may prompt for your Mac password.")
+
+                if storeCredentialsInKeychain {
+                    Text("Keychain mode can prompt repeatedly when running unsigned builds (e.g. `swift run`). Run via Xcode (signed) or turn this off to store locally.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else {
+                    Text("Credentials are stored locally in your app database (less secure, but no Keychain prompts).")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
                 switch providerType {
                 case .openai, .anthropic, .xai:
                     apiKeyField
@@ -41,6 +59,12 @@ struct ProviderConfigFormView: View {
                 case .none:
                     Text("Unknown provider type")
                         .foregroundColor(.secondary)
+                }
+
+                if let credentialSaveError {
+                    Text(credentialSaveError)
+                        .foregroundStyle(.red)
+                        .font(.caption)
                 }
 
                 testConnectionButton
@@ -104,6 +128,21 @@ struct ProviderConfigFormView: View {
         .padding()
         .task {
             await loadCredentials()
+            await MainActor.run {
+                hasInitializedCredentialStorage = true
+            }
+        }
+        .onChange(of: storeCredentialsInKeychain) { _, newValue in
+            guard hasInitializedCredentialStorage else { return }
+            handleCredentialStorageModeChanged(storeInKeychain: newValue)
+        }
+        .onChange(of: apiKey) { _, _ in
+            guard hasInitializedCredentialStorage else { return }
+            scheduleCredentialSave()
+        }
+        .onChange(of: serviceAccountJSON) { _, _ in
+            guard hasInitializedCredentialStorage else { return }
+            scheduleCredentialSave()
         }
         .sheet(isPresented: $showingAddModel) {
             AddModelSheet(
@@ -237,11 +276,25 @@ struct ProviderConfigFormView: View {
     // MARK: - Actions
 
     private func loadCredentials() async {
+        let usesKeychain = provider.apiKeyKeychainID?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+
+        await MainActor.run {
+            storeCredentialsInKeychain = usesKeychain
+        }
+
         switch ProviderType(rawValue: provider.typeRaw) {
         case .openai, .anthropic, .xai:
-            apiKey = provider.apiKey ?? ""
+            if usesKeychain {
+                await MainActor.run { apiKey = "" }
+            } else {
+                apiKey = provider.apiKey ?? ""
+            }
         case .vertexai:
-            serviceAccountJSON = provider.serviceAccountJSON ?? ""
+            if usesKeychain {
+                await MainActor.run { serviceAccountJSON = "" }
+            } else {
+                serviceAccountJSON = provider.serviceAccountJSON ?? ""
+            }
         case .none:
             break
         }
@@ -268,19 +321,142 @@ struct ProviderConfigFormView: View {
     }
 
     private func saveCredentials() async throws {
+        credentialSaveTask?.cancel()
+        credentialSaveTask = nil
+        try await persistCredentials(validate: true)
+    }
+
+    private func scheduleCredentialSave() {
+        credentialSaveTask?.cancel()
+        credentialSaveTask = Task {
+            try? await Task.sleep(nanoseconds: 500_000_000)
+
+            do {
+                try await persistCredentials(validate: false)
+                await MainActor.run { credentialSaveError = nil }
+            } catch {
+                await MainActor.run { credentialSaveError = error.localizedDescription }
+            }
+        }
+    }
+
+    private func handleCredentialStorageModeChanged(storeInKeychain: Bool) {
+        credentialSaveTask?.cancel()
+        credentialSaveTask = nil
+        credentialSaveError = nil
+
+        Task {
+            do {
+                if storeInKeychain {
+                    await MainActor.run {
+                        provider.apiKeyKeychainID = provider.id
+                        provider.apiKey = nil
+                        provider.serviceAccountJSON = nil
+                    }
+                    try await persistCredentialsToKeychain(validate: false)
+                } else {
+                    try await persistCredentialsLocally(validate: false)
+                    await MainActor.run {
+                        provider.apiKeyKeychainID = nil
+                    }
+
+                    let trimmedAPIKey = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+                    let trimmedJSON = serviceAccountJSON.trimmingCharacters(in: .whitespacesAndNewlines)
+                    switch ProviderType(rawValue: provider.typeRaw) {
+                    case .openai, .anthropic, .xai:
+                        if trimmedAPIKey.isEmpty {
+                            await MainActor.run {
+                                credentialSaveError = "Keychain disabled. Paste your API key again to use this provider."
+                            }
+                        }
+                    case .vertexai:
+                        if trimmedJSON.isEmpty {
+                            await MainActor.run {
+                                credentialSaveError = "Keychain disabled. Paste your service account JSON again to use this provider."
+                            }
+                        }
+                    case .none:
+                        break
+                    }
+                }
+            } catch {
+                await MainActor.run {
+                    credentialSaveError = error.localizedDescription
+                }
+            }
+        }
+    }
+
+    private func persistCredentials(validate: Bool) async throws {
+        if storeCredentialsInKeychain {
+            try await persistCredentialsToKeychain(validate: validate)
+        } else {
+            try await persistCredentialsLocally(validate: validate)
+        }
+    }
+
+    private func persistCredentialsToKeychain(validate: Bool) async throws {
+        let keychainID = provider.id.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !keychainID.isEmpty else { return }
+
         switch ProviderType(rawValue: provider.typeRaw) {
         case .openai, .anthropic, .xai:
             let key = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !key.isEmpty else { return }
-            provider.apiKey = key
-            provider.serviceAccountJSON = nil
+            await MainActor.run {
+                provider.apiKeyKeychainID = keychainID
+                provider.apiKey = nil
+                provider.serviceAccountJSON = nil
+            }
+
+            if key.isEmpty {
+                return
+            }
+
+            try await keychainManager.saveAPIKey(key, for: keychainID)
 
         case .vertexai:
             let json = serviceAccountJSON.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !json.isEmpty else { return }
-            _ = try JSONDecoder().decode(ServiceAccountCredentials.self, from: Data(json.utf8))
-            provider.serviceAccountJSON = json
-            provider.apiKey = nil
+            await MainActor.run {
+                provider.apiKeyKeychainID = keychainID
+                provider.apiKey = nil
+                provider.serviceAccountJSON = nil
+            }
+
+            if json.isEmpty {
+                return
+            }
+
+            if validate {
+                _ = try JSONDecoder().decode(ServiceAccountCredentials.self, from: Data(json.utf8))
+            }
+
+            try await keychainManager.saveServiceAccountJSON(json, for: keychainID)
+
+        case .none:
+            break
+        }
+    }
+
+    private func persistCredentialsLocally(validate: Bool) async throws {
+        switch ProviderType(rawValue: provider.typeRaw) {
+        case .openai, .anthropic, .xai:
+            let key = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+            await MainActor.run {
+                provider.apiKeyKeychainID = nil
+                provider.apiKey = key.isEmpty ? nil : key
+                provider.serviceAccountJSON = nil
+            }
+
+        case .vertexai:
+            let json = serviceAccountJSON.trimmingCharacters(in: .whitespacesAndNewlines)
+            if validate, !json.isEmpty {
+                _ = try JSONDecoder().decode(ServiceAccountCredentials.self, from: Data(json.utf8))
+            }
+            await MainActor.run {
+                provider.apiKeyKeychainID = nil
+                provider.serviceAccountJSON = json.isEmpty ? nil : json
+                provider.apiKey = nil
+            }
 
         case .none:
             break
@@ -317,9 +493,9 @@ struct ProviderConfigFormView: View {
     private var isTestDisabled: Bool {
         switch ProviderType(rawValue: provider.typeRaw) {
         case .openai, .anthropic, .xai:
-            return apiKey.isEmpty || testStatus == .testing
+            return (!storeCredentialsInKeychain && apiKey.isEmpty) || testStatus == .testing
         case .vertexai:
-            return serviceAccountJSON.isEmpty || testStatus == .testing
+            return (!storeCredentialsInKeychain && serviceAccountJSON.isEmpty) || testStatus == .testing
         case .none:
             return true
         }
@@ -329,9 +505,9 @@ struct ProviderConfigFormView: View {
         guard !isFetchingModels else { return true }
         switch providerType {
         case .openai, .anthropic, .xai:
-            return apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            return !storeCredentialsInKeychain && apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         case .vertexai:
-            return serviceAccountJSON.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            return !storeCredentialsInKeychain && serviceAccountJSON.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         case .none:
             return true
         }

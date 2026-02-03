@@ -242,12 +242,15 @@ final class ProviderConfigEntity {
         let decoder = JSONDecoder()
         let models = try decoder.decode([ModelInfo].self, from: modelsData)
 
+        let inlineAPIKey: String? = apiKeyKeychainID == nil ? apiKey : nil
+        let inlineServiceAccountJSON: String? = apiKeyKeychainID == nil ? serviceAccountJSON : nil
+
         return ProviderConfig(
             id: id,
             name: name,
             type: providerType,
-            apiKey: apiKey,
-            serviceAccountJSON: serviceAccountJSON,
+            apiKey: inlineAPIKey,
+            serviceAccountJSON: inlineServiceAccountJSON,
             apiKeyKeychainID: apiKeyKeychainID,
             baseURL: baseURL,
             models: models

@@ -17,6 +17,7 @@ struct ChatView: View {
     @State private var draftAttachments: [DraftAttachment] = []
     @State private var isFileImporterPresented = false
     @State private var isComposerDropTargeted = false
+    @State private var isComposerFocused = false
     @State private var isStreaming = false
     @State private var streamingMessage: StreamingMessageState?
     @State private var streamingTask: Task<Void, Never>?
@@ -112,9 +113,12 @@ struct ChatView: View {
                             DroppableTextEditor(
                                 text: $messageText,
                                 isDropTargeted: $isComposerDropTargeted,
+                                isFocused: $isComposerFocused,
                                 font: NSFont.preferredFont(forTextStyle: .body),
                                 onDropFileURLs: handleDroppedFileURLs,
-                                onDropImages: handleDroppedImages
+                                onDropImages: handleDroppedImages,
+                                onSubmit: handleComposerSubmit,
+                                onCancel: handleComposerCancel
                             )
                                 .frame(minHeight: 40, maxHeight: 160)
                         }
@@ -220,6 +224,7 @@ struct ChatView: View {
                     Image(systemName: "sidebar.right")
                 }
                 .help("Assistant Settings")
+                .keyboardShortcut("i", modifiers: [.command])
 
                 Button(role: .destructive) {
                     onRequestDeleteConversation()
@@ -227,7 +232,11 @@ struct ChatView: View {
                     Image(systemName: "trash")
                 }
                 .help("Delete chat")
+                .keyboardShortcut(.delete, modifiers: [.command])
             }
+        }
+        .onAppear {
+            isComposerFocused = true
         }
         .alert("Error", isPresented: $showingError) {
             Button("OK", role: .cancel) {}
@@ -290,6 +299,19 @@ struct ChatView: View {
         .task {
             loadControlsFromConversation()
         }
+        .focusedSceneValue(
+            \.chatActions,
+            ChatFocusedActions(
+                canAttach: !isStreaming,
+                canStopStreaming: isStreaming,
+                focusComposer: { isComposerFocused = true },
+                attach: { isFileImporterPresented = true },
+                stopStreaming: {
+                    guard isStreaming else { return }
+                    sendMessage()
+                }
+            )
+        )
     }
     
     // MARK: - Helpers & Subviews
@@ -373,6 +395,17 @@ struct ChatView: View {
             showingError = true
         }
 
+        return true
+    }
+
+    private func handleComposerSubmit() {
+        guard !isStreaming else { return }
+        sendMessage()
+    }
+
+    private func handleComposerCancel() -> Bool {
+        guard isStreaming else { return false }
+        sendMessage()
         return true
     }
 
@@ -842,6 +875,51 @@ struct ChatView: View {
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
                     .stroke(Color(nsColor: .separatorColor), lineWidth: 0.5)
             )
+            .onDrag {
+                NSItemProvider(contentsOf: attachment.fileURL)
+                    ?? NSItemProvider(object: attachment.fileURL as NSURL)
+            }
+            .contextMenu {
+                Button {
+                    NSWorkspace.shared.open(attachment.fileURL)
+                } label: {
+                    Label("Open", systemImage: "arrow.up.right.square")
+                }
+
+                Button {
+                    NSWorkspace.shared.activateFileViewerSelecting([attachment.fileURL])
+                } label: {
+                    Label("Reveal in Finder", systemImage: "folder")
+                }
+
+                Divider()
+
+                if attachment.isImage, let image = NSImage(contentsOf: attachment.fileURL) {
+                    Button {
+                        let pasteboard = NSPasteboard.general
+                        pasteboard.clearContents()
+                        pasteboard.writeObjects([image])
+                    } label: {
+                        Label("Copy Image", systemImage: "doc.on.doc")
+                    }
+                }
+
+                Button {
+                    let pasteboard = NSPasteboard.general
+                    pasteboard.clearContents()
+                    pasteboard.setString(attachment.fileURL.path, forType: .string)
+                } label: {
+                    Label("Copy Path", systemImage: "doc.on.doc")
+                }
+
+                Divider()
+
+                Button(role: .destructive) {
+                    onRemove()
+                } label: {
+                    Label("Remove", systemImage: "trash")
+                }
+            }
         }
     }
     
@@ -2102,18 +2180,12 @@ struct ContentPartView: View {
             RedactedThinkingBlockView(redactedThinking: redacted)
 
         case .image(let image):
+            let fileURL = (image.url?.isFileURL == true) ? image.url : nil
+
             if let data = image.data, let nsImage = NSImage(data: data) {
-                Image(nsImage: nsImage)
-                    .resizable()
-                    .scaledToFit()
-                    .frame(maxWidth: 500)
-                    .cornerRadius(6)
-            } else if let url = image.url, url.isFileURL, let nsImage = NSImage(contentsOf: url) {
-                Image(nsImage: nsImage)
-                    .resizable()
-                    .scaledToFit()
-                    .frame(maxWidth: 500)
-                    .cornerRadius(6)
+                renderedImage(nsImage, fileURL: fileURL)
+            } else if let fileURL, let nsImage = NSImage(contentsOf: fileURL) {
+                renderedImage(nsImage, fileURL: fileURL)
             } else if let url = image.url {
                 Link(url.absoluteString, destination: url)
                     .font(.caption)
@@ -2136,8 +2208,51 @@ struct ContentPartView: View {
                 }
                 .buttonStyle(.plain)
                 .help("Open \(file.filename)")
+                .onDrag {
+                    NSItemProvider(contentsOf: url) ?? NSItemProvider(object: url as NSURL)
+                }
+                .contextMenu {
+                    Button {
+                        NSWorkspace.shared.open(url)
+                    } label: {
+                        Label("Open", systemImage: "arrow.up.right.square")
+                    }
+
+                    Button {
+                        NSWorkspace.shared.activateFileViewerSelecting([url])
+                    } label: {
+                        Label("Reveal in Finder", systemImage: "folder")
+                    }
+
+                    Divider()
+
+                    Button {
+                        let pasteboard = NSPasteboard.general
+                        pasteboard.clearContents()
+                        pasteboard.setString(url.path, forType: .string)
+                    } label: {
+                        Label("Copy Path", systemImage: "doc.on.doc")
+                    }
+
+                    Button {
+                        let pasteboard = NSPasteboard.general
+                        pasteboard.clearContents()
+                        pasteboard.setString(file.filename, forType: .string)
+                    } label: {
+                        Label("Copy Filename", systemImage: "doc.on.doc")
+                    }
+                }
             } else {
                 row
+                    .contextMenu {
+                        Button {
+                            let pasteboard = NSPasteboard.general
+                            pasteboard.clearContents()
+                            pasteboard.setString(file.filename, forType: .string)
+                        } label: {
+                            Label("Copy Filename", systemImage: "doc.on.doc")
+                        }
+                    }
             }
 
         case .audio:
@@ -2146,6 +2261,56 @@ struct ContentPartView: View {
                 .background(Color(nsColor: .controlBackgroundColor))
                 .cornerRadius(6)
         }
+    }
+
+    @ViewBuilder
+    private func renderedImage(_ image: NSImage, fileURL: URL?) -> some View {
+        Image(nsImage: image)
+            .resizable()
+            .scaledToFit()
+            .frame(maxWidth: 500)
+            .cornerRadius(6)
+            .onDrag {
+                if let fileURL {
+                    return NSItemProvider(contentsOf: fileURL) ?? NSItemProvider(object: fileURL as NSURL)
+                }
+                return NSItemProvider(object: image)
+            }
+            .contextMenu {
+                if let fileURL {
+                    Button {
+                        NSWorkspace.shared.open(fileURL)
+                    } label: {
+                        Label("Open", systemImage: "arrow.up.right.square")
+                    }
+
+                    Button {
+                        NSWorkspace.shared.activateFileViewerSelecting([fileURL])
+                    } label: {
+                        Label("Reveal in Finder", systemImage: "folder")
+                    }
+
+                    Divider()
+                }
+
+                Button {
+                    let pasteboard = NSPasteboard.general
+                    pasteboard.clearContents()
+                    pasteboard.writeObjects([image])
+                } label: {
+                    Label("Copy Image", systemImage: "doc.on.doc")
+                }
+
+                if let fileURL {
+                    Button {
+                        let pasteboard = NSPasteboard.general
+                        pasteboard.clearContents()
+                        pasteboard.setString(fileURL.path, forType: .string)
+                    } label: {
+                        Label("Copy Path", systemImage: "doc.on.doc")
+                    }
+                }
+            }
     }
 }
 

@@ -2,6 +2,9 @@ import SwiftUI
 import SwiftData
 
 struct SettingsView: View {
+    @Environment(\.modelContext) private var modelContext
+    @Query private var conversations: [ConversationEntity]
+
     private enum SettingsSection: String, CaseIterable, Identifiable {
         case providers = "Providers"
         case mcpServers = "MCP Servers"
@@ -22,6 +25,12 @@ struct SettingsView: View {
     @State private var selectedProviderID: String?
     @State private var selectedServerID: String?
     @State private var searchText = ""
+    @State private var providerPendingDeletion: ProviderConfigEntity?
+    @State private var showingDeleteProviderConfirmation = false
+    @State private var serverPendingDeletion: MCPServerConfigEntity?
+    @State private var showingDeleteServerConfirmation = false
+    @State private var operationErrorMessage: String?
+    @State private var showingOperationError = false
 
     // Queries for lists
     @Query(sort: \ProviderConfigEntity.name) private var providers: [ProviderConfigEntity]
@@ -30,6 +39,34 @@ struct SettingsView: View {
     // State for modals
     @State private var showingAddProvider = false
     @State private var showingAddServer = false
+
+    private var trimmedSearchText: String {
+        searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var filteredProviders: [ProviderConfigEntity] {
+        let needle = trimmedSearchText
+        guard !needle.isEmpty else { return providers }
+
+        return providers.filter { provider in
+            let typeName = ProviderType(rawValue: provider.typeRaw)?.displayName ?? provider.typeRaw
+            return provider.name.localizedCaseInsensitiveContains(needle)
+                || provider.typeRaw.localizedCaseInsensitiveContains(needle)
+                || typeName.localizedCaseInsensitiveContains(needle)
+                || (provider.baseURL ?? "").localizedCaseInsensitiveContains(needle)
+        }
+    }
+
+    private var filteredMCPServers: [MCPServerConfigEntity] {
+        let needle = trimmedSearchText
+        guard !needle.isEmpty else { return mcpServers }
+
+        return mcpServers.filter { server in
+            return server.name.localizedCaseInsensitiveContains(needle)
+                || server.id.localizedCaseInsensitiveContains(needle)
+                || server.command.localizedCaseInsensitiveContains(needle)
+        }
+    }
 
     var body: some View {
         NavigationSplitView {
@@ -97,15 +134,52 @@ struct SettingsView: View {
             AddMCPServerView()
         }
         .onAppear {
-            if selectedProviderID == nil {
-                selectedProviderID = providers.first?.id
+            ensureValidSelection()
+        }
+        .onChange(of: searchText) { _, _ in
+            ensureValidSelection()
+        }
+        .onChange(of: selectedSection) { _, _ in
+            ensureValidSelection()
+        }
+        .onChange(of: providers.count) { _, _ in
+            ensureValidSelection()
+        }
+        .onChange(of: mcpServers.count) { _, _ in
+            ensureValidSelection()
+        }
+        .alert("Error", isPresented: $showingOperationError) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(operationErrorMessage ?? "Something went wrong.")
+        }
+        .confirmationDialog(
+            "Delete provider?",
+            isPresented: $showingDeleteProviderConfirmation,
+            presenting: providerPendingDeletion
+        ) { provider in
+            Button("Delete", role: .destructive) {
+                deleteProvider(provider)
             }
+        } message: { provider in
+            Text(providerDeletionMessage(provider))
+        }
+        .confirmationDialog(
+            "Delete MCP server?",
+            isPresented: $showingDeleteServerConfirmation,
+            presenting: serverPendingDeletion
+        ) { server in
+            Button("Delete", role: .destructive) {
+                deleteServer(server)
+            }
+        } message: { server in
+            Text("This will permanently delete “\(server.name)”.")
         }
     }
 
     // MARK: - Providers List
     private var providersList: some View {
-        List(providers, selection: $selectedProviderID) { provider in
+        List(filteredProviders, selection: $selectedProviderID) { provider in
             NavigationLink(value: provider.id) {
                 HStack(spacing: 10) {
                     Image(systemName: "network")
@@ -125,8 +199,23 @@ struct SettingsView: View {
                 }
                 .padding(.vertical, 4)
             }
+            .contextMenu {
+                Button(role: .destructive) {
+                    requestDeleteProvider(provider)
+                } label: {
+                    Label("Delete Provider", systemImage: "trash")
+                }
+            }
         }
         .listStyle(.inset)
+        .onDeleteCommand {
+            requestDeleteSelectedProvider()
+        }
+        .overlay {
+            if !trimmedSearchText.isEmpty, filteredProviders.isEmpty {
+                ContentUnavailableView.search(text: trimmedSearchText)
+            }
+        }
     }
 
     private var providersListWithActions: some View {
@@ -144,15 +233,26 @@ struct SettingsView: View {
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.large)
-                .padding(12)
+
+                Button(role: .destructive) {
+                    requestDeleteSelectedProvider()
+                } label: {
+                    Label("Delete", systemImage: "trash")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.large)
+                .disabled(selectedProviderID == nil)
+                .keyboardShortcut(.delete, modifiers: [.command])
             }
+            .padding(12)
             .background(Color(nsColor: .controlBackgroundColor))
         }
     }
 
     // MARK: - MCP Servers List
     private var mcpServersList: some View {
-        List(mcpServers, selection: $selectedServerID) { server in
+        List(filteredMCPServers, selection: $selectedServerID) { server in
             NavigationLink(value: server.id) {
                 HStack(spacing: 10) {
                     Circle()
@@ -173,8 +273,23 @@ struct SettingsView: View {
                 }
                 .padding(.vertical, 4)
             }
+            .contextMenu {
+                Button(role: .destructive) {
+                    requestDeleteServer(server)
+                } label: {
+                    Label("Delete Server", systemImage: "trash")
+                }
+            }
         }
         .listStyle(.inset)
+        .onDeleteCommand {
+            requestDeleteSelectedServer()
+        }
+        .overlay {
+            if !trimmedSearchText.isEmpty, filteredMCPServers.isEmpty {
+                ContentUnavailableView.search(text: trimmedSearchText)
+            }
+        }
     }
 
     private var mcpServersListWithActions: some View {
@@ -192,17 +307,123 @@ struct SettingsView: View {
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.large)
-                .padding(12)
+
+                Button(role: .destructive) {
+                    requestDeleteSelectedServer()
+                } label: {
+                    Label("Delete", systemImage: "trash")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.large)
+                .disabled(selectedServerID == nil)
+                .keyboardShortcut(.delete, modifiers: [.command])
             }
+            .padding(12)
             .background(Color(nsColor: .controlBackgroundColor))
         }
     }
-}
 
-// Keeping the existing Add Views and General View structure but styled up a bit if needed.
-// For brevity and minimal conflict, I'll rely on the existing AddProviderView and AddMCPServerView structs
-// but I need to make sure they are available. I will re-include them or ensure they are in the file.
-// Since I am overwriting the file, I must include them.
+    private func showOperationError(_ message: String) {
+        operationErrorMessage = message
+        showingOperationError = true
+    }
+
+    private func providerDeletionMessage(_ provider: ProviderConfigEntity) -> String {
+        let count = conversations.filter { $0.providerID == provider.id }.count
+        guard count > 0 else {
+            return "This will permanently delete “\(provider.name)”."
+        }
+
+        return """
+        This will permanently delete “\(provider.name)”.
+
+        It is currently used by \(count) chat\(count == 1 ? "" : "s"). Those chats will need a different provider selected.
+        """
+    }
+
+    private func requestDeleteSelectedProvider() {
+        guard let selectedProviderID,
+              let provider = providers.first(where: { $0.id == selectedProviderID }) else {
+            return
+        }
+        requestDeleteProvider(provider)
+    }
+
+    private func requestDeleteProvider(_ provider: ProviderConfigEntity) {
+        guard providers.count > 1 else {
+            showOperationError("You must keep at least one provider configured.")
+            return
+        }
+
+        providerPendingDeletion = provider
+        showingDeleteProviderConfirmation = true
+    }
+
+    private func deleteProvider(_ provider: ProviderConfigEntity) {
+        Task { @MainActor in
+            let keychainID = (provider.apiKeyKeychainID ?? provider.id).trimmingCharacters(in: .whitespacesAndNewlines)
+            if !keychainID.isEmpty {
+                let keychainManager = KeychainManager()
+                _ = try? await keychainManager.deleteAPIKey(for: keychainID)
+                _ = try? await keychainManager.deleteServiceAccountJSON(for: keychainID)
+            }
+
+            modelContext.delete(provider)
+            providerPendingDeletion = nil
+        }
+    }
+
+    private func requestDeleteSelectedServer() {
+        guard let selectedServerID,
+              let server = mcpServers.first(where: { $0.id == selectedServerID }) else {
+            return
+        }
+        requestDeleteServer(server)
+    }
+
+    private func requestDeleteServer(_ server: MCPServerConfigEntity) {
+        serverPendingDeletion = server
+        showingDeleteServerConfirmation = true
+    }
+
+    private func deleteServer(_ server: MCPServerConfigEntity) {
+        Task { @MainActor in
+            modelContext.delete(server)
+            serverPendingDeletion = nil
+        }
+    }
+
+    private func ensureValidSelection() {
+        if selectedSection == nil {
+            selectedSection = .providers
+        }
+
+        switch selectedSection {
+        case .providers:
+            selectedServerID = nil
+            let candidates = filteredProviders
+            if let selectedProviderID,
+               candidates.contains(where: { $0.id == selectedProviderID }) {
+                return
+            }
+            selectedProviderID = candidates.first?.id
+        case .mcpServers:
+            selectedProviderID = nil
+            let candidates = filteredMCPServers
+            if let selectedServerID,
+               candidates.contains(where: { $0.id == selectedServerID }) {
+                return
+            }
+            selectedServerID = candidates.first?.id
+        case .general:
+            selectedProviderID = nil
+            selectedServerID = nil
+        case .none:
+            selectedSection = .providers
+        }
+    }
+}
 
 struct AddProviderView: View {
     @Environment(\.modelContext) private var modelContext
@@ -213,6 +434,7 @@ struct AddProviderView: View {
     @State private var baseURL = ProviderType.openai.defaultBaseURL ?? ""
     @State private var apiKey = ""
     @State private var serviceAccountJSON = ""
+    @State private var storeCredentialsInKeychain = true
 
     @State private var isSaving = false
     @State private var saveError: String?
@@ -238,6 +460,9 @@ struct AddProviderView: View {
                     TextField("Base URL", text: $baseURL)
                         .help("Default endpoint is pre-filled.")
                 }
+
+                Toggle("Store credentials in Keychain", isOn: $storeCredentialsInKeychain)
+                    .help("Keychain is more secure, but unsigned builds may prompt for your Mac password.")
 
                 switch providerType {
                 case .openai, .anthropic, .xai:
@@ -290,17 +515,40 @@ struct AddProviderView: View {
                 let trimmedAPIKey = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
                 let trimmedServiceAccountJSON = serviceAccountJSON.trimmingCharacters(in: .whitespacesAndNewlines)
 
-                let config = ProviderConfig(
-                    id: providerID,
-                    name: trimmedName,
-                    type: providerType,
-                    apiKey: providerType == .vertexai ? nil : trimmedAPIKey.isEmpty ? nil : trimmedAPIKey,
-                    serviceAccountJSON: providerType == .vertexai ? trimmedServiceAccountJSON.isEmpty ? nil : trimmedServiceAccountJSON : nil,
-                    baseURL: providerType == .vertexai ? nil : trimmedBaseURL.isEmpty ? nil : trimmedBaseURL
-                )
+                let config: ProviderConfig
+                if storeCredentialsInKeychain {
+                    let keychainManager = KeychainManager()
+                    switch providerType {
+                    case .openai, .anthropic, .xai:
+                        try await keychainManager.saveAPIKey(trimmedAPIKey, for: providerID)
+                    case .vertexai:
+                        _ = try JSONDecoder().decode(ServiceAccountCredentials.self, from: Data(trimmedServiceAccountJSON.utf8))
+                        try await keychainManager.saveServiceAccountJSON(trimmedServiceAccountJSON, for: providerID)
+                    }
 
-                if providerType == .vertexai, let json = config.serviceAccountJSON {
-                    _ = try JSONDecoder().decode(ServiceAccountCredentials.self, from: Data(json.utf8))
+                    config = ProviderConfig(
+                        id: providerID,
+                        name: trimmedName,
+                        type: providerType,
+                        apiKey: nil,
+                        serviceAccountJSON: nil,
+                        apiKeyKeychainID: providerID,
+                        baseURL: providerType == .vertexai ? nil : trimmedBaseURL.isEmpty ? nil : trimmedBaseURL
+                    )
+                } else {
+                    if providerType == .vertexai {
+                        _ = try JSONDecoder().decode(ServiceAccountCredentials.self, from: Data(trimmedServiceAccountJSON.utf8))
+                    }
+
+                    config = ProviderConfig(
+                        id: providerID,
+                        name: trimmedName,
+                        type: providerType,
+                        apiKey: providerType == .vertexai ? nil : trimmedAPIKey,
+                        serviceAccountJSON: providerType == .vertexai ? trimmedServiceAccountJSON : nil,
+                        apiKeyKeychainID: nil,
+                        baseURL: providerType == .vertexai ? nil : trimmedBaseURL.isEmpty ? nil : trimmedBaseURL
+                    )
                 }
 
                 let entity = try ProviderConfigEntity.fromDomain(config)

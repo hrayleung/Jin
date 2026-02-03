@@ -5,17 +5,23 @@ import UniformTypeIdentifiers
 struct DroppableTextEditor: NSViewRepresentable {
     @Binding var text: String
     @Binding var isDropTargeted: Bool
+    @Binding var isFocused: Bool
 
     let font: NSFont
     let onDropFileURLs: ([URL]) -> Bool
     let onDropImages: ([NSImage]) -> Bool
+    let onSubmit: () -> Void
+    let onCancel: () -> Bool
 
     func makeCoordinator() -> Coordinator {
         Coordinator(
             text: $text,
             isDropTargeted: $isDropTargeted,
+            isFocused: $isFocused,
             onDropFileURLs: onDropFileURLs,
-            onDropImages: onDropImages
+            onDropImages: onDropImages,
+            onSubmit: onSubmit,
+            onCancel: onCancel
         )
     }
 
@@ -38,6 +44,18 @@ struct DroppableTextEditor: NSViewRepresentable {
         }
         textView.onPerformDrop = { draggingInfo in
             context.coordinator.performDrop(draggingInfo)
+        }
+        textView.onFocusChanged = { isFocused in
+            context.coordinator.setFocused(isFocused)
+        }
+        textView.onPerformPaste = {
+            context.coordinator.performPaste()
+        }
+        textView.onSubmit = {
+            context.coordinator.submit()
+        }
+        textView.onCancel = {
+            context.coordinator.cancel()
         }
 
         let readableTypes = NSFilePromiseReceiver.readableDraggedTypes.map { NSPasteboard.PasteboardType($0) }
@@ -82,24 +100,39 @@ struct DroppableTextEditor: NSViewRepresentable {
         if textView.font != font {
             textView.font = font
         }
+
+        if isFocused, nsView.window?.firstResponder != textView {
+            DispatchQueue.main.async {
+                nsView.window?.makeFirstResponder(textView)
+            }
+        }
     }
 
     final class Coordinator: NSObject, NSTextViewDelegate {
         private let textBinding: Binding<String>
         private let isDropTargetedBinding: Binding<Bool>
+        private let isFocusedBinding: Binding<Bool>
         private let onDropFileURLs: ([URL]) -> Bool
         private let onDropImages: ([NSImage]) -> Bool
+        private let onSubmit: () -> Void
+        private let onCancel: () -> Bool
 
         init(
             text: Binding<String>,
             isDropTargeted: Binding<Bool>,
+            isFocused: Binding<Bool>,
             onDropFileURLs: @escaping ([URL]) -> Bool,
-            onDropImages: @escaping ([NSImage]) -> Bool
+            onDropImages: @escaping ([NSImage]) -> Bool,
+            onSubmit: @escaping () -> Void,
+            onCancel: @escaping () -> Bool
         ) {
             textBinding = text
             isDropTargetedBinding = isDropTargeted
+            isFocusedBinding = isFocused
             self.onDropFileURLs = onDropFileURLs
             self.onDropImages = onDropImages
+            self.onSubmit = onSubmit
+            self.onCancel = onCancel
         }
 
         func textDidChange(_ notification: Notification) {
@@ -113,9 +146,29 @@ struct DroppableTextEditor: NSViewRepresentable {
             }
         }
 
-        func performDrop(_ draggingInfo: NSDraggingInfo) -> Bool {
-            let pasteboard = draggingInfo.draggingPasteboard
+        func setFocused(_ isFocused: Bool) {
+            if isFocusedBinding.wrappedValue != isFocused {
+                isFocusedBinding.wrappedValue = isFocused
+            }
+        }
 
+        func performPaste() -> Bool {
+            handlePasteboard(NSPasteboard.general)
+        }
+
+        func submit() {
+            onSubmit()
+        }
+
+        func cancel() -> Bool {
+            onCancel()
+        }
+
+        func performDrop(_ draggingInfo: NSDraggingInfo) -> Bool {
+            handlePasteboard(draggingInfo.draggingPasteboard)
+        }
+
+        private func handlePasteboard(_ pasteboard: NSPasteboard) -> Bool {
             if handleFilePromises(in: pasteboard) {
                 return true
             }
@@ -231,6 +284,58 @@ struct DroppableTextEditor: NSViewRepresentable {
 private final class DroppableNSTextView: NSTextView {
     var onDragTargetedChanged: ((Bool) -> Void)?
     var onPerformDrop: ((NSDraggingInfo) -> Bool)?
+    var onFocusChanged: ((Bool) -> Void)?
+    var onPerformPaste: (() -> Bool)?
+    var onSubmit: (() -> Void)?
+    var onCancel: (() -> Bool)?
+
+    override func becomeFirstResponder() -> Bool {
+        let didBecome = super.becomeFirstResponder()
+        if didBecome {
+            onFocusChanged?(true)
+        }
+        return didBecome
+    }
+
+    override func resignFirstResponder() -> Bool {
+        let didResign = super.resignFirstResponder()
+        if didResign {
+            onFocusChanged?(false)
+        }
+        return didResign
+    }
+
+    override func paste(_ sender: Any?) {
+        if onPerformPaste?() == true {
+            return
+        }
+        super.paste(sender)
+    }
+
+    override func keyDown(with event: NSEvent) {
+        // Escape
+        if event.keyCode == 53, onCancel?() == true {
+            return
+        }
+
+        // Return / Enter
+        if event.keyCode == 36 || event.keyCode == 76 {
+            if hasMarkedText() {
+                super.keyDown(with: event)
+                return
+            }
+
+            if event.modifierFlags.contains(.shift) {
+                super.keyDown(with: event)
+                return
+            }
+
+            onSubmit?()
+            return
+        }
+
+        super.keyDown(with: event)
+    }
 
     override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
         onDragTargetedChanged?(true)

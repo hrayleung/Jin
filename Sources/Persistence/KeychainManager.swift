@@ -134,6 +134,21 @@ actor KeychainManager {
         return json
     }
 
+    func deleteServiceAccountJSON(for providerID: String) throws {
+        let account = keychainAccount(for: providerID, suffix: "_service_account")
+
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: account
+        ]
+
+        let status = SecItemDelete(query as CFDictionary)
+        guard status == errSecSuccess || status == errSecItemNotFound else {
+            throw KeychainError.deleteFailed(status: status)
+        }
+    }
+
     private func keychainAccount(for providerID: String, suffix: String = "") -> String {
         "jin_\(providerID)\(suffix)"
     }

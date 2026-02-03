@@ -25,6 +25,9 @@ struct JinApp: App {
             ContentView()
         }
         .modelContainer(modelContainer)
+        .commands {
+            ChatCommands()
+        }
 
         Settings {
             SettingsView()
