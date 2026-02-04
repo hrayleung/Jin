@@ -23,6 +23,10 @@ struct ChatView: View {
     @State private var streamingTask: Task<Void, Never>?
     @State private var rerunToolResultsByCallID: [String: ToolResult] = [:]
     @State private var rerunningToolCallIDs: Set<String> = []
+    @State private var composerHeight: CGFloat = 0
+    @State private var isModelPickerPresented = false
+
+    @ObservedObject private var favoriteModelsStore = FavoriteModelsStore.shared
 
     @State private var errorMessage: String?
     @State private var showingError = false
@@ -43,8 +47,157 @@ struct ChatView: View {
         }
     }
 
+    private var composerOverlay: some View {
+        let shape = RoundedRectangle(cornerRadius: 16, style: .continuous)
+
+        return HStack(alignment: .bottom, spacing: 12) {
+            VStack(alignment: .leading, spacing: 6) {
+                if !draftAttachments.isEmpty {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 8) {
+                            ForEach(draftAttachments) { attachment in
+                                DraftAttachmentChip(
+                                    attachment: attachment,
+                                    onRemove: { removeDraftAttachment(attachment) }
+                                )
+                            }
+                        }
+                        .padding(.horizontal, 2)
+                    }
+                }
+
+                ZStack(alignment: .topLeading) {
+                    if messageText.isEmpty {
+                        Text("Type a message...")
+                            .font(.body)
+                            .foregroundStyle(.secondary)
+                            .padding(.top, 2)
+                            .padding(.leading, 6)
+                    }
+
+                    DroppableTextEditor(
+                        text: $messageText,
+                        isDropTargeted: $isComposerDropTargeted,
+                        isFocused: $isComposerFocused,
+                        font: NSFont.preferredFont(forTextStyle: .body),
+                        onDropFileURLs: handleDroppedFileURLs,
+                        onDropImages: handleDroppedImages,
+                        onSubmit: handleComposerSubmit,
+                        onCancel: handleComposerCancel
+                    )
+                    .frame(height: 36)
+                }
+
+                HStack(spacing: 6) {
+                    Button {
+                        isFileImporterPresented = true
+                    } label: {
+                        controlIconLabel(
+                            systemName: "paperclip",
+                            isActive: !draftAttachments.isEmpty,
+                            badgeText: draftAttachments.isEmpty ? nil : "\(draftAttachments.count)"
+                        )
+                    }
+                    .buttonStyle(.plain)
+                    .help("Attach images / PDFs")
+                    .disabled(isStreaming)
+
+                    Menu {
+                        reasoningMenuContent
+                    } label: {
+                        controlIconLabel(
+                            systemName: "brain",
+                            isActive: isReasoningEnabled,
+                            badgeText: reasoningBadgeText
+                        )
+                    }
+                    .menuStyle(.borderlessButton)
+                    .disabled(!supportsReasoningControl)
+                    .help(reasoningHelpText)
+
+                    Menu {
+                        webSearchMenuContent
+                    } label: {
+                        controlIconLabel(
+                            systemName: "globe",
+                            isActive: isWebSearchEnabled,
+                            badgeText: webSearchBadgeText
+                        )
+                    }
+                    .menuStyle(.borderlessButton)
+                    .disabled(!supportsWebSearchControl)
+                    .help(webSearchHelpText)
+
+                    Menu {
+                        mcpToolsMenuContent
+                    } label: {
+                        controlIconLabel(
+                            systemName: "hammer",
+                            isActive: supportsMCPToolsControl && isMCPToolsEnabled,
+                            badgeText: mcpToolsBadgeText
+                        )
+                    }
+                    .menuStyle(.borderlessButton)
+                    .disabled(!supportsMCPToolsControl)
+                    .help(mcpToolsHelpText)
+
+                    Menu {
+                        providerSpecificParamsMenuContent
+                    } label: {
+                        controlIconLabel(
+                            systemName: "slider.horizontal.3",
+                            isActive: !controls.providerSpecific.isEmpty,
+                            badgeText: providerSpecificParamsBadgeText
+                        )
+                    }
+                    .menuStyle(.borderlessButton)
+                    .help(providerSpecificParamsHelpText)
+
+                    Spacer(minLength: 0)
+                }
+                .padding(.bottom, 1)
+            }
+
+            Button(action: sendMessage) {
+                Image(systemName: isStreaming ? "stop.circle.fill" : "arrow.up.circle.fill")
+                    .resizable()
+                    .symbolRenderingMode(.hierarchical)
+                    .frame(width: 22, height: 22)
+                    .foregroundStyle(isStreaming ? Color.secondary : (canSendDraft ? Color.accentColor : .gray))
+            }
+            .buttonStyle(.plain)
+            .disabled(!canSendDraft && !isStreaming)
+            .padding(.bottom, 2)
+        }
+        .padding(10)
+        .frame(maxWidth: 900)
+        .background {
+            shape.fill(.regularMaterial)
+                .overlay {
+                    shape.fill(
+                        LinearGradient(
+                            colors: [
+                                Color.white.opacity(0.08),
+                                Color.black.opacity(0.12)
+                            ],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    )
+                    .blendMode(.overlay)
+                }
+        }
+        .overlay(
+            shape.stroke(Color(nsColor: .separatorColor).opacity(0.55), lineWidth: 0.5)
+        )
+        .overlay(
+            shape.stroke(isComposerDropTargeted ? Color.accentColor : Color.clear, lineWidth: 2)
+        )
+        .shadow(color: Color.black.opacity(0.22), radius: 22, x: 0, y: 14)
+    }
+
     var body: some View {
-        VStack(spacing: 0) {
+        ZStack(alignment: .bottom) {
             // Message list
             GeometryReader { geometry in
                 ScrollViewReader { proxy in
@@ -71,7 +224,7 @@ struct ChatView: View {
                                         rerunToolCall(toolCall)
                                     }
                                 )
-                                    .id(message.id)
+                                .id(message.id)
                             }
 
                             // Streaming message
@@ -82,13 +235,25 @@ struct ChatView: View {
                                     assistantDisplayName: assistantDisplayName,
                                     assistantIcon: assistantIcon
                                 )
-                                    .id("streaming")
+                                .id("streaming")
                             }
-                            
-                            Spacer(minLength: 20)
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.vertical)
+                        .padding(.top, 16)
+                        .padding(.bottom, composerHeight + 24)
+                    }
+                    .onAppear {
+                        // On first open, jump to the latest message instead of the start of the conversation.
+                        DispatchQueue.main.async {
+                            scrollToBottom(proxy: proxy)
+                        }
+                    }
+                    .onChange(of: conversationEntity.id) { _, _ in
+                        // When switching between conversations, ensure we jump to the latest message even if
+                        // the message count matches the previous chat.
+                        DispatchQueue.main.async {
+                            scrollToBottom(proxy: proxy)
+                        }
                     }
                     .onChange(of: conversationEntity.messages.count) { _, _ in
                         scrollToBottom(proxy: proxy)
@@ -96,146 +261,25 @@ struct ChatView: View {
                     .onChange(of: streamingMessage) { _, _ in
                         scrollToBottom(proxy: proxy)
                     }
+                    .onChange(of: composerHeight) { _, _ in
+                        scrollToBottom(proxy: proxy)
+                    }
                 }
             }
 
-            Divider()
-
-            // Desktop-class Composer
-            VStack(spacing: 8) {
-                HStack(alignment: .bottom, spacing: 12) {
-                    VStack(alignment: .leading, spacing: 6) {
-                        if !draftAttachments.isEmpty {
-                            ScrollView(.horizontal, showsIndicators: false) {
-                                HStack(spacing: 8) {
-                                    ForEach(draftAttachments) { attachment in
-                                        DraftAttachmentChip(
-                                            attachment: attachment,
-                                            onRemove: { removeDraftAttachment(attachment) }
-                                        )
-                                    }
-                                }
-                                .padding(.horizontal, 2)
-                            }
-                        }
-
-                        ZStack(alignment: .topLeading) {
-                            if messageText.isEmpty {
-                                Text("Type a message...")
-                                    .font(.body)
-                                    .foregroundStyle(.secondary)
-                                    .padding(.top, 6)
-                                    .padding(.leading, 6)
-                            }
-                            DroppableTextEditor(
-                                text: $messageText,
-                                isDropTargeted: $isComposerDropTargeted,
-                                isFocused: $isComposerFocused,
-                                font: NSFont.preferredFont(forTextStyle: .body),
-                                onDropFileURLs: handleDroppedFileURLs,
-                                onDropImages: handleDroppedImages,
-                                onSubmit: handleComposerSubmit,
-                                onCancel: handleComposerCancel
-                            )
-                                .frame(minHeight: 32, idealHeight: 32, maxHeight: 120)
-                        }
-
-                        Divider()
-                            .padding(.horizontal, 2)
-
-                        HStack(spacing: 6) {
-                            Button {
-                                isFileImporterPresented = true
-                            } label: {
-                                controlIconLabel(
-                                    systemName: "paperclip",
-                                    isActive: !draftAttachments.isEmpty,
-                                    badgeText: draftAttachments.isEmpty ? nil : "\(draftAttachments.count)"
-                                )
-                            }
-                            .buttonStyle(.plain)
-                            .help("Attach images / PDFs")
-                            .disabled(isStreaming)
-
-                            Menu {
-                                reasoningMenuContent
-                            } label: {
-                                controlIconLabel(
-                                    systemName: "brain",
-                                    isActive: isReasoningEnabled,
-                                    badgeText: reasoningBadgeText
-                                )
-                            }
-                            .menuStyle(.borderlessButton)
-                            .disabled(!supportsReasoningControl)
-                            .help(reasoningHelpText)
-
-                            Menu {
-                                webSearchMenuContent
-                            } label: {
-                                controlIconLabel(
-                                    systemName: "globe",
-                                    isActive: isWebSearchEnabled,
-                                    badgeText: webSearchBadgeText
-                                )
-                            }
-                            .menuStyle(.borderlessButton)
-                            .disabled(!supportsWebSearchControl)
-                            .help(webSearchHelpText)
-
-                            Menu {
-                                mcpToolsMenuContent
-                            } label: {
-                                controlIconLabel(
-                                    systemName: "hammer",
-                                    isActive: supportsMCPToolsControl && isMCPToolsEnabled,
-                                    badgeText: mcpToolsBadgeText
-                                )
-                            }
-                            .menuStyle(.borderlessButton)
-                            .disabled(!supportsMCPToolsControl)
-                            .help(mcpToolsHelpText)
-
-                            Menu {
-                                providerSpecificParamsMenuContent
-                            } label: {
-                                controlIconLabel(
-                                    systemName: "slider.horizontal.3",
-                                    isActive: !controls.providerSpecific.isEmpty,
-                                    badgeText: providerSpecificParamsBadgeText
-                                )
-                            }
-                            .menuStyle(.borderlessButton)
-                            .help(providerSpecificParamsHelpText)
-
-                            Spacer(minLength: 0)
-                        }
-                        .padding(.bottom, 2)
+            // Floating Composer
+            composerOverlay
+                .padding(.horizontal, 16)
+                .padding(.bottom, 16)
+                .background {
+                    GeometryReader { geo in
+                        Color.clear.preference(key: ComposerHeightPreferenceKey.self, value: geo.size.height)
                     }
-                    .padding(6)
-                    .background(Color(nsColor: .controlBackgroundColor))
-                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 10, style: .continuous)
-                            .stroke(Color(nsColor: .separatorColor), lineWidth: 0.5)
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 10, style: .continuous)
-                            .stroke(isComposerDropTargeted ? Color.accentColor : Color.clear, lineWidth: 2)
-                    )
-
-                    Button(action: sendMessage) {
-                        Image(systemName: isStreaming ? "stop.fill" : "arrow.up.circle.fill")
-                            .resizable()
-                            .frame(width: 24, height: 24)
-                            .foregroundStyle(isStreaming ? .red : (canSendDraft ? Color.accentColor : .gray))
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(!canSendDraft && !isStreaming)
-                    .padding(.bottom, 4)
                 }
-                .padding(12)
-                .background(Color(nsColor: .windowBackgroundColor))
+        }
+        .onPreferenceChange(ComposerHeightPreferenceKey.self) { newValue in
+            if abs(composerHeight - newValue) > 0.5 {
+                composerHeight = newValue
             }
         }
         .background(Color(nsColor: .textBackgroundColor)) // Main chat background
@@ -243,7 +287,7 @@ struct ChatView: View {
         .navigationSubtitle(currentModelName)
         .toolbar {
             ToolbarItemGroup {
-                modelPickerMenu
+                modelPickerButton
 
                 Button {
                     withAnimation(.easeInOut(duration: 0.15)) {
@@ -1195,67 +1239,34 @@ struct ChatView: View {
         }
     }
 
-    private var modelPickerMenu: some View {
-        Menu {
-            Section("Provider") {
-                ForEach(providers) { provider in
-                    Button {
-                        setProvider(provider.id)
-                    } label: {
-                        HStack {
-                            Text(provider.name)
-                            if provider.id == conversationEntity.providerID {
-                                Spacer()
-                                Image(systemName: "checkmark")
-                            }
-                        }
-                    }
-                }
-            }
+    private var modelPickerButton: some View {
+        HStack(spacing: 4) {
+            Text(currentModelName)
+                .font(.callout)
+                .fontWeight(.medium)
 
-            Section("Model") {
-                if availableModels.isEmpty {
-                    Text("No models configured.")
-                } else {
-                    ForEach(availableModels) { model in
-                        Button {
-                            setModel(model.id)
-                        } label: {
-                            HStack {
-                                Text(model.name)
-                                if isFullySupportedModel(modelID: model.id) {
-                                    Text("Full")
-                                        .font(.caption2)
-                                        .padding(.horizontal, 6)
-                                        .padding(.vertical, 2)
-                                        .foregroundStyle(.green)
-                                        .background(
-                                            Capsule()
-                                                .fill(Color.green.opacity(0.12))
-                                        )
-                                        .overlay(
-                                            Capsule()
-                                                .stroke(Color.green.opacity(0.35), lineWidth: 0.5)
-                                        )
-                                }
-                                if model.id == conversationEntity.modelID {
-                                    Spacer()
-                                    Image(systemName: "checkmark")
-                                }
-                            }
-                        }
-                    }
+            Image(systemName: "chevron.down")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+        }
+        .contentShape(Rectangle())
+        .onTapGesture {
+            isModelPickerPresented = true
+        }
+        .help("Select model")
+        .accessibilityLabel("Select model")
+        .accessibilityAddTraits(.isButton)
+        .popover(isPresented: $isModelPickerPresented, arrowEdge: .bottom) {
+            ModelPickerPopover(
+                favoritesStore: favoriteModelsStore,
+                providers: providers,
+                selectedProviderID: conversationEntity.providerID,
+                selectedModelID: conversationEntity.modelID,
+                onSelect: { providerID, modelID in
+                    setProviderAndModel(providerID: providerID, modelID: modelID)
+                    isModelPickerPresented = false
                 }
-            }
-        } label: {
-            HStack(spacing: 4) {
-                Text(currentModelName)
-                    .font(.callout)
-                    .fontWeight(.medium)
-                Image(systemName: "chevron.down")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-            }
+            )
         }
     }
 
@@ -1306,6 +1317,15 @@ struct ChatView: View {
 
     private func setModel(_ modelID: String) {
         guard modelID != conversationEntity.modelID else { return }
+        conversationEntity.modelID = modelID
+        conversationEntity.updatedAt = Date()
+        normalizeControlsForCurrentSelection()
+    }
+
+    private func setProviderAndModel(providerID: String, modelID: String) {
+        guard providerID != conversationEntity.providerID || modelID != conversationEntity.modelID else { return }
+
+        conversationEntity.providerID = providerID
         conversationEntity.modelID = modelID
         conversationEntity.updatedAt = Date()
         normalizeControlsForCurrentSelection()
@@ -2577,6 +2597,14 @@ private struct AssistantBadgeIcon: View {
                     .foregroundStyle(.secondary)
             }
         }
+    }
+}
+
+private struct ComposerHeightPreferenceKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = max(value, nextValue())
     }
 }
 
