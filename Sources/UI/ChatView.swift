@@ -124,8 +124,8 @@ struct ChatView: View {
                                 Text("Type a message...")
                                     .font(.body)
                                     .foregroundStyle(.secondary)
-                                    .padding(.top, 8)
-                                    .padding(.leading, 5)
+                                    .padding(.top, 6)
+                                    .padding(.leading, 6)
                             }
                             DroppableTextEditor(
                                 text: $messageText,
@@ -137,7 +137,7 @@ struct ChatView: View {
                                 onSubmit: handleComposerSubmit,
                                 onCancel: handleComposerCancel
                             )
-                                .frame(minHeight: 40, maxHeight: 160)
+                                .frame(minHeight: 32, idealHeight: 32, maxHeight: 120)
                         }
 
                         Divider()
@@ -2448,79 +2448,112 @@ struct ChatView: View {
 
         var body: some View {
             let isUser = messageEntity.role == "user"
+            let isAssistant = messageEntity.role == "assistant"
             let isTool = messageEntity.role == "tool"
+            let message = try? messageEntity.toDomain()
+            let copyText = message.map(copyableText(from:)) ?? ""
+            let showsCopyButton = (isUser || isAssistant) && !copyText.isEmpty
 
-        HStack(alignment: .top, spacing: 0) {
-            if isUser {
-                Spacer()
-            }
+            HStack(alignment: .top, spacing: 0) {
+                if isUser {
+                    Spacer()
+                }
 
-            ConstrainedWidth(maxBubbleWidth) {
-                VStack(alignment: .leading, spacing: 6) {
-                    // Header (Sender Name)
-                    HStack(spacing: 6) {
-                        if !isUser && !isTool {
-                            AssistantBadgeIcon(icon: assistantIcon)
-                        }
-                        Text(isUser ? "You" : (isTool ? "Tool Output" : assistantDisplayName))
-                            .font(.caption)
-                            .fontWeight(.semibold)
-                            .foregroundStyle(.secondary)
-                        
-                        if isTool {
-                            Image(systemName: "hammer")
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                    .padding(.horizontal, 12)
-                    .padding(.top, 4)
-
-                    // Message Content
-                    VStack(alignment: .leading, spacing: 8) {
-                        if let message = try? messageEntity.toDomain() {
-                            ForEach(Array(message.content.enumerated()), id: \.offset) { _, part in
-                                ContentPartView(part: part)
+                ConstrainedWidth(maxBubbleWidth) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        // Header (Sender Name)
+                        HStack(spacing: 6) {
+                            if !isUser && !isTool {
+                                AssistantBadgeIcon(icon: assistantIcon)
                             }
+                            Text(isUser ? "You" : (isTool ? "Tool Output" : assistantDisplayName))
+                                .font(.caption)
+                                .fontWeight(.semibold)
+                                .foregroundStyle(.secondary)
 
-                            if let toolCalls = message.toolCalls, !toolCalls.isEmpty {
-                                VStack(alignment: .leading, spacing: 8) {
-                                    ForEach(toolCalls) { call in
-                                        ToolCallView(
-                                            toolCall: call,
-                                            toolResult: toolResultsByCallID[call.id],
-                                            isRerunning: isToolCallRerunning(call.id),
-                                            rerunAllowed: isRerunAllowed,
-                                            onRerun: { onRerunToolCall(call) }
-                                        )
+                            if isTool {
+                                Image(systemName: "hammer")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.top, 4)
+
+                        // Message Content
+                        ZStack(alignment: .bottomTrailing) {
+                            VStack(alignment: .leading, spacing: 8) {
+                                if let message {
+                                    ForEach(Array(message.content.enumerated()), id: \.offset) { _, part in
+                                        ContentPartView(part: part)
+                                    }
+
+                                    if let toolCalls = message.toolCalls, !toolCalls.isEmpty {
+                                        VStack(alignment: .leading, spacing: 8) {
+                                            ForEach(toolCalls) { call in
+                                                ToolCallView(
+                                                    toolCall: call,
+                                                    toolResult: toolResultsByCallID[call.id],
+                                                    isRerunning: isToolCallRerunning(call.id),
+                                                    rerunAllowed: isRerunAllowed,
+                                                    onRerun: { onRerunToolCall(call) }
+                                                )
+                                            }
+                                        }
                                     }
                                 }
                             }
+                            .padding(12)
+                            .background(bubbleBackground(isUser: isUser, isTool: isTool))
+                            .clipShape(RoundedRectangle(cornerRadius: 10))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 10)
+                                    .stroke(Color(nsColor: .separatorColor), lineWidth: 0.5)
+                            )
+
+                            if showsCopyButton {
+                                CopyToPasteboardButton(text: copyText, helpText: "Copy message")
+                                    .accessibilityLabel("Copy message")
+                                    .offset(y: 24)
+                            }
                         }
+                        .padding(.bottom, showsCopyButton ? 24 : 0)
                     }
-                    .padding(12)
-                    .background(bubbleBackground(isUser: isUser, isTool: isTool))
-                    .clipShape(RoundedRectangle(cornerRadius: 10))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 10)
-                            .stroke(Color(nsColor: .separatorColor), lineWidth: 0.5)
-                    )
+                }
+                .padding(.horizontal, 16)
+
+                if !isUser {
+                    Spacer()
                 }
             }
-            .padding(.horizontal, 16)
-            
-            if !isUser {
-                Spacer()
-            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 8)
         }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 8)
-    }
 
     private func bubbleBackground(isUser: Bool, isTool: Bool) -> Color {
         if isTool { return Color(nsColor: .controlBackgroundColor).opacity(0.5) }
         if isUser { return Color.accentColor.opacity(0.1) } // Very subtle blue tint
         return Color(nsColor: .controlBackgroundColor) // Standard blocks for assistant
+    }
+
+    private func copyableText(from message: Message) -> String {
+        let textParts = message.content.compactMap { part -> String? in
+            guard case .text(let text) = part else { return nil }
+            let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            return trimmed.isEmpty ? nil : trimmed
+        }
+
+        if !textParts.isEmpty {
+            return textParts.joined(separator: "\n\n")
+        }
+
+        let fileParts = message.content.compactMap { part -> String? in
+            guard case .file(let file) = part else { return nil }
+            let trimmed = file.filename.trimmingCharacters(in: .whitespacesAndNewlines)
+            return trimmed.isEmpty ? nil : trimmed
+        }
+
+        return fileParts.joined(separator: "\n")
     }
 }
 
@@ -2933,6 +2966,9 @@ struct StreamingMessageView: View {
     let assistantIcon: String?
 
     var body: some View {
+        let copyText = state.textContent.trimmingCharacters(in: .whitespacesAndNewlines)
+        let showsCopyButton = !copyText.isEmpty
+
         HStack(alignment: .top, spacing: 0) {
             ConstrainedWidth(maxBubbleWidth) {
                 VStack(alignment: .leading, spacing: 6) {
@@ -2946,43 +2982,52 @@ struct StreamingMessageView: View {
                     .padding(.horizontal, 12)
                     .padding(.top, 4)
 
-                    VStack(alignment: .leading, spacing: 8) {
-                        if !state.thinkingContent.isEmpty {
-                            DisclosureGroup(isExpanded: .constant(true)) {
-                                Text(state.thinkingContent)
-                                    .font(.system(.caption, design: .monospaced))
-                                    .foregroundStyle(.secondary)
-                                    .padding(8)
-                                    .background(Color(nsColor: .textBackgroundColor))
-                                    .cornerRadius(6)
-                            } label: {
-                                HStack {
+                    ZStack(alignment: .bottomTrailing) {
+                        VStack(alignment: .leading, spacing: 8) {
+                            if !state.thinkingContent.isEmpty {
+                                DisclosureGroup(isExpanded: .constant(true)) {
+                                    Text(state.thinkingContent)
+                                        .font(.system(.caption, design: .monospaced))
+                                        .foregroundStyle(.secondary)
+                                        .padding(8)
+                                        .background(Color(nsColor: .textBackgroundColor))
+                                        .cornerRadius(6)
+                                } label: {
+                                    HStack {
+                                        ProgressView().scaleEffect(0.5)
+                                        Text("Thinking...")
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                }
+                            }
+
+                            if !state.textContent.isEmpty {
+                                MessageTextView(text: state.textContent, mode: .plainText)
+                            } else if state.thinkingContent.isEmpty {
+                                HStack(spacing: 6) {
                                     ProgressView().scaleEffect(0.5)
-                                    Text("Thinking...")
+                                    Text("Generating...")
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
                                 }
                             }
                         }
+                        .padding(12)
+                        .background(Color(nsColor: .controlBackgroundColor))
+                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 10)
+                                .stroke(Color(nsColor: .separatorColor), lineWidth: 0.5)
+                        )
 
-                        if !state.textContent.isEmpty {
-                            MessageTextView(text: state.textContent, mode: .plainText)
-                        } else if state.thinkingContent.isEmpty {
-                            HStack(spacing: 6) {
-                                ProgressView().scaleEffect(0.5)
-                                Text("Generating...")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
+                        if showsCopyButton {
+                            CopyToPasteboardButton(text: state.textContent, helpText: "Copy message")
+                                .accessibilityLabel("Copy message")
+                                .offset(y: 24)
                         }
                     }
-                    .padding(12)
-                    .background(Color(nsColor: .controlBackgroundColor))
-                    .clipShape(RoundedRectangle(cornerRadius: 10))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 10)
-                            .stroke(Color(nsColor: .separatorColor), lineWidth: 0.5)
-                    )
+                    .padding(.bottom, showsCopyButton ? 24 : 0)
                 }
             }
             .padding(.horizontal, 16)

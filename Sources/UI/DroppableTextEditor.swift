@@ -36,7 +36,7 @@ struct DroppableTextEditor: NSViewRepresentable {
         textView.allowsUndo = true
         textView.drawsBackground = false
         textView.backgroundColor = .clear
-        textView.textContainerInset = NSSize(width: 2, height: 6)
+        textView.textContainerInset = NSSize(width: 2, height: 4)
         textView.string = text
 
         textView.onDragTargetedChanged = { isTargeted in
