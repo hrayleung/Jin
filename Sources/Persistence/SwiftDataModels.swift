@@ -283,6 +283,7 @@ final class MCPServerConfigEntity {
     var command: String
     var argsData: Data
     var envData: Data?
+    var disabledToolsData: Data?
     var isEnabled: Bool
     var runToolsAutomatically: Bool
     var isLongRunning: Bool
@@ -293,6 +294,7 @@ final class MCPServerConfigEntity {
         command: String,
         argsData: Data,
         envData: Data? = nil,
+        disabledToolsData: Data? = nil,
         isEnabled: Bool = false,
         runToolsAutomatically: Bool = true,
         isLongRunning: Bool = false
@@ -302,6 +304,7 @@ final class MCPServerConfigEntity {
         self.command = command
         self.argsData = argsData
         self.envData = envData
+        self.disabledToolsData = disabledToolsData
         self.isEnabled = isEnabled
         self.runToolsAutomatically = runToolsAutomatically
         self.isLongRunning = isLongRunning

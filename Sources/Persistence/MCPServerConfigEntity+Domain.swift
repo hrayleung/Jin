@@ -4,6 +4,10 @@ extension MCPServerConfigEntity {
     func toConfig() -> MCPServerConfig {
         let args: [String] = (try? JSONDecoder().decode([String].self, from: argsData)) ?? []
         let env: [String: String] = envData.flatMap { try? JSONDecoder().decode([String: String].self, from: $0) } ?? [:]
+        let disabledTools: Set<String> = disabledToolsData
+            .flatMap { try? JSONDecoder().decode([String].self, from: $0) }
+            .map(Set.init)
+            ?? []
 
         return MCPServerConfig(
             id: id,
@@ -13,7 +17,8 @@ extension MCPServerConfigEntity {
             env: env,
             isEnabled: isEnabled,
             runToolsAutomatically: runToolsAutomatically,
-            isLongRunning: isLongRunning
+            isLongRunning: isLongRunning,
+            disabledTools: disabledTools
         )
     }
 
@@ -24,5 +29,16 @@ extension MCPServerConfigEntity {
     func setEnv(_ env: [String: String]) {
         envData = (try? JSONEncoder().encode(env))
     }
-}
 
+    func disabledTools() -> Set<String> {
+        disabledToolsData
+            .flatMap { try? JSONDecoder().decode([String].self, from: $0) }
+            .map(Set.init)
+            ?? []
+    }
+
+    func setDisabledTools(_ disabled: Set<String>) {
+        let sorted = disabled.sorted()
+        disabledToolsData = sorted.isEmpty ? nil : (try? JSONEncoder().encode(sorted))
+    }
+}

@@ -21,6 +21,8 @@ struct ChatView: View {
     @State private var isStreaming = false
     @State private var streamingMessage: StreamingMessageState?
     @State private var streamingTask: Task<Void, Never>?
+    @State private var rerunToolResultsByCallID: [String: ToolResult] = [:]
+    @State private var rerunningToolCallIDs: Set<String> = []
 
     @State private var errorMessage: String?
     @State private var showingError = false
@@ -46,13 +48,24 @@ struct ChatView: View {
                         let bubbleMaxWidth = maxBubbleWidth(for: geometry.size.width)
                         let assistantDisplayName = conversationEntity.assistant?.displayName ?? "Assistant"
                         let assistantIcon = conversationEntity.assistant?.icon
+                        let toolResultsByCallID = toolResultsByToolCallID(in: orderedMessages)
+                            .merging(rerunToolResultsByCallID) { _, new in new }
+                        let visibleMessages = orderedMessages.filter { $0.role != "tool" }
                         LazyVStack(alignment: .leading, spacing: 0) { // Zero spacing, controlled by padding in rows
-                            ForEach(orderedMessages) { message in
+                            ForEach(visibleMessages) { message in
                                 MessageRow(
                                     messageEntity: message,
                                     maxBubbleWidth: bubbleMaxWidth,
                                     assistantDisplayName: assistantDisplayName,
-                                    assistantIcon: assistantIcon
+                                    assistantIcon: assistantIcon,
+                                    toolResultsByCallID: toolResultsByCallID,
+                                    isRerunAllowed: !isStreaming,
+                                    isToolCallRerunning: { toolCallID in
+                                        rerunningToolCallIDs.contains(toolCallID)
+                                    },
+                                    onRerunToolCall: { toolCall in
+                                        rerunToolCall(toolCall)
+                                    }
                                 )
                                     .id(message.id)
                             }
@@ -1209,10 +1222,73 @@ struct ChatView: View {
     }
 
     private func scrollToBottom(proxy: ScrollViewProxy) {
-        if let lastMessage = orderedMessages.last {
+        if let lastMessage = orderedMessages.last(where: { $0.role != "tool" }) {
             proxy.scrollTo(lastMessage.id, anchor: .bottom)
         } else if streamingMessage != nil {
             proxy.scrollTo("streaming", anchor: .bottom)
+        }
+    }
+
+    private func toolResultsByToolCallID(in messageEntities: [MessageEntity]) -> [String: ToolResult] {
+        var results: [String: ToolResult] = [:]
+        results.reserveCapacity(8)
+
+        for entity in messageEntities where entity.role == "tool" {
+            guard let message = try? entity.toDomain() else { continue }
+            for result in message.toolResults ?? [] {
+                results[result.toolCallID] = result
+            }
+        }
+
+        return results
+    }
+
+    private func rerunToolCall(_ toolCall: ToolCall) {
+        guard !isStreaming else { return }
+        guard !rerunningToolCallIDs.contains(toolCall.id) else { return }
+
+        rerunningToolCallIDs.insert(toolCall.id)
+
+        Task {
+            let callStart = Date()
+            do {
+                let servers = resolvedMCPServerConfigs(for: controls)
+                guard !servers.isEmpty else {
+                    throw LLMError.invalidRequest(message: "No MCP servers are enabled for automatic tool use.")
+                }
+
+                _ = try await MCPHub.shared.toolDefinitions(for: servers)
+                let result = try await MCPHub.shared.executeTool(functionName: toolCall.name, arguments: toolCall.arguments)
+                let duration = Date().timeIntervalSince(callStart)
+                let toolResult = ToolResult(
+                    toolCallID: toolCall.id,
+                    toolName: toolCall.name,
+                    content: result.text,
+                    isError: result.isError,
+                    signature: toolCall.signature,
+                    durationSeconds: duration
+                )
+
+                await MainActor.run {
+                    rerunToolResultsByCallID[toolCall.id] = toolResult
+                    rerunningToolCallIDs.remove(toolCall.id)
+                }
+            } catch {
+                let duration = Date().timeIntervalSince(callStart)
+                let toolResult = ToolResult(
+                    toolCallID: toolCall.id,
+                    toolName: toolCall.name,
+                    content: error.localizedDescription,
+                    isError: true,
+                    signature: toolCall.signature,
+                    durationSeconds: duration
+                )
+
+                await MainActor.run {
+                    rerunToolResultsByCallID[toolCall.id] = toolResult
+                    rerunningToolCallIDs.remove(toolCall.id)
+                }
+            }
         }
     }
 
@@ -1397,10 +1473,6 @@ struct ChatView: View {
         guard !trimmed.isEmpty else { return "New Chat" }
         return String(trimmed.prefix(48))
     }
-    
-    // ... (Keep existing streaming logic methods here for brevity, assuming no changes needed to logic)
-    // For completeness, I should include the streaming logic or the file will break.
-    // I will re-paste the streaming logic from the original file.
 
     private func startStreamingResponse() {
         guard streamingTask == nil else { return }
@@ -1535,12 +1607,33 @@ struct ChatView: View {
                     var toolOutputLines: [String] = []
 
                     for call in toolCalls {
+                        let callStart = Date()
                         do {
                             let result = try await MCPHub.shared.executeTool(functionName: call.name, arguments: call.arguments)
-                            toolResults.append(ToolResult(toolCallID: call.id, toolName: call.name, content: result.text, isError: result.isError, signature: call.signature))
+                            let duration = Date().timeIntervalSince(callStart)
+                            toolResults.append(
+                                ToolResult(
+                                    toolCallID: call.id,
+                                    toolName: call.name,
+                                    content: result.text,
+                                    isError: result.isError,
+                                    signature: call.signature,
+                                    durationSeconds: duration
+                                )
+                            )
                             toolOutputLines.append("Tool \(call.name):\n\(result.text)")
                         } catch {
-                            toolResults.append(ToolResult(toolCallID: call.id, toolName: call.name, content: error.localizedDescription, isError: true, signature: call.signature))
+                            let duration = Date().timeIntervalSince(callStart)
+                            toolResults.append(
+                                ToolResult(
+                                    toolCallID: call.id,
+                                    toolName: call.name,
+                                    content: error.localizedDescription,
+                                    isError: true,
+                                    signature: call.signature,
+                                    durationSeconds: duration
+                                )
+                            )
                             toolOutputLines.append("Tool \(call.name) failed:\n\(error.localizedDescription)")
                         }
                     }
@@ -1586,8 +1679,12 @@ struct ChatView: View {
     private func appendThinkingDelta(_ delta: ThinkingDelta, to parts: inout [ContentPart]) {
         switch delta {
         case .thinking(let textDelta, let signature):
-            if textDelta.isEmpty, let signature, case .thinking(let existing) = parts.last, existing.signature == nil {
-                parts[parts.count - 1] = .thinking(ThinkingBlock(text: existing.text, signature: signature))
+            // Anthropic signatures can arrive after (or alongside) the thinking text, and may stream
+            // incrementally. Treat signature-only deltas as updates to the current thinking block.
+            if textDelta.isEmpty, let signature, case .thinking(let existing) = parts.last {
+                if existing.signature != signature {
+                    parts[parts.count - 1] = .thinking(ThinkingBlock(text: existing.text, signature: signature))
+                }
                 return
             }
             if case .thinking(let existing) = parts.last, existing.signature == signature {
@@ -2064,15 +2161,19 @@ struct ChatView: View {
 
 // MARK: - Message Row & Content Views
 
-struct MessageRow: View {
-    let messageEntity: MessageEntity
-    let maxBubbleWidth: CGFloat
-    let assistantDisplayName: String
-    let assistantIcon: String?
+    struct MessageRow: View {
+        let messageEntity: MessageEntity
+        let maxBubbleWidth: CGFloat
+        let assistantDisplayName: String
+        let assistantIcon: String?
+        let toolResultsByCallID: [String: ToolResult]
+        let isRerunAllowed: Bool
+        let isToolCallRerunning: (String) -> Bool
+        let onRerunToolCall: (ToolCall) -> Void
 
-    var body: some View {
-        let isUser = messageEntity.role == "user"
-        let isTool = messageEntity.role == "tool"
+        var body: some View {
+            let isUser = messageEntity.role == "user"
+            let isTool = messageEntity.role == "tool"
 
         HStack(alignment: .top, spacing: 0) {
             if isUser {
@@ -2110,7 +2211,13 @@ struct MessageRow: View {
                             if let toolCalls = message.toolCalls, !toolCalls.isEmpty {
                                 VStack(alignment: .leading, spacing: 8) {
                                     ForEach(toolCalls) { call in
-                                        ToolCallView(toolCall: call)
+                                        ToolCallView(
+                                            toolCall: call,
+                                            toolResult: toolResultsByCallID[call.id],
+                                            isRerunning: isToolCallRerunning(call.id),
+                                            rerunAllowed: isRerunAllowed,
+                                            onRerun: { onRerunToolCall(call) }
+                                        )
                                     }
                                 }
                             }
@@ -2316,82 +2423,86 @@ struct ContentPartView: View {
 
 struct ToolCallView: View {
     let toolCall: ToolCall
+    let toolResult: ToolResult?
+    let isRerunning: Bool
+    let rerunAllowed: Bool
+    let onRerun: () -> Void
+
     @State private var isExpanded = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Button {
-                withAnimation(.easeInOut(duration: 0.2)) {
-                    isExpanded.toggle()
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                Image(systemName: "hammer")
+                    .font(.system(size: 13))
+                    .foregroundStyle(.secondary)
+
+                Text(displayTitle)
+                    .font(.system(.caption, design: .monospaced))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+
+                Spacer()
+
+                statusPill
+
+                if canRerun {
+                    Button("Re-run") {
+                        onRerun()
+                    }
+                    .font(.caption)
                 }
-            } label: {
-                HStack(spacing: 8) {
-                    Image(systemName: "hammer")
-                        .font(.system(size: 14))
-                        .foregroundStyle(.secondary)
 
-                    Text("Tool call")
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(.secondary)
-
-                    Text(toolCall.name)
-                        .font(.system(.caption, design: .monospaced))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-
-                    Spacer()
-
+                Button {
+                    withAnimation(.easeInOut(duration: 0.15)) {
+                        isExpanded.toggle()
+                    }
+                } label: {
                     Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
                         .font(.system(size: 11, weight: .semibold))
                         .foregroundStyle(.secondary)
+                        .frame(width: 20, height: 20)
                 }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .background(
-                    RoundedRectangle(cornerRadius: 8)
-                        .fill(Color.secondary.opacity(0.1))
-                )
+                .buttonStyle(.plain)
             }
-            .buttonStyle(.plain)
+
+            if !isExpanded, let argumentSummary {
+                Text("-> \(argumentSummary)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+                    .textSelection(.enabled)
+            }
 
             if isExpanded {
-                VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: 10) {
                     if let argsString = formattedArgumentsJSON {
-                        Text(argsString)
-                            .font(.system(.caption, design: .monospaced))
-                            .foregroundStyle(.secondary)
-                            .textSelection(.enabled)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 8)
-                            .background(
-                                RoundedRectangle(cornerRadius: 8)
-                                    .fill(Color.secondary.opacity(0.05))
-                            )
+                        ToolCallCodeBlockView(title: "Arguments", text: argsString)
                     } else {
-                        Text("No arguments")
+                        ToolCallCodeBlockView(title: "Arguments", text: "{}")
+                    }
+
+                    if let toolResult {
+                        ToolCallCodeBlockView(title: toolResult.isError ? "Error" : "Output", text: toolResult.content)
+                    } else {
+                        Text("Waiting for tool result…")
                             .font(.caption)
                             .foregroundStyle(.secondary)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 8)
-                            .background(
-                                RoundedRectangle(cornerRadius: 8)
-                                    .fill(Color.secondary.opacity(0.05))
-                            )
                     }
 
                     if let signature = toolCall.signature, !signature.isEmpty {
-                        Text(signature)
-                            .font(.system(.caption2, design: .monospaced))
-                            .foregroundStyle(.secondary)
-                            .textSelection(.enabled)
-                            .padding(.horizontal, 12)
+                        ToolCallCodeBlockView(title: "Signature", text: signature)
                     }
                 }
-                .padding(.top, 4)
-                .transition(.opacity.combined(with: .move(edge: .bottom)))
+                .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
-        .padding(.vertical, 4)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(Color.secondary.opacity(0.1))
+        )
     }
 
     private var formattedArgumentsJSON: String? {
@@ -2402,6 +2513,141 @@ struct ToolCallView: View {
             return nil
         }
         return argsString
+    }
+
+    private var displayTitle: String {
+        let (serverID, toolName) = splitFunctionName(toolCall.name)
+        if serverID.isEmpty { return toolName }
+        return "\(serverID) · \(toolName)"
+    }
+
+    private var canRerun: Bool {
+        rerunAllowed && toolResult != nil && !isRerunning
+    }
+
+    @ViewBuilder
+    private var statusPill: some View {
+        let status = resolvedStatus
+        let foreground: Color = {
+            switch status {
+            case .running: return .secondary
+            case .success: return .green
+            case .error: return .red
+            }
+        }()
+
+        HStack(spacing: 6) {
+            switch status {
+            case .running:
+                ProgressView()
+                    .scaleEffect(0.6)
+                Text("Running")
+            case .success:
+                Image(systemName: "checkmark")
+                Text("Success")
+            case .error:
+                Image(systemName: "xmark")
+                Text("Error")
+            }
+
+            if let durationText {
+                Text(durationText)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .font(.caption)
+        .foregroundStyle(foreground)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 4)
+        .background(
+            Capsule(style: .continuous)
+                .fill(Color.secondary.opacity(0.08))
+        )
+    }
+
+    private var durationText: String? {
+        guard let toolResult, !isRerunning else { return nil }
+        guard let seconds = toolResult.durationSeconds, seconds > 0 else { return nil }
+        if seconds < 1 {
+            return "\(Int((seconds * 1000).rounded()))ms"
+        }
+        return "\(Int(seconds.rounded()))s"
+    }
+
+    private var resolvedStatus: ToolCallStatus {
+        if isRerunning { return .running }
+        guard let toolResult else { return .running }
+        return toolResult.isError ? .error : .success
+    }
+
+    private enum ToolCallStatus {
+        case running
+        case success
+        case error
+    }
+
+    private func splitFunctionName(_ name: String) -> (serverID: String, toolName: String) {
+        guard let range = name.range(of: "__") else { return ("", name) }
+        let serverID = String(name[..<range.lowerBound])
+        let toolName = String(name[range.upperBound...])
+        return (serverID, toolName.isEmpty ? name : toolName)
+    }
+
+    private var argumentSummary: String? {
+        let raw = toolCall.arguments.mapValues { $0.value }
+        guard !raw.isEmpty else { return nil }
+
+        // Common argument names used by popular MCP servers
+        let preferredKeys = ["query", "q", "url", "input", "text"]
+        for key in preferredKeys {
+            if let value = raw[key] as? String {
+                return oneLine(value, maxLength: 200)
+            }
+        }
+
+        guard JSONSerialization.isValidJSONObject(raw),
+              let data = try? JSONSerialization.data(withJSONObject: raw, options: [.sortedKeys]),
+              let json = String(data: data, encoding: .utf8) else {
+            return nil
+        }
+
+        return oneLine(json, maxLength: 200)
+    }
+
+    private func oneLine(_ string: String, maxLength: Int) -> String {
+        let condensed = string
+            .replacingOccurrences(of: "\n", with: " ")
+            .replacingOccurrences(of: "\t", with: " ")
+            .replacingOccurrences(of: "  ", with: " ")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard condensed.count > maxLength else { return condensed }
+        return String(condensed.prefix(maxLength - 1)) + "…"
+    }
+}
+
+private struct ToolCallCodeBlockView: View {
+    let title: String
+    let text: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            ScrollView {
+                Text(text)
+                    .font(.system(.caption, design: .monospaced))
+                    .foregroundStyle(.secondary)
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .frame(maxHeight: 160)
+            .padding(10)
+            .background(Color.secondary.opacity(0.06))
+            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        }
     }
 }
 

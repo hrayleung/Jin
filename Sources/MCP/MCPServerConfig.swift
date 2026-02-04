@@ -9,4 +9,5 @@ struct MCPServerConfig: Identifiable, Sendable, Equatable {
     var isEnabled: Bool
     var runToolsAutomatically: Bool
     var isLongRunning: Bool
+    var disabledTools: Set<String> = []
 }

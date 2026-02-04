@@ -7,11 +7,12 @@ struct MCPServerConfigFormView: View {
     @State private var argsText = ""
     @State private var argsError: String?
     @State private var envPairs: [EnvironmentVariablePair] = []
+    @State private var disabledTools: Set<String> = []
 
     @State private var verifying = false
     @State private var verifyError: String?
     @State private var tools: [MCPToolInfo] = []
-    @State private var showingToolsSheet = false
+    @State private var schemaPresentedTool: MCPToolInfo?
 
     var body: some View {
         Form {
@@ -81,6 +82,14 @@ struct MCPServerConfigFormView: View {
                         .disabled(verifying || server.command.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
 
                         Spacer()
+
+                        if !tools.isEmpty {
+                            Button("Hide") {
+                                tools = []
+                                verifyError = nil
+                            }
+                            .disabled(verifying)
+                        }
                     }
 
                     if let verifyError {
@@ -90,6 +99,35 @@ struct MCPServerConfigFormView: View {
                             .textSelection(.enabled)
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
+
+                    if !tools.isEmpty {
+                        LazyVGrid(
+                            columns: [GridItem(.adaptive(minimum: 240), spacing: 12, alignment: .topLeading)],
+                            alignment: .leading,
+                            spacing: 12
+                        ) {
+                            ForEach(tools) { tool in
+                                MCPToolCardView(
+                                    tool: tool,
+                                    isEnabled: Binding(
+                                        get: { !disabledTools.contains(tool.name) },
+                                        set: { isEnabled in
+                                            if isEnabled {
+                                                disabledTools.remove(tool.name)
+                                            } else {
+                                                disabledTools.insert(tool.name)
+                                            }
+                                            server.setDisabledTools(disabledTools)
+                                        }
+                                    ),
+                                    viewSchema: {
+                                        schemaPresentedTool = tool
+                                    }
+                                )
+                            }
+                        }
+                        .padding(.top, 8)
+                    }
                 }
             }
         }
@@ -98,6 +136,7 @@ struct MCPServerConfigFormView: View {
         .task {
             loadArgs()
             loadEnv()
+            loadDisabledTools()
         }
         .onChange(of: argsText) { _, newValue in
             do {
@@ -111,40 +150,28 @@ struct MCPServerConfigFormView: View {
         .onChange(of: envPairs) { _, _ in
             persistEnv()
         }
-        .sheet(isPresented: $showingToolsSheet) {
+        .sheet(item: $schemaPresentedTool) { tool in
             NavigationStack {
-                List {
-                    ForEach(tools, id: \.name) { tool in
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text(tool.name)
-                                .font(.headline)
-                            if !tool.description.isEmpty {
-                                Text(tool.description)
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                            }
-
-                            if let schemaText = formattedSchemaText(tool.inputSchema) {
-                                DisclosureGroup("Input schema") {
-                                    Text(schemaText)
-                                        .font(.system(.caption, design: .monospaced))
-                                        .foregroundStyle(.secondary)
-                                        .textSelection(.enabled)
-                                        .padding(8)
-                                        .frame(maxWidth: .infinity, alignment: .leading)
-                                        .background(Color(nsColor: .textBackgroundColor))
-                                        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-                                }
-                                .font(.caption)
-                            }
-                        }
-                        .padding(.vertical, 4)
+                ScrollView {
+                    if let schemaText = formattedSchemaText(tool.inputSchema) {
+                        Text(schemaText)
+                            .font(.system(.caption, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                            .textSelection(.enabled)
+                            .padding(12)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    } else {
+                        Text("No schema available.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .padding(12)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                     }
                 }
-                .navigationTitle("Tools (\(tools.count))")
+                .navigationTitle(tool.name)
                 .toolbar {
                     ToolbarItem(placement: .primaryAction) {
-                        Button("Done") { showingToolsSheet = false }
+                        Button("Done") { schemaPresentedTool = nil }
                     }
                 }
             }
@@ -160,6 +187,10 @@ struct MCPServerConfigFormView: View {
     private func loadEnv() {
         let env: [String: String] = server.envData.flatMap { try? JSONDecoder().decode([String: String].self, from: $0) } ?? [:]
         envPairs = env.keys.sorted().map { EnvironmentVariablePair(key: $0, value: env[$0] ?? "") }
+    }
+
+    private func loadDisabledTools() {
+        disabledTools = server.disabledTools()
     }
 
     private func persistEnv() {
@@ -183,7 +214,6 @@ struct MCPServerConfigFormView: View {
                 let tools = try await MCPHub.shared.listTools(for: config)
                 await MainActor.run {
                     self.tools = tools
-                    self.showingToolsSheet = true
                     self.verifying = false
                 }
             } catch {
@@ -222,5 +252,42 @@ struct MCPServerConfigFormView: View {
             pair.key.trimmingCharacters(in: .whitespacesAndNewlines) == "FIRECRAWL_API_KEY"
                 && !pair.value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         }
+    }
+}
+
+private struct MCPToolCardView: View {
+    let tool: MCPToolInfo
+    @Binding var isEnabled: Bool
+    let viewSchema: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(tool.name)
+                .font(.headline)
+
+            if !tool.description.isEmpty {
+                Text(tool.description)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(4)
+            }
+
+            Button("… View Input Schema") {
+                viewSchema()
+            }
+            .font(.caption)
+            .buttonStyle(.link)
+
+            Toggle("Enable", isOn: $isEnabled)
+                .toggleStyle(.checkbox)
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(nsColor: .controlBackgroundColor))
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .stroke(Color(nsColor: .separatorColor), lineWidth: 0.5)
+        )
     }
 }

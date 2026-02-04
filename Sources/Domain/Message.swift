@@ -209,6 +209,7 @@ struct ToolResult: Codable, Identifiable {
     let content: String
     let isError: Bool
     let signature: String?
+    let durationSeconds: Double?
 
     init(
         id: String = UUID().uuidString,
@@ -216,7 +217,8 @@ struct ToolResult: Codable, Identifiable {
         toolName: String? = nil,
         content: String,
         isError: Bool = false,
-        signature: String? = nil
+        signature: String? = nil,
+        durationSeconds: Double? = nil
     ) {
         self.id = id
         self.toolCallID = toolCallID
@@ -224,6 +226,7 @@ struct ToolResult: Codable, Identifiable {
         self.content = content
         self.isError = isError
         self.signature = signature
+        self.durationSeconds = durationSeconds
     }
 }
 

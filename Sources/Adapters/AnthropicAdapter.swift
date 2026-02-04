@@ -164,20 +164,28 @@ actor AnthropicAdapter: LLMProviderAdapter {
         tools: [ToolDefinition],
         streaming: Bool
     ) throws -> URLRequest {
+        let normalizedMessages = AnthropicToolUseNormalizer.normalize(messages)
+
         var request = URLRequest(url: URL(string: "\(baseURL)/messages")!)
         request.httpMethod = "POST"
         request.addValue(apiKey, forHTTPHeaderField: "x-api-key")
         request.addValue("application/json", forHTTPHeaderField: "Content-Type")
         request.addValue(anthropicVersion, forHTTPHeaderField: "anthropic-version")
 
+        let translatedMessages = normalizedMessages
+            .filter { $0.role != .system }
+            .map(translateMessage)
+
+        try AnthropicRequestPreflight.validate(messages: translatedMessages)
+
         var body: [String: Any] = [
             "model": modelID,
-            "messages": messages.filter { $0.role != .system }.map(translateMessage),
+            "messages": translatedMessages,
             "max_tokens": controls.maxTokens ?? 4096,
             "stream": streaming
         ]
 
-        if let systemPrompt = messages.first(where: { $0.role == .system })?.content.first,
+        if let systemPrompt = normalizedMessages.first(where: { $0.role == .system })?.content.first,
            case .text(let text) = systemPrompt {
             body["system"] = [
                 [
@@ -236,7 +244,24 @@ actor AnthropicAdapter: LLMProviderAdapter {
     private func translateMessage(_ message: Message) -> [String: Any] {
         var content: [[String: Any]] = []
 
-        // Preserve reasoning blocks first for assistant turns when thinking is enabled.
+        // Tool result blocks must come first in the user message that follows an assistant tool_use turn.
+        // Even if some legacy history stores tool results on a non-`.tool` role, putting them first
+        // keeps Anthropic's ordering rules satisfied.
+        if let toolResults = message.toolResults {
+            for result in toolResults {
+                let trimmed = result.content.trimmingCharacters(in: .whitespacesAndNewlines)
+                let safeContent = trimmed.isEmpty ? "<empty_content>" : result.content
+
+                content.append([
+                    "type": "tool_result",
+                    "tool_use_id": result.toolCallID,
+                    "content": safeContent,
+                    "is_error": result.isError
+                ])
+            }
+        }
+
+        // Reasoning blocks first for assistant turns.
         if message.role == .assistant {
             for part in message.content {
                 switch part {
@@ -258,21 +283,11 @@ actor AnthropicAdapter: LLMProviderAdapter {
                     break
                 }
             }
-
-            if let toolCalls = message.toolCalls {
-                for call in toolCalls {
-                    let input = call.arguments.mapValues { $0.value }
-                    content.append([
-                        "type": "tool_use",
-                        "id": call.id,
-                        "name": call.name,
-                        "input": input
-                    ])
-                }
-            }
         }
 
-        // User-facing blocks (and assistant text/images after tool calls).
+        // User-facing blocks (text/images/files).
+        // For assistant tool_use turns, these should appear before the `tool_use` blocks.
+        // For tool_result messages, these will appear after tool_result blocks (see above).
         if message.role != .tool {
             for part in message.content {
                 switch part {
@@ -319,18 +334,16 @@ actor AnthropicAdapter: LLMProviderAdapter {
             }
         }
 
-        if let toolResults = message.toolResults {
-            for result in toolResults {
+        // Append tool_use blocks last for assistant turns (Claude expects tool_use at the end
+        // of the assistant content array).
+        if message.role == .assistant, let toolCalls = message.toolCalls {
+            for call in toolCalls {
+                let input = call.arguments.mapValues { $0.value }
                 content.append([
-                    "type": "tool_result",
-                    "tool_use_id": result.toolCallID,
-                    "content": [
-                        [
-                            "type": "text",
-                            "text": result.content
-                        ]
-                    ],
-                    "is_error": result.isError
+                    "type": "tool_use",
+                    "id": call.id,
+                    "name": call.name,
+                    "input": input
                 ])
             }
         }
@@ -401,8 +414,13 @@ actor AnthropicAdapter: LLMProviderAdapter {
                 } else if delta.type == "thinking_delta", let thinking = delta.thinking {
                     return .thinkingDelta(.thinking(textDelta: thinking, signature: currentThinkingSignature))
                 } else if delta.type == "signature_delta", let signature = delta.signature {
-                    currentThinkingSignature = signature
-                    return .thinkingDelta(.thinking(textDelta: "", signature: signature))
+                    // Some Anthropic models may stream signature incrementally; treat as an append.
+                    if currentThinkingSignature == nil {
+                        currentThinkingSignature = signature
+                    } else {
+                        currentThinkingSignature? += signature
+                    }
+                    return .thinkingDelta(.thinking(textDelta: "", signature: currentThinkingSignature))
                 } else if delta.type == "input_json_delta", let partialJSON = delta.partialJson {
                     if let currentToolUse {
                         currentToolUse.appendArguments(partialJSON)

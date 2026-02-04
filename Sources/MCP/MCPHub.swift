@@ -24,6 +24,7 @@ actor MCPHub {
             }
 
             for tool in tools {
+                if server.disabledTools.contains(tool.name) { continue }
                 let functionName = makeFunctionName(serverID: server.id, toolName: tool.name)
                 toolRoutes[functionName] = ToolRoute(server: server, toolName: tool.name)
 
@@ -71,7 +72,9 @@ actor MCPHub {
 
     private func clientForServer(_ server: MCPServerConfig) async -> MCPClient {
         if let existing = clients[server.id],
-           clientConfigs[server.id] == server {
+           let existingConfig = clientConfigs[server.id],
+           isSameProcessConfig(existingConfig, server) {
+            clientConfigs[server.id] = server
             return existing
         }
 
@@ -83,6 +86,13 @@ actor MCPHub {
         clients[server.id] = client
         clientConfigs[server.id] = server
         return client
+    }
+
+    private func isSameProcessConfig(_ lhs: MCPServerConfig, _ rhs: MCPServerConfig) -> Bool {
+        lhs.command == rhs.command
+            && lhs.args == rhs.args
+            && lhs.env == rhs.env
+            && lhs.isLongRunning == rhs.isLongRunning
     }
 
     private func makeFunctionName(serverID: String, toolName: String) -> String {

@@ -618,10 +618,12 @@ actor MCPClient {
     }
 }
 
-struct MCPToolInfo: Sendable {
+struct MCPToolInfo: Identifiable, Sendable {
     let name: String
     let description: String
     let inputSchema: ParameterSchema
+
+    var id: String { name }
 }
 
 struct MCPToolCallResult: Sendable {
