@@ -18,7 +18,7 @@ struct ToolDefinition: Identifiable, Codable {
 }
 
 /// Parameter schema (JSON Schema)
-struct ParameterSchema: Codable {
+struct ParameterSchema: Codable, Sendable {
     let type: String // "object"
     let properties: [String: PropertySchema]
     let required: [String]
@@ -31,7 +31,7 @@ struct ParameterSchema: Codable {
 }
 
 /// Property schema for parameters
-struct PropertySchema: Codable {
+struct PropertySchema: Codable, Sendable {
     let type: String // "string", "number", "boolean", "array", "object"
     let description: String?
     let items: Box<PropertySchema>? // For arrays
@@ -104,7 +104,7 @@ struct PropertySchema: Codable {
 }
 
 /// Box type for indirect storage (class to allow recursive value types)
-final class Box<T: Codable>: Codable {
+final class Box<T: Codable & Sendable>: Codable, Sendable {
     let value: T
 
     init(_ value: T) {

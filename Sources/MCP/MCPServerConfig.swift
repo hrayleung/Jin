@@ -1,6 +1,6 @@
 import Foundation
 
-struct MCPServerConfig: Identifiable, Sendable {
+struct MCPServerConfig: Identifiable, Sendable, Equatable {
     let id: String
     var name: String
     var command: String
@@ -10,4 +10,3 @@ struct MCPServerConfig: Identifiable, Sendable {
     var runToolsAutomatically: Bool
     var isLongRunning: Bool
 }
-

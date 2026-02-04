@@ -587,23 +587,16 @@ struct AddMCPServerView: View {
         case custom = "Custom"
         case exaLocal = "Exa (Local via npx)"
         case exaRemote = "Exa (Remote via mcp-remote)"
+        case firecrawlLocal = "Firecrawl (Local via npx)"
 
         var id: String { rawValue }
-    }
-
-    private struct ImportedServer {
-        let id: String
-        let name: String
-        let command: String
-        let args: [String]
-        let env: [String: String]
     }
 
     @State private var id = ""
     @State private var name = ""
     @State private var command = ""
     @State private var args = ""
-    @State private var envPairs: [EnvPair] = []
+    @State private var envPairs: [EnvironmentVariablePair] = []
     @State private var runToolsAutomatically = true
     @State private var isLongRunning = false
     @State private var isEnabled = true
@@ -672,31 +665,7 @@ struct AddMCPServerView: View {
                 }
 
                 Section("Environment variables") {
-                    if envPairs.isEmpty {
-                        Text("No environment variables")
-                            .foregroundColor(.secondary)
-                    } else {
-                        ForEach($envPairs) { $pair in
-                            HStack {
-                                TextField("KEY", text: $pair.key)
-                                    .font(.system(.body, design: .monospaced))
-                                TextField("VALUE", text: $pair.value)
-                                    .font(.system(.body, design: .monospaced))
-                                Button(role: .destructive) {
-                                    envPairs.removeAll { $0.id == pair.id }
-                                } label: {
-                                    Image(systemName: "trash")
-                                }
-                                .buttonStyle(.plain)
-                            }
-                        }
-                    }
-
-                    Button {
-                        envPairs.append(EnvPair(key: "", value: ""))
-                    } label: {
-                        Label("Add variable", systemImage: "plus")
-                    }
+                    EnvironmentVariablesEditor(pairs: $envPairs)
                 }
             }
             .formStyle(.grouped)
@@ -726,13 +695,21 @@ struct AddMCPServerView: View {
             command = "npx"
             args = "-y exa-mcp-server"
             if envPairs.first(where: { $0.key == "EXA_API_KEY" }) == nil {
-                envPairs.append(EnvPair(key: "EXA_API_KEY", value: ""))
+                envPairs.append(EnvironmentVariablePair(key: "EXA_API_KEY", value: ""))
             }
         case .exaRemote:
             if id.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { id = "exa" }
             if name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { name = "Exa (Remote)" }
             command = "npx"
             args = "-y mcp-remote https://mcp.exa.ai/mcp?exaApiKey=YOUR_EXA_API_KEY"
+        case .firecrawlLocal:
+            if id.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { id = "firecrawl" }
+            if name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { name = "Firecrawl" }
+            command = "npx"
+            args = "-y firecrawl-mcp"
+            if envPairs.first(where: { $0.key == "FIRECRAWL_API_KEY" }) == nil {
+                envPairs.append(EnvironmentVariablePair(key: "FIRECRAWL_API_KEY", value: ""))
+            }
         }
     }
 
@@ -740,83 +717,26 @@ struct AddMCPServerView: View {
         importError = nil
 
         do {
-            let data = Data(importJSON.utf8)
-            let object = try JSONSerialization.jsonObject(with: data)
-            guard let imported = try parseImportedServer(object) else {
-                importError = "Unsupported JSON format."
-                return
-            }
+            let imported = try MCPServerImportParser.parse(json: importJSON)
 
             id = imported.id
             name = imported.name
             command = imported.command
-            args = imported.args.joined(separator: " ")
-            envPairs = imported.env.keys.sorted().map { EnvPair(key: $0, value: imported.env[$0] ?? "") }
+            args = CommandLineTokenizer.render(imported.args)
+            envPairs = imported.env.keys.sorted().map { EnvironmentVariablePair(key: $0, value: imported.env[$0] ?? "") }
         } catch {
-            importError = error.localizedDescription
+            importError = formatJSONImportError(error)
         }
-    }
-
-    private func parseImportedServer(_ object: Any) throws -> ImportedServer? {
-        guard let dict = object as? [String: Any] else { return nil }
-
-        // Claude Desktop-style config: { "mcpServers": { "<id>": { "command": "...", "args": [...], "env": {...} } } }
-        if let mcpServers = dict["mcpServers"] as? [String: Any] {
-            if let explicitID = dict["id"] as? String,
-               let serverDict = mcpServers[explicitID] as? [String: Any] {
-                return try parseSingleServer(id: explicitID, nameOverride: dict["name"] as? String, serverDict: serverDict)
-            }
-
-            if let (serverID, rawServer) = mcpServers.first,
-               let serverDict = rawServer as? [String: Any] {
-                return try parseSingleServer(id: serverID, nameOverride: nil, serverDict: serverDict)
-            }
-        }
-
-        // Single-server config: { "id": "...", "name": "...", "command": "...", "args": [...], "env": {...} }
-        if let command = dict["command"] as? String {
-            let serverID = (dict["id"] as? String) ?? UUID().uuidString
-            let serverName = (dict["name"] as? String) ?? serverID
-
-            if let type = dict["type"] as? String, type.lowercased() == "http", let url = dict["url"] as? String {
-                // HTTP MCP server via the mcp-remote bridge (stdio)
-                return ImportedServer(
-                    id: serverID,
-                    name: serverName,
-                    command: "npx",
-                    args: ["-y", "mcp-remote", url],
-                    env: [:]
-                )
-            }
-
-            let args = (dict["args"] as? [String]) ?? []
-            let env = (dict["env"] as? [String: String]) ?? [:]
-
-            return ImportedServer(id: serverID, name: serverName, command: command, args: args, env: env)
-        }
-
-        return nil
-    }
-
-    private func parseSingleServer(id: String, nameOverride: String?, serverDict: [String: Any]) throws -> ImportedServer? {
-        if let type = serverDict["type"] as? String, type.lowercased() == "http", let url = serverDict["url"] as? String {
-            return ImportedServer(
-                id: id,
-                name: nameOverride ?? id,
-                command: "npx",
-                args: ["-y", "mcp-remote", url],
-                env: [:]
-            )
-        }
-
-        guard let command = serverDict["command"] as? String else { return nil }
-        let args = (serverDict["args"] as? [String]) ?? []
-        let env = (serverDict["env"] as? [String: String]) ?? [:]
-        return ImportedServer(id: id, name: nameOverride ?? id, command: command, args: args, env: env)
     }
 
     private func addServer() {
-        let argsArray = args.split(separator: " ").map(String.init)
+        let argsArray: [String]
+        do {
+            argsArray = try CommandLineTokenizer.tokenize(args)
+        } catch {
+            importError = error.localizedDescription
+            return
+        }
         let argsData = (try? JSONEncoder().encode(argsArray)) ?? Data()
         let env: [String: String] = envPairs.reduce(into: [:]) { partial, pair in
             let key = pair.key.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -843,12 +763,35 @@ struct AddMCPServerView: View {
         modelContext.insert(server)
         dismiss()
     }
-}
 
-private struct EnvPair: Identifiable, Equatable {
-    let id = UUID()
-    var key: String
-    var value: String
+    private func formatJSONImportError(_ error: Error) -> String {
+        if let decodingError = error as? DecodingError {
+            return decodingErrorDescription(decodingError)
+        }
+
+        if let importError = error as? MCPServerImportError {
+            return importError.localizedDescription
+        }
+
+        return error.localizedDescription
+    }
+
+    private func decodingErrorDescription(_ error: DecodingError) -> String {
+        func codingPathString(_ path: [CodingKey]) -> String {
+            guard !path.isEmpty else { return "(root)" }
+            return path.map(\.stringValue).joined(separator: ".")
+        }
+
+        switch error {
+        case .typeMismatch(_, let context),
+             .valueNotFound(_, let context),
+             .keyNotFound(_, let context),
+             .dataCorrupted(let context):
+            return "\(context.debugDescription)\nPath: \(codingPathString(context.codingPath))"
+        @unknown default:
+            return error.localizedDescription
+        }
+    }
 }
 
 struct GeneralSettingsView: View {

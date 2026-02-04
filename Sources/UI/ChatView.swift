@@ -1048,7 +1048,7 @@ struct ChatView: View {
             let sources = Set(controls.webSearch?.sources ?? [])
             if sources == [.web] { return "W" }
             if sources == [.x] { return "X" }
-            if sources.contains(.web), sources.contains(.x) { return "WX" }
+            if sources.contains(.web), sources.contains(.x) { return "W+X" }
             return "On"
         case .anthropic, .vertexai, .none:
             return "On"
@@ -2388,7 +2388,7 @@ struct ToolCallView: View {
                     }
                 }
                 .padding(.top, 4)
-                .transition(.opacity.combined(with: .move(edge: .top)))
+                .transition(.opacity.combined(with: .move(edge: .bottom)))
             }
         }
         .padding(.vertical, 4)

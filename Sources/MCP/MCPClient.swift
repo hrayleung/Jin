@@ -1,98 +1,159 @@
 import Foundation
+import MCP
+
+#if canImport(System)
+    import System
+#else
+    @preconcurrency import SystemPackage
+#endif
 
 actor MCPClient {
     private let config: MCPServerConfig
-    private let protocolVersion = "2024-11-05"
+
+    private let handshakeTimeoutSeconds: Double = 180
+    private let requestTimeoutSeconds: Double = 60
+    private let toolCallTimeoutSeconds: Double = 180
+
+    private static let defaultPathEntries: [String] = [
+        "/opt/homebrew/bin",
+        "/usr/local/bin",
+        "/usr/bin",
+        "/bin",
+        "/usr/sbin",
+        "/sbin",
+    ]
+
+    private let logTailLimitBytes = 32 * 1024
 
     private var process: Process?
-    private var stdinHandle: FileHandle?
-    private var stdoutHandle: FileHandle?
+    private var stdinPipe: Pipe?
+    private var stdoutPipe: Pipe?
+    private var stderrPipe: Pipe?
+    private var stderrReadTask: Task<Void, Never>?
 
-    private var framer = MCPMessageFramer()
-    private var nextRequestID: Int = 1
-    private var pendingRequests: [Int: CheckedContinuation<Any, Error>] = [:]
+    private var stderrTail = Data()
+    private var launchDiagnostics: LaunchDiagnostics?
+    private var lastProcessExit: MCPClientError?
 
-    private var isInitialized = false
+    private var client: MCP.Client?
+    private var transport: MCP.StdioTransport?
 
     init(config: MCPServerConfig) {
         self.config = config
     }
 
-    func startIfNeeded() async throws {
-        if isInitialized { return }
-        try startProcess()
-        try await initializeHandshake()
-        isInitialized = true
-    }
+    func stop() async {
+        await client?.disconnect()
+        client = nil
+        transport = nil
 
-    func stop() {
-        stdoutHandle?.readabilityHandler = nil
-        stdoutHandle = nil
+        stderrReadTask?.cancel()
+        stderrReadTask = nil
 
-        stdinHandle?.closeFile()
-        stdinHandle = nil
+        stdinPipe?.fileHandleForWriting.closeFile()
+        stdinPipe = nil
+        stdoutPipe?.fileHandleForReading.closeFile()
+        stdoutPipe = nil
+        stderrPipe?.fileHandleForReading.closeFile()
+        stderrPipe = nil
 
         process?.terminate()
         process = nil
-
-        failAllPending(with: MCPError.notRunning)
-        isInitialized = false
     }
 
     // MARK: - Public API
 
     func listTools() async throws -> [MCPToolInfo] {
         try await startIfNeeded()
+        guard let client else { throw MCPClientError.notRunning }
 
         var tools: [MCPToolInfo] = []
         var cursor: String?
 
         repeat {
-            var params: [String: Any] = [:]
-            if let cursor {
-                params["cursor"] = cursor
+            do {
+                let cursorSnapshot = cursor
+                let page = try await withTimeout(method: "tools/list", seconds: requestTimeoutSeconds) {
+                    try await client.listTools(cursor: cursorSnapshot)
+                }
+
+                tools.append(contentsOf: page.tools.map { tool in
+                    MCPToolInfo(
+                        name: tool.name,
+                        description: tool.description ?? "",
+                        inputSchema: decodeParameterSchema(tool.inputSchema)
+                            ?? ParameterSchema(properties: [:], required: [])
+                    )
+                })
+
+                cursor = page.nextCursor
+            } catch {
+                throw enrich(error, method: "tools/list")
             }
-
-            let result = try await sendRequest(method: "tools/list", params: params.isEmpty ? nil : params)
-
-            guard let dict = result as? [String: Any] else {
-                throw MCPError.invalidResponse
-            }
-
-            if let toolDicts = dict["tools"] as? [[String: Any]] {
-                tools.append(contentsOf: toolDicts.compactMap(parseToolInfo))
-            }
-
-            cursor = dict["nextCursor"] as? String
         } while cursor != nil
 
         return tools
     }
 
-    func callTool(name: String, arguments: [String: Any]) async throws -> MCPToolCallResult {
+    func callTool(name: String, arguments: [String: AnyCodable]) async throws -> MCPToolCallResult {
         try await startIfNeeded()
+        guard let client else { throw MCPClientError.notRunning }
 
-        let result = try await sendRequest(
-            method: "tools/call",
-            params: [
-                "name": name,
-                "arguments": arguments
-            ]
-        )
+        let args = try decodeArguments(arguments)
 
-        guard let dict = result as? [String: Any] else {
-            throw MCPError.invalidResponse
+        do {
+            let result = try await withTimeout(method: "tools/call", seconds: toolCallTimeoutSeconds) {
+                try await client.callTool(name: name, arguments: args)
+            }
+
+            let text = result.content.compactMap { item -> String? in
+                if case .text(let text) = item { return text }
+                return nil
+            }.joined(separator: "\n")
+
+            return MCPToolCallResult(text: text, isError: result.isError ?? false)
+        } catch {
+            throw enrich(error, method: "tools/call")
+        }
+    }
+
+    // MARK: - Startup
+
+    private func startIfNeeded() async throws {
+        if let lastProcessExit {
+            // Prefer a clear exit error over opaque downstream failures.
+            self.lastProcessExit = nil
+            throw lastProcessExit
         }
 
-        let isError = dict["isError"] as? Bool ?? false
-        let content = (dict["content"] as? [[String: Any]]) ?? []
+        if client != nil { return }
 
-        let text = content.compactMap { item in
-            guard (item["type"] as? String) == "text" else { return nil }
-            return item["text"] as? String
-        }.joined(separator: "\n")
+        try startProcess()
 
-        return MCPToolCallResult(text: text, isError: isError)
+        do {
+            try await connectClient()
+        } catch {
+            let enriched = enrich(error, method: "initialize")
+            await stop()
+            throw enriched
+        }
+    }
+
+    private func connectClient() async throws {
+        guard let stdinPipe, let stdoutPipe else { throw MCPClientError.notRunning }
+
+        let inputFD = FileDescriptor(rawValue: stdoutPipe.fileHandleForReading.fileDescriptor)
+        let outputFD = FileDescriptor(rawValue: stdinPipe.fileHandleForWriting.fileDescriptor)
+
+        let transport = MCP.StdioTransport(input: inputFD, output: outputFD)
+        let client = MCP.Client(name: "Jin", version: "0.1.0")
+
+        self.transport = transport
+        self.client = client
+
+        _ = try await withTimeout(method: "initialize", seconds: handshakeTimeoutSeconds) {
+            try await client.connect(transport: transport)
+        }
     }
 
     // MARK: - Process lifecycle
@@ -100,174 +161,460 @@ actor MCPClient {
     private func startProcess() throws {
         guard process == nil else { return }
 
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
-        process.arguments = [config.command] + config.args
+        stderrTail.removeAll(keepingCapacity: true)
+        launchDiagnostics = nil
+        lastProcessExit = nil
 
-        var env = ProcessInfo.processInfo.environment
-        for (key, value) in config.env {
-            env[key] = value
+        let (command, args) = try parseCommandAndArgs()
+        let workingDirectory = try workingDirectoryForProcess(command: command)
+        let env = try makeProcessEnvironment(command: command)
+
+        guard let executableURL = resolveExecutableURL(command: command, environment: env, workingDirectory: workingDirectory) else {
+            throw MCPClientError.executableNotFound(command: command)
         }
+
+        launchDiagnostics = LaunchDiagnostics(
+            executablePath: executableURL.path,
+            args: args,
+            workingDirectory: workingDirectory.path,
+            nodeEnvironment: nodeEnvironmentDiagnostics(from: env)
+        )
+
+        let process = Process()
+        process.executableURL = executableURL
+        process.arguments = args
         process.environment = env
+        process.currentDirectoryURL = workingDirectory
 
         let stdinPipe = Pipe()
         let stdoutPipe = Pipe()
+        let stderrPipe = Pipe()
         process.standardInput = stdinPipe
         process.standardOutput = stdoutPipe
-        process.standardError = Pipe()
+        process.standardError = stderrPipe
 
         process.terminationHandler = { [weak self] proc in
             guard let self else { return }
             Task { await self.handleProcessExit(status: proc.terminationStatus) }
         }
 
-        try process.run()
+        do {
+            try process.run()
+        } catch {
+            throw MCPClientError.processLaunchFailed(command: command, underlying: error)
+        }
 
         self.process = process
-        stdinHandle = stdinPipe.fileHandleForWriting
+        self.stdinPipe = stdinPipe
+        self.stdoutPipe = stdoutPipe
+        self.stderrPipe = stderrPipe
 
-        let stdoutHandle = stdoutPipe.fileHandleForReading
-        self.stdoutHandle = stdoutHandle
-        stdoutHandle.readabilityHandler = { [weak self] handle in
-            let data = handle.availableData
-            guard !data.isEmpty else { return }
-            guard let self else { return }
-            Task { await self.handleStdoutData(data) }
-        }
-    }
-
-    private func handleProcessExit(status: Int32) {
-        stdoutHandle?.readabilityHandler = nil
-        stdoutHandle = nil
-        stdinHandle = nil
-        process = nil
-        isInitialized = false
-
-        failAllPending(with: MCPError.processExited(status: status))
-    }
-
-    // MARK: - JSON-RPC
-
-    private func initializeHandshake() async throws {
-        let result = try await sendRequest(
-            method: "initialize",
-            params: [
-                "protocolVersion": protocolVersion,
-                "capabilities": [:],
-                "clientInfo": [
-                    "name": "Jin",
-                    "version": "0.1.0"
-                ]
-            ]
-        )
-
-        guard (result as? [String: Any]) != nil else {
-            throw MCPError.invalidResponse
-        }
-
-        try sendNotification(method: "notifications/initialized", params: nil)
-    }
-
-    private func sendRequest(method: String, params: [String: Any]?) async throws -> Any {
-        guard stdinHandle != nil else { throw MCPError.notRunning }
-
-        let id = nextRequestID
-        nextRequestID += 1
-
-        var payload: [String: Any] = [
-            "jsonrpc": "2.0",
-            "id": id,
-            "method": method
-        ]
-        if let params {
-            payload["params"] = params
-        }
-
-        let data = try JSONSerialization.data(withJSONObject: payload)
-        try writeFramedMessage(data)
-
-        return try await withCheckedThrowingContinuation { continuation in
-            pendingRequests[id] = continuation
-        }
-    }
-
-    private func sendNotification(method: String, params: [String: Any]?) throws {
-        guard stdinHandle != nil else { throw MCPError.notRunning }
-
-        var payload: [String: Any] = [
-            "jsonrpc": "2.0",
-            "method": method
-        ]
-        if let params {
-            payload["params"] = params
-        }
-
-        let data = try JSONSerialization.data(withJSONObject: payload)
-        try writeFramedMessage(data)
-    }
-
-    private func writeFramedMessage(_ json: Data) throws {
-        guard let stdinHandle else { throw MCPError.notRunning }
-        stdinHandle.write(MCPMessageFramer.frame(json))
-    }
-
-    private func handleStdoutData(_ data: Data) async {
-        framer.append(data)
-
-        while true {
+        let stderrHandle = stderrPipe.fileHandleForReading
+        stderrReadTask?.cancel()
+        stderrReadTask = Task.detached(priority: .utility) { [weak self] in
             do {
-                guard let message = try framer.nextMessage() else { break }
-                handleMessage(message)
+                while !Task.isCancelled, let chunk = try stderrHandle.read(upToCount: 16 * 1024), !chunk.isEmpty {
+                    guard let self else { return }
+                    await self.handleStderrData(chunk)
+                }
+            } catch is CancellationError {
             } catch {
-                failAllPending(with: error)
-                break
+                // Ignore; stderr is best-effort diagnostics only.
             }
         }
     }
 
-    private func handleMessage(_ data: Data) {
-        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            return
-        }
+    private func handleProcessExit(status: Int32) async {
+        let stderr = diagnosticsTailString(from: stderrTail)
 
-        guard let id = json["id"] as? Int else {
-            // Notification from server; ignored for now.
-            return
-        }
+        stderrReadTask?.cancel()
+        stderrReadTask = nil
 
-        guard let continuation = pendingRequests.removeValue(forKey: id) else {
-            return
-        }
+        stdinPipe = nil
+        stdoutPipe = nil
+        stderrPipe = nil
+        process = nil
 
-        if let error = json["error"] as? [String: Any] {
-            let code = error["code"] as? Int
-            let message = error["message"] as? String ?? "Unknown MCP error"
-            continuation.resume(throwing: MCPError.rpcError(code: code, message: message))
-            return
-        }
+        await client?.disconnect()
+        client = nil
+        transport = nil
 
-        continuation.resume(returning: json["result"] as Any)
+        lastProcessExit = .processExited(status: status, stderr: stderr, diagnostics: launchDiagnostics)
     }
 
-    private func failAllPending(with error: Error) {
-        for (_, continuation) in pendingRequests {
-            continuation.resume(throwing: error)
+    private func handleStderrData(_ data: Data) async {
+        stderrTail.append(data)
+        if stderrTail.count > logTailLimitBytes {
+            stderrTail.removeSubrange(0..<(stderrTail.count - logTailLimitBytes))
         }
-        pendingRequests.removeAll()
     }
 
-    // MARK: - Parsing
+    // MARK: - Encoding/decoding helpers
 
-    private func parseToolInfo(_ dict: [String: Any]) -> MCPToolInfo? {
-        guard let name = dict["name"] as? String else { return nil }
-        let description = (dict["description"] as? String) ?? ""
-        let inputSchema = dict["inputSchema"] as? [String: Any] ?? [:]
+    private func decodeArguments(_ arguments: [String: AnyCodable]) throws -> [String: MCP.Value]? {
+        guard !arguments.isEmpty else { return nil }
+        let data = try JSONEncoder().encode(arguments)
+        return try JSONDecoder().decode([String: MCP.Value].self, from: data)
+    }
 
-        let schemaData = (try? JSONSerialization.data(withJSONObject: inputSchema)) ?? Data()
-        let schema = (try? JSONDecoder().decode(ParameterSchema.self, from: schemaData))
-            ?? ParameterSchema(properties: [:], required: [])
+    private func decodeParameterSchema(_ value: MCP.Value) -> ParameterSchema? {
+        do {
+            let data = try JSONEncoder().encode(value)
+            return try JSONDecoder().decode(ParameterSchema.self, from: data)
+        } catch {
+            return nil
+        }
+    }
 
-        return MCPToolInfo(name: name, description: description, inputSchema: schema)
+    // MARK: - Command parsing & environment
+
+    private func parseCommandAndArgs() throws -> (command: String, args: [String]) {
+        let trimmedCommandLine = config.command.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedCommandLine.isEmpty else {
+            throw MCPClientError.invalidCommand
+        }
+
+        let tokens: [String]
+        do {
+            tokens = try CommandLineTokenizer.tokenize(trimmedCommandLine)
+        } catch {
+            throw MCPClientError.invalidCommand
+        }
+
+        guard let command = tokens.first else {
+            throw MCPClientError.invalidCommand
+        }
+
+        var args = Array(tokens.dropFirst())
+        if !config.args.isEmpty {
+            args.append(contentsOf: config.args)
+        }
+
+        return (command, args)
+    }
+
+    private func makeProcessEnvironment(command: String) throws -> [String: String] {
+        var env = ProcessInfo.processInfo.environment
+
+        for (key, value) in config.env {
+            env[key] = value
+        }
+
+        env["PATH"] = mergedPath(existing: env["PATH"])
+        try applyNodeIsolationIfNeeded(command: command, environment: &env)
+        return env
+    }
+
+    private func mergedPath(existing: String?) -> String {
+        let existingComponents = (existing ?? "")
+            .split(separator: ":", omittingEmptySubsequences: true)
+            .map(String.init)
+
+        var seen = Set<String>()
+        var merged: [String] = []
+
+        func append(_ entry: String) {
+            let trimmed = entry.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty, !seen.contains(trimmed) else { return }
+            merged.append(trimmed)
+            seen.insert(trimmed)
+        }
+
+        for entry in existingComponents {
+            append(entry)
+        }
+
+        for entry in Self.defaultPathEntries {
+            append(entry)
+        }
+
+        for entry in additionalPathEntries() {
+            append(entry)
+        }
+
+        return merged.joined(separator: ":")
+    }
+
+    private func applyNodeIsolationIfNeeded(command: String, environment: inout [String: String]) throws {
+        let base = (command as NSString).lastPathComponent.lowercased()
+        let isNodeLauncher = ["npx", "npm", "pnpm", "yarn", "bunx", "bun"].contains(base)
+        guard isNodeLauncher else { return }
+
+        let root = try nodeIsolationRoot()
+        let home = root.appendingPathComponent("home", isDirectory: true)
+        let npmCache = root.appendingPathComponent("npm-cache", isDirectory: true)
+        let npmPrefix = root.appendingPathComponent("npm-prefix", isDirectory: true)
+        let npmrc = home.appendingPathComponent(".npmrc", isDirectory: false)
+
+        try FileManager.default.createDirectory(at: home, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: npmCache, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: npmPrefix, withIntermediateDirectories: true)
+
+        if config.env["HOME"] == nil {
+            environment["HOME"] = home.path
+        }
+
+        if config.env["NPM_CONFIG_USERCONFIG"] == nil && config.env["npm_config_userconfig"] == nil {
+            let inherited = safeNpmrcEntriesToInherit(from: environment)
+            try ensureIsolatedNpmrc(at: npmrc, npmPrefix: npmPrefix, npmCache: npmCache, inherited: inherited)
+
+            environment["NPM_CONFIG_USERCONFIG"] = npmrc.path
+            environment["npm_config_userconfig"] = npmrc.path
+        }
+
+        if config.env["NPM_CONFIG_CACHE"] == nil && config.env["npm_config_cache"] == nil {
+            environment["NPM_CONFIG_CACHE"] = npmCache.path
+            environment["npm_config_cache"] = npmCache.path
+        }
+
+        if config.env["NPM_CONFIG_PREFIX"] == nil && config.env["npm_config_prefix"] == nil {
+            environment["NPM_CONFIG_PREFIX"] = npmPrefix.path
+            environment["npm_config_prefix"] = npmPrefix.path
+        }
+    }
+
+    private func safeNpmrcEntriesToInherit(from environment: [String: String]) -> [String: String] {
+        guard let url = userNpmrcURL(from: environment) else { return [:] }
+        guard let contents = try? String(contentsOf: url, encoding: .utf8) else { return [:] }
+        return NPMRCUtils.safeEntriesToInherit(from: contents)
+    }
+
+    private func userNpmrcURL(from environment: [String: String]) -> URL? {
+        if let path = environment["NPM_CONFIG_USERCONFIG"] ?? environment["npm_config_userconfig"] {
+            let trimmed = path.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty {
+                let expanded = (trimmed as NSString).expandingTildeInPath
+                return URL(fileURLWithPath: expanded)
+            }
+        }
+
+        let fallback = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".npmrc")
+        return FileManager.default.fileExists(atPath: fallback.path) ? fallback : nil
+    }
+
+    private func ensureIsolatedNpmrc(
+        at url: URL,
+        npmPrefix: URL,
+        npmCache: URL,
+        inherited: [String: String]
+    ) throws {
+        let desiredAssignments: [String: String] = [
+            "prefix": npmPrefix.path,
+            "cache": npmCache.path,
+            "fund": "false",
+            "update-notifier": "false",
+            "progress": "false",
+        ]
+
+        let existingContents = (try? String(contentsOf: url, encoding: .utf8)) ?? ""
+        let existingAssignments = NPMRCUtils.parseAssignments(from: existingContents)
+
+        var linesToAppend: [String] = []
+
+        for (key, value) in desiredAssignments {
+            if existingAssignments[key] != value {
+                linesToAppend.append("\(key)=\(value)")
+            }
+        }
+
+        for (key, value) in inherited.sorted(by: { $0.key < $1.key }) {
+            if existingAssignments[key] == nil {
+                linesToAppend.append("\(key)=\(value)")
+            }
+        }
+
+        guard !linesToAppend.isEmpty else { return }
+
+        var newContents = existingContents
+        if newContents.isEmpty {
+            newContents = "# Generated by Jin (MCP node isolation)\n"
+        } else if !newContents.hasSuffix("\n") {
+            newContents.append("\n")
+        }
+
+        newContents.append(linesToAppend.joined(separator: "\n"))
+        newContents.append("\n")
+
+        do {
+            try newContents.write(to: url, atomically: true, encoding: .utf8)
+        } catch {
+            throw MCPClientError.environmentSetupFailed(message: "Failed to write \(url.path): \(error.localizedDescription)")
+        }
+    }
+
+    private func nodeIsolationRoot() throws -> URL {
+        guard let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
+            throw MCPClientError.environmentSetupFailed(message: "Unable to locate Application Support directory.")
+        }
+
+        let safeID = sanitizePathComponent(config.id)
+        let root = base
+            .appendingPathComponent("Jin", isDirectory: true)
+            .appendingPathComponent("MCP", isDirectory: true)
+            .appendingPathComponent("node", isDirectory: true)
+            .appendingPathComponent(safeID, isDirectory: true)
+
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        return root
+    }
+
+    private func sanitizePathComponent(_ string: String) -> String {
+        let trimmed = string.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return UUID().uuidString }
+
+        let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-_."))
+        var result = ""
+        result.reserveCapacity(trimmed.count)
+        for scalar in trimmed.unicodeScalars {
+            if allowed.contains(scalar) {
+                result.unicodeScalars.append(scalar)
+            } else {
+                result.append("_")
+            }
+        }
+
+        return result.isEmpty ? UUID().uuidString : result
+    }
+
+    private func nodeEnvironmentDiagnostics(from environment: [String: String]) -> NodeEnvironmentDiagnostics? {
+        guard let npmUserConfig = environment["NPM_CONFIG_USERCONFIG"] ?? environment["npm_config_userconfig"] else {
+            return nil
+        }
+
+        let home = environment["HOME"]
+        let npmCache = environment["NPM_CONFIG_CACHE"] ?? environment["npm_config_cache"]
+        let npmPrefix = environment["NPM_CONFIG_PREFIX"] ?? environment["npm_config_prefix"]
+        return NodeEnvironmentDiagnostics(home: home, npmUserConfig: npmUserConfig, npmCache: npmCache, npmPrefix: npmPrefix)
+    }
+
+    private func resolveExecutableURL(command: String, environment: [String: String], workingDirectory: URL) -> URL? {
+        let expanded = (command as NSString).expandingTildeInPath
+
+        if expanded.contains("/") {
+            let path: String
+            if expanded.hasPrefix("/") {
+                path = expanded
+            } else {
+                path = workingDirectory
+                    .appendingPathComponent(expanded)
+                    .path
+            }
+
+            guard FileManager.default.isExecutableFile(atPath: path) else { return nil }
+            return URL(fileURLWithPath: path)
+        }
+
+        let pathValue = environment["PATH"] ?? ""
+        for dir in pathValue.split(separator: ":", omittingEmptySubsequences: true) {
+            let candidate = "\(dir)/\(expanded)"
+            if FileManager.default.isExecutableFile(atPath: candidate) {
+                return URL(fileURLWithPath: candidate)
+            }
+        }
+
+        return nil
+    }
+
+    private func defaultWorkingDirectory() -> URL {
+        FileManager.default.homeDirectoryForCurrentUser
+    }
+
+    private func workingDirectoryForProcess(command: String) throws -> URL {
+        let base = (command as NSString).lastPathComponent.lowercased()
+        let isNodeLauncher = ["npx", "npm", "pnpm", "yarn", "bunx", "bun"].contains(base)
+        guard isNodeLauncher else { return defaultWorkingDirectory() }
+
+        // Avoid treating the user's `~/.npmrc` as a project-level `.npmrc` by running in a clean directory.
+        // (npm loads `${cwd}/.npmrc` as "project config" and can error on certain keys like `prefix=`.)
+        return try nodeIsolationRoot()
+    }
+
+    // MARK: - Diagnostics & robustness
+
+    private func additionalPathEntries() -> [String] {
+        let home = FileManager.default.homeDirectoryForCurrentUser
+
+        var candidates: [String] = [
+            home.appendingPathComponent(".volta/bin").path,
+            home.appendingPathComponent(".asdf/shims").path,
+            home.appendingPathComponent(".mise/shims").path,
+            home.appendingPathComponent(".local/bin").path,
+            home.appendingPathComponent("bin").path,
+        ]
+
+        candidates.append(contentsOf: nvmBinPaths(home: home))
+        candidates.append(contentsOf: fnmBinPaths(home: home))
+
+        return candidates.filter(isExistingDirectory)
+    }
+
+    private func nvmBinPaths(home: URL) -> [String] {
+        let root = home.appendingPathComponent(".nvm/versions/node", isDirectory: true)
+        guard let items = try? FileManager.default.contentsOfDirectory(at: root, includingPropertiesForKeys: nil) else {
+            return []
+        }
+        return items.map { $0.appendingPathComponent("bin", isDirectory: true).path }
+    }
+
+    private func fnmBinPaths(home: URL) -> [String] {
+        let root = home.appendingPathComponent(".fnm/node-versions", isDirectory: true)
+        guard let items = try? FileManager.default.contentsOfDirectory(at: root, includingPropertiesForKeys: nil) else {
+            return []
+        }
+        return items.map { $0.appendingPathComponent("installation/bin", isDirectory: true).path }
+    }
+
+    private func isExistingDirectory(_ path: String) -> Bool {
+        var isDirectory: ObjCBool = false
+        return FileManager.default.fileExists(atPath: path, isDirectory: &isDirectory) && isDirectory.boolValue
+    }
+
+    private func diagnosticsTailString(from data: Data) -> String? {
+        let trimmed = String(data: data, encoding: .utf8)?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let trimmed, !trimmed.isEmpty else { return nil }
+        return trimmed
+    }
+
+    private func currentDiagnosticsSnapshot() -> (stderr: String?, diagnostics: LaunchDiagnostics?) {
+        (diagnosticsTailString(from: stderrTail), launchDiagnostics)
+    }
+
+    private func enrich(_ error: Error, method: String) -> Error {
+        if let error = error as? MCPClientError { return error }
+        if let lastProcessExit { return lastProcessExit }
+
+        let stderr = diagnosticsTailString(from: stderrTail)
+        return MCPClientError.requestFailed(method: method, underlying: error, stderr: stderr, diagnostics: launchDiagnostics)
+    }
+
+    private func withTimeout<T>(
+        method: String,
+        seconds: Double,
+        operation: @escaping @Sendable () async throws -> T
+    ) async throws -> T {
+        guard seconds > 0 else { return try await operation() }
+
+        return try await withThrowingTaskGroup(of: T.self) { group in
+            group.addTask {
+                try await operation()
+            }
+
+            group.addTask {
+                try await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
+                let snapshot = await self.currentDiagnosticsSnapshot()
+                throw MCPClientError.requestTimedOut(
+                    method: method,
+                    seconds: seconds,
+                    stderr: snapshot.stderr,
+                    diagnostics: snapshot.diagnostics
+                )
+            }
+
+            let result = try await group.next()!
+            group.cancelAll()
+            return result
+        }
     }
 }
 
@@ -282,26 +629,91 @@ struct MCPToolCallResult: Sendable {
     let isError: Bool
 }
 
-enum MCPError: Error, LocalizedError {
+private enum MCPClientError: Error, LocalizedError {
     case notRunning
-    case processExited(status: Int32)
-    case invalidResponse
-    case rpcError(code: Int?, message: String)
+    case executableNotFound(command: String)
+    case invalidCommand
+    case environmentSetupFailed(message: String)
+    case processLaunchFailed(command: String, underlying: Error)
+    case processExited(status: Int32, stderr: String?, diagnostics: LaunchDiagnostics?)
+    case requestTimedOut(method: String, seconds: Double, stderr: String?, diagnostics: LaunchDiagnostics?)
+    case requestFailed(method: String, underlying: Error, stderr: String?, diagnostics: LaunchDiagnostics?)
 
     var errorDescription: String? {
         switch self {
         case .notRunning:
             return "MCP server is not running."
-        case .processExited(let status):
-            return "MCP server process exited (status: \(status))."
-        case .invalidResponse:
-            return "Invalid response from MCP server."
-        case .rpcError(let code, let message):
-            if let code {
-                return "MCP error (\(code)): \(message)"
+        case .executableNotFound(let command):
+            return "MCP server executable not found: \(command). If you installed it via Homebrew, make sure /opt/homebrew/bin is in PATH, or set a full path in Command."
+        case .invalidCommand:
+            return "Invalid MCP server command. Use the Command + Arguments fields (or paste a full command line into Command)."
+        case .environmentSetupFailed(let message):
+            return "Failed to set up MCP server environment.\n\n\(message)"
+        case .processLaunchFailed(let command, let underlying):
+            return "Failed to start MCP server (\(command)): \(underlying.localizedDescription)"
+        case .processExited(let status, let stderr, let diagnostics):
+            var message = "MCP server process exited (status: \(status))."
+            if let diagnostics {
+                message += "\n\n\(diagnostics.formatted())"
             }
-            return "MCP error: \(message)"
+            if let stderr, !stderr.isEmpty {
+                message += "\n\nstderr:\n\(stderr)"
+            }
+            return message
+        case .requestTimedOut(let method, let seconds, let stderr, let diagnostics):
+            var message = "MCP request timed out (\(method)) after \(Int(seconds))s."
+            if let diagnostics {
+                message += "\n\n\(diagnostics.formatted())"
+            }
+            if let stderr, !stderr.isEmpty {
+                message += "\n\nstderr:\n\(stderr)"
+            }
+            if method == "initialize" {
+                message += "\n\nTip: If this server works in another client, compare the exact command line + env. Jin runs the command directly (no login shell), so tools installed via nvm/asdf/fnm may require using a wrapper script or running via `/bin/zsh -lc`."
+                message += "\n\nIf you’re using `npx` and it hangs without output, check your `~/.npmrc` (e.g. custom `prefix=`) and consider setting `HOME` or `NPM_CONFIG_USERCONFIG` in the server’s env vars to isolate npm state."
+            }
+            return message
+        case .requestFailed(let method, let underlying, let stderr, let diagnostics):
+            var message = "MCP request failed (\(method)): \(underlying.localizedDescription)"
+            if let diagnostics {
+                message += "\n\n\(diagnostics.formatted())"
+            }
+            if let stderr, !stderr.isEmpty {
+                message += "\n\nstderr:\n\(stderr)"
+            }
+            return message
         }
     }
 }
 
+private struct LaunchDiagnostics: Sendable {
+    let executablePath: String
+    let args: [String]
+    let workingDirectory: String
+    let nodeEnvironment: NodeEnvironmentDiagnostics?
+
+    func formatted() -> String {
+        var lines: [String] = []
+        lines.append("Command:")
+        lines.append("\(executablePath) \(CommandLineTokenizer.render(args))")
+        lines.append("Working directory:")
+        lines.append(workingDirectory)
+
+        if let nodeEnvironment {
+            lines.append("Node environment:")
+            if let home = nodeEnvironment.home { lines.append("HOME=\(home)") }
+            lines.append("NPM_CONFIG_USERCONFIG=\(nodeEnvironment.npmUserConfig)")
+            if let cache = nodeEnvironment.npmCache { lines.append("NPM_CONFIG_CACHE=\(cache)") }
+            if let prefix = nodeEnvironment.npmPrefix { lines.append("NPM_CONFIG_PREFIX=\(prefix)") }
+        }
+
+        return lines.joined(separator: "\n")
+    }
+}
+
+private struct NodeEnvironmentDiagnostics: Sendable {
+    let home: String?
+    let npmUserConfig: String
+    let npmCache: String?
+    let npmPrefix: String?
+}

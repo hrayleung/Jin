@@ -55,7 +55,7 @@ struct ThinkingBlockView: View {
                         .fill(Color.secondary.opacity(0.05))
                 )
                 .padding(.top, 4)
-                .transition(.opacity.combined(with: .move(edge: .top)))
+                .transition(.opacity.combined(with: .move(edge: .bottom)))
             }
         }
         .padding(.vertical, 4)

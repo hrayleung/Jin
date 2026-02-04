@@ -4,11 +4,13 @@ actor MCPHub {
     static let shared = MCPHub()
 
     private var clients: [String: MCPClient] = [:]
+    private var clientConfigs: [String: MCPServerConfig] = [:]
     private var toolRoutes: [String: ToolRoute] = [:]
 
     func listTools(for server: MCPServerConfig) async throws -> [MCPToolInfo] {
-        let client = clientForServer(server)
-        return try await client.listTools()
+        try await withClient(for: server) { client in
+            try await client.listTools()
+        }
     }
 
     func toolDefinitions(for servers: [MCPServerConfig]) async throws -> [ToolDefinition] {
@@ -17,12 +19,13 @@ actor MCPHub {
         var definitions: [ToolDefinition] = []
 
         for server in servers where server.isEnabled {
-            let client = clientForServer(server)
-            let tools = try await client.listTools()
+            let tools = try await withClient(for: server) { client in
+                try await client.listTools()
+            }
 
             for tool in tools {
                 let functionName = makeFunctionName(serverID: server.id, toolName: tool.name)
-                toolRoutes[functionName] = ToolRoute(serverID: server.id, toolName: tool.name)
+                toolRoutes[functionName] = ToolRoute(server: server, toolName: tool.name)
 
                 definitions.append(
                     ToolDefinition(
@@ -44,21 +47,41 @@ actor MCPHub {
             throw MCPHubError.unknownTool(functionName)
         }
 
-        guard let client = clients[route.serverID] else {
-            throw MCPHubError.serverNotConnected(route.serverID)
+        return try await withClient(for: route.server) { client in
+            try await client.callTool(name: route.toolName, arguments: arguments)
         }
-
-        let args = arguments.mapValues { $0.value }
-        return try await client.callTool(name: route.toolName, arguments: args)
     }
 
-    private func clientForServer(_ server: MCPServerConfig) -> MCPClient {
-        if let existing = clients[server.id] {
+    private func withClient<T>(for server: MCPServerConfig, operation: (MCPClient) async throws -> T) async throws -> T {
+        if server.isLongRunning {
+            let client = await clientForServer(server)
+            return try await operation(client)
+        }
+
+        let client = MCPClient(config: server)
+        do {
+            let result = try await operation(client)
+            await client.stop()
+            return result
+        } catch {
+            await client.stop()
+            throw error
+        }
+    }
+
+    private func clientForServer(_ server: MCPServerConfig) async -> MCPClient {
+        if let existing = clients[server.id],
+           clientConfigs[server.id] == server {
             return existing
+        }
+
+        if let existing = clients[server.id] {
+            await existing.stop()
         }
 
         let client = MCPClient(config: server)
         clients[server.id] = client
+        clientConfigs[server.id] = server
         return client
     }
 
@@ -80,7 +103,7 @@ actor MCPHub {
     }
 
     private struct ToolRoute: Sendable {
-        let serverID: String
+        let server: MCPServerConfig
         let toolName: String
     }
 }
