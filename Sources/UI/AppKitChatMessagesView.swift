@@ -457,6 +457,7 @@ extension AppKitChatMessagesView {
 
 private final class ChatRowContext: ObservableObject {
     enum Kind {
+        case empty
         case message(MessageEntity)
         case streaming(StreamingMessageState)
     }
@@ -498,6 +499,8 @@ private struct ChatRowHostingRootView: View {
 
     var body: some View {
         switch context.kind {
+        case .empty:
+            Color.clear.frame(height: 1)
         case .message(let message):
             MessageRow(
                 messageEntity: message,
@@ -529,11 +532,11 @@ private struct ChatRowHostingRootView: View {
 
 private final class ChatRowCellView: NSTableCellView {
     private let context: ChatRowContext
-    private let hostingView: NSHostingView<ChatRowHostingRootView>
+    private var hostingView: NSHostingView<ChatRowHostingRootView>?
 
     override init(frame frameRect: NSRect) {
         context = ChatRowContext(
-            kind: .message(MessageEntity(role: "user", contentData: Data())),
+            kind: .empty,
             maxBubbleWidth: 720,
             assistantDisplayName: "Assistant",
             assistantIcon: nil,
@@ -542,21 +545,8 @@ private final class ChatRowCellView: NSTableCellView {
             rerunningToolCallIDs: [],
             onRerunToolCall: { _ in }
         )
-        hostingView = NSHostingView(rootView: ChatRowHostingRootView(context: context))
 
         super.init(frame: frameRect)
-
-        hostingView.translatesAutoresizingMaskIntoConstraints = false
-        hostingView.wantsLayer = true
-        hostingView.layer?.backgroundColor = NSColor.clear.cgColor
-        addSubview(hostingView)
-
-        NSLayoutConstraint.activate([
-            hostingView.leadingAnchor.constraint(equalTo: leadingAnchor),
-            hostingView.trailingAnchor.constraint(equalTo: trailingAnchor),
-            hostingView.topAnchor.constraint(equalTo: topAnchor),
-            hostingView.bottomAnchor.constraint(equalTo: bottomAnchor)
-        ])
     }
 
     required init?(coder: NSCoder) {
@@ -587,6 +577,8 @@ private final class ChatRowCellView: NSTableCellView {
             onRerunToolCall: onRerunToolCall
         )
         context.onStreamingContentUpdate = onStreamingContentUpdate
+
+        ensureHostingView()
     }
 
     func updateGlobals(
@@ -622,6 +614,8 @@ private final class ChatRowCellView: NSTableCellView {
 
     private func isSameKind(_ kind: ChatRowContext.Kind) -> Bool {
         switch (context.kind, kind) {
+        case (.empty, .empty):
+            return true
         case (.message(let a), .message(let b)):
             return a.id == b.id
         case (.streaming, .streaming):
@@ -629,5 +623,24 @@ private final class ChatRowCellView: NSTableCellView {
         default:
             return false
         }
+    }
+
+    private func ensureHostingView() {
+        guard hostingView == nil else { return }
+
+        let hostingView = NSHostingView(rootView: ChatRowHostingRootView(context: context))
+        hostingView.translatesAutoresizingMaskIntoConstraints = false
+        hostingView.wantsLayer = true
+        hostingView.layer?.backgroundColor = NSColor.clear.cgColor
+        addSubview(hostingView)
+
+        NSLayoutConstraint.activate([
+            hostingView.leadingAnchor.constraint(equalTo: leadingAnchor),
+            hostingView.trailingAnchor.constraint(equalTo: trailingAnchor),
+            hostingView.topAnchor.constraint(equalTo: topAnchor),
+            hostingView.bottomAnchor.constraint(equalTo: bottomAnchor)
+        ])
+
+        self.hostingView = hostingView
     }
 }
