@@ -83,6 +83,7 @@ struct AppKitChatMessagesView: NSViewRepresentable {
     }
 
     func updateNSView(_ nsView: NSScrollView, context: Context) {
+        let oldInsets = nsView.contentInsets
         nsView.backgroundColor = backgroundColor
         nsView.automaticallyAdjustsContentInsets = false
         nsView.contentInsets = contentInsets
@@ -101,6 +102,16 @@ struct AppKitChatMessagesView: NSViewRepresentable {
             rerunningToolCallIDs: rerunningToolCallIDs,
             onRerunToolCall: onRerunToolCall
         )
+
+        // Keep the bottom message visible when the composer height changes (pinned-to-bottom chats).
+        if abs(oldInsets.bottom - contentInsets.bottom) > 0.5
+            || abs(oldInsets.top - contentInsets.top) > 0.5
+            || abs(oldInsets.left - contentInsets.left) > 0.5
+            || abs(oldInsets.right - contentInsets.right) > 0.5 {
+            DispatchQueue.main.async {
+                context.coordinator.scrollToBottom(force: false)
+            }
+        }
     }
 }
 
