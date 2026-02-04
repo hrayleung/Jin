@@ -25,7 +25,13 @@ struct ChatView: View {
     @State private var rerunningToolCallIDs: Set<String> = []
     @State private var composerHeight: CGFloat = 0
     @State private var isModelPickerPresented = false
-    @State private var lastStreamingAutoScrollUptime: TimeInterval = 0
+
+    // Cache expensive derived data so typing/streaming doesn't repeatedly sort/decode the entire history.
+    @State private var cachedVisibleMessages: [MessageEntity] = []
+    @State private var cachedMessagesVersion: Int = 0
+    @State private var cachedBaseToolResultsByCallID: [String: ToolResult] = [:]
+    @State private var cachedToolResultsByCallID: [String: ToolResult] = [:]
+    @State private var cachedToolResultsVersion: Int = 0
 
     @ObservedObject private var favoriteModelsStore = FavoriteModelsStore.shared
 
@@ -38,15 +44,6 @@ struct ChatView: View {
     @State private var showingProviderSpecificParamsSheet = false
     @State private var providerSpecificParamsDraft = ""
     @State private var providerSpecificParamsError: String?
-
-    private var orderedMessages: [MessageEntity] {
-        conversationEntity.messages.sorted { lhs, rhs in
-            if lhs.timestamp != rhs.timestamp {
-                return lhs.timestamp < rhs.timestamp
-            }
-            return lhs.id.uuidString < rhs.id.uuidString
-        }
-    }
 
     private var composerOverlay: some View {
         let shape = RoundedRectangle(cornerRadius: 16, style: .continuous)
@@ -201,80 +198,28 @@ struct ChatView: View {
         ZStack(alignment: .bottom) {
             // Message list
             GeometryReader { geometry in
-                ScrollViewReader { proxy in
-                    ScrollView {
-                        let bubbleMaxWidth = maxBubbleWidth(for: geometry.size.width)
-                        let assistantDisplayName = conversationEntity.assistant?.displayName ?? "Assistant"
-                        let assistantIcon = conversationEntity.assistant?.icon
-                        let toolResultsByCallID = toolResultsByToolCallID(in: orderedMessages)
-                            .merging(rerunToolResultsByCallID) { _, new in new }
-                        let visibleMessages = orderedMessages.filter { $0.role != "tool" }
-                        LazyVStack(alignment: .leading, spacing: 0) { // Zero spacing, controlled by padding in rows
-                            ForEach(visibleMessages) { message in
-                                MessageRow(
-                                    messageEntity: message,
-                                    maxBubbleWidth: bubbleMaxWidth,
-                                    assistantDisplayName: assistantDisplayName,
-                                    assistantIcon: assistantIcon,
-                                    toolResultsByCallID: toolResultsByCallID,
-                                    isRerunAllowed: !isStreaming,
-                                    isToolCallRerunning: { toolCallID in
-                                        rerunningToolCallIDs.contains(toolCallID)
-                                    },
-                                    onRerunToolCall: { toolCall in
-                                        rerunToolCall(toolCall)
-                                    }
-                                )
-                                .id(message.id)
-                            }
+                let bubbleMaxWidth = maxBubbleWidth(for: geometry.size.width)
+                let assistantDisplayName = conversationEntity.assistant?.displayName ?? "Assistant"
+                let assistantIcon = conversationEntity.assistant?.icon
 
-                            // Streaming message
-                            if let streaming = streamingMessage {
-                                StreamingMessageView(
-                                    state: streaming,
-                                    maxBubbleWidth: bubbleMaxWidth,
-                                    assistantDisplayName: assistantDisplayName,
-                                    assistantIcon: assistantIcon,
-                                    onContentUpdate: {
-                                        throttledScrollToBottom(proxy: proxy)
-                                    }
-                                )
-                                .id("streaming")
-                            }
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.top, 16)
-                        .padding(.bottom, composerHeight + 24)
-                    }
-                    .onAppear {
-                        // On first open, jump to the latest message instead of the start of the conversation.
-                        DispatchQueue.main.async {
-                            scrollToBottom(proxy: proxy)
-                        }
-                    }
-                    .onChange(of: conversationEntity.id) { _, _ in
-                        // When switching between conversations, ensure we jump to the latest message even if
-                        // the message count matches the previous chat.
-                        DispatchQueue.main.async {
-                            scrollToBottom(proxy: proxy)
-                        }
-                    }
-                    .onChange(of: conversationEntity.messages.count) { _, _ in
-                        scrollToBottom(proxy: proxy)
-                    }
-                    .onChange(of: streamingMessage != nil) { _, isActive in
-                        if isActive {
-                            lastStreamingAutoScrollUptime = 0
-                        }
-                        // Ensure the streaming row has been laid out before scrolling to it.
-                        DispatchQueue.main.async {
-                            scrollToBottom(proxy: proxy)
-                        }
-                    }
-                    .onChange(of: composerHeight) { _, _ in
-                        scrollToBottom(proxy: proxy)
-                    }
-                }
+                AppKitChatMessagesView(
+                    conversationID: conversationEntity.id,
+                    messages: cachedVisibleMessages,
+                    messagesVersion: cachedMessagesVersion,
+                    streamingMessage: streamingMessage,
+                    maxBubbleWidth: bubbleMaxWidth,
+                    assistantDisplayName: assistantDisplayName,
+                    assistantIcon: assistantIcon,
+                    toolResultsByCallID: cachedToolResultsByCallID,
+                    toolResultsVersion: cachedToolResultsVersion,
+                    isRerunAllowed: !isStreaming,
+                    rerunningToolCallIDs: rerunningToolCallIDs,
+                    onRerunToolCall: { toolCall in
+                        rerunToolCall(toolCall)
+                    },
+                    contentInsets: NSEdgeInsets(top: 16, left: 0, bottom: composerHeight + 24, right: 0),
+                    backgroundColor: NSColor.textBackgroundColor
+                )
             }
 
             // Floating Composer
@@ -320,6 +265,16 @@ struct ChatView: View {
         }
         .onAppear {
             isComposerFocused = true
+            rebuildMessageCaches()
+        }
+        .onChange(of: conversationEntity.id) { _, _ in
+            // Switching chats: reset any transient per-chat rerun state and rebuild caches.
+            rerunToolResultsByCallID = [:]
+            rerunningToolCallIDs = []
+            rebuildMessageCaches()
+        }
+        .onChange(of: conversationEntity.messages.count) { _, _ in
+            rebuildMessageCaches()
         }
         .alert("Error", isPresented: $showingError) {
             Button("OK", role: .cancel) {}
@@ -1362,27 +1317,25 @@ struct ChatView: View {
         }
     }
 
-    private func scrollToBottom(proxy: ScrollViewProxy) {
-        if streamingMessage != nil {
-            proxy.scrollTo("streaming", anchor: .bottom)
-            return
+    private func rebuildMessageCaches() {
+        let ordered = conversationEntity.messages.sorted { lhs, rhs in
+            if lhs.timestamp != rhs.timestamp {
+                return lhs.timestamp < rhs.timestamp
+            }
+            return lhs.id.uuidString < rhs.id.uuidString
         }
 
-        if let lastMessage = orderedMessages.last(where: { $0.role != "tool" }) {
-            proxy.scrollTo(lastMessage.id, anchor: .bottom)
-        }
+        cachedVisibleMessages = ordered.filter { $0.role != "tool" }
+        cachedBaseToolResultsByCallID = toolResultsByToolCallID(in: ordered)
+        cachedMessagesVersion &+= 1
+
+        rebuildToolResultsCache()
     }
 
-    private func throttledScrollToBottom(proxy: ScrollViewProxy) {
-        // Streaming updates can be very frequent; throttle auto-scroll to keep the UI responsive.
-        guard isStreaming, streamingMessage != nil else { return }
-
-        let now = ProcessInfo.processInfo.systemUptime
-        let minInterval: TimeInterval = 0.25
-        guard now - lastStreamingAutoScrollUptime >= minInterval else { return }
-
-        lastStreamingAutoScrollUptime = now
-        scrollToBottom(proxy: proxy)
+    private func rebuildToolResultsCache() {
+        cachedToolResultsByCallID = cachedBaseToolResultsByCallID
+            .merging(rerunToolResultsByCallID) { _, new in new }
+        cachedToolResultsVersion &+= 1
     }
 
     private func toolResultsByToolCallID(in messageEntities: [MessageEntity]) -> [String: ToolResult] {
@@ -1428,6 +1381,7 @@ struct ChatView: View {
                 await MainActor.run {
                     rerunToolResultsByCallID[toolCall.id] = toolResult
                     rerunningToolCallIDs.remove(toolCall.id)
+                    rebuildToolResultsCache()
                 }
             } catch {
                 let duration = Date().timeIntervalSince(callStart)
@@ -1443,6 +1397,7 @@ struct ChatView: View {
                 await MainActor.run {
                     rerunToolResultsByCallID[toolCall.id] = toolResult
                     rerunningToolCallIDs.remove(toolCall.id)
+                    rebuildToolResultsCache()
                 }
             }
         }
