@@ -20,7 +20,8 @@ struct CopyToPasteboardButton: View {
         }
         .buttonStyle(.plain)
         .help(didCopy ? copiedHelpText : helpText)
-        .disabled(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+        // Avoid allocating a trimmed copy of large strings just to check emptiness.
+        .disabled(text.rangeOfCharacter(from: CharacterSet.whitespacesAndNewlines.inverted) == nil)
     }
 
     @MainActor
@@ -47,4 +48,3 @@ struct CopyToPasteboardButton: View {
         }
     }
 }
-

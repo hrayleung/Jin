@@ -25,6 +25,7 @@ struct ChatView: View {
     @State private var rerunningToolCallIDs: Set<String> = []
     @State private var composerHeight: CGFloat = 0
     @State private var isModelPickerPresented = false
+    @State private var lastStreamingAutoScrollUptime: TimeInterval = 0
 
     @ObservedObject private var favoriteModelsStore = FavoriteModelsStore.shared
 
@@ -233,7 +234,10 @@ struct ChatView: View {
                                     state: streaming,
                                     maxBubbleWidth: bubbleMaxWidth,
                                     assistantDisplayName: assistantDisplayName,
-                                    assistantIcon: assistantIcon
+                                    assistantIcon: assistantIcon,
+                                    onContentUpdate: {
+                                        throttledScrollToBottom(proxy: proxy)
+                                    }
                                 )
                                 .id("streaming")
                             }
@@ -258,8 +262,14 @@ struct ChatView: View {
                     .onChange(of: conversationEntity.messages.count) { _, _ in
                         scrollToBottom(proxy: proxy)
                     }
-                    .onChange(of: streamingMessage) { _, _ in
-                        scrollToBottom(proxy: proxy)
+                    .onChange(of: streamingMessage != nil) { _, isActive in
+                        if isActive {
+                            lastStreamingAutoScrollUptime = 0
+                        }
+                        // Ensure the streaming row has been laid out before scrolling to it.
+                        DispatchQueue.main.async {
+                            scrollToBottom(proxy: proxy)
+                        }
                     }
                     .onChange(of: composerHeight) { _, _ in
                         scrollToBottom(proxy: proxy)
@@ -1353,11 +1363,26 @@ struct ChatView: View {
     }
 
     private func scrollToBottom(proxy: ScrollViewProxy) {
+        if streamingMessage != nil {
+            proxy.scrollTo("streaming", anchor: .bottom)
+            return
+        }
+
         if let lastMessage = orderedMessages.last(where: { $0.role != "tool" }) {
             proxy.scrollTo(lastMessage.id, anchor: .bottom)
-        } else if streamingMessage != nil {
-            proxy.scrollTo("streaming", anchor: .bottom)
         }
+    }
+
+    private func throttledScrollToBottom(proxy: ScrollViewProxy) {
+        // Streaming updates can be very frequent; throttle auto-scroll to keep the UI responsive.
+        guard isStreaming, streamingMessage != nil else { return }
+
+        let now = ProcessInfo.processInfo.systemUptime
+        let minInterval: TimeInterval = 0.25
+        guard now - lastStreamingAutoScrollUptime >= minInterval else { return }
+
+        lastStreamingAutoScrollUptime = now
+        scrollToBottom(proxy: proxy)
     }
 
     private func toolResultsByToolCallID(in messageEntities: [MessageEntity]) -> [String: ToolResult] {
@@ -1664,14 +1689,74 @@ struct ChatView: View {
                 while iteration < maxToolIterations {
                     try Task.checkCancellation()
 
-                    var assistantParts: [ContentPart] = []
-                    var assistantText = ""
-                    var assistantThinkingText = ""
+                    var assistantPartRefs: [StreamedAssistantPartRef] = []
+                    var assistantTextSegments: [String] = []
+                    var assistantThinkingSegments: [ThinkingBlockAccumulator] = []
                     var toolCallsByID: [String: ToolCall] = [:]
 
+                    func appendAssistantTextDelta(_ delta: String) {
+                        guard !delta.isEmpty else { return }
+                        if let last = assistantPartRefs.last, case .text(let idx) = last {
+                            assistantTextSegments[idx].append(delta)
+                        } else {
+                            let idx = assistantTextSegments.count
+                            assistantTextSegments.append(delta)
+                            assistantPartRefs.append(.text(idx))
+                        }
+                    }
+
+                    func appendAssistantThinkingDelta(_ delta: ThinkingDelta) {
+                        switch delta {
+                        case .thinking(let textDelta, let signature):
+                            if textDelta.isEmpty,
+                               let signature,
+                               let last = assistantPartRefs.last,
+                               case .thinking(let idx) = last {
+                                if assistantThinkingSegments[idx].signature != signature {
+                                    assistantThinkingSegments[idx].signature = signature
+                                }
+                                return
+                            }
+
+                            if let last = assistantPartRefs.last,
+                               case .thinking(let idx) = last,
+                               assistantThinkingSegments[idx].signature == signature {
+                                if !textDelta.isEmpty {
+                                    assistantThinkingSegments[idx].text.append(textDelta)
+                                }
+                                return
+                            }
+
+                            let idx = assistantThinkingSegments.count
+                            assistantThinkingSegments.append(ThinkingBlockAccumulator(text: textDelta, signature: signature))
+                            assistantPartRefs.append(.thinking(idx))
+
+                        case .redacted(let data):
+                            assistantPartRefs.append(.redacted(RedactedThinkingBlock(data: data)))
+                        }
+                    }
+
+                    func buildAssistantParts() -> [ContentPart] {
+                        var parts: [ContentPart] = []
+                        parts.reserveCapacity(assistantPartRefs.count)
+
+                        for ref in assistantPartRefs {
+                            switch ref {
+                            case .text(let idx):
+                                parts.append(.text(assistantTextSegments[idx]))
+                            case .thinking(let idx):
+                                let thinking = assistantThinkingSegments[idx]
+                                parts.append(.thinking(ThinkingBlock(text: thinking.text, signature: thinking.signature)))
+                            case .redacted(let redacted):
+                                parts.append(.redactedThinking(redacted))
+                            }
+                        }
+
+                        return parts
+                    }
+
                     await MainActor.run {
-                        streamingState.textContent = ""
-                        streamingState.thinkingContent = ""
+                        streamingState.reset()
                     }
 
                     let stream = try await adapter.sendMessage(
@@ -1682,35 +1767,76 @@ struct ChatView: View {
                         streaming: true
                     )
 
+                    // Streaming can yield very frequent deltas. Throttle how often we publish changes
+                    // to SwiftUI to avoid re-layout/scrolling on every token.
+                    let uiFlushInterval: TimeInterval = 0.05
+                    var lastUIFlushUptime: TimeInterval = 0
+                    var pendingTextDelta = ""
+                    var pendingThinkingDelta = ""
+                    var didAppendAnyThinkingText = false
+                    var didShowRedactedThinkingPlaceholder = false
+
+                    func flushStreamingUI(force: Bool = false) async {
+                        let now = ProcessInfo.processInfo.systemUptime
+                        guard force || now - lastUIFlushUptime >= uiFlushInterval else { return }
+                        guard force || !pendingTextDelta.isEmpty || !pendingThinkingDelta.isEmpty else { return }
+
+                        lastUIFlushUptime = now
+                        let textDelta = pendingTextDelta
+                        let thinkingDelta = pendingThinkingDelta
+                        pendingTextDelta = ""
+                        pendingThinkingDelta = ""
+
+                        await MainActor.run {
+                            streamingState.appendTextDelta(textDelta)
+                            streamingState.appendThinkingDelta(thinkingDelta)
+                        }
+                    }
+
                     for try await event in stream {
                         try Task.checkCancellation()
 
                         switch event {
-                        case .messageStart: break
+                        case .messageStart:
+                            break
                         case .contentDelta(let part):
                             if case .text(let delta) = part {
-                                assistantText += delta
-                                appendTextDelta(delta, to: &assistantParts)
-                                await MainActor.run { streamingState.textContent = assistantText }
+                                appendAssistantTextDelta(delta)
+                                pendingTextDelta.append(delta)
                             }
                         case .thinkingDelta(let delta):
-                            appendThinkingDelta(delta, to: &assistantParts)
+                            appendAssistantThinkingDelta(delta)
                             switch delta {
                             case .thinking(let textDelta, _):
-                                if !textDelta.isEmpty { assistantThinkingText += textDelta }
+                                if !textDelta.isEmpty {
+                                    didAppendAnyThinkingText = true
+                                    pendingThinkingDelta.append(textDelta)
+                                }
                             case .redacted:
-                                assistantThinkingText = assistantThinkingText.isEmpty ? "Thinking (redacted)" : assistantThinkingText
+                                if !didAppendAnyThinkingText && !didShowRedactedThinkingPlaceholder {
+                                    didShowRedactedThinkingPlaceholder = true
+                                    pendingThinkingDelta = "Thinking (redacted)"
+                                }
                             }
-                            await MainActor.run { streamingState.thinkingContent = assistantThinkingText }
-                        case .toolCallStart(let call): toolCallsByID[call.id] = call
-                        case .toolCallDelta: break
-                        case .toolCallEnd(let call): toolCallsByID[call.id] = call
-                        case .messageEnd: break
-                        case .error(let err): throw err
+                        case .toolCallStart(let call):
+                            toolCallsByID[call.id] = call
+                        case .toolCallDelta:
+                            break
+                        case .toolCallEnd(let call):
+                            toolCallsByID[call.id] = call
+                        case .messageEnd:
+                            break
+                        case .error(let err):
+                            throw err
                         }
+
+                        await flushStreamingUI()
                     }
 
+                    await flushStreamingUI(force: true)
+
                     let toolCalls = Array(toolCallsByID.values)
+                    let assistantParts = buildAssistantParts()
                     await MainActor.run {
                         if !assistantParts.isEmpty || !toolCalls.isEmpty {
                             let assistantMessage = Message(role: .assistant, content: assistantParts, toolCalls: toolCalls.isEmpty ? nil : toolCalls)
@@ -1730,8 +1856,8 @@ struct ChatView: View {
                     guard !toolCalls.isEmpty else { break }
 
                     await MainActor.run {
-                        streamingState.textContent = "Running tools…"
-                        streamingState.thinkingContent = ""
+                        streamingState.reset()
+                        streamingState.appendTextDelta("Running tools…")
                     }
 
                     var toolResults: [ToolResult] = []
@@ -1796,37 +1922,6 @@ struct ChatView: View {
                 streamingMessage = nil
                 streamingTask = nil
             }
-        }
-    }
-
-    private func appendTextDelta(_ delta: String, to parts: inout [ContentPart]) {
-        if case .text(let existing) = parts.last {
-            parts[parts.count - 1] = .text(existing + delta)
-        } else {
-            parts.append(.text(delta))
-        }
-    }
-
-    private func appendThinkingDelta(_ delta: ThinkingDelta, to parts: inout [ContentPart]) {
-        switch delta {
-        case .thinking(let textDelta, let signature):
-            // Anthropic signatures can arrive after (or alongside) the thinking text, and may stream
-            // incrementally. Treat signature-only deltas as updates to the current thinking block.
-            if textDelta.isEmpty, let signature, case .thinking(let existing) = parts.last {
-                if existing.signature != signature {
-                    parts[parts.count - 1] = .thinking(ThinkingBlock(text: existing.text, signature: signature))
-                }
-                return
-            }
-            if case .thinking(let existing) = parts.last, existing.signature == signature {
-                if !textDelta.isEmpty {
-                    parts[parts.count - 1] = .thinking(ThinkingBlock(text: existing.text + textDelta, signature: existing.signature))
-                }
-            } else {
-                parts.append(.thinking(ThinkingBlock(text: textDelta, signature: signature)))
-            }
-        case .redacted(let data):
-            parts.append(.redactedThinking(RedactedThinkingBlock(data: data)))
         }
     }
     
@@ -2987,15 +3082,43 @@ private struct ToolCallCodeBlockView: View {
     }
 }
 
+private struct ChunkedTextView: View {
+    let chunks: [String]
+    let font: Font
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            ForEach(chunks.indices, id: \.self) { idx in
+                Text(verbatim: chunks[idx])
+                    .font(font)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .textSelection(.enabled)
+    }
+}
+
+private enum StreamedAssistantPartRef {
+    case text(Int)
+    case thinking(Int)
+    case redacted(RedactedThinkingBlock)
+}
+
+private struct ThinkingBlockAccumulator {
+    var text: String
+    var signature: String?
+}
+
 struct StreamingMessageView: View {
     @ObservedObject var state: StreamingMessageState
     let maxBubbleWidth: CGFloat
     let assistantDisplayName: String
     let assistantIcon: String?
+    let onContentUpdate: () -> Void
 
     var body: some View {
-        let copyText = state.textContent.trimmingCharacters(in: .whitespacesAndNewlines)
-        let showsCopyButton = !copyText.isEmpty
+        // Avoid allocating a trimmed copy of the whole string on every streaming update.
+        let showsCopyButton = state.textContent.rangeOfCharacter(from: CharacterSet.whitespacesAndNewlines.inverted) != nil
 
         HStack(alignment: .top, spacing: 0) {
             ConstrainedWidth(maxBubbleWidth) {
@@ -3012,10 +3135,9 @@ struct StreamingMessageView: View {
 
                     ZStack(alignment: .bottomTrailing) {
                         VStack(alignment: .leading, spacing: 8) {
-                            if !state.thinkingContent.isEmpty {
+                            if !state.thinkingChunks.isEmpty {
                                 DisclosureGroup(isExpanded: .constant(true)) {
-                                    Text(state.thinkingContent)
-                                        .font(.system(.caption, design: .monospaced))
+                                    ChunkedTextView(chunks: state.thinkingChunks, font: .system(.caption, design: .monospaced))
                                         .foregroundStyle(.secondary)
                                         .padding(8)
                                         .background(Color(nsColor: .textBackgroundColor))
@@ -3030,9 +3152,9 @@ struct StreamingMessageView: View {
                                 }
                             }
 
-                            if !state.textContent.isEmpty {
-                                MessageTextView(text: state.textContent, mode: .plainText)
-                            } else if state.thinkingContent.isEmpty {
+                            if !state.textChunks.isEmpty {
+                                ChunkedTextView(chunks: state.textChunks, font: .body)
+                            } else if state.thinkingChunks.isEmpty {
                                 HStack(spacing: 6) {
                                     ProgressView().scaleEffect(0.5)
                                     Text("Generating...")
@@ -3064,13 +3186,65 @@ struct StreamingMessageView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.vertical, 8)
+        .onChange(of: state.textContent) { _, _ in
+            onContentUpdate()
+        }
+        .onChange(of: state.thinkingContent) { _, _ in
+            onContentUpdate()
+        }
     }
 }
 
-class StreamingMessageState: ObservableObject, Equatable {
-    @Published var textContent = ""
-    @Published var thinkingContent = ""
-    static func == (lhs: StreamingMessageState, rhs: StreamingMessageState) -> Bool {
-        lhs.textContent == rhs.textContent && lhs.thinkingContent == rhs.thinkingContent
+final class StreamingMessageState: ObservableObject {
+    private static let maxChunkSize = 2048
+
+    @Published private(set) var textChunks: [String] = []
+    @Published private(set) var thinkingChunks: [String] = []
+
+    private var textStorage = ""
+    private var thinkingStorage = ""
+
+    var textContent: String { textStorage }
+    var thinkingContent: String { thinkingStorage }
+
+    func reset() {
+        textStorage = ""
+        thinkingStorage = ""
+        textChunks = []
+        thinkingChunks = []
+    }
+
+    func appendTextDelta(_ delta: String) {
+        guard !delta.isEmpty else { return }
+        textStorage.append(delta)
+        appendDelta(delta, to: &textChunks, maxChunkSize: Self.maxChunkSize)
+    }
+
+    func appendThinkingDelta(_ delta: String) {
+        guard !delta.isEmpty else { return }
+        thinkingStorage.append(delta)
+        appendDelta(delta, to: &thinkingChunks, maxChunkSize: Self.maxChunkSize)
+    }
+
+    private func appendDelta(_ delta: String, to chunks: inout [String], maxChunkSize: Int) {
+        if chunks.isEmpty {
+            chunks.append(delta)
+        } else {
+            chunks[chunks.count - 1].append(delta)
+        }
+
+        while let lastChunk = chunks.last, lastChunk.count > maxChunkSize {
+            let maxIndex = lastChunk.index(lastChunk.startIndex, offsetBy: maxChunkSize)
+            let candidate = lastChunk[..<maxIndex]
+
+            let splitIndex = candidate.lastIndex(of: "\n").map { lastChunk.index(after: $0) } ?? maxIndex
+            let prefix = String(lastChunk[..<splitIndex])
+            let suffix = String(lastChunk[splitIndex...])
+
+            chunks[chunks.count - 1] = prefix
+            if !suffix.isEmpty {
+                chunks.append(suffix)
+            }
+        }
     }
 }
