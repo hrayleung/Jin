@@ -36,14 +36,14 @@ struct MessageTextView: View {
     @ViewBuilder
     private var markdownBody: some View {
         #if canImport(LaTeXSwiftUI)
-        MarkdownView(text.normalizingInlineMathDelimiters())
+        MarkdownView(text.normalizingMathDelimitersForMarkdownView())
             .font(.body)
             .markdownMathRenderingEnabled()
             .renderingStyle(.empty)
             .ignoreStringFormatting()
             .fixedSize(horizontal: false, vertical: true)
         #else
-        MarkdownView(text.normalizingInlineMathDelimiters())
+        MarkdownView(text.normalizingMathDelimitersForMarkdownView())
             .font(.body)
             .markdownMathRenderingEnabled()
             .fixedSize(horizontal: false, vertical: true)

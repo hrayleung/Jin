@@ -37,6 +37,22 @@ actor ProviderManager {
                 networkManager: networkManager
             )
 
+        case .fireworks:
+            let apiKey = try await resolveAPIKey(for: config)
+            return FireworksAdapter(
+                providerConfig: config,
+                apiKey: apiKey,
+                networkManager: networkManager
+            )
+
+        case .cerebras:
+            let apiKey = try await resolveAPIKey(for: config)
+            return CerebrasAdapter(
+                providerConfig: config,
+                apiKey: apiKey,
+                networkManager: networkManager
+            )
+
         case .vertexai:
             let credentials: ServiceAccountCredentials
             do {
@@ -60,7 +76,7 @@ actor ProviderManager {
         let adapter = try await createAdapter(for: config)
 
         switch config.type {
-        case .openai, .anthropic, .xai:
+        case .openai, .anthropic, .xai, .fireworks, .cerebras:
             let apiKey = try await resolveAPIKey(for: config)
             return try await adapter.validateAPIKey(apiKey)
 

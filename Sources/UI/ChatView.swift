@@ -30,6 +30,10 @@ struct ChatView: View {
     @State private var thinkingBudgetDraft = ""
     @State private var maxTokensDraft = ""
 
+    @State private var showingProviderSpecificParamsSheet = false
+    @State private var providerSpecificParamsDraft = ""
+    @State private var providerSpecificParamsError: String?
+
     private var orderedMessages: [MessageEntity] {
         conversationEntity.messages.sorted { lhs, rhs in
             if lhs.timestamp != rhs.timestamp {
@@ -192,6 +196,18 @@ struct ChatView: View {
                             .disabled(!supportsMCPToolsControl)
                             .help(mcpToolsHelpText)
 
+                            Menu {
+                                providerSpecificParamsMenuContent
+                            } label: {
+                                controlIconLabel(
+                                    systemName: "slider.horizontal.3",
+                                    isActive: !controls.providerSpecific.isEmpty,
+                                    badgeText: providerSpecificParamsBadgeText
+                                )
+                            }
+                            .menuStyle(.borderlessButton)
+                            .help(providerSpecificParamsHelpText)
+
                             Spacer(minLength: 0)
                         }
                         .padding(.bottom, 2)
@@ -308,6 +324,62 @@ struct ChatView: View {
                 }
             }
             .frame(width: 420)
+        }
+        .sheet(isPresented: $showingProviderSpecificParamsSheet) {
+            NavigationStack {
+                Form {
+                    Section("Provider-specific parameters (JSON)") {
+                        TextEditor(text: $providerSpecificParamsDraft)
+                            .font(.system(.body, design: .monospaced))
+                            .frame(minHeight: 220)
+                            .onChange(of: providerSpecificParamsDraft) { _, _ in
+                                providerSpecificParamsError = nil
+                            }
+
+                        if let providerSpecificParamsError {
+                            Text(providerSpecificParamsError)
+                                .foregroundStyle(.red)
+                                .font(.caption)
+                        } else {
+                            Text("These fields are merged into the provider request body (overrides take precedence).")
+                                .foregroundStyle(.secondary)
+                                .font(.caption)
+                        }
+                    }
+
+                    Section("Examples") {
+                        Text("Fireworks GLM/Kimi thinking history: {\"reasoning_history\": \"preserved\"} (or \"interleaved\" / \"turn_level\")")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Text("Cerebras GLM preserved thinking: {\"clear_thinking\": false}")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Text("Cerebras GLM disable thinking: {\"disable_reasoning\": true}")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Text("Cerebras reasoning output: {\"reasoning_format\": \"parsed\"} (or \"raw\" / \"hidden\" / \"none\")")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .navigationTitle("Provider Params")
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Cancel") {
+                            showingProviderSpecificParamsSheet = false
+                        }
+                    }
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Save") {
+                            if applyProviderSpecificParamsDraft() {
+                                showingProviderSpecificParamsSheet = false
+                            }
+                        }
+                        .disabled(!isProviderSpecificParamsDraftValid)
+                    }
+                }
+            }
+            .frame(width: 560, height: 520)
         }
         .task {
             loadControlsFromConversation()
@@ -966,7 +1038,7 @@ struct ChatView: View {
         switch providerType {
         case .openai, .anthropic, .xai, .vertexai:
             return true
-        case .none:
+        case .fireworks, .cerebras, .none:
             return false
         }
     }
@@ -980,7 +1052,7 @@ struct ChatView: View {
         switch providerType {
         case .anthropic, .vertexai:
             return "Thinking: \(reasoningLabel)"
-        case .openai, .xai, .none:
+        case .openai, .xai, .fireworks, .cerebras, .none:
             return "Reasoning: \(reasoningLabel)"
         }
     }
@@ -1005,7 +1077,7 @@ struct ChatView: View {
             return (controls.webSearch?.contextSize ?? .medium).displayName
         case .xai:
             return webSearchSourcesLabel
-        case .anthropic, .vertexai, .none:
+        case .anthropic, .vertexai, .fireworks, .cerebras, .none:
             return "On"
         }
     }
@@ -1042,6 +1114,8 @@ struct ChatView: View {
             case .high: return "H"
             case .xhigh: return "X"
             }
+        case .toggle:
+            return "On"
         case .none:
             return nil
         }
@@ -1063,7 +1137,7 @@ struct ChatView: View {
             if sources == [.x] { return "X" }
             if sources.contains(.web), sources.contains(.x) { return "W+X" }
             return "On"
-        case .anthropic, .vertexai, .none:
+        case .anthropic, .vertexai, .fireworks, .cerebras, .none:
             return "On"
         }
     }
@@ -1149,6 +1223,21 @@ struct ChatView: View {
                         } label: {
                             HStack {
                                 Text(model.name)
+                                if isFullySupportedModel(modelID: model.id) {
+                                    Text("Full")
+                                        .font(.caption2)
+                                        .padding(.horizontal, 6)
+                                        .padding(.vertical, 2)
+                                        .foregroundStyle(.green)
+                                        .background(
+                                            Capsule()
+                                                .fill(Color.green.opacity(0.12))
+                                        )
+                                        .overlay(
+                                            Capsule()
+                                                .stroke(Color.green.opacity(0.35), lineWidth: 0.5)
+                                        )
+                                }
                                 if model.id == conversationEntity.modelID {
                                     Spacer()
                                     Image(systemName: "checkmark")
@@ -1180,6 +1269,23 @@ struct ChatView: View {
             return []
         }
         return models
+    }
+
+    private func isFullySupportedModel(modelID: String) -> Bool {
+        guard let providerType else { return false }
+        let lower = modelID.lowercased()
+
+        switch providerType {
+        case .fireworks:
+            return lower == "fireworks/kimi-k2p5"
+                || lower == "accounts/fireworks/models/kimi-k2p5"
+                || lower == "fireworks/glm-4p7"
+                || lower == "accounts/fireworks/models/glm-4p7"
+        case .cerebras:
+            return lower == "zai-glm-4.7"
+        case .openai, .anthropic, .xai, .vertexai:
+            return false
+        }
     }
 
     private func setProvider(_ providerID: String) {
@@ -1216,6 +1322,11 @@ struct ChatView: View {
             return models.first(where: { $0.id == "gpt-5.2" })?.id
         case .anthropic:
             return models.first(where: { $0.id == "claude-sonnet-4-5-20250929" })?.id
+        case .fireworks:
+            return models.first(where: { $0.id.lowercased() == "fireworks/kimi-k2p5" || $0.id.lowercased() == "accounts/fireworks/models/kimi-k2p5" })?.id
+                ?? models.first(where: { $0.id.lowercased() == "fireworks/glm-4p7" || $0.id.lowercased() == "accounts/fireworks/models/glm-4p7" })?.id
+        case .cerebras:
+            return models.first(where: { $0.id == "zai-glm-4.7" })?.id
         case .xai, .vertexai:
             return nil
         }
@@ -1724,6 +1835,8 @@ struct ChatView: View {
             }
         case .effort:
             return controls.reasoning?.effort?.displayName ?? "On"
+        case .toggle:
+            return "On"
         case .none:
             return "Not supported"
         }
@@ -1735,6 +1848,15 @@ struct ChatView: View {
             Button { setReasoningOff() } label: { menuItemLabel("Off", isSelected: !isReasoningEnabled) }
 
             switch reasoningConfig.type {
+            case .toggle:
+                Button { setReasoningOn() } label: { menuItemLabel("On", isSelected: isReasoningEnabled) }
+
+                if supportsCerebrasPreservedThinkingToggle {
+                    Divider()
+                    Toggle("Preserve thinking", isOn: cerebrasPreserveThinkingBinding)
+                        .help("Keeps GLM thinking across turns (maps to clear_thinking: false).")
+                }
+
             case .effort:
                 switch providerType {
                 case .vertexai:
@@ -1764,8 +1886,26 @@ struct ChatView: View {
                         }
                     }
 
-                case .anthropic, .xai, .none:
+                case .fireworks:
+                    Button { setReasoningEffort(.low) } label: { menuItemLabel("Low", isSelected: isReasoningEnabled && controls.reasoning?.effort == .low) }
+                    Button { setReasoningEffort(.medium) } label: { menuItemLabel("Medium", isSelected: isReasoningEnabled && controls.reasoning?.effort == .medium) }
+                    Button { setReasoningEffort(.high) } label: { menuItemLabel("High", isSelected: isReasoningEnabled && controls.reasoning?.effort == .high) }
+
+                case .anthropic, .xai, .cerebras, .none:
                     EmptyView()
+                }
+
+                if supportsFireworksReasoningHistoryToggle {
+                    Divider()
+                    Text("Thinking history")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    Button { setFireworksReasoningHistory(nil) } label: { menuItemLabel("Default (model)", isSelected: fireworksReasoningHistory == nil) }
+                    Button { setFireworksReasoningHistory("preserved") } label: { menuItemLabel("Preserved", isSelected: fireworksReasoningHistory == "preserved") }
+                    Button { setFireworksReasoningHistory("interleaved") } label: { menuItemLabel("Interleaved", isSelected: fireworksReasoningHistory == "interleaved") }
+                    Button { setFireworksReasoningHistory("disabled") } label: { menuItemLabel("Disabled", isSelected: fireworksReasoningHistory == "disabled") }
+                    Button { setFireworksReasoningHistory("turn_level") } label: { menuItemLabel("Turn-level", isSelected: fireworksReasoningHistory == "turn_level") }
                 }
 
             case .budget:
@@ -1781,6 +1921,50 @@ struct ChatView: View {
             Text("Not supported")
                 .foregroundStyle(.secondary)
         }
+    }
+
+    private var supportsFireworksReasoningHistoryToggle: Bool {
+        guard providerType == .fireworks else { return false }
+        let id = conversationEntity.modelID.lowercased()
+        // Fireworks documents reasoning_history for Kimi K2 Instruct and GLM-4.7.
+        return id.contains("kimi") || id.contains("glm-4p7")
+    }
+
+    private var fireworksReasoningHistory: String? {
+        controls.providerSpecific["reasoning_history"]?.value as? String
+    }
+
+    private func setFireworksReasoningHistory(_ value: String?) {
+        if let value {
+            controls.providerSpecific["reasoning_history"] = AnyCodable(value)
+        } else {
+            controls.providerSpecific.removeValue(forKey: "reasoning_history")
+        }
+        persistControlsToConversation()
+    }
+
+    private var supportsCerebrasPreservedThinkingToggle: Bool {
+        guard providerType == .cerebras else { return false }
+        return conversationEntity.modelID.lowercased() == "zai-glm-4.7"
+    }
+
+    private var cerebrasPreserveThinkingBinding: Binding<Bool> {
+        Binding(
+            get: {
+                // Cerebras `clear_thinking` defaults to true. Preserve thinking == clear_thinking false.
+                let clear = (controls.providerSpecific["clear_thinking"]?.value as? Bool) ?? true
+                return clear == false
+            },
+            set: { preserve in
+                if preserve {
+                    controls.providerSpecific["clear_thinking"] = AnyCodable(false)
+                } else {
+                    // Use provider default (clear_thinking true).
+                    controls.providerSpecific.removeValue(forKey: "clear_thinking")
+                }
+                persistControlsToConversation()
+            }
+        )
     }
 
     private func menuItemLabel(_ title: String, isSelected: Bool) -> some View {
@@ -1835,7 +2019,7 @@ struct ChatView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
-            case .anthropic, .vertexai, .none:
+            case .anthropic, .vertexai, .fireworks, .cerebras, .none:
                 EmptyView()
             }
         }
@@ -1887,6 +2071,82 @@ struct ChatView: View {
                     }
                 }
             }
+        }
+    }
+
+    private var providerSpecificParamsBadgeText: String? {
+        let count = controls.providerSpecific.count
+        guard count > 0 else { return nil }
+        return count > 99 ? "99+" : "\(count)"
+    }
+
+    private var providerSpecificParamsHelpText: String {
+        let count = controls.providerSpecific.count
+        if count == 0 { return "Provider Params: Default" }
+        return "Provider Params: \(count) overridden"
+    }
+
+    @ViewBuilder
+    private var providerSpecificParamsMenuContent: some View {
+        Button("Edit JSON…") {
+            openProviderSpecificParamsEditor()
+        }
+
+        if !controls.providerSpecific.isEmpty {
+            Divider()
+            Button("Clear", role: .destructive) {
+                controls.providerSpecific = [:]
+                persistControlsToConversation()
+            }
+        }
+    }
+
+    private func openProviderSpecificParamsEditor() {
+        providerSpecificParamsError = nil
+
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+
+        if let data = try? encoder.encode(controls.providerSpecific),
+           let json = String(data: data, encoding: .utf8) {
+            providerSpecificParamsDraft = json
+        } else {
+            providerSpecificParamsDraft = controls.providerSpecific.isEmpty ? "{}" : "{}"
+        }
+
+        showingProviderSpecificParamsSheet = true
+    }
+
+    private var isProviderSpecificParamsDraftValid: Bool {
+        let trimmed = providerSpecificParamsDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return true }
+
+        guard let data = trimmed.data(using: .utf8) else { return false }
+        return (try? JSONDecoder().decode([String: AnyCodable].self, from: data)) != nil
+    }
+
+    @discardableResult
+    private func applyProviderSpecificParamsDraft() -> Bool {
+        let trimmed = providerSpecificParamsDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard !trimmed.isEmpty else {
+            controls.providerSpecific = [:]
+            persistControlsToConversation()
+            providerSpecificParamsError = nil
+            return true
+        }
+
+        do {
+            guard let data = trimmed.data(using: .utf8) else {
+                throw NSError(domain: "ProviderParams", code: 1, userInfo: [NSLocalizedDescriptionKey: "Invalid UTF-8 JSON."])
+            }
+            controls.providerSpecific = try JSONDecoder().decode([String: AnyCodable].self, from: data)
+            persistControlsToConversation()
+            providerSpecificParamsError = nil
+            return true
+        } catch {
+            providerSpecificParamsError = error.localizedDescription
+            return false
         }
     }
 
@@ -1971,6 +2231,13 @@ struct ChatView: View {
     private func setReasoningOff() {
         updateReasoning { reasoning in
             reasoning.enabled = false
+        }
+        persistControlsToConversation()
+    }
+
+    private func setReasoningOn() {
+        updateReasoning { reasoning in
+            reasoning.enabled = true
         }
         persistControlsToConversation()
     }
@@ -2068,7 +2335,7 @@ struct ChatView: View {
             return WebSearchControls(enabled: true, contextSize: .medium, sources: nil)
         case .xai:
             return WebSearchControls(enabled: true, contextSize: nil, sources: [.web])
-        case .anthropic, .vertexai, .none:
+        case .anthropic, .vertexai, .fireworks, .cerebras, .none:
             return WebSearchControls(enabled: true, contextSize: nil, sources: nil)
         }
     }
@@ -2087,7 +2354,7 @@ struct ChatView: View {
             if sources.isEmpty {
                 controls.webSearch?.sources = [.web]
             }
-        case .anthropic, .vertexai, .none:
+        case .anthropic, .vertexai, .fireworks, .cerebras, .none:
             controls.webSearch?.contextSize = nil
             controls.webSearch?.sources = nil
         }
@@ -2116,6 +2383,14 @@ struct ChatView: View {
                     updateReasoning { $0.budgetTokens = reasoningConfig.defaultBudget ?? 2048 }
                 }
                 controls.reasoning?.effort = nil
+                controls.reasoning?.summary = nil
+            case .toggle:
+                if controls.reasoning == nil {
+                    // For toggle-only providers (e.g. Cerebras GLM), default to “On” so the UI and request match.
+                    controls.reasoning = ReasoningControls(enabled: true)
+                }
+                controls.reasoning?.effort = nil
+                controls.reasoning?.budgetTokens = nil
                 controls.reasoning?.summary = nil
             case .none:
                 controls.reasoning = nil

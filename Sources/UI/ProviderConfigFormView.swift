@@ -52,7 +52,7 @@ struct ProviderConfigFormView: View {
                 }
 
                 switch providerType {
-                case .openai, .anthropic, .xai:
+                case .openai, .anthropic, .xai, .fireworks, .cerebras:
                     apiKeyField
                 case .vertexai:
                     vertexAISection
@@ -82,10 +82,25 @@ struct ProviderConfigFormView: View {
                         .foregroundStyle(.secondary)
                         .font(.callout)
                         .padding(.vertical, 4)
-                } else {
+                 } else {
                      List(decodedModels, selection: $selectedModelIDs) { model in
                          HStack {
                              Text(model.name)
+                             if isFullySupportedModel(model.id) {
+                                 Text("Full")
+                                     .font(.caption2)
+                                     .padding(.horizontal, 6)
+                                     .padding(.vertical, 2)
+                                     .foregroundStyle(.green)
+                                     .background(
+                                         Capsule()
+                                             .fill(Color.green.opacity(0.12))
+                                     )
+                                     .overlay(
+                                         Capsule()
+                                             .stroke(Color.green.opacity(0.35), lineWidth: 0.5)
+                                     )
+                             }
                              Spacer()
                              Text(model.id)
                                  .foregroundStyle(.secondary)
@@ -171,6 +186,23 @@ struct ProviderConfigFormView: View {
 
     private var providerType: ProviderType? {
         ProviderType(rawValue: provider.typeRaw)
+    }
+
+    private func isFullySupportedModel(_ modelID: String) -> Bool {
+        guard let providerType else { return false }
+        let lower = modelID.lowercased()
+
+        switch providerType {
+        case .fireworks:
+            return lower == "fireworks/kimi-k2p5"
+                || lower == "accounts/fireworks/models/kimi-k2p5"
+                || lower == "fireworks/glm-4p7"
+                || lower == "accounts/fireworks/models/glm-4p7"
+        case .cerebras:
+            return lower == "zai-glm-4.7"
+        case .openai, .anthropic, .xai, .vertexai:
+            return false
+        }
     }
 
     private func baseURLBinding(defaultBaseURL: String) -> Binding<String> {
@@ -283,7 +315,7 @@ struct ProviderConfigFormView: View {
         }
 
         switch ProviderType(rawValue: provider.typeRaw) {
-        case .openai, .anthropic, .xai:
+        case .openai, .anthropic, .xai, .fireworks, .cerebras:
             if usesKeychain {
                 await MainActor.run { apiKey = "" }
             } else {
@@ -363,7 +395,7 @@ struct ProviderConfigFormView: View {
                     let trimmedAPIKey = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
                     let trimmedJSON = serviceAccountJSON.trimmingCharacters(in: .whitespacesAndNewlines)
                     switch ProviderType(rawValue: provider.typeRaw) {
-                    case .openai, .anthropic, .xai:
+                    case .openai, .anthropic, .xai, .fireworks, .cerebras:
                         if trimmedAPIKey.isEmpty {
                             await MainActor.run {
                                 credentialSaveError = "Keychain disabled. Paste your API key again to use this provider."
@@ -400,7 +432,7 @@ struct ProviderConfigFormView: View {
         guard !keychainID.isEmpty else { return }
 
         switch ProviderType(rawValue: provider.typeRaw) {
-        case .openai, .anthropic, .xai:
+        case .openai, .anthropic, .xai, .fireworks, .cerebras:
             let key = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
             await MainActor.run {
                 provider.apiKeyKeychainID = keychainID
@@ -439,7 +471,7 @@ struct ProviderConfigFormView: View {
 
     private func persistCredentialsLocally(validate: Bool) async throws {
         switch ProviderType(rawValue: provider.typeRaw) {
-        case .openai, .anthropic, .xai:
+        case .openai, .anthropic, .xai, .fireworks, .cerebras:
             let key = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
             await MainActor.run {
                 provider.apiKeyKeychainID = nil
@@ -492,7 +524,7 @@ struct ProviderConfigFormView: View {
 
     private var isTestDisabled: Bool {
         switch ProviderType(rawValue: provider.typeRaw) {
-        case .openai, .anthropic, .xai:
+        case .openai, .anthropic, .xai, .fireworks, .cerebras:
             return (!storeCredentialsInKeychain && apiKey.isEmpty) || testStatus == .testing
         case .vertexai:
             return (!storeCredentialsInKeychain && serviceAccountJSON.isEmpty) || testStatus == .testing
@@ -504,7 +536,7 @@ struct ProviderConfigFormView: View {
     private var isFetchModelsDisabled: Bool {
         guard !isFetchingModels else { return true }
         switch providerType {
-        case .openai, .anthropic, .xai:
+        case .openai, .anthropic, .xai, .fireworks, .cerebras:
             return !storeCredentialsInKeychain && apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         case .vertexai:
             return !storeCredentialsInKeychain && serviceAccountJSON.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -520,9 +552,6 @@ struct ProviderConfigFormView: View {
         case failure(String)
     }
 }
-
-// AddModelSheet remains the same as previous read, so I don't need to rewrite it if I didn't change it.
-// Wait, I am overwriting the file. I MUST include AddModelSheet.
 
 private struct AddModelSheet: View {
     @Environment(\.dismiss) private var dismiss
@@ -562,13 +591,39 @@ private struct AddModelSheet: View {
     }
 
     private func makeModelInfo(id: String, name: String) -> ModelInfo {
-        // Simple default factory
+        let lower = id.lowercased()
+
+        var caps: ModelCapability = [.streaming, .toolCalling]
+        let contextWindow = 128000
+        var reasoningConfig: ModelReasoningConfig?
+
+        switch providerType {
+        case .fireworks?:
+            if lower == "fireworks/kimi-k2p5" || lower == "accounts/fireworks/models/kimi-k2p5" {
+                caps.insert(.vision)
+                caps.insert(.reasoning)
+                reasoningConfig = ModelReasoningConfig(type: .effort, defaultEffort: .medium)
+            } else if lower == "fireworks/glm-4p7" || lower == "accounts/fireworks/models/glm-4p7" {
+                caps.insert(.reasoning)
+                reasoningConfig = ModelReasoningConfig(type: .effort, defaultEffort: .medium)
+            }
+
+        case .cerebras?:
+            if lower == "zai-glm-4.7" {
+                caps.insert(.reasoning)
+                reasoningConfig = ModelReasoningConfig(type: .toggle)
+            }
+
+        case .openai?, .anthropic?, .xai?, .vertexai?, .none:
+            break
+        }
+
         return ModelInfo(
             id: id,
             name: name,
-            capabilities: [.streaming, .toolCalling],
-            contextWindow: 128000,
-            reasoningConfig: nil
+            capabilities: caps,
+            contextWindow: contextWindow,
+            reasoningConfig: reasoningConfig
         )
     }
 }

@@ -175,6 +175,8 @@ enum ProviderType: String, Codable, CaseIterable {
     case openai
     case anthropic
     case xai
+    case fireworks
+    case cerebras
     case vertexai
 
     var displayName: String {
@@ -182,6 +184,8 @@ enum ProviderType: String, Codable, CaseIterable {
         case .openai: return "OpenAI"
         case .anthropic: return "Anthropic"
         case .xai: return "xAI"
+        case .fireworks: return "Fireworks"
+        case .cerebras: return "Cerebras"
         case .vertexai: return "Vertex AI"
         }
     }
@@ -194,6 +198,10 @@ enum ProviderType: String, Codable, CaseIterable {
             return "https://api.anthropic.com/v1"
         case .xai:
             return "https://api.x.ai/v1"
+        case .fireworks:
+            return "https://api.fireworks.ai/inference/v1"
+        case .cerebras:
+            return "https://api.cerebras.ai/v1"
         case .vertexai:
             return nil
         }
@@ -254,6 +262,7 @@ struct ModelReasoningConfig: Codable {
 enum ReasoningConfigType: String, Codable {
     case effort // OpenAI, Vertex Gemini 3
     case budget // Anthropic, Vertex Gemini 2.5
+    case toggle // Providers that support a simple on/off switch (e.g., Cerebras GLM)
     case none // xAI (not supported)
 }
 
