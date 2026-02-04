@@ -144,6 +144,7 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         )
 
         protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://example.com/v1/chat/completions")
             let body = try XCTUnwrap(requestBodyData(request))
             let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
             let root = try XCTUnwrap(json)

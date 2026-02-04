@@ -201,6 +201,7 @@ enum ProviderType: String, Codable, CaseIterable {
         case .fireworks:
             return "https://api.fireworks.ai/inference/v1"
         case .cerebras:
+            // OpenAI-compatible base URL per Cerebras docs.
             return "https://api.cerebras.ai/v1"
         case .vertexai:
             return nil

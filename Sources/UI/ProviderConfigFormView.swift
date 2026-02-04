@@ -36,6 +36,19 @@ struct ProviderConfigFormView: View {
                         .font(.caption)
                     }
                     .help("Default endpoint is pre-filled. Change only if you know what you’re doing.")
+
+                    if providerType == .cerebras {
+                        let base = (provider.baseURL ?? defaultBaseURL).lowercased()
+                        if base.contains("cerebras-sandbox.net") {
+                            Text("Warning: cerebras-sandbox.net is the web sandbox and is Cloudflare-protected. Use the API endpoint https://api.cerebras.ai/v1 instead.")
+                                .font(.caption)
+                                .foregroundStyle(.orange)
+                        } else if !base.contains("api.cerebras.ai") {
+                            Text("Tip: Cerebras OpenAI-compatible base URL is https://api.cerebras.ai/v1.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
                 }
 
                 Toggle("Store credentials in Keychain", isOn: $storeCredentialsInKeychain)

@@ -3,8 +3,8 @@ import Foundation
 /// Cerebras provider adapter (OpenAI-compatible Chat Completions API)
 ///
 /// Docs:
-/// - Base URL: https://api.cerebras.ai/v1
-/// - Endpoint: POST /chat/completions
+/// - Base URL: https://api.cerebras.ai
+/// - Endpoint: POST /v1/chat/completions
 /// - Model: `zai-glm-4.7`
 actor CerebrasAdapter: LLMProviderAdapter {
     let providerConfig: ProviderConfig
@@ -165,9 +165,11 @@ actor CerebrasAdapter: LLMProviderAdapter {
     }
 
     func validateAPIKey(_ key: String) async throws -> Bool {
-        var request = URLRequest(url: URL(string: "\(baseURL)/models")!)
+        var request = URLRequest(url: URL(string: "\(baseURLRoot)/v1/models")!)
         request.httpMethod = "GET"
         request.addValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
+        request.addValue("application/json", forHTTPHeaderField: "Accept")
+        request.addValue("Jin", forHTTPHeaderField: "User-Agent")
 
         do {
             _ = try await networkManager.sendRequest(request)
@@ -178,9 +180,11 @@ actor CerebrasAdapter: LLMProviderAdapter {
     }
 
     func fetchAvailableModels() async throws -> [ModelInfo] {
-        var request = URLRequest(url: URL(string: "\(baseURL)/models")!)
+        var request = URLRequest(url: URL(string: "\(baseURLRoot)/v1/models")!)
         request.httpMethod = "GET"
         request.addValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        request.addValue("application/json", forHTTPHeaderField: "Accept")
+        request.addValue("Jin", forHTTPHeaderField: "User-Agent")
 
         let (data, _) = try await networkManager.sendRequest(request)
         let response = try JSONDecoder().decode(ModelsResponse.self, from: data)
@@ -193,8 +197,19 @@ actor CerebrasAdapter: LLMProviderAdapter {
 
     // MARK: - Private
 
-    private var baseURL: String {
-        providerConfig.baseURL ?? "https://api.cerebras.ai/v1"
+    private var baseURLRoot: String {
+        // Cerebras docs use https://api.cerebras.ai + /v1/... paths. Users may paste a baseURL with /v1.
+        // Normalize so both "https://api.cerebras.ai" and "https://api.cerebras.ai/v1" work.
+        let raw = (providerConfig.baseURL ?? "https://api.cerebras.ai")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmed = raw.hasSuffix("/") ? String(raw.dropLast()) : raw
+
+        if trimmed.hasSuffix("/v1") {
+            let withoutV1 = String(trimmed.dropLast(3))
+            return withoutV1.hasSuffix("/") ? String(withoutV1.dropLast()) : withoutV1
+        }
+
+        return trimmed
     }
 
     private func buildRequest(
@@ -204,10 +219,12 @@ actor CerebrasAdapter: LLMProviderAdapter {
         tools: [ToolDefinition],
         streaming: Bool
     ) throws -> URLRequest {
-        var request = URLRequest(url: URL(string: "\(baseURL)/chat/completions")!)
+        var request = URLRequest(url: URL(string: "\(baseURLRoot)/v1/chat/completions")!)
         request.httpMethod = "POST"
         request.addValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
         request.addValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.addValue("application/json", forHTTPHeaderField: "Accept")
+        request.addValue("Jin", forHTTPHeaderField: "User-Agent")
 
         var body: [String: Any] = [
             "model": modelID,
