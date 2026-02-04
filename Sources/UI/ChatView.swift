@@ -25,13 +25,16 @@ struct ChatView: View {
     @State private var rerunningToolCallIDs: Set<String> = []
     @State private var composerHeight: CGFloat = 0
     @State private var isModelPickerPresented = false
+    @State private var messageRenderLimit: Int = 160
+    @State private var pendingRestoreScrollMessageID: UUID?
+    @State private var isPinnedToBottom = true
+    @State private var lastStreamingAutoScrollUptime: TimeInterval = 0
 
     // Cache expensive derived data so typing/streaming doesn't repeatedly sort/decode the entire history.
     @State private var cachedVisibleMessages: [MessageEntity] = []
     @State private var cachedMessagesVersion: Int = 0
     @State private var cachedBaseToolResultsByCallID: [String: ToolResult] = [:]
     @State private var cachedToolResultsByCallID: [String: ToolResult] = [:]
-    @State private var cachedToolResultsVersion: Int = 0
 
     @ObservedObject private var favoriteModelsStore = FavoriteModelsStore.shared
 
@@ -198,28 +201,127 @@ struct ChatView: View {
         ZStack(alignment: .bottom) {
             // Message list
             GeometryReader { geometry in
-                let bubbleMaxWidth = maxBubbleWidth(for: geometry.size.width)
-                let assistantDisplayName = conversationEntity.assistant?.displayName ?? "Assistant"
-                let assistantIcon = conversationEntity.assistant?.icon
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        let bubbleMaxWidth = maxBubbleWidth(for: geometry.size.width)
+                        let assistantDisplayName = conversationEntity.assistant?.displayName ?? "Assistant"
+                        let assistantIcon = conversationEntity.assistant?.icon
+                        let toolResultsByCallID = cachedToolResultsByCallID
 
-                AppKitChatMessagesView(
-                    conversationID: conversationEntity.id,
-                    messages: cachedVisibleMessages,
-                    messagesVersion: cachedMessagesVersion,
-                    streamingMessage: streamingMessage,
-                    maxBubbleWidth: bubbleMaxWidth,
-                    assistantDisplayName: assistantDisplayName,
-                    assistantIcon: assistantIcon,
-                    toolResultsByCallID: cachedToolResultsByCallID,
-                    toolResultsVersion: cachedToolResultsVersion,
-                    isRerunAllowed: !isStreaming,
-                    rerunningToolCallIDs: rerunningToolCallIDs,
-                    onRerunToolCall: { toolCall in
-                        rerunToolCall(toolCall)
-                    },
-                    contentInsets: NSEdgeInsets(top: 16, left: 0, bottom: composerHeight + 24, right: 0),
-                    backgroundColor: NSColor.textBackgroundColor
-                )
+                        let allMessages = cachedVisibleMessages
+                        let visibleMessages = allMessages.suffix(messageRenderLimit)
+                        let hiddenCount = allMessages.count - visibleMessages.count
+
+                        LazyVStack(alignment: .leading, spacing: 0) { // Zero spacing, controlled by padding in rows
+                            if hiddenCount > 0 {
+                                LoadEarlierMessagesRow(
+                                    hiddenCount: hiddenCount,
+                                    pageSize: 120,
+                                    onLoad: {
+                                        guard let firstVisible = visibleMessages.first else { return }
+                                        pendingRestoreScrollMessageID = firstVisible.id
+                                        messageRenderLimit = min(allMessages.count, messageRenderLimit + 120)
+                                    }
+                                )
+                                .id("loadEarlier")
+                            }
+
+                            ForEach(visibleMessages) { message in
+                                MessageRow(
+                                    messageEntity: message,
+                                    maxBubbleWidth: bubbleMaxWidth,
+                                    assistantDisplayName: assistantDisplayName,
+                                    assistantIcon: assistantIcon,
+                                    toolResultsByCallID: toolResultsByCallID,
+                                    isRerunAllowed: !isStreaming,
+                                    isToolCallRerunning: { toolCallID in
+                                        rerunningToolCallIDs.contains(toolCallID)
+                                    },
+                                    onRerunToolCall: { toolCall in
+                                        rerunToolCall(toolCall)
+                                    }
+                                )
+                                .id(message.id)
+                            }
+
+                            // Streaming message
+                            if let streaming = streamingMessage {
+                                StreamingMessageView(
+                                    state: streaming,
+                                    maxBubbleWidth: bubbleMaxWidth,
+                                    assistantDisplayName: assistantDisplayName,
+                                    assistantIcon: assistantIcon,
+                                    onContentUpdate: {
+                                        throttledScrollToBottom(proxy: proxy)
+                                    }
+                                )
+                                .id("streaming")
+                            }
+
+                            Color.clear
+                                .frame(height: composerHeight + 24)
+                                .id("bottom")
+                                .background {
+                                    GeometryReader { bottomGeo in
+                                        Color.clear.preference(
+                                            key: BottomSentinelMaxYPreferenceKey.self,
+                                            value: bottomGeo.frame(in: .named("chatScroll")).maxY
+                                        )
+                                    }
+                                }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.top, 16)
+                    }
+                    .coordinateSpace(name: "chatScroll")
+                    .onPreferenceChange(BottomSentinelMaxYPreferenceKey.self) { sentinelMaxY in
+                        let threshold: CGFloat = 80
+                        let pinned = sentinelMaxY <= geometry.size.height + threshold
+                        if pinned != isPinnedToBottom {
+                            isPinnedToBottom = pinned
+                        }
+                    }
+                    .onAppear {
+                        // On first open, jump to the latest message instead of the start of the conversation.
+                        DispatchQueue.main.async {
+                            scrollToBottom(proxy: proxy)
+                        }
+                    }
+                    .onChange(of: conversationEntity.id) { _, _ in
+                        DispatchQueue.main.async {
+                            scrollToBottom(proxy: proxy)
+                        }
+                    }
+                    .onChange(of: cachedMessagesVersion) { _, _ in
+                        guard isPinnedToBottom else { return }
+                        DispatchQueue.main.async {
+                            scrollToBottom(proxy: proxy)
+                        }
+                    }
+                    .onChange(of: streamingMessage != nil) { _, isActive in
+                        if isActive {
+                            lastStreamingAutoScrollUptime = 0
+                        }
+                        guard isPinnedToBottom else { return }
+                        // Ensure the streaming row has been laid out before scrolling to it.
+                        DispatchQueue.main.async {
+                            scrollToBottom(proxy: proxy)
+                        }
+                    }
+                    .onChange(of: composerHeight) { _, _ in
+                        guard isPinnedToBottom else { return }
+                        DispatchQueue.main.async {
+                            scrollToBottom(proxy: proxy)
+                        }
+                    }
+                    .onChange(of: messageRenderLimit) { _, _ in
+                        guard let restoreID = pendingRestoreScrollMessageID else { return }
+                        DispatchQueue.main.async {
+                            proxy.scrollTo(restoreID, anchor: .top)
+                            pendingRestoreScrollMessageID = nil
+                        }
+                    }
+                }
             }
 
             // Floating Composer
@@ -271,6 +373,10 @@ struct ChatView: View {
             // Switching chats: reset any transient per-chat rerun state and rebuild caches.
             rerunToolResultsByCallID = [:]
             rerunningToolCallIDs = []
+            messageRenderLimit = 160
+            pendingRestoreScrollMessageID = nil
+            isPinnedToBottom = true
+            lastStreamingAutoScrollUptime = 0
             rebuildMessageCaches()
         }
         .onChange(of: conversationEntity.messages.count) { _, _ in
@@ -1317,6 +1423,22 @@ struct ChatView: View {
         }
     }
 
+    private func scrollToBottom(proxy: ScrollViewProxy) {
+        proxy.scrollTo("bottom", anchor: .bottom)
+    }
+
+    private func throttledScrollToBottom(proxy: ScrollViewProxy) {
+        // Streaming updates can be very frequent; throttle auto-scroll to keep the UI responsive.
+        guard isStreaming, streamingMessage != nil, isPinnedToBottom else { return }
+
+        let now = ProcessInfo.processInfo.systemUptime
+        let minInterval: TimeInterval = 0.25
+        guard now - lastStreamingAutoScrollUptime >= minInterval else { return }
+
+        lastStreamingAutoScrollUptime = now
+        scrollToBottom(proxy: proxy)
+    }
+
     private func rebuildMessageCaches() {
         let ordered = conversationEntity.messages.sorted { lhs, rhs in
             if lhs.timestamp != rhs.timestamp {
@@ -1335,16 +1457,20 @@ struct ChatView: View {
     private func rebuildToolResultsCache() {
         cachedToolResultsByCallID = cachedBaseToolResultsByCallID
             .merging(rerunToolResultsByCallID) { _, new in new }
-        cachedToolResultsVersion &+= 1
     }
 
     private func toolResultsByToolCallID(in messageEntities: [MessageEntity]) -> [String: ToolResult] {
         var results: [String: ToolResult] = [:]
         results.reserveCapacity(8)
 
+        let decoder = JSONDecoder()
         for entity in messageEntities where entity.role == "tool" {
-            guard let message = try? entity.toDomain() else { continue }
-            for result in message.toolResults ?? [] {
+            guard let data = entity.toolResultsData,
+                  let toolResults = try? decoder.decode([ToolResult].self, from: data) else {
+                continue
+            }
+
+            for result in toolResults {
                 results[result.toolCallID] = result
             }
         }
@@ -2655,6 +2781,39 @@ private struct ComposerHeightPreferenceKey: PreferenceKey {
 
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
         value = max(value, nextValue())
+    }
+}
+
+private struct BottomSentinelMaxYPreferenceKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
+    }
+}
+
+private struct LoadEarlierMessagesRow: View {
+    let hiddenCount: Int
+    let pageSize: Int
+    let onLoad: () -> Void
+
+    var body: some View {
+        HStack {
+            Spacer()
+
+            Button {
+                onLoad()
+            } label: {
+                let count = min(pageSize, hiddenCount)
+                Text("Load \(count) earlier messages (\(hiddenCount) hidden)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .buttonStyle(.plain)
+
+            Spacer()
+        }
+        .padding(.vertical, 10)
     }
 }
 
