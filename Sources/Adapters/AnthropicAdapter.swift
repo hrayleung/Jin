@@ -350,13 +350,7 @@ actor AnthropicAdapter: LLMProviderAdapter {
                     }
 
                     // Fallback to text extraction
-                    let extracted = file.extractedText?.trimmingCharacters(in: .whitespacesAndNewlines)
-                    let text: String
-                    if let extracted, !extracted.isEmpty {
-                        text = "Attachment: \(file.filename) (\(file.mimeType))\n\n\(extracted)"
-                    } else {
-                        text = "Attachment: \(file.filename) (\(file.mimeType))"
-                    }
+                    let text = AttachmentPromptRenderer.fallbackText(for: file)
                     content.append([
                         "type": "text",
                         "text": text

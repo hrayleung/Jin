@@ -69,7 +69,11 @@ actor NetworkManager {
     private func parseHTTPError(statusCode: Int, data: Data, headers: [AnyHashable: Any]) throws -> LLMError {
         switch statusCode {
         case 401:
-            return .authenticationFailed
+            let message = String(data: data, encoding: .utf8)?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            let trimmed = (message?.isEmpty == false) ? message : nil
+            let limited = trimmed.map { String($0.prefix(2000)) }
+            return .authenticationFailed(message: limited)
         case 429:
             let retryAfter = (headers["Retry-After"] as? String).flatMap(TimeInterval.init)
             return .rateLimitExceeded(retryAfter: retryAfter)

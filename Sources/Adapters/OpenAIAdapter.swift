@@ -340,13 +340,7 @@ actor OpenAIAdapter: LLMProviderAdapter {
 
             // Fallback to text extraction for non-PDF or unsupported models
             let textType = (role == .assistant) ? "output_text" : "input_text"
-            let extracted = file.extractedText?.trimmingCharacters(in: .whitespacesAndNewlines)
-            let text: String
-            if let extracted, !extracted.isEmpty {
-                text = "Attachment: \(file.filename) (\(file.mimeType))\n\n\(extracted)"
-            } else {
-                text = "Attachment: \(file.filename) (\(file.mimeType))"
-            }
+            let text = AttachmentPromptRenderer.fallbackText(for: file)
             return [
                 "type": textType,
                 "text": text

@@ -32,5 +32,7 @@
 	<true/>
 	<key>NSSupportsSuddenTermination</key>
 	<true/>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Jin uses the microphone for speech-to-text dictation.</string>
 </dict>
 </plist>

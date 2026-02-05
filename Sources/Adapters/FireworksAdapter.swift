@@ -347,13 +347,7 @@ actor FireworksAdapter: LLMProviderAdapter {
                 }
 
             case .file(let file):
-                let extracted = file.extractedText?.trimmingCharacters(in: .whitespacesAndNewlines)
-                let text: String
-                if let extracted, !extracted.isEmpty {
-                    text = "Attachment: \(file.filename) (\(file.mimeType))\n\n\(extracted)"
-                } else {
-                    text = "Attachment: \(file.filename) (\(file.mimeType))"
-                }
+                let text = AttachmentPromptRenderer.fallbackText(for: file)
                 out.append([
                     "type": "text",
                     "text": text
@@ -395,12 +389,7 @@ actor FireworksAdapter: LLMProviderAdapter {
             case .text(let text):
                 visibleParts.append(text)
             case .file(let file):
-                let extracted = file.extractedText?.trimmingCharacters(in: .whitespacesAndNewlines)
-                if let extracted, !extracted.isEmpty {
-                    visibleParts.append("Attachment: \(file.filename) (\(file.mimeType))\n\n\(extracted)")
-                } else {
-                    visibleParts.append("Attachment: \(file.filename) (\(file.mimeType))")
-                }
+                visibleParts.append(AttachmentPromptRenderer.fallbackText(for: file))
             case .image:
                 hasImage = true
             case .thinking(let thinking):

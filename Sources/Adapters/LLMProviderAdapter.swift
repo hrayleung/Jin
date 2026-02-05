@@ -20,7 +20,7 @@ enum StreamEvent: Sendable {
 
 /// LLM errors (normalized across providers)
 enum LLMError: Error, LocalizedError {
-    case authenticationFailed
+    case authenticationFailed(message: String?)
     case rateLimitExceeded(retryAfter: TimeInterval?)
     case invalidRequest(message: String)
     case contentFiltered // Safety/moderation
@@ -30,8 +30,12 @@ enum LLMError: Error, LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .authenticationFailed:
-            return "Authentication failed. Please check your API key."
+        case .authenticationFailed(let message):
+            let trimmed = message?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            if trimmed.isEmpty {
+                return "Authentication failed. Please check your API key."
+            }
+            return "Authentication failed. Please check your API key.\n\n\(trimmed)"
         case .rateLimitExceeded(let retryAfter):
             if let retryAfter {
                 return "Rate limit exceeded. Retry after \(Int(retryAfter)) seconds."

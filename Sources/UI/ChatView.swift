@@ -3,6 +3,7 @@ import SwiftData
 import AppKit
 import UniformTypeIdentifiers
 import Combine
+import AVFoundation
 
 struct ChatView: View {
     @Environment(\.modelContext) private var modelContext
@@ -47,9 +48,14 @@ struct ChatView: View {
     @State private var providerSpecificParamsDraft = ""
     @State private var providerSpecificParamsError: String?
     @State private var mistralOCRConfigured = false
+    @State private var deepSeekOCRConfigured = false
+    @State private var textToSpeechConfigured = false
+    @State private var speechToTextConfigured = false
     @State private var isPreparingToSend = false
     @State private var prepareToSendStatus: String?
     @State private var prepareToSendTask: Task<Void, Never>?
+    @StateObject private var ttsPlaybackManager = TextToSpeechPlaybackManager()
+    @StateObject private var speechToTextManager = SpeechToTextManager()
 
     private var isStreaming: Bool {
         streamingStore.isStreaming(conversationID: conversationEntity.id)
@@ -71,155 +77,8 @@ struct ChatView: View {
         let shape = RoundedRectangle(cornerRadius: 16, style: .continuous)
 
         return HStack(alignment: .bottom, spacing: 12) {
-            VStack(alignment: .leading, spacing: 6) {
-                if !draftAttachments.isEmpty {
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 8) {
-                            ForEach(draftAttachments) { attachment in
-                                DraftAttachmentChip(
-                                    attachment: attachment,
-                                    onRemove: { removeDraftAttachment(attachment) }
-                                )
-                            }
-                        }
-                        .padding(.horizontal, 2)
-                    }
-                }
-
-                ZStack(alignment: .topLeading) {
-                    if messageText.isEmpty {
-                        Text("Type a message...")
-                            .font(.body)
-                            .foregroundStyle(.secondary)
-                            .padding(.top, 2)
-                            .padding(.leading, 6)
-                    }
-
-                    DroppableTextEditor(
-                        text: $messageText,
-                        isDropTargeted: $isComposerDropTargeted,
-                        isFocused: $isComposerFocused,
-                        font: NSFont.preferredFont(forTextStyle: .body),
-                        onDropFileURLs: handleDroppedFileURLs,
-                        onDropImages: handleDroppedImages,
-                        onSubmit: handleComposerSubmit,
-                        onCancel: handleComposerCancel
-                    )
-                    .frame(height: 36)
-                }
-
-                HStack(spacing: 6) {
-                    Button {
-                        isFileImporterPresented = true
-                    } label: {
-                        controlIconLabel(
-                            systemName: "paperclip",
-                            isActive: !draftAttachments.isEmpty,
-                            badgeText: draftAttachments.isEmpty ? nil : "\(draftAttachments.count)"
-                        )
-                    }
-                    .buttonStyle(.plain)
-                    .help(supportsNativePDF ? "Attach images / PDFs (Native PDF support ✓)" : "Attach images / PDFs")
-                    .disabled(isBusy)
-
-                    // PDF native support indicator
-                    if supportsNativePDF {
-                        Image(systemName: "doc.richtext.fill")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                            .help("Model supports native PDF reading")
-                    }
-
-                    Menu {
-                        pdfProcessingMenuContent
-                    } label: {
-                        controlIconLabel(
-                            systemName: "doc.text.magnifyingglass",
-                            isActive: resolvedPDFProcessingMode != .native || isNativePDFModeMisconfigured,
-                            badgeText: pdfProcessingBadgeText
-                        )
-                    }
-                    .menuStyle(.borderlessButton)
-                    .help(pdfProcessingHelpText)
-
-                    Menu {
-                        reasoningMenuContent
-                    } label: {
-                        controlIconLabel(
-                            systemName: "brain",
-                            isActive: isReasoningEnabled,
-                            badgeText: reasoningBadgeText
-                        )
-                    }
-                    .menuStyle(.borderlessButton)
-                    .disabled(!supportsReasoningControl)
-                    .help(reasoningHelpText)
-
-                    Menu {
-                        webSearchMenuContent
-                    } label: {
-                        controlIconLabel(
-                            systemName: "globe",
-                            isActive: isWebSearchEnabled,
-                            badgeText: webSearchBadgeText
-                        )
-                    }
-                    .menuStyle(.borderlessButton)
-                    .disabled(!supportsWebSearchControl)
-                    .help(webSearchHelpText)
-
-                    Menu {
-                        mcpToolsMenuContent
-                    } label: {
-                        controlIconLabel(
-                            systemName: "hammer",
-                            isActive: supportsMCPToolsControl && isMCPToolsEnabled,
-                            badgeText: mcpToolsBadgeText
-                        )
-                    }
-                    .menuStyle(.borderlessButton)
-                    .disabled(!supportsMCPToolsControl)
-                    .help(mcpToolsHelpText)
-
-                    Menu {
-                        providerSpecificParamsMenuContent
-                    } label: {
-                        controlIconLabel(
-                            systemName: "slider.horizontal.3",
-                            isActive: !controls.providerSpecific.isEmpty,
-                            badgeText: providerSpecificParamsBadgeText
-                        )
-                    }
-                    .menuStyle(.borderlessButton)
-                    .help(providerSpecificParamsHelpText)
-
-                    Spacer(minLength: 0)
-                }
-                .padding(.bottom, 1)
-
-                if isPreparingToSend, let prepareToSendStatus {
-                    HStack(spacing: 8) {
-                        ProgressView()
-                            .controlSize(.small)
-                        Text(prepareToSendStatus)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        Spacer(minLength: 0)
-                    }
-                    .padding(.top, 2)
-                }
-            }
-
-            Button(action: sendMessage) {
-                Image(systemName: isBusy ? "stop.circle.fill" : "arrow.up.circle.fill")
-                    .resizable()
-                    .symbolRenderingMode(.hierarchical)
-                    .frame(width: 22, height: 22)
-                    .foregroundStyle(isBusy ? Color.secondary : (canSendDraft ? Color.accentColor : .gray))
-            }
-            .buttonStyle(.plain)
-            .disabled(!canSendDraft && !isBusy)
-            .padding(.bottom, 2)
+            composerLeftColumn
+            composerSendButton
         }
         .padding(12)
         .frame(maxWidth: 840)
@@ -247,6 +106,204 @@ struct ChatView: View {
         )
         .shadow(color: Color.black.opacity(0.12), radius: 16, x: 0, y: 8)
         .shadow(color: Color.black.opacity(0.08), radius: 4, x: 0, y: 2)
+    }
+
+    @ViewBuilder
+    private var composerLeftColumn: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            composerAttachmentChipsRow
+            composerTextEditor
+            composerControlsRow
+            composerPrepareToSendRow
+            composerSpeechToTextStatusRow
+        }
+    }
+
+    @ViewBuilder
+    private var composerAttachmentChipsRow: some View {
+        if !draftAttachments.isEmpty {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(draftAttachments) { attachment in
+                        DraftAttachmentChip(
+                            attachment: attachment,
+                            onRemove: { removeDraftAttachment(attachment) }
+                        )
+                    }
+                }
+                .padding(.horizontal, 2)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var composerTextEditor: some View {
+        ZStack(alignment: .topLeading) {
+            if messageText.isEmpty {
+                Text("Type a message...")
+                    .font(.body)
+                    .foregroundStyle(.secondary)
+                    .padding(.top, 2)
+                    .padding(.leading, 6)
+            }
+
+            DroppableTextEditor(
+                text: $messageText,
+                isDropTargeted: $isComposerDropTargeted,
+                isFocused: $isComposerFocused,
+                font: NSFont.preferredFont(forTextStyle: .body),
+                onDropFileURLs: handleDroppedFileURLs,
+                onDropImages: handleDroppedImages,
+                onSubmit: handleComposerSubmit,
+                onCancel: handleComposerCancel
+            )
+            .frame(height: 36)
+        }
+    }
+
+    @ViewBuilder
+    private var composerControlsRow: some View {
+        HStack(spacing: 6) {
+            Button { toggleSpeechToText() } label: {
+                controlIconLabel(
+                    systemName: speechToTextSystemImageName,
+                    isActive: speechToTextManagerActive,
+                    badgeText: speechToTextBadgeText,
+                    activeColor: speechToTextActiveColor
+                )
+            }
+            .buttonStyle(.plain)
+            .help(speechToTextHelpText)
+            .disabled(isBusy || speechToTextManager.isTranscribing || (!speechToTextConfigured && !speechToTextManager.isRecording))
+
+            Button { isFileImporterPresented = true } label: {
+                controlIconLabel(
+                    systemName: "paperclip",
+                    isActive: !draftAttachments.isEmpty,
+                    badgeText: draftAttachments.isEmpty ? nil : "\(draftAttachments.count)"
+                )
+            }
+            .buttonStyle(.plain)
+            .help(supportsNativePDF ? "Attach images / PDFs (Native PDF support ✓)" : "Attach images / PDFs")
+            .disabled(isBusy)
+
+            if supportsNativePDF {
+                Image(systemName: "doc.richtext.fill")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .help("Model supports native PDF reading")
+            }
+
+            Menu { pdfProcessingMenuContent } label: {
+                controlIconLabel(
+                    systemName: "doc.text.magnifyingglass",
+                    isActive: resolvedPDFProcessingMode != .native || isNativePDFModeMisconfigured,
+                    badgeText: pdfProcessingBadgeText
+                )
+            }
+            .menuStyle(.borderlessButton)
+            .help(pdfProcessingHelpText)
+
+            Menu { reasoningMenuContent } label: {
+                controlIconLabel(
+                    systemName: "brain",
+                    isActive: isReasoningEnabled,
+                    badgeText: reasoningBadgeText
+                )
+            }
+            .menuStyle(.borderlessButton)
+            .disabled(!supportsReasoningControl)
+            .help(reasoningHelpText)
+
+            Menu { webSearchMenuContent } label: {
+                controlIconLabel(
+                    systemName: "globe",
+                    isActive: isWebSearchEnabled,
+                    badgeText: webSearchBadgeText
+                )
+            }
+            .menuStyle(.borderlessButton)
+            .disabled(!supportsWebSearchControl)
+            .help(webSearchHelpText)
+
+            Menu { mcpToolsMenuContent } label: {
+                controlIconLabel(
+                    systemName: "hammer",
+                    isActive: supportsMCPToolsControl && isMCPToolsEnabled,
+                    badgeText: mcpToolsBadgeText
+                )
+            }
+            .menuStyle(.borderlessButton)
+            .disabled(!supportsMCPToolsControl)
+            .help(mcpToolsHelpText)
+
+            Menu { providerSpecificParamsMenuContent } label: {
+                controlIconLabel(
+                    systemName: "slider.horizontal.3",
+                    isActive: !controls.providerSpecific.isEmpty,
+                    badgeText: providerSpecificParamsBadgeText
+                )
+            }
+            .menuStyle(.borderlessButton)
+            .help(providerSpecificParamsHelpText)
+
+            Spacer(minLength: 0)
+        }
+        .padding(.bottom, 1)
+    }
+
+    @ViewBuilder
+    private var composerPrepareToSendRow: some View {
+        if isPreparingToSend, let prepareToSendStatus {
+            HStack(spacing: 8) {
+                ProgressView()
+                    .controlSize(.small)
+                Text(prepareToSendStatus)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Spacer(minLength: 0)
+            }
+            .padding(.top, 2)
+        }
+    }
+
+    @ViewBuilder
+    private var composerSpeechToTextStatusRow: some View {
+        if speechToTextManager.isRecording {
+            HStack(spacing: 8) {
+                Circle()
+                    .fill(Color.red)
+                    .frame(width: 6, height: 6)
+                Text("Recording… \(formattedRecordingDuration)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Spacer(minLength: 0)
+            }
+            .padding(.top, 2)
+        } else if speechToTextManager.isTranscribing {
+            HStack(spacing: 8) {
+                ProgressView()
+                    .controlSize(.small)
+                Text("Transcribing…")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Spacer(minLength: 0)
+            }
+            .padding(.top, 2)
+        }
+    }
+
+    private var composerSendButton: some View {
+        Button(action: sendMessage) {
+            Image(systemName: isBusy ? "stop.circle.fill" : "arrow.up.circle.fill")
+                .resizable()
+                .symbolRenderingMode(.hierarchical)
+                .frame(width: 22, height: 22)
+                .foregroundStyle(isBusy ? Color.secondary : (canSendDraft ? Color.accentColor : .gray))
+        }
+        .buttonStyle(.plain)
+        .disabled((!canSendDraft && !isBusy) || speechToTextManager.isRecording || speechToTextManager.isTranscribing)
+        .padding(.bottom, 2)
     }
 
     var body: some View {
@@ -288,6 +345,12 @@ struct ChatView: View {
                                     conversationModelLabel: conversationModelLabel,
                                     toolResultsByCallID: toolResultsByCallID,
                                     actionsEnabled: !isStreaming,
+                                    textToSpeechConfigured: textToSpeechConfigured,
+                                    textToSpeechIsGenerating: ttsPlaybackManager.isGenerating(messageID: message.id),
+                                    textToSpeechIsPlaying: ttsPlaybackManager.isPlaying(messageID: message.id),
+                                    onToggleSpeakAssistantMessage: { entity, text in
+                                        toggleSpeakAssistantMessage(entity, text: text)
+                                    },
                                     onRegenerate: { target in
                                         regenerateMessage(target)
                                     },
@@ -439,6 +502,7 @@ struct ChatView: View {
             pendingRestoreScrollMessageID = nil
             isPinnedToBottom = true
             lastStreamingAutoScrollUptime = 0
+            ttsPlaybackManager.stop()
             rebuildMessageCaches()
         }
         .onChange(of: conversationEntity.messages.count) { _, newCount in
@@ -561,11 +625,11 @@ struct ChatView: View {
         }
         .task {
             loadControlsFromConversation()
-            await refreshMistralOCRStatus()
+            await refreshExtensionCredentialsStatus()
         }
         .onReceive(NotificationCenter.default.publisher(for: .pluginCredentialsDidChange)) { _ in
             Task {
-                await refreshMistralOCRStatus()
+                await refreshExtensionCredentialsStatus()
             }
         }
         .focusedSceneValue(
@@ -616,6 +680,67 @@ struct ChatView: View {
 
     private var canSendDraft: Bool {
         !trimmedMessageText.isEmpty || !draftAttachments.isEmpty
+    }
+
+    private var speechToTextManagerActive: Bool {
+        speechToTextManager.isRecording || speechToTextManager.isTranscribing
+    }
+
+    private var speechToTextSystemImageName: String {
+        if speechToTextManager.isTranscribing { return "waveform" }
+        if speechToTextManager.isRecording { return "mic.fill" }
+        return "mic"
+    }
+
+    private var speechToTextActiveColor: Color {
+        speechToTextManager.isRecording ? .red : .accentColor
+    }
+
+    private var speechToTextBadgeText: String? {
+        speechToTextManager.isTranscribing ? "…" : nil
+    }
+
+    private var speechToTextHelpText: String {
+        if speechToTextManager.isTranscribing { return "Transcribing…" }
+        if speechToTextManager.isRecording { return "Stop recording" }
+        if !speechToTextConfigured { return "Configure Speech to Text in Settings → Plugins → Speech to Text" }
+        return "Start recording"
+    }
+
+    private var formattedRecordingDuration: String {
+        let total = max(0, Int(speechToTextManager.elapsedSeconds.rounded()))
+        let minutes = total / 60
+        let seconds = total % 60
+        return String(format: "%d:%02d", minutes, seconds)
+    }
+
+    private func toggleSpeechToText() {
+        Task { @MainActor in
+            do {
+                if speechToTextManager.isRecording {
+                    let config = try await currentSpeechToTextTranscriptionConfig()
+                    let text = try await speechToTextManager.stopAndTranscribe(config: config)
+                    let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+                    if !trimmed.isEmpty {
+                        if messageText.isEmpty {
+                            messageText = trimmed
+                        } else {
+                            let separator = messageText.hasSuffix("\n") ? "\n" : "\n\n"
+                            messageText += separator + trimmed
+                        }
+                        isComposerFocused = true
+                    }
+                    return
+                }
+
+                _ = try await currentSpeechToTextTranscriptionConfig() // Validate configured
+                try await speechToTextManager.startRecording()
+            } catch {
+                speechToTextManager.cancelAndCleanup()
+                errorMessage = error.localizedDescription
+                showingError = true
+            }
+        }
     }
 
     private func removeDraftAttachment(_ attachment: DraftAttachment) {
@@ -1195,6 +1320,8 @@ struct ChatView: View {
             return supportsNativePDF ? nil : "!"
         case .mistralOCR:
             return "OCR"
+        case .deepSeekOCR:
+            return "DS"
         case .macOSExtract:
             return "mac"
         }
@@ -1209,6 +1336,8 @@ struct ChatView: View {
             return "PDF: Native (unsupported — choose OCR/Extract)"
         case .mistralOCR:
             return mistralOCRConfigured ? "PDF: Mistral OCR" : "PDF: Mistral OCR (API key required)"
+        case .deepSeekOCR:
+            return deepSeekOCRConfigured ? "PDF: DeepSeek OCR (DeepInfra)" : "PDF: DeepSeek OCR (API key required)"
         case .macOSExtract:
             return "PDF: macOS Extract"
         }
@@ -1374,6 +1503,7 @@ struct ChatView: View {
     private var pdfProcessingMenuContent: some View {
         Button { setPDFProcessingMode(.native) } label: { menuItemLabel("Native (if supported)", isSelected: resolvedPDFProcessingMode == .native) }
         Button { setPDFProcessingMode(.mistralOCR) } label: { menuItemLabel("Mistral OCR", isSelected: resolvedPDFProcessingMode == .mistralOCR) }
+        Button { setPDFProcessingMode(.deepSeekOCR) } label: { menuItemLabel("DeepSeek OCR (DeepInfra)", isSelected: resolvedPDFProcessingMode == .deepSeekOCR) }
         Button { setPDFProcessingMode(.macOSExtract) } label: { menuItemLabel("macOS Extract", isSelected: resolvedPDFProcessingMode == .macOSExtract) }
 
         if resolvedPDFProcessingMode == .mistralOCR, !mistralOCRConfigured {
@@ -1383,25 +1513,32 @@ struct ChatView: View {
                 .foregroundStyle(.secondary)
         }
 
+        if resolvedPDFProcessingMode == .deepSeekOCR, !deepSeekOCRConfigured {
+            Divider()
+            Text("Set API key in Settings → Plugins → DeepSeek OCR (DeepInfra).")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+
         if resolvedPDFProcessingMode == .native, !supportsNativePDF {
             Divider()
-            Text("Model doesn't support native PDF. Select Mistral OCR or macOS Extract.")
+            Text("Model doesn't support native PDF. Select Mistral OCR, DeepSeek OCR (DeepInfra), or macOS Extract.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
     }
 
     @ViewBuilder
-    private func controlIconLabel(systemName: String, isActive: Bool, badgeText: String?) -> some View {
+    private func controlIconLabel(systemName: String, isActive: Bool, badgeText: String?, activeColor: Color = .accentColor) -> some View {
         ZStack(alignment: .bottomTrailing) {
             Image(systemName: systemName)
                 .font(.system(size: 14))
                 .symbolRenderingMode(.hierarchical)
-                .foregroundStyle(isActive ? Color.accentColor : Color.secondary)
+                .foregroundStyle(isActive ? activeColor : Color.secondary)
                 .frame(width: 28, height: 28)
                 .background(
                     Circle()
-                        .fill(isActive ? Color.accentColor.opacity(0.18) : Color.secondary.opacity(0.10))
+                        .fill(isActive ? activeColor.opacity(0.18) : Color.secondary.opacity(0.10))
                 )
 
             if let badgeText, !badgeText.isEmpty {
@@ -1854,7 +1991,7 @@ struct ChatView: View {
             throw PDFProcessingError.nativePDFNotSupported(modelName: currentModelName)
         }
 
-        let mistralAPIKey: String?
+        let mistralClient: MistralOCRClient?
         if pdfCount > 0, requestedMode == .mistralOCR {
             let keychainManager = KeychainManager()
             let key = try await keychainManager.getAPIKey(for: MistralOCRClient.Constants.keychainID)
@@ -1864,12 +2001,25 @@ struct ChatView: View {
                 throw PDFProcessingError.mistralAPIKeyMissing
             }
 
-            mistralAPIKey = trimmed
+            mistralClient = MistralOCRClient(apiKey: trimmed)
         } else {
-            mistralAPIKey = nil
+            mistralClient = nil
         }
 
-        let mistralClient = mistralAPIKey.map { MistralOCRClient(apiKey: $0) }
+        let deepSeekClient: DeepInfraDeepSeekOCRClient?
+        if pdfCount > 0, requestedMode == .deepSeekOCR {
+            let keychainManager = KeychainManager()
+            let key = try await keychainManager.getAPIKey(for: DeepInfraDeepSeekOCRClient.Constants.keychainID)
+            let trimmed = (key ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+
+            if trimmed.isEmpty {
+                throw PDFProcessingError.deepInfraAPIKeyMissing
+            }
+
+            deepSeekClient = DeepInfraDeepSeekOCRClient(apiKey: trimmed)
+        } else {
+            deepSeekClient = nil
+        }
 
         var pdfOrdinal = 0
         for attachment in attachments {
@@ -1887,7 +2037,8 @@ struct ChatView: View {
                     requestedMode: requestedMode,
                     totalPDFCount: pdfCount,
                     pdfOrdinal: pdfOrdinal,
-                    mistralClient: mistralClient
+                    mistralClient: mistralClient,
+                    deepSeekClient: deepSeekClient
                 )
 
                 parts.append(
@@ -1935,7 +2086,8 @@ struct ChatView: View {
         requestedMode: PDFProcessingMode,
         totalPDFCount: Int,
         pdfOrdinal: Int,
-        mistralClient: MistralOCRClient?
+        mistralClient: MistralOCRClient?,
+        deepSeekClient: DeepInfraDeepSeekOCRClient?
     ) async throws -> PreparedPDFContent {
         let shouldSendNativePDF = supportsNativePDF && requestedMode == .native
         guard !shouldSendNativePDF else {
@@ -1955,7 +2107,14 @@ struct ChatView: View {
                 throw PDFProcessingError.noTextExtracted(filename: attachment.filename, method: "macOS Extract")
             }
 
-            return PreparedPDFContent(extractedText: extracted, additionalParts: [])
+            var output = "macOS Extract (PDF): \(attachment.filename)\n\n\(extracted)"
+            output = output.trimmingCharacters(in: .whitespacesAndNewlines)
+            if output.count > AttachmentConstants.maxPDFExtractedCharacters {
+                let prefix = output.prefix(AttachmentConstants.maxPDFExtractedCharacters)
+                output = "\(prefix)\n\n[Truncated]"
+            }
+
+            return PreparedPDFContent(extractedText: output, additionalParts: [])
 
         case .mistralOCR:
             guard let mistralClient else { throw PDFProcessingError.mistralAPIKeyMissing }
@@ -1972,10 +2131,32 @@ struct ChatView: View {
             let response = try await mistralClient.ocrPDF(data, includeImageBase64: includeImageBase64)
             let pages = response.pages
                 .sorted { $0.index < $1.index }
-            let combinedMarkdown = pages
+            var combinedMarkdown = pages
                 .map(\.markdown)
                 .joined(separator: "\n\n")
                 .trimmingCharacters(in: .whitespacesAndNewlines)
+
+            // If Mistral returns extracted tables separately (via `table_format`), inline them so the model
+            // doesn't see placeholder links like `[tbl-3.html](tbl-3.html)`.
+            var tablesByID: [String: String] = [:]
+            for page in pages {
+                for table in page.tables ?? [] {
+                    let id = table.id.trimmingCharacters(in: .whitespacesAndNewlines)
+                    let content = table.content?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                    guard !id.isEmpty, !content.isEmpty else { continue }
+                    tablesByID[id] = content
+                    tablesByID[(id as NSString).lastPathComponent] = content
+                }
+            }
+
+            if !tablesByID.isEmpty {
+                combinedMarkdown = MistralOCRMarkdown.replacingTableLinks(from: combinedMarkdown) { id in
+                    guard !id.isEmpty else { return "" }
+                    if let content = tablesByID[id] { return content }
+                    return "[\(id)](\(id))"
+                }
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            }
 
             guard !combinedMarkdown.isEmpty else {
                 throw PDFProcessingError.noTextExtracted(filename: attachment.filename, method: "Mistral OCR")
@@ -2064,16 +2245,110 @@ struct ChatView: View {
             }
 
             output = output.trimmingCharacters(in: .whitespacesAndNewlines)
+            output = "Mistral OCR (Markdown): \(attachment.filename)\n\n\(output)"
+            output = output.trimmingCharacters(in: .whitespacesAndNewlines)
             if output.count > AttachmentConstants.maxPDFExtractedCharacters {
                 let prefix = output.prefix(AttachmentConstants.maxPDFExtractedCharacters)
                 output = "\(prefix)\n\n[Truncated]"
             }
+            return PreparedPDFContent(extractedText: output, additionalParts: imageParts)
 
+        case .deepSeekOCR:
+            guard let deepSeekClient else { throw PDFProcessingError.deepInfraAPIKeyMissing }
+
+            let includePageImages = supportsVision
+            let renderedPages = try PDFKitImageRenderer.renderAllPagesAsJPEG(from: attachment.fileURL)
+            let totalPages = max(1, renderedPages.count)
+
+            var pageMarkdown: [String] = []
+            pageMarkdown.reserveCapacity(renderedPages.count)
+
+            var imageParts: [ContentPart] = []
+            var totalAttachedBytes = 0
+
+            for rendered in renderedPages {
+                try Task.checkCancellation()
+
+                await MainActor.run {
+                    prepareToSendStatus = "OCR PDF \(pdfOrdinal)/\(max(1, totalPDFCount)) (DeepSeek): \(attachment.filename) — page \(rendered.pageIndex + 1)/\(totalPages)"
+                }
+
+                let prompt = "Convert this page to Markdown. Preserve layout and tables. Return only the Markdown."
+                let raw = try await deepSeekClient.ocrImage(
+                    rendered.data,
+                    mimeType: rendered.mimeType,
+                    prompt: prompt,
+                    timeoutSeconds: 120
+                )
+
+                let normalized = normalizedDeepSeekOCRMarkdown(raw)
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                if !normalized.isEmpty {
+                    pageMarkdown.append(normalized)
+                }
+
+                if includePageImages,
+                   imageParts.count < AttachmentConstants.maxMistralOCRImagesToAttach {
+                    let nextTotal = totalAttachedBytes + rendered.data.count
+                    if nextTotal <= AttachmentConstants.maxMistralOCRTotalImageBytes {
+                        totalAttachedBytes = nextTotal
+                        imageParts.append(.image(ImageContent(mimeType: rendered.mimeType, data: rendered.data, url: nil)))
+                    }
+                }
+            }
+
+            let combined = pageMarkdown
+                .joined(separator: "\n\n")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+
+            guard !combined.isEmpty else {
+                throw PDFProcessingError.noTextExtracted(filename: attachment.filename, method: "DeepSeek OCR (DeepInfra)")
+            }
+
+            var output = combined
+            if includePageImages, !imageParts.isEmpty {
+                let omitted = max(0, renderedPages.count - imageParts.count)
+                output += "\n\n[Note: Attached \(imageParts.count) page image(s) for vision context.]"
+                if omitted > 0 {
+                    output += "\n[Note: \(omitted) page image(s) omitted due to size limits.]"
+                }
+            }
+
+            output = output.trimmingCharacters(in: .whitespacesAndNewlines)
+            output = "DeepSeek OCR (Markdown): \(attachment.filename)\n\n\(output)"
+            output = output.trimmingCharacters(in: .whitespacesAndNewlines)
+            if output.count > AttachmentConstants.maxPDFExtractedCharacters {
+                let prefix = output.prefix(AttachmentConstants.maxPDFExtractedCharacters)
+                output = "\(prefix)\n\n[Truncated]"
+            }
             return PreparedPDFContent(extractedText: output, additionalParts: imageParts)
 
         case .native:
             throw PDFProcessingError.nativePDFNotSupported(modelName: currentModelName)
         }
+    }
+
+    private func normalizedDeepSeekOCRMarkdown(_ raw: String) -> String {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.hasPrefix("```") else { return trimmed }
+
+        let fenceCount = trimmed.components(separatedBy: "```").count - 1
+        guard fenceCount == 2 else { return trimmed }
+
+        guard let firstNewline = trimmed.firstIndex(of: "\n"),
+              let closingRange = trimmed.range(of: "```", options: [.backwards]) else {
+            return trimmed
+        }
+
+        let openingLine = String(trimmed[..<firstNewline]).trimmingCharacters(in: .whitespacesAndNewlines)
+        let allowedOpening = openingLine == "```" || openingLine == "```markdown" || openingLine == "```md"
+        guard allowedOpening else { return trimmed }
+
+        let contentStart = trimmed.index(after: firstNewline)
+        guard closingRange.lowerBound > contentStart else { return trimmed }
+
+        let content = trimmed[contentStart..<closingRange.lowerBound]
+        return String(content).trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private func decodeMistralOCRImageBase64(_ raw: String, imageID: String) -> ImageContent? {
@@ -2850,11 +3125,289 @@ struct ChatView: View {
         normalizeControlsForCurrentSelection()
     }
 
-    private func refreshMistralOCRStatus() async {
+    private func refreshExtensionCredentialsStatus() async {
         let keychainManager = KeychainManager()
-        let configured = await keychainManager.hasAPIKey(for: MistralOCRClient.Constants.keychainID)
+
+        let mistralConfigured = await keychainManager.hasAPIKey(for: MistralOCRClient.Constants.keychainID)
+        let deepSeekConfigured = await keychainManager.hasAPIKey(for: DeepInfraDeepSeekOCRClient.Constants.keychainID)
+
+        let ttsProvider = TextToSpeechProvider(rawValue: UserDefaults.standard.string(forKey: AppPreferenceKeys.ttsProvider) ?? TextToSpeechProvider.openai.rawValue)
+            ?? .openai
+        let sttProvider = SpeechToTextProvider(rawValue: UserDefaults.standard.string(forKey: AppPreferenceKeys.sttProvider) ?? SpeechToTextProvider.groq.rawValue)
+            ?? .groq
+
+        let ttsKeychainID: String = {
+            switch ttsProvider {
+            case .elevenlabs:
+                return ElevenLabsTTSClient.Constants.keychainID
+            case .openai:
+                return OpenAIAudioClient.Constants.keychainID
+            case .groq:
+                return GroqAudioClient.Constants.keychainID
+            }
+        }()
+
+        let sttKeychainID: String = {
+            switch sttProvider {
+            case .openai:
+                return OpenAIAudioClient.Constants.keychainID
+            case .groq:
+                return GroqAudioClient.Constants.keychainID
+            }
+        }()
+
+        let ttsKeyConfigured = await keychainManager.hasAPIKey(for: ttsKeychainID)
+        let sttConfigured = await keychainManager.hasAPIKey(for: sttKeychainID)
+
+        let ttsConfigured: Bool
+        if ttsProvider == .elevenlabs {
+            let voiceID = (UserDefaults.standard.string(forKey: AppPreferenceKeys.ttsElevenLabsVoiceID) ?? "")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            ttsConfigured = ttsKeyConfigured && !voiceID.isEmpty
+        } else {
+            ttsConfigured = ttsKeyConfigured
+        }
+
         await MainActor.run {
-            mistralOCRConfigured = configured
+            mistralOCRConfigured = mistralConfigured
+            deepSeekOCRConfigured = deepSeekConfigured
+            textToSpeechConfigured = ttsConfigured
+            speechToTextConfigured = sttConfigured
+        }
+    }
+
+    private func currentSpeechToTextTranscriptionConfig() async throws -> SpeechToTextManager.TranscriptionConfig {
+        let defaults = UserDefaults.standard
+        let provider = SpeechToTextProvider(rawValue: defaults.string(forKey: AppPreferenceKeys.sttProvider) ?? SpeechToTextProvider.groq.rawValue)
+            ?? .groq
+
+        let keychainID: String = {
+            switch provider {
+            case .openai:
+                return OpenAIAudioClient.Constants.keychainID
+            case .groq:
+                return GroqAudioClient.Constants.keychainID
+            }
+        }()
+
+        let keychainManager = KeychainManager()
+        let key = try await keychainManager.getAPIKey(for: keychainID)
+        let apiKey = (key ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !apiKey.isEmpty else { throw SpeechExtensionError.speechToTextNotConfigured }
+
+        func normalized(_ raw: String?) -> String? {
+            let trimmed = (raw ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            return trimmed.isEmpty ? nil : trimmed
+        }
+
+        switch provider {
+        case .openai:
+            let baseURLString = defaults.string(forKey: AppPreferenceKeys.sttOpenAIBaseURL) ?? OpenAIAudioClient.Constants.defaultBaseURL.absoluteString
+            guard let baseURL = URL(string: baseURLString.trimmingCharacters(in: .whitespacesAndNewlines)) else {
+                throw SpeechExtensionError.invalidBaseURL(baseURLString)
+            }
+
+            let model = defaults.string(forKey: AppPreferenceKeys.sttOpenAIModel) ?? "gpt-4o-mini-transcribe"
+            let translateToEnglish = defaults.bool(forKey: AppPreferenceKeys.sttOpenAITranslateToEnglish)
+            let language = normalized(defaults.string(forKey: AppPreferenceKeys.sttOpenAILanguage))
+            let prompt = normalized(defaults.string(forKey: AppPreferenceKeys.sttOpenAIPrompt))
+            let responseFormat = normalized(defaults.string(forKey: AppPreferenceKeys.sttOpenAIResponseFormat))
+            let temperature = defaults.object(forKey: AppPreferenceKeys.sttOpenAITemperature) as? Double
+
+            let timestampsJSON = defaults.string(forKey: AppPreferenceKeys.sttOpenAITimestampGranularitiesJSON) ?? "[]"
+            let timestamps = AppPreferences.decodeStringArrayJSON(timestampsJSON)
+            let timestampGranularities = timestamps.isEmpty ? nil : timestamps
+
+            return .openai(
+                SpeechToTextManager.OpenAIConfig(
+                    apiKey: apiKey,
+                    baseURL: baseURL,
+                    model: model,
+                    translateToEnglish: translateToEnglish,
+                    language: language,
+                    prompt: prompt,
+                    responseFormat: responseFormat,
+                    temperature: temperature,
+                    timestampGranularities: timestampGranularities
+                )
+            )
+
+        case .groq:
+            let baseURLString = defaults.string(forKey: AppPreferenceKeys.sttGroqBaseURL) ?? GroqAudioClient.Constants.defaultBaseURL.absoluteString
+            guard let baseURL = URL(string: baseURLString.trimmingCharacters(in: .whitespacesAndNewlines)) else {
+                throw SpeechExtensionError.invalidBaseURL(baseURLString)
+            }
+
+            let model = defaults.string(forKey: AppPreferenceKeys.sttGroqModel) ?? "whisper-large-v3-turbo"
+            let translateToEnglish = defaults.bool(forKey: AppPreferenceKeys.sttGroqTranslateToEnglish)
+            let language = normalized(defaults.string(forKey: AppPreferenceKeys.sttGroqLanguage))
+            let prompt = normalized(defaults.string(forKey: AppPreferenceKeys.sttGroqPrompt))
+            let responseFormat = normalized(defaults.string(forKey: AppPreferenceKeys.sttGroqResponseFormat))
+            let temperature = defaults.object(forKey: AppPreferenceKeys.sttGroqTemperature) as? Double
+
+            let timestampsJSON = defaults.string(forKey: AppPreferenceKeys.sttGroqTimestampGranularitiesJSON) ?? "[]"
+            let timestamps = AppPreferences.decodeStringArrayJSON(timestampsJSON)
+            let timestampGranularities = timestamps.isEmpty ? nil : timestamps
+
+            return .groq(
+                SpeechToTextManager.GroqConfig(
+                    apiKey: apiKey,
+                    baseURL: baseURL,
+                    model: model,
+                    translateToEnglish: translateToEnglish,
+                    language: language,
+                    prompt: prompt,
+                    responseFormat: responseFormat,
+                    temperature: temperature,
+                    timestampGranularities: timestampGranularities
+                )
+            )
+        }
+    }
+
+    private func toggleSpeakAssistantMessage(_ messageEntity: MessageEntity, text: String) {
+        Task { @MainActor in
+            let defaults = UserDefaults.standard
+            let provider = TextToSpeechProvider(rawValue: defaults.string(forKey: AppPreferenceKeys.ttsProvider) ?? TextToSpeechProvider.openai.rawValue)
+                ?? .openai
+
+            do {
+                let config = try await currentTextToSpeechSynthesisConfig()
+                ttsPlaybackManager.toggleSpeak(
+                    messageID: messageEntity.id,
+                    text: text,
+                    config: config,
+                    onError: { error in
+                        errorMessage = textToSpeechErrorMessage(error, provider: provider)
+                        showingError = true
+                    }
+                )
+            } catch {
+                errorMessage = textToSpeechErrorMessage(error, provider: provider)
+                showingError = true
+            }
+        }
+    }
+
+    private func textToSpeechErrorMessage(_ error: Error, provider: TextToSpeechProvider) -> String {
+        if let llmError = error as? LLMError, case .authenticationFailed = llmError {
+            switch provider {
+            case .elevenlabs:
+                return "\(llmError.localizedDescription)\n\nIf your ElevenLabs key uses endpoint scopes, enable access to /v1/text-to-speech."
+            case .openai, .groq:
+                return llmError.localizedDescription
+            }
+        }
+        return error.localizedDescription
+    }
+
+    private func currentTextToSpeechSynthesisConfig() async throws -> TextToSpeechPlaybackManager.SynthesisConfig {
+        let defaults = UserDefaults.standard
+        let provider = TextToSpeechProvider(rawValue: defaults.string(forKey: AppPreferenceKeys.ttsProvider) ?? TextToSpeechProvider.openai.rawValue)
+            ?? .openai
+
+        let keychainID: String = {
+            switch provider {
+            case .elevenlabs:
+                return ElevenLabsTTSClient.Constants.keychainID
+            case .openai:
+                return OpenAIAudioClient.Constants.keychainID
+            case .groq:
+                return GroqAudioClient.Constants.keychainID
+            }
+        }()
+
+        let keychainManager = KeychainManager()
+        let key = try await keychainManager.getAPIKey(for: keychainID)
+        let apiKey = (key ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !apiKey.isEmpty else { throw SpeechExtensionError.textToSpeechNotConfigured }
+
+        switch provider {
+        case .openai:
+            let baseURLString = defaults.string(forKey: AppPreferenceKeys.ttsOpenAIBaseURL) ?? OpenAIAudioClient.Constants.defaultBaseURL.absoluteString
+            guard let baseURL = URL(string: baseURLString.trimmingCharacters(in: .whitespacesAndNewlines)) else {
+                throw SpeechExtensionError.invalidBaseURL(baseURLString)
+            }
+
+            let model = defaults.string(forKey: AppPreferenceKeys.ttsOpenAIModel) ?? "gpt-4o-mini-tts"
+            let voice = defaults.string(forKey: AppPreferenceKeys.ttsOpenAIVoice) ?? "alloy"
+            let format = defaults.string(forKey: AppPreferenceKeys.ttsOpenAIResponseFormat) ?? "mp3"
+            let speed = defaults.object(forKey: AppPreferenceKeys.ttsOpenAISpeed) as? Double
+            let instructions = defaults.string(forKey: AppPreferenceKeys.ttsOpenAIInstructions)
+
+            return .openai(
+                TextToSpeechPlaybackManager.OpenAIConfig(
+                    apiKey: apiKey,
+                    baseURL: baseURL,
+                    model: model,
+                    voice: voice,
+                    responseFormat: format,
+                    speed: speed,
+                    instructions: instructions
+                )
+            )
+
+        case .groq:
+            let baseURLString = defaults.string(forKey: AppPreferenceKeys.ttsGroqBaseURL) ?? GroqAudioClient.Constants.defaultBaseURL.absoluteString
+            guard let baseURL = URL(string: baseURLString.trimmingCharacters(in: .whitespacesAndNewlines)) else {
+                throw SpeechExtensionError.invalidBaseURL(baseURLString)
+            }
+
+            let model = defaults.string(forKey: AppPreferenceKeys.ttsGroqModel) ?? "canopylabs/orpheus-v1-english"
+            let voice = defaults.string(forKey: AppPreferenceKeys.ttsGroqVoice) ?? "troy"
+            let format = defaults.string(forKey: AppPreferenceKeys.ttsGroqResponseFormat) ?? "wav"
+
+            return .groq(
+                TextToSpeechPlaybackManager.GroqConfig(
+                    apiKey: apiKey,
+                    baseURL: baseURL,
+                    model: model,
+                    voice: voice,
+                    responseFormat: format
+                )
+            )
+
+        case .elevenlabs:
+            let baseURLString = defaults.string(forKey: AppPreferenceKeys.ttsElevenLabsBaseURL) ?? ElevenLabsTTSClient.Constants.defaultBaseURL.absoluteString
+            guard let baseURL = URL(string: baseURLString.trimmingCharacters(in: .whitespacesAndNewlines)) else {
+                throw SpeechExtensionError.invalidBaseURL(baseURLString)
+            }
+
+            let voiceId = defaults.string(forKey: AppPreferenceKeys.ttsElevenLabsVoiceID) ?? ""
+            guard !voiceId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                throw SpeechExtensionError.missingElevenLabsVoice
+            }
+
+            let modelId = defaults.string(forKey: AppPreferenceKeys.ttsElevenLabsModelID)
+            let outputFormat = defaults.string(forKey: AppPreferenceKeys.ttsElevenLabsOutputFormat)
+
+            let optimize = defaults.object(forKey: AppPreferenceKeys.ttsElevenLabsOptimizeStreamingLatency) as? Int
+            let enableLogging = defaults.object(forKey: AppPreferenceKeys.ttsElevenLabsEnableLogging) as? Bool
+
+            let stability = defaults.object(forKey: AppPreferenceKeys.ttsElevenLabsStability) as? Double
+            let similarity = defaults.object(forKey: AppPreferenceKeys.ttsElevenLabsSimilarityBoost) as? Double
+            let style = defaults.object(forKey: AppPreferenceKeys.ttsElevenLabsStyle) as? Double
+            let speakerBoost = defaults.object(forKey: AppPreferenceKeys.ttsElevenLabsUseSpeakerBoost) as? Bool
+
+            let voiceSettings = ElevenLabsTTSClient.VoiceSettings(
+                stability: stability,
+                similarityBoost: similarity,
+                style: style,
+                useSpeakerBoost: speakerBoost
+            )
+
+            return .elevenlabs(
+                TextToSpeechPlaybackManager.ElevenLabsConfig(
+                    apiKey: apiKey,
+                    baseURL: baseURL,
+                    voiceId: voiceId,
+                    modelId: modelId,
+                    outputFormat: outputFormat,
+                    optimizeStreamingLatency: optimize,
+                    enableLogging: enableLogging,
+                    voiceSettings: voiceSettings
+                )
+            )
         }
     }
 
@@ -3084,6 +3637,10 @@ struct MessageRow: View {
     let conversationModelLabel: String
     let toolResultsByCallID: [String: ToolResult]
     let actionsEnabled: Bool
+    let textToSpeechConfigured: Bool
+    let textToSpeechIsGenerating: Bool
+    let textToSpeechIsPlaying: Bool
+    let onToggleSpeakAssistantMessage: (MessageEntity, String) -> Void
     let onRegenerate: (MessageEntity) -> Void
     let onEditUserMessage: (MessageEntity) -> Void
     let editingUserMessageID: UUID?
@@ -3231,6 +3788,24 @@ struct MessageRow: View {
                             .disabled(!actionsEnabled)
                     }
 
+                    Button {
+                        onToggleSpeakAssistantMessage(messageEntity, copyText)
+                    } label: {
+                        if textToSpeechIsGenerating {
+                            ProgressView()
+                                .controlSize(.small)
+                                .frame(width: 20, height: 20)
+                        } else {
+                            Image(systemName: textToSpeechIsPlaying ? "stop.circle" : "speaker.wave.2")
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundStyle(.secondary)
+                                .frame(width: 20, height: 20)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .help(textToSpeechHelpText)
+                    .disabled(!actionsEnabled || copyText.isEmpty || !textToSpeechConfigured)
+
                     actionIconButton(systemName: "arrow.clockwise", helpText: "Regenerate") {
                         onRegenerate(messageEntity)
                     }
@@ -3290,6 +3865,19 @@ struct MessageRow: View {
         }
         .buttonStyle(.plain)
         .help(helpText)
+    }
+
+    private var textToSpeechHelpText: String {
+        if !textToSpeechConfigured {
+            return "Configure Text to Speech in Settings → Plugins → Text to Speech"
+        }
+        if textToSpeechIsGenerating {
+            return "Generating speech…"
+        }
+        if textToSpeechIsPlaying {
+            return "Stop playback"
+        }
+        return "Speak"
     }
 
     private func formattedTimestamp(_ timestamp: Date) -> String {
@@ -3474,6 +4062,18 @@ struct ContentPartView: View {
                     } label: {
                         Label("Copy Filename", systemImage: "doc.on.doc")
                     }
+
+                    if let extracted = file.extractedText?.trimmingCharacters(in: .whitespacesAndNewlines), !extracted.isEmpty {
+                        Divider()
+
+                        Button {
+                            let pasteboard = NSPasteboard.general
+                            pasteboard.clearContents()
+                            pasteboard.setString(extracted, forType: .string)
+                        } label: {
+                            Label("Copy Extracted Text", systemImage: "doc.on.doc")
+                        }
+                    }
                 }
             } else {
                 row
@@ -3484,6 +4084,18 @@ struct ContentPartView: View {
                             pasteboard.setString(file.filename, forType: .string)
                         } label: {
                             Label("Copy Filename", systemImage: "doc.on.doc")
+                        }
+
+                        if let extracted = file.extractedText?.trimmingCharacters(in: .whitespacesAndNewlines), !extracted.isEmpty {
+                            Divider()
+
+                            Button {
+                                let pasteboard = NSPasteboard.general
+                                pasteboard.clearContents()
+                                pasteboard.setString(extracted, forType: .string)
+                            } label: {
+                                Label("Copy Extracted Text", systemImage: "doc.on.doc")
+                            }
                         }
                     }
             }

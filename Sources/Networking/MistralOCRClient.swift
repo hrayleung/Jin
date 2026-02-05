@@ -18,10 +18,42 @@ actor MistralOCRClient {
             }
         }
 
+        struct OCRTable: Decodable {
+            let id: String
+            let content: String?
+
+            enum CodingKeys: String, CodingKey {
+                case id
+                case html
+                case markdown
+                case content
+                case table
+                case data
+                case tableHTML = "table_html"
+                case tableMarkdown = "table_markdown"
+            }
+
+            init(from decoder: Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                id = try container.decode(String.self, forKey: .id)
+
+                let markdown = try container.decodeIfPresent(String.self, forKey: .markdown)
+                let html = try container.decodeIfPresent(String.self, forKey: .html)
+                let contentValue = try container.decodeIfPresent(String.self, forKey: .content)
+                let table = try container.decodeIfPresent(String.self, forKey: .table)
+                let data = try container.decodeIfPresent(String.self, forKey: .data)
+                let tableMarkdown = try container.decodeIfPresent(String.self, forKey: .tableMarkdown)
+                let tableHTML = try container.decodeIfPresent(String.self, forKey: .tableHTML)
+
+                content = markdown ?? html ?? contentValue ?? table ?? data ?? tableMarkdown ?? tableHTML
+            }
+        }
+
         struct Page: Decodable {
             let index: Int
             let markdown: String
             let images: [OCRImage]?
+            let tables: [OCRTable]?
         }
 
         let pages: [Page]

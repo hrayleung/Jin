@@ -33,10 +33,28 @@ struct SettingsView: View {
 
     private static let availablePlugins: [PluginDescriptor] = [
         PluginDescriptor(
+            id: "text_to_speech",
+            name: "Text to Speech",
+            systemImage: "speaker.wave.2",
+            summary: "Play assistant messages aloud (ElevenLabs, OpenAI, Groq)."
+        ),
+        PluginDescriptor(
+            id: "speech_to_text",
+            name: "Speech to Text",
+            systemImage: "mic",
+            summary: "Dictate messages via transcription (Groq, OpenAI)."
+        ),
+        PluginDescriptor(
             id: "mistral_ocr",
             name: "Mistral OCR",
             systemImage: "doc.text.magnifyingglass",
             summary: "OCR PDFs for models without native PDF support."
+        ),
+        PluginDescriptor(
+            id: "deepseek_ocr",
+            name: "DeepSeek OCR (DeepInfra)",
+            systemImage: "doc.text.magnifyingglass",
+            summary: "OCR PDFs via DeepInfra-hosted DeepSeek-OCR."
         )
     ]
 
@@ -52,6 +70,9 @@ struct SettingsView: View {
     @State private var operationErrorMessage: String?
     @State private var showingOperationError = false
     @State private var mistralOCRConfigured = false
+    @State private var deepSeekOCRConfigured = false
+    @State private var textToSpeechConfigured = false
+    @State private var speechToTextConfigured = false
 
     // Queries for lists
     @Query(sort: \ProviderConfigEntity.name) private var providers: [ProviderConfigEntity]
@@ -156,6 +177,15 @@ struct SettingsView: View {
                     if selectedPluginID == "mistral_ocr" {
                         MistralOCRPluginSettingsView()
                             .id("mistral_ocr")
+                    } else if selectedPluginID == "deepseek_ocr" {
+                        DeepSeekOCRPluginSettingsView()
+                            .id("deepseek_ocr")
+                    } else if selectedPluginID == "text_to_speech" {
+                        TextToSpeechPluginSettingsView()
+                            .id("text_to_speech")
+                    } else if selectedPluginID == "speech_to_text" {
+                        SpeechToTextPluginSettingsView()
+                            .id("speech_to_text")
                     } else {
                         ContentUnavailableView("Select a Plugin", systemImage: "puzzlepiece.extension")
                     }
@@ -227,9 +257,51 @@ struct SettingsView: View {
 
     private func refreshPluginStatus() async {
         let keychainManager = KeychainManager()
-        let configured = await keychainManager.hasAPIKey(for: MistralOCRClient.Constants.keychainID)
+        let mistralConfigured = await keychainManager.hasAPIKey(for: MistralOCRClient.Constants.keychainID)
+        let deepSeekConfigured = await keychainManager.hasAPIKey(for: DeepInfraDeepSeekOCRClient.Constants.keychainID)
+
+        let ttsProvider = TextToSpeechProvider(rawValue: UserDefaults.standard.string(forKey: AppPreferenceKeys.ttsProvider) ?? TextToSpeechProvider.openai.rawValue)
+            ?? .openai
+        let sttProvider = SpeechToTextProvider(rawValue: UserDefaults.standard.string(forKey: AppPreferenceKeys.sttProvider) ?? SpeechToTextProvider.groq.rawValue)
+            ?? .groq
+
+        let ttsKeychainID: String = {
+            switch ttsProvider {
+            case .elevenlabs:
+                return ElevenLabsTTSClient.Constants.keychainID
+            case .openai:
+                return OpenAIAudioClient.Constants.keychainID
+            case .groq:
+                return GroqAudioClient.Constants.keychainID
+            }
+        }()
+
+        let sttKeychainID: String = {
+            switch sttProvider {
+            case .openai:
+                return OpenAIAudioClient.Constants.keychainID
+            case .groq:
+                return GroqAudioClient.Constants.keychainID
+            }
+        }()
+
+        let ttsKeyConfigured = await keychainManager.hasAPIKey(for: ttsKeychainID)
+        let sttConfigured = await keychainManager.hasAPIKey(for: sttKeychainID)
+
+        let ttsConfigured: Bool
+        if ttsProvider == .elevenlabs {
+            let voiceID = (UserDefaults.standard.string(forKey: AppPreferenceKeys.ttsElevenLabsVoiceID) ?? "")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            ttsConfigured = ttsKeyConfigured && !voiceID.isEmpty
+        } else {
+            ttsConfigured = ttsKeyConfigured
+        }
+
         await MainActor.run {
-            mistralOCRConfigured = configured
+            mistralOCRConfigured = mistralConfigured
+            deepSeekOCRConfigured = deepSeekConfigured
+            textToSpeechConfigured = ttsConfigured
+            speechToTextConfigured = sttConfigured
         }
     }
 
@@ -280,7 +352,7 @@ struct SettingsView: View {
             NavigationLink(value: plugin.id) {
                 HStack(spacing: 10) {
                     Circle()
-                        .fill(plugin.id == "mistral_ocr" && mistralOCRConfigured ? Color.green : Color.gray)
+                        .fill(isPluginConfigured(plugin.id) ? Color.green : Color.gray)
                         .frame(width: 8, height: 8)
                         .frame(width: 20)
 
@@ -308,6 +380,21 @@ struct SettingsView: View {
             if !trimmedSearchText.isEmpty, filteredPlugins.isEmpty {
                 ContentUnavailableView.search(text: trimmedSearchText)
             }
+        }
+    }
+
+    private func isPluginConfigured(_ pluginID: String) -> Bool {
+        switch pluginID {
+        case "mistral_ocr":
+            return mistralOCRConfigured
+        case "deepseek_ocr":
+            return deepSeekOCRConfigured
+        case "text_to_speech":
+            return textToSpeechConfigured
+        case "speech_to_text":
+            return speechToTextConfigured
+        default:
+            return false
         }
     }
 

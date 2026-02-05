@@ -346,12 +346,7 @@ actor CerebrasAdapter: LLMProviderAdapter {
             case .text(let text):
                 visibleParts.append(text)
             case .file(let file):
-                let extracted = file.extractedText?.trimmingCharacters(in: .whitespacesAndNewlines)
-                if let extracted, !extracted.isEmpty {
-                    visibleParts.append("Attachment: \(file.filename) (\(file.mimeType))\n\n\(extracted)")
-                } else {
-                    visibleParts.append("Attachment: \(file.filename) (\(file.mimeType))")
-                }
+                visibleParts.append(AttachmentPromptRenderer.fallbackText(for: file))
             case .image(let image):
                 // Cerebras chat completions are text-only today. Keep a small placeholder to avoid silently dropping context.
                 if image.url != nil || image.data != nil {

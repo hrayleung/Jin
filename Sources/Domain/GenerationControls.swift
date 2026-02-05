@@ -84,6 +84,7 @@ enum WebSearchSource: String, Codable, CaseIterable {
 enum PDFProcessingMode: String, Codable, CaseIterable {
     case native
     case mistralOCR
+    case deepSeekOCR
     case macOSExtract
 
     var displayName: String {
@@ -92,6 +93,8 @@ enum PDFProcessingMode: String, Codable, CaseIterable {
             return "Native"
         case .mistralOCR:
             return "Mistral OCR"
+        case .deepSeekOCR:
+            return "DeepSeek OCR (DeepInfra)"
         case .macOSExtract:
             return "macOS Extract"
         }
