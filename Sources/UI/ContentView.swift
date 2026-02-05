@@ -59,7 +59,7 @@ struct ContentView: View {
             }
             .listStyle(.sidebar)
             .searchable(text: $searchText, placement: .sidebar, prompt: "Search chats")
-            .navigationSplitViewColumnWidth(min: 220, ideal: 260, max: 320)
+            .navigationSplitViewColumnWidth(min: 240, ideal: 280, max: 340)
             .navigationTitle("Chats")
             .navigationSubtitle(selectedAssistant?.displayName ?? "Default")
             .toolbar {
@@ -75,6 +75,7 @@ struct ContentView: View {
                     .keyboardShortcut(",", modifiers: [.command])
                 }
             }
+            .background(Color(nsColor: .controlBackgroundColor))
         } detail: {
             if let conversation = selectedConversation {
                 ChatView(
@@ -85,6 +86,7 @@ struct ContentView: View {
                     isAssistantInspectorPresented: $isAssistantInspectorPresented
                 )
                     .id(conversation.id) // Ensure view rebuilds when switching
+                    .background(Color(nsColor: .textBackgroundColor))
             } else {
                 ContentUnavailableView {
                     Label("No Conversation Selected", systemImage: "bubble.left.and.bubble.right")
@@ -96,6 +98,7 @@ struct ContentView: View {
                     }
                     .buttonStyle(.borderedProminent)
                 }
+                .background(Color(nsColor: .textBackgroundColor))
                 .toolbar {
                     ToolbarItem(placement: .primaryAction) {
                         Button {
@@ -674,7 +677,7 @@ private struct ConversationRowView: View {
     let isStreaming: Bool
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: 6) {
             Text(title)
                 .font(.headline)
                 .lineLimit(1)
@@ -692,7 +695,7 @@ private struct ConversationRowView: View {
             .font(.caption)
             .foregroundColor(.secondary)
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, 6)
     }
 }
 
@@ -721,15 +724,15 @@ private extension ContentView {
                     .labelsHidden()
                     .pickerStyle(.menu)
                 }
-                .listRowInsets(EdgeInsets(top: 6, leading: 10, bottom: 6, trailing: 10))
+                .listRowInsets(EdgeInsets(top: 8, leading: 12, bottom: 8, trailing: 12))
 
             case .grid:
                 LazyVGrid(
                     columns: Array(
-                        repeating: GridItem(.flexible(minimum: 44), spacing: 8),
+                        repeating: GridItem(.flexible(minimum: 44), spacing: 10),
                         count: assistantSidebarGridColumnCount
                     ),
-                    spacing: 8
+                    spacing: 10
                 ) {
                     ForEach(displayedAssistants) { assistant in
                         let isSelected = selectedAssistant?.id == assistant.id
@@ -747,7 +750,7 @@ private extension ContentView {
                         .contextMenu { assistantContextMenu(for: assistant) }
                     }
                 }
-                .listRowInsets(EdgeInsets(top: 8, leading: 10, bottom: 8, trailing: 10))
+                .listRowInsets(EdgeInsets(top: 10, leading: 12, bottom: 10, trailing: 12))
 
             case .list:
                 ForEach(displayedAssistants) { assistant in
@@ -875,12 +878,12 @@ private struct AssistantRowView: View {
     let isSelected: Bool
 
     var body: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 12) {
             assistantIconView
                 .foregroundStyle(isSelected ? Color.accentColor : .secondary)
-                .frame(width: 22, height: 22)
+                .frame(width: 24, height: 24)
 
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 3) {
                 Text(assistant.displayName)
                     .font(.system(.body, design: .default))
                     .fontWeight(.medium)
@@ -909,7 +912,7 @@ private struct AssistantRowView: View {
                     .accessibilityLabel("\(chatCount) chats")
             }
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, 6)
     }
 
     private var assistantIconView: some View {
@@ -934,7 +937,7 @@ private struct AssistantTileView: View {
     let showsIcon: Bool
 
     var body: some View {
-        VStack(spacing: showsIcon && showsName ? 4 : 0) {
+        VStack(spacing: showsIcon && showsName ? 6 : 0) {
             if showsIcon {
                 assistantIcon
                     .frame(width: 24, height: 24)
@@ -950,8 +953,8 @@ private struct AssistantTileView: View {
             }
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 6)
-        .padding(.horizontal, 6)
+        .padding(.vertical, 8)
+        .padding(.horizontal, 8)
         .background(tileBackground)
         .overlay(tileBorder)
         .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))

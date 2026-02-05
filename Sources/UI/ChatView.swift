@@ -181,8 +181,8 @@ struct ChatView: View {
             .disabled(!canSendDraft && !isStreaming)
             .padding(.bottom, 2)
         }
-        .padding(10)
-        .frame(maxWidth: 900)
+        .padding(12)
+        .frame(maxWidth: 840)
         .background {
             shape.fill(.regularMaterial)
                 .overlay {
@@ -200,12 +200,13 @@ struct ChatView: View {
                 }
         }
         .overlay(
-            shape.stroke(Color(nsColor: .separatorColor).opacity(0.55), lineWidth: 0.5)
+            shape.stroke(Color(nsColor: .separatorColor).opacity(0.4), lineWidth: 0.5)
         )
         .overlay(
             shape.stroke(isComposerDropTargeted ? Color.accentColor : Color.clear, lineWidth: 2)
         )
-        .shadow(color: Color.black.opacity(0.22), radius: 22, x: 0, y: 14)
+        .shadow(color: Color.black.opacity(0.12), radius: 16, x: 0, y: 8)
+        .shadow(color: Color.black.opacity(0.08), radius: 4, x: 0, y: 2)
     }
 
     var body: some View {
@@ -224,7 +225,7 @@ struct ChatView: View {
                         let visibleMessages = allMessages.suffix(messageRenderLimit)
                         let hiddenCount = allMessages.count - visibleMessages.count
 
-                        LazyVStack(alignment: .leading, spacing: 0) { // Zero spacing, controlled by padding in rows
+                        LazyVStack(alignment: .leading, spacing: 16) { // Improved spacing between messages
                             if hiddenCount > 0 {
                                 LoadEarlierMessagesRow(
                                     hiddenCount: hiddenCount,
@@ -294,7 +295,8 @@ struct ChatView: View {
                                 }
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.top, 16)
+                        .padding(.horizontal, 20)
+                        .padding(.top, 24)
                     }
                     .coordinateSpace(name: "chatScroll")
                     .onPreferenceChange(BottomSentinelMaxYPreferenceKey.self) { sentinelMaxY in
