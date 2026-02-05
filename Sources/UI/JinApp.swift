@@ -17,6 +17,7 @@ struct JinApp: App {
                 AttachmentEntity.self
             )
             seedDefaultMCPServersIfNeeded()
+            updateProviderModelsIfNeeded()
         } catch {
             fatalError("Failed to create SwiftData ModelContainer: \(error)")
         }
@@ -84,5 +85,38 @@ struct JinApp: App {
         )
 
         try? context.save()
+    }
+
+    private func updateProviderModelsIfNeeded() {
+        Task {
+            let context = ModelContext(modelContainer)
+            let descriptor = FetchDescriptor<ProviderConfigEntity>()
+
+            guard let providers = try? context.fetch(descriptor) else { return }
+
+            let providerManager = ProviderManager()
+
+            for providerEntity in providers {
+                do {
+                    // Convert to domain model
+                    let providerConfig = try providerEntity.toDomain()
+
+                    // Create adapter and fetch latest models
+                    let adapter = try await providerManager.createAdapter(for: providerConfig)
+                    let latestModels = try await adapter.fetchAvailableModels()
+
+                    // Update modelsData with latest capabilities
+                    let encoder = JSONEncoder()
+                    if let newModelsData = try? encoder.encode(latestModels) {
+                        providerEntity.modelsData = newModelsData
+                    }
+                } catch {
+                    // If fetching fails, continue with next provider
+                    continue
+                }
+            }
+
+            try? context.save()
+        }
     }
 }

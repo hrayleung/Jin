@@ -272,7 +272,8 @@ actor VertexAIAdapter: LLMProviderAdapter {
             }
             .first
 
-        let supportsNativePDF = self.supportsNativePDF(modelID)
+        let allowNativePDF = (controls.pdfProcessingMode ?? .native) == .native
+        let supportsNativePDF = allowNativePDF && self.supportsNativePDF(modelID)
 
         var body: [String: Any] = [
             "contents": messages.filter { $0.role != .system }.map { translateMessage($0, supportsNativePDF: supportsNativePDF) },

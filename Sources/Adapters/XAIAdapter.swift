@@ -147,9 +147,12 @@ actor XAIAdapter: LLMProviderAdapter {
         request.addValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
         request.addValue("application/json", forHTTPHeaderField: "Content-Type")
 
+        let allowNativePDF = (controls.pdfProcessingMode ?? .native) == .native
+        let nativePDFEnabled = allowNativePDF && supportsNativePDF(modelID)
+
         var body: [String: Any] = [
             "model": modelID,
-            "input": translateInput(messages, supportsNativePDF: supportsNativePDF(modelID)),
+            "input": translateInput(messages, supportsNativePDF: nativePDFEnabled),
             "stream": streaming
         ]
 

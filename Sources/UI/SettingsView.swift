@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import Combine
 
 struct SettingsView: View {
     @Environment(\.modelContext) private var modelContext
@@ -8,6 +9,7 @@ struct SettingsView: View {
     private enum SettingsSection: String, CaseIterable, Identifiable {
         case providers = "Providers"
         case mcpServers = "MCP Servers"
+        case plugins = "Plugins"
         case general = "General"
 
         var id: String { rawValue }
@@ -16,14 +18,32 @@ struct SettingsView: View {
             switch self {
             case .providers: return "network"
             case .mcpServers: return "server.rack"
+            case .plugins: return "puzzlepiece.extension"
             case .general: return "gearshape"
             }
         }
     }
 
+    private struct PluginDescriptor: Identifiable, Hashable {
+        let id: String
+        let name: String
+        let systemImage: String
+        let summary: String
+    }
+
+    private static let availablePlugins: [PluginDescriptor] = [
+        PluginDescriptor(
+            id: "mistral_ocr",
+            name: "Mistral OCR",
+            systemImage: "doc.text.magnifyingglass",
+            summary: "OCR PDFs for models without native PDF support."
+        )
+    ]
+
     @State private var selectedSection: SettingsSection? = .providers
     @State private var selectedProviderID: String?
     @State private var selectedServerID: String?
+    @State private var selectedPluginID: String?
     @State private var searchText = ""
     @State private var providerPendingDeletion: ProviderConfigEntity?
     @State private var showingDeleteProviderConfirmation = false
@@ -31,6 +51,7 @@ struct SettingsView: View {
     @State private var showingDeleteServerConfirmation = false
     @State private var operationErrorMessage: String?
     @State private var showingOperationError = false
+    @State private var mistralOCRConfigured = false
 
     // Queries for lists
     @Query(sort: \ProviderConfigEntity.name) private var providers: [ProviderConfigEntity]
@@ -68,6 +89,16 @@ struct SettingsView: View {
         }
     }
 
+    private var filteredPlugins: [PluginDescriptor] {
+        let needle = trimmedSearchText
+        guard !needle.isEmpty else { return Self.availablePlugins }
+
+        return Self.availablePlugins.filter { plugin in
+            plugin.name.localizedCaseInsensitiveContains(needle)
+                || plugin.summary.localizedCaseInsensitiveContains(needle)
+        }
+    }
+
     var body: some View {
         NavigationSplitView {
             // Column 1: Navigation Sidebar
@@ -88,6 +119,8 @@ struct SettingsView: View {
                     providersListWithActions
                 case .mcpServers:
                     mcpServersListWithActions
+                case .plugins:
+                    pluginsList
                 case .general, .none:
                     Text("General")
                         .font(.headline)
@@ -118,6 +151,13 @@ struct SettingsView: View {
                             .id(id)
                     } else {
                         ContentUnavailableView("Select an MCP Server", systemImage: "server.rack")
+                    }
+                case .plugins:
+                    if selectedPluginID == "mistral_ocr" {
+                        MistralOCRPluginSettingsView()
+                            .id("mistral_ocr")
+                    } else {
+                        ContentUnavailableView("Select a Plugin", systemImage: "puzzlepiece.extension")
                     }
                 case .general, .none:
                     GeneralSettingsView()
@@ -153,6 +193,14 @@ struct SettingsView: View {
         } message: {
             Text(operationErrorMessage ?? "Something went wrong.")
         }
+        .task {
+            await refreshPluginStatus()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .pluginCredentialsDidChange)) { _ in
+            Task {
+                await refreshPluginStatus()
+            }
+        }
         .confirmationDialog(
             "Delete provider?",
             isPresented: $showingDeleteProviderConfirmation,
@@ -174,6 +222,14 @@ struct SettingsView: View {
             }
         } message: { server in
             Text("This will permanently delete “\(server.name)”.")
+        }
+    }
+
+    private func refreshPluginStatus() async {
+        let keychainManager = KeychainManager()
+        let configured = await keychainManager.hasAPIKey(for: MistralOCRClient.Constants.keychainID)
+        await MainActor.run {
+            mistralOCRConfigured = configured
         }
     }
 
@@ -213,6 +269,43 @@ struct SettingsView: View {
         }
         .overlay {
             if !trimmedSearchText.isEmpty, filteredProviders.isEmpty {
+                ContentUnavailableView.search(text: trimmedSearchText)
+            }
+        }
+    }
+
+    // MARK: - Plugins List
+    private var pluginsList: some View {
+        List(filteredPlugins, selection: $selectedPluginID) { plugin in
+            NavigationLink(value: plugin.id) {
+                HStack(spacing: 10) {
+                    Circle()
+                        .fill(plugin.id == "mistral_ocr" && mistralOCRConfigured ? Color.green : Color.gray)
+                        .frame(width: 8, height: 8)
+                        .frame(width: 20)
+
+                    Image(systemName: plugin.systemImage)
+                        .font(.system(size: 16))
+                        .foregroundColor(.secondary)
+                        .frame(width: 20)
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(plugin.name)
+                            .font(.system(.body, design: .default))
+                            .fontWeight(.medium)
+                        Text(plugin.summary)
+                            .font(.system(.caption, design: .default))
+                            .foregroundColor(.secondary)
+                            .lineLimit(1)
+                    }
+                    Spacer()
+                }
+                .padding(.vertical, 4)
+            }
+        }
+        .listStyle(.inset)
+        .overlay {
+            if !trimmedSearchText.isEmpty, filteredPlugins.isEmpty {
                 ContentUnavailableView.search(text: trimmedSearchText)
             }
         }
@@ -402,6 +495,7 @@ struct SettingsView: View {
         switch selectedSection {
         case .providers:
             selectedServerID = nil
+            selectedPluginID = nil
             let candidates = filteredProviders
             if let selectedProviderID,
                candidates.contains(where: { $0.id == selectedProviderID }) {
@@ -410,15 +504,26 @@ struct SettingsView: View {
             selectedProviderID = candidates.first?.id
         case .mcpServers:
             selectedProviderID = nil
+            selectedPluginID = nil
             let candidates = filteredMCPServers
             if let selectedServerID,
                candidates.contains(where: { $0.id == selectedServerID }) {
                 return
             }
             selectedServerID = candidates.first?.id
+        case .plugins:
+            selectedProviderID = nil
+            selectedServerID = nil
+            let candidates = filteredPlugins
+            if let selectedPluginID,
+               candidates.contains(where: { $0.id == selectedPluginID }) {
+                return
+            }
+            selectedPluginID = candidates.first?.id
         case .general:
             selectedProviderID = nil
             selectedServerID = nil
+            selectedPluginID = nil
         case .none:
             selectedSection = .providers
         }

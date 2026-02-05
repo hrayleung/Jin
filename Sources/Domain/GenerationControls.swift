@@ -8,6 +8,9 @@ struct GenerationControls: Codable {
     var reasoning: ReasoningControls?
     var webSearch: WebSearchControls?
     var mcpTools: MCPToolsControls?
+    /// How to process PDF attachments before sending to the model.
+    /// `nil` means "default" (Native).
+    var pdfProcessingMode: PDFProcessingMode?
     var providerSpecific: [String: AnyCodable] = [:] // Escape hatch for provider-specific params
 
     init(
@@ -17,6 +20,7 @@ struct GenerationControls: Codable {
         reasoning: ReasoningControls? = nil,
         webSearch: WebSearchControls? = nil,
         mcpTools: MCPToolsControls? = nil,
+        pdfProcessingMode: PDFProcessingMode? = nil,
         providerSpecific: [String: AnyCodable] = [:]
     ) {
         self.temperature = temperature
@@ -25,6 +29,7 @@ struct GenerationControls: Codable {
         self.reasoning = reasoning
         self.webSearch = webSearch
         self.mcpTools = mcpTools
+        self.pdfProcessingMode = pdfProcessingMode
         self.providerSpecific = providerSpecific
     }
 }
@@ -72,6 +77,23 @@ enum WebSearchSource: String, Codable, CaseIterable {
         switch self {
         case .web: return "Web"
         case .x: return "X"
+        }
+    }
+}
+
+enum PDFProcessingMode: String, Codable, CaseIterable {
+    case native
+    case mistralOCR
+    case macOSExtract
+
+    var displayName: String {
+        switch self {
+        case .native:
+            return "Native"
+        case .mistralOCR:
+            return "Mistral OCR"
+        case .macOSExtract:
+            return "macOS Extract"
         }
     }
 }

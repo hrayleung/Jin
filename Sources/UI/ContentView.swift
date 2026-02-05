@@ -98,7 +98,6 @@ struct ContentView: View {
                     }
                     .buttonStyle(.borderedProminent)
                 }
-                .background(Color(nsColor: .textBackgroundColor))
                 .toolbar {
                     ToolbarItem(placement: .primaryAction) {
                         Button {

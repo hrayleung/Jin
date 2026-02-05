@@ -2,7 +2,7 @@ import SwiftUI
 import SwiftData
 import AppKit
 import UniformTypeIdentifiers
-import PDFKit
+import Combine
 
 struct ChatView: View {
     @Environment(\.modelContext) private var modelContext
@@ -46,9 +46,17 @@ struct ChatView: View {
     @State private var showingProviderSpecificParamsSheet = false
     @State private var providerSpecificParamsDraft = ""
     @State private var providerSpecificParamsError: String?
+    @State private var mistralOCRConfigured = false
+    @State private var isPreparingToSend = false
+    @State private var prepareToSendStatus: String?
+    @State private var prepareToSendTask: Task<Void, Never>?
 
     private var isStreaming: Bool {
         streamingStore.isStreaming(conversationID: conversationEntity.id)
+    }
+
+    private var isBusy: Bool {
+        isStreaming || isPreparingToSend
     }
 
     private var streamingMessage: StreamingMessageState? {
@@ -112,7 +120,7 @@ struct ChatView: View {
                     }
                     .buttonStyle(.plain)
                     .help(supportsNativePDF ? "Attach images / PDFs (Native PDF support ✓)" : "Attach images / PDFs")
-                    .disabled(isStreaming)
+                    .disabled(isBusy)
 
                     // PDF native support indicator
                     if supportsNativePDF {
@@ -121,6 +129,18 @@ struct ChatView: View {
                             .foregroundStyle(.secondary)
                             .help("Model supports native PDF reading")
                     }
+
+                    Menu {
+                        pdfProcessingMenuContent
+                    } label: {
+                        controlIconLabel(
+                            systemName: "doc.text.magnifyingglass",
+                            isActive: resolvedPDFProcessingMode != .native || isNativePDFModeMisconfigured,
+                            badgeText: pdfProcessingBadgeText
+                        )
+                    }
+                    .menuStyle(.borderlessButton)
+                    .help(pdfProcessingHelpText)
 
                     Menu {
                         reasoningMenuContent
@@ -176,17 +196,29 @@ struct ChatView: View {
                     Spacer(minLength: 0)
                 }
                 .padding(.bottom, 1)
+
+                if isPreparingToSend, let prepareToSendStatus {
+                    HStack(spacing: 8) {
+                        ProgressView()
+                            .controlSize(.small)
+                        Text(prepareToSendStatus)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Spacer(minLength: 0)
+                    }
+                    .padding(.top, 2)
+                }
             }
 
             Button(action: sendMessage) {
-                Image(systemName: isStreaming ? "stop.circle.fill" : "arrow.up.circle.fill")
+                Image(systemName: isBusy ? "stop.circle.fill" : "arrow.up.circle.fill")
                     .resizable()
                     .symbolRenderingMode(.hierarchical)
                     .frame(width: 22, height: 22)
-                    .foregroundStyle(isStreaming ? Color.secondary : (canSendDraft ? Color.accentColor : .gray))
+                    .foregroundStyle(isBusy ? Color.secondary : (canSendDraft ? Color.accentColor : .gray))
             }
             .buttonStyle(.plain)
-            .disabled(!canSendDraft && !isStreaming)
+            .disabled(!canSendDraft && !isBusy)
             .padding(.bottom, 2)
         }
         .padding(12)
@@ -529,16 +561,22 @@ struct ChatView: View {
         }
         .task {
             loadControlsFromConversation()
+            await refreshMistralOCRStatus()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .pluginCredentialsDidChange)) { _ in
+            Task {
+                await refreshMistralOCRStatus()
+            }
         }
         .focusedSceneValue(
             \.chatActions,
             ChatFocusedActions(
-                canAttach: !isStreaming,
-                canStopStreaming: isStreaming,
+                canAttach: !isBusy,
+                canStopStreaming: isBusy,
                 focusComposer: { isComposerFocused = true },
                 attach: { isFileImporterPresented = true },
                 stopStreaming: {
-                    guard isStreaming else { return }
+                    guard isBusy else { return }
                     sendMessage()
                 }
             )
@@ -551,6 +589,8 @@ struct ChatView: View {
         static let maxDraftAttachments = 8
         static let maxAttachmentBytes = 25 * 1024 * 1024
         static let maxPDFExtractedCharacters = 120_000
+        static let maxMistralOCRImagesToAttach = 8
+        static let maxMistralOCRTotalImageBytes = 12 * 1024 * 1024
     }
 
     private struct AttachmentImportError: LocalizedError, Sendable {
@@ -587,8 +627,8 @@ struct ChatView: View {
         let uniqueURLs = Array(Set(urls))
         guard !uniqueURLs.isEmpty else { return false }
 
-        if isStreaming {
-            errorMessage = "Stop generating to attach files."
+        if isBusy {
+            errorMessage = "Stop generating (or wait for PDF processing) to attach files."
             showingError = true
             return true
         }
@@ -600,8 +640,8 @@ struct ChatView: View {
     private func handleDroppedImages(_ images: [NSImage]) -> Bool {
         guard !images.isEmpty else { return false }
 
-        if isStreaming {
-            errorMessage = "Stop generating to attach files."
+        if isBusy {
+            errorMessage = "Stop generating (or wait for PDF processing) to attach files."
             showingError = true
             return true
         }
@@ -630,12 +670,12 @@ struct ChatView: View {
     }
 
     private func handleComposerSubmit() {
-        guard !isStreaming else { return }
+        guard !isBusy else { return }
         sendMessage()
     }
 
     private func handleComposerCancel() -> Bool {
-        guard isStreaming else { return false }
+        guard isBusy else { return false }
         sendMessage()
         return true
     }
@@ -643,8 +683,8 @@ struct ChatView: View {
     private func handleDrop(_ providers: [NSItemProvider]) -> Bool {
         guard !providers.isEmpty else { return false }
 
-        if isStreaming {
-            errorMessage = "Stop generating to attach files."
+        if isBusy {
+            errorMessage = "Stop generating (or wait for PDF processing) to attach files."
             showingError = true
             return true
         }
@@ -959,14 +999,13 @@ struct ChatView: View {
             let mimeType = "application/pdf"
             do {
                 let entity = try await storage.saveAttachment(from: sourceURL, filename: filename, mimeType: mimeType)
-                let extractedText = extractTextFromPDF(at: entity.fileURL)
                 return .success(
                     DraftAttachment(
                         id: entity.id,
                         filename: entity.filename,
                         mimeType: entity.mimeType,
                         fileURL: entity.fileURL,
-                        extractedText: extractedText
+                        extractedText: nil
                     )
                 )
             } catch {
@@ -1039,30 +1078,6 @@ struct ChatView: View {
         } catch {
             return .failure(AttachmentImportError(message: "\(filename): failed to import (\(error.localizedDescription))."))
         }
-    }
-
-    private static func extractTextFromPDF(at url: URL) -> String? {
-        guard let document = PDFDocument(url: url) else { return nil }
-
-        var pieces: [String] = []
-        pieces.reserveCapacity(min(16, document.pageCount))
-
-        for index in 0..<document.pageCount {
-            if let pageText = document.page(at: index)?.string, !pageText.isEmpty {
-                pieces.append(pageText)
-            }
-        }
-
-        let combined = pieces.joined(separator: "\n\n")
-        let trimmed = combined.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return nil }
-
-        if trimmed.count > AttachmentConstants.maxPDFExtractedCharacters {
-            let prefix = trimmed.prefix(AttachmentConstants.maxPDFExtractedCharacters)
-            return "\(prefix)\n\n[Truncated]"
-        }
-
-        return trimmed
     }
 
     private struct DraftAttachmentChip: View {
@@ -1160,6 +1175,43 @@ struct ChatView: View {
 
     private var supportsNativePDF: Bool {
         selectedModelInfo?.capabilities.contains(.nativePDF) == true
+    }
+
+    private var supportsVision: Bool {
+        selectedModelInfo?.capabilities.contains(.vision) == true
+    }
+
+    private var resolvedPDFProcessingMode: PDFProcessingMode {
+        controls.pdfProcessingMode ?? .native
+    }
+
+    private var isNativePDFModeMisconfigured: Bool {
+        resolvedPDFProcessingMode == .native && !supportsNativePDF
+    }
+
+    private var pdfProcessingBadgeText: String? {
+        switch resolvedPDFProcessingMode {
+        case .native:
+            return supportsNativePDF ? nil : "!"
+        case .mistralOCR:
+            return "OCR"
+        case .macOSExtract:
+            return "mac"
+        }
+    }
+
+    private var pdfProcessingHelpText: String {
+        switch resolvedPDFProcessingMode {
+        case .native:
+            if supportsNativePDF {
+                return "PDF: Native"
+            }
+            return "PDF: Native (unsupported — choose OCR/Extract)"
+        case .mistralOCR:
+            return mistralOCRConfigured ? "PDF: Mistral OCR" : "PDF: Mistral OCR (API key required)"
+        case .macOSExtract:
+            return "PDF: macOS Extract"
+        }
     }
 
     private var selectedReasoningConfig: ModelReasoningConfig? {
@@ -1311,6 +1363,32 @@ struct ChatView: View {
             return Set(allowlist).intersection(eligibleIDs)
         }
         return eligibleIDs
+    }
+
+    private func setPDFProcessingMode(_ mode: PDFProcessingMode) {
+        controls.pdfProcessingMode = (mode == .native) ? nil : mode
+        persistControlsToConversation()
+    }
+
+    @ViewBuilder
+    private var pdfProcessingMenuContent: some View {
+        Button { setPDFProcessingMode(.native) } label: { menuItemLabel("Native (if supported)", isSelected: resolvedPDFProcessingMode == .native) }
+        Button { setPDFProcessingMode(.mistralOCR) } label: { menuItemLabel("Mistral OCR", isSelected: resolvedPDFProcessingMode == .mistralOCR) }
+        Button { setPDFProcessingMode(.macOSExtract) } label: { menuItemLabel("macOS Extract", isSelected: resolvedPDFProcessingMode == .macOSExtract) }
+
+        if resolvedPDFProcessingMode == .mistralOCR, !mistralOCRConfigured {
+            Divider()
+            Text("Set API key in Settings → Plugins → Mistral OCR.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+
+        if resolvedPDFProcessingMode == .native, !supportsNativePDF {
+            Divider()
+            Text("Model doesn't support native PDF. Select Mistral OCR or macOS Extract.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
     }
 
     @ViewBuilder
@@ -1692,14 +1770,126 @@ struct ChatView: View {
             return
         }
 
+        if isPreparingToSend {
+            prepareToSendTask?.cancel()
+            return
+        }
+
         guard canSendDraft else { return }
         cancelEditingUserMessage()
 
+        let messageTextSnapshot = trimmedMessageText
+        let attachmentsSnapshot = draftAttachments
+
+        messageText = ""
+        draftAttachments = []
+
+        isPreparingToSend = true
+        prepareToSendStatus = nil
+
+        let task = Task {
+            do {
+                let parts = try await buildUserMessageParts(
+                    messageText: messageTextSnapshot,
+                    attachments: attachmentsSnapshot
+                )
+
+                let message = Message(role: .user, content: parts)
+                let messageEntity = try MessageEntity.fromDomain(message)
+
+                await MainActor.run {
+                    messageEntity.conversation = conversationEntity
+                    conversationEntity.messages.append(messageEntity)
+                    if conversationEntity.title == "New Chat" {
+                        if !messageTextSnapshot.isEmpty {
+                            conversationEntity.title = makeConversationTitle(from: messageTextSnapshot)
+                        } else if let firstAttachment = attachmentsSnapshot.first {
+                            conversationEntity.title = makeConversationTitle(from: (firstAttachment.filename as NSString).deletingPathExtension)
+                        }
+                    }
+                    conversationEntity.updatedAt = Date()
+                }
+
+                await MainActor.run {
+                    isPreparingToSend = false
+                    prepareToSendStatus = nil
+                    prepareToSendTask = nil
+                    startStreamingResponse()
+                }
+            } catch is CancellationError {
+                await MainActor.run {
+                    isPreparingToSend = false
+                    prepareToSendStatus = nil
+                    prepareToSendTask = nil
+                    messageText = messageTextSnapshot
+                    draftAttachments = attachmentsSnapshot
+                }
+            } catch {
+                await MainActor.run {
+                    isPreparingToSend = false
+                    prepareToSendStatus = nil
+                    prepareToSendTask = nil
+                    messageText = messageTextSnapshot
+                    draftAttachments = attachmentsSnapshot
+                    errorMessage = error.localizedDescription
+                    showingError = true
+                }
+            }
+        }
+
+        prepareToSendTask = task
+    }
+
+    private func buildUserMessageParts(
+        messageText: String,
+        attachments: [DraftAttachment]
+    ) async throws -> [ContentPart] {
         var parts: [ContentPart] = []
-        for attachment in draftAttachments {
+        parts.reserveCapacity(attachments.count + (messageText.isEmpty ? 0 : 1))
+
+        let pdfCount = attachments.filter(\.isPDF).count
+
+        let requestedMode = resolvedPDFProcessingMode
+        if pdfCount > 0, requestedMode == .native, !supportsNativePDF {
+            throw PDFProcessingError.nativePDFNotSupported(modelName: currentModelName)
+        }
+
+        let mistralAPIKey: String?
+        if pdfCount > 0, requestedMode == .mistralOCR {
+            let keychainManager = KeychainManager()
+            let key = try await keychainManager.getAPIKey(for: MistralOCRClient.Constants.keychainID)
+            let trimmed = (key ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+
+            if trimmed.isEmpty {
+                throw PDFProcessingError.mistralAPIKeyMissing
+            }
+
+            mistralAPIKey = trimmed
+        } else {
+            mistralAPIKey = nil
+        }
+
+        let mistralClient = mistralAPIKey.map { MistralOCRClient(apiKey: $0) }
+
+        var pdfOrdinal = 0
+        for attachment in attachments {
+            try Task.checkCancellation()
+
             if attachment.isImage {
                 parts.append(.image(ImageContent(mimeType: attachment.mimeType, data: nil, url: attachment.fileURL)))
-            } else {
+                continue
+            }
+
+            if attachment.isPDF {
+                pdfOrdinal += 1
+                let prepared = try await preparedContentForPDF(
+                    attachment,
+                    requestedMode: requestedMode,
+                    totalPDFCount: pdfCount,
+                    pdfOrdinal: pdfOrdinal,
+                    mistralClient: mistralClient
+                )
+
                 parts.append(
                     .file(
                         FileContent(
@@ -1707,40 +1897,224 @@ struct ChatView: View {
                             filename: attachment.filename,
                             data: nil,
                             url: attachment.fileURL,
-                            extractedText: attachment.extractedText
+                            extractedText: prepared.extractedText
                         )
                     )
                 )
+                parts.append(contentsOf: prepared.additionalParts)
+                continue
             }
-        }
-        if !trimmedMessageText.isEmpty {
-            parts.append(.text(trimmedMessageText))
+
+            parts.append(
+                .file(
+                    FileContent(
+                        mimeType: attachment.mimeType,
+                        filename: attachment.filename,
+                        data: nil,
+                        url: attachment.fileURL,
+                        extractedText: attachment.extractedText
+                    )
+                )
+            )
         }
 
-        let message = Message(
-            role: .user,
-            content: parts
-        )
+        if !messageText.isEmpty {
+            parts.append(.text(messageText))
+        }
 
-        do {
-            let messageEntity = try MessageEntity.fromDomain(message)
-            messageEntity.conversation = conversationEntity
-            conversationEntity.messages.append(messageEntity)
-            if conversationEntity.title == "New Chat" {
-                if !trimmedMessageText.isEmpty {
-                    conversationEntity.title = makeConversationTitle(from: trimmedMessageText)
-                } else if let firstAttachment = draftAttachments.first {
-                    conversationEntity.title = makeConversationTitle(from: (firstAttachment.filename as NSString).deletingPathExtension)
+        return parts
+    }
+
+    private struct PreparedPDFContent {
+        let extractedText: String?
+        let additionalParts: [ContentPart]
+    }
+
+    private func preparedContentForPDF(
+        _ attachment: DraftAttachment,
+        requestedMode: PDFProcessingMode,
+        totalPDFCount: Int,
+        pdfOrdinal: Int,
+        mistralClient: MistralOCRClient?
+    ) async throws -> PreparedPDFContent {
+        let shouldSendNativePDF = supportsNativePDF && requestedMode == .native
+        guard !shouldSendNativePDF else {
+            return PreparedPDFContent(extractedText: nil, additionalParts: [])
+        }
+
+        switch requestedMode {
+        case .macOSExtract:
+            await MainActor.run {
+                prepareToSendStatus = "Extracting PDF \(pdfOrdinal)/\(max(1, totalPDFCount)) (macOS): \(attachment.filename)"
+            }
+
+            guard let extracted = PDFKitTextExtractor.extractText(
+                from: attachment.fileURL,
+                maxCharacters: AttachmentConstants.maxPDFExtractedCharacters
+            ) else {
+                throw PDFProcessingError.noTextExtracted(filename: attachment.filename, method: "macOS Extract")
+            }
+
+            return PreparedPDFContent(extractedText: extracted, additionalParts: [])
+
+        case .mistralOCR:
+            guard let mistralClient else { throw PDFProcessingError.mistralAPIKeyMissing }
+
+            await MainActor.run {
+                prepareToSendStatus = "OCR PDF \(pdfOrdinal)/\(max(1, totalPDFCount)) (Mistral): \(attachment.filename)"
+            }
+
+            guard let data = try? Data(contentsOf: attachment.fileURL) else {
+                throw PDFProcessingError.fileReadFailed(filename: attachment.filename)
+            }
+
+            let includeImageBase64 = supportsVision
+            let response = try await mistralClient.ocrPDF(data, includeImageBase64: includeImageBase64)
+            let pages = response.pages
+                .sorted { $0.index < $1.index }
+            let combinedMarkdown = pages
+                .map(\.markdown)
+                .joined(separator: "\n\n")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+
+            guard !combinedMarkdown.isEmpty else {
+                throw PDFProcessingError.noTextExtracted(filename: attachment.filename, method: "Mistral OCR")
+            }
+
+            let textOnlyMarkdown = MistralOCRMarkdown.removingImageMarkdown(from: combinedMarkdown)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            let hasText = !textOnlyMarkdown.isEmpty
+
+            var imageParts: [ContentPart] = []
+            var attachedImageIDs = Set<String>()
+            var totalAttachedImageBytes = 0
+
+            if includeImageBase64 {
+                // Decode a limited number of extracted images and attach them for vision-capable models.
+                var base64ByID: [String: String] = [:]
+                var idsInPageOrder: [String] = []
+                var seenIDs = Set<String>()
+
+                for page in pages {
+                    for image in page.images ?? [] {
+                        let id = image.id
+                        if seenIDs.insert(id).inserted {
+                            idsInPageOrder.append(id)
+                        }
+                        if let base64 = image.imageBase64, !base64.isEmpty {
+                            base64ByID[id] = base64
+                        }
+                    }
+                }
+
+                let referencedIDs = MistralOCRMarkdown.referencedImageIDs(in: combinedMarkdown)
+                var orderedIDs: [String] = []
+                orderedIDs.reserveCapacity(max(referencedIDs.count, idsInPageOrder.count))
+
+                var used = Set<String>()
+                for id in referencedIDs {
+                    if used.insert(id).inserted { orderedIDs.append(id) }
+                }
+                for id in idsInPageOrder {
+                    if used.insert(id).inserted { orderedIDs.append(id) }
+                }
+
+                for id in orderedIDs {
+                    guard imageParts.count < AttachmentConstants.maxMistralOCRImagesToAttach else { break }
+                    guard let base64 = base64ByID[id] else { continue }
+                    guard let decoded = decodeMistralOCRImageBase64(base64, imageID: id) else { continue }
+                    guard let decodedData = decoded.data else { continue }
+
+                    let nextTotal = totalAttachedImageBytes + decodedData.count
+                    guard nextTotal <= AttachmentConstants.maxMistralOCRTotalImageBytes else { break }
+                    totalAttachedImageBytes = nextTotal
+
+                    attachedImageIDs.insert(id)
+                    imageParts.append(.image(decoded))
                 }
             }
-            conversationEntity.updatedAt = Date()
-            messageText = ""
-            draftAttachments = []
-        } catch {
-            print("Failed to create message: \(error)")
+
+            let extractedText: String
+            if includeImageBase64 {
+                let replaced = MistralOCRMarkdown.replacingImageMarkdown(from: combinedMarkdown) { id in
+                    let label = attachedImageIDs.contains(id) ? "Image attached" : "Image omitted"
+                    if id.isEmpty { return "[\(label)]" }
+                    return "[\(label): \(id)]"
+                }
+                extractedText = replaced.trimmingCharacters(in: .whitespacesAndNewlines)
+            } else {
+                extractedText = textOnlyMarkdown
+            }
+
+            if !hasText, imageParts.isEmpty {
+                // Mistral may return image-only markdown placeholders for scanned PDFs. In that case,
+                // text-only models should error, and vision models need extracted images attached.
+                throw PDFProcessingError.noTextExtracted(filename: attachment.filename, method: "Mistral OCR (image-only — requires vision)")
+            }
+
+            var output = extractedText
+            if !hasText, !imageParts.isEmpty {
+                output = "Mistral OCR extracted images (no text) from this PDF. See attached images."
+            }
+
+            let extractedImageCount = pages.reduce(0) { $0 + (($1.images ?? []).count) }
+            let omittedCount = max(0, extractedImageCount - attachedImageIDs.count)
+            if includeImageBase64, omittedCount > 0 {
+                output += "\n\n[Note: \(omittedCount) extracted image(s) omitted due to size limits.]"
+            }
+
+            output = output.trimmingCharacters(in: .whitespacesAndNewlines)
+            if output.count > AttachmentConstants.maxPDFExtractedCharacters {
+                let prefix = output.prefix(AttachmentConstants.maxPDFExtractedCharacters)
+                output = "\(prefix)\n\n[Truncated]"
+            }
+
+            return PreparedPDFContent(extractedText: output, additionalParts: imageParts)
+
+        case .native:
+            throw PDFProcessingError.nativePDFNotSupported(modelName: currentModelName)
+        }
+    }
+
+    private func decodeMistralOCRImageBase64(_ raw: String, imageID: String) -> ImageContent? {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        if trimmed.hasPrefix("data:"),
+           let commaIndex = trimmed.range(of: ","),
+           let headerRange = trimmed.range(of: "data:") {
+            let header = String(trimmed[headerRange.upperBound..<commaIndex.lowerBound])
+            let base64 = String(trimmed[commaIndex.upperBound...])
+            let mimeType = header.split(separator: ";").first.map(String.init)
+                ?? mimeTypeForMistralImageID(imageID)
+                ?? "image/png"
+            guard let data = Data(base64Encoded: base64, options: [.ignoreUnknownCharacters]) else { return nil }
+            return ImageContent(mimeType: mimeType, data: data, url: nil)
         }
 
-        startStreamingResponse()
+        guard let data = Data(base64Encoded: trimmed, options: [.ignoreUnknownCharacters]) else { return nil }
+        let mimeType = mimeTypeForMistralImageID(imageID) ?? sniffImageMimeType(from: data) ?? "image/png"
+        return ImageContent(mimeType: mimeType, data: data, url: nil)
+    }
+
+    private func mimeTypeForMistralImageID(_ imageID: String) -> String? {
+        let lower = imageID.lowercased()
+        if lower.hasSuffix(".png") { return "image/png" }
+        if lower.hasSuffix(".jpg") || lower.hasSuffix(".jpeg") { return "image/jpeg" }
+        if lower.hasSuffix(".webp") { return "image/webp" }
+        return nil
+    }
+
+    private func sniffImageMimeType(from data: Data) -> String? {
+        if data.count >= 3, data.starts(with: [0xFF, 0xD8, 0xFF]) { return "image/jpeg" }
+        if data.count >= 8, data.starts(with: [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]) { return "image/png" }
+        if data.count >= 12 {
+            let riff = data.prefix(4)
+            let webp = data.dropFirst(8).prefix(4)
+            if riff == Data([0x52, 0x49, 0x46, 0x46]) && webp == Data([0x57, 0x45, 0x42, 0x50]) {
+                return "image/webp"
+            }
+        }
+        return nil
     }
 
     private func makeConversationTitle(from userText: String) -> String {
@@ -2474,6 +2848,14 @@ struct ChatView: View {
         }
 
         normalizeControlsForCurrentSelection()
+    }
+
+    private func refreshMistralOCRStatus() async {
+        let keychainManager = KeychainManager()
+        let configured = await keychainManager.hasAPIKey(for: MistralOCRClient.Constants.keychainID)
+        await MainActor.run {
+            mistralOCRConfigured = configured
+        }
     }
 
     private func persistControlsToConversation() {

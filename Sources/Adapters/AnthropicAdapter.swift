@@ -170,7 +170,8 @@ actor AnthropicAdapter: LLMProviderAdapter {
         streaming: Bool
     ) throws -> URLRequest {
         let normalizedMessages = AnthropicToolUseNormalizer.normalize(messages)
-        let supportsNativePDF = self.supportsNativePDF(modelID)
+        let allowNativePDF = (controls.pdfProcessingMode ?? .native) == .native
+        let supportsNativePDF = allowNativePDF && self.supportsNativePDF(modelID)
 
         var request = URLRequest(url: URL(string: "\(baseURL)/messages")!)
         request.httpMethod = "POST"
