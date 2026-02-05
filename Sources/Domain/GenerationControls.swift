@@ -242,8 +242,9 @@ struct ModelCapability: OptionSet, Codable {
     static let audio = ModelCapability(rawValue: 1 << 3)
     static let reasoning = ModelCapability(rawValue: 1 << 4)
     static let promptCaching = ModelCapability(rawValue: 1 << 5)
+    static let nativePDF = ModelCapability(rawValue: 1 << 6)
 
-    static let all: ModelCapability = [.streaming, .toolCalling, .vision, .audio, .reasoning, .promptCaching]
+    static let all: ModelCapability = [.streaming, .toolCalling, .vision, .audio, .reasoning, .promptCaching, .nativePDF]
 }
 
 /// Model reasoning configuration

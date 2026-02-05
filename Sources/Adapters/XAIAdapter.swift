@@ -109,6 +109,12 @@ actor XAIAdapter: LLMProviderAdapter {
                 caps.insert(.reasoning)
             }
 
+            // Grok 4.1+ supports native PDF via Files API
+            if model.id.contains("grok-4.1") || model.id.contains("grok-4.2") ||
+               model.id.contains("grok-5") || model.id.contains("grok-6") {
+                caps.insert(.nativePDF)
+            }
+
             return ModelInfo(
                 id: model.id,
                 name: model.id,
@@ -143,7 +149,7 @@ actor XAIAdapter: LLMProviderAdapter {
 
         var body: [String: Any] = [
             "model": modelID,
-            "input": translateInput(messages),
+            "input": translateInput(messages, supportsNativePDF: supportsNativePDF(modelID)),
             "stream": streaming
         ]
 
@@ -222,6 +228,12 @@ actor XAIAdapter: LLMProviderAdapter {
         return !modelID.contains("non-reasoning")
     }
 
+    private func supportsNativePDF(_ modelID: String) -> Bool {
+        // Grok 4.1+ supports native PDF via Files API
+        return modelID.contains("grok-4.1") || modelID.contains("grok-4.2") ||
+               modelID.contains("grok-5") || modelID.contains("grok-6")
+    }
+
     private func extractEncryptedReasoningEncryptedContent(from jsonString: String) -> String? {
         guard let data = jsonString.data(using: .utf8),
               let object = try? JSONSerialization.jsonObject(with: data) else {
@@ -263,7 +275,7 @@ actor XAIAdapter: LLMProviderAdapter {
         return nil
     }
 
-    private func translateInput(_ messages: [Message]) -> [[String: Any]] {
+    private func translateInput(_ messages: [Message], supportsNativePDF: Bool) -> [[String: Any]] {
         var items: [[String: Any]] = []
 
         for message in messages {
@@ -280,7 +292,7 @@ actor XAIAdapter: LLMProviderAdapter {
                 }
 
             case .system, .user, .assistant:
-                items.append(translateMessage(message))
+                items.append(translateMessage(message, supportsNativePDF: supportsNativePDF))
 
                 if let toolResults = message.toolResults {
                     for result in toolResults {
@@ -297,8 +309,8 @@ actor XAIAdapter: LLMProviderAdapter {
         return items
     }
 
-    private func translateMessage(_ message: Message) -> [String: Any] {
-        let content = message.content.compactMap(translateContentPart)
+    private func translateMessage(_ message: Message, supportsNativePDF: Bool) -> [String: Any] {
+        let content = message.content.compactMap { translateContentPart($0, supportsNativePDF: supportsNativePDF) }
 
         return [
             "role": message.role.rawValue,
@@ -306,7 +318,7 @@ actor XAIAdapter: LLMProviderAdapter {
         ]
     }
 
-    private func translateContentPart(_ part: ContentPart) -> [String: Any]? {
+    private func translateContentPart(_ part: ContentPart, supportsNativePDF: Bool) -> [String: Any]? {
         switch part {
         case .text(let text):
             return [
@@ -336,6 +348,28 @@ actor XAIAdapter: LLMProviderAdapter {
             return nil
 
         case .file(let file):
+            // Native PDF support for Grok 4.1+
+            if supportsNativePDF && file.mimeType == "application/pdf" {
+                // Load PDF data from file URL or use existing data
+                let pdfData: Data?
+                if let data = file.data {
+                    pdfData = data
+                } else if let url = file.url, url.isFileURL {
+                    pdfData = try? Data(contentsOf: url)
+                } else {
+                    pdfData = nil
+                }
+
+                if let pdfData = pdfData {
+                    return [
+                        "type": "input_file",
+                        "filename": file.filename,
+                        "file_data": "data:application/pdf;base64,\(pdfData.base64EncodedString())"
+                    ]
+                }
+            }
+
+            // Fallback to text extraction
             let extracted = file.extractedText?.trimmingCharacters(in: .whitespacesAndNewlines)
             let text: String
             if let extracted, !extracted.isEmpty {

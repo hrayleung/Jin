@@ -97,21 +97,21 @@ actor AnthropicAdapter: LLMProviderAdapter {
                 ModelInfo(
                     id: "claude-opus-4-5-20251101",
                     name: "Claude Opus 4.5",
-                    capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+                    capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .nativePDF],
                     contextWindow: 200000,
                     reasoningConfig: ModelReasoningConfig(type: .budget, defaultBudget: 4096)
                 ),
                 ModelInfo(
                     id: "claude-sonnet-4-5-20250929",
                     name: "Claude Sonnet 4.5",
-                    capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+                    capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .nativePDF],
                     contextWindow: 200000,
                     reasoningConfig: ModelReasoningConfig(type: .budget, defaultBudget: 2048)
                 ),
                 ModelInfo(
                     id: "claude-haiku-4-5-20251001",
                     name: "Claude Haiku 4.5",
-                    capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+                    capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .nativePDF],
                     contextWindow: 200000,
                     reasoningConfig: ModelReasoningConfig(type: .budget, defaultBudget: 1024)
                 )
@@ -157,6 +157,11 @@ actor AnthropicAdapter: LLMProviderAdapter {
         "2023-06-01"
     }
 
+    private func supportsNativePDF(_ modelID: String) -> Bool {
+        // Claude 4.5 series supports native PDF
+        return modelID.contains("-4-5-") || modelID.contains("-4.5-")
+    }
+
     private func buildRequest(
         messages: [Message],
         modelID: String,
@@ -165,6 +170,7 @@ actor AnthropicAdapter: LLMProviderAdapter {
         streaming: Bool
     ) throws -> URLRequest {
         let normalizedMessages = AnthropicToolUseNormalizer.normalize(messages)
+        let supportsNativePDF = self.supportsNativePDF(modelID)
 
         var request = URLRequest(url: URL(string: "\(baseURL)/messages")!)
         request.httpMethod = "POST"
@@ -174,7 +180,7 @@ actor AnthropicAdapter: LLMProviderAdapter {
 
         let translatedMessages = normalizedMessages
             .filter { $0.role != .system }
-            .map(translateMessage)
+            .map { translateMessage($0, supportsNativePDF: supportsNativePDF) }
 
         try AnthropicRequestPreflight.validate(messages: translatedMessages)
 
@@ -241,7 +247,7 @@ actor AnthropicAdapter: LLMProviderAdapter {
         return request
     }
 
-    private func translateMessage(_ message: Message) -> [String: Any] {
+    private func translateMessage(_ message: Message, supportsNativePDF: Bool) -> [String: Any] {
         var content: [[String: Any]] = []
 
         // Tool result blocks must come first in the user message that follows an assistant tool_use turn.
@@ -317,6 +323,32 @@ actor AnthropicAdapter: LLMProviderAdapter {
                         ])
                     }
                 case .file(let file):
+                    // Native PDF support for Claude 4.5+
+                    if supportsNativePDF && file.mimeType == "application/pdf" {
+                        // Load PDF data from file URL or use existing data
+                        let pdfData: Data?
+                        if let data = file.data {
+                            pdfData = data
+                        } else if let url = file.url, url.isFileURL {
+                            pdfData = try? Data(contentsOf: url)
+                        } else {
+                            pdfData = nil
+                        }
+
+                        if let pdfData = pdfData {
+                            content.append([
+                                "type": "document",
+                                "source": [
+                                    "type": "base64",
+                                    "media_type": "application/pdf",
+                                    "data": pdfData.base64EncodedString()
+                                ]
+                            ])
+                            continue
+                        }
+                    }
+
+                    // Fallback to text extraction
                     let extracted = file.extractedText?.trimmingCharacters(in: .whitespacesAndNewlines)
                     let text: String
                     if let extracted, !extracted.isEmpty {
@@ -469,6 +501,11 @@ actor AnthropicAdapter: LLMProviderAdapter {
         if id.contains("claude-") {
             caps.insert(.reasoning)
             reasoningConfig = ModelReasoningConfig(type: .budget, defaultBudget: 2048)
+        }
+
+        // Claude 4.5 series supports native PDF
+        if id.contains("-4-5-") || id.contains("-4.5-") {
+            caps.insert(.nativePDF)
         }
 
         return ModelInfo(

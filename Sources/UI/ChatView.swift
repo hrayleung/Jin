@@ -111,8 +111,16 @@ struct ChatView: View {
                         )
                     }
                     .buttonStyle(.plain)
-                    .help("Attach images / PDFs")
+                    .help(supportsNativePDF ? "Attach images / PDFs (Native PDF support ✓)" : "Attach images / PDFs")
                     .disabled(isStreaming)
+
+                    // PDF native support indicator
+                    if supportsNativePDF {
+                        Image(systemName: "doc.richtext.fill")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                            .help("Model supports native PDF reading")
+                    }
 
                     Menu {
                         reasoningMenuContent
@@ -1148,6 +1156,10 @@ struct ChatView: View {
     
     private var selectedModelInfo: ModelInfo? {
         availableModels.first(where: { $0.id == conversationEntity.modelID })
+    }
+
+    private var supportsNativePDF: Bool {
+        selectedModelInfo?.capabilities.contains(.nativePDF) == true
     }
 
     private var selectedReasoningConfig: ModelReasoningConfig? {

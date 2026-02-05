@@ -108,6 +108,11 @@ actor OpenAIAdapter: LLMProviderAdapter {
                 caps.insert(.vision)
             }
 
+            // Native PDF support for GPT-5.2+, o3+, o4+ (all have vision)
+            if (model.id.contains("gpt-5.2") || model.id.contains("o3") || model.id.contains("o4")) && caps.contains(.vision) {
+                caps.insert(.nativePDF)
+            }
+
             let contextWindow: Int
             if model.id.contains("gpt-5.2") {
                 contextWindow = 400000
@@ -149,7 +154,7 @@ actor OpenAIAdapter: LLMProviderAdapter {
 
         var body: [String: Any] = [
             "model": modelID,
-            "input": translateInput(messages),
+            "input": translateInput(messages, supportsNativePDF: supportsNativePDF(modelID)),
             "stream": streaming
         ]
 
@@ -227,7 +232,12 @@ actor OpenAIAdapter: LLMProviderAdapter {
         }
     }
 
-    private func translateInput(_ messages: [Message]) -> [[String: Any]] {
+    private func supportsNativePDF(_ modelID: String) -> Bool {
+        // GPT-5.2+, o3+, o4+ support native PDF
+        return modelID.contains("gpt-5.2") || modelID.contains("o3") || modelID.contains("o4")
+    }
+
+    private func translateInput(_ messages: [Message], supportsNativePDF: Bool) -> [[String: Any]] {
         var items: [[String: Any]] = []
 
         for message in messages {
@@ -244,7 +254,7 @@ actor OpenAIAdapter: LLMProviderAdapter {
                 }
 
             case .system, .user, .assistant:
-                items.append(translateMessage(message))
+                items.append(translateMessage(message, supportsNativePDF: supportsNativePDF))
 
                 if let toolResults = message.toolResults {
                     for result in toolResults {
@@ -261,9 +271,9 @@ actor OpenAIAdapter: LLMProviderAdapter {
         return items
     }
 
-    private func translateMessage(_ message: Message) -> [String: Any] {
+    private func translateMessage(_ message: Message, supportsNativePDF: Bool) -> [String: Any] {
         let content = message.content.compactMap { part in
-            translateContentPart(part, role: message.role)
+            translateContentPart(part, role: message.role, supportsNativePDF: supportsNativePDF)
         }
 
         return [
@@ -272,7 +282,7 @@ actor OpenAIAdapter: LLMProviderAdapter {
         ]
     }
 
-    private func translateContentPart(_ part: ContentPart, role: MessageRole) -> [String: Any]? {
+    private func translateContentPart(_ part: ContentPart, role: MessageRole, supportsNativePDF: Bool) -> [String: Any]? {
         switch part {
         case .text(let text):
             // OpenAI Responses API: assistant uses output_text, others use input_text
@@ -304,6 +314,28 @@ actor OpenAIAdapter: LLMProviderAdapter {
             return nil
 
         case .file(let file):
+            // Native PDF support for GPT-5.2+, o3+, o4+
+            if supportsNativePDF && file.mimeType == "application/pdf" {
+                // Load PDF data from file URL or use existing data
+                let pdfData: Data?
+                if let data = file.data {
+                    pdfData = data
+                } else if let url = file.url, url.isFileURL {
+                    pdfData = try? Data(contentsOf: url)
+                } else {
+                    pdfData = nil
+                }
+
+                if let pdfData = pdfData {
+                    return [
+                        "type": "input_file",
+                        "filename": file.filename,
+                        "file_data": "data:application/pdf;base64,\(pdfData.base64EncodedString())"
+                    ]
+                }
+            }
+
+            // Fallback to text extraction for non-PDF or unsupported models
             let textType = (role == .assistant) ? "output_text" : "input_text"
             let extracted = file.extractedText?.trimmingCharacters(in: .whitespacesAndNewlines)
             let text: String

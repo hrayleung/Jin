@@ -99,7 +99,7 @@ actor VertexAIAdapter: LLMProviderAdapter {
             ModelInfo(
                 id: "gemini-3-pro-preview",
                 name: "Gemini 3 Pro (Preview)",
-                capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+                capabilities: [.streaming, .toolCalling, .vision, .reasoning, .nativePDF],
                 contextWindow: 1_048_576,
                 reasoningConfig: ModelReasoningConfig(
                     type: .effort,
@@ -109,7 +109,7 @@ actor VertexAIAdapter: LLMProviderAdapter {
             ModelInfo(
                 id: "gemini-3-flash-preview",
                 name: "Gemini 3 Flash (Preview)",
-                capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+                capabilities: [.streaming, .toolCalling, .vision, .reasoning, .nativePDF],
                 contextWindow: 1_048_576,
                 reasoningConfig: ModelReasoningConfig(
                     type: .effort,
@@ -272,8 +272,10 @@ actor VertexAIAdapter: LLMProviderAdapter {
             }
             .first
 
+        let supportsNativePDF = self.supportsNativePDF(modelID)
+
         var body: [String: Any] = [
-            "contents": messages.filter { $0.role != .system }.map(translateMessage),
+            "contents": messages.filter { $0.role != .system }.map { translateMessage($0, supportsNativePDF: supportsNativePDF) },
             "generationConfig": buildGenerationConfig(controls)
         ]
 
@@ -350,7 +352,12 @@ actor VertexAIAdapter: LLMProviderAdapter {
         }
     }
 
-    private func translateMessage(_ message: Message) -> [String: Any] {
+    private func supportsNativePDF(_ modelID: String) -> Bool {
+        // Gemini 3 series supports native PDF with free text extraction
+        return modelID.contains("gemini-3")
+    }
+
+    private func translateMessage(_ message: Message, supportsNativePDF: Bool) -> [String: Any] {
         // Vertex AI Content.role is limited to 'user' or 'model'. System instructions are sent separately.
         let role: String = (message.role == .assistant) ? "model" : "user"
 
@@ -395,6 +402,31 @@ actor VertexAIAdapter: LLMProviderAdapter {
                         ])
                     }
                 case .file(let file):
+                    // Native PDF support for Gemini 3+ with free text extraction
+                    if supportsNativePDF && file.mimeType == "application/pdf" {
+                        // Load PDF data from file URL or use existing data
+                        let pdfData: Data?
+                        if let data = file.data {
+                            pdfData = data
+                        } else if let url = file.url, url.isFileURL {
+                            pdfData = try? Data(contentsOf: url)
+                        } else {
+                            pdfData = nil
+                        }
+
+                        if let pdfData = pdfData {
+                            parts.append([
+                                "inlineData": [
+                                    "mimeType": "application/pdf",
+                                    "data": pdfData.base64EncodedString()
+                                ]
+                            ])
+                            // Skip fallback - PDF uploaded successfully
+                            continue
+                        }
+                    }
+
+                    // Fallback to text extraction for non-Gemini-3 or non-PDF files
                     let extracted = file.extractedText?.trimmingCharacters(in: .whitespacesAndNewlines)
                     let text: String
                     if let extracted, !extracted.isEmpty {
