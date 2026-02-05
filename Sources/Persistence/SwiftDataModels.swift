@@ -11,9 +11,11 @@ final class AssistantEntity {
     var systemInstruction: String
     var temperature: Double
     var maxOutputTokens: Int?
-    /// `nil` means “default”.
+    /// `nil` means "default".
     var truncateMessages: Bool?
-    /// `nil` means “default”.
+    /// Maximum number of messages to keep in history (nil = unlimited)
+    var maxHistoryMessages: Int?
+    /// `nil` means "default".
     var replyLanguage: String?
     var createdAt: Date
     var updatedAt: Date
@@ -31,6 +33,7 @@ final class AssistantEntity {
         temperature: Double = 0.1,
         maxOutputTokens: Int? = nil,
         truncateMessages: Bool? = nil,
+        maxHistoryMessages: Int? = nil,
         replyLanguage: String? = nil,
         createdAt: Date = Date(),
         updatedAt: Date = Date(),
@@ -44,6 +47,7 @@ final class AssistantEntity {
         self.temperature = temperature
         self.maxOutputTokens = maxOutputTokens
         self.truncateMessages = truncateMessages
+        self.maxHistoryMessages = maxHistoryMessages
         self.replyLanguage = replyLanguage
         self.createdAt = createdAt
         self.updatedAt = updatedAt

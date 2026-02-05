@@ -2,28 +2,268 @@ import SwiftUI
 import SwiftData
 
 struct AssistantInspectorView: View {
-    let assistant: AssistantEntity?
+    let assistant: AssistantEntity
     let onRequestDelete: (AssistantEntity) -> Void
 
+    @Environment(\.dismiss) private var dismiss
+
     var body: some View {
-        Group {
-            if let assistant {
-                AssistantSettingsEditorView(
-                    assistant: assistant,
-                    onRequestDelete: onRequestDelete
-                )
-            } else {
-                ContentUnavailableView("Select an Assistant", systemImage: "person.crop.circle")
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .padding(.top, 36)
+        NavigationStack {
+            AssistantSettingsEditorView(
+                assistant: assistant,
+                onRequestDelete: onRequestDelete
+            )
+            .navigationTitle("Assistant Settings")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                    .keyboardShortcut(.defaultAction)
+                }
             }
         }
-        .background(Color(nsColor: .windowBackgroundColor))
+        .frame(minWidth: 600, idealWidth: 700, minHeight: 700, idealHeight: 800)
+    }
+}
+
+// Icon Picker Component
+private struct IconPickerButton: View {
+    @Binding var selectedIcon: String
+    @State private var isPickerPresented = false
+
+    // Popular SF Symbols for assistants
+    private let iconOptions: [IconCategory] = [
+        IconCategory(
+            name: "Characters",
+            icons: ["person.crop.circle", "person.fill", "person.2.fill", "figure.wave", "sparkles", "star.fill", "heart.fill", "face.smiling"]
+        ),
+        IconCategory(
+            name: "Technology",
+            icons: ["laptopcomputer", "desktopcomputer", "iphone", "applewatch", "brain", "cpu", "antenna.radiowaves.left.and.right", "waveform"]
+        ),
+        IconCategory(
+            name: "Communication",
+            icons: ["bubble.left.and.bubble.right", "message.fill", "envelope.fill", "phone.fill", "video.fill", "mic.fill", "speaker.wave.3.fill", "quote.bubble"]
+        ),
+        IconCategory(
+            name: "Creative",
+            icons: ["paintbrush.fill", "pencil", "pencil.and.outline", "book.fill", "doc.text.fill", "photo.fill", "music.note", "film"]
+        ),
+        IconCategory(
+            name: "Business",
+            icons: ["briefcase.fill", "chart.line.uptrend.xyaxis", "dollarsign.circle.fill", "building.2.fill", "cart.fill", "creditcard.fill", "paperplane.fill", "folder.fill"]
+        ),
+        IconCategory(
+            name: "Science",
+            icons: ["graduationcap.fill", "atom", "flask.fill", "testtube.2", "leaf.fill", "globe", "pawprint.fill", "dna"]
+        )
+    ]
+
+    var body: some View {
+        Button {
+            isPickerPresented = true
+        } label: {
+            HStack(spacing: 8) {
+                iconPreview
+                    .frame(width: 28, height: 28)
+                    .background(
+                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            .fill(Color.accentColor.opacity(0.1))
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            .stroke(Color.accentColor.opacity(0.3), lineWidth: 1)
+                    )
+
+                Text(selectedIcon.isEmpty ? "Choose…" : selectedIcon)
+                    .font(.body)
+                    .foregroundStyle(selectedIcon.isEmpty ? .secondary : .primary)
+                    .lineLimit(1)
+
+                Image(systemName: "chevron.up.chevron.down")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(Color(nsColor: .controlBackgroundColor))
+            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .stroke(Color(nsColor: .separatorColor).opacity(0.5), lineWidth: 0.5)
+            )
+        }
+        .buttonStyle(.plain)
+        .sheet(isPresented: $isPickerPresented) {
+            IconPickerSheet(selectedIcon: $selectedIcon)
+        }
+    }
+
+    private var iconPreview: some View {
+        Group {
+            let trimmed = selectedIcon.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed.isEmpty {
+                Image(systemName: "person.crop.circle")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(.secondary)
+            } else if trimmed.count <= 2 {
+                Text(trimmed)
+                    .font(.system(size: 18))
+            } else {
+                Image(systemName: trimmed)
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(Color.accentColor)
+            }
+        }
+    }
+}
+
+private struct IconCategory: Identifiable {
+    let id = UUID()
+    let name: String
+    let icons: [String]
+}
+
+private struct IconPickerSheet: View {
+    @Binding var selectedIcon: String
+    @Environment(\.dismiss) private var dismiss
+    @State private var searchText = ""
+
+    let iconOptions: [IconCategory] = [
+        IconCategory(
+            name: "Characters",
+            icons: ["person.crop.circle", "person.fill", "person.2.fill", "figure.wave", "sparkles", "star.fill", "heart.fill", "face.smiling", "crown.fill", "moon.stars.fill"]
+        ),
+        IconCategory(
+            name: "Technology",
+            icons: ["laptopcomputer", "desktopcomputer", "iphone", "applewatch", "brain", "cpu", "antenna.radiowaves.left.and.right", "waveform", "bolt.fill", "lightbulb.fill"]
+        ),
+        IconCategory(
+            name: "Communication",
+            icons: ["bubble.left.and.bubble.right", "message.fill", "envelope.fill", "phone.fill", "video.fill", "mic.fill", "speaker.wave.3.fill", "quote.bubble", "megaphone.fill", "bell.fill"]
+        ),
+        IconCategory(
+            name: "Creative",
+            icons: ["paintbrush.fill", "pencil", "pencil.and.outline", "book.fill", "doc.text.fill", "photo.fill", "music.note", "film", "camera.fill", "theatermasks.fill"]
+        ),
+        IconCategory(
+            name: "Business",
+            icons: ["briefcase.fill", "chart.line.uptrend.xyaxis", "dollarsign.circle.fill", "building.2.fill", "cart.fill", "creditcard.fill", "paperplane.fill", "folder.fill", "calendar", "clock.fill"]
+        ),
+        IconCategory(
+            name: "Science",
+            icons: ["graduationcap.fill", "atom", "flask.fill", "testtube.2", "leaf.fill", "globe", "pawprint.fill", "dna", "fossil.shell.fill", "mountain.2.fill"]
+        ),
+        IconCategory(
+            name: "Emoji & Custom",
+            icons: ["🤖", "🎨", "💡", "🚀", "⚡️", "🎯", "🔥", "✨", "🌟", "💫"]
+        )
+    ]
+
+    var filteredCategories: [IconCategory] {
+        if searchText.isEmpty {
+            return iconOptions
+        }
+
+        return iconOptions.compactMap { category in
+            let filtered = category.icons.filter { icon in
+                icon.localizedCaseInsensitiveContains(searchText)
+            }
+            return filtered.isEmpty ? nil : IconCategory(name: category.name, icons: filtered)
+        }
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 24) {
+                    ForEach(filteredCategories) { category in
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text(category.name)
+                                .font(.headline)
+                                .foregroundStyle(.secondary)
+                                .padding(.horizontal, 4)
+
+                            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: 6), spacing: 12) {
+                                ForEach(category.icons, id: \.self) { icon in
+                                    IconButton(
+                                        icon: icon,
+                                        isSelected: selectedIcon == icon
+                                    ) {
+                                        selectedIcon = icon
+                                        dismiss()
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                .padding(20)
+            }
+            .navigationTitle("Choose Icon")
+            .searchable(text: $searchText, prompt: "Search icons...")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                }
+
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Clear") {
+                        selectedIcon = ""
+                        dismiss()
+                    }
+                }
+            }
+        }
+        .frame(minWidth: 500, minHeight: 600)
+    }
+}
+
+private struct IconButton: View {
+    let icon: String
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            iconView
+                .frame(width: 44, height: 44)
+                .background(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(isSelected ? Color.accentColor.opacity(0.15) : Color(nsColor: .controlBackgroundColor))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .stroke(
+                            isSelected ? Color.accentColor : Color(nsColor: .separatorColor).opacity(0.5),
+                            lineWidth: isSelected ? 2 : 1
+                        )
+                )
+        }
+        .buttonStyle(.plain)
+    }
+
+    @ViewBuilder
+    private var iconView: some View {
+        if icon.count <= 2 {
+            // Emoji
+            Text(icon)
+                .font(.system(size: 24))
+        } else {
+            // SF Symbol
+            Image(systemName: icon)
+                .font(.system(size: 20, weight: .semibold))
+                .foregroundStyle(isSelected ? Color.accentColor : .primary)
+        }
     }
 }
 
 private struct AssistantSettingsEditorView: View {
     @Bindable var assistant: AssistantEntity
+    @Environment(\.modelContext) private var modelContext
 
     let onRequestDelete: (AssistantEntity) -> Void
 
@@ -32,116 +272,181 @@ private struct AssistantSettingsEditorView: View {
     var body: some View {
         Form {
             Section {
-                HStack(alignment: .top, spacing: 12) {
+                HStack(alignment: .center, spacing: 16) {
                     assistantIcon
-                        .frame(width: 32, height: 32)
+                        .frame(width: 56, height: 56)
 
-                    VStack(alignment: .leading, spacing: 3) {
+                    VStack(alignment: .leading, spacing: 6) {
                         Text(assistant.displayName)
-                            .font(.headline)
+                            .font(.title2)
+                            .fontWeight(.semibold)
 
                         Text("Defaults used when starting a new chat with this assistant.")
-                            .font(.callout)
+                            .font(.subheadline)
                             .foregroundStyle(.secondary)
                     }
 
                     Spacer(minLength: 0)
                 }
-                .padding(.vertical, 2)
+                .padding(.vertical, 8)
             }
 
             Section("Identity") {
-                TextField("Name", text: nameBinding)
-
-                HStack(spacing: 10) {
-                    TextField("Icon", text: iconBinding, prompt: Text("SF Symbol or emoji"))
-                    iconPreview
-                        .frame(width: 24, height: 24)
-                        .foregroundStyle(.secondary)
-                        .help("Preview")
+                LabeledContent("Name") {
+                    TextField(text: nameBinding, prompt: Text("e.g., Code Assistant")) {
+                        EmptyView()
+                    }
+                    .multilineTextAlignment(.trailing)
                 }
 
-                TextField("Description", text: descriptionBinding, prompt: Text("Optional"), axis: .vertical)
+                LabeledContent("Icon") {
+                    IconPickerButton(selectedIcon: iconBinding)
+                }
+
+                LabeledContent("Description") {
+                    TextField(text: descriptionBinding, prompt: Text("e.g., Helps with coding"), axis: .vertical) {
+                        EmptyView()
+                    }
+                    .multilineTextAlignment(.trailing)
                     .lineLimit(2...4)
+                }
             }
 
-            Section("Prompt") {
-                systemInstructionEditor
+            Section("System Prompt") {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Instructions")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                    systemInstructionEditor
+                }
             }
 
             Section("Generation") {
-                LabeledContent("Temperature") {
-                    HStack(spacing: 10) {
-                        Slider(value: temperatureBinding, in: 0...2, step: 0.05)
-                            .frame(maxWidth: 220)
-
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        Text("Temperature")
+                        Spacer()
                         Text(assistant.temperature, format: .number.precision(.fractionLength(2)))
-                            .font(.system(.caption, design: .monospaced))
+                            .font(.system(.body, design: .monospaced))
                             .foregroundStyle(.secondary)
                             .monospacedDigit()
-                            .frame(width: 44, alignment: .trailing)
                     }
+
+                    Slider(value: temperatureBinding, in: 0...2, step: 0.05)
                 }
             }
 
-            Section {
-                DisclosureGroup {
-                    LabeledContent("Assistant ID") {
-                        Text(assistant.id)
-                            .font(.system(.body, design: .monospaced))
-                            .foregroundStyle(.secondary)
-                            .textSelection(.enabled)
+            Section("Advanced") {
+                LabeledContent("Assistant ID") {
+                    Text(assistant.id)
+                        .font(.system(.body, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                        .textSelection(.enabled)
+                }
+
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        Text("Max Output Tokens")
+                        Spacer()
+                        if let tokens = assistant.maxOutputTokens {
+                            Text("\(tokens)")
+                                .font(.system(.body, design: .monospaced))
+                                .foregroundStyle(.secondary)
+                        } else {
+                            Text("No limit")
+                                .font(.body)
+                                .foregroundStyle(.tertiary)
+                        }
                     }
 
-                    TextField("Max tokens", text: maxOutputTokensBinding, prompt: Text("Default"))
+                    HStack(spacing: 8) {
+                        TextField(text: maxOutputTokensBinding, prompt: Text("e.g., 4096")) {
+                            EmptyView()
+                        }
                         .font(.system(.body, design: .monospaced))
+                        .textFieldStyle(.roundedBorder)
+                        .frame(maxWidth: 120)
+
+                        if assistant.maxOutputTokens != nil {
+                            Button("Clear") {
+                                assistant.maxOutputTokens = nil
+                                assistant.updatedAt = Date()
+                                try? modelContext.save()
+                            }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                        }
+                    }
+                }
+
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Truncate History")
+                        .font(.subheadline)
 
                     Picker("Truncate history", selection: truncateMessagesSettingBinding) {
                         ForEach(TriStateSetting.allCases) { item in
                             Text(item.label).tag(item)
                         }
                     }
-                    .pickerStyle(.menu)
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
 
-                    VStack(alignment: .leading, spacing: 8) {
-                        Picker("Reply language", selection: replyLanguageSelectionBinding) {
+                    if truncateMessagesSettingBinding.wrappedValue == .on {
+                        HStack(spacing: 8) {
+                            Text("Keep last")
+                                .foregroundStyle(.secondary)
+
+                            TextField(text: maxHistoryMessagesBinding, prompt: Text("50")) {
+                                EmptyView()
+                            }
+                            .font(.system(.body, design: .monospaced))
+                            .textFieldStyle(.roundedBorder)
+                            .frame(maxWidth: 80)
+
+                            Text("messages")
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding(.top, 4)
+                    }
+                }
+
+                VStack(alignment: .leading, spacing: 8) {
+                    LabeledContent("Reply Language") {
+                        Picker("", selection: replyLanguageSelectionBinding) {
                             ForEach(ReplyLanguageOption.allCases) { option in
                                 Text(option.label).tag(option)
                             }
                         }
-                        .pickerStyle(.menu)
-
-                        if replyLanguageSelectionBinding.wrappedValue == .custom {
-                            TextField("Custom language", text: $customReplyLanguageDraft, prompt: Text("e.g. English, 中文, 日本語"))
-                                .textFieldStyle(.roundedBorder)
-                                .onChange(of: customReplyLanguageDraft) { _, newValue in
-                                    let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
-                                    assistant.replyLanguage = trimmed.isEmpty ? nil : trimmed
-                                    assistant.updatedAt = Date()
-                                }
-                        }
+                        .labelsHidden()
                     }
-                } label: {
-                    Text("Advanced")
+
+                    if replyLanguageSelectionBinding.wrappedValue == .custom {
+                        TextField("e.g. English, 中文, 日本語", text: $customReplyLanguageDraft)
+                            .onChange(of: customReplyLanguageDraft) { _, newValue in
+                                let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
+                                assistant.replyLanguage = trimmed.isEmpty ? nil : trimmed
+                                assistant.updatedAt = Date()
+                                try? modelContext.save()
+                            }
+                    }
                 }
             }
 
             if assistant.id != "default" {
-                Section("Danger Zone") {
+                Section {
                     Button(role: .destructive) {
                         onRequestDelete(assistant)
                     } label: {
-                        Label("Delete assistant", systemImage: "trash")
+                        Label("Delete Assistant", systemImage: "trash")
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
+                } header: {
+                    Text("Danger Zone")
+                        .foregroundStyle(.red)
                 }
             }
         }
         .formStyle(.grouped)
-        .scrollContentBackground(.hidden)
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .onAppear {
             syncCustomReplyLanguageDraft()
         }
@@ -154,62 +459,53 @@ private struct AssistantSettingsEditorView: View {
         ZStack(alignment: .topLeading) {
             TextEditor(text: systemInstructionBinding)
                 .font(.body)
-                .frame(minHeight: 140)
+                .frame(minHeight: 160)
                 .scrollContentBackground(.hidden)
-                .padding(8)
+                .padding(12)
                 .background(
                     RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .fill(Color(nsColor: .textBackgroundColor))
+                        .fill(Color(nsColor: .controlBackgroundColor))
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .stroke(Color(nsColor: .separatorColor), lineWidth: 1)
+                        .stroke(Color(nsColor: .separatorColor).opacity(0.5), lineWidth: 1)
                 )
 
             if assistant.systemInstruction.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                Text("Act as …")
+                Text("Act as a helpful assistant. Be concise and clear...")
                     .foregroundStyle(.tertiary)
-                    .padding(.top, 14)
-                    .padding(.leading, 14)
+                    .padding(.top, 18)
+                    .padding(.leading, 16)
                     .allowsHitTesting(false)
             }
         }
     }
 
-    private var iconPreview: some View {
-        Group {
-            let trimmed = (assistant.icon ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-            if trimmed.isEmpty {
-                Image(systemName: "person.crop.circle")
-            } else if trimmed.count <= 2 {
-                Text(trimmed)
-                    .font(.system(size: 16, weight: .semibold))
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else {
-                Image(systemName: trimmed)
-            }
-        }
-    }
 
     private var assistantIcon: some View {
         Group {
             let trimmed = (assistant.icon ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
             if trimmed.isEmpty {
                 Image(systemName: "sparkles")
-                    .font(.system(size: 16, weight: .semibold))
+                    .font(.system(size: 28, weight: .semibold))
                     .foregroundStyle(Color.accentColor)
             } else if trimmed.count <= 2 {
                 Text(trimmed)
-                    .font(.system(size: 16))
+                    .font(.system(size: 28))
             } else {
                 Image(systemName: trimmed)
-                    .font(.system(size: 16, weight: .semibold))
+                    .font(.system(size: 28, weight: .semibold))
+                    .foregroundStyle(Color.accentColor)
             }
         }
-        .frame(width: 32, height: 32)
+        .frame(width: 56, height: 56)
         .background(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(Color(nsColor: .controlBackgroundColor))
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(Color.accentColor.opacity(0.12))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(Color.accentColor.opacity(0.35), lineWidth: 2)
         )
     }
 
@@ -227,6 +523,7 @@ private struct AssistantSettingsEditorView: View {
             set: { newValue in
                 assistant.name = newValue
                 assistant.updatedAt = Date()
+                try? modelContext.save()
             }
         )
     }
@@ -238,6 +535,7 @@ private struct AssistantSettingsEditorView: View {
                 let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
                 assistant.assistantDescription = trimmed.isEmpty ? nil : trimmed
                 assistant.updatedAt = Date()
+                try? modelContext.save()
             }
         )
     }
@@ -249,6 +547,7 @@ private struct AssistantSettingsEditorView: View {
                 let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
                 assistant.icon = trimmed.isEmpty ? nil : trimmed
                 assistant.updatedAt = Date()
+                try? modelContext.save()
             }
         )
     }
@@ -259,6 +558,7 @@ private struct AssistantSettingsEditorView: View {
             set: { newValue in
                 assistant.systemInstruction = newValue
                 assistant.updatedAt = Date()
+                try? modelContext.save()
             }
         )
     }
@@ -269,6 +569,7 @@ private struct AssistantSettingsEditorView: View {
             set: { newValue in
                 assistant.temperature = newValue
                 assistant.updatedAt = Date()
+                try? modelContext.save()
             }
         )
     }
@@ -281,12 +582,35 @@ private struct AssistantSettingsEditorView: View {
                 if trimmed.isEmpty {
                     assistant.maxOutputTokens = nil
                     assistant.updatedAt = Date()
+                    try? modelContext.save()
                     return
                 }
 
                 if let value = Int(trimmed), value > 0 {
                     assistant.maxOutputTokens = value
                     assistant.updatedAt = Date()
+                    try? modelContext.save()
+                }
+            }
+        )
+    }
+
+    private var maxHistoryMessagesBinding: Binding<String> {
+        Binding(
+            get: { assistant.maxHistoryMessages.map(String.init) ?? "" },
+            set: { newValue in
+                let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
+                if trimmed.isEmpty {
+                    assistant.maxHistoryMessages = nil
+                    assistant.updatedAt = Date()
+                    try? modelContext.save()
+                    return
+                }
+
+                if let value = Int(trimmed), value > 0 {
+                    assistant.maxHistoryMessages = value
+                    assistant.updatedAt = Date()
+                    try? modelContext.save()
                 }
             }
         )
@@ -329,6 +653,7 @@ private extension AssistantSettingsEditorView {
                     assistant.truncateMessages = false
                 }
                 assistant.updatedAt = Date()
+                try? modelContext.save()
             }
         )
     }
@@ -387,6 +712,7 @@ private extension AssistantSettingsEditorView {
                 default:
                     assistant.replyLanguage = newValue.value
                     assistant.updatedAt = Date()
+                    try? modelContext.save()
                 }
                 syncCustomReplyLanguageDraft()
             }

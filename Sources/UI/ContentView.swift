@@ -102,11 +102,9 @@ struct ContentView: View {
                 .toolbar {
                     ToolbarItem(placement: .primaryAction) {
                         Button {
-                            withAnimation(.easeInOut(duration: 0.15)) {
-                                isAssistantInspectorPresented.toggle()
-                            }
+                            isAssistantInspectorPresented = true
                         } label: {
-                            Image(systemName: "sidebar.right")
+                            Label("Assistant Settings", systemImage: "slider.horizontal.3")
                         }
                         .help("Assistant Settings")
                         .keyboardShortcut("i", modifiers: [.command])
@@ -118,12 +116,13 @@ struct ContentView: View {
             bootstrapDefaultProvidersIfNeeded()
             bootstrapDefaultAssistantsIfNeeded()
         }
-        .inspector(isPresented: $isAssistantInspectorPresented) {
-            AssistantInspectorView(
-                assistant: selectedAssistant,
-                onRequestDelete: requestDeleteAssistant
-            )
-            .frame(minWidth: 320)
+        .sheet(isPresented: $isAssistantInspectorPresented) {
+            if let selectedAssistant {
+                AssistantInspectorView(
+                    assistant: selectedAssistant,
+                    onRequestDelete: requestDeleteAssistant
+                )
+            }
         }
         .confirmationDialog(
             "Delete assistant?",
@@ -491,11 +490,9 @@ struct ContentView: View {
     private func assistantContextMenu(for assistant: AssistantEntity) -> some View {
         Button {
             selectAssistant(assistant)
-            withAnimation(.easeInOut(duration: 0.15)) {
-                isAssistantInspectorPresented = true
-            }
+            isAssistantInspectorPresented = true
         } label: {
-            Label("Assistant Settings", systemImage: "sidebar.right")
+            Label("Assistant Settings", systemImage: "slider.horizontal.3")
         }
 
         Divider()

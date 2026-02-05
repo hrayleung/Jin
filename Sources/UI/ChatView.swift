@@ -372,11 +372,9 @@ struct ChatView: View {
                 modelPickerButton
 
                 Button {
-                    withAnimation(.easeInOut(duration: 0.15)) {
-                        isAssistantInspectorPresented.toggle()
-                    }
+                    isAssistantInspectorPresented = true
                 } label: {
-                    Image(systemName: "sidebar.right")
+                    Label("Assistant Settings", systemImage: "slider.horizontal.3")
                 }
                 .help("Assistant Settings")
                 .keyboardShortcut("i", modifiers: [.command])
@@ -1770,6 +1768,7 @@ struct ChatView: View {
         }
 
         let shouldTruncateMessages = assistant?.truncateMessages ?? false
+        let maxHistoryMessages = assistant?.maxHistoryMessages
         let modelContextWindow = modelInfoSnapshot?.contextWindow ?? 128000
         let reservedOutputTokens = max(0, controlsToUse.maxTokens ?? 2048)
         let mcpServerConfigs = resolvedMCPServerConfigs(for: controlsToUse)
@@ -1784,6 +1783,17 @@ struct ChatView: View {
                 if let systemPrompt, !systemPrompt.isEmpty {
                     history.insert(Message(role: .system, content: [.text(systemPrompt)]), at: 0)
                 }
+
+                // Apply message count limit first if set
+                if let maxMessages = maxHistoryMessages, shouldTruncateMessages, history.count > maxMessages {
+                    // Keep system messages + last N messages
+                    let systemMessages = history.prefix(while: { $0.role == .system })
+                    let nonSystemMessages = history.drop(while: { $0.role == .system })
+                    let kept = Array(nonSystemMessages.suffix(maxMessages))
+                    history = Array(systemMessages) + kept
+                }
+
+                // Then apply token-based truncation if enabled
                 if shouldTruncateMessages {
                     history = ChatHistoryTruncator.truncatedHistory(
                         history,
