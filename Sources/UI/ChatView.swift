@@ -6,6 +6,7 @@ import PDFKit
 
 struct ChatView: View {
     @Environment(\.modelContext) private var modelContext
+    @EnvironmentObject private var streamingStore: ConversationStreamingStore
     @Bindable var conversationEntity: ConversationEntity
     let onRequestDeleteConversation: () -> Void
     @Binding var isAssistantInspectorPresented: Bool
@@ -21,9 +22,6 @@ struct ChatView: View {
     @State private var editingUserMessageID: UUID?
     @State private var editingUserMessageText = ""
     @State private var isEditingUserMessageFocused = false
-    @State private var isStreaming = false
-    @State private var streamingMessage: StreamingMessageState?
-    @State private var streamingTask: Task<Void, Never>?
     @State private var composerHeight: CGFloat = 0
     @State private var isModelPickerPresented = false
     @State private var messageRenderLimit: Int = 160
@@ -48,6 +46,18 @@ struct ChatView: View {
     @State private var showingProviderSpecificParamsSheet = false
     @State private var providerSpecificParamsDraft = ""
     @State private var providerSpecificParamsError: String?
+
+    private var isStreaming: Bool {
+        streamingStore.isStreaming(conversationID: conversationEntity.id)
+    }
+
+    private var streamingMessage: StreamingMessageState? {
+        streamingStore.streamingState(conversationID: conversationEntity.id)
+    }
+
+    private var streamingModelLabel: String? {
+        streamingStore.streamingModelLabel(conversationID: conversationEntity.id)
+    }
 
     private var composerOverlay: some View {
         let shape = RoundedRectangle(cornerRadius: 16, style: .continuous)
@@ -207,6 +217,7 @@ struct ChatView: View {
                         let bubbleMaxWidth = maxBubbleWidth(for: geometry.size.width)
                         let assistantDisplayName = conversationEntity.assistant?.displayName ?? "Assistant"
                         let assistantIcon = conversationEntity.assistant?.icon
+                        let conversationModelLabel = currentModelName
                         let toolResultsByCallID = cachedToolResultsByCallID
 
                         let allMessages = cachedVisibleMessages
@@ -233,6 +244,7 @@ struct ChatView: View {
                                     maxBubbleWidth: bubbleMaxWidth,
                                     assistantDisplayName: assistantDisplayName,
                                     assistantIcon: assistantIcon,
+                                    conversationModelLabel: conversationModelLabel,
                                     toolResultsByCallID: toolResultsByCallID,
                                     actionsEnabled: !isStreaming,
                                     onRegenerate: { target in
@@ -260,6 +272,7 @@ struct ChatView: View {
                                     state: streaming,
                                     maxBubbleWidth: bubbleMaxWidth,
                                     assistantDisplayName: assistantDisplayName,
+                                    modelLabel: streamingModelLabel,
                                     assistantIcon: assistantIcon,
                                     onContentUpdate: {
                                         throttledScrollToBottom(proxy: proxy)
@@ -1661,101 +1674,9 @@ struct ChatView: View {
         return trimmed?.isEmpty == false ? trimmed : nil
     }
 
-    private func truncatedHistory(_ history: [Message], contextWindow: Int, reservedOutputTokens: Int) -> [Message] {
-        guard contextWindow > 0 else { return history }
-
-        let effectiveReserved = min(max(0, reservedOutputTokens), contextWindow)
-        let budget = max(0, contextWindow - effectiveReserved)
-
-        guard history.count > 2 else { return history }
-
-        var prefix: [Message] = []
-        var index = 0
-        while index < history.count, history[index].role == .system {
-            prefix.append(history[index])
-            index += 1
-        }
-
-        var totalTokens = prefix.reduce(0) { $0 + approximateTokenCount(for: $1) }
-        var tail: [Message] = []
-
-        for message in history[index...].reversed() {
-            let tokens = approximateTokenCount(for: message)
-            if totalTokens + tokens <= budget || tail.isEmpty {
-                tail.append(message)
-                totalTokens += tokens
-                continue
-            }
-            break
-        }
-
-        return prefix + tail.reversed()
-    }
-
-    private func approximateTokenCount(for message: Message) -> Int {
-        var tokens = 4 // role/metadata overhead
-
-        for part in message.content {
-            tokens += approximateTokenCount(for: part)
-        }
-
-        if let toolCalls = message.toolCalls {
-            for call in toolCalls {
-                tokens += approximateTokenCount(for: call.name)
-                for (key, value) in call.arguments {
-                    tokens += approximateTokenCount(for: key)
-                    tokens += approximateTokenCount(for: String(describing: value.value))
-                }
-                if let signature = call.signature {
-                    tokens += approximateTokenCount(for: signature)
-                }
-            }
-        }
-
-        if let toolResults = message.toolResults {
-            for result in toolResults {
-                if let toolName = result.toolName {
-                    tokens += approximateTokenCount(for: toolName)
-                }
-                tokens += approximateTokenCount(for: result.content)
-                if let signature = result.signature {
-                    tokens += approximateTokenCount(for: signature)
-                }
-            }
-        }
-
-        return tokens
-    }
-
-    private func approximateTokenCount(for part: ContentPart) -> Int {
-        switch part {
-        case .text(let text):
-            return approximateTokenCount(for: text)
-        case .thinking(let thinking):
-            return approximateTokenCount(for: thinking.text)
-        case .redactedThinking:
-            return 16
-        case .image(let image):
-            if image.data != nil { return 1024 }
-            if image.url != nil { return 256 }
-            return 256
-        case .file(let file):
-            let extractedTokens = approximateTokenCount(for: file.extractedText ?? "")
-            return approximateTokenCount(for: file.filename) + max(256, extractedTokens)
-        case .audio:
-            return 1024
-        }
-    }
-
-    private func approximateTokenCount(for text: String) -> Int {
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return 0 }
-        return max(1, trimmed.count / 4)
-    }
-
     private func sendMessage() {
         if isStreaming {
-            streamingTask?.cancel()
+            streamingStore.cancel(conversationID: conversationEntity.id)
             return
         }
 
@@ -1818,13 +1739,17 @@ struct ChatView: View {
     }
 
     private func startStreamingResponse() {
-        guard streamingTask == nil else { return }
+        let conversationID = conversationEntity.id
+        guard !streamingStore.isStreaming(conversationID: conversationID) else { return }
 
-        let streamingState = StreamingMessageState()
-        streamingMessage = streamingState
-        isStreaming = true
+        let providerID = conversationEntity.providerID
+        let modelID = conversationEntity.modelID
+        let modelInfoSnapshot = selectedModelInfo
+        let modelNameSnapshot = modelInfoSnapshot?.name ?? modelID
+        let streamingState = streamingStore.beginSession(conversationID: conversationID, modelLabel: modelNameSnapshot)
+        streamingState.reset()
 
-        let providerConfig = providers.first(where: { $0.id == conversationEntity.providerID }).flatMap { try? $0.toDomain() }
+        let providerConfig = providers.first(where: { $0.id == providerID }).flatMap { try? $0.toDomain() }
         let baseHistory = conversationEntity.messages
             .sorted(by: { $0.timestamp < $1.timestamp })
             .compactMap { try? $0.toDomain() }
@@ -1843,12 +1768,11 @@ struct ChatView: View {
         }
 
         let shouldTruncateMessages = assistant?.truncateMessages ?? false
-        let modelContextWindow = selectedModelInfo?.contextWindow ?? 128000
+        let modelContextWindow = modelInfoSnapshot?.contextWindow ?? 128000
         let reservedOutputTokens = max(0, controlsToUse.maxTokens ?? 2048)
         let mcpServerConfigs = resolvedMCPServerConfigs(for: controlsToUse)
-        let modelID = conversationEntity.modelID
 
-        streamingTask = Task {
+        let task = Task.detached(priority: .userInitiated) {
             do {
                 guard let providerConfig else {
                     throw LLMError.invalidRequest(message: "Provider not found. Configure it in Settings.")
@@ -1859,7 +1783,7 @@ struct ChatView: View {
                     history.insert(Message(role: .system, content: [.text(systemPrompt)]), at: 0)
                 }
                 if shouldTruncateMessages {
-                    history = truncatedHistory(
+                    history = ChatHistoryTruncator.truncatedHistory(
                         history,
                         contextWindow: modelContextWindow,
                         reservedOutputTokens: reservedOutputTokens
@@ -2024,11 +1948,19 @@ struct ChatView: View {
 
                     let toolCalls = Array(toolCallsByID.values)
                     let assistantParts = buildAssistantParts()
-                    await MainActor.run {
-                        if !assistantParts.isEmpty || !toolCalls.isEmpty {
-                            let assistantMessage = Message(role: .assistant, content: assistantParts, toolCalls: toolCalls.isEmpty ? nil : toolCalls)
+                    if !assistantParts.isEmpty || !toolCalls.isEmpty {
+                        let assistantMessage = Message(
+                            role: .assistant,
+                            content: assistantParts,
+                            toolCalls: toolCalls.isEmpty ? nil : toolCalls
+                        )
+
+                        await MainActor.run {
                             do {
                                 let entity = try MessageEntity.fromDomain(assistantMessage)
+                                entity.generatedProviderID = providerID
+                                entity.generatedModelID = modelID
+                                entity.generatedModelName = modelNameSnapshot
                                 entity.conversation = conversationEntity
                                 conversationEntity.messages.append(entity)
                                 conversationEntity.updatedAt = Date()
@@ -2036,8 +1968,9 @@ struct ChatView: View {
                                 errorMessage = error.localizedDescription
                                 showingError = true
                             }
-                            history.append(assistantMessage)
                         }
+
+                        history.append(assistantMessage)
                     }
 
                     guard !toolCalls.isEmpty else { break }
@@ -2105,11 +2038,10 @@ struct ChatView: View {
                 }
             }
             await MainActor.run {
-                isStreaming = false
-                streamingMessage = nil
-                streamingTask = nil
+                streamingStore.endSession(conversationID: conversationID)
             }
         }
+        streamingStore.attachTask(task, conversationID: conversationID)
     }
     
     // MARK: - Model Controls (Shortened for brevity, preserving existing logic)
@@ -2743,6 +2675,7 @@ struct MessageRow: View {
     let maxBubbleWidth: CGFloat
     let assistantDisplayName: String
     let assistantIcon: String?
+    let conversationModelLabel: String
     let toolResultsByCallID: [String: ToolResult]
     let actionsEnabled: Bool
     let onRegenerate: (MessageEntity) -> Void
@@ -2759,6 +2692,9 @@ struct MessageRow: View {
         let isTool = messageEntity.role == "tool"
         let message = try? messageEntity.toDomain()
         let isEditingUserMessage = isUser && editingUserMessageID == messageEntity.id
+        let assistantModelLabel = isAssistant
+            ? (messageEntity.generatedModelName ?? messageEntity.generatedModelID ?? conversationModelLabel)
+            : nil
         let copyText = message.map(copyableText(from:)) ?? ""
         let showsCopyButton = (isUser || isAssistant) && !copyText.isEmpty
         let canEditUserMessage = isUser && (message?.content.contains { part in
@@ -2773,7 +2709,7 @@ struct MessageRow: View {
 
             ConstrainedWidth(maxBubbleWidth) {
                 VStack(alignment: isUser ? .trailing : .leading, spacing: 6) {
-                    headerView(isUser: isUser, isTool: isTool)
+                    headerView(isUser: isUser, isTool: isTool, assistantModelLabel: assistantModelLabel)
 
                     VStack(alignment: .leading, spacing: 8) {
                         if isEditingUserMessage {
@@ -2840,7 +2776,7 @@ struct MessageRow: View {
     }
 
     @ViewBuilder
-    private func headerView(isUser: Bool, isTool: Bool) -> some View {
+    private func headerView(isUser: Bool, isTool: Bool, assistantModelLabel: String?) -> some View {
         HStack(spacing: 6) {
             if !isUser && !isTool {
                 AssistantBadgeIcon(icon: assistantIcon)
@@ -2850,6 +2786,23 @@ struct MessageRow: View {
                 .font(.caption)
                 .fontWeight(.semibold)
                 .foregroundStyle(.secondary)
+
+            if !isUser, !isTool, let label = assistantModelLabel?.trimmingCharacters(in: .whitespacesAndNewlines), !label.isEmpty {
+                Text(label)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .background(
+                        Capsule(style: .continuous)
+                            .fill(Color.secondary.opacity(0.08))
+                    )
+                    .overlay(
+                        Capsule(style: .continuous)
+                            .stroke(Color(nsColor: .separatorColor).opacity(0.6), lineWidth: 0.5)
+                    )
+            }
 
             if isTool {
                 Image(systemName: "hammer")
@@ -3433,6 +3386,7 @@ struct StreamingMessageView: View {
     @ObservedObject var state: StreamingMessageState
     let maxBubbleWidth: CGFloat
     let assistantDisplayName: String
+    let modelLabel: String?
     let assistantIcon: String?
     let onContentUpdate: () -> Void
 
@@ -3449,6 +3403,23 @@ struct StreamingMessageView: View {
                             .font(.caption)
                             .fontWeight(.semibold)
                             .foregroundStyle(.secondary)
+
+                        if let label = modelLabel?.trimmingCharacters(in: .whitespacesAndNewlines), !label.isEmpty {
+                            Text(label)
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 3)
+                                .background(
+                                    Capsule(style: .continuous)
+                                        .fill(Color.secondary.opacity(0.08))
+                                )
+                                .overlay(
+                                    Capsule(style: .continuous)
+                                        .stroke(Color(nsColor: .separatorColor).opacity(0.6), lineWidth: 0.5)
+                                )
+                        }
                     }
                     .padding(.horizontal, 12)
                     .padding(.top, 4)

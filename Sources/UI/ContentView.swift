@@ -23,6 +23,7 @@ private enum AssistantSidebarSort: String, CaseIterable {
 
 struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
+    @EnvironmentObject private var streamingStore: ConversationStreamingStore
     @Query(sort: \AssistantEntity.sortOrder, order: .forward) private var assistants: [AssistantEntity]
     @Query(sort: \ConversationEntity.updatedAt, order: .reverse) private var conversations: [ConversationEntity]
     @Query private var providers: [ProviderConfigEntity]
@@ -42,6 +43,13 @@ struct ContentView: View {
     @AppStorage("assistantSidebarShowName") private var assistantSidebarShowName = true
     @AppStorage("assistantSidebarShowIcon") private var assistantSidebarShowIcon = true
     @AppStorage("assistantSidebarGridColumns") private var assistantSidebarGridColumns = 3
+    @AppStorage(AppPreferenceKeys.newChatModelMode) private var newChatModelMode: NewChatModelMode = .lastUsed
+    @AppStorage(AppPreferenceKeys.newChatFixedProviderID) private var newChatFixedProviderID = "openai"
+    @AppStorage(AppPreferenceKeys.newChatFixedModelID) private var newChatFixedModelID = "gpt-5.2"
+    @AppStorage(AppPreferenceKeys.newChatMCPMode) private var newChatMCPMode: NewChatMCPMode = .lastUsed
+    @AppStorage(AppPreferenceKeys.newChatFixedMCPEnabled) private var newChatFixedMCPEnabled = true
+    @AppStorage(AppPreferenceKeys.newChatFixedMCPUseAllServers) private var newChatFixedMCPUseAllServers = true
+    @AppStorage(AppPreferenceKeys.newChatFixedMCPServerIDsJSON) private var newChatFixedMCPServerIDsJSON = "[]"
 
     var body: some View {
         NavigationSplitView {
@@ -251,6 +259,8 @@ struct ContentView: View {
     private func deleteConversations(at offsets: IndexSet, in sourceList: [ConversationEntity]) {
         for index in offsets {
             let conversation = sourceList[index]
+            streamingStore.cancel(conversationID: conversation.id)
+            streamingStore.endSession(conversationID: conversation.id)
             modelContext.delete(conversation)
             if selectedConversation == conversation {
                 selectedConversation = nil
@@ -266,12 +276,68 @@ struct ContentView: View {
             return
         }
 
-        let providerID = providers.first(where: { $0.id == "openai" })?.id
-            ?? providers.first?.id
-            ?? "openai"
-        let modelID = defaultModelID(for: providerID)
+        let lastConversation = selectedConversation ?? conversations.first
 
-        let controlsData = (try? JSONEncoder().encode(GenerationControls())) ?? Data()
+        var providerID: String
+        var modelID: String
+
+        switch newChatModelMode {
+        case .lastUsed:
+            let candidateProviderID = lastConversation?.providerID
+            let resolvedProviderID = candidateProviderID.flatMap { candidate in
+                providers.first(where: { $0.id == candidate })?.id
+            }
+            providerID = resolvedProviderID
+                ?? providers.first(where: { $0.id == "openai" })?.id
+                ?? providers.first?.id
+                ?? "openai"
+
+            let candidateModelID = lastConversation?.modelID
+            let models = modelsForProvider(providerID)
+            if let candidateModelID, models.contains(where: { $0.id == candidateModelID }) {
+                modelID = candidateModelID
+            } else {
+                modelID = defaultModelID(for: providerID)
+            }
+
+        case .fixed:
+            let resolvedProviderID = providers.first(where: { $0.id == newChatFixedProviderID })?.id
+            providerID = resolvedProviderID
+                ?? providers.first(where: { $0.id == "openai" })?.id
+                ?? providers.first?.id
+                ?? "openai"
+
+            let models = modelsForProvider(providerID)
+            if models.contains(where: { $0.id == newChatFixedModelID }) {
+                modelID = newChatFixedModelID
+            } else {
+                modelID = defaultModelID(for: providerID)
+            }
+        }
+
+        var controls = GenerationControls()
+        switch newChatMCPMode {
+        case .lastUsed:
+            if let lastConversation,
+               let lastControls = try? JSONDecoder().decode(GenerationControls.self, from: lastConversation.modelConfigData) {
+                controls.mcpTools = lastControls.mcpTools
+            }
+
+        case .fixed:
+            guard newChatFixedMCPEnabled else {
+                controls.mcpTools = MCPToolsControls(enabled: false, enabledServerIDs: nil)
+                break
+            }
+
+            if newChatFixedMCPUseAllServers {
+                controls.mcpTools = MCPToolsControls(enabled: true, enabledServerIDs: nil)
+            } else {
+                let ids = AppPreferences.decodeStringArrayJSON(newChatFixedMCPServerIDsJSON)
+                controls.mcpTools = MCPToolsControls(enabled: true, enabledServerIDs: ids)
+            }
+        }
+
+        let controlsData = (try? JSONEncoder().encode(controls)) ?? Data()
         let conversation = ConversationEntity(
             title: "New Chat",
             systemPrompt: nil,
@@ -285,9 +351,17 @@ struct ContentView: View {
         selectedConversation = conversation
     }
 
-    private func defaultModelID(for providerID: String) -> String {
+    private func modelsForProvider(_ providerID: String) -> [ModelInfo] {
         guard let provider = providers.first(where: { $0.id == providerID }),
               let models = try? JSONDecoder().decode([ModelInfo].self, from: provider.modelsData) else {
+            return []
+        }
+        return models
+    }
+
+    private func defaultModelID(for providerID: String) -> String {
+        let models = modelsForProvider(providerID)
+        guard !models.isEmpty else {
             switch providerID {
             case "anthropic":
                 return "claude-sonnet-4-5-20250929"
@@ -401,6 +475,8 @@ struct ContentView: View {
     }
 
     private func deleteConversation(_ conversation: ConversationEntity) {
+        streamingStore.cancel(conversationID: conversation.id)
+        streamingStore.endSession(conversationID: conversation.id)
         modelContext.delete(conversation)
         if selectedConversation == conversation {
             selectedConversation = nil
@@ -595,6 +671,7 @@ private struct ConversationRowView: View {
     let title: String
     let subtitle: String
     let updatedAt: Date
+    let isStreaming: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -605,6 +682,11 @@ private struct ConversationRowView: View {
                 Text(subtitle)
                     .lineLimit(1)
                 Spacer()
+                if isStreaming {
+                    ProgressView()
+                        .controlSize(.mini)
+                        .help("Generating…")
+                }
                 Text(updatedAt, format: .relative(presentation: .named))
             }
             .font(.caption)
@@ -758,7 +840,8 @@ private extension ContentView {
                             ConversationRowView(
                                 title: conversation.title,
                                 subtitle: "\(providerName(for: conversation.providerID)) • \(conversation.modelID)",
-                                updatedAt: conversation.updatedAt
+                                updatedAt: conversation.updatedAt,
+                                isStreaming: streamingStore.isStreaming(conversationID: conversation.id)
                             )
                         }
                         .contextMenu {

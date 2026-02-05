@@ -140,6 +140,10 @@ final class MessageEntity {
     var toolCallsData: Data?
     var toolResultsData: Data?
     var thinkingVisible: Bool
+    // Snapshot of the model used to generate this message (primarily for assistant replies).
+    var generatedProviderID: String?
+    var generatedModelID: String?
+    var generatedModelName: String?
 
     @Relationship var conversation: ConversationEntity?
 
@@ -150,6 +154,9 @@ final class MessageEntity {
         contentData: Data,
         toolCallsData: Data? = nil,
         toolResultsData: Data? = nil,
+        generatedProviderID: String? = nil,
+        generatedModelID: String? = nil,
+        generatedModelName: String? = nil,
         thinkingVisible: Bool = true
     ) {
         self.id = id
@@ -158,6 +165,9 @@ final class MessageEntity {
         self.contentData = contentData
         self.toolCallsData = toolCallsData
         self.toolResultsData = toolResultsData
+        self.generatedProviderID = generatedProviderID
+        self.generatedModelID = generatedModelID
+        self.generatedModelName = generatedModelName
         self.thinkingVisible = thinkingVisible
     }
 

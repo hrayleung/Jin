@@ -4,6 +4,7 @@ import SwiftData
 @main
 struct JinApp: App {
     private let modelContainer: ModelContainer
+    @StateObject private var streamingStore = ConversationStreamingStore()
 
     init() {
         do {
@@ -24,6 +25,7 @@ struct JinApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .environmentObject(streamingStore)
         }
         .modelContainer(modelContainer)
         .commands {
