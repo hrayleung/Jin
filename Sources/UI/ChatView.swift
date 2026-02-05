@@ -18,11 +18,12 @@ struct ChatView: View {
     @State private var isFileImporterPresented = false
     @State private var isComposerDropTargeted = false
     @State private var isComposerFocused = false
+    @State private var editingUserMessageID: UUID?
+    @State private var editingUserMessageText = ""
+    @State private var isEditingUserMessageFocused = false
     @State private var isStreaming = false
     @State private var streamingMessage: StreamingMessageState?
     @State private var streamingTask: Task<Void, Never>?
-    @State private var rerunToolResultsByCallID: [String: ToolResult] = [:]
-    @State private var rerunningToolCallIDs: Set<String> = []
     @State private var composerHeight: CGFloat = 0
     @State private var isModelPickerPresented = false
     @State private var messageRenderLimit: Int = 160
@@ -33,8 +34,8 @@ struct ChatView: View {
     // Cache expensive derived data so typing/streaming doesn't repeatedly sort/decode the entire history.
     @State private var cachedVisibleMessages: [MessageEntity] = []
     @State private var cachedMessagesVersion: Int = 0
-    @State private var cachedBaseToolResultsByCallID: [String: ToolResult] = [:]
     @State private var cachedToolResultsByCallID: [String: ToolResult] = [:]
+    @State private var lastCacheRebuildMessageCount: Int = 0
 
     @ObservedObject private var favoriteModelsStore = FavoriteModelsStore.shared
 
@@ -233,12 +234,21 @@ struct ChatView: View {
                                     assistantDisplayName: assistantDisplayName,
                                     assistantIcon: assistantIcon,
                                     toolResultsByCallID: toolResultsByCallID,
-                                    isRerunAllowed: !isStreaming,
-                                    isToolCallRerunning: { toolCallID in
-                                        rerunningToolCallIDs.contains(toolCallID)
+                                    actionsEnabled: !isStreaming,
+                                    onRegenerate: { target in
+                                        regenerateMessage(target)
                                     },
-                                    onRerunToolCall: { toolCall in
-                                        rerunToolCall(toolCall)
+                                    onEditUserMessage: { target in
+                                        beginEditingUserMessage(target)
+                                    },
+                                    editingUserMessageID: editingUserMessageID,
+                                    editingUserMessageText: $editingUserMessageText,
+                                    editingUserMessageFocused: $isEditingUserMessageFocused,
+                                    onSubmitUserEdit: { target in
+                                        submitEditingUserMessage(target)
+                                    },
+                                    onCancelUserEdit: {
+                                        cancelEditingUserMessage()
                                     }
                                 )
                                 .id(message.id)
@@ -370,16 +380,16 @@ struct ChatView: View {
             rebuildMessageCaches()
         }
         .onChange(of: conversationEntity.id) { _, _ in
-            // Switching chats: reset any transient per-chat rerun state and rebuild caches.
-            rerunToolResultsByCallID = [:]
-            rerunningToolCallIDs = []
+            // Switching chats: reset transient per-chat state and rebuild caches.
+            cancelEditingUserMessage()
             messageRenderLimit = 160
             pendingRestoreScrollMessageID = nil
             isPinnedToBottom = true
             lastStreamingAutoScrollUptime = 0
             rebuildMessageCaches()
         }
-        .onChange(of: conversationEntity.messages.count) { _, _ in
+        .onChange(of: conversationEntity.messages.count) { _, newCount in
+            guard newCount != lastCacheRebuildMessageCount else { return }
             rebuildMessageCaches()
         }
         .alert("Error", isPresented: $showingError) {
@@ -1439,24 +1449,170 @@ struct ChatView: View {
         scrollToBottom(proxy: proxy)
     }
 
-    private func rebuildMessageCaches() {
-        let ordered = conversationEntity.messages.sorted { lhs, rhs in
+    private func orderedConversationMessages() -> [MessageEntity] {
+        conversationEntity.messages.sorted { lhs, rhs in
             if lhs.timestamp != rhs.timestamp {
                 return lhs.timestamp < rhs.timestamp
             }
             return lhs.id.uuidString < rhs.id.uuidString
         }
-
-        cachedVisibleMessages = ordered.filter { $0.role != "tool" }
-        cachedBaseToolResultsByCallID = toolResultsByToolCallID(in: ordered)
-        cachedMessagesVersion &+= 1
-
-        rebuildToolResultsCache()
     }
 
-    private func rebuildToolResultsCache() {
-        cachedToolResultsByCallID = cachedBaseToolResultsByCallID
-            .merging(rerunToolResultsByCallID) { _, new in new }
+    private func rebuildMessageCaches() {
+        let ordered = orderedConversationMessages()
+
+        cachedVisibleMessages = ordered.filter { $0.role != "tool" }
+        cachedToolResultsByCallID = toolResultsByToolCallID(in: ordered)
+        cachedMessagesVersion &+= 1
+        lastCacheRebuildMessageCount = ordered.count
+    }
+
+    private func regenerateMessage(_ messageEntity: MessageEntity) {
+        guard !isStreaming else { return }
+
+        cancelEditingUserMessage()
+
+        switch messageEntity.role {
+        case "user":
+            regenerateFromUserMessage(messageEntity)
+        case "assistant":
+            regenerateFromAssistantMessage(messageEntity)
+        default:
+            break
+        }
+    }
+
+    private func beginEditingUserMessage(_ messageEntity: MessageEntity) {
+        guard !isStreaming else { return }
+        guard messageEntity.role == "user" else { return }
+
+        if editingUserMessageID != messageEntity.id {
+            cancelEditingUserMessage()
+        }
+
+        guard let message = try? messageEntity.toDomain() else { return }
+        guard let editableText = editableUserText(from: message), !editableText.isEmpty else { return }
+
+        editingUserMessageID = messageEntity.id
+        editingUserMessageText = editableText
+
+        DispatchQueue.main.async {
+            isEditingUserMessageFocused = true
+        }
+    }
+
+    private func submitEditingUserMessage(_ messageEntity: MessageEntity) {
+        guard !isStreaming else { return }
+        guard messageEntity.role == "user" else { return }
+        guard editingUserMessageID == messageEntity.id else { return }
+
+        let trimmed = editingUserMessageText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.rangeOfCharacter(from: CharacterSet.whitespacesAndNewlines.inverted) != nil else {
+            cancelEditingUserMessage()
+            return
+        }
+
+        do {
+            try updateUserMessageContent(messageEntity, newText: trimmed)
+        } catch {
+            errorMessage = error.localizedDescription
+            showingError = true
+            return
+        }
+
+        cancelEditingUserMessage()
+        regenerateFromUserMessage(messageEntity)
+    }
+
+    private func cancelEditingUserMessage() {
+        editingUserMessageID = nil
+        editingUserMessageText = ""
+        isEditingUserMessageFocused = false
+    }
+
+    private func regenerateFromUserMessage(_ messageEntity: MessageEntity) {
+        guard let keepCount = keepCountForRegeneratingUserMessage(messageEntity) else { return }
+        truncateConversation(keepingMessages: keepCount)
+        startStreamingResponse()
+    }
+
+    private func regenerateFromAssistantMessage(_ messageEntity: MessageEntity) {
+        guard let keepCount = keepCountForRegeneratingAssistantMessage(messageEntity) else { return }
+        truncateConversation(keepingMessages: keepCount)
+        startStreamingResponse()
+    }
+
+    private func keepCountForRegeneratingUserMessage(_ messageEntity: MessageEntity) -> Int? {
+        let ordered = orderedConversationMessages()
+        guard let index = ordered.firstIndex(where: { $0.id == messageEntity.id }) else { return nil }
+        let keepCount = index + 1
+        guard keepCount > 0 else { return nil }
+        return keepCount
+    }
+
+    private func keepCountForRegeneratingAssistantMessage(_ messageEntity: MessageEntity) -> Int? {
+        let ordered = orderedConversationMessages()
+        guard let index = ordered.firstIndex(where: { $0.id == messageEntity.id }) else { return nil }
+        let keepCount = index
+        guard keepCount > 0 else { return nil }
+        return keepCount
+    }
+
+    private func truncateConversation(keepingMessages keepCount: Int) {
+        let ordered = orderedConversationMessages()
+        let normalizedKeepCount = max(0, min(keepCount, ordered.count))
+        let keepIDs = Set(ordered.prefix(normalizedKeepCount).map(\.id))
+        let messagesToDelete = ordered.suffix(from: normalizedKeepCount)
+
+        for message in messagesToDelete {
+            modelContext.delete(message)
+        }
+
+        conversationEntity.messages.removeAll { !keepIDs.contains($0.id) }
+        conversationEntity.updatedAt = Date()
+        pendingRestoreScrollMessageID = nil
+        isPinnedToBottom = true
+        rebuildMessageCaches()
+    }
+
+    private func editableUserText(from message: Message) -> String? {
+        let parts = message.content.compactMap { part -> String? in
+            guard case .text(let text) = part else { return nil }
+            let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            return trimmed.isEmpty ? nil : trimmed
+        }
+
+        guard !parts.isEmpty else { return nil }
+        return parts.joined(separator: "\n\n")
+    }
+
+    private func updateUserMessageContent(_ entity: MessageEntity, newText: String) throws {
+        let decoder = JSONDecoder()
+        let encoder = JSONEncoder()
+
+        let originalContent: [ContentPart] = (try? decoder.decode([ContentPart].self, from: entity.contentData)) ?? []
+        var newContent: [ContentPart] = []
+        newContent.reserveCapacity(max(1, originalContent.count))
+
+        var didInsertText = false
+        for part in originalContent {
+            switch part {
+            case .text:
+                if !didInsertText {
+                    newContent.append(.text(newText))
+                    didInsertText = true
+                }
+            default:
+                newContent.append(part)
+            }
+        }
+
+        if !didInsertText {
+            newContent.append(.text(newText))
+        }
+
+        entity.contentData = try encoder.encode(newContent)
+        conversationEntity.updatedAt = Date()
     }
 
     private func toolResultsByToolCallID(in messageEntities: [MessageEntity]) -> [String: ToolResult] {
@@ -1476,57 +1632,6 @@ struct ChatView: View {
         }
 
         return results
-    }
-
-    private func rerunToolCall(_ toolCall: ToolCall) {
-        guard !isStreaming else { return }
-        guard !rerunningToolCallIDs.contains(toolCall.id) else { return }
-
-        rerunningToolCallIDs.insert(toolCall.id)
-
-        Task {
-            let callStart = Date()
-            do {
-                let servers = resolvedMCPServerConfigs(for: controls)
-                guard !servers.isEmpty else {
-                    throw LLMError.invalidRequest(message: "No MCP servers are enabled for automatic tool use.")
-                }
-
-                _ = try await MCPHub.shared.toolDefinitions(for: servers)
-                let result = try await MCPHub.shared.executeTool(functionName: toolCall.name, arguments: toolCall.arguments)
-                let duration = Date().timeIntervalSince(callStart)
-                let toolResult = ToolResult(
-                    toolCallID: toolCall.id,
-                    toolName: toolCall.name,
-                    content: result.text,
-                    isError: result.isError,
-                    signature: toolCall.signature,
-                    durationSeconds: duration
-                )
-
-                await MainActor.run {
-                    rerunToolResultsByCallID[toolCall.id] = toolResult
-                    rerunningToolCallIDs.remove(toolCall.id)
-                    rebuildToolResultsCache()
-                }
-            } catch {
-                let duration = Date().timeIntervalSince(callStart)
-                let toolResult = ToolResult(
-                    toolCallID: toolCall.id,
-                    toolName: toolCall.name,
-                    content: error.localizedDescription,
-                    isError: true,
-                    signature: toolCall.signature,
-                    durationSeconds: duration
-                )
-
-                await MainActor.run {
-                    rerunToolResultsByCallID[toolCall.id] = toolResult
-                    rerunningToolCallIDs.remove(toolCall.id)
-                    rebuildToolResultsCache()
-                }
-            }
-        }
     }
 
     private func maxBubbleWidth(for containerWidth: CGFloat) -> CGFloat {
@@ -1655,6 +1760,7 @@ struct ChatView: View {
         }
 
         guard canSendDraft else { return }
+        cancelEditingUserMessage()
 
         var parts: [ContentPart] = []
         for attachment in draftAttachments {
@@ -2632,99 +2738,215 @@ struct ChatView: View {
 
 // MARK: - Message Row & Content Views
 
-    struct MessageRow: View {
-        let messageEntity: MessageEntity
-        let maxBubbleWidth: CGFloat
-        let assistantDisplayName: String
-        let assistantIcon: String?
-        let toolResultsByCallID: [String: ToolResult]
-        let isRerunAllowed: Bool
-        let isToolCallRerunning: (String) -> Bool
-        let onRerunToolCall: (ToolCall) -> Void
+struct MessageRow: View {
+    let messageEntity: MessageEntity
+    let maxBubbleWidth: CGFloat
+    let assistantDisplayName: String
+    let assistantIcon: String?
+    let toolResultsByCallID: [String: ToolResult]
+    let actionsEnabled: Bool
+    let onRegenerate: (MessageEntity) -> Void
+    let onEditUserMessage: (MessageEntity) -> Void
+    let editingUserMessageID: UUID?
+    let editingUserMessageText: Binding<String>
+    let editingUserMessageFocused: Binding<Bool>
+    let onSubmitUserEdit: (MessageEntity) -> Void
+    let onCancelUserEdit: () -> Void
 
-        var body: some View {
-            let isUser = messageEntity.role == "user"
-            let isAssistant = messageEntity.role == "assistant"
-            let isTool = messageEntity.role == "tool"
-            let message = try? messageEntity.toDomain()
-            let copyText = message.map(copyableText(from:)) ?? ""
-            let showsCopyButton = (isUser || isAssistant) && !copyText.isEmpty
+    var body: some View {
+        let isUser = messageEntity.role == "user"
+        let isAssistant = messageEntity.role == "assistant"
+        let isTool = messageEntity.role == "tool"
+        let message = try? messageEntity.toDomain()
+        let isEditingUserMessage = isUser && editingUserMessageID == messageEntity.id
+        let copyText = message.map(copyableText(from:)) ?? ""
+        let showsCopyButton = (isUser || isAssistant) && !copyText.isEmpty
+        let canEditUserMessage = isUser && (message?.content.contains { part in
+            if case .text = part { return true }
+            return false
+        } == true)
 
-            HStack(alignment: .top, spacing: 0) {
-                if isUser {
-                    Spacer()
-                }
+        HStack(alignment: .top, spacing: 0) {
+            if isUser {
+                Spacer(minLength: 0)
+            }
 
-                ConstrainedWidth(maxBubbleWidth) {
-                    VStack(alignment: .leading, spacing: 6) {
-                        // Header (Sender Name)
-                        HStack(spacing: 6) {
-                            if !isUser && !isTool {
-                                AssistantBadgeIcon(icon: assistantIcon)
+            ConstrainedWidth(maxBubbleWidth) {
+                VStack(alignment: isUser ? .trailing : .leading, spacing: 6) {
+                    headerView(isUser: isUser, isTool: isTool)
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        if isEditingUserMessage {
+                            DroppableTextEditor(
+                                text: editingUserMessageText,
+                                isDropTargeted: .constant(false),
+                                isFocused: editingUserMessageFocused,
+                                font: NSFont.preferredFont(forTextStyle: .body),
+                                onDropFileURLs: { _ in false },
+                                onDropImages: { _ in false },
+                                onSubmit: { onSubmitUserEdit(messageEntity) },
+                                onCancel: {
+                                    onCancelUserEdit()
+                                    return true
+                                }
+                            )
+                            .frame(minHeight: 36, maxHeight: 200)
+                        } else if let message {
+                            ForEach(Array(message.content.enumerated()), id: \.offset) { _, part in
+                                ContentPartView(part: part)
                             }
-                            Text(isUser ? "You" : (isTool ? "Tool Output" : assistantDisplayName))
-                                .font(.caption)
-                                .fontWeight(.semibold)
-                                .foregroundStyle(.secondary)
 
-                            if isTool {
-                                Image(systemName: "hammer")
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
-                        .padding(.horizontal, 12)
-                        .padding(.top, 4)
-
-                        // Message Content
-                        ZStack(alignment: .bottomTrailing) {
-                            VStack(alignment: .leading, spacing: 8) {
-                                if let message {
-                                    ForEach(Array(message.content.enumerated()), id: \.offset) { _, part in
-                                        ContentPartView(part: part)
-                                    }
-
-                                    if let toolCalls = message.toolCalls, !toolCalls.isEmpty {
-                                        VStack(alignment: .leading, spacing: 8) {
-                                            ForEach(toolCalls) { call in
-                                                ToolCallView(
-                                                    toolCall: call,
-                                                    toolResult: toolResultsByCallID[call.id],
-                                                    isRerunning: isToolCallRerunning(call.id),
-                                                    rerunAllowed: isRerunAllowed,
-                                                    onRerun: { onRerunToolCall(call) }
-                                                )
-                                            }
-                                        }
+                            if let toolCalls = message.toolCalls, !toolCalls.isEmpty {
+                                VStack(alignment: .leading, spacing: 8) {
+                                    ForEach(toolCalls) { call in
+                                        ToolCallView(
+                                            toolCall: call,
+                                            toolResult: toolResultsByCallID[call.id]
+                                        )
                                     }
                                 }
                             }
-                            .padding(12)
-                            .background(bubbleBackground(isUser: isUser, isTool: isTool))
-                            .clipShape(RoundedRectangle(cornerRadius: 10))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 10)
-                                    .stroke(Color(nsColor: .separatorColor), lineWidth: 0.5)
-                            )
-
-                            if showsCopyButton {
-                                CopyToPasteboardButton(text: copyText, helpText: "Copy message")
-                                    .accessibilityLabel("Copy message")
-                                    .offset(y: 24)
-                            }
                         }
-                        .padding(.bottom, showsCopyButton ? 24 : 0)
+                    }
+                    .padding(12)
+                    .background(bubbleBackground(isUser: isUser, isTool: isTool))
+                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10)
+                            .stroke(Color(nsColor: .separatorColor), lineWidth: 0.5)
+                    )
+
+                    if isUser || isAssistant {
+                        footerView(
+                            isUser: isUser,
+                            isAssistant: isAssistant,
+                            isEditingUserMessage: isEditingUserMessage,
+                            showsCopyButton: showsCopyButton,
+                            copyText: copyText,
+                            canEditUserMessage: canEditUserMessage
+                        )
+                        .padding(.top, 2)
                     }
                 }
-                .padding(.horizontal, 16)
+            }
+            .padding(.horizontal, 16)
 
-                if !isUser {
-                    Spacer()
+            if !isUser {
+                Spacer(minLength: 0)
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 8)
+    }
+
+    @ViewBuilder
+    private func headerView(isUser: Bool, isTool: Bool) -> some View {
+        HStack(spacing: 6) {
+            if !isUser && !isTool {
+                AssistantBadgeIcon(icon: assistantIcon)
+            }
+
+            Text(isUser ? "You" : (isTool ? "Tool Output" : assistantDisplayName))
+                .font(.caption)
+                .fontWeight(.semibold)
+                .foregroundStyle(.secondary)
+
+            if isTool {
+                Image(systemName: "hammer")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.top, 4)
+    }
+
+    @ViewBuilder
+    private func footerView(isUser: Bool, isAssistant: Bool, isEditingUserMessage: Bool, showsCopyButton: Bool, copyText: String, canEditUserMessage: Bool) -> some View {
+        if isAssistant {
+            HStack(spacing: 10) {
+                HStack(spacing: 10) {
+                    if showsCopyButton {
+                        CopyToPasteboardButton(text: copyText, helpText: "Copy message")
+                            .accessibilityLabel("Copy message")
+                            .disabled(!actionsEnabled)
+                    }
+
+                    actionIconButton(systemName: "arrow.clockwise", helpText: "Regenerate") {
+                        onRegenerate(messageEntity)
+                    }
+                    .disabled(!actionsEnabled)
+                }
+
+                Spacer(minLength: 0)
+
+                Text(formattedTimestamp(messageEntity.timestamp))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+        } else if isUser {
+            if isEditingUserMessage {
+                HStack(spacing: 10) {
+                    actionIconButton(systemName: "xmark", helpText: "Cancel editing") {
+                        onCancelUserEdit()
+                    }
+                    .disabled(!actionsEnabled)
+
+                    actionIconButton(systemName: "paperplane", helpText: "Resend") {
+                        onSubmitUserEdit(messageEntity)
+                    }
+                    .disabled(!actionsEnabled)
+                }
+            } else {
+                HStack(spacing: 10) {
+                    if showsCopyButton {
+                        CopyToPasteboardButton(text: copyText, helpText: "Copy message")
+                            .accessibilityLabel("Copy message")
+                            .disabled(!actionsEnabled)
+                    }
+
+                    actionIconButton(systemName: "arrow.clockwise", helpText: "Regenerate") {
+                        onRegenerate(messageEntity)
+                    }
+                    .disabled(!actionsEnabled)
+
+                    if canEditUserMessage {
+                        actionIconButton(systemName: "pencil", helpText: "Edit") {
+                            onEditUserMessage(messageEntity)
+                        }
+                        .disabled(!actionsEnabled)
+                    }
                 }
             }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 8)
         }
+    }
+
+    private func actionIconButton(systemName: String, helpText: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: systemName)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(.secondary)
+                .frame(width: 20, height: 20)
+        }
+        .buttonStyle(.plain)
+        .help(helpText)
+    }
+
+    private func formattedTimestamp(_ timestamp: Date) -> String {
+        let calendar = Calendar.current
+        let time = timestamp.formatted(date: .omitted, time: .shortened)
+
+        if calendar.isDateInToday(timestamp) {
+            return "Today at \(time)"
+        }
+        if calendar.isDateInYesterday(timestamp) {
+            return "Yesterday at \(time)"
+        }
+
+        let day = timestamp.formatted(.dateTime.month(.abbreviated).day().year())
+        return "\(day) at \(time)"
+    }
 
     private func bubbleBackground(isUser: Bool, isTool: Bool) -> Color {
         if isTool { return Color(nsColor: .controlBackgroundColor).opacity(0.5) }
@@ -2969,9 +3191,6 @@ struct ContentPartView: View {
 struct ToolCallView: View {
     let toolCall: ToolCall
     let toolResult: ToolResult?
-    let isRerunning: Bool
-    let rerunAllowed: Bool
-    let onRerun: () -> Void
 
     @State private var isExpanded = false
 
@@ -2990,13 +3209,6 @@ struct ToolCallView: View {
                 Spacer()
 
                 statusPill
-
-                if canRerun {
-                    Button("Re-run") {
-                        onRerun()
-                    }
-                    .font(.caption)
-                }
 
                 Button {
                     withAnimation(.easeInOut(duration: 0.15)) {
@@ -3066,10 +3278,6 @@ struct ToolCallView: View {
         return "\(serverID) · \(toolName)"
     }
 
-    private var canRerun: Bool {
-        rerunAllowed && toolResult != nil && !isRerunning
-    }
-
     @ViewBuilder
     private var statusPill: some View {
         let status = resolvedStatus
@@ -3111,8 +3319,7 @@ struct ToolCallView: View {
     }
 
     private var durationText: String? {
-        guard let toolResult, !isRerunning else { return nil }
-        guard let seconds = toolResult.durationSeconds, seconds > 0 else { return nil }
+        guard let seconds = toolResult?.durationSeconds, seconds > 0 else { return nil }
         if seconds < 1 {
             return "\(Int((seconds * 1000).rounded()))ms"
         }
@@ -3120,7 +3327,6 @@ struct ToolCallView: View {
     }
 
     private var resolvedStatus: ToolCallStatus {
-        if isRerunning { return .running }
         guard let toolResult else { return .running }
         return toolResult.isError ? .error : .success
     }
@@ -3247,51 +3453,51 @@ struct StreamingMessageView: View {
                     .padding(.horizontal, 12)
                     .padding(.top, 4)
 
-                    ZStack(alignment: .bottomTrailing) {
-                        VStack(alignment: .leading, spacing: 8) {
-                            if !state.thinkingChunks.isEmpty {
-                                DisclosureGroup(isExpanded: .constant(true)) {
-                                    ChunkedTextView(chunks: state.thinkingChunks, font: .system(.caption, design: .monospaced))
-                                        .foregroundStyle(.secondary)
-                                        .padding(8)
-                                        .background(Color(nsColor: .textBackgroundColor))
-                                        .cornerRadius(6)
-                                } label: {
-                                    HStack {
-                                        ProgressView().scaleEffect(0.5)
-                                        Text("Thinking...")
-                                            .font(.caption)
-                                            .foregroundStyle(.secondary)
-                                    }
-                                }
-                            }
-
-                            if !state.textChunks.isEmpty {
-                                ChunkedTextView(chunks: state.textChunks, font: .body)
-                            } else if state.thinkingChunks.isEmpty {
-                                HStack(spacing: 6) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        if !state.thinkingChunks.isEmpty {
+                            DisclosureGroup(isExpanded: .constant(true)) {
+                                ChunkedTextView(chunks: state.thinkingChunks, font: .system(.caption, design: .monospaced))
+                                    .foregroundStyle(.secondary)
+                                    .padding(8)
+                                    .background(Color(nsColor: .textBackgroundColor))
+                                    .cornerRadius(6)
+                            } label: {
+                                HStack {
                                     ProgressView().scaleEffect(0.5)
-                                    Text("Generating...")
+                                    Text("Thinking...")
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
                                 }
                             }
                         }
-                        .padding(12)
-                        .background(Color(nsColor: .controlBackgroundColor))
-                        .clipShape(RoundedRectangle(cornerRadius: 10))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 10)
-                                .stroke(Color(nsColor: .separatorColor), lineWidth: 0.5)
-                        )
 
-                        if showsCopyButton {
-                            CopyToPasteboardButton(text: state.textContent, helpText: "Copy message")
-                                .accessibilityLabel("Copy message")
-                                .offset(y: 24)
+                        if !state.textChunks.isEmpty {
+                            ChunkedTextView(chunks: state.textChunks, font: .body)
+                        } else if state.thinkingChunks.isEmpty {
+                            HStack(spacing: 6) {
+                                ProgressView().scaleEffect(0.5)
+                                Text("Generating...")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
                         }
                     }
-                    .padding(.bottom, showsCopyButton ? 24 : 0)
+                    .padding(12)
+                    .background(Color(nsColor: .controlBackgroundColor))
+                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10)
+                            .stroke(Color(nsColor: .separatorColor), lineWidth: 0.5)
+                    )
+
+                    if showsCopyButton {
+                        HStack {
+                            CopyToPasteboardButton(text: state.textContent, helpText: "Copy message")
+                                .accessibilityLabel("Copy message")
+                            Spacer(minLength: 0)
+                        }
+                        .padding(.top, 2)
+                    }
                 }
             }
             .padding(.horizontal, 16)
