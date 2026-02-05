@@ -13,13 +13,15 @@ let package = Package(
         )
     ],
     dependencies: [
-        .package(url: "https://github.com/LiYanan2004/MarkdownView", from: "2.5.2")
+        .package(url: "https://github.com/LiYanan2004/MarkdownView", from: "2.5.2"),
+        .package(url: "https://github.com/modelcontextprotocol/swift-sdk.git", from: "0.10.0")
     ],
     targets: [
         .executableTarget(
             name: "Jin",
             dependencies: [
-                .product(name: "MarkdownView", package: "MarkdownView")
+                .product(name: "MarkdownView", package: "MarkdownView"),
+                .product(name: "MCP", package: "swift-sdk")
             ],
             path: "Sources"
         ),
