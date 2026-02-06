@@ -9,6 +9,15 @@ DMG_PATH="$DIST/$APP_NAME.dmg"
 
 cd "$ROOT"
 
+if command -v git >/dev/null 2>&1 && git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  if [[ -n "$(git ls-files dist | head -n 1)" ]]; then
+    echo "Warning: dist/ is tracked by git in this checkout."
+    echo "This script will rewrite dist/ and dirty your working tree."
+    echo "Fix (once): git rm -r --cached dist && git commit -m \"chore: stop tracking dist\""
+    echo
+  fi
+fi
+
 rm -rf "$DIST"
 mkdir -p "$DIST"
 
