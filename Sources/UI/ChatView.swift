@@ -1662,7 +1662,8 @@ struct ChatView: View {
         case .openai:
             return models.first(where: { $0.id == "gpt-5.2" })?.id
         case .anthropic:
-            return models.first(where: { $0.id == "claude-sonnet-4-5-20250929" })?.id
+            return models.first(where: { $0.id == "claude-opus-4-6" })?.id
+                ?? models.first(where: { $0.id == "claude-sonnet-4-5-20250929" })?.id
         case .fireworks:
             return models.first(where: { $0.id.lowercased() == "fireworks/kimi-k2p5" || $0.id.lowercased() == "accounts/fireworks/models/kimi-k2p5" })?.id
                 ?? models.first(where: { $0.id.lowercased() == "fireworks/glm-4p7" || $0.id.lowercased() == "accounts/fireworks/models/glm-4p7" })?.id
@@ -2793,12 +2794,20 @@ struct ChatView: View {
                         }
                     }
 
+                case .anthropic:
+                    Button { setReasoningEffort(.low) } label: { menuItemLabel("Low", isSelected: isReasoningEnabled && controls.reasoning?.effort == .low) }
+                    Button { setReasoningEffort(.medium) } label: { menuItemLabel("Medium", isSelected: isReasoningEnabled && controls.reasoning?.effort == .medium) }
+                    Button { setReasoningEffort(.high) } label: { menuItemLabel("High", isSelected: isReasoningEnabled && controls.reasoning?.effort == .high) }
+                    if isAnthropicOpusSeriesModel {
+                        Button { setReasoningEffort(.xhigh) } label: { menuItemLabel("Max", isSelected: isReasoningEnabled && controls.reasoning?.effort == .xhigh) }
+                    }
+
                 case .fireworks:
                     Button { setReasoningEffort(.low) } label: { menuItemLabel("Low", isSelected: isReasoningEnabled && controls.reasoning?.effort == .low) }
                     Button { setReasoningEffort(.medium) } label: { menuItemLabel("Medium", isSelected: isReasoningEnabled && controls.reasoning?.effort == .medium) }
                     Button { setReasoningEffort(.high) } label: { menuItemLabel("High", isSelected: isReasoningEnabled && controls.reasoning?.effort == .high) }
 
-                case .anthropic, .xai, .cerebras, .none:
+                case .xai, .cerebras, .none:
                     EmptyView()
                 }
 
@@ -3520,6 +3529,11 @@ struct ChatView: View {
         return conversationEntity.modelID.hasPrefix("gpt-5.2")
     }
 
+    private var isAnthropicOpusSeriesModel: Bool {
+        guard providerType == .anthropic else { return false }
+        return conversationEntity.modelID.lowercased().contains("claude-opus")
+    }
+
     private func defaultWebSearchControls(enabled: Bool) -> WebSearchControls {
         guard enabled else { return WebSearchControls(enabled: false) }
 
@@ -3594,6 +3608,11 @@ struct ChatView: View {
 
         // OpenAI: only GPT-5.2 supports xhigh.
         if providerType == .openai, controls.reasoning?.effort == .xhigh, !isOpenAIGPT52SeriesModel {
+            controls.reasoning?.effort = .high
+        }
+
+        // Anthropic: xhigh maps to max effort and is only valid on Opus models.
+        if providerType == .anthropic, controls.reasoning?.effort == .xhigh, !isAnthropicOpusSeriesModel {
             controls.reasoning?.effort = .high
         }
 

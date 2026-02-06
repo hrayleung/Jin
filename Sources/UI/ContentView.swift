@@ -365,7 +365,7 @@ struct ContentView: View {
         guard !models.isEmpty else {
             switch providerID {
             case "anthropic":
-                return "claude-sonnet-4-5-20250929"
+                return "claude-opus-4-6"
             case "xai":
                 return "grok-4-1-fast"
             case "vertexai":
@@ -378,6 +378,9 @@ struct ContentView: View {
         if providerID == "openai", let gpt52 = models.first(where: { $0.id == "gpt-5.2" }) {
             return gpt52.id
         }
+        if providerID == "anthropic", let opus46 = models.first(where: { $0.id == "claude-opus-4-6" }) {
+            return opus46.id
+        }
         if providerID == "anthropic", let sonnet45 = models.first(where: { $0.id == "claude-sonnet-4-5-20250929" }) {
             return sonnet45.id
         }
@@ -387,7 +390,7 @@ struct ContentView: View {
         if providerID == "vertexai", let gemini3Pro = models.first(where: { $0.id == "gemini-3-pro-preview" }) {
             return gemini3Pro.id
         }
-        return models.first?.id ?? (providerID == "anthropic" ? "claude-sonnet-4-5-20250929" : "gpt-5.2")
+        return models.first?.id ?? (providerID == "anthropic" ? "claude-opus-4-6" : "gpt-5.2")
     }
 
     private var filteredConversations: [ConversationEntity] {
@@ -538,23 +541,30 @@ struct ContentView: View {
 
         let anthropicModels: [ModelInfo] = [
             ModelInfo(
+                id: "claude-opus-4-6",
+                name: "Claude Opus 4.6",
+                capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .nativePDF],
+                contextWindow: 200000,
+                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high)
+            ),
+            ModelInfo(
                 id: "claude-opus-4-5-20251101",
                 name: "Claude Opus 4.5",
-                capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+                capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .nativePDF],
                 contextWindow: 200000,
-                reasoningConfig: ModelReasoningConfig(type: .budget, defaultBudget: 4096)
+                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high)
             ),
             ModelInfo(
                 id: "claude-sonnet-4-5-20250929",
                 name: "Claude Sonnet 4.5",
-                capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+                capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .nativePDF],
                 contextWindow: 200000,
                 reasoningConfig: ModelReasoningConfig(type: .budget, defaultBudget: 2048)
             ),
             ModelInfo(
                 id: "claude-haiku-4-5-20251001",
                 name: "Claude Haiku 4.5",
-                capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+                capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .nativePDF],
                 contextWindow: 200000,
                 reasoningConfig: ModelReasoningConfig(type: .budget, defaultBudget: 1024)
             )

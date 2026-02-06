@@ -134,7 +134,7 @@ enum ReasoningEffort: String, Codable, CaseIterable {
     case low
     case medium
     case high
-    case xhigh // Extra high (OpenAI GPT-5.2 only)
+    case xhigh // Extra high / max (OpenAI GPT-5.2, Anthropic Opus)
 
     var displayName: String {
         switch self {
@@ -299,15 +299,26 @@ struct Usage: Codable {
     let outputTokens: Int
     let thinkingTokens: Int?
     let cachedTokens: Int? // Prompt caching (Anthropic)
+    let serviceTier: String?
+    let inferenceGeo: String?
 
     var totalTokens: Int {
         inputTokens + outputTokens + (thinkingTokens ?? 0)
     }
 
-    init(inputTokens: Int, outputTokens: Int, thinkingTokens: Int? = nil, cachedTokens: Int? = nil) {
+    init(
+        inputTokens: Int,
+        outputTokens: Int,
+        thinkingTokens: Int? = nil,
+        cachedTokens: Int? = nil,
+        serviceTier: String? = nil,
+        inferenceGeo: String? = nil
+    ) {
         self.inputTokens = inputTokens
         self.outputTokens = outputTokens
         self.thinkingTokens = thinkingTokens
         self.cachedTokens = cachedTokens
+        self.serviceTier = serviceTier
+        self.inferenceGeo = inferenceGeo
     }
 }

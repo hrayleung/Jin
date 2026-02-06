@@ -39,6 +39,7 @@ actor AnthropicAdapter: LLMProviderAdapter {
                     var currentToolUse: ToolCallBuilder?
                     var currentContentBlockType: String?
                     var currentThinkingSignature: String?
+                    var usageAccumulator = AnthropicUsageAccumulator()
 
                     for try await event in sseStream {
                         switch event {
@@ -49,7 +50,8 @@ actor AnthropicAdapter: LLMProviderAdapter {
                                 currentBlockIndex: &currentBlockIndex,
                                 currentToolUse: &currentToolUse,
                                 currentContentBlockType: &currentContentBlockType,
-                                currentThinkingSignature: &currentThinkingSignature
+                                currentThinkingSignature: &currentThinkingSignature,
+                                usageAccumulator: &usageAccumulator
                             ) {
                                 continuation.yield(streamEvent)
                             }
@@ -95,11 +97,18 @@ actor AnthropicAdapter: LLMProviderAdapter {
             // Fallback (offline / restricted org / temporary outage): include a sane baseline set.
             return [
                 ModelInfo(
+                    id: "claude-opus-4-6",
+                    name: "Claude Opus 4.6",
+                    capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .nativePDF],
+                    contextWindow: 200000,
+                    reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high)
+                ),
+                ModelInfo(
                     id: "claude-opus-4-5-20251101",
                     name: "Claude Opus 4.5",
                     capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .nativePDF],
                     contextWindow: 200000,
-                    reasoningConfig: ModelReasoningConfig(type: .budget, defaultBudget: 4096)
+                    reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high)
                 ),
                 ModelInfo(
                     id: "claude-sonnet-4-5-20250929",
@@ -158,8 +167,97 @@ actor AnthropicAdapter: LLMProviderAdapter {
     }
 
     private func supportsNativePDF(_ modelID: String) -> Bool {
-        // Claude 4.5 series supports native PDF
-        return modelID.contains("-4-5-") || modelID.contains("-4.5-")
+        // Native PDF is supported on Claude 4.x models.
+        let lower = modelID.lowercased()
+        return lower.contains("-4-") || lower.contains("-4.")
+    }
+
+    private func supportsAdaptiveThinking(_ modelID: String) -> Bool {
+        let lower = modelID.lowercased()
+        return lower == "claude-opus-4-6" || lower.contains("claude-opus-4-6-")
+    }
+
+    private func supportsEffort(_ modelID: String) -> Bool {
+        let lower = modelID.lowercased()
+        return lower == "claude-opus-4-6"
+            || lower.contains("claude-opus-4-6-")
+            || lower == "claude-opus-4-5"
+            || lower.contains("claude-opus-4-5-")
+    }
+
+    private func supportsMaxEffort(_ modelID: String) -> Bool {
+        let lower = modelID.lowercased()
+        return lower == "claude-opus-4-6" || lower.contains("claude-opus-4-6-")
+    }
+
+    private func mapAnthropicEffort(_ effort: ReasoningEffort, modelID: String) -> String {
+        switch effort {
+        case .none:
+            return "high"
+        case .minimal, .low:
+            return "low"
+        case .medium:
+            return "medium"
+        case .high:
+            return "high"
+        case .xhigh:
+            return supportsMaxEffort(modelID) ? "max" : "high"
+        }
+    }
+
+    private func providerSpecificJSONDictionary(_ value: Any) -> [String: Any]? {
+        if let dictionary = value as? [String: Any] {
+            return dictionary
+        }
+        if let codableDictionary = value as? [String: AnyCodable] {
+            return codableDictionary.mapValues { $0.value }
+        }
+        return nil
+    }
+
+    private func providerSpecificStringArray(_ value: Any) -> [String]? {
+        if let strings = value as? [String] {
+            return strings
+        }
+        if let array = value as? [Any] {
+            return array.compactMap { $0 as? String }
+        }
+        return nil
+    }
+
+    private func extractAnthropicBetaHeader(from controls: GenerationControls) -> String? {
+        let keys = ["anthropic_beta", "anthropic-beta"]
+        for key in keys {
+            guard let rawValue = controls.providerSpecific[key]?.value else { continue }
+
+            if let string = rawValue as? String {
+                let value = string.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !value.isEmpty {
+                    return value
+                }
+            }
+
+            if let values = providerSpecificStringArray(rawValue) {
+                let joined = values
+                    .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                    .filter { !$0.isEmpty }
+                    .joined(separator: ",")
+                if !joined.isEmpty {
+                    return joined
+                }
+            }
+        }
+
+        return nil
+    }
+
+    private func mergeOutputConfig(into body: inout [String: Any], additional: [String: Any]) {
+        guard !additional.isEmpty else { return }
+        var merged = (body["output_config"] as? [String: Any]) ?? [:]
+        for (key, value) in additional {
+            merged[key] = value
+        }
+        body["output_config"] = merged
     }
 
     private func buildRequest(
@@ -178,6 +276,9 @@ actor AnthropicAdapter: LLMProviderAdapter {
         request.addValue(apiKey, forHTTPHeaderField: "x-api-key")
         request.addValue("application/json", forHTTPHeaderField: "Content-Type")
         request.addValue(anthropicVersion, forHTTPHeaderField: "anthropic-version")
+        if let betaHeader = extractAnthropicBetaHeader(from: controls) {
+            request.addValue(betaHeader, forHTTPHeaderField: "anthropic-beta")
+        }
 
         let translatedMessages = normalizedMessages
             .filter { $0.role != .system }
@@ -204,6 +305,9 @@ actor AnthropicAdapter: LLMProviderAdapter {
         }
 
         let thinkingEnabled = controls.reasoning?.enabled == true
+        let supportsAdaptive = supportsAdaptiveThinking(modelID)
+        let supportsEffortControl = supportsEffort(modelID)
+        let providerSpecificHasThinking = controls.providerSpecific["thinking"] != nil
 
         // When thinking is enabled, Anthropic rejects temperature/top_p.
         if !thinkingEnabled {
@@ -216,10 +320,27 @@ actor AnthropicAdapter: LLMProviderAdapter {
         }
 
         if thinkingEnabled {
-            body["thinking"] = [
-                "type": "enabled",
-                "budget_tokens": controls.reasoning?.budgetTokens ?? 2048
-            ]
+            if !providerSpecificHasThinking {
+                if supportsAdaptive, controls.reasoning?.budgetTokens == nil {
+                    body["thinking"] = [
+                        "type": "adaptive"
+                    ]
+                } else {
+                    body["thinking"] = [
+                        "type": "enabled",
+                        "budget_tokens": controls.reasoning?.budgetTokens ?? 2048
+                    ]
+                }
+            }
+
+            if supportsEffortControl, let effort = controls.reasoning?.effort {
+                mergeOutputConfig(
+                    into: &body,
+                    additional: [
+                        "effort": mapAnthropicEffort(effort, modelID: modelID)
+                    ]
+                )
+            }
         }
 
         var toolSpecs: [[String: Any]] = []
@@ -241,6 +362,20 @@ actor AnthropicAdapter: LLMProviderAdapter {
         }
 
         for (key, value) in controls.providerSpecific {
+            if key == "anthropic_beta" || key == "anthropic-beta" {
+                continue
+            }
+
+            if key == "output_format" {
+                mergeOutputConfig(into: &body, additional: ["format": value.value])
+                continue
+            }
+
+            if key == "output_config", let dict = providerSpecificJSONDictionary(value.value) {
+                mergeOutputConfig(into: &body, additional: dict)
+                continue
+            }
+
             body[key] = value.value
         }
 
@@ -387,7 +522,8 @@ actor AnthropicAdapter: LLMProviderAdapter {
         currentBlockIndex: inout Int?,
         currentToolUse: inout ToolCallBuilder?,
         currentContentBlockType: inout String?,
-        currentThinkingSignature: inout String?
+        currentThinkingSignature: inout String?,
+        usageAccumulator: inout AnthropicUsageAccumulator
     ) throws -> StreamEvent? {
         guard let data = line.data(using: .utf8) else {
             return nil
@@ -402,6 +538,7 @@ actor AnthropicAdapter: LLMProviderAdapter {
         case "message_start":
             if let message = event.message {
                 currentMessageID = message.id
+                usageAccumulator.merge(message.usage)
                 return .messageStart(id: message.id)
             }
 
@@ -467,17 +604,16 @@ actor AnthropicAdapter: LLMProviderAdapter {
                 return .toolCallEnd(toolCall)
             }
 
+            currentToolUse = nil
+
         case "message_delta":
             if let usage = event.usage {
-                return .messageEnd(usage: Usage(
-                    inputTokens: 0,
-                    outputTokens: usage.outputTokens,
-                    cachedTokens: nil
-                ))
+                usageAccumulator.merge(usage)
+                return .messageEnd(usage: usageAccumulator.toUsage())
             }
 
         case "message_stop":
-            return .messageEnd(usage: nil)
+            return .messageEnd(usage: usageAccumulator.toUsage())
 
         default:
             break
@@ -492,14 +628,19 @@ actor AnthropicAdapter: LLMProviderAdapter {
 
         var caps: ModelCapability = [.streaming, .toolCalling, .vision, .promptCaching]
         var reasoningConfig: ModelReasoningConfig?
+        let lower = id.lowercased()
 
         if id.contains("claude-") {
             caps.insert(.reasoning)
-            reasoningConfig = ModelReasoningConfig(type: .budget, defaultBudget: 2048)
+            if supportsEffort(id) {
+                reasoningConfig = ModelReasoningConfig(type: .effort, defaultEffort: .high)
+            } else {
+                reasoningConfig = ModelReasoningConfig(type: .budget, defaultBudget: 2048)
+            }
         }
 
-        // Claude 4.5 series supports native PDF
-        if id.contains("-4-5-") || id.contains("-4.5-") {
+        // Claude 4.x series supports native PDF.
+        if lower.contains("-4-") || lower.contains("-4.") {
             caps.insert(.nativePDF)
         }
 
@@ -528,6 +669,7 @@ private struct StreamEvent_Anthropic: Codable {
         let type: String
         let role: String
         let model: String
+        let usage: UsageInfo?
     }
 
     struct ContentBlock: Codable {
@@ -547,7 +689,60 @@ private struct StreamEvent_Anthropic: Codable {
     }
 
     struct UsageInfo: Codable {
-        let outputTokens: Int
+        let inputTokens: Int?
+        let outputTokens: Int?
+        let cacheCreationInputTokens: Int?
+        let cacheReadInputTokens: Int?
+        let serviceTier: String?
+        let inferenceGeo: String?
+    }
+}
+
+private struct AnthropicUsageAccumulator {
+    var inputTokens: Int?
+    var outputTokens: Int?
+    var cacheCreationInputTokens: Int?
+    var cacheReadInputTokens: Int?
+    var serviceTier: String?
+    var inferenceGeo: String?
+
+    mutating func merge(_ usage: StreamEvent_Anthropic.UsageInfo?) {
+        guard let usage else { return }
+        if let inputTokens = usage.inputTokens {
+            self.inputTokens = inputTokens
+        }
+        if let outputTokens = usage.outputTokens {
+            self.outputTokens = outputTokens
+        }
+        if let cacheCreationInputTokens = usage.cacheCreationInputTokens {
+            self.cacheCreationInputTokens = cacheCreationInputTokens
+        }
+        if let cacheReadInputTokens = usage.cacheReadInputTokens {
+            self.cacheReadInputTokens = cacheReadInputTokens
+        }
+        if let serviceTier = usage.serviceTier {
+            self.serviceTier = serviceTier
+        }
+        if let inferenceGeo = usage.inferenceGeo {
+            self.inferenceGeo = inferenceGeo
+        }
+    }
+
+    func toUsage() -> Usage? {
+        guard inputTokens != nil
+                || outputTokens != nil
+                || cacheReadInputTokens != nil
+                || cacheCreationInputTokens != nil else {
+            return nil
+        }
+
+        return Usage(
+            inputTokens: inputTokens ?? 0,
+            outputTokens: outputTokens ?? 0,
+            cachedTokens: cacheReadInputTokens,
+            serviceTier: serviceTier,
+            inferenceGeo: inferenceGeo
+        )
     }
 }
 
