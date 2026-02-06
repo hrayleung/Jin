@@ -7,6 +7,7 @@ final class TextToSpeechPlaybackManager: NSObject, ObservableObject {
         case idle
         case generating(messageID: UUID)
         case playing(messageID: UUID)
+        case paused(messageID: UUID)
     }
 
     struct OpenAIConfig: Sendable {
@@ -51,6 +52,7 @@ final class TextToSpeechPlaybackManager: NSObject, ObservableObject {
     private var queue: [Data] = []
     private var currentMessageID: UUID?
     private var currentErrorHandler: ((Error) -> Void)?
+    private var didFinishSynthesis = true
 
     func toggleSpeak(
         messageID: UUID,
@@ -59,11 +61,15 @@ final class TextToSpeechPlaybackManager: NSObject, ObservableObject {
         onError: @escaping (Error) -> Void
     ) {
         if case .playing(let id) = state, id == messageID {
-            stop()
+            pause(messageID: messageID)
+            return
+        }
+        if case .paused(let id) = state, id == messageID {
+            resume(messageID: messageID)
             return
         }
         if case .generating(let id) = state, id == messageID {
-            stop()
+            stop(messageID: messageID)
             return
         }
 
@@ -72,6 +78,8 @@ final class TextToSpeechPlaybackManager: NSObject, ObservableObject {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
 
+        queue = []
+        didFinishSynthesis = false
         currentMessageID = messageID
         currentErrorHandler = onError
         state = .generating(messageID: messageID)
@@ -79,24 +87,16 @@ final class TextToSpeechPlaybackManager: NSObject, ObservableObject {
         synthesisTask = Task { [weak self] in
             guard let self else { return }
             do {
-                let clips = try await self.synthesizeAudioClips(text: trimmed, config: config)
+                try await self.synthesizeAndEnqueueAudioClips(text: trimmed, config: config, messageID: messageID)
                 guard !Task.isCancelled else { return }
-                if clips.isEmpty {
-                    throw LLMError.invalidRequest(message: "No audio returned.")
-                }
 
                 await MainActor.run {
-                    self.queue = clips
-                    self.state = .playing(messageID: messageID)
-                    self.playNextClipIfNeeded()
+                    self.completeSynthesisIfCurrent(messageID: messageID)
                 }
             } catch {
                 guard !Task.isCancelled else { return }
                 await MainActor.run {
-                    self.state = .idle
-                    self.currentMessageID = nil
-                    self.queue = []
-                    self.currentErrorHandler?(error)
+                    self.failSynthesisIfCurrent(messageID: messageID, error: error)
                 }
             }
         }
@@ -110,6 +110,46 @@ final class TextToSpeechPlaybackManager: NSObject, ObservableObject {
         state == .playing(messageID: messageID)
     }
 
+    func isPaused(messageID: UUID) -> Bool {
+        state == .paused(messageID: messageID)
+    }
+
+    func isActive(messageID: UUID) -> Bool {
+        switch state {
+        case .generating(let id), .playing(let id), .paused(let id):
+            return id == messageID
+        case .idle:
+            return false
+        }
+    }
+
+    func pause(messageID: UUID) {
+        guard case .playing(let id) = state, id == messageID else { return }
+
+        if let player, player.isPlaying {
+            player.pause()
+        }
+
+        state = .paused(messageID: messageID)
+    }
+
+    func resume(messageID: UUID) {
+        guard case .paused(let id) = state, id == messageID else { return }
+
+        state = .playing(messageID: messageID)
+
+        if let player, !player.isPlaying {
+            player.play()
+        }
+
+        playNextClipIfNeeded()
+    }
+
+    func stop(messageID: UUID) {
+        guard isActive(messageID: messageID) else { return }
+        stop()
+    }
+
     func stop() {
         synthesisTask?.cancel()
         synthesisTask = nil
@@ -119,6 +159,123 @@ final class TextToSpeechPlaybackManager: NSObject, ObservableObject {
         queue = []
         currentMessageID = nil
         currentErrorHandler = nil
+        didFinishSynthesis = true
+        state = .idle
+    }
+
+    private func synthesizeAndEnqueueAudioClips(
+        text: String,
+        config: SynthesisConfig,
+        messageID: UUID
+    ) async throws {
+        switch config {
+        case .openai(let openAI):
+            let format = openAI.responseFormat.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            guard Self.supportedOpenAIPlaybackFormats.contains(format) else {
+                throw LLMError.invalidRequest(message: "OpenAI format “\(format)” is not playable in Jin. Choose mp3, wav, aac, flac, or pcm.")
+            }
+
+            let chunks = TextChunker.chunks(for: text, maxCharacters: 4096)
+            let client = OpenAIAudioClient(apiKey: openAI.apiKey, baseURL: openAI.baseURL)
+
+            for chunk in chunks {
+                try Task.checkCancellation()
+                let clip = try await client.createSpeech(
+                    input: chunk,
+                    model: openAI.model,
+                    voice: openAI.voice,
+                    responseFormat: format,
+                    speed: openAI.speed,
+                    instructions: openAI.instructions?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == true ? nil : openAI.instructions,
+                    streamFormat: nil
+                )
+                enqueueClipIfCurrent(
+                    wrappingOpenAIPCMIfNeeded(clip, responseFormat: format),
+                    messageID: messageID
+                )
+            }
+
+        case .groq(let groq):
+            let chunks = TextChunker.chunks(for: text, maxCharacters: 200)
+            let client = GroqAudioClient(apiKey: groq.apiKey, baseURL: groq.baseURL)
+
+            for chunk in chunks {
+                try Task.checkCancellation()
+                let clip = try await client.createSpeech(
+                    input: chunk,
+                    model: groq.model,
+                    voice: groq.voice,
+                    responseFormat: groq.responseFormat
+                )
+                enqueueClipIfCurrent(clip, messageID: messageID)
+            }
+
+        case .elevenlabs(let eleven):
+            let chunks = TextChunker.chunks(for: text, maxCharacters: 6000)
+            let client = ElevenLabsTTSClient(apiKey: eleven.apiKey, baseURL: eleven.baseURL)
+
+            for chunk in chunks {
+                try Task.checkCancellation()
+                let clip = try await client.createSpeech(
+                    text: chunk,
+                    voiceId: eleven.voiceId,
+                    modelId: eleven.modelId,
+                    outputFormat: eleven.outputFormat,
+                    optimizeStreamingLatency: eleven.optimizeStreamingLatency,
+                    enableLogging: eleven.enableLogging,
+                    voiceSettings: eleven.voiceSettings
+                )
+                enqueueClipIfCurrent(
+                    wrappingElevenLabsPCMIfNeeded(clip, outputFormat: eleven.outputFormat),
+                    messageID: messageID
+                )
+            }
+        }
+    }
+
+    private func enqueueClipIfCurrent(_ clip: Data, messageID: UUID) {
+        guard currentMessageID == messageID else { return }
+
+        queue.append(clip)
+
+        if case .generating(let id) = state, id == messageID {
+            state = .playing(messageID: messageID)
+        }
+
+        if case .playing(let id) = state, id == messageID {
+            playNextClipIfNeeded()
+        }
+    }
+
+    private func completeSynthesisIfCurrent(messageID: UUID) {
+        guard currentMessageID == messageID else { return }
+
+        synthesisTask = nil
+        didFinishSynthesis = true
+
+        if case .generating(let id) = state, id == messageID {
+            state = .playing(messageID: messageID)
+        }
+
+        if case .playing(let id) = state, id == messageID {
+            playNextClipIfNeeded()
+        }
+    }
+
+    private func failSynthesisIfCurrent(messageID: UUID, error: Error) {
+        guard currentMessageID == messageID else { return }
+
+        currentErrorHandler?(error)
+        stop()
+    }
+
+    private func finishPlaybackSession() {
+        synthesisTask = nil
+        player = nil
+        queue = []
+        currentMessageID = nil
+        currentErrorHandler = nil
+        didFinishSynthesis = true
         state = .idle
     }
 
@@ -129,12 +286,14 @@ final class TextToSpeechPlaybackManager: NSObject, ObservableObject {
             return
         }
 
+        if player != nil {
+            return
+        }
+
         guard !queue.isEmpty else {
-            // Done.
-            state = .idle
-            currentMessageID = nil
-            currentErrorHandler = nil
-            player = nil
+            if didFinishSynthesis {
+                finishPlaybackSession()
+            }
             return
         }
 
@@ -149,75 +308,6 @@ final class TextToSpeechPlaybackManager: NSObject, ObservableObject {
         } catch {
             currentErrorHandler?(error)
             stop()
-        }
-    }
-
-    private func synthesizeAudioClips(text: String, config: SynthesisConfig) async throws -> [Data] {
-        switch config {
-        case .openai(let openAI):
-            let format = openAI.responseFormat.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-            guard Self.supportedOpenAIPlaybackFormats.contains(format) else {
-                throw LLMError.invalidRequest(message: "OpenAI format “\(format)” is not playable in Jin. Choose mp3, wav, aac, flac, or pcm.")
-            }
-
-            let chunks = TextChunker.chunks(for: text, maxCharacters: 4096)
-            let client = OpenAIAudioClient(apiKey: openAI.apiKey, baseURL: openAI.baseURL)
-            var clips: [Data] = []
-            clips.reserveCapacity(chunks.count)
-
-            for chunk in chunks {
-                try Task.checkCancellation()
-                let clip = try await client.createSpeech(
-                    input: chunk,
-                    model: openAI.model,
-                    voice: openAI.voice,
-                    responseFormat: format,
-                    speed: openAI.speed,
-                    instructions: openAI.instructions?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == true ? nil : openAI.instructions,
-                    streamFormat: nil
-                )
-                clips.append(wrappingOpenAIPCMIfNeeded(clip, responseFormat: format))
-            }
-            return clips
-
-        case .groq(let groq):
-            let chunks = TextChunker.chunks(for: text, maxCharacters: 200)
-            let client = GroqAudioClient(apiKey: groq.apiKey, baseURL: groq.baseURL)
-            var clips: [Data] = []
-            clips.reserveCapacity(chunks.count)
-
-            for chunk in chunks {
-                try Task.checkCancellation()
-                let clip = try await client.createSpeech(
-                    input: chunk,
-                    model: groq.model,
-                    voice: groq.voice,
-                    responseFormat: groq.responseFormat
-                )
-                clips.append(clip)
-            }
-            return clips
-
-        case .elevenlabs(let eleven):
-            let chunks = TextChunker.chunks(for: text, maxCharacters: 6000)
-            let client = ElevenLabsTTSClient(apiKey: eleven.apiKey, baseURL: eleven.baseURL)
-            var clips: [Data] = []
-            clips.reserveCapacity(chunks.count)
-
-            for chunk in chunks {
-                try Task.checkCancellation()
-                let clip = try await client.createSpeech(
-                    text: chunk,
-                    voiceId: eleven.voiceId,
-                    modelId: eleven.modelId,
-                    outputFormat: eleven.outputFormat,
-                    optimizeStreamingLatency: eleven.optimizeStreamingLatency,
-                    enableLogging: eleven.enableLogging,
-                    voiceSettings: eleven.voiceSettings
-                )
-                clips.append(wrappingElevenLabsPCMIfNeeded(clip, outputFormat: eleven.outputFormat))
-            }
-            return clips
         }
     }
 
@@ -302,12 +392,18 @@ private extension Data {
 extension TextToSpeechPlaybackManager: AVAudioPlayerDelegate {
     nonisolated func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
         Task { @MainActor in
+            if self.player === player {
+                self.player = nil
+            }
             playNextClipIfNeeded()
         }
     }
 
     nonisolated func audioPlayerDecodeErrorDidOccur(_ player: AVAudioPlayer, error: (any Error)?) {
         Task { @MainActor in
+            if self.player === player {
+                self.player = nil
+            }
             let err = error ?? LLMError.providerError(code: "audio_decode_error", message: "Failed to decode audio.")
             currentErrorHandler?(err)
             stop()

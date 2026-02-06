@@ -348,8 +348,12 @@ struct ChatView: View {
                                     textToSpeechConfigured: textToSpeechConfigured,
                                     textToSpeechIsGenerating: ttsPlaybackManager.isGenerating(messageID: message.id),
                                     textToSpeechIsPlaying: ttsPlaybackManager.isPlaying(messageID: message.id),
+                                    textToSpeechIsPaused: ttsPlaybackManager.isPaused(messageID: message.id),
                                     onToggleSpeakAssistantMessage: { entity, text in
                                         toggleSpeakAssistantMessage(entity, text: text)
+                                    },
+                                    onStopSpeakAssistantMessage: { entity in
+                                        stopSpeakAssistantMessage(entity)
                                     },
                                     onRegenerate: { target in
                                         regenerateMessage(target)
@@ -3298,6 +3302,10 @@ struct ChatView: View {
         }
     }
 
+    private func stopSpeakAssistantMessage(_ messageEntity: MessageEntity) {
+        ttsPlaybackManager.stop(messageID: messageEntity.id)
+    }
+
     private func textToSpeechErrorMessage(_ error: Error, provider: TextToSpeechProvider) -> String {
         if let llmError = error as? LLMError, case .authenticationFailed = llmError {
             switch provider {
@@ -3659,7 +3667,9 @@ struct MessageRow: View {
     let textToSpeechConfigured: Bool
     let textToSpeechIsGenerating: Bool
     let textToSpeechIsPlaying: Bool
+    let textToSpeechIsPaused: Bool
     let onToggleSpeakAssistantMessage: (MessageEntity, String) -> Void
+    let onStopSpeakAssistantMessage: (MessageEntity) -> Void
     let onRegenerate: (MessageEntity) -> Void
     let onEditUserMessage: (MessageEntity) -> Void
     let editingUserMessageID: UUID?
@@ -3815,7 +3825,7 @@ struct MessageRow: View {
                                 .controlSize(.small)
                                 .frame(width: 20, height: 20)
                         } else {
-                            Image(systemName: textToSpeechIsPlaying ? "stop.circle" : "speaker.wave.2")
+                            Image(systemName: textToSpeechPrimarySystemName)
                                 .font(.system(size: 12, weight: .semibold))
                                 .foregroundStyle(.secondary)
                                 .frame(width: 20, height: 20)
@@ -3824,6 +3834,13 @@ struct MessageRow: View {
                     .buttonStyle(.plain)
                     .help(textToSpeechHelpText)
                     .disabled(!actionsEnabled || copyText.isEmpty || !textToSpeechConfigured)
+
+                    if textToSpeechIsActive {
+                        actionIconButton(systemName: "stop.circle", helpText: textToSpeechStopHelpText) {
+                            onStopSpeakAssistantMessage(messageEntity)
+                        }
+                        .disabled(!actionsEnabled)
+                    }
 
                     actionIconButton(systemName: "arrow.clockwise", helpText: "Regenerate") {
                         onRegenerate(messageEntity)
@@ -3886,6 +3903,20 @@ struct MessageRow: View {
         .help(helpText)
     }
 
+    private var textToSpeechIsActive: Bool {
+        textToSpeechIsGenerating || textToSpeechIsPlaying || textToSpeechIsPaused
+    }
+
+    private var textToSpeechPrimarySystemName: String {
+        if textToSpeechIsPlaying {
+            return "pause.circle"
+        }
+        if textToSpeechIsPaused {
+            return "play.circle"
+        }
+        return "speaker.wave.2"
+    }
+
     private var textToSpeechHelpText: String {
         if !textToSpeechConfigured {
             return "Configure Text to Speech in Settings → Plugins → Text to Speech"
@@ -3894,9 +3925,19 @@ struct MessageRow: View {
             return "Generating speech…"
         }
         if textToSpeechIsPlaying {
-            return "Stop playback"
+            return "Pause playback"
+        }
+        if textToSpeechIsPaused {
+            return "Resume playback"
         }
         return "Speak"
+    }
+
+    private var textToSpeechStopHelpText: String {
+        if textToSpeechIsGenerating {
+            return "Stop generating speech"
+        }
+        return "Stop playback"
     }
 
     private func formattedTimestamp(_ timestamp: Date) -> String {
