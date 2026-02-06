@@ -12,6 +12,12 @@ enum AppPreferenceKeys {
 
     // MARK: - Extensions
 
+    // Plugin visibility toggles (default: true)
+    static let pluginTextToSpeechEnabled = "pluginTextToSpeechEnabled"
+    static let pluginSpeechToTextEnabled = "pluginSpeechToTextEnabled"
+    static let pluginMistralOCREnabled = "pluginMistralOCREnabled"
+    static let pluginDeepSeekOCREnabled = "pluginDeepSeekOCREnabled"
+
     // Text to Speech
     static let ttsProvider = "ttsProvider"
 
@@ -90,6 +96,34 @@ enum NewChatMCPMode: String, CaseIterable, Identifiable {
 }
 
 enum AppPreferences {
+    static func pluginEnabledPreferenceKey(for pluginID: String) -> String? {
+        switch pluginID {
+        case "text_to_speech":
+            return AppPreferenceKeys.pluginTextToSpeechEnabled
+        case "speech_to_text":
+            return AppPreferenceKeys.pluginSpeechToTextEnabled
+        case "mistral_ocr":
+            return AppPreferenceKeys.pluginMistralOCREnabled
+        case "deepseek_ocr":
+            return AppPreferenceKeys.pluginDeepSeekOCREnabled
+        default:
+            return nil
+        }
+    }
+
+    static func isPluginEnabled(_ pluginID: String, defaults: UserDefaults = .standard) -> Bool {
+        guard let key = pluginEnabledPreferenceKey(for: pluginID) else { return true }
+        if let value = defaults.object(forKey: key) as? Bool {
+            return value
+        }
+        return true
+    }
+
+    static func setPluginEnabled(_ enabled: Bool, for pluginID: String, defaults: UserDefaults = .standard) {
+        guard let key = pluginEnabledPreferenceKey(for: pluginID) else { return }
+        defaults.set(enabled, forKey: key)
+    }
+
     static func decodeStringArrayJSON(_ value: String) -> [String] {
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, let data = trimmed.data(using: .utf8) else { return [] }

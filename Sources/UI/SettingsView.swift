@@ -69,10 +69,7 @@ struct SettingsView: View {
     @State private var showingDeleteServerConfirmation = false
     @State private var operationErrorMessage: String?
     @State private var showingOperationError = false
-    @State private var mistralOCRConfigured = false
-    @State private var deepSeekOCRConfigured = false
-    @State private var textToSpeechConfigured = false
-    @State private var speechToTextConfigured = false
+    @State private var pluginEnabledByID: [String: Bool] = [:]
 
     // Queries for lists
     @Query(sort: \ProviderConfigEntity.name) private var providers: [ProviderConfigEntity]
@@ -256,52 +253,13 @@ struct SettingsView: View {
     }
 
     private func refreshPluginStatus() async {
-        let keychainManager = KeychainManager()
-        let mistralConfigured = await keychainManager.hasAPIKey(for: MistralOCRClient.Constants.keychainID)
-        let deepSeekConfigured = await keychainManager.hasAPIKey(for: DeepInfraDeepSeekOCRClient.Constants.keychainID)
-
-        let ttsProvider = TextToSpeechProvider(rawValue: UserDefaults.standard.string(forKey: AppPreferenceKeys.ttsProvider) ?? TextToSpeechProvider.openai.rawValue)
-            ?? .openai
-        let sttProvider = SpeechToTextProvider(rawValue: UserDefaults.standard.string(forKey: AppPreferenceKeys.sttProvider) ?? SpeechToTextProvider.groq.rawValue)
-            ?? .groq
-
-        let ttsKeychainID: String = {
-            switch ttsProvider {
-            case .elevenlabs:
-                return ElevenLabsTTSClient.Constants.keychainID
-            case .openai:
-                return OpenAIAudioClient.Constants.keychainID
-            case .groq:
-                return GroqAudioClient.Constants.keychainID
-            }
-        }()
-
-        let sttKeychainID: String = {
-            switch sttProvider {
-            case .openai:
-                return OpenAIAudioClient.Constants.keychainID
-            case .groq:
-                return GroqAudioClient.Constants.keychainID
-            }
-        }()
-
-        let ttsKeyConfigured = await keychainManager.hasAPIKey(for: ttsKeychainID)
-        let sttConfigured = await keychainManager.hasAPIKey(for: sttKeychainID)
-
-        let ttsConfigured: Bool
-        if ttsProvider == .elevenlabs {
-            let voiceID = (UserDefaults.standard.string(forKey: AppPreferenceKeys.ttsElevenLabsVoiceID) ?? "")
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            ttsConfigured = ttsKeyConfigured && !voiceID.isEmpty
-        } else {
-            ttsConfigured = ttsKeyConfigured
-        }
+        let defaults = UserDefaults.standard
+        let pluginEnabled = Dictionary(uniqueKeysWithValues: Self.availablePlugins.map { plugin in
+            (plugin.id, AppPreferences.isPluginEnabled(plugin.id, defaults: defaults))
+        })
 
         await MainActor.run {
-            mistralOCRConfigured = mistralConfigured
-            deepSeekOCRConfigured = deepSeekConfigured
-            textToSpeechConfigured = ttsConfigured
-            speechToTextConfigured = sttConfigured
+            pluginEnabledByID = pluginEnabled
         }
     }
 
@@ -349,31 +307,35 @@ struct SettingsView: View {
     // MARK: - Plugins List
     private var pluginsList: some View {
         List(filteredPlugins, selection: $selectedPluginID) { plugin in
-            NavigationLink(value: plugin.id) {
-                HStack(spacing: 10) {
-                    Circle()
-                        .fill(isPluginConfigured(plugin.id) ? Color.green : Color.gray)
-                        .frame(width: 8, height: 8)
-                        .frame(width: 20)
+            HStack(spacing: 10) {
+                Image(systemName: plugin.systemImage)
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 16)
 
-                    Image(systemName: plugin.systemImage)
-                        .font(.system(size: 16))
-                        .foregroundColor(.secondary)
-                        .frame(width: 20)
+                Text(plugin.name)
+                    .font(.system(.body, design: .default))
+                    .fontWeight(.medium)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
 
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(plugin.name)
-                            .font(.system(.body, design: .default))
-                            .fontWeight(.medium)
-                        Text(plugin.summary)
-                            .font(.system(.caption, design: .default))
-                            .foregroundColor(.secondary)
-                            .lineLimit(1)
-                    }
-                    Spacer()
-                }
-                .padding(.vertical, 4)
+                Spacer(minLength: 8)
+
+                Toggle("", isOn: pluginEnabledBinding(for: plugin.id))
+                    .labelsHidden()
+                    .toggleStyle(.switch)
+                    .controlSize(.mini)
+                    .frame(width: 38, alignment: .trailing)
+                    .help(isPluginEnabled(plugin.id) ? "Disable plugin" : "Enable plugin")
             }
+            .padding(.vertical, 4)
+            .contentShape(Rectangle())
+            .help(plugin.summary)
+            .onTapGesture {
+                selectedPluginID = plugin.id
+            }
+            .tag(plugin.id)
         }
         .listStyle(.inset)
         .overlay {
@@ -383,19 +345,22 @@ struct SettingsView: View {
         }
     }
 
-    private func isPluginConfigured(_ pluginID: String) -> Bool {
-        switch pluginID {
-        case "mistral_ocr":
-            return mistralOCRConfigured
-        case "deepseek_ocr":
-            return deepSeekOCRConfigured
-        case "text_to_speech":
-            return textToSpeechConfigured
-        case "speech_to_text":
-            return speechToTextConfigured
-        default:
-            return false
+    private func isPluginEnabled(_ pluginID: String) -> Bool {
+        if let cached = pluginEnabledByID[pluginID] {
+            return cached
         }
+        return AppPreferences.isPluginEnabled(pluginID)
+    }
+
+    private func pluginEnabledBinding(for pluginID: String) -> Binding<Bool> {
+        Binding(
+            get: { isPluginEnabled(pluginID) },
+            set: { isEnabled in
+                AppPreferences.setPluginEnabled(isEnabled, for: pluginID)
+                pluginEnabledByID[pluginID] = isEnabled
+                NotificationCenter.default.post(name: .pluginCredentialsDidChange, object: nil)
+            }
+        )
     }
 
     private var providersListWithActions: some View {

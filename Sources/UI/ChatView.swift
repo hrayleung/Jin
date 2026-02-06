@@ -51,6 +51,10 @@ struct ChatView: View {
     @State private var deepSeekOCRConfigured = false
     @State private var textToSpeechConfigured = false
     @State private var speechToTextConfigured = false
+    @State private var mistralOCRPluginEnabled = true
+    @State private var deepSeekOCRPluginEnabled = true
+    @State private var textToSpeechPluginEnabled = true
+    @State private var speechToTextPluginEnabled = true
     @State private var isPreparingToSend = false
     @State private var prepareToSendStatus: String?
     @State private var prepareToSendTask: Task<Void, Never>?
@@ -164,17 +168,19 @@ struct ChatView: View {
     @ViewBuilder
     private var composerControlsRow: some View {
         HStack(spacing: 6) {
-            Button { toggleSpeechToText() } label: {
-                controlIconLabel(
-                    systemName: speechToTextSystemImageName,
-                    isActive: speechToTextManagerActive,
-                    badgeText: speechToTextBadgeText,
-                    activeColor: speechToTextActiveColor
-                )
+            if speechToTextPluginEnabled || speechToTextManagerActive {
+                Button { toggleSpeechToText() } label: {
+                    controlIconLabel(
+                        systemName: speechToTextSystemImageName,
+                        isActive: speechToTextManagerActive,
+                        badgeText: speechToTextBadgeText,
+                        activeColor: speechToTextActiveColor
+                    )
+                }
+                .buttonStyle(.plain)
+                .help(speechToTextHelpText)
+                .disabled(isBusy || speechToTextManager.isTranscribing || (!speechToTextConfigured && !speechToTextManager.isRecording))
             }
-            .buttonStyle(.plain)
-            .help(speechToTextHelpText)
-            .disabled(isBusy || speechToTextManager.isTranscribing || (!speechToTextConfigured && !speechToTextManager.isRecording))
 
             Button { isFileImporterPresented = true } label: {
                 controlIconLabel(
@@ -345,6 +351,7 @@ struct ChatView: View {
                                     conversationModelLabel: conversationModelLabel,
                                     toolResultsByCallID: toolResultsByCallID,
                                     actionsEnabled: !isStreaming,
+                                    textToSpeechEnabled: textToSpeechPluginEnabled,
                                     textToSpeechConfigured: textToSpeechConfigured,
                                     textToSpeechIsGenerating: ttsPlaybackManager.isGenerating(messageID: message.id),
                                     textToSpeechIsPlaying: ttsPlaybackManager.isPlaying(messageID: message.id),
@@ -707,6 +714,7 @@ struct ChatView: View {
     private var speechToTextHelpText: String {
         if speechToTextManager.isTranscribing { return "Transcribing…" }
         if speechToTextManager.isRecording { return "Stop recording" }
+        if !speechToTextPluginEnabled { return "Speech to Text is turned off in Settings → Plugins" }
         if !speechToTextConfigured { return "Configure Speech to Text in Settings → Plugins → Speech to Text" }
         return "Start recording"
     }
@@ -736,6 +744,8 @@ struct ChatView: View {
                     }
                     return
                 }
+
+                guard speechToTextPluginEnabled else { return }
 
                 _ = try await currentSpeechToTextTranscriptionConfig() // Validate configured
                 try await speechToTextManager.startRecording()
@@ -1311,7 +1321,22 @@ struct ChatView: View {
     }
 
     private var resolvedPDFProcessingMode: PDFProcessingMode {
-        controls.pdfProcessingMode ?? .native
+        let requested = controls.pdfProcessingMode ?? .native
+        if isPDFProcessingModeAvailable(requested) {
+            return requested
+        }
+        return supportsNativePDF ? .native : .macOSExtract
+    }
+
+    private func isPDFProcessingModeAvailable(_ mode: PDFProcessingMode) -> Bool {
+        switch mode {
+        case .native, .macOSExtract:
+            return true
+        case .mistralOCR:
+            return mistralOCRPluginEnabled
+        case .deepSeekOCR:
+            return deepSeekOCRPluginEnabled
+        }
     }
 
     private var isNativePDFModeMisconfigured: Bool {
@@ -1499,6 +1524,7 @@ struct ChatView: View {
     }
 
     private func setPDFProcessingMode(_ mode: PDFProcessingMode) {
+        guard isPDFProcessingModeAvailable(mode) else { return }
         controls.pdfProcessingMode = (mode == .native) ? nil : mode
         persistControlsToConversation()
     }
@@ -1506,8 +1532,15 @@ struct ChatView: View {
     @ViewBuilder
     private var pdfProcessingMenuContent: some View {
         Button { setPDFProcessingMode(.native) } label: { menuItemLabel("Native (if supported)", isSelected: resolvedPDFProcessingMode == .native) }
-        Button { setPDFProcessingMode(.mistralOCR) } label: { menuItemLabel("Mistral OCR", isSelected: resolvedPDFProcessingMode == .mistralOCR) }
-        Button { setPDFProcessingMode(.deepSeekOCR) } label: { menuItemLabel("DeepSeek OCR (DeepInfra)", isSelected: resolvedPDFProcessingMode == .deepSeekOCR) }
+
+        if mistralOCRPluginEnabled {
+            Button { setPDFProcessingMode(.mistralOCR) } label: { menuItemLabel("Mistral OCR", isSelected: resolvedPDFProcessingMode == .mistralOCR) }
+        }
+
+        if deepSeekOCRPluginEnabled {
+            Button { setPDFProcessingMode(.deepSeekOCR) } label: { menuItemLabel("DeepSeek OCR (DeepInfra)", isSelected: resolvedPDFProcessingMode == .deepSeekOCR) }
+        }
+
         Button { setPDFProcessingMode(.macOSExtract) } label: { menuItemLabel("macOS Extract", isSelected: resolvedPDFProcessingMode == .macOSExtract) }
 
         if resolvedPDFProcessingMode == .mistralOCR, !mistralOCRConfigured {
@@ -1524,9 +1557,14 @@ struct ChatView: View {
                 .foregroundStyle(.secondary)
         }
 
-        if resolvedPDFProcessingMode == .native, !supportsNativePDF {
+        if !mistralOCRPluginEnabled && !deepSeekOCRPluginEnabled {
             Divider()
-            Text("Model doesn't support native PDF. Select Mistral OCR, DeepSeek OCR (DeepInfra), or macOS Extract.")
+            Text("OCR plugins are turned off. Enable them in Settings → Plugins to show OCR modes.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        } else if resolvedPDFProcessingMode == .native, !supportsNativePDF {
+            Divider()
+            Text("Model doesn't support native PDF. Select OCR or macOS Extract.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
@@ -3140,13 +3178,14 @@ struct ChatView: View {
 
     private func refreshExtensionCredentialsStatus() async {
         let keychainManager = KeychainManager()
+        let defaults = UserDefaults.standard
 
         let mistralConfigured = await keychainManager.hasAPIKey(for: MistralOCRClient.Constants.keychainID)
         let deepSeekConfigured = await keychainManager.hasAPIKey(for: DeepInfraDeepSeekOCRClient.Constants.keychainID)
 
-        let ttsProvider = TextToSpeechProvider(rawValue: UserDefaults.standard.string(forKey: AppPreferenceKeys.ttsProvider) ?? TextToSpeechProvider.openai.rawValue)
+        let ttsProvider = TextToSpeechProvider(rawValue: defaults.string(forKey: AppPreferenceKeys.ttsProvider) ?? TextToSpeechProvider.openai.rawValue)
             ?? .openai
-        let sttProvider = SpeechToTextProvider(rawValue: UserDefaults.standard.string(forKey: AppPreferenceKeys.sttProvider) ?? SpeechToTextProvider.groq.rawValue)
+        let sttProvider = SpeechToTextProvider(rawValue: defaults.string(forKey: AppPreferenceKeys.sttProvider) ?? SpeechToTextProvider.groq.rawValue)
             ?? .groq
 
         let ttsKeychainID: String = {
@@ -3174,18 +3213,35 @@ struct ChatView: View {
 
         let ttsConfigured: Bool
         if ttsProvider == .elevenlabs {
-            let voiceID = (UserDefaults.standard.string(forKey: AppPreferenceKeys.ttsElevenLabsVoiceID) ?? "")
+            let voiceID = (defaults.string(forKey: AppPreferenceKeys.ttsElevenLabsVoiceID) ?? "")
                 .trimmingCharacters(in: .whitespacesAndNewlines)
             ttsConfigured = ttsKeyConfigured && !voiceID.isEmpty
         } else {
             ttsConfigured = ttsKeyConfigured
         }
 
+        let mistralEnabled = AppPreferences.isPluginEnabled("mistral_ocr", defaults: defaults)
+        let deepSeekEnabled = AppPreferences.isPluginEnabled("deepseek_ocr", defaults: defaults)
+        let ttsEnabled = AppPreferences.isPluginEnabled("text_to_speech", defaults: defaults)
+        let sttEnabled = AppPreferences.isPluginEnabled("speech_to_text", defaults: defaults)
+
         await MainActor.run {
             mistralOCRConfigured = mistralConfigured
             deepSeekOCRConfigured = deepSeekConfigured
             textToSpeechConfigured = ttsConfigured
             speechToTextConfigured = sttConfigured
+
+            mistralOCRPluginEnabled = mistralEnabled
+            deepSeekOCRPluginEnabled = deepSeekEnabled
+            textToSpeechPluginEnabled = ttsEnabled
+            speechToTextPluginEnabled = sttEnabled
+
+            if !ttsEnabled {
+                ttsPlaybackManager.stop()
+            }
+            if !sttEnabled {
+                speechToTextManager.cancelAndCleanup()
+            }
         }
     }
 
@@ -3280,6 +3336,8 @@ struct ChatView: View {
 
     private func toggleSpeakAssistantMessage(_ messageEntity: MessageEntity, text: String) {
         Task { @MainActor in
+            guard textToSpeechPluginEnabled else { return }
+
             let defaults = UserDefaults.standard
             let provider = TextToSpeechProvider(rawValue: defaults.string(forKey: AppPreferenceKeys.ttsProvider) ?? TextToSpeechProvider.openai.rawValue)
                 ?? .openai
@@ -3664,6 +3722,7 @@ struct MessageRow: View {
     let conversationModelLabel: String
     let toolResultsByCallID: [String: ToolResult]
     let actionsEnabled: Bool
+    let textToSpeechEnabled: Bool
     let textToSpeechConfigured: Bool
     let textToSpeechIsGenerating: Bool
     let textToSpeechIsPlaying: Bool
@@ -3817,29 +3876,31 @@ struct MessageRow: View {
                             .disabled(!actionsEnabled)
                     }
 
-                    Button {
-                        onToggleSpeakAssistantMessage(messageEntity, copyText)
-                    } label: {
-                        if textToSpeechIsGenerating {
-                            ProgressView()
-                                .controlSize(.small)
-                                .frame(width: 20, height: 20)
-                        } else {
-                            Image(systemName: textToSpeechPrimarySystemName)
-                                .font(.system(size: 12, weight: .semibold))
-                                .foregroundStyle(.secondary)
-                                .frame(width: 20, height: 20)
+                    if textToSpeechEnabled {
+                        Button {
+                            onToggleSpeakAssistantMessage(messageEntity, copyText)
+                        } label: {
+                            if textToSpeechIsGenerating {
+                                ProgressView()
+                                    .controlSize(.small)
+                                    .frame(width: 20, height: 20)
+                            } else {
+                                Image(systemName: textToSpeechPrimarySystemName)
+                                    .font(.system(size: 12, weight: .semibold))
+                                    .foregroundStyle(.secondary)
+                                    .frame(width: 20, height: 20)
+                            }
                         }
-                    }
-                    .buttonStyle(.plain)
-                    .help(textToSpeechHelpText)
-                    .disabled(!actionsEnabled || copyText.isEmpty || !textToSpeechConfigured)
+                        .buttonStyle(.plain)
+                        .help(textToSpeechHelpText)
+                        .disabled(!actionsEnabled || copyText.isEmpty || !textToSpeechConfigured)
 
-                    if textToSpeechIsActive {
-                        actionIconButton(systemName: "stop.circle", helpText: textToSpeechStopHelpText) {
-                            onStopSpeakAssistantMessage(messageEntity)
+                        if textToSpeechIsActive {
+                            actionIconButton(systemName: "stop.circle", helpText: textToSpeechStopHelpText) {
+                                onStopSpeakAssistantMessage(messageEntity)
+                            }
+                            .disabled(!actionsEnabled)
                         }
-                        .disabled(!actionsEnabled)
                     }
 
                     actionIconButton(systemName: "arrow.clockwise", helpText: "Regenerate") {
