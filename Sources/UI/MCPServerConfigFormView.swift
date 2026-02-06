@@ -44,14 +44,12 @@ struct MCPServerConfigFormView: View {
 
                 if shouldShowNodeIsolationNote {
                     Text("Note: For Node-based launchers (e.g. `npx`), Jin runs the process with an isolated npm HOME/cache under Application Support to avoid `~/.npmrc`/permission issues. Override by setting `HOME` or `NPM_CONFIG_USERCONFIG` in Environment variables.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .jinInfoCallout()
                 }
 
                 if isFirecrawlMCP && !hasFirecrawlAPIKey {
                     Text("Firecrawl MCP requires `FIRECRAWL_API_KEY` in Environment variables (otherwise the server may never respond to `initialize`).")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .jinInfoCallout()
                 }
 
                 if let argsError {
@@ -97,6 +95,8 @@ struct MCPServerConfigFormView: View {
                             .font(.system(.caption, design: .monospaced))
                             .foregroundStyle(.red)
                             .textSelection(.enabled)
+                            .padding(JinSpacing.small)
+                            .jinSurface(.subtleStrong, cornerRadius: JinRadius.small)
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
 
@@ -133,6 +133,8 @@ struct MCPServerConfigFormView: View {
         }
         .formStyle(.grouped)
         .padding()
+        .scrollContentBackground(.hidden)
+        .background(JinSemanticColor.detailSurface)
         .task {
             loadArgs()
             loadEnv()
@@ -158,16 +160,19 @@ struct MCPServerConfigFormView: View {
                             .font(.system(.caption, design: .monospaced))
                             .foregroundStyle(.secondary)
                             .textSelection(.enabled)
-                            .padding(12)
+                            .padding(JinSpacing.medium)
+                            .jinSurface(.raised, cornerRadius: JinRadius.medium)
                             .frame(maxWidth: .infinity, alignment: .leading)
                     } else {
                         Text("No schema available.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
-                            .padding(12)
+                            .padding(JinSpacing.medium)
+                            .jinSurface(.raised, cornerRadius: JinRadius.medium)
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
                 }
+                .background(JinSemanticColor.detailSurface)
                 .navigationTitle(tool.name)
                 .toolbar {
                     ToolbarItem(placement: .primaryAction) {
@@ -261,7 +266,7 @@ private struct MCPToolCardView: View {
     let viewSchema: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: JinSpacing.small) {
             Text(tool.name)
                 .font(.headline)
 
@@ -281,13 +286,8 @@ private struct MCPToolCardView: View {
             Toggle("Enable", isOn: $isEnabled)
                 .toggleStyle(.checkbox)
         }
-        .padding(12)
+        .padding(JinSpacing.medium)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(nsColor: .controlBackgroundColor))
-        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .stroke(Color(nsColor: .separatorColor), lineWidth: 0.5)
-        )
+        .jinSurface(.raised, cornerRadius: JinRadius.medium)
     }
 }

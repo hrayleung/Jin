@@ -5,22 +5,35 @@ struct CopyToPasteboardButton: View {
     let text: String
     var helpText: String = "Copy"
     var copiedHelpText: String = "Copied"
+    var useProminentStyle: Bool = true
 
     @State private var didCopy = false
     @State private var resetTask: Task<Void, Never>?
 
     var body: some View {
+        Group {
+            if useProminentStyle {
+                baseButton
+                    .buttonStyle(JinIconButtonStyle())
+            } else {
+                baseButton
+                    .buttonStyle(.plain)
+            }
+        }
+        .help(didCopy ? copiedHelpText : helpText)
+        // Avoid allocating a trimmed copy of large strings just to check emptiness.
+        .disabled(text.rangeOfCharacter(from: CharacterSet.whitespacesAndNewlines.inverted) == nil)
+    }
+
+    private var baseButton: some View {
         Button {
             copyToPasteboard()
         } label: {
             Image(systemName: didCopy ? "checkmark" : "doc.on.doc")
                 .font(.system(size: JinControlMetrics.iconButtonGlyphSize, weight: .semibold))
                 .foregroundStyle(.secondary)
+                .frame(width: 20, height: 20)
         }
-        .buttonStyle(JinIconButtonStyle())
-        .help(didCopy ? copiedHelpText : helpText)
-        // Avoid allocating a trimmed copy of large strings just to check emptiness.
-        .disabled(text.rangeOfCharacter(from: CharacterSet.whitespacesAndNewlines.inverted) == nil)
     }
 
     @MainActor

@@ -31,6 +31,13 @@ struct SettingsView: View {
         let summary: String
     }
 
+    private struct GeneralSidebarHint: Identifiable {
+        let id = UUID()
+        let title: String
+        let subtitle: String
+        let systemImage: String
+    }
+
     private static let availablePlugins: [PluginDescriptor] = [
         PluginDescriptor(
             id: "text_to_speech",
@@ -55,6 +62,24 @@ struct SettingsView: View {
             name: "DeepSeek OCR (DeepInfra)",
             systemImage: "doc.text.magnifyingglass",
             summary: "OCR PDFs via DeepInfra-hosted DeepSeek-OCR."
+        )
+    ]
+
+    private static let generalSidebarHints: [GeneralSidebarHint] = [
+        GeneralSidebarHint(
+            title: "Model defaults",
+            subtitle: "Control provider/model used by new chats.",
+            systemImage: "sparkles"
+        ),
+        GeneralSidebarHint(
+            title: "MCP defaults",
+            subtitle: "Set MCP behavior for newly created chats.",
+            systemImage: "server.rack"
+        ),
+        GeneralSidebarHint(
+            title: "Local data",
+            subtitle: "Inspect and manage on-device chat data.",
+            systemImage: "externaldrive"
         )
     ]
 
@@ -126,7 +151,18 @@ struct SettingsView: View {
                 }
             }
             .listStyle(.sidebar)
-            .navigationSplitViewColumnWidth(min: 160, ideal: 180, max: 200)
+            .navigationTitle("")
+            .scrollContentBackground(.hidden)
+            .background {
+                JinSemanticColor.sidebarSurface
+                    .ignoresSafeArea()
+            }
+            .overlay(alignment: .trailing) {
+                Rectangle()
+                    .fill(JinSemanticColor.separator.opacity(0.45))
+                    .frame(width: JinStrokeWidth.hairline)
+            }
+            .navigationSplitViewColumnWidth(min: 170, ideal: 190, max: 220)
             .searchable(text: $searchText, placement: .sidebar, prompt: "Search settings")
 
         } content: {
@@ -140,19 +176,24 @@ struct SettingsView: View {
                 case .plugins:
                     pluginsList
                 case .general, .none:
-                    Text("General")
-                        .font(.headline)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding()
-                    Spacer()
+                    generalContextList
                 }
             }
-            .navigationSplitViewColumnWidth(min: 200, ideal: 230, max: 260)
+            .background {
+                JinSemanticColor.panelSurface
+                    .ignoresSafeArea()
+            }
+            .overlay(alignment: .trailing) {
+                Rectangle()
+                    .fill(JinSemanticColor.separator.opacity(0.4))
+                    .frame(width: JinStrokeWidth.hairline)
+            }
+            .navigationSplitViewColumnWidth(min: 220, ideal: 250, max: 300)
 
         } detail: {
             // Column 3: Configuration / Detail
             ZStack {
-                JinSemanticColor.surface
+                JinSemanticColor.detailSurface
                     .ignoresSafeArea()
                 
                 switch selectedSection {
@@ -190,10 +231,10 @@ struct SettingsView: View {
                     GeneralSettingsView()
                 }
             }
-            .navigationSplitViewColumnWidth(min: 520, ideal: 640)
+            .navigationSplitViewColumnWidth(min: 500, ideal: 640)
         }
-        .navigationSplitViewStyle(.prominentDetail)
-        .frame(minWidth: 920, minHeight: 600)
+        .navigationSplitViewStyle(.balanced)
+        .frame(minWidth: 900, minHeight: 620)
         .sheet(isPresented: $showingAddProvider) {
             AddProviderView()
         }
@@ -267,11 +308,12 @@ struct SettingsView: View {
     private var providersList: some View {
         List(filteredProviders, selection: $selectedProviderID) { provider in
             NavigationLink(value: provider.id) {
-                HStack(spacing: 10) {
+                HStack(spacing: JinSpacing.small + 2) {
                     Image(systemName: "network")
-                        .font(.system(size: 16))
+                        .font(.system(size: 14, weight: .semibold))
                         .foregroundColor(.secondary)
-                        .frame(width: 20)
+                        .frame(width: 20, height: 20)
+                        .jinSurface(.subtle, cornerRadius: JinRadius.small)
 
                     VStack(alignment: .leading, spacing: 2) {
                         Text(provider.name)
@@ -283,7 +325,7 @@ struct SettingsView: View {
                     }
                     Spacer()
                 }
-                .padding(.vertical, 4)
+                .padding(.vertical, JinSpacing.xSmall)
             }
             .contextMenu {
                 Button(role: .destructive) {
@@ -294,6 +336,8 @@ struct SettingsView: View {
             }
         }
         .listStyle(.inset)
+        .scrollContentBackground(.hidden)
+        .background(JinSemanticColor.panelSurface)
         .onDeleteCommand {
             requestDeleteSelectedProvider()
         }
@@ -304,6 +348,35 @@ struct SettingsView: View {
         }
     }
 
+    private var generalContextList: some View {
+        List(Self.generalSidebarHints) { hint in
+            HStack(spacing: JinSpacing.small + 2) {
+                Image(systemName: hint.systemImage)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 20, height: 20)
+                    .jinSurface(.subtle, cornerRadius: JinRadius.small)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(hint.title)
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                        .lineLimit(1)
+                    Text(hint.subtitle)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                }
+            }
+            .padding(.vertical, JinSpacing.xSmall)
+            .contentShape(Rectangle())
+            .accessibilityElement(children: .combine)
+        }
+        .listStyle(.inset)
+        .scrollContentBackground(.hidden)
+        .background(JinSemanticColor.panelSurface)
+    }
+
     // MARK: - Plugins List
     private var pluginsList: some View {
         List(filteredPlugins, selection: $selectedPluginID) { plugin in
@@ -311,14 +384,21 @@ struct SettingsView: View {
                 Image(systemName: plugin.systemImage)
                     .font(.system(size: 14, weight: .medium))
                     .foregroundStyle(.secondary)
-                    .frame(width: 16)
+                    .frame(width: 20, height: 20)
+                    .jinSurface(.subtle, cornerRadius: JinRadius.small)
 
-                Text(plugin.name)
-                    .font(.system(.body, design: .default))
-                    .fontWeight(.medium)
-                    .lineLimit(2)
-                    .multilineTextAlignment(.leading)
-                    .fixedSize(horizontal: false, vertical: true)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(plugin.name)
+                        .font(.system(.body, design: .default))
+                        .fontWeight(.medium)
+                        .lineLimit(1)
+
+                    Text(plugin.summary)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
 
                 Spacer(minLength: JinSpacing.small)
 
@@ -338,6 +418,8 @@ struct SettingsView: View {
             .tag(plugin.id)
         }
         .listStyle(.inset)
+        .scrollContentBackground(.hidden)
+        .background(JinSemanticColor.panelSurface)
         .overlay {
             if !trimmedSearchText.isEmpty, filteredPlugins.isEmpty {
                 ContentUnavailableView.search(text: trimmedSearchText)
@@ -374,19 +456,19 @@ struct SettingsView: View {
                     showingAddProvider = true
                 } label: {
                     Label("Add Provider", systemImage: "plus")
-                        .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.bordered)
-                .controlSize(.large)
+                .controlSize(.regular)
+
+                Spacer(minLength: JinSpacing.small)
 
                 Button(role: .destructive) {
                     requestDeleteSelectedProvider()
                 } label: {
                     Label("Delete", systemImage: "trash")
-                        .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.bordered)
-                .controlSize(.large)
+                .controlSize(.regular)
                 .disabled(selectedProviderID == nil)
                 .keyboardShortcut(.delete, modifiers: [.command])
             }
@@ -397,7 +479,7 @@ struct SettingsView: View {
     private var mcpServersList: some View {
         List(filteredMCPServers, selection: $selectedServerID) { server in
             NavigationLink(value: server.id) {
-                HStack(spacing: 10) {
+                HStack(spacing: JinSpacing.small + 2) {
                     Circle()
                         .fill(server.isEnabled ? Color.green : Color.gray)
                         .frame(width: 8, height: 8)
@@ -414,7 +496,7 @@ struct SettingsView: View {
                     }
                     Spacer()
                 }
-                .padding(.vertical, 4)
+                .padding(.vertical, JinSpacing.xSmall)
             }
             .contextMenu {
                 Button(role: .destructive) {
@@ -425,6 +507,8 @@ struct SettingsView: View {
             }
         }
         .listStyle(.inset)
+        .scrollContentBackground(.hidden)
+        .background(JinSemanticColor.panelSurface)
         .onDeleteCommand {
             requestDeleteSelectedServer()
         }
@@ -446,19 +530,19 @@ struct SettingsView: View {
                     showingAddServer = true
                 } label: {
                     Label("Add Server", systemImage: "plus")
-                        .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.bordered)
-                .controlSize(.large)
+                .controlSize(.regular)
+
+                Spacer(minLength: JinSpacing.small)
 
                 Button(role: .destructive) {
                     requestDeleteSelectedServer()
                 } label: {
                     Label("Delete", systemImage: "trash")
-                        .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.bordered)
-                .controlSize(.large)
+                .controlSize(.regular)
                 .disabled(selectedServerID == nil)
                 .keyboardShortcut(.delete, modifiers: [.command])
             }
@@ -470,7 +554,12 @@ struct SettingsView: View {
             content()
         }
         .padding(JinSpacing.medium)
-        .background(JinSemanticColor.surface)
+        .background(JinSemanticColor.panelSurface)
+        .overlay(alignment: .top) {
+            Rectangle()
+                .fill(JinSemanticColor.separator.opacity(0.45))
+                .frame(height: JinStrokeWidth.hairline)
+        }
     }
 
     private func showOperationError(_ message: String) {
@@ -632,6 +721,8 @@ struct AddProviderView: View {
                     TextEditor(text: $serviceAccountJSON)
                         .frame(minHeight: 100)
                         .font(.system(.body, design: .monospaced))
+                        .padding(JinSpacing.small)
+                        .jinSurface(.raised, cornerRadius: JinRadius.small)
                         .overlay(alignment: .topLeading) {
                             if serviceAccountJSON.isEmpty {
                                 Text("Paste service account JSON here…")
@@ -650,6 +741,8 @@ struct AddProviderView: View {
                 }
             }
             .formStyle(.grouped)
+            .scrollContentBackground(.hidden)
+            .background(JinSemanticColor.detailSurface)
             .navigationTitle("Add Provider")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -791,6 +884,8 @@ struct AddMCPServerView: View {
                         TextEditor(text: $importJSON)
                             .font(.system(.body, design: .monospaced))
                             .frame(minHeight: 120)
+                            .padding(JinSpacing.small)
+                            .jinSurface(.raised, cornerRadius: JinRadius.small)
                             .overlay(alignment: .topLeading) {
                                 if importJSON.isEmpty {
                                     Text("{ \"mcpServers\": { \"exa\": { \"command\": \"npx\", \"args\": [\"-y\", \"exa-mcp-server\"], \"env\": { \"EXA_API_KEY\": \"…\" } } } }")
@@ -805,10 +900,11 @@ struct AddMCPServerView: View {
                             Text(importError)
                                 .foregroundStyle(.red)
                                 .font(.caption)
+                                .padding(JinSpacing.small)
+                                .jinSurface(.subtleStrong, cornerRadius: JinRadius.small)
                         } else {
                             Text("Supports Claude Desktop-style configs (`mcpServers`) and single-server configs (`command`, `args`, `env`).")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                                .jinInfoCallout()
                         }
                     }
                 }
@@ -830,6 +926,8 @@ struct AddMCPServerView: View {
                 }
             }
             .formStyle(.grouped)
+            .scrollContentBackground(.hidden)
+            .background(JinSemanticColor.detailSurface)
             .navigationTitle("Add MCP Server")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -992,8 +1090,7 @@ struct GeneralSettingsView: View {
                     let models = modelsForProvider(newChatFixedProviderID)
                     if models.isEmpty {
                         Text("No models found for this provider.")
-                            .font(.callout)
-                            .foregroundStyle(.secondary)
+                            .jinInfoCallout()
                     } else {
                         Picker("Model", selection: $newChatFixedModelID) {
                             ForEach(models) { model in
@@ -1006,8 +1103,7 @@ struct GeneralSettingsView: View {
                     }
                 } else {
                     Text("New chats will start with the model from your most recently used chat.")
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
+                        .jinInfoCallout()
                 }
             }
 
@@ -1035,8 +1131,7 @@ struct GeneralSettingsView: View {
                             let eligibleServers = eligibleMCPServers
                             if eligibleServers.isEmpty {
                                 Text("No eligible MCP servers. Enable servers in MCP Servers settings.")
-                                    .font(.callout)
-                                    .foregroundStyle(.secondary)
+                                    .jinInfoCallout()
                             } else {
                                 VStack(alignment: .leading, spacing: 8) {
                                     Text("Default servers")
@@ -1053,15 +1148,13 @@ struct GeneralSettingsView: View {
                     }
                 } else {
                     Text("New chats will copy MCP Tools settings from your most recently used chat.")
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
+                        .jinInfoCallout()
                 }
             }
 
             Section("Data") {
                 Text("These actions affect local data stored on this Mac.")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
+                    .jinInfoCallout()
 
                 LabeledContent("Chats") {
                     Text("\(conversations.count)")
@@ -1076,6 +1169,8 @@ struct GeneralSettingsView: View {
         }
         .formStyle(.grouped)
         .padding()
+        .scrollContentBackground(.hidden)
+        .background(JinSemanticColor.detailSurface)
         .onAppear {
             ensureValidFixedModelSelection()
         }

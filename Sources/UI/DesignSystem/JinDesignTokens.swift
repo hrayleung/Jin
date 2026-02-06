@@ -28,8 +28,12 @@ enum JinControlMetrics {
 }
 
 enum JinSemanticColor {
+    static let sidebarSurface = Color(nsColor: .windowBackgroundColor)
+    static let panelSurface = Color(nsColor: .controlBackgroundColor)
     static let surface = Color(nsColor: .controlBackgroundColor)
+    static let detailSurface = Color(nsColor: .textBackgroundColor)
     static let textSurface = Color(nsColor: .textBackgroundColor)
+    static let raisedSurface = Color(nsColor: .textBackgroundColor)
     static let separator = Color(nsColor: .separatorColor)
     static let subtleSurface = Color.secondary.opacity(0.08)
     static let subtleSurfaceStrong = Color.secondary.opacity(0.1)

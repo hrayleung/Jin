@@ -471,7 +471,7 @@ struct ChatView: View {
                 composerHeight = newValue
             }
         }
-        .background(Color(nsColor: .textBackgroundColor)) // Main chat background
+        .background(JinSemanticColor.detailSurface)
         .navigationTitle(conversationEntity.title)
         .navigationSubtitle(currentModelName)
         .toolbar {
@@ -580,6 +580,9 @@ struct ChatView: View {
                         TextEditor(text: $providerSpecificParamsDraft)
                             .font(.system(.body, design: .monospaced))
                             .frame(minHeight: 220)
+                            .padding(JinSpacing.small)
+                            .lineSpacing(3)
+                            .jinSurface(.raised, cornerRadius: JinRadius.small)
                             .onChange(of: providerSpecificParamsDraft) { _, _ in
                                 providerSpecificParamsError = nil
                             }
@@ -588,28 +591,29 @@ struct ChatView: View {
                             Text(providerSpecificParamsError)
                                 .foregroundStyle(.red)
                                 .font(.caption)
+                                .padding(JinSpacing.small)
+                                .jinSurface(.subtleStrong, cornerRadius: JinRadius.small)
                         } else {
                             Text("These fields are merged into the provider request body (overrides take precedence).")
-                                .foregroundStyle(.secondary)
-                                .font(.caption)
+                                .jinInfoCallout()
                         }
                     }
 
                     Section("Examples") {
-                        Text("Fireworks GLM/Kimi thinking history: {\"reasoning_history\": \"preserved\"} (or \"interleaved\" / \"turn_level\")")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        Text("Cerebras GLM preserved thinking: {\"clear_thinking\": false}")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        Text("Cerebras GLM disable thinking: {\"disable_reasoning\": true}")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        Text("Cerebras reasoning output: {\"reasoning_format\": \"parsed\"} (or \"raw\" / \"hidden\" / \"none\")")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                        VStack(alignment: .leading, spacing: JinSpacing.small) {
+                            Text("Fireworks GLM/Kimi thinking history: {\"reasoning_history\": \"preserved\"} (or \"interleaved\" / \"turn_level\")")
+                            Text("Cerebras GLM preserved thinking: {\"clear_thinking\": false}")
+                            Text("Cerebras GLM disable thinking: {\"disable_reasoning\": true}")
+                            Text("Cerebras reasoning output: {\"reasoning_format\": \"parsed\"} (or \"raw\" / \"hidden\" / \"none\")")
+                        }
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .padding(JinSpacing.small)
+                        .jinSurface(.raised, cornerRadius: JinRadius.small)
                     }
                 }
+                .scrollContentBackground(.hidden)
+                .background(JinSemanticColor.detailSurface)
                 .navigationTitle("Provider Params")
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) {
@@ -3985,7 +3989,7 @@ struct MessageRow: View {
             HStack(spacing: JinSpacing.medium - 2) {
                 HStack(spacing: JinSpacing.medium - 2) {
                     if showsCopyButton {
-                        CopyToPasteboardButton(text: copyText, helpText: "Copy message")
+                        CopyToPasteboardButton(text: copyText, helpText: "Copy message", useProminentStyle: false)
                             .accessibilityLabel("Copy message")
                             .disabled(!actionsEnabled)
                     }
@@ -3997,13 +4001,15 @@ struct MessageRow: View {
                             if textToSpeechIsGenerating {
                                 ProgressView()
                                     .controlSize(.small)
+                                    .frame(width: 20, height: 20)
                             } else {
                                 Image(systemName: textToSpeechPrimarySystemName)
                                     .font(.system(size: JinControlMetrics.iconButtonGlyphSize, weight: .semibold))
                                     .foregroundStyle(.secondary)
+                                    .frame(width: 20, height: 20)
                             }
                         }
-                        .buttonStyle(JinIconButtonStyle(isActive: textToSpeechIsActive))
+                        .buttonStyle(.plain)
                         .help(textToSpeechHelpText)
                         .disabled(!actionsEnabled || copyText.isEmpty || !textToSpeechConfigured)
 
@@ -4044,7 +4050,7 @@ struct MessageRow: View {
             } else {
                 HStack(spacing: JinSpacing.medium - 2) {
                     if showsCopyButton {
-                        CopyToPasteboardButton(text: copyText, helpText: "Copy message")
+                        CopyToPasteboardButton(text: copyText, helpText: "Copy message", useProminentStyle: false)
                             .accessibilityLabel("Copy message")
                             .disabled(!actionsEnabled)
                     }
@@ -4065,13 +4071,14 @@ struct MessageRow: View {
         }
     }
 
-    private func actionIconButton(systemName: String, helpText: String, isActive: Bool = false, action: @escaping () -> Void) -> some View {
+    private func actionIconButton(systemName: String, helpText: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: systemName)
                 .font(.system(size: JinControlMetrics.iconButtonGlyphSize, weight: .semibold))
                 .foregroundStyle(.secondary)
+                .frame(width: 20, height: 20)
         }
-        .buttonStyle(JinIconButtonStyle(isActive: isActive))
+        .buttonStyle(.plain)
         .help(helpText)
     }
 
@@ -4684,7 +4691,7 @@ struct StreamingMessageView: View {
 
                     if showsCopyButton {
                         HStack {
-                            CopyToPasteboardButton(text: state.textContent, helpText: "Copy message")
+                            CopyToPasteboardButton(text: state.textContent, helpText: "Copy message", useProminentStyle: false)
                                 .accessibilityLabel("Copy message")
                             Spacer(minLength: 0)
                         }

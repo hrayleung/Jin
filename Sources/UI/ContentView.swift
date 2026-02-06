@@ -75,7 +75,13 @@ struct ContentView: View {
                     .keyboardShortcut(",", modifiers: [.command])
                 }
             }
-            .background(Color(nsColor: .controlBackgroundColor))
+            .scrollContentBackground(.hidden)
+            .background(JinSemanticColor.sidebarSurface)
+            .overlay(alignment: .trailing) {
+                Rectangle()
+                    .fill(JinSemanticColor.separator.opacity(0.45))
+                    .frame(width: JinStrokeWidth.hairline)
+            }
         } detail: {
             if let conversation = selectedConversation {
                 ChatView(
@@ -86,18 +92,9 @@ struct ContentView: View {
                     isAssistantInspectorPresented: $isAssistantInspectorPresented
                 )
                     .id(conversation.id) // Ensure view rebuilds when switching
-                    .background(Color(nsColor: .textBackgroundColor))
+                    .background(JinSemanticColor.detailSurface)
             } else {
-                ContentUnavailableView {
-                    Label("No Conversation Selected", systemImage: "bubble.left.and.bubble.right")
-                } description: {
-                    Text("Pick a conversation from the sidebar, or start a new one.")
-                } actions: {
-                    Button("New Chat") {
-                        createNewConversation()
-                    }
-                    .buttonStyle(.borderedProminent)
-                }
+                noConversationSelectedView
                 .toolbar {
                     ToolbarItem(placement: .primaryAction) {
                         Button {
@@ -109,6 +106,7 @@ struct ContentView: View {
                         .keyboardShortcut("i", modifiers: [.command])
                     }
                 }
+                .background(JinSemanticColor.detailSurface)
             }
         }
         .task {
@@ -145,6 +143,33 @@ struct ContentView: View {
         } message: { conversation in
             Text("This will permanently delete “\(conversation.title)”.")
         }
+    }
+
+    private var noConversationSelectedView: some View {
+        VStack(spacing: JinSpacing.large) {
+            Image(systemName: "bubble.left.and.bubble.right")
+                .font(.system(size: 30, weight: .semibold))
+                .foregroundStyle(.tertiary)
+
+            VStack(spacing: JinSpacing.xSmall + 2) {
+                Text("No Conversation Selected")
+                    .font(.title3)
+                    .fontWeight(.semibold)
+
+                Text("Pick a conversation from the sidebar, or start a new one.")
+                    .font(.body)
+                    .foregroundStyle(.secondary)
+            }
+            .multilineTextAlignment(.center)
+
+            Button("New Chat") {
+                createNewConversation()
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.large)
+        }
+        .padding(.horizontal, JinSpacing.xLarge)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     // MARK: - Helpers

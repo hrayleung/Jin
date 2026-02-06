@@ -2,6 +2,7 @@ import SwiftUI
 
 enum JinSurfaceVariant {
     case neutral
+    case raised
     case selected
     case subtle
     case subtleStrong
@@ -12,6 +13,8 @@ enum JinSurfaceVariant {
         switch self {
         case .neutral:
             return JinSemanticColor.surface
+        case .raised:
+            return JinSemanticColor.raisedSurface
         case .selected:
             return JinSemanticColor.selectedSurface
         case .subtle:
@@ -102,6 +105,14 @@ extension View {
                 Capsule(style: .continuous)
                     .stroke(JinSemanticColor.separator.opacity(0.6), lineWidth: JinStrokeWidth.hairline)
             )
+    }
+
+    func jinInfoCallout() -> some View {
+        self
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .padding(JinSpacing.small)
+            .jinSurface(.subtleStrong, cornerRadius: JinRadius.small)
     }
 
     func jinCardPadding() -> some View {

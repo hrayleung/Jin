@@ -56,12 +56,10 @@ struct ProviderConfigFormView: View {
 
                 if storeCredentialsInKeychain {
                     Text("Keychain mode can prompt repeatedly when running unsigned builds (e.g. `swift run`). Run via Xcode (signed) or turn this off to store locally.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .jinInfoCallout()
                 } else {
                     Text("Credentials are stored locally in your app database (less secure, but no Keychain prompts).")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .jinInfoCallout()
                 }
 
                 switch providerType {
@@ -92,27 +90,14 @@ struct ProviderConfigFormView: View {
                 
                 if decodedModels.isEmpty {
                     Text("No models found. Fetch from provider or add manually.")
-                        .foregroundStyle(.secondary)
-                        .font(.callout)
-                        .padding(.vertical, 4)
+                        .jinInfoCallout()
                  } else {
                      List(decodedModels, selection: $selectedModelIDs) { model in
                          HStack {
                              Text(model.name)
                              if isFullySupportedModel(model.id) {
                                  Text("Full")
-                                     .font(.caption2)
-                                     .padding(.horizontal, 6)
-                                     .padding(.vertical, 2)
-                                     .foregroundStyle(.green)
-                                     .background(
-                                         Capsule()
-                                             .fill(Color.green.opacity(0.12))
-                                     )
-                                     .overlay(
-                                         Capsule()
-                                             .stroke(Color.green.opacity(0.35), lineWidth: 0.5)
-                                     )
+                                     .jinTagStyle(foreground: .green)
                              }
                              Spacer()
                              Text(model.id)
@@ -121,6 +106,9 @@ struct ProviderConfigFormView: View {
                          }
                      }
                      .frame(minHeight: 150)
+                     .scrollContentBackground(.hidden)
+                     .background(JinSemanticColor.detailSurface)
+                     .jinSurface(.raised, cornerRadius: JinRadius.medium)
                 }
 
                 HStack {
@@ -154,6 +142,8 @@ struct ProviderConfigFormView: View {
         }
         .formStyle(.grouped)
         .padding()
+        .scrollContentBackground(.hidden)
+        .background(JinSemanticColor.detailSurface)
         .task {
             await loadCredentials()
             await MainActor.run {
@@ -238,15 +228,18 @@ struct ProviderConfigFormView: View {
         HStack {
             if showingAPIKey {
                 TextField("API Key", text: $apiKey)
+                    .textFieldStyle(.roundedBorder)
             } else {
                 SecureField("API Key", text: $apiKey)
+                    .textFieldStyle(.roundedBorder)
             }
 
             Button(action: { showingAPIKey.toggle() }) {
                 Image(systemName: showingAPIKey ? "eye.slash" : "eye")
                     .foregroundStyle(.secondary)
+                    .frame(width: 20, height: 20)
             }
-            .buttonStyle(.borderless)
+            .buttonStyle(JinIconButtonStyle())
         }
     }
 
@@ -261,6 +254,8 @@ struct ProviderConfigFormView: View {
             TextEditor(text: $serviceAccountJSON)
                 .font(.system(.body, design: .monospaced))
                 .frame(minHeight: 120)
+                .padding(JinSpacing.small)
+                .jinSurface(.raised, cornerRadius: JinRadius.small)
                 .overlay(alignment: .topLeading) {
                     if serviceAccountJSON.isEmpty {
                         Text("Paste JSON content here…")
@@ -303,6 +298,8 @@ struct ProviderConfigFormView: View {
                     .font(.caption)
             }
         }
+        .padding(JinSpacing.small)
+        .jinSurface(.raised, cornerRadius: JinRadius.small)
     }
 
     private var decodedModels: [ModelInfo] {

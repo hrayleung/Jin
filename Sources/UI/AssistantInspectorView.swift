@@ -185,10 +185,13 @@ private struct IconPickerSheet: View {
                                 }
                             }
                         }
+                        .padding(12)
+                        .jinSurface(.raised, cornerRadius: JinRadius.medium)
                     }
                 }
                 .padding(20)
             }
+            .background(JinSemanticColor.detailSurface)
             .navigationTitle("Choose Icon")
             .searchable(text: $searchText, prompt: "Search icons...")
             .toolbar {
@@ -265,6 +268,8 @@ private struct AssistantSettingsEditorView: View {
                     Spacer(minLength: 0)
                 }
                 .padding(.vertical, 8)
+                .padding(.horizontal, 4)
+                .jinSurface(.raised, cornerRadius: JinRadius.medium)
             }
 
             Section("Identity") {
@@ -273,6 +278,7 @@ private struct AssistantSettingsEditorView: View {
                         EmptyView()
                     }
                     .multilineTextAlignment(.trailing)
+                    .textFieldStyle(.roundedBorder)
                 }
 
                 LabeledContent("Icon") {
@@ -285,6 +291,7 @@ private struct AssistantSettingsEditorView: View {
                     }
                     .multilineTextAlignment(.trailing)
                     .lineLimit(2...4)
+                    .textFieldStyle(.roundedBorder)
                 }
             }
 
@@ -320,28 +327,14 @@ private struct AssistantSettingsEditorView: View {
                         .textSelection(.enabled)
                 }
 
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack {
-                        Text("Max Output Tokens")
-                        Spacer()
-                        if let tokens = assistant.maxOutputTokens {
-                            Text("\(tokens)")
-                                .font(.system(.body, design: .monospaced))
-                                .foregroundStyle(.secondary)
-                        } else {
-                            Text("No limit")
-                                .font(.body)
-                                .foregroundStyle(.tertiary)
-                        }
-                    }
-
-                    HStack(spacing: 8) {
+                LabeledContent("Max Output Tokens") {
+                    HStack(spacing: JinSpacing.small) {
                         TextField(text: maxOutputTokensBinding, prompt: Text("e.g., 4096")) {
                             EmptyView()
                         }
                         .font(.system(.body, design: .monospaced))
                         .textFieldStyle(.roundedBorder)
-                        .frame(maxWidth: 120)
+                        .frame(width: 120)
 
                         if assistant.maxOutputTokens != nil {
                             Button("Clear") {
@@ -352,38 +345,52 @@ private struct AssistantSettingsEditorView: View {
                             .buttonStyle(.bordered)
                             .controlSize(.small)
                         }
+
+                        Group {
+                            if let tokens = assistant.maxOutputTokens {
+                                Text("\(tokens)")
+                                    .font(.system(.caption, design: .monospaced))
+                                    .foregroundStyle(.secondary)
+                            } else {
+                                Text("No limit")
+                                    .font(.caption)
+                                    .foregroundStyle(.tertiary)
+                            }
+                        }
+                        .lineLimit(1)
                     }
                 }
 
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("Truncate History")
-                        .font(.subheadline)
-
-                    Picker("Truncate history", selection: truncateMessagesSettingBinding) {
-                        ForEach(TriStateSetting.allCases) { item in
-                            Text(item.label).tag(item)
+                VStack(alignment: .leading, spacing: 8) {
+                    LabeledContent("Truncate History") {
+                        Picker("", selection: truncateMessagesSettingBinding) {
+                            ForEach(TriStateSetting.allCases) { item in
+                                Text(item.label).tag(item)
+                            }
                         }
+                        .labelsHidden()
+                        .pickerStyle(.menu)
+                        .frame(width: 120)
                     }
-                    .pickerStyle(.segmented)
-                    .labelsHidden()
 
                     if truncateMessagesSettingBinding.wrappedValue == .on {
-                        HStack(spacing: 8) {
-                            Text("Keep last")
-                                .foregroundStyle(.secondary)
+                        LabeledContent("Keep last") {
+                            HStack(spacing: JinSpacing.small) {
+                                TextField(text: maxHistoryMessagesBinding, prompt: Text("50")) {
+                                    EmptyView()
+                                }
+                                .font(.system(.body, design: .monospaced))
+                                .textFieldStyle(.roundedBorder)
+                                .frame(width: 80)
 
-                            TextField(text: maxHistoryMessagesBinding, prompt: Text("50")) {
-                                EmptyView()
+                                Text("messages")
+                                    .foregroundStyle(.secondary)
                             }
-                            .font(.system(.body, design: .monospaced))
-                            .textFieldStyle(.roundedBorder)
-                            .frame(maxWidth: 80)
-
-                            Text("messages")
-                                .foregroundStyle(.secondary)
                         }
-                        .padding(.top, 4)
                     }
+
+                    Text("When enabled, oldest messages are dropped as history grows to stay within context limits.")
+                        .jinInfoCallout()
                 }
 
                 VStack(alignment: .leading, spacing: 8) {
@@ -398,6 +405,7 @@ private struct AssistantSettingsEditorView: View {
 
                     if replyLanguageSelectionBinding.wrappedValue == .custom {
                         TextField("e.g. English, 中文, 日本語", text: $customReplyLanguageDraft)
+                            .textFieldStyle(.roundedBorder)
                             .onChange(of: customReplyLanguageDraft) { _, newValue in
                                 let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
                                 assistant.replyLanguage = trimmed.isEmpty ? nil : trimmed
@@ -416,6 +424,8 @@ private struct AssistantSettingsEditorView: View {
                         Label("Delete Assistant", systemImage: "trash")
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
+                    .buttonStyle(.bordered)
+                    .tint(.red)
                 } header: {
                     Text("Danger Zone")
                         .foregroundStyle(.red)
@@ -423,6 +433,8 @@ private struct AssistantSettingsEditorView: View {
             }
         }
         .formStyle(.grouped)
+        .scrollContentBackground(.hidden)
+        .background(JinSemanticColor.detailSurface)
         .onAppear {
             syncCustomReplyLanguageDraft()
         }
