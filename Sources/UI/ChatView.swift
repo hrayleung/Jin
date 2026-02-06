@@ -31,10 +31,13 @@ struct ChatView: View {
     @State private var lastStreamingAutoScrollUptime: TimeInterval = 0
 
     // Cache expensive derived data so typing/streaming doesn't repeatedly sort/decode the entire history.
-    @State private var cachedVisibleMessages: [MessageEntity] = []
+    @State private var cachedVisibleMessages: [MessageRenderItem] = []
     @State private var cachedMessagesVersion: Int = 0
+    @State private var cachedMessageEntitiesByID: [UUID: MessageEntity] = [:]
+    @State private var cachedNormalizedMarkdownByKey: [MarkdownNormalizationCacheKey: String] = [:]
     @State private var cachedToolResultsByCallID: [String: ToolResult] = [:]
     @State private var lastCacheRebuildMessageCount: Int = 0
+    @State private var lastCacheRebuildUpdatedAt: Date = .distantPast
 
     @ObservedObject private var favoriteModelsStore = FavoriteModelsStore.shared
 
@@ -321,8 +324,8 @@ struct ChatView: View {
                         let bubbleMaxWidth = maxBubbleWidth(for: geometry.size.width)
                         let assistantDisplayName = conversationEntity.assistant?.displayName ?? "Assistant"
                         let assistantIcon = conversationEntity.assistant?.icon
-                        let conversationModelLabel = currentModelName
                         let toolResultsByCallID = cachedToolResultsByCallID
+                        let messageEntitiesByID = cachedMessageEntitiesByID
 
                         let allMessages = cachedVisibleMessages
                         let visibleMessages = allMessages.suffix(messageRenderLimit)
@@ -344,11 +347,10 @@ struct ChatView: View {
 
                             ForEach(visibleMessages) { message in
                                 MessageRow(
-                                    messageEntity: message,
+                                    item: message,
                                     maxBubbleWidth: bubbleMaxWidth,
                                     assistantDisplayName: assistantDisplayName,
                                     assistantIcon: assistantIcon,
-                                    conversationModelLabel: conversationModelLabel,
                                     toolResultsByCallID: toolResultsByCallID,
                                     actionsEnabled: !isStreaming,
                                     textToSpeechEnabled: textToSpeechPluginEnabled,
@@ -356,23 +358,28 @@ struct ChatView: View {
                                     textToSpeechIsGenerating: ttsPlaybackManager.isGenerating(messageID: message.id),
                                     textToSpeechIsPlaying: ttsPlaybackManager.isPlaying(messageID: message.id),
                                     textToSpeechIsPaused: ttsPlaybackManager.isPaused(messageID: message.id),
-                                    onToggleSpeakAssistantMessage: { entity, text in
+                                    onToggleSpeakAssistantMessage: { messageID, text in
+                                        guard let entity = messageEntitiesByID[messageID] else { return }
                                         toggleSpeakAssistantMessage(entity, text: text)
                                     },
-                                    onStopSpeakAssistantMessage: { entity in
+                                    onStopSpeakAssistantMessage: { messageID in
+                                        guard let entity = messageEntitiesByID[messageID] else { return }
                                         stopSpeakAssistantMessage(entity)
                                     },
-                                    onRegenerate: { target in
-                                        regenerateMessage(target)
+                                    onRegenerate: { messageID in
+                                        guard let entity = messageEntitiesByID[messageID] else { return }
+                                        regenerateMessage(entity)
                                     },
-                                    onEditUserMessage: { target in
-                                        beginEditingUserMessage(target)
+                                    onEditUserMessage: { messageID in
+                                        guard let entity = messageEntitiesByID[messageID] else { return }
+                                        beginEditingUserMessage(entity)
                                     },
                                     editingUserMessageID: editingUserMessageID,
                                     editingUserMessageText: $editingUserMessageText,
                                     editingUserMessageFocused: $isEditingUserMessageFocused,
-                                    onSubmitUserEdit: { target in
-                                        submitEditingUserMessage(target)
+                                    onSubmitUserEdit: { messageID in
+                                        guard let entity = messageEntitiesByID[messageID] else { return }
+                                        submitEditingUserMessage(entity)
                                     },
                                     onCancelUserEdit: {
                                         cancelEditingUserMessage()
@@ -516,9 +523,11 @@ struct ChatView: View {
             ttsPlaybackManager.stop()
             rebuildMessageCaches()
         }
-        .onChange(of: conversationEntity.messages.count) { _, newCount in
-            guard newCount != lastCacheRebuildMessageCount else { return }
-            rebuildMessageCaches()
+        .onChange(of: conversationEntity.messages.count) { _, _ in
+            rebuildMessageCachesIfNeeded()
+        }
+        .onChange(of: conversationEntity.updatedAt) { _, _ in
+            rebuildMessageCachesIfNeeded()
         }
         .alert("Error", isPresented: $showingError) {
             Button("OK", role: .cancel) {}
@@ -1741,13 +1750,87 @@ struct ChatView: View {
         }
     }
 
+    private func rebuildMessageCachesIfNeeded() {
+        guard conversationEntity.messages.count != lastCacheRebuildMessageCount
+            || conversationEntity.updatedAt != lastCacheRebuildUpdatedAt else {
+            return
+        }
+
+        rebuildMessageCaches()
+    }
+
     private func rebuildMessageCaches() {
         let ordered = orderedConversationMessages()
 
-        cachedVisibleMessages = ordered.filter { $0.role != "tool" }
+        var nextNormalizedMarkdownByKey: [MarkdownNormalizationCacheKey: String] = [:]
+        nextNormalizedMarkdownByKey.reserveCapacity(cachedNormalizedMarkdownByKey.count)
+
+        var messageEntitiesByID: [UUID: MessageEntity] = [:]
+        messageEntitiesByID.reserveCapacity(ordered.count)
+
+        var renderedItems: [MessageRenderItem] = []
+        renderedItems.reserveCapacity(ordered.count)
+
+        for entity in ordered {
+            messageEntitiesByID[entity.id] = entity
+            guard entity.role != "tool" else { continue }
+
+            guard let message = try? entity.toDomain() else { continue }
+            let renderedParts = renderedContentParts(
+                messageID: entity.id,
+                content: message.content,
+                normalizationCache: &nextNormalizedMarkdownByKey
+            )
+
+            renderedItems.append(
+                MessageRenderItem(
+                    id: entity.id,
+                    role: entity.role,
+                    timestamp: entity.timestamp,
+                    renderedContentParts: renderedParts,
+                    toolCalls: message.toolCalls ?? [],
+                    assistantModelLabel: entity.role == "assistant"
+                        ? (entity.generatedModelName ?? entity.generatedModelID ?? currentModelName)
+                        : nil,
+                    copyText: copyableText(from: message),
+                    canEditUserMessage: entity.role == "user"
+                        && message.content.contains(where: { part in
+                            if case .text = part { return true }
+                            return false
+                        })
+                )
+            )
+        }
+
+        cachedVisibleMessages = renderedItems
+        cachedMessageEntitiesByID = messageEntitiesByID
+        cachedNormalizedMarkdownByKey = nextNormalizedMarkdownByKey
         cachedToolResultsByCallID = toolResultsByToolCallID(in: ordered)
         cachedMessagesVersion &+= 1
         lastCacheRebuildMessageCount = ordered.count
+        lastCacheRebuildUpdatedAt = conversationEntity.updatedAt
+    }
+
+    private func renderedContentParts(
+        messageID: UUID,
+        content: [ContentPart],
+        normalizationCache: inout [MarkdownNormalizationCacheKey: String]
+    ) -> [RenderedMessageContentPart] {
+        content.enumerated().map { index, part in
+            guard case .text(let text) = part else {
+                return RenderedMessageContentPart(part: part, normalizedMarkdownText: nil)
+            }
+
+            let key = MarkdownNormalizationCacheKey(messageID: messageID, partIndex: index, rawText: text)
+            if let cached = cachedNormalizedMarkdownByKey[key] {
+                normalizationCache[key] = cached
+                return RenderedMessageContentPart(part: part, normalizedMarkdownText: cached)
+            }
+
+            let normalized = text.normalizingMathDelimitersForMarkdownView()
+            normalizationCache[key] = normalized
+            return RenderedMessageContentPart(part: part, normalizedMarkdownText: normalized)
+        }
     }
 
     private func regenerateMessage(_ messageEntity: MessageEntity) {
@@ -1867,6 +1950,26 @@ struct ChatView: View {
 
         guard !parts.isEmpty else { return nil }
         return parts.joined(separator: "\n\n")
+    }
+
+    private func copyableText(from message: Message) -> String {
+        let textParts = message.content.compactMap { part -> String? in
+            guard case .text(let text) = part else { return nil }
+            let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            return trimmed.isEmpty ? nil : trimmed
+        }
+
+        if !textParts.isEmpty {
+            return textParts.joined(separator: "\n\n")
+        }
+
+        let fileParts = message.content.compactMap { part -> String? in
+            guard case .file(let file) = part else { return nil }
+            let trimmed = file.filename.trimmingCharacters(in: .whitespacesAndNewlines)
+            return trimmed.isEmpty ? nil : trimmed
+        }
+
+        return fileParts.joined(separator: "\n")
     }
 
     private func updateUserMessageContent(_ entity: MessageEntity, newText: String) throws {
@@ -2596,16 +2699,27 @@ struct ChatView: View {
 
                     // Streaming can yield very frequent deltas. Throttle how often we publish changes
                     // to SwiftUI to avoid re-layout/scrolling on every token.
-                    let uiFlushInterval: TimeInterval = 0.05
                     var lastUIFlushUptime: TimeInterval = 0
                     var pendingTextDelta = ""
                     var pendingThinkingDelta = ""
                     var didAppendAnyThinkingText = false
                     var didShowRedactedThinkingPlaceholder = false
+                    var streamedCharacterCount = 0
+
+                    func uiFlushInterval() -> TimeInterval {
+                        switch streamedCharacterCount {
+                        case 0..<4_000:
+                            return 0.08
+                        case 4_000..<12_000:
+                            return 0.10
+                        default:
+                            return 0.12
+                        }
+                    }
 
                     func flushStreamingUI(force: Bool = false) async {
                         let now = ProcessInfo.processInfo.systemUptime
-                        guard force || now - lastUIFlushUptime >= uiFlushInterval else { return }
+                        guard force || now - lastUIFlushUptime >= uiFlushInterval() else { return }
                         guard force || !pendingTextDelta.isEmpty || !pendingThinkingDelta.isEmpty else { return }
 
                         lastUIFlushUptime = now
@@ -2615,8 +2729,7 @@ struct ChatView: View {
                         pendingThinkingDelta = ""
 
                         await MainActor.run {
-                            streamingState.appendTextDelta(textDelta)
-                            streamingState.appendThinkingDelta(thinkingDelta)
+                            streamingState.appendDeltas(textDelta: textDelta, thinkingDelta: thinkingDelta)
                         }
                     }
 
@@ -2630,6 +2743,7 @@ struct ChatView: View {
                             if case .text(let delta) = part {
                                 appendAssistantTextDelta(delta)
                                 pendingTextDelta.append(delta)
+                                streamedCharacterCount += delta.count
                             }
                         case .thinkingDelta(let delta):
                             appendAssistantThinkingDelta(delta)
@@ -2638,6 +2752,7 @@ struct ChatView: View {
                                 if !textDelta.isEmpty {
                                     didAppendAnyThinkingText = true
                                     pendingThinkingDelta.append(textDelta)
+                                    streamedCharacterCount += textDelta.count
                                 }
                             case .redacted:
                                 if !didAppendAnyThinkingText && !didShowRedactedThinkingPlaceholder {
@@ -3714,12 +3829,49 @@ struct ChatView: View {
 
 // MARK: - Message Row & Content Views
 
+struct MessageRenderItem: Identifiable {
+    let id: UUID
+    let role: String
+    let timestamp: Date
+    let renderedContentParts: [RenderedMessageContentPart]
+    let toolCalls: [ToolCall]
+    let assistantModelLabel: String?
+    let copyText: String
+    let canEditUserMessage: Bool
+
+    var isUser: Bool { role == "user" }
+    var isAssistant: Bool { role == "assistant" }
+    var isTool: Bool { role == "tool" }
+}
+
+struct RenderedMessageContentPart {
+    let part: ContentPart
+    let normalizedMarkdownText: String?
+}
+
+private struct MarkdownNormalizationCacheKey: Hashable {
+    let messageID: UUID
+    let partIndex: Int
+
+    private let textLength: Int
+    private let textHash: Int
+
+    init(messageID: UUID, partIndex: Int, rawText: String) {
+        self.messageID = messageID
+        self.partIndex = partIndex
+        self.textLength = rawText.utf8.count
+
+        var hasher = Hasher()
+        hasher.combine(rawText)
+        self.textHash = hasher.finalize()
+    }
+}
+
 struct MessageRow: View {
-    let messageEntity: MessageEntity
+    let item: MessageRenderItem
     let maxBubbleWidth: CGFloat
     let assistantDisplayName: String
     let assistantIcon: String?
-    let conversationModelLabel: String
     let toolResultsByCallID: [String: ToolResult]
     let actionsEnabled: Bool
     let textToSpeechEnabled: Bool
@@ -3727,31 +3879,25 @@ struct MessageRow: View {
     let textToSpeechIsGenerating: Bool
     let textToSpeechIsPlaying: Bool
     let textToSpeechIsPaused: Bool
-    let onToggleSpeakAssistantMessage: (MessageEntity, String) -> Void
-    let onStopSpeakAssistantMessage: (MessageEntity) -> Void
-    let onRegenerate: (MessageEntity) -> Void
-    let onEditUserMessage: (MessageEntity) -> Void
+    let onToggleSpeakAssistantMessage: (UUID, String) -> Void
+    let onStopSpeakAssistantMessage: (UUID) -> Void
+    let onRegenerate: (UUID) -> Void
+    let onEditUserMessage: (UUID) -> Void
     let editingUserMessageID: UUID?
     let editingUserMessageText: Binding<String>
     let editingUserMessageFocused: Binding<Bool>
-    let onSubmitUserEdit: (MessageEntity) -> Void
+    let onSubmitUserEdit: (UUID) -> Void
     let onCancelUserEdit: () -> Void
 
     var body: some View {
-        let isUser = messageEntity.role == "user"
-        let isAssistant = messageEntity.role == "assistant"
-        let isTool = messageEntity.role == "tool"
-        let message = try? messageEntity.toDomain()
-        let isEditingUserMessage = isUser && editingUserMessageID == messageEntity.id
-        let assistantModelLabel = isAssistant
-            ? (messageEntity.generatedModelName ?? messageEntity.generatedModelID ?? conversationModelLabel)
-            : nil
-        let copyText = message.map(copyableText(from:)) ?? ""
+        let isUser = item.isUser
+        let isAssistant = item.isAssistant
+        let isTool = item.isTool
+        let isEditingUserMessage = isUser && editingUserMessageID == item.id
+        let assistantModelLabel = item.assistantModelLabel
+        let copyText = item.copyText
         let showsCopyButton = (isUser || isAssistant) && !copyText.isEmpty
-        let canEditUserMessage = isUser && (message?.content.contains { part in
-            if case .text = part { return true }
-            return false
-        } == true)
+        let canEditUserMessage = item.canEditUserMessage
 
         HStack(alignment: .top, spacing: 0) {
             if isUser {
@@ -3771,21 +3917,21 @@ struct MessageRow: View {
                                 font: NSFont.preferredFont(forTextStyle: .body),
                                 onDropFileURLs: { _ in false },
                                 onDropImages: { _ in false },
-                                onSubmit: { onSubmitUserEdit(messageEntity) },
+                                onSubmit: { onSubmitUserEdit(item.id) },
                                 onCancel: {
                                     onCancelUserEdit()
                                     return true
                                 }
                             )
                             .frame(minHeight: 36, maxHeight: 200)
-                        } else if let message {
-                            ForEach(Array(message.content.enumerated()), id: \.offset) { _, part in
-                                ContentPartView(part: part)
+                        } else {
+                            ForEach(Array(item.renderedContentParts.enumerated()), id: \.offset) { _, rendered in
+                                ContentPartView(part: rendered.part, normalizedMarkdownText: rendered.normalizedMarkdownText)
                             }
 
-                            if let toolCalls = message.toolCalls, !toolCalls.isEmpty {
+                            if !item.toolCalls.isEmpty {
                                 VStack(alignment: .leading, spacing: 8) {
-                                    ForEach(toolCalls) { call in
+                                    ForEach(item.toolCalls) { call in
                                         ToolCallView(
                                             toolCall: call,
                                             toolResult: toolResultsByCallID[call.id]
@@ -3878,7 +4024,7 @@ struct MessageRow: View {
 
                     if textToSpeechEnabled {
                         Button {
-                            onToggleSpeakAssistantMessage(messageEntity, copyText)
+                            onToggleSpeakAssistantMessage(item.id, copyText)
                         } label: {
                             if textToSpeechIsGenerating {
                                 ProgressView()
@@ -3897,21 +4043,21 @@ struct MessageRow: View {
 
                         if textToSpeechIsActive {
                             actionIconButton(systemName: "stop.circle", helpText: textToSpeechStopHelpText) {
-                                onStopSpeakAssistantMessage(messageEntity)
+                                onStopSpeakAssistantMessage(item.id)
                             }
                             .disabled(!actionsEnabled)
                         }
                     }
 
                     actionIconButton(systemName: "arrow.clockwise", helpText: "Regenerate") {
-                        onRegenerate(messageEntity)
+                        onRegenerate(item.id)
                     }
                     .disabled(!actionsEnabled)
                 }
 
                 Spacer(minLength: 0)
 
-                Text(formattedTimestamp(messageEntity.timestamp))
+                Text(formattedTimestamp(item.timestamp))
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
@@ -3925,7 +4071,7 @@ struct MessageRow: View {
                     .disabled(!actionsEnabled)
 
                     actionIconButton(systemName: "paperplane", helpText: "Resend") {
-                        onSubmitUserEdit(messageEntity)
+                        onSubmitUserEdit(item.id)
                     }
                     .disabled(!actionsEnabled)
                 }
@@ -3938,13 +4084,13 @@ struct MessageRow: View {
                     }
 
                     actionIconButton(systemName: "arrow.clockwise", helpText: "Regenerate") {
-                        onRegenerate(messageEntity)
+                        onRegenerate(item.id)
                     }
                     .disabled(!actionsEnabled)
 
                     if canEditUserMessage {
                         actionIconButton(systemName: "pencil", helpText: "Edit") {
-                            onEditUserMessage(messageEntity)
+                            onEditUserMessage(item.id)
                         }
                         .disabled(!actionsEnabled)
                     }
@@ -4021,26 +4167,6 @@ struct MessageRow: View {
         if isUser { return Color.accentColor.opacity(0.1) } // Very subtle blue tint
         return Color(nsColor: .controlBackgroundColor) // Standard blocks for assistant
     }
-
-    private func copyableText(from message: Message) -> String {
-        let textParts = message.content.compactMap { part -> String? in
-            guard case .text(let text) = part else { return nil }
-            let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-            return trimmed.isEmpty ? nil : trimmed
-        }
-
-        if !textParts.isEmpty {
-            return textParts.joined(separator: "\n\n")
-        }
-
-        let fileParts = message.content.compactMap { part -> String? in
-            guard case .file(let file) = part else { return nil }
-            let trimmed = file.filename.trimmingCharacters(in: .whitespacesAndNewlines)
-            return trimmed.isEmpty ? nil : trimmed
-        }
-
-        return fileParts.joined(separator: "\n")
-    }
 }
 
 private struct AssistantBadgeIcon: View {
@@ -4109,11 +4235,16 @@ private struct LoadEarlierMessagesRow: View {
 
 struct ContentPartView: View {
     let part: ContentPart
+    let normalizedMarkdownText: String?
 
     var body: some View {
         switch part {
         case .text(let text):
-            MessageTextView(text: text)
+            if let normalizedMarkdownText {
+                MessageTextView(normalizedMarkdownText: normalizedMarkdownText)
+            } else {
+                MessageTextView(text: text)
+            }
 
         case .thinking(let thinking):
             ThinkingBlockView(thinking: thinking)
@@ -4497,16 +4628,29 @@ private struct ToolCallCodeBlockView: View {
 private struct ChunkedTextView: View {
     let chunks: [String]
     let font: Font
+    let allowsTextSelection: Bool
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            ForEach(chunks.indices, id: \.self) { idx in
-                Text(verbatim: chunks[idx])
-                    .font(font)
-                    .fixedSize(horizontal: false, vertical: true)
+        Group {
+            if allowsTextSelection {
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach(chunks.indices, id: \.self) { idx in
+                        Text(verbatim: chunks[idx])
+                            .font(font)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                .textSelection(.enabled)
+            } else {
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach(chunks.indices, id: \.self) { idx in
+                        Text(verbatim: chunks[idx])
+                            .font(font)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
             }
         }
-        .textSelection(.enabled)
     }
 }
 
@@ -4530,8 +4674,7 @@ struct StreamingMessageView: View {
     let onContentUpdate: () -> Void
 
     var body: some View {
-        // Avoid allocating a trimmed copy of the whole string on every streaming update.
-        let showsCopyButton = state.textContent.rangeOfCharacter(from: CharacterSet.whitespacesAndNewlines.inverted) != nil
+        let showsCopyButton = state.hasVisibleText
 
         HStack(alignment: .top, spacing: 0) {
             ConstrainedWidth(maxBubbleWidth) {
@@ -4566,7 +4709,11 @@ struct StreamingMessageView: View {
                     VStack(alignment: .leading, spacing: 8) {
                         if !state.thinkingChunks.isEmpty {
                             DisclosureGroup(isExpanded: .constant(true)) {
-                                ChunkedTextView(chunks: state.thinkingChunks, font: .system(.caption, design: .monospaced))
+                                ChunkedTextView(
+                                    chunks: state.thinkingChunks,
+                                    font: .system(.caption, design: .monospaced),
+                                    allowsTextSelection: false
+                                )
                                     .foregroundStyle(.secondary)
                                     .padding(8)
                                     .background(Color(nsColor: .textBackgroundColor))
@@ -4582,7 +4729,7 @@ struct StreamingMessageView: View {
                         }
 
                         if !state.textChunks.isEmpty {
-                            ChunkedTextView(chunks: state.textChunks, font: .body)
+                            ChunkedTextView(chunks: state.textChunks, font: .body, allowsTextSelection: false)
                         } else if state.thinkingChunks.isEmpty {
                             HStack(spacing: 6) {
                                 ProgressView().scaleEffect(0.5)
@@ -4616,10 +4763,7 @@ struct StreamingMessageView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.vertical, 8)
-        .onChange(of: state.textContent) { _, _ in
-            onContentUpdate()
-        }
-        .onChange(of: state.thinkingContent) { _, _ in
+        .onChange(of: state.renderTick) { _, _ in
             onContentUpdate()
         }
     }
@@ -4630,6 +4774,8 @@ final class StreamingMessageState: ObservableObject {
 
     @Published private(set) var textChunks: [String] = []
     @Published private(set) var thinkingChunks: [String] = []
+    @Published private(set) var renderTick: Int = 0
+    @Published private(set) var hasVisibleText: Bool = false
 
     private var textStorage = ""
     private var thinkingStorage = ""
@@ -4642,18 +4788,42 @@ final class StreamingMessageState: ObservableObject {
         thinkingStorage = ""
         textChunks = []
         thinkingChunks = []
+        hasVisibleText = false
+        renderTick = 0
+    }
+
+    func appendDeltas(textDelta: String, thinkingDelta: String) {
+        var didMutate = false
+
+        if !textDelta.isEmpty {
+            textStorage.append(textDelta)
+            if !hasVisibleText,
+               textDelta.rangeOfCharacter(from: CharacterSet.whitespacesAndNewlines.inverted) != nil {
+                hasVisibleText = true
+            }
+            appendDelta(textDelta, to: &textChunks, maxChunkSize: Self.maxChunkSize)
+            didMutate = true
+        }
+
+        if !thinkingDelta.isEmpty {
+            thinkingStorage.append(thinkingDelta)
+            appendDelta(thinkingDelta, to: &thinkingChunks, maxChunkSize: Self.maxChunkSize)
+            didMutate = true
+        }
+
+        if didMutate {
+            renderTick &+= 1
+        }
     }
 
     func appendTextDelta(_ delta: String) {
         guard !delta.isEmpty else { return }
-        textStorage.append(delta)
-        appendDelta(delta, to: &textChunks, maxChunkSize: Self.maxChunkSize)
+        appendDeltas(textDelta: delta, thinkingDelta: "")
     }
 
     func appendThinkingDelta(_ delta: String) {
         guard !delta.isEmpty else { return }
-        thinkingStorage.append(delta)
-        appendDelta(delta, to: &thinkingChunks, maxChunkSize: Self.maxChunkSize)
+        appendDeltas(textDelta: "", thinkingDelta: delta)
     }
 
     private func appendDelta(_ delta: String, to chunks: inout [String], maxChunkSize: Int) {
