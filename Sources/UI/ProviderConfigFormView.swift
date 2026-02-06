@@ -63,7 +63,7 @@ struct ProviderConfigFormView: View {
                 }
 
                 switch providerType {
-                case .openai, .anthropic, .xai, .fireworks, .cerebras:
+                case .openai, .anthropic, .xai, .fireworks, .cerebras, .gemini:
                     apiKeyField
                 case .vertexai:
                     vertexAISection
@@ -203,6 +203,8 @@ struct ProviderConfigFormView: View {
                 || lower == "accounts/fireworks/models/glm-4p7"
         case .cerebras:
             return lower == "zai-glm-4.7"
+        case .gemini:
+            return lower.contains("gemini-3")
         case .openai, .anthropic, .xai, .vertexai:
             return false
         }
@@ -325,7 +327,7 @@ struct ProviderConfigFormView: View {
         }
 
         switch ProviderType(rawValue: provider.typeRaw) {
-        case .openai, .anthropic, .xai, .fireworks, .cerebras:
+        case .openai, .anthropic, .xai, .fireworks, .cerebras, .gemini:
             if usesKeychain {
                 await MainActor.run { apiKey = "" }
             } else {
@@ -405,7 +407,7 @@ struct ProviderConfigFormView: View {
                     let trimmedAPIKey = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
                     let trimmedJSON = serviceAccountJSON.trimmingCharacters(in: .whitespacesAndNewlines)
                     switch ProviderType(rawValue: provider.typeRaw) {
-                    case .openai, .anthropic, .xai, .fireworks, .cerebras:
+                    case .openai, .anthropic, .xai, .fireworks, .cerebras, .gemini:
                         if trimmedAPIKey.isEmpty {
                             await MainActor.run {
                                 credentialSaveError = "Keychain disabled. Paste your API key again to use this provider."
@@ -442,7 +444,7 @@ struct ProviderConfigFormView: View {
         guard !keychainID.isEmpty else { return }
 
         switch ProviderType(rawValue: provider.typeRaw) {
-        case .openai, .anthropic, .xai, .fireworks, .cerebras:
+        case .openai, .anthropic, .xai, .fireworks, .cerebras, .gemini:
             let key = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
             await MainActor.run {
                 provider.apiKeyKeychainID = keychainID
@@ -481,7 +483,7 @@ struct ProviderConfigFormView: View {
 
     private func persistCredentialsLocally(validate: Bool) async throws {
         switch ProviderType(rawValue: provider.typeRaw) {
-        case .openai, .anthropic, .xai, .fireworks, .cerebras:
+        case .openai, .anthropic, .xai, .fireworks, .cerebras, .gemini:
             let key = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
             await MainActor.run {
                 provider.apiKeyKeychainID = nil
@@ -534,7 +536,7 @@ struct ProviderConfigFormView: View {
 
     private var isTestDisabled: Bool {
         switch ProviderType(rawValue: provider.typeRaw) {
-        case .openai, .anthropic, .xai, .fireworks, .cerebras:
+        case .openai, .anthropic, .xai, .fireworks, .cerebras, .gemini:
             return (!storeCredentialsInKeychain && apiKey.isEmpty) || testStatus == .testing
         case .vertexai:
             return (!storeCredentialsInKeychain && serviceAccountJSON.isEmpty) || testStatus == .testing
@@ -546,7 +548,7 @@ struct ProviderConfigFormView: View {
     private var isFetchModelsDisabled: Bool {
         guard !isFetchingModels else { return true }
         switch providerType {
-        case .openai, .anthropic, .xai, .fireworks, .cerebras:
+        case .openai, .anthropic, .xai, .fireworks, .cerebras, .gemini:
             return !storeCredentialsInKeychain && apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         case .vertexai:
             return !storeCredentialsInKeychain && serviceAccountJSON.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -622,6 +624,14 @@ private struct AddModelSheet: View {
             if lower == "zai-glm-4.7" {
                 caps.insert(.reasoning)
                 reasoningConfig = ModelReasoningConfig(type: .toggle)
+            }
+
+        case .gemini?:
+            if lower.contains("gemini-3") {
+                caps.insert(.vision)
+                caps.insert(.reasoning)
+                caps.insert(.nativePDF)
+                reasoningConfig = ModelReasoningConfig(type: .effort, defaultEffort: .high)
             }
 
         case .openai?, .anthropic?, .xai?, .vertexai?, .none:

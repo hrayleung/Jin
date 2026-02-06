@@ -183,6 +183,8 @@ private struct ProviderSectionHeader: View {
             return "flame"
         case .cerebras:
             return "cpu"
+        case .gemini:
+            return "g.circle"
         case .vertexai:
             return "cloud"
         }
@@ -243,4 +245,3 @@ private struct ModelPickerRow: View {
         }
     }
 }
-

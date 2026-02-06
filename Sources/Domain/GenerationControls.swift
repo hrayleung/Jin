@@ -202,6 +202,7 @@ enum ProviderType: String, Codable, CaseIterable {
     case xai
     case fireworks
     case cerebras
+    case gemini
     case vertexai
 
     var displayName: String {
@@ -211,6 +212,7 @@ enum ProviderType: String, Codable, CaseIterable {
         case .xai: return "xAI"
         case .fireworks: return "Fireworks"
         case .cerebras: return "Cerebras"
+        case .gemini: return "Gemini (AI Studio)"
         case .vertexai: return "Vertex AI"
         }
     }
@@ -228,6 +230,8 @@ enum ProviderType: String, Codable, CaseIterable {
         case .cerebras:
             // OpenAI-compatible base URL per Cerebras docs.
             return "https://api.cerebras.ai/v1"
+        case .gemini:
+            return "https://generativelanguage.googleapis.com/v1beta"
         case .vertexai:
             return nil
         }

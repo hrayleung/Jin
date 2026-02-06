@@ -1388,9 +1388,9 @@ struct ChatView: View {
     }
 
     private var supportsWebSearchControl: Bool {
-        // Provider-native web search, not MCP. Today: OpenAI, Anthropic, xAI, Vertex AI.
+        // Provider-native web search, not MCP. Today: OpenAI, Anthropic, xAI, Gemini API, Vertex AI.
         switch providerType {
-        case .openai, .anthropic, .xai, .vertexai:
+        case .openai, .anthropic, .xai, .gemini, .vertexai:
             return true
         case .fireworks, .cerebras, .none:
             return false
@@ -1404,7 +1404,7 @@ struct ChatView: View {
     private var reasoningHelpText: String {
         guard supportsReasoningControl else { return "Reasoning: Not supported" }
         switch providerType {
-        case .anthropic, .vertexai:
+        case .anthropic, .gemini, .vertexai:
             return "Thinking: \(reasoningLabel)"
         case .openai, .xai, .fireworks, .cerebras, .none:
             return "Reasoning: \(reasoningLabel)"
@@ -1431,7 +1431,7 @@ struct ChatView: View {
             return (controls.webSearch?.contextSize ?? .medium).displayName
         case .xai:
             return webSearchSourcesLabel
-        case .anthropic, .vertexai, .fireworks, .cerebras, .none:
+        case .anthropic, .gemini, .vertexai, .fireworks, .cerebras, .none:
             return "On"
         }
     }
@@ -1491,7 +1491,7 @@ struct ChatView: View {
             if sources == [.x] { return "X" }
             if sources.contains(.web), sources.contains(.x) { return "W+X" }
             return "On"
-        case .anthropic, .vertexai, .fireworks, .cerebras, .none:
+        case .anthropic, .gemini, .vertexai, .fireworks, .cerebras, .none:
             return "On"
         }
     }
@@ -1655,6 +1655,8 @@ struct ChatView: View {
                 || lower == "accounts/fireworks/models/glm-4p7"
         case .cerebras:
             return lower == "zai-glm-4.7"
+        case .gemini:
+            return lower.contains("gemini-3")
         case .openai, .anthropic, .xai, .vertexai:
             return false
         }
@@ -1709,6 +1711,9 @@ struct ChatView: View {
                 ?? models.first(where: { $0.id.lowercased() == "fireworks/glm-4p7" || $0.id.lowercased() == "accounts/fireworks/models/glm-4p7" })?.id
         case .cerebras:
             return models.first(where: { $0.id == "zai-glm-4.7" })?.id
+        case .gemini:
+            return models.first(where: { $0.id.lowercased().contains("gemini-3-pro") })?.id
+                ?? models.first(where: { $0.id.lowercased().contains("gemini-3-flash") })?.id
         case .xai, .vertexai:
             return nil
         }
@@ -2919,6 +2924,17 @@ struct ChatView: View {
                     Button { setReasoningEffort(.medium) } label: { menuItemLabel("Medium", isSelected: isReasoningEnabled && controls.reasoning?.effort == .medium) }
                     Button { setReasoningEffort(.high) } label: { menuItemLabel("High", isSelected: isReasoningEnabled && controls.reasoning?.effort == .high) }
 
+                case .gemini:
+                    if conversationEntity.modelID.lowercased().contains("gemini-3-pro") {
+                        Button { setReasoningEffort(.low) } label: { menuItemLabel("Low", isSelected: isReasoningEnabled && controls.reasoning?.effort == .low) }
+                        Button { setReasoningEffort(.high) } label: { menuItemLabel("High", isSelected: isReasoningEnabled && controls.reasoning?.effort == .high) }
+                    } else {
+                        Button { setReasoningEffort(.minimal) } label: { menuItemLabel("Minimal", isSelected: isReasoningEnabled && controls.reasoning?.effort == .minimal) }
+                        Button { setReasoningEffort(.low) } label: { menuItemLabel("Low", isSelected: isReasoningEnabled && controls.reasoning?.effort == .low) }
+                        Button { setReasoningEffort(.medium) } label: { menuItemLabel("Medium", isSelected: isReasoningEnabled && controls.reasoning?.effort == .medium) }
+                        Button { setReasoningEffort(.high) } label: { menuItemLabel("High", isSelected: isReasoningEnabled && controls.reasoning?.effort == .high) }
+                    }
+
                 case .openai:
                     Button { setReasoningEffort(.low) } label: { menuItemLabel("Low", isSelected: isReasoningEnabled && controls.reasoning?.effort == .low) }
                     Button { setReasoningEffort(.medium) } label: { menuItemLabel("Medium", isSelected: isReasoningEnabled && controls.reasoning?.effort == .medium) }
@@ -3081,7 +3097,7 @@ struct ChatView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
-            case .anthropic, .vertexai, .fireworks, .cerebras, .none:
+            case .anthropic, .gemini, .vertexai, .fireworks, .cerebras, .none:
                 EmptyView()
             }
         }
@@ -3712,7 +3728,7 @@ struct ChatView: View {
             return WebSearchControls(enabled: true, contextSize: .medium, sources: nil)
         case .xai:
             return WebSearchControls(enabled: true, contextSize: nil, sources: [.web])
-        case .anthropic, .vertexai, .fireworks, .cerebras, .none:
+        case .anthropic, .gemini, .vertexai, .fireworks, .cerebras, .none:
             return WebSearchControls(enabled: true, contextSize: nil, sources: nil)
         }
     }
@@ -3731,7 +3747,7 @@ struct ChatView: View {
             if sources.isEmpty {
                 controls.webSearch?.sources = [.web]
             }
-        case .anthropic, .vertexai, .fireworks, .cerebras, .none:
+        case .anthropic, .gemini, .vertexai, .fireworks, .cerebras, .none:
             controls.webSearch?.contextSize = nil
             controls.webSearch?.sources = nil
         }
@@ -3784,6 +3800,26 @@ struct ChatView: View {
         // Anthropic: xhigh maps to max effort and is only valid on Opus models.
         if providerType == .anthropic, controls.reasoning?.effort == .xhigh, !isAnthropicOpusSeriesModel {
             controls.reasoning?.effort = .high
+        }
+
+        // Gemini 3 Pro: only supports low/high thinking levels.
+        if providerType == .gemini,
+           conversationEntity.modelID.lowercased().contains("gemini-3-pro"),
+           let effort = controls.reasoning?.effort {
+            switch effort {
+            case .none:
+                break
+            case .minimal:
+                controls.reasoning?.effort = .low
+            case .low:
+                break
+            case .medium:
+                controls.reasoning?.effort = .high
+            case .high:
+                break
+            case .xhigh:
+                controls.reasoning?.effort = .high
+            }
         }
 
         // Web search defaults & provider-specific fields.

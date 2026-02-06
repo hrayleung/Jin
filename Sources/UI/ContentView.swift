@@ -616,16 +616,33 @@ struct ContentView: View {
             ModelInfo(
                 id: "gemini-3-pro-preview",
                 name: "Gemini 3 Pro (Preview)",
-                capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+                capabilities: [.streaming, .toolCalling, .vision, .reasoning, .nativePDF],
                 contextWindow: 1_048_576,
                 reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium)
             ),
             ModelInfo(
                 id: "gemini-3-flash-preview",
                 name: "Gemini 3 Flash (Preview)",
-                capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+                capabilities: [.streaming, .toolCalling, .vision, .reasoning, .nativePDF],
                 contextWindow: 1_048_576,
                 reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium)
+            )
+        ]
+
+        let geminiModels: [ModelInfo] = [
+            ModelInfo(
+                id: "gemini-3-pro-preview",
+                name: "Gemini 3 Pro (Preview)",
+                capabilities: [.streaming, .toolCalling, .vision, .reasoning, .nativePDF],
+                contextWindow: 1_048_576,
+                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high)
+            ),
+            ModelInfo(
+                id: "gemini-3-flash-preview",
+                name: "Gemini 3 Flash (Preview)",
+                capabilities: [.streaming, .toolCalling, .vision, .reasoning, .nativePDF],
+                contextWindow: 1_048_576,
+                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high)
             )
         ]
 
@@ -650,6 +667,13 @@ struct ContentView: View {
                 type: .xai,
                 baseURL: ProviderType.xai.defaultBaseURL,
                 models: xAIModels
+            ),
+            ProviderConfig(
+                id: "gemini",
+                name: "Gemini (AI Studio)",
+                type: .gemini,
+                baseURL: ProviderType.gemini.defaultBaseURL,
+                models: geminiModels
             ),
             ProviderConfig(
                 id: "vertexai",

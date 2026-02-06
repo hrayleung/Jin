@@ -53,6 +53,14 @@ actor ProviderManager {
                 networkManager: networkManager
             )
 
+        case .gemini:
+            let apiKey = try await resolveAPIKey(for: config)
+            return GeminiAdapter(
+                providerConfig: config,
+                apiKey: apiKey,
+                networkManager: networkManager
+            )
+
         case .vertexai:
             let credentials: ServiceAccountCredentials
             do {
@@ -76,7 +84,7 @@ actor ProviderManager {
         let adapter = try await createAdapter(for: config)
 
         switch config.type {
-        case .openai, .anthropic, .xai, .fireworks, .cerebras:
+        case .openai, .anthropic, .xai, .fireworks, .cerebras, .gemini:
             let apiKey = try await resolveAPIKey(for: config)
             return try await adapter.validateAPIKey(apiKey)
 

@@ -715,7 +715,7 @@ struct AddProviderView: View {
                     .help("Keychain is more secure, but unsigned builds may prompt for your Mac password.")
 
                 switch providerType {
-                case .openai, .anthropic, .xai, .fireworks, .cerebras:
+                case .openai, .anthropic, .xai, .fireworks, .cerebras, .gemini:
                     SecureField("API Key", text: $apiKey)
                 case .vertexai:
                     TextEditor(text: $serviceAccountJSON)
@@ -773,7 +773,7 @@ struct AddProviderView: View {
                 if storeCredentialsInKeychain {
                     let keychainManager = KeychainManager()
                     switch providerType {
-                    case .openai, .anthropic, .xai, .fireworks, .cerebras:
+                    case .openai, .anthropic, .xai, .fireworks, .cerebras, .gemini:
                         try await keychainManager.saveAPIKey(trimmedAPIKey, for: providerID)
                     case .vertexai:
                         _ = try JSONDecoder().decode(ServiceAccountCredentials.self, from: Data(trimmedServiceAccountJSON.utf8))
@@ -825,7 +825,7 @@ struct AddProviderView: View {
         guard !trimmedName.isEmpty, !isSaving else { return true }
 
         switch providerType {
-        case .openai, .anthropic, .xai, .fireworks, .cerebras:
+        case .openai, .anthropic, .xai, .fireworks, .cerebras, .gemini:
             return apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         case .vertexai:
             return serviceAccountJSON.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
