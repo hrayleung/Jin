@@ -683,7 +683,7 @@ private struct ConversationRowView: View {
     let isStreaming: Bool
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: JinSpacing.small) {
             Text(title)
                 .font(.headline)
                 .lineLimit(1)
@@ -701,7 +701,7 @@ private struct ConversationRowView: View {
             .font(.caption)
             .foregroundColor(.secondary)
         }
-        .padding(.vertical, 6)
+        .padding(.vertical, JinSpacing.small)
     }
 }
 
@@ -884,12 +884,12 @@ private struct AssistantRowView: View {
     let isSelected: Bool
 
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: JinSpacing.medium) {
             assistantIconView
                 .foregroundStyle(isSelected ? Color.accentColor : .secondary)
                 .frame(width: 24, height: 24)
 
-            VStack(alignment: .leading, spacing: 3) {
+            VStack(alignment: .leading, spacing: JinSpacing.xSmall) {
                 Text(assistant.displayName)
                     .font(.system(.body, design: .default))
                     .fontWeight(.medium)
@@ -908,17 +908,11 @@ private struct AssistantRowView: View {
             if chatCount > 0 {
                 Text("\(chatCount)")
                     .font(.system(.caption, design: .monospaced))
-                    .foregroundStyle(.secondary)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(
-                        Capsule(style: .continuous)
-                            .fill(Color.secondary.opacity(0.08))
-                    )
+                    .jinTagStyle()
                     .accessibilityLabel("\(chatCount) chats")
             }
         }
-        .padding(.vertical, 6)
+        .padding(.vertical, JinSpacing.small)
     }
 
     private var assistantIconView: some View {
@@ -943,7 +937,7 @@ private struct AssistantTileView: View {
     let showsIcon: Bool
 
     var body: some View {
-        VStack(spacing: showsIcon && showsName ? 6 : 0) {
+        VStack(spacing: showsIcon && showsName ? JinSpacing.small : 0) {
             if showsIcon {
                 assistantIcon
                     .frame(width: 24, height: 24)
@@ -959,30 +953,10 @@ private struct AssistantTileView: View {
             }
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 8)
-        .padding(.horizontal, 8)
-        .background(tileBackground)
-        .overlay(tileBorder)
-        .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-    }
-
-    private var tileBackground: some View {
-        RoundedRectangle(cornerRadius: 10, style: .continuous)
-            .fill(
-                isSelected
-                    ? Color.accentColor.opacity(0.14)
-                    : Color(nsColor: .controlBackgroundColor)
-            )
-    }
-
-    private var tileBorder: some View {
-        RoundedRectangle(cornerRadius: 10, style: .continuous)
-            .stroke(
-                isSelected
-                    ? Color.accentColor.opacity(0.35)
-                    : Color(nsColor: .separatorColor).opacity(0.25),
-                lineWidth: 1
-            )
+        .padding(.vertical, JinSpacing.small)
+        .padding(.horizontal, JinSpacing.small)
+        .jinSurface(isSelected ? .selected : .neutral, cornerRadius: JinRadius.medium)
+        .contentShape(RoundedRectangle(cornerRadius: JinRadius.medium, style: .continuous))
     }
 
     @ViewBuilder
@@ -990,13 +964,13 @@ private struct AssistantTileView: View {
         let trimmed = (assistant.icon ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmed.isEmpty {
             Image(systemName: "person.crop.circle")
-                .font(.system(size: 18, weight: .semibold))
+                .font(.system(size: JinControlMetrics.assistantGlyphSize, weight: .semibold))
         } else if trimmed.count <= 2 {
             Text(trimmed)
-                .font(.system(size: 18, weight: .semibold))
+                .font(.system(size: JinControlMetrics.assistantGlyphSize, weight: .semibold))
         } else {
             Image(systemName: trimmed)
-                .font(.system(size: 18, weight: .semibold))
+                .font(.system(size: JinControlMetrics.assistantGlyphSize, weight: .semibold))
         }
     }
 }

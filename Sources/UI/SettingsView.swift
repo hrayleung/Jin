@@ -152,7 +152,7 @@ struct SettingsView: View {
         } detail: {
             // Column 3: Configuration / Detail
             ZStack {
-                Color(nsColor: .controlBackgroundColor)
+                JinSemanticColor.surface
                     .ignoresSafeArea()
                 
                 switch selectedSection {
@@ -307,7 +307,7 @@ struct SettingsView: View {
     // MARK: - Plugins List
     private var pluginsList: some View {
         List(filteredPlugins, selection: $selectedPluginID) { plugin in
-            HStack(spacing: 10) {
+            HStack(spacing: JinSpacing.small + 2) {
                 Image(systemName: plugin.systemImage)
                     .font(.system(size: 14, weight: .medium))
                     .foregroundStyle(.secondary)
@@ -320,7 +320,7 @@ struct SettingsView: View {
                     .multilineTextAlignment(.leading)
                     .fixedSize(horizontal: false, vertical: true)
 
-                Spacer(minLength: 8)
+                Spacer(minLength: JinSpacing.small)
 
                 Toggle("", isOn: pluginEnabledBinding(for: plugin.id))
                     .labelsHidden()
@@ -329,7 +329,7 @@ struct SettingsView: View {
                     .frame(width: 38, alignment: .trailing)
                     .help(isPluginEnabled(plugin.id) ? "Disable plugin" : "Enable plugin")
             }
-            .padding(.vertical, 4)
+            .padding(.vertical, JinSpacing.xSmall)
             .contentShape(Rectangle())
             .help(plugin.summary)
             .onTapGesture {
@@ -369,7 +369,7 @@ struct SettingsView: View {
 
             Divider()
 
-            HStack {
+            settingsActionBar {
                 Button {
                     showingAddProvider = true
                 } label: {
@@ -390,8 +390,6 @@ struct SettingsView: View {
                 .disabled(selectedProviderID == nil)
                 .keyboardShortcut(.delete, modifiers: [.command])
             }
-            .padding(12)
-            .background(Color(nsColor: .controlBackgroundColor))
         }
     }
 
@@ -443,7 +441,7 @@ struct SettingsView: View {
 
             Divider()
 
-            HStack {
+            settingsActionBar {
                 Button {
                     showingAddServer = true
                 } label: {
@@ -464,9 +462,15 @@ struct SettingsView: View {
                 .disabled(selectedServerID == nil)
                 .keyboardShortcut(.delete, modifiers: [.command])
             }
-            .padding(12)
-            .background(Color(nsColor: .controlBackgroundColor))
         }
+    }
+
+    private func settingsActionBar<Content: View>(@ViewBuilder content: () -> Content) -> some View {
+        HStack(spacing: JinSpacing.small) {
+            content()
+        }
+        .padding(JinSpacing.medium)
+        .background(JinSemanticColor.surface)
     }
 
     private func showOperationError(_ message: String) {

@@ -14,11 +14,10 @@ struct CopyToPasteboardButton: View {
             copyToPasteboard()
         } label: {
             Image(systemName: didCopy ? "checkmark" : "doc.on.doc")
-                .font(.system(size: 12, weight: .semibold))
+                .font(.system(size: JinControlMetrics.iconButtonGlyphSize, weight: .semibold))
                 .foregroundStyle(.secondary)
-                .frame(width: 20, height: 20)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(JinIconButtonStyle())
         .help(didCopy ? copiedHelpText : helpText)
         // Avoid allocating a trimmed copy of large strings just to check emptiness.
         .disabled(text.rangeOfCharacter(from: CharacterSet.whitespacesAndNewlines.inverted) == nil)

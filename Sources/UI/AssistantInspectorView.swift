@@ -64,17 +64,10 @@ private struct IconPickerButton: View {
         Button {
             isPickerPresented = true
         } label: {
-            HStack(spacing: 8) {
+            HStack(spacing: JinSpacing.small) {
                 iconPreview
-                    .frame(width: 28, height: 28)
-                    .background(
-                        RoundedRectangle(cornerRadius: 6, style: .continuous)
-                            .fill(Color.accentColor.opacity(0.1))
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 6, style: .continuous)
-                            .stroke(Color.accentColor.opacity(0.3), lineWidth: 1)
-                    )
+                    .frame(width: JinControlMetrics.iconButtonHitSize, height: JinControlMetrics.iconButtonHitSize)
+                    .jinSurface(.selected, cornerRadius: JinRadius.small)
 
                 Text(selectedIcon.isEmpty ? "Choose…" : selectedIcon)
                     .font(.body)
@@ -85,14 +78,9 @@ private struct IconPickerButton: View {
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
             }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-            .background(Color(nsColor: .controlBackgroundColor))
-            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .stroke(Color(nsColor: .separatorColor).opacity(0.5), lineWidth: 0.5)
-            )
+            .padding(.horizontal, JinSpacing.medium - 2)
+            .padding(.vertical, JinSpacing.xSmall + 2)
+            .jinSurface(.neutral, cornerRadius: JinRadius.small)
         }
         .buttonStyle(.plain)
         .sheet(isPresented: $isPickerPresented) {
@@ -105,14 +93,14 @@ private struct IconPickerButton: View {
             let trimmed = selectedIcon.trimmingCharacters(in: .whitespacesAndNewlines)
             if trimmed.isEmpty {
                 Image(systemName: "person.crop.circle")
-                    .font(.system(size: 18, weight: .semibold))
+                    .font(.system(size: JinControlMetrics.assistantGlyphSize, weight: .semibold))
                     .foregroundStyle(.secondary)
             } else if trimmed.count <= 2 {
                 Text(trimmed)
-                    .font(.system(size: 18))
+                    .font(.system(size: JinControlMetrics.assistantGlyphSize))
             } else {
                 Image(systemName: trimmed)
-                    .font(.system(size: 18, weight: .semibold))
+                    .font(.system(size: JinControlMetrics.assistantGlyphSize, weight: .semibold))
                     .foregroundStyle(Color.accentColor)
             }
         }
@@ -231,17 +219,7 @@ private struct IconButton: View {
         Button(action: action) {
             iconView
                 .frame(width: 44, height: 44)
-                .background(
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .fill(isSelected ? Color.accentColor.opacity(0.15) : Color(nsColor: .controlBackgroundColor))
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .stroke(
-                            isSelected ? Color.accentColor : Color(nsColor: .separatorColor).opacity(0.5),
-                            lineWidth: isSelected ? 2 : 1
-                        )
-                )
+                .jinSurface(isSelected ? .selected : .neutral, cornerRadius: JinRadius.medium)
         }
         .buttonStyle(.plain)
     }
@@ -249,11 +227,9 @@ private struct IconButton: View {
     @ViewBuilder
     private var iconView: some View {
         if icon.count <= 2 {
-            // Emoji
             Text(icon)
                 .font(.system(size: 24))
         } else {
-            // SF Symbol
             Image(systemName: icon)
                 .font(.system(size: 20, weight: .semibold))
                 .foregroundStyle(isSelected ? Color.accentColor : .primary)
@@ -461,15 +437,8 @@ private struct AssistantSettingsEditorView: View {
                 .font(.body)
                 .frame(minHeight: 160)
                 .scrollContentBackground(.hidden)
-                .padding(12)
-                .background(
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .fill(Color(nsColor: .controlBackgroundColor))
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .stroke(Color(nsColor: .separatorColor).opacity(0.5), lineWidth: 1)
-                )
+                .padding(JinSpacing.medium)
+                .jinSurface(.neutral, cornerRadius: JinRadius.small)
 
             if assistant.systemInstruction.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 Text("Act as a helpful assistant. Be concise and clear...")
@@ -487,26 +456,19 @@ private struct AssistantSettingsEditorView: View {
             let trimmed = (assistant.icon ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
             if trimmed.isEmpty {
                 Image(systemName: "sparkles")
-                    .font(.system(size: 28, weight: .semibold))
+                    .font(.system(size: JinControlMetrics.assistantLargeGlyphSize, weight: .semibold))
                     .foregroundStyle(Color.accentColor)
             } else if trimmed.count <= 2 {
                 Text(trimmed)
-                    .font(.system(size: 28))
+                    .font(.system(size: JinControlMetrics.assistantLargeGlyphSize))
             } else {
                 Image(systemName: trimmed)
-                    .font(.system(size: 28, weight: .semibold))
+                    .font(.system(size: JinControlMetrics.assistantLargeGlyphSize, weight: .semibold))
                     .foregroundStyle(Color.accentColor)
             }
         }
         .frame(width: 56, height: 56)
-        .background(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(Color.accentColor.opacity(0.12))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .stroke(Color.accentColor.opacity(0.35), lineWidth: 2)
-        )
+        .jinSurface(.selected, cornerRadius: JinRadius.large)
     }
 
     private func syncCustomReplyLanguageDraft() {

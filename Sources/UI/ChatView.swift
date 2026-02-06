@@ -81,43 +81,29 @@ struct ChatView: View {
     }
 
     private var composerOverlay: some View {
-        let shape = RoundedRectangle(cornerRadius: 16, style: .continuous)
+        let shape = RoundedRectangle(cornerRadius: JinRadius.large, style: .continuous)
 
-        return HStack(alignment: .bottom, spacing: 12) {
+        return HStack(alignment: .bottom, spacing: JinSpacing.medium) {
             composerLeftColumn
             composerSendButton
         }
-        .padding(12)
+        .padding(JinSpacing.medium)
         .frame(maxWidth: 840)
         .background {
             shape.fill(.regularMaterial)
-                .overlay {
-                    shape.fill(
-                        LinearGradient(
-                            colors: [
-                                Color.white.opacity(0.08),
-                                Color.black.opacity(0.12)
-                            ],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        )
-                    )
-                    .blendMode(.overlay)
-                }
         }
         .overlay(
-            shape.stroke(Color(nsColor: .separatorColor).opacity(0.4), lineWidth: 0.5)
+            shape.stroke(JinSemanticColor.separator.opacity(0.45), lineWidth: JinStrokeWidth.hairline)
         )
         .overlay(
-            shape.stroke(isComposerDropTargeted ? Color.accentColor : Color.clear, lineWidth: 2)
+            shape.stroke(isComposerDropTargeted ? Color.accentColor : Color.clear, lineWidth: JinStrokeWidth.emphasized)
         )
-        .shadow(color: Color.black.opacity(0.12), radius: 16, x: 0, y: 8)
-        .shadow(color: Color.black.opacity(0.08), radius: 4, x: 0, y: 2)
+        .shadow(color: Color.black.opacity(0.10), radius: 10, x: 0, y: 4)
     }
 
     @ViewBuilder
     private var composerLeftColumn: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: JinSpacing.small) {
             composerAttachmentChipsRow
             composerTextEditor
             composerControlsRow
@@ -130,7 +116,7 @@ struct ChatView: View {
     private var composerAttachmentChipsRow: some View {
         if !draftAttachments.isEmpty {
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
+                HStack(spacing: JinSpacing.small) {
                     ForEach(draftAttachments) { attachment in
                         DraftAttachmentChip(
                             attachment: attachment,
@@ -138,7 +124,7 @@ struct ChatView: View {
                         )
                     }
                 }
-                .padding(.horizontal, 2)
+                .padding(.horizontal, JinSpacing.xSmall)
             }
         }
     }
@@ -1233,14 +1219,14 @@ struct ChatView: View {
         let onRemove: () -> Void
 
         var body: some View {
-            HStack(spacing: 8) {
+            HStack(spacing: JinSpacing.small) {
                 Group {
                     if attachment.isImage, let image = NSImage(contentsOf: attachment.fileURL) {
                         Image(nsImage: image)
                             .resizable()
                             .scaledToFill()
                             .frame(width: 26, height: 26)
-                            .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
+                            .clipShape(RoundedRectangle(cornerRadius: JinRadius.small, style: .continuous))
                     } else if attachment.isPDF {
                         Image(systemName: "doc.richtext")
                             .foregroundStyle(.secondary)
@@ -1261,14 +1247,9 @@ struct ChatView: View {
                 }
                 .buttonStyle(.plain)
             }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-            .background(Color(nsColor: .controlBackgroundColor))
-            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .stroke(Color(nsColor: .separatorColor), lineWidth: 0.5)
-            )
+            .padding(.horizontal, JinSpacing.medium - 2)
+            .padding(.vertical, JinSpacing.xSmall + 2)
+            .jinSurface(.neutral, cornerRadius: JinRadius.medium)
             .onDrag {
                 NSItemProvider(contentsOf: attachment.fileURL)
                     ?? NSItemProvider(object: attachment.fileURL as NSURL)
@@ -1583,30 +1564,34 @@ struct ChatView: View {
     private func controlIconLabel(systemName: String, isActive: Bool, badgeText: String?, activeColor: Color = .accentColor) -> some View {
         ZStack(alignment: .bottomTrailing) {
             Image(systemName: systemName)
-                .font(.system(size: 14))
+                .font(.system(size: 14, weight: .semibold))
                 .symbolRenderingMode(.hierarchical)
                 .foregroundStyle(isActive ? activeColor : Color.secondary)
-                .frame(width: 28, height: 28)
+                .frame(width: JinControlMetrics.iconButtonHitSize, height: JinControlMetrics.iconButtonHitSize)
                 .background(
                     Circle()
-                        .fill(isActive ? activeColor.opacity(0.18) : Color.secondary.opacity(0.10))
+                        .fill(isActive ? activeColor.opacity(0.18) : JinSemanticColor.subtleSurfaceStrong)
+                )
+                .overlay(
+                    Circle()
+                        .stroke(JinSemanticColor.separator.opacity(0.45), lineWidth: JinStrokeWidth.hairline)
                 )
 
             if let badgeText, !badgeText.isEmpty {
                 Text(badgeText)
                     .font(.system(size: 9, weight: .semibold, design: .rounded))
-                    .padding(.horizontal, 4)
+                    .padding(.horizontal, JinSpacing.xSmall)
                     .padding(.vertical, 1)
                     .foregroundStyle(.primary)
                     .background(
                         Capsule()
-                            .fill(Color(nsColor: .controlBackgroundColor))
+                            .fill(JinSemanticColor.surface)
                     )
                     .overlay(
                         Capsule()
-                            .stroke(Color(nsColor: .separatorColor), lineWidth: 0.5)
+                            .stroke(JinSemanticColor.separator.opacity(0.7), lineWidth: JinStrokeWidth.hairline)
                     )
-                    .offset(x: 4, y: 4)
+                    .offset(x: JinSpacing.xSmall, y: JinSpacing.xSmall)
             }
         }
     }
@@ -3941,13 +3926,8 @@ struct MessageRow: View {
                             }
                         }
                     }
-                    .padding(12)
-                    .background(bubbleBackground(isUser: isUser, isTool: isTool))
-                    .clipShape(RoundedRectangle(cornerRadius: 10))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 10)
-                            .stroke(Color(nsColor: .separatorColor), lineWidth: 0.5)
-                    )
+                    .padding(JinSpacing.medium)
+                    .jinSurface(bubbleBackground(isUser: isUser, isTool: isTool), cornerRadius: JinRadius.medium)
 
                     if isUser || isAssistant {
                         footerView(
@@ -3974,7 +3954,7 @@ struct MessageRow: View {
 
     @ViewBuilder
     private func headerView(isUser: Bool, isTool: Bool, assistantModelLabel: String?) -> some View {
-        HStack(spacing: 6) {
+        HStack(spacing: JinSpacing.small - 2) {
             if !isUser && !isTool {
                 AssistantBadgeIcon(icon: assistantIcon)
             }
@@ -3986,19 +3966,7 @@ struct MessageRow: View {
 
             if !isUser, !isTool, let label = assistantModelLabel?.trimmingCharacters(in: .whitespacesAndNewlines), !label.isEmpty {
                 Text(label)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 3)
-                    .background(
-                        Capsule(style: .continuous)
-                            .fill(Color.secondary.opacity(0.08))
-                    )
-                    .overlay(
-                        Capsule(style: .continuous)
-                            .stroke(Color(nsColor: .separatorColor).opacity(0.6), lineWidth: 0.5)
-                    )
+                    .jinTagStyle()
             }
 
             if isTool {
@@ -4007,15 +3975,15 @@ struct MessageRow: View {
                     .foregroundStyle(.secondary)
             }
         }
-        .padding(.horizontal, 12)
-        .padding(.top, 4)
+        .padding(.horizontal, JinSpacing.medium)
+        .padding(.top, JinSpacing.xSmall)
     }
 
     @ViewBuilder
     private func footerView(isUser: Bool, isAssistant: Bool, isEditingUserMessage: Bool, showsCopyButton: Bool, copyText: String, canEditUserMessage: Bool) -> some View {
         if isAssistant {
-            HStack(spacing: 10) {
-                HStack(spacing: 10) {
+            HStack(spacing: JinSpacing.medium - 2) {
+                HStack(spacing: JinSpacing.medium - 2) {
                     if showsCopyButton {
                         CopyToPasteboardButton(text: copyText, helpText: "Copy message")
                             .accessibilityLabel("Copy message")
@@ -4029,15 +3997,13 @@ struct MessageRow: View {
                             if textToSpeechIsGenerating {
                                 ProgressView()
                                     .controlSize(.small)
-                                    .frame(width: 20, height: 20)
                             } else {
                                 Image(systemName: textToSpeechPrimarySystemName)
-                                    .font(.system(size: 12, weight: .semibold))
+                                    .font(.system(size: JinControlMetrics.iconButtonGlyphSize, weight: .semibold))
                                     .foregroundStyle(.secondary)
-                                    .frame(width: 20, height: 20)
                             }
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(JinIconButtonStyle(isActive: textToSpeechIsActive))
                         .help(textToSpeechHelpText)
                         .disabled(!actionsEnabled || copyText.isEmpty || !textToSpeechConfigured)
 
@@ -4064,7 +4030,7 @@ struct MessageRow: View {
             }
         } else if isUser {
             if isEditingUserMessage {
-                HStack(spacing: 10) {
+                HStack(spacing: JinSpacing.medium - 2) {
                     actionIconButton(systemName: "xmark", helpText: "Cancel editing") {
                         onCancelUserEdit()
                     }
@@ -4076,7 +4042,7 @@ struct MessageRow: View {
                     .disabled(!actionsEnabled)
                 }
             } else {
-                HStack(spacing: 10) {
+                HStack(spacing: JinSpacing.medium - 2) {
                     if showsCopyButton {
                         CopyToPasteboardButton(text: copyText, helpText: "Copy message")
                             .accessibilityLabel("Copy message")
@@ -4099,14 +4065,13 @@ struct MessageRow: View {
         }
     }
 
-    private func actionIconButton(systemName: String, helpText: String, action: @escaping () -> Void) -> some View {
+    private func actionIconButton(systemName: String, helpText: String, isActive: Bool = false, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: systemName)
-                .font(.system(size: 12, weight: .semibold))
+                .font(.system(size: JinControlMetrics.iconButtonGlyphSize, weight: .semibold))
                 .foregroundStyle(.secondary)
-                .frame(width: 20, height: 20)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(JinIconButtonStyle(isActive: isActive))
         .help(helpText)
     }
 
@@ -4162,10 +4127,10 @@ struct MessageRow: View {
         return "\(day) at \(time)"
     }
 
-    private func bubbleBackground(isUser: Bool, isTool: Bool) -> Color {
-        if isTool { return Color(nsColor: .controlBackgroundColor).opacity(0.5) }
-        if isUser { return Color.accentColor.opacity(0.1) } // Very subtle blue tint
-        return Color(nsColor: .controlBackgroundColor) // Standard blocks for assistant
+    private func bubbleBackground(isUser: Bool, isTool: Bool) -> JinSurfaceVariant {
+        if isTool { return .tool }
+        if isUser { return .accent }
+        return .neutral
     }
 }
 
@@ -4269,9 +4234,8 @@ struct ContentPartView: View {
                 Image(systemName: "doc")
                 Text(file.filename)
             }
-            .padding(8)
-            .background(Color(nsColor: .controlBackgroundColor))
-            .cornerRadius(6)
+            .padding(JinSpacing.small)
+            .jinSurface(.neutral, cornerRadius: JinRadius.small)
 
             if let url = file.url {
                 Button {
@@ -4354,9 +4318,8 @@ struct ContentPartView: View {
 
         case .audio:
             Label("Audio content", systemImage: "waveform")
-                .padding(8)
-                .background(Color(nsColor: .controlBackgroundColor))
-                .cornerRadius(6)
+                .padding(JinSpacing.small)
+                .jinSurface(.neutral, cornerRadius: JinRadius.small)
         }
     }
 
@@ -4366,7 +4329,7 @@ struct ContentPartView: View {
             .resizable()
             .scaledToFit()
             .frame(maxWidth: 500)
-            .cornerRadius(6)
+            .clipShape(RoundedRectangle(cornerRadius: JinRadius.small, style: .continuous))
             .onDrag {
                 if let fileURL {
                     return NSItemProvider(contentsOf: fileURL) ?? NSItemProvider(object: fileURL as NSURL)
@@ -4418,8 +4381,8 @@ struct ToolCallView: View {
     @State private var isExpanded = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 8) {
+        VStack(alignment: .leading, spacing: JinSpacing.small) {
+            HStack(spacing: JinSpacing.small) {
                 Image(systemName: "hammer")
                     .font(.system(size: 13))
                     .foregroundStyle(.secondary)
@@ -4439,11 +4402,10 @@ struct ToolCallView: View {
                     }
                 } label: {
                     Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
-                        .font(.system(size: 11, weight: .semibold))
+                        .font(.caption.weight(.semibold))
                         .foregroundStyle(.secondary)
-                        .frame(width: 20, height: 20)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(JinIconButtonStyle())
             }
 
             if !isExpanded, let argumentSummary {
@@ -4455,7 +4417,7 @@ struct ToolCallView: View {
             }
 
             if isExpanded {
-                VStack(alignment: .leading, spacing: 10) {
+                VStack(alignment: .leading, spacing: JinSpacing.medium - 2) {
                     if let argsString = formattedArgumentsJSON {
                         ToolCallCodeBlockView(title: "Arguments", text: argsString)
                     } else {
@@ -4477,12 +4439,9 @@ struct ToolCallView: View {
                 .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 10)
-        .background(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(Color.secondary.opacity(0.1))
-        )
+        .padding(.horizontal, JinSpacing.medium)
+        .padding(.vertical, JinSpacing.medium - 2)
+        .jinSurface(.subtleStrong, cornerRadius: JinRadius.medium)
     }
 
     private var formattedArgumentsJSON: String? {
@@ -4532,13 +4491,7 @@ struct ToolCallView: View {
             }
         }
         .font(.caption)
-        .foregroundStyle(foreground)
-        .padding(.horizontal, 10)
-        .padding(.vertical, 4)
-        .background(
-            Capsule(style: .continuous)
-                .fill(Color.secondary.opacity(0.08))
-        )
+        .jinTagStyle(foreground: foreground)
     }
 
     private var durationText: String? {
@@ -4605,7 +4558,7 @@ private struct ToolCallCodeBlockView: View {
     let text: String
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: JinSpacing.small - 2) {
             Text(title)
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -4618,9 +4571,8 @@ private struct ToolCallCodeBlockView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
             .frame(maxHeight: 160)
-            .padding(10)
-            .background(Color.secondary.opacity(0.06))
-            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .padding(JinSpacing.medium - 2)
+            .jinSurface(.subtle, cornerRadius: JinRadius.small)
         }
     }
 }
@@ -4678,8 +4630,8 @@ struct StreamingMessageView: View {
 
         HStack(alignment: .top, spacing: 0) {
             ConstrainedWidth(maxBubbleWidth) {
-                VStack(alignment: .leading, spacing: 6) {
-                    HStack(spacing: 6) {
+                VStack(alignment: .leading, spacing: JinSpacing.small - 2) {
+                    HStack(spacing: JinSpacing.small - 2) {
                         AssistantBadgeIcon(icon: assistantIcon)
                         Text(assistantDisplayName)
                             .font(.caption)
@@ -4688,25 +4640,13 @@ struct StreamingMessageView: View {
 
                         if let label = modelLabel?.trimmingCharacters(in: .whitespacesAndNewlines), !label.isEmpty {
                             Text(label)
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
-                                .lineLimit(1)
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 3)
-                                .background(
-                                    Capsule(style: .continuous)
-                                        .fill(Color.secondary.opacity(0.08))
-                                )
-                                .overlay(
-                                    Capsule(style: .continuous)
-                                        .stroke(Color(nsColor: .separatorColor).opacity(0.6), lineWidth: 0.5)
-                                )
+                                .jinTagStyle()
                         }
                     }
-                    .padding(.horizontal, 12)
-                    .padding(.top, 4)
+                    .padding(.horizontal, JinSpacing.medium)
+                    .padding(.top, JinSpacing.xSmall)
 
-                    VStack(alignment: .leading, spacing: 8) {
+                    VStack(alignment: .leading, spacing: JinSpacing.small) {
                         if !state.thinkingChunks.isEmpty {
                             DisclosureGroup(isExpanded: .constant(true)) {
                                 ChunkedTextView(
@@ -4715,9 +4655,9 @@ struct StreamingMessageView: View {
                                     allowsTextSelection: false
                                 )
                                     .foregroundStyle(.secondary)
-                                    .padding(8)
-                                    .background(Color(nsColor: .textBackgroundColor))
-                                    .cornerRadius(6)
+                                    .padding(JinSpacing.small)
+                                    .background(JinSemanticColor.textSurface)
+                                    .clipShape(RoundedRectangle(cornerRadius: JinRadius.small, style: .continuous))
                             } label: {
                                 HStack {
                                     ProgressView().scaleEffect(0.5)
@@ -4739,13 +4679,8 @@ struct StreamingMessageView: View {
                             }
                         }
                     }
-                    .padding(12)
-                    .background(Color(nsColor: .controlBackgroundColor))
-                    .clipShape(RoundedRectangle(cornerRadius: 10))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 10)
-                            .stroke(Color(nsColor: .separatorColor), lineWidth: 0.5)
-                    )
+                    .padding(JinSpacing.medium)
+                    .jinSurface(.neutral, cornerRadius: JinRadius.medium)
 
                     if showsCopyButton {
                         HStack {
@@ -4753,16 +4688,16 @@ struct StreamingMessageView: View {
                                 .accessibilityLabel("Copy message")
                             Spacer(minLength: 0)
                         }
-                        .padding(.top, 2)
+                        .padding(.top, JinSpacing.xSmall - 2)
                     }
                 }
             }
-            .padding(.horizontal, 16)
+            .padding(.horizontal, JinSpacing.large)
             
             Spacer()
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.vertical, 8)
+        .padding(.vertical, JinSpacing.small)
         .onChange(of: state.renderTick) { _, _ in
             onContentUpdate()
         }

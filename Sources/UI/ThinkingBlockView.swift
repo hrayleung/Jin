@@ -7,58 +7,47 @@ struct ThinkingBlockView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Header - Always visible, clickable to expand/collapse
             Button {
                 withAnimation(.easeInOut(duration: 0.2)) {
                     isExpanded.toggle()
                 }
             } label: {
-                HStack(spacing: 8) {
-                    // Thinking icon
+                HStack(spacing: JinSpacing.small) {
                     Image(systemName: "brain")
-                        .font(.system(size: 14))
-                        .foregroundColor(.secondary)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
 
                     Text("Thinking")
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundColor(.secondary)
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(.secondary)
 
                     Spacer()
 
-                    // Chevron indicator
                     Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundColor(.secondary)
-                        .rotationEffect(.degrees(isExpanded ? 0 : 0))
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
                 }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .background(
-                    RoundedRectangle(cornerRadius: 8)
-                        .fill(Color.secondary.opacity(0.1))
-                )
+                .padding(.horizontal, JinSpacing.medium)
+                .padding(.vertical, JinSpacing.small)
+                .jinSurface(.subtleStrong, cornerRadius: JinRadius.small)
             }
             .buttonStyle(.plain)
 
-            // Expanded content
             if isExpanded {
-                VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: JinSpacing.small) {
                     Text(thinking.text)
-                        .font(.system(size: 13))
-                        .foregroundColor(.primary)
+                        .font(.subheadline)
+                        .foregroundStyle(.primary)
                         .textSelection(.enabled)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 8)
+                        .padding(.horizontal, JinSpacing.medium)
+                        .padding(.vertical, JinSpacing.small)
                 }
-                .background(
-                    RoundedRectangle(cornerRadius: 8)
-                        .fill(Color.secondary.opacity(0.05))
-                )
-                .padding(.top, 4)
+                .jinSurface(.subtle, cornerRadius: JinRadius.small)
+                .padding(.top, JinSpacing.xSmall)
                 .transition(.opacity.combined(with: .move(edge: .bottom)))
             }
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, JinSpacing.xSmall)
     }
 }
 
@@ -67,22 +56,19 @@ struct RedactedThinkingBlockView: View {
     let redactedThinking: RedactedThinkingBlock
 
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: JinSpacing.small) {
             Image(systemName: "lock.fill")
-                .font(.system(size: 12))
-                .foregroundColor(.secondary)
+                .font(.caption)
+                .foregroundStyle(.secondary)
 
             Text("Encrypted reasoning")
-                .font(.system(size: 13))
-                .foregroundColor(.secondary)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
                 .italic()
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 6)
-        .background(
-            RoundedRectangle(cornerRadius: 6)
-                .fill(Color.secondary.opacity(0.1))
-        )
+        .padding(.horizontal, JinSpacing.medium)
+        .padding(.vertical, JinSpacing.xSmall + 2)
+        .jinSurface(.subtleStrong, cornerRadius: JinRadius.small)
     }
 }
 
