@@ -226,6 +226,7 @@ final class ProviderConfigEntity {
     var typeRaw: String // ProviderType.rawValue
     var apiKey: String?
     var serviceAccountJSON: String?
+    // Legacy: no longer used (credentials are stored directly on this entity).
     var apiKeyKeychainID: String?
     var baseURL: String?
     var modelsData: Data // Codable [ModelInfo]
@@ -259,16 +260,12 @@ final class ProviderConfigEntity {
         let decoder = JSONDecoder()
         let models = try decoder.decode([ModelInfo].self, from: modelsData)
 
-        let inlineAPIKey: String? = apiKeyKeychainID == nil ? apiKey : nil
-        let inlineServiceAccountJSON: String? = apiKeyKeychainID == nil ? serviceAccountJSON : nil
-
         return ProviderConfig(
             id: id,
             name: name,
             type: providerType,
-            apiKey: inlineAPIKey,
-            serviceAccountJSON: inlineServiceAccountJSON,
-            apiKeyKeychainID: apiKeyKeychainID,
+            apiKey: apiKey,
+            serviceAccountJSON: serviceAccountJSON,
             baseURL: baseURL,
             models: models
         )
@@ -285,7 +282,7 @@ final class ProviderConfigEntity {
             typeRaw: config.type.rawValue,
             apiKey: config.apiKey,
             serviceAccountJSON: config.serviceAccountJSON,
-            apiKeyKeychainID: config.apiKeyKeychainID,
+            apiKeyKeychainID: nil,
             baseURL: config.baseURL,
             modelsData: modelsData
         )

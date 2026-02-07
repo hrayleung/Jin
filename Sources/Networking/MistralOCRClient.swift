@@ -4,7 +4,6 @@ actor MistralOCRClient {
     enum Constants {
         static let defaultBaseURL = URL(string: "https://api.mistral.ai/v1")!
         static let defaultModel = "mistral-ocr-latest"
-        static let keychainID = "plugin_mistral_ocr"
     }
 
     struct OCRResponse: Decodable {

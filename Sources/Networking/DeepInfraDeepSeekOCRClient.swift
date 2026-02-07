@@ -5,7 +5,6 @@ actor DeepInfraDeepSeekOCRClient {
         static let defaultBaseURL = URL(string: "https://api.deepinfra.com/v1/openai")!
         static let defaultModel = "deepseek-ai/DeepSeek-OCR"
         static let defaultMaxTokens = 4096
-        static let keychainID = "plugin_deepinfra_deepseek_ocr"
 
         static let defaultPrompt = """
 Extract all text from the image(s) and return it as GitHub-flavored Markdown. \

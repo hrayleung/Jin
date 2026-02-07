@@ -293,7 +293,6 @@ struct ProviderConfig: Identifiable, Codable {
     let type: ProviderType
     var apiKey: String?
     var serviceAccountJSON: String?
-    var apiKeyKeychainID: String?
     var baseURL: String?
     var models: [ModelInfo]
 
@@ -303,7 +302,6 @@ struct ProviderConfig: Identifiable, Codable {
         type: ProviderType,
         apiKey: String? = nil,
         serviceAccountJSON: String? = nil,
-        apiKeyKeychainID: String? = nil,
         baseURL: String? = nil,
         models: [ModelInfo] = []
     ) {
@@ -312,7 +310,6 @@ struct ProviderConfig: Identifiable, Codable {
         self.type = type
         self.apiKey = apiKey
         self.serviceAccountJSON = serviceAccountJSON
-        self.apiKeyKeychainID = apiKeyKeychainID
         self.baseURL = baseURL
         self.models = models
     }

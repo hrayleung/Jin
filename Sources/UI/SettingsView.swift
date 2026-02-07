@@ -623,13 +623,6 @@ struct SettingsView: View {
 
     private func deleteProvider(_ provider: ProviderConfigEntity) {
         Task { @MainActor in
-            let keychainID = (provider.apiKeyKeychainID ?? provider.id).trimmingCharacters(in: .whitespacesAndNewlines)
-            if !keychainID.isEmpty {
-                let keychainManager = KeychainManager()
-                _ = try? await keychainManager.deleteAPIKey(for: keychainID)
-                _ = try? await keychainManager.deleteServiceAccountJSON(for: keychainID)
-            }
-
             modelContext.delete(provider)
             providerPendingDeletion = nil
         }
@@ -707,7 +700,6 @@ struct AddProviderView: View {
     @State private var baseURL = ProviderType.openai.defaultBaseURL ?? ""
     @State private var apiKey = ""
     @State private var serviceAccountJSON = ""
-    @State private var storeCredentialsInKeychain = true
 
     @State private var isSaving = false
     @State private var saveError: String?
@@ -733,9 +725,6 @@ struct AddProviderView: View {
                     TextField("Base URL", text: $baseURL)
                         .help("Default endpoint is pre-filled.")
                 }
-
-                Toggle("Store credentials in Keychain", isOn: $storeCredentialsInKeychain)
-                    .help("Keychain is more secure, but unsigned builds may prompt for your Mac password.")
 
                 switch providerType {
                 case .openai, .anthropic, .xai, .deepseek, .fireworks, .cerebras, .gemini:
@@ -795,41 +784,18 @@ struct AddProviderView: View {
                 let trimmedAPIKey = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
                 let trimmedServiceAccountJSON = serviceAccountJSON.trimmingCharacters(in: .whitespacesAndNewlines)
 
-                let config: ProviderConfig
-                if storeCredentialsInKeychain {
-                    let keychainManager = KeychainManager()
-                    switch providerType {
-                    case .openai, .anthropic, .xai, .deepseek, .fireworks, .cerebras, .gemini:
-                        try await keychainManager.saveAPIKey(trimmedAPIKey, for: providerID)
-                    case .vertexai:
-                        _ = try JSONDecoder().decode(ServiceAccountCredentials.self, from: Data(trimmedServiceAccountJSON.utf8))
-                        try await keychainManager.saveServiceAccountJSON(trimmedServiceAccountJSON, for: providerID)
-                    }
-
-                    config = ProviderConfig(
-                        id: providerID,
-                        name: trimmedName,
-                        type: providerType,
-                        apiKey: nil,
-                        serviceAccountJSON: nil,
-                        apiKeyKeychainID: providerID,
-                        baseURL: providerType == .vertexai ? nil : trimmedBaseURL.isEmpty ? nil : trimmedBaseURL
-                    )
-                } else {
-                    if providerType == .vertexai {
-                        _ = try JSONDecoder().decode(ServiceAccountCredentials.self, from: Data(trimmedServiceAccountJSON.utf8))
-                    }
-
-                    config = ProviderConfig(
-                        id: providerID,
-                        name: trimmedName,
-                        type: providerType,
-                        apiKey: providerType == .vertexai ? nil : trimmedAPIKey,
-                        serviceAccountJSON: providerType == .vertexai ? trimmedServiceAccountJSON : nil,
-                        apiKeyKeychainID: nil,
-                        baseURL: providerType == .vertexai ? nil : trimmedBaseURL.isEmpty ? nil : trimmedBaseURL
-                    )
+                if providerType == .vertexai {
+                    _ = try JSONDecoder().decode(ServiceAccountCredentials.self, from: Data(trimmedServiceAccountJSON.utf8))
                 }
+
+                let config = ProviderConfig(
+                    id: providerID,
+                    name: trimmedName,
+                    type: providerType,
+                    apiKey: providerType == .vertexai ? nil : trimmedAPIKey,
+                    serviceAccountJSON: providerType == .vertexai ? trimmedServiceAccountJSON : nil,
+                    baseURL: providerType == .vertexai ? nil : trimmedBaseURL.isEmpty ? nil : trimmedBaseURL
+                )
 
                 let entity = try ProviderConfigEntity.fromDomain(config)
 

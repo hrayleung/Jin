@@ -2334,8 +2334,7 @@ struct ChatView: View {
 
         let mistralClient: MistralOCRClient?
         if pdfCount > 0, requestedMode == .mistralOCR {
-            let keychainManager = KeychainManager()
-            let key = try await keychainManager.getAPIKey(for: MistralOCRClient.Constants.keychainID)
+            let key = UserDefaults.standard.string(forKey: AppPreferenceKeys.pluginMistralOCRAPIKey)
             let trimmed = (key ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
 
             if trimmed.isEmpty {
@@ -2349,8 +2348,7 @@ struct ChatView: View {
 
         let deepSeekClient: DeepInfraDeepSeekOCRClient?
         if pdfCount > 0, requestedMode == .deepSeekOCR {
-            let keychainManager = KeychainManager()
-            let key = try await keychainManager.getAPIKey(for: DeepInfraDeepSeekOCRClient.Constants.keychainID)
+            let key = UserDefaults.standard.string(forKey: AppPreferenceKeys.pluginDeepSeekOCRAPIKey)
             let trimmed = (key ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
 
             if trimmed.isEmpty {
@@ -3726,39 +3724,43 @@ struct ChatView: View {
     }
 
     private func refreshExtensionCredentialsStatus() async {
-        let keychainManager = KeychainManager()
         let defaults = UserDefaults.standard
 
-        let mistralConfigured = await keychainManager.hasAPIKey(for: MistralOCRClient.Constants.keychainID)
-        let deepSeekConfigured = await keychainManager.hasAPIKey(for: DeepInfraDeepSeekOCRClient.Constants.keychainID)
+        func hasStoredKey(_ key: String) -> Bool {
+            let trimmed = (defaults.string(forKey: key) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            return !trimmed.isEmpty
+        }
+
+        let mistralConfigured = hasStoredKey(AppPreferenceKeys.pluginMistralOCRAPIKey)
+        let deepSeekConfigured = hasStoredKey(AppPreferenceKeys.pluginDeepSeekOCRAPIKey)
 
         let ttsProvider = TextToSpeechProvider(rawValue: defaults.string(forKey: AppPreferenceKeys.ttsProvider) ?? TextToSpeechProvider.openai.rawValue)
             ?? .openai
         let sttProvider = SpeechToTextProvider(rawValue: defaults.string(forKey: AppPreferenceKeys.sttProvider) ?? SpeechToTextProvider.groq.rawValue)
             ?? .groq
 
-        let ttsKeychainID: String = {
+        let ttsAPIKeyPreferenceKey: String = {
             switch ttsProvider {
             case .elevenlabs:
-                return ElevenLabsTTSClient.Constants.keychainID
+                return AppPreferenceKeys.ttsElevenLabsAPIKey
             case .openai:
-                return OpenAIAudioClient.Constants.keychainID
+                return AppPreferenceKeys.ttsOpenAIAPIKey
             case .groq:
-                return GroqAudioClient.Constants.keychainID
+                return AppPreferenceKeys.ttsGroqAPIKey
             }
         }()
 
-        let sttKeychainID: String = {
+        let sttAPIKeyPreferenceKey: String = {
             switch sttProvider {
             case .openai:
-                return OpenAIAudioClient.Constants.keychainID
+                return AppPreferenceKeys.sttOpenAIAPIKey
             case .groq:
-                return GroqAudioClient.Constants.keychainID
+                return AppPreferenceKeys.sttGroqAPIKey
             }
         }()
 
-        let ttsKeyConfigured = await keychainManager.hasAPIKey(for: ttsKeychainID)
-        let sttConfigured = await keychainManager.hasAPIKey(for: sttKeychainID)
+        let ttsKeyConfigured = hasStoredKey(ttsAPIKeyPreferenceKey)
+        let sttKeyConfigured = hasStoredKey(sttAPIKeyPreferenceKey)
 
         let ttsConfigured: Bool
         if ttsProvider == .elevenlabs {
@@ -3778,7 +3780,7 @@ struct ChatView: View {
             mistralOCRConfigured = mistralConfigured
             deepSeekOCRConfigured = deepSeekConfigured
             textToSpeechConfigured = ttsConfigured
-            speechToTextConfigured = sttConfigured
+            speechToTextConfigured = sttKeyConfigured
 
             mistralOCRPluginEnabled = mistralEnabled
             deepSeekOCRPluginEnabled = deepSeekEnabled
@@ -3799,18 +3801,16 @@ struct ChatView: View {
         let provider = SpeechToTextProvider(rawValue: defaults.string(forKey: AppPreferenceKeys.sttProvider) ?? SpeechToTextProvider.groq.rawValue)
             ?? .groq
 
-        let keychainID: String = {
+        let apiKeyPreferenceKey: String = {
             switch provider {
             case .openai:
-                return OpenAIAudioClient.Constants.keychainID
+                return AppPreferenceKeys.sttOpenAIAPIKey
             case .groq:
-                return GroqAudioClient.Constants.keychainID
+                return AppPreferenceKeys.sttGroqAPIKey
             }
         }()
 
-        let keychainManager = KeychainManager()
-        let key = try await keychainManager.getAPIKey(for: keychainID)
-        let apiKey = (key ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        let apiKey = (defaults.string(forKey: apiKeyPreferenceKey) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         guard !apiKey.isEmpty else { throw SpeechExtensionError.speechToTextNotConfigured }
 
         func normalized(_ raw: String?) -> String? {
@@ -3930,20 +3930,18 @@ struct ChatView: View {
         let provider = TextToSpeechProvider(rawValue: defaults.string(forKey: AppPreferenceKeys.ttsProvider) ?? TextToSpeechProvider.openai.rawValue)
             ?? .openai
 
-        let keychainID: String = {
+        let apiKeyPreferenceKey: String = {
             switch provider {
             case .elevenlabs:
-                return ElevenLabsTTSClient.Constants.keychainID
+                return AppPreferenceKeys.ttsElevenLabsAPIKey
             case .openai:
-                return OpenAIAudioClient.Constants.keychainID
+                return AppPreferenceKeys.ttsOpenAIAPIKey
             case .groq:
-                return GroqAudioClient.Constants.keychainID
+                return AppPreferenceKeys.ttsGroqAPIKey
             }
         }()
 
-        let keychainManager = KeychainManager()
-        let key = try await keychainManager.getAPIKey(for: keychainID)
-        let apiKey = (key ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        let apiKey = (defaults.string(forKey: apiKeyPreferenceKey) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         guard !apiKey.isEmpty else { throw SpeechExtensionError.textToSpeechNotConfigured }
 
         switch provider {

@@ -3,7 +3,6 @@ import Foundation
 actor OpenAIAudioClient {
     enum Constants {
         static let defaultBaseURL = URL(string: "https://api.openai.com/v1")!
-        static let keychainID = "plugin_openai_audio"
     }
 
     private struct SpeechRequest: Encodable {
@@ -191,4 +190,3 @@ actor OpenAIAudioClient {
         }
     }
 }
-

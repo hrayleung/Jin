@@ -33,12 +33,12 @@ struct SpeechToTextPluginSettingsView: View {
         SpeechToTextProvider(rawValue: providerRaw) ?? .groq
     }
 
-    private var currentKeychainID: String {
+    private var currentAPIKeyPreferenceKey: String {
         switch provider {
         case .openai:
-            return OpenAIAudioClient.Constants.keychainID
+            return AppPreferenceKeys.sttOpenAIAPIKey
         case .groq:
-            return GroqAudioClient.Constants.keychainID
+            return AppPreferenceKeys.sttGroqAPIKey
         }
     }
 
@@ -102,7 +102,7 @@ struct SpeechToTextPluginSettingsView: View {
                     .disabled(apiKey.isEmpty)
                 }
 
-                Text("Stored in Keychain. Unsigned builds (e.g. `swift run`) may prompt repeatedly; running from Xcode (signed) is smoother.")
+                Text("Stored locally on this device.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
@@ -252,8 +252,7 @@ struct SpeechToTextPluginSettingsView: View {
     }
 
     private func loadExistingKey() async {
-        let keychainManager = KeychainManager()
-        let existing = (try? await keychainManager.getAPIKey(for: currentKeychainID)) ?? ""
+        let existing = UserDefaults.standard.string(forKey: currentAPIKeyPreferenceKey) ?? ""
         await MainActor.run {
             apiKey = existing
         }
@@ -266,24 +265,11 @@ struct SpeechToTextPluginSettingsView: View {
         statusIsError = false
         isSaving = true
 
-        Task {
-            do {
-                let keychainManager = KeychainManager()
-                try await keychainManager.saveAPIKey(trimmedAPIKey, for: currentKeychainID)
-                await MainActor.run {
-                    isSaving = false
-                    statusMessage = "Saved."
-                    statusIsError = false
-                }
-                NotificationCenter.default.post(name: .pluginCredentialsDidChange, object: nil)
-            } catch {
-                await MainActor.run {
-                    isSaving = false
-                    statusMessage = error.localizedDescription
-                    statusIsError = true
-                }
-            }
-        }
+        UserDefaults.standard.set(trimmedAPIKey, forKey: currentAPIKeyPreferenceKey)
+        isSaving = false
+        statusMessage = "Saved."
+        statusIsError = false
+        NotificationCenter.default.post(name: .pluginCredentialsDidChange, object: nil)
     }
 
     private func clearKey() {
@@ -291,25 +277,12 @@ struct SpeechToTextPluginSettingsView: View {
         statusIsError = false
         isSaving = true
 
-        Task {
-            do {
-                let keychainManager = KeychainManager()
-                try await keychainManager.deleteAPIKey(for: currentKeychainID)
-                await MainActor.run {
-                    apiKey = ""
-                    isSaving = false
-                    statusMessage = "Cleared."
-                    statusIsError = false
-                }
-                NotificationCenter.default.post(name: .pluginCredentialsDidChange, object: nil)
-            } catch {
-                await MainActor.run {
-                    isSaving = false
-                    statusMessage = error.localizedDescription
-                    statusIsError = true
-                }
-            }
-        }
+        UserDefaults.standard.removeObject(forKey: currentAPIKeyPreferenceKey)
+        apiKey = ""
+        isSaving = false
+        statusMessage = "Cleared."
+        statusIsError = false
+        NotificationCenter.default.post(name: .pluginCredentialsDidChange, object: nil)
     }
 
     private func testConnection() {

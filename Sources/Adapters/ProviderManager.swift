@@ -2,13 +2,11 @@ import Foundation
 
 actor ProviderManager {
     private let networkManager: NetworkManager
-    private let keychainManager: KeychainManager
 
     init(
         networkManager: NetworkManager = NetworkManager()
     ) {
         self.networkManager = networkManager
-        keychainManager = KeychainManager()
     }
 
     func createAdapter(for config: ProviderConfig) async throws -> any LLMProviderAdapter {
@@ -105,26 +103,12 @@ actor ProviderManager {
         let direct = (config.apiKey ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         if !direct.isEmpty { return direct }
 
-        let keychainID = (config.apiKeyKeychainID ?? config.id).trimmingCharacters(in: .whitespacesAndNewlines)
-        if !keychainID.isEmpty,
-           let stored = try await keychainManager.getAPIKey(for: keychainID) {
-            let trimmed = stored.trimmingCharacters(in: .whitespacesAndNewlines)
-            if !trimmed.isEmpty { return trimmed }
-        }
-
         throw ProviderError.missingAPIKey(provider: config.name)
     }
 
     private func resolveServiceAccountJSON(for config: ProviderConfig) async throws -> String {
         let direct = (config.serviceAccountJSON ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         if !direct.isEmpty { return direct }
-
-        let keychainID = (config.apiKeyKeychainID ?? config.id).trimmingCharacters(in: .whitespacesAndNewlines)
-        if !keychainID.isEmpty,
-           let stored = try await keychainManager.getServiceAccountJSON(for: keychainID) {
-            let trimmed = stored.trimmingCharacters(in: .whitespacesAndNewlines)
-            if !trimmed.isEmpty { return trimmed }
-        }
 
         throw ProviderError.missingServiceAccount(provider: config.name)
     }

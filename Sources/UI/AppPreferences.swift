@@ -19,6 +19,9 @@ enum AppPreferenceKeys {
     static let pluginDeepSeekOCREnabled = "pluginDeepSeekOCREnabled"
     static let pluginChatNamingEnabled = "pluginChatNamingEnabled"
 
+    static let pluginMistralOCRAPIKey = "pluginMistralOCRAPIKey"
+    static let pluginDeepSeekOCRAPIKey = "pluginDeepSeekOCRAPIKey"
+
     // Chat naming
     static let chatNamingMode = "chatNamingMode"
     static let chatNamingProviderID = "chatNamingProviderID"
@@ -27,6 +30,7 @@ enum AppPreferenceKeys {
     // Text to Speech
     static let ttsProvider = "ttsProvider"
 
+    static let ttsOpenAIAPIKey = "ttsOpenAIAPIKey"
     static let ttsOpenAIBaseURL = "ttsOpenAIBaseURL"
     static let ttsOpenAIModel = "ttsOpenAIModel"
     static let ttsOpenAIVoice = "ttsOpenAIVoice"
@@ -34,11 +38,13 @@ enum AppPreferenceKeys {
     static let ttsOpenAISpeed = "ttsOpenAISpeed"
     static let ttsOpenAIInstructions = "ttsOpenAIInstructions"
 
+    static let ttsGroqAPIKey = "ttsGroqAPIKey"
     static let ttsGroqBaseURL = "ttsGroqBaseURL"
     static let ttsGroqModel = "ttsGroqModel"
     static let ttsGroqVoice = "ttsGroqVoice"
     static let ttsGroqResponseFormat = "ttsGroqResponseFormat"
 
+    static let ttsElevenLabsAPIKey = "ttsElevenLabsAPIKey"
     static let ttsElevenLabsBaseURL = "ttsElevenLabsBaseURL"
     static let ttsElevenLabsModelID = "ttsElevenLabsModelID"
     static let ttsElevenLabsVoiceID = "ttsElevenLabsVoiceID"
@@ -54,6 +60,7 @@ enum AppPreferenceKeys {
     static let sttProvider = "sttProvider"
     static let sttAddRecordingAsFile = "sttAddRecordingAsFile"
 
+    static let sttOpenAIAPIKey = "sttOpenAIAPIKey"
     static let sttOpenAIBaseURL = "sttOpenAIBaseURL"
     static let sttOpenAIModel = "sttOpenAIModel"
     static let sttOpenAILanguage = "sttOpenAILanguage"
@@ -63,6 +70,7 @@ enum AppPreferenceKeys {
     static let sttOpenAITemperature = "sttOpenAITemperature"
     static let sttOpenAITimestampGranularitiesJSON = "sttOpenAITimestampGranularitiesJSON"
 
+    static let sttGroqAPIKey = "sttGroqAPIKey"
     static let sttGroqBaseURL = "sttGroqBaseURL"
     static let sttGroqModel = "sttGroqModel"
     static let sttGroqLanguage = "sttGroqLanguage"

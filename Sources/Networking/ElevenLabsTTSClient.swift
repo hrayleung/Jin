@@ -3,7 +3,6 @@ import Foundation
 actor ElevenLabsTTSClient {
     enum Constants {
         static let defaultBaseURL = URL(string: "https://api.elevenlabs.io/v1")!
-        static let keychainID = "plugin_elevenlabs_tts"
     }
 
     struct Voice: Decodable, Identifiable, Hashable {
@@ -168,4 +167,3 @@ actor ElevenLabsTTSClient {
         return data
     }
 }
-

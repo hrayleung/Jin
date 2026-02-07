@@ -26,7 +26,7 @@ struct DeepSeekOCRPluginSettingsView: View {
                 SecureField("API Key", text: $apiKey)
                     .textContentType(.password)
 
-                Text("Stored in Keychain. Unsigned builds (e.g. `swift run`) may prompt repeatedly; running from Xcode (signed) is smoother.")
+                Text("Stored locally on this device.")
                     .jinInfoCallout()
 
                 HStack(spacing: 12) {
@@ -64,8 +64,7 @@ struct DeepSeekOCRPluginSettingsView: View {
     }
 
     private func loadExistingKey() async {
-        let keychainManager = KeychainManager()
-        let existing = (try? await keychainManager.getAPIKey(for: DeepInfraDeepSeekOCRClient.Constants.keychainID)) ?? ""
+        let existing = UserDefaults.standard.string(forKey: AppPreferenceKeys.pluginDeepSeekOCRAPIKey) ?? ""
         await MainActor.run {
             apiKey = existing
         }
@@ -78,24 +77,11 @@ struct DeepSeekOCRPluginSettingsView: View {
         statusIsError = false
         isSaving = true
 
-        Task {
-            do {
-                let keychainManager = KeychainManager()
-                try await keychainManager.saveAPIKey(trimmedAPIKey, for: DeepInfraDeepSeekOCRClient.Constants.keychainID)
-                await MainActor.run {
-                    isSaving = false
-                    statusMessage = "Saved."
-                    statusIsError = false
-                }
-                NotificationCenter.default.post(name: .pluginCredentialsDidChange, object: nil)
-            } catch {
-                await MainActor.run {
-                    isSaving = false
-                    statusMessage = error.localizedDescription
-                    statusIsError = true
-                }
-            }
-        }
+        UserDefaults.standard.set(trimmedAPIKey, forKey: AppPreferenceKeys.pluginDeepSeekOCRAPIKey)
+        isSaving = false
+        statusMessage = "Saved."
+        statusIsError = false
+        NotificationCenter.default.post(name: .pluginCredentialsDidChange, object: nil)
     }
 
     private func clearKey() {
@@ -103,25 +89,12 @@ struct DeepSeekOCRPluginSettingsView: View {
         statusIsError = false
         isSaving = true
 
-        Task {
-            do {
-                let keychainManager = KeychainManager()
-                try await keychainManager.deleteAPIKey(for: DeepInfraDeepSeekOCRClient.Constants.keychainID)
-                await MainActor.run {
-                    apiKey = ""
-                    isSaving = false
-                    statusMessage = "Cleared."
-                    statusIsError = false
-                }
-                NotificationCenter.default.post(name: .pluginCredentialsDidChange, object: nil)
-            } catch {
-                await MainActor.run {
-                    isSaving = false
-                    statusMessage = error.localizedDescription
-                    statusIsError = true
-                }
-            }
-        }
+        UserDefaults.standard.removeObject(forKey: AppPreferenceKeys.pluginDeepSeekOCRAPIKey)
+        apiKey = ""
+        isSaving = false
+        statusMessage = "Cleared."
+        statusIsError = false
+        NotificationCenter.default.post(name: .pluginCredentialsDidChange, object: nil)
     }
 
     private func testConnection() {
@@ -150,4 +123,3 @@ struct DeepSeekOCRPluginSettingsView: View {
         }
     }
 }
-

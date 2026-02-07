@@ -3,7 +3,6 @@ import Foundation
 actor GroqAudioClient {
     enum Constants {
         static let defaultBaseURL = URL(string: "https://api.groq.com/openai/v1")!
-        static let keychainID = "plugin_groq_audio"
     }
 
     private struct SpeechRequest: Encodable {
@@ -178,4 +177,3 @@ actor GroqAudioClient {
         }
     }
 }
-

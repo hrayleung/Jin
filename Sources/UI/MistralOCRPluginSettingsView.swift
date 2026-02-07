@@ -26,7 +26,7 @@ struct MistralOCRPluginSettingsView: View {
                 SecureField("API Key", text: $apiKey)
                     .textContentType(.password)
 
-                Text("Stored in Keychain. Unsigned builds (e.g. `swift run`) may prompt repeatedly; running from Xcode (signed) is smoother.")
+                Text("Stored locally on this device.")
                     .jinInfoCallout()
 
                 HStack(spacing: 12) {
@@ -70,8 +70,7 @@ struct MistralOCRPluginSettingsView: View {
     }
 
     private func loadExistingKey() async {
-        let keychainManager = KeychainManager()
-        let existing = (try? await keychainManager.getAPIKey(for: MistralOCRClient.Constants.keychainID)) ?? ""
+        let existing = UserDefaults.standard.string(forKey: AppPreferenceKeys.pluginMistralOCRAPIKey) ?? ""
         await MainActor.run {
             apiKey = existing
         }
@@ -84,24 +83,11 @@ struct MistralOCRPluginSettingsView: View {
         statusIsError = false
         isSaving = true
 
-        Task {
-            do {
-                let keychainManager = KeychainManager()
-                try await keychainManager.saveAPIKey(trimmedAPIKey, for: MistralOCRClient.Constants.keychainID)
-                await MainActor.run {
-                    isSaving = false
-                    statusMessage = "Saved."
-                    statusIsError = false
-                }
-                NotificationCenter.default.post(name: .pluginCredentialsDidChange, object: nil)
-            } catch {
-                await MainActor.run {
-                    isSaving = false
-                    statusMessage = error.localizedDescription
-                    statusIsError = true
-                }
-            }
-        }
+        UserDefaults.standard.set(trimmedAPIKey, forKey: AppPreferenceKeys.pluginMistralOCRAPIKey)
+        isSaving = false
+        statusMessage = "Saved."
+        statusIsError = false
+        NotificationCenter.default.post(name: .pluginCredentialsDidChange, object: nil)
     }
 
     private func clearKey() {
@@ -109,25 +95,12 @@ struct MistralOCRPluginSettingsView: View {
         statusIsError = false
         isSaving = true
 
-        Task {
-            do {
-                let keychainManager = KeychainManager()
-                try await keychainManager.deleteAPIKey(for: MistralOCRClient.Constants.keychainID)
-                await MainActor.run {
-                    apiKey = ""
-                    isSaving = false
-                    statusMessage = "Cleared."
-                    statusIsError = false
-                }
-                NotificationCenter.default.post(name: .pluginCredentialsDidChange, object: nil)
-            } catch {
-                await MainActor.run {
-                    isSaving = false
-                    statusMessage = error.localizedDescription
-                    statusIsError = true
-                }
-            }
-        }
+        UserDefaults.standard.removeObject(forKey: AppPreferenceKeys.pluginMistralOCRAPIKey)
+        apiKey = ""
+        isSaving = false
+        statusMessage = "Cleared."
+        statusIsError = false
+        NotificationCenter.default.post(name: .pluginCredentialsDidChange, object: nil)
     }
 
     private func testConnection() {

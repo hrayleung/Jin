@@ -43,14 +43,14 @@ struct TextToSpeechPluginSettingsView: View {
         TextToSpeechProvider(rawValue: providerRaw) ?? .openai
     }
 
-    private var currentKeychainID: String {
+    private var currentAPIKeyPreferenceKey: String {
         switch provider {
         case .elevenlabs:
-            return ElevenLabsTTSClient.Constants.keychainID
+            return AppPreferenceKeys.ttsElevenLabsAPIKey
         case .openai:
-            return OpenAIAudioClient.Constants.keychainID
+            return AppPreferenceKeys.ttsOpenAIAPIKey
         case .groq:
-            return GroqAudioClient.Constants.keychainID
+            return AppPreferenceKeys.ttsGroqAPIKey
         }
     }
 
@@ -106,7 +106,7 @@ struct TextToSpeechPluginSettingsView: View {
                     .disabled(apiKey.isEmpty)
                 }
 
-                Text("Stored in Keychain. Unsigned builds (e.g. `swift run`) may prompt repeatedly; running from Xcode (signed) is smoother.")
+                Text("Stored locally on this device.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
@@ -320,8 +320,7 @@ struct TextToSpeechPluginSettingsView: View {
     }
 
     private func loadExistingKey() async {
-        let keychainManager = KeychainManager()
-        let existing = (try? await keychainManager.getAPIKey(for: currentKeychainID)) ?? ""
+        let existing = UserDefaults.standard.string(forKey: currentAPIKeyPreferenceKey) ?? ""
         await MainActor.run {
             apiKey = existing
         }
@@ -334,25 +333,12 @@ struct TextToSpeechPluginSettingsView: View {
         statusIsError = false
         isSaving = true
 
-        Task {
-            do {
-                let keychainManager = KeychainManager()
-                try await keychainManager.saveAPIKey(trimmedAPIKey, for: currentKeychainID)
-                await MainActor.run {
-                    isSaving = false
-                    statusMessage = "Saved."
-                    statusIsError = false
-                }
-                NotificationCenter.default.post(name: .pluginCredentialsDidChange, object: nil)
-                await loadExistingKeyAndMaybeVoices()
-            } catch {
-                await MainActor.run {
-                    isSaving = false
-                    statusMessage = error.localizedDescription
-                    statusIsError = true
-                }
-            }
-        }
+        UserDefaults.standard.set(trimmedAPIKey, forKey: currentAPIKeyPreferenceKey)
+        isSaving = false
+        statusMessage = "Saved."
+        statusIsError = false
+        NotificationCenter.default.post(name: .pluginCredentialsDidChange, object: nil)
+        Task { await loadExistingKeyAndMaybeVoices() }
     }
 
     private func clearKey() {
@@ -360,26 +346,13 @@ struct TextToSpeechPluginSettingsView: View {
         statusIsError = false
         isSaving = true
 
-        Task {
-            do {
-                let keychainManager = KeychainManager()
-                try await keychainManager.deleteAPIKey(for: currentKeychainID)
-                await MainActor.run {
-                    apiKey = ""
-                    isSaving = false
-                    statusMessage = "Cleared."
-                    statusIsError = false
-                    elevenLabsVoices = []
-                }
-                NotificationCenter.default.post(name: .pluginCredentialsDidChange, object: nil)
-            } catch {
-                await MainActor.run {
-                    isSaving = false
-                    statusMessage = error.localizedDescription
-                    statusIsError = true
-                }
-            }
-        }
+        UserDefaults.standard.removeObject(forKey: currentAPIKeyPreferenceKey)
+        apiKey = ""
+        isSaving = false
+        statusMessage = "Cleared."
+        statusIsError = false
+        elevenLabsVoices = []
+        NotificationCenter.default.post(name: .pluginCredentialsDidChange, object: nil)
     }
 
     private func testConnection() {
