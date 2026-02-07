@@ -15,8 +15,12 @@ struct ProviderConfigFormView: View {
     @State private var showingAddModel = false
     @State private var showingDeleteAllModelsConfirmation = false
     @State private var selectedModelIDs: Set<ModelInfo.ID> = []
+    @State private var openRouterUsageStatus: OpenRouterUsageStatus = .idle
+    @State private var openRouterUsage: OpenRouterKeyUsage?
+    @State private var openRouterUsageTask: Task<Void, Never>?
 
     private let providerManager = ProviderManager()
+    private let networkManager = NetworkManager()
 
     var body: some View {
         Form {
@@ -53,13 +57,17 @@ struct ProviderConfigFormView: View {
                     .jinInfoCallout()
 
                 switch providerType {
-                case .openai, .anthropic, .xai, .deepseek, .fireworks, .cerebras, .gemini:
+                case .openai, .openrouter, .anthropic, .xai, .deepseek, .fireworks, .cerebras, .gemini:
                     apiKeyField
                 case .vertexai:
                     vertexAISection
                 case .none:
                     Text("Unknown provider type")
                         .foregroundColor(.secondary)
+                }
+
+                if providerType == .openrouter {
+                    openRouterUsageSection
                 }
 
                 if let credentialSaveError {
@@ -138,14 +146,24 @@ struct ProviderConfigFormView: View {
             await MainActor.run {
                 hasLoadedCredentials = true
             }
+            if providerType == .openrouter {
+                await refreshOpenRouterUsage(force: true)
+            }
         }
         .onChange(of: apiKey) { _, _ in
             guard hasLoadedCredentials else { return }
             scheduleCredentialSave()
+            if providerType == .openrouter {
+                scheduleOpenRouterUsageRefresh()
+            }
         }
         .onChange(of: serviceAccountJSON) { _, _ in
             guard hasLoadedCredentials else { return }
             scheduleCredentialSave()
+        }
+        .onDisappear {
+            credentialSaveTask?.cancel()
+            openRouterUsageTask?.cancel()
         }
         .sheet(isPresented: $showingAddModel) {
             AddModelSheet(
@@ -192,7 +210,7 @@ struct ProviderConfigFormView: View {
             return lower.contains("gemini-3") || lower.contains("gemini-2.5-flash-image")
         case .vertexai:
             return lower.contains("gemini-3") || lower.contains("gemini-2.5")
-        case .openai, .anthropic, .xai, .deepseek:
+        case .openai, .openrouter, .anthropic, .xai, .deepseek:
             return false
         }
     }
@@ -228,6 +246,73 @@ struct ProviderConfigFormView: View {
             }
             .buttonStyle(JinIconButtonStyle())
         }
+    }
+
+    // MARK: - OpenRouter Usage
+
+    private var openRouterUsageSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text("API Usage")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                Spacer()
+
+                HStack(spacing: 6) {
+                    Circle()
+                        .fill(openRouterUsageStatusColor)
+                        .frame(width: 8, height: 8)
+                    Text(openRouterUsageStatusLabel)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            if let usage = openRouterUsage {
+                HStack(spacing: 8) {
+                    Circle()
+                        .fill(Color.green)
+                        .frame(width: 8, height: 8)
+
+                    Text("Current key used \(formatUSD(usage.used)) (Remaining: \(usage.remainingText(formatter: formatUSD)))")
+                        .foregroundStyle(.secondary)
+                }
+            } else {
+                HStack(spacing: 8) {
+                    Circle()
+                        .fill(openRouterUsageStatusColor)
+                        .frame(width: 8, height: 8)
+
+                    Text(openRouterUsageHintText)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            HStack {
+                Button {
+                    Task { await refreshOpenRouterUsage(force: true) }
+                } label: {
+                    Label("Refresh Usage", systemImage: "arrow.clockwise")
+                }
+                .buttonStyle(.borderless)
+                .disabled(isOpenRouterUsageRefreshDisabled)
+
+                if openRouterUsageStatus == .loading {
+                    ProgressView()
+                        .scaleEffect(0.5)
+                }
+
+                Spacer()
+            }
+
+            if case .failure(let message) = openRouterUsageStatus {
+                Text(message)
+                    .foregroundStyle(.red)
+                    .font(.caption)
+            }
+        }
+        .padding(.vertical, 4)
     }
 
     // MARK: - Vertex AI Section
@@ -303,7 +388,7 @@ struct ProviderConfigFormView: View {
     private func loadCredentials() async {
         await MainActor.run {
             switch ProviderType(rawValue: provider.typeRaw) {
-            case .openai, .anthropic, .xai, .deepseek, .fireworks, .cerebras, .gemini:
+            case .openai, .openrouter, .anthropic, .xai, .deepseek, .fireworks, .cerebras, .gemini:
                 apiKey = provider.apiKey ?? ""
             case .vertexai:
                 serviceAccountJSON = provider.serviceAccountJSON ?? ""
@@ -353,9 +438,131 @@ struct ProviderConfigFormView: View {
         }
     }
 
+    private func scheduleOpenRouterUsageRefresh() {
+        openRouterUsageTask?.cancel()
+        openRouterUsageTask = Task {
+            try? await Task.sleep(nanoseconds: 800_000_000)
+            await refreshOpenRouterUsage(force: true)
+        }
+    }
+
+    private func refreshOpenRouterUsage(force: Bool) async {
+        guard providerType == .openrouter else { return }
+
+        let key = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !key.isEmpty else {
+            await MainActor.run {
+                openRouterUsage = nil
+                openRouterUsageStatus = .idle
+            }
+            return
+        }
+
+        if !force, openRouterUsageStatus == .loading {
+            return
+        }
+
+        await MainActor.run {
+            openRouterUsageStatus = .loading
+        }
+
+        do {
+            let usage = try await fetchOpenRouterKeyUsage(apiKey: key)
+            await MainActor.run {
+                openRouterUsage = usage
+                openRouterUsageStatus = .observed
+            }
+        } catch is CancellationError {
+            return
+        } catch {
+            await MainActor.run {
+                openRouterUsage = nil
+                openRouterUsageStatus = .failure(error.localizedDescription)
+            }
+        }
+    }
+
+    private func fetchOpenRouterKeyUsage(apiKey: String) async throws -> OpenRouterKeyUsage {
+        let defaultBaseURL = ProviderType.openrouter.defaultBaseURL ?? "https://openrouter.ai/api/v1"
+        let raw = (provider.baseURL ?? defaultBaseURL).trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmed = raw.hasSuffix("/") ? String(raw.dropLast()) : raw
+
+        let lower = trimmed.lowercased()
+        let normalizedBaseURL: String
+        if lower.hasSuffix("/api/v1") || lower.hasSuffix("/v1") {
+            normalizedBaseURL = trimmed
+        } else if lower.hasSuffix("/api") {
+            normalizedBaseURL = "\(trimmed)/v1"
+        } else if let url = URL(string: trimmed), url.host?.lowercased().contains("openrouter.ai") == true {
+            let path = url.path.lowercased()
+            if path.isEmpty || path == "/" {
+                normalizedBaseURL = "\(trimmed)/api/v1"
+            } else {
+                normalizedBaseURL = trimmed
+            }
+        } else {
+            normalizedBaseURL = trimmed
+        }
+
+        guard let url = URL(string: "\(normalizedBaseURL)/key") else {
+            throw LLMError.invalidRequest(message: "Invalid OpenRouter base URL.")
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.addValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        request.addValue("application/json", forHTTPHeaderField: "Accept")
+        request.addValue("https://jin.app", forHTTPHeaderField: "HTTP-Referer")
+        request.addValue("Jin", forHTTPHeaderField: "X-Title")
+
+        let (data, _) = try await networkManager.sendRequest(request)
+
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        let response = try decoder.decode(OpenRouterKeyResponse.self, from: data)
+
+        let used = response.data.usage ?? 0
+        var remaining: Double?
+        if let limitRemaining = response.data.limitRemaining {
+            remaining = max(limitRemaining, 0)
+        } else if let limit = response.data.limit {
+            remaining = max(limit - used, 0)
+        } else {
+            remaining = try await fetchOpenRouterRemainingCredits(apiKey: apiKey, baseURL: normalizedBaseURL)
+        }
+
+        return OpenRouterKeyUsage(used: used, remaining: remaining)
+    }
+
+    private func fetchOpenRouterRemainingCredits(apiKey: String, baseURL: String) async throws -> Double? {
+        guard let url = URL(string: "\(baseURL)/credits") else {
+            return nil
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.addValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        request.addValue("application/json", forHTTPHeaderField: "Accept")
+        request.addValue("https://jin.app", forHTTPHeaderField: "HTTP-Referer")
+        request.addValue("Jin", forHTTPHeaderField: "X-Title")
+
+        let (data, _) = try await networkManager.sendRequest(request)
+
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        let response = try decoder.decode(OpenRouterCreditsResponse.self, from: data)
+
+        guard let totalCredits = response.data.totalCredits,
+              let totalUsage = response.data.totalUsage else {
+            return nil
+        }
+
+        return max(totalCredits - totalUsage, 0)
+    }
+
     private func persistCredentials(validate: Bool) async throws {
         switch ProviderType(rawValue: provider.typeRaw) {
-        case .openai, .anthropic, .xai, .deepseek, .fireworks, .cerebras, .gemini:
+        case .openai, .openrouter, .anthropic, .xai, .deepseek, .fireworks, .cerebras, .gemini:
             let key = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
             await MainActor.run {
                 provider.apiKeyKeychainID = nil
@@ -410,7 +617,7 @@ struct ProviderConfigFormView: View {
 
     private var isTestDisabled: Bool {
         switch ProviderType(rawValue: provider.typeRaw) {
-        case .openai, .anthropic, .xai, .deepseek, .fireworks, .cerebras, .gemini:
+        case .openai, .openrouter, .anthropic, .xai, .deepseek, .fireworks, .cerebras, .gemini:
             return apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || testStatus == .testing
         case .vertexai:
             return serviceAccountJSON.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || testStatus == .testing
@@ -422,7 +629,7 @@ struct ProviderConfigFormView: View {
     private var isFetchModelsDisabled: Bool {
         guard !isFetchingModels else { return true }
         switch providerType {
-        case .openai, .anthropic, .xai, .deepseek, .fireworks, .cerebras, .gemini:
+        case .openai, .openrouter, .anthropic, .xai, .deepseek, .fireworks, .cerebras, .gemini:
             return apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         case .vertexai:
             return serviceAccountJSON.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -431,12 +638,93 @@ struct ProviderConfigFormView: View {
         }
     }
 
+    private var isOpenRouterUsageRefreshDisabled: Bool {
+        apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || openRouterUsageStatus == .loading
+    }
+
+    private var openRouterUsageStatusLabel: String {
+        switch openRouterUsageStatus {
+        case .idle, .failure:
+            return "Not observed"
+        case .loading:
+            return "Checking"
+        case .observed:
+            return "Observed"
+        }
+    }
+
+    private var openRouterUsageStatusColor: Color {
+        switch openRouterUsageStatus {
+        case .observed:
+            return .green
+        case .loading:
+            return .orange
+        case .idle, .failure:
+            return .secondary
+        }
+    }
+
+    private var openRouterUsageHintText: String {
+        switch openRouterUsageStatus {
+        case .idle:
+            return apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                ? "Enter an API key to check usage."
+                : "Usage not fetched yet."
+        case .loading:
+            return "Fetching current key usage..."
+        case .observed:
+            return "No usage data returned for this key."
+        case .failure:
+            return "Failed to fetch usage for this key."
+        }
+    }
+
+    private func formatUSD(_ value: Double) -> String {
+        "$" + value.formatted(.number.precision(.fractionLength(0...8)))
+    }
+
     enum TestStatus: Equatable {
         case idle
         case testing
         case success
         case failure(String)
     }
+}
+
+private enum OpenRouterUsageStatus: Equatable {
+    case idle
+    case loading
+    case observed
+    case failure(String)
+}
+
+private struct OpenRouterKeyUsage: Equatable {
+    let used: Double
+    let remaining: Double?
+
+    func remainingText(formatter: (Double) -> String) -> String {
+        guard let remaining else { return "Unavailable" }
+        return formatter(remaining)
+    }
+}
+
+private struct OpenRouterKeyResponse: Decodable {
+    let data: OpenRouterKeyData
+}
+
+private struct OpenRouterKeyData: Decodable {
+    let usage: Double?
+    let limit: Double?
+    let limitRemaining: Double?
+}
+
+private struct OpenRouterCreditsResponse: Decodable {
+    let data: OpenRouterCreditsData
+}
+
+private struct OpenRouterCreditsData: Decodable {
+    let totalCredits: Double?
+    let totalUsage: Double?
 }
 
 private struct AddModelSheet: View {
@@ -532,7 +820,7 @@ private struct AddModelSheet: View {
                 reasoningConfig = ModelReasoningConfig(type: .effort, defaultEffort: .medium)
             }
 
-        case .openai?, .anthropic?, .xai?, .deepseek?, .none:
+        case .openai?, .openrouter?, .anthropic?, .xai?, .deepseek?, .none:
             break
         }
 

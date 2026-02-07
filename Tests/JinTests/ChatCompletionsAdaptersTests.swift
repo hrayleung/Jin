@@ -356,6 +356,120 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         XCTAssertEqual(content, "OK")
         guard case .messageEnd = events[2] else { return XCTFail("Expected messageEnd") }
     }
+
+    func testOpenRouterAdapterBuildsChatCompletionsRequestWithReasoningAndWebPlugin() async throws {
+        let (session, protocolType) = makeMockedURLSession()
+        let networkManager = NetworkManager(urlSession: session)
+
+        let providerConfig = ProviderConfig(
+            id: "or",
+            name: "OpenRouter",
+            type: .openrouter,
+            apiKey: "ignored",
+            baseURL: "https://openrouter.ai/api/v1"
+        )
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://openrouter.ai/api/v1/chat/completions")
+            XCTAssertEqual(request.httpMethod, "POST")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer test-key")
+
+            let body = try XCTUnwrap(requestBodyData(request))
+            let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+            let root = try XCTUnwrap(json)
+
+            XCTAssertEqual(root["model"] as? String, "openai/gpt-5")
+            XCTAssertEqual(root["stream"] as? Bool, false)
+
+            let reasoning = try XCTUnwrap(root["reasoning"] as? [String: Any])
+            XCTAssertEqual(reasoning["effort"] as? String, "medium")
+
+            let plugins = try XCTUnwrap(root["plugins"] as? [[String: Any]])
+            XCTAssertEqual(plugins.count, 1)
+            XCTAssertEqual(plugins[0]["id"] as? String, "web")
+
+            let messages = try XCTUnwrap(root["messages"] as? [[String: Any]])
+            XCTAssertEqual(messages.count, 1)
+            XCTAssertEqual(messages[0]["role"] as? String, "assistant")
+            XCTAssertEqual(messages[0]["content"] as? String, "answer")
+            XCTAssertEqual(messages[0]["reasoning"] as? String, "think")
+
+            let response: [String: Any] = [
+                "id": "cmpl_or_1",
+                "choices": [
+                    [
+                        "message": [
+                            "role": "assistant",
+                            "content": "OK",
+                            "reasoning": "R"
+                        ],
+                        "finish_reason": "stop"
+                    ]
+                ],
+                "usage": [
+                    "prompt_tokens": 3,
+                    "completion_tokens": 5,
+                    "total_tokens": 8
+                ]
+            ]
+
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = OpenRouterAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .assistant, content: [.text("answer"), .thinking(ThinkingBlock(text: "think"))])],
+            modelID: "openai/gpt-5",
+            controls: GenerationControls(
+                reasoning: ReasoningControls(enabled: true, effort: .medium),
+                webSearch: WebSearchControls(enabled: true)
+            ),
+            tools: [],
+            streaming: false
+        )
+
+        var events: [StreamEvent] = []
+        for try await event in stream {
+            events.append(event)
+        }
+
+        XCTAssertEqual(events.count, 4)
+        guard case .messageStart(let id) = events[0] else { return XCTFail("Expected messageStart") }
+        XCTAssertEqual(id, "cmpl_or_1")
+        guard case .thinkingDelta(.thinking(let reasoning, _)) = events[1] else { return XCTFail("Expected thinkingDelta") }
+        XCTAssertEqual(reasoning, "R")
+        guard case .contentDelta(.text(let content)) = events[2] else { return XCTFail("Expected contentDelta") }
+        XCTAssertEqual(content, "OK")
+        guard case .messageEnd(let usage) = events[3] else { return XCTFail("Expected messageEnd") }
+        XCTAssertEqual(usage?.inputTokens, 3)
+        XCTAssertEqual(usage?.outputTokens, 5)
+    }
+
+    func testOpenRouterAdapterNormalizesRootBaseURLForKeyValidation() async throws {
+        let (session, protocolType) = makeMockedURLSession()
+        let networkManager = NetworkManager(urlSession: session)
+
+        let providerConfig = ProviderConfig(
+            id: "or",
+            name: "OpenRouter",
+            type: .openrouter,
+            apiKey: "ignored",
+            baseURL: "https://openrouter.ai"
+        )
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://openrouter.ai/api/v1/key")
+            XCTAssertEqual(request.httpMethod, "GET")
+
+            let data = Data("{}".utf8)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = OpenRouterAdapter(providerConfig: providerConfig, apiKey: "unused", networkManager: networkManager)
+        let result = try await adapter.validateAPIKey("test-key")
+        XCTAssertTrue(result)
+    }
 }
 
 // MARK: - URLProtocol stubbing

@@ -318,6 +318,7 @@ struct ProviderConfig: Identifiable, Codable {
 /// Provider type
 enum ProviderType: String, Codable, CaseIterable {
     case openai
+    case openrouter
     case anthropic
     case xai
     case deepseek
@@ -329,6 +330,7 @@ enum ProviderType: String, Codable, CaseIterable {
     var displayName: String {
         switch self {
         case .openai: return "OpenAI"
+        case .openrouter: return "OpenRouter"
         case .anthropic: return "Anthropic"
         case .xai: return "xAI"
         case .deepseek: return "DeepSeek"
@@ -343,6 +345,8 @@ enum ProviderType: String, Codable, CaseIterable {
         switch self {
         case .openai:
             return "https://api.openai.com/v1"
+        case .openrouter:
+            return "https://openrouter.ai/api/v1"
         case .anthropic:
             return "https://api.anthropic.com/v1"
         case .xai:

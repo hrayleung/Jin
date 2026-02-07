@@ -19,6 +19,14 @@ actor ProviderManager {
                 networkManager: networkManager
             )
 
+        case .openrouter:
+            let apiKey = try await resolveAPIKey(for: config)
+            return OpenRouterAdapter(
+                providerConfig: config,
+                apiKey: apiKey,
+                networkManager: networkManager
+            )
+
         case .anthropic:
             let apiKey = try await resolveAPIKey(for: config)
             return AnthropicAdapter(
@@ -90,7 +98,7 @@ actor ProviderManager {
         let adapter = try await createAdapter(for: config)
 
         switch config.type {
-        case .openai, .anthropic, .xai, .deepseek, .fireworks, .cerebras, .gemini:
+        case .openai, .openrouter, .anthropic, .xai, .deepseek, .fireworks, .cerebras, .gemini:
             let apiKey = try await resolveAPIKey(for: config)
             return try await adapter.validateAPIKey(apiKey)
 

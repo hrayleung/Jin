@@ -190,6 +190,8 @@ private struct ProviderSectionHeader: View {
         switch type {
         case .openai:
             return "sparkles"
+        case .openrouter:
+            return "point.3.connected.trianglepath.dotted"
         case .anthropic:
             return "person.crop.circle"
         case .xai:

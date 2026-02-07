@@ -828,6 +828,13 @@ struct ContentView: View {
                 models: openAIModels
             ),
             ProviderConfig(
+                id: "openrouter",
+                name: "OpenRouter",
+                type: .openrouter,
+                baseURL: ProviderType.openrouter.defaultBaseURL,
+                models: []
+            ),
+            ProviderConfig(
                 id: "anthropic",
                 name: "Anthropic",
                 type: .anthropic,

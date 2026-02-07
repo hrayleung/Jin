@@ -1444,7 +1444,7 @@ struct ChatView: View {
         switch providerType {
         case .gemini, .vertexai:
             return conversationEntity.modelID.lowercased().contains("gemini-3")
-        case .openai, .anthropic, .xai, .deepseek, .fireworks, .cerebras, .none:
+        case .openai, .openrouter, .anthropic, .xai, .deepseek, .fireworks, .cerebras, .none:
             return false
         }
     }
@@ -1462,7 +1462,7 @@ struct ChatView: View {
         switch providerType {
         case .gemini, .vertexai:
             return !conversationEntity.modelID.lowercased().contains("gemini-2.5-flash-image")
-        case .openai, .anthropic, .xai, .deepseek, .fireworks, .cerebras, .none:
+        case .openai, .openrouter, .anthropic, .xai, .deepseek, .fireworks, .cerebras, .none:
             return false
         }
     }
@@ -1583,9 +1583,9 @@ struct ChatView: View {
             return supportsImageGenerationWebSearch
         }
 
-        // Provider-native web search, not MCP. Today: OpenAI, Anthropic, xAI, Gemini API, Vertex AI.
+        // Provider-native web search, not MCP. Today: OpenAI, OpenRouter, Anthropic, xAI, Gemini API, Vertex AI.
         switch providerType {
-        case .openai, .anthropic, .xai, .gemini, .vertexai:
+        case .openai, .openrouter, .anthropic, .xai, .gemini, .vertexai:
             return true
         case .deepseek, .fireworks, .cerebras, .none:
             return false
@@ -1602,7 +1602,7 @@ struct ChatView: View {
         switch providerType {
         case .anthropic, .gemini, .vertexai:
             return "Thinking: \(reasoningLabel)"
-        case .openai, .xai, .deepseek, .fireworks, .cerebras, .none:
+        case .openai, .openrouter, .xai, .deepseek, .fireworks, .cerebras, .none:
             return "Reasoning: \(reasoningLabel)"
         }
     }
@@ -1627,7 +1627,7 @@ struct ChatView: View {
             return (controls.webSearch?.contextSize ?? .medium).displayName
         case .xai:
             return webSearchSourcesLabel
-        case .anthropic, .gemini, .vertexai, .deepseek, .fireworks, .cerebras, .none:
+        case .openrouter, .anthropic, .gemini, .vertexai, .deepseek, .fireworks, .cerebras, .none:
             return "On"
         }
     }
@@ -1687,7 +1687,7 @@ struct ChatView: View {
             if sources == [.x] { return "X" }
             if sources.contains(.web), sources.contains(.x) { return "W+X" }
             return "On"
-        case .anthropic, .gemini, .vertexai, .deepseek, .fireworks, .cerebras, .none:
+        case .openrouter, .anthropic, .gemini, .vertexai, .deepseek, .fireworks, .cerebras, .none:
             return "On"
         }
     }
@@ -1855,7 +1855,7 @@ struct ChatView: View {
             return lower.contains("gemini-3") || lower.contains("gemini-2.5-flash-image")
         case .vertexai:
             return lower.contains("gemini-3") || lower.contains("gemini-2.5")
-        case .openai, .anthropic, .xai, .deepseek:
+        case .openai, .openrouter, .anthropic, .xai, .deepseek:
             return false
         }
     }
@@ -1915,7 +1915,7 @@ struct ChatView: View {
         case .gemini:
             return models.first(where: { $0.id.lowercased().contains("gemini-3-pro") })?.id
                 ?? models.first(where: { $0.id.lowercased().contains("gemini-3-flash") })?.id
-        case .xai, .vertexai:
+        case .openrouter, .xai, .vertexai:
             return nil
         }
     }
@@ -3311,6 +3311,11 @@ struct ChatView: View {
                     Button { setReasoningEffort(.medium) } label: { menuItemLabel("Medium", isSelected: isReasoningEnabled && controls.reasoning?.effort == .medium) }
                     Button { setReasoningEffort(.high) } label: { menuItemLabel("High", isSelected: isReasoningEnabled && controls.reasoning?.effort == .high) }
 
+                case .openrouter:
+                    Button { setReasoningEffort(.low) } label: { menuItemLabel("Low", isSelected: isReasoningEnabled && controls.reasoning?.effort == .low) }
+                    Button { setReasoningEffort(.medium) } label: { menuItemLabel("Medium", isSelected: isReasoningEnabled && controls.reasoning?.effort == .medium) }
+                    Button { setReasoningEffort(.high) } label: { menuItemLabel("High", isSelected: isReasoningEnabled && controls.reasoning?.effort == .high) }
+
                 case .xai, .deepseek, .cerebras, .none:
                     EmptyView()
                 }
@@ -3439,7 +3444,7 @@ struct ChatView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
-            case .anthropic, .gemini, .vertexai, .deepseek, .fireworks, .cerebras, .none:
+            case .openrouter, .anthropic, .gemini, .vertexai, .deepseek, .fireworks, .cerebras, .none:
                 EmptyView()
             }
         }
@@ -4155,7 +4160,7 @@ struct ChatView: View {
             return WebSearchControls(enabled: true, contextSize: .medium, sources: nil)
         case .xai:
             return WebSearchControls(enabled: true, contextSize: nil, sources: [.web])
-        case .anthropic, .gemini, .vertexai, .deepseek, .fireworks, .cerebras, .none:
+        case .openrouter, .anthropic, .gemini, .vertexai, .deepseek, .fireworks, .cerebras, .none:
             return WebSearchControls(enabled: true, contextSize: nil, sources: nil)
         }
     }
@@ -4174,7 +4179,7 @@ struct ChatView: View {
             if sources.isEmpty {
                 controls.webSearch?.sources = [.web]
             }
-        case .anthropic, .gemini, .vertexai, .deepseek, .fireworks, .cerebras, .none:
+        case .openrouter, .anthropic, .gemini, .vertexai, .deepseek, .fireworks, .cerebras, .none:
             controls.webSearch?.contextSize = nil
             controls.webSearch?.sources = nil
         }
