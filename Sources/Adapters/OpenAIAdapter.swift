@@ -251,20 +251,26 @@ actor OpenAIAdapter: LLMProviderAdapter {
                         items.append([
                             "type": "function_call_output",
                             "call_id": result.toolCallID,
-                            "output": result.content
+                            "output": sanitizedToolOutput(result.content, toolName: result.toolName)
                         ])
                     }
                 }
 
             case .system, .user, .assistant:
-                items.append(translateMessage(message, supportsNativePDF: supportsNativePDF))
+                if let translated = translateMessage(message, supportsNativePDF: supportsNativePDF) {
+                    items.append(translated)
+                }
+
+                if message.role == .assistant, let toolCalls = message.toolCalls, !toolCalls.isEmpty {
+                    items.append(contentsOf: translateFunctionCalls(toolCalls))
+                }
 
                 if let toolResults = message.toolResults {
                     for result in toolResults {
                         items.append([
                             "type": "function_call_output",
                             "call_id": result.toolCallID,
-                            "output": result.content
+                            "output": sanitizedToolOutput(result.content, toolName: result.toolName)
                         ])
                     }
                 }
@@ -274,15 +280,38 @@ actor OpenAIAdapter: LLMProviderAdapter {
         return items
     }
 
-    private func translateMessage(_ message: Message, supportsNativePDF: Bool) -> [String: Any] {
+    private func translateMessage(_ message: Message, supportsNativePDF: Bool) -> [String: Any]? {
         let content = message.content.compactMap { part in
             translateContentPart(part, role: message.role, supportsNativePDF: supportsNativePDF)
         }
+
+        guard !content.isEmpty else { return nil }
 
         return [
             "role": message.role.rawValue,
             "content": content
         ]
+    }
+
+    private func translateFunctionCalls(_ calls: [ToolCall]) -> [[String: Any]] {
+        calls.map { call in
+            [
+                "type": "function_call",
+                "call_id": call.id,
+                "name": call.name,
+                "arguments": encodeJSONObject(call.arguments)
+            ]
+        }
+    }
+
+    private func sanitizedToolOutput(_ raw: String, toolName: String?) -> String {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmed.isEmpty { return trimmed }
+
+        if let toolName, !toolName.isEmpty {
+            return "Tool \(toolName) returned no output"
+        }
+        return "Tool returned no output"
     }
 
     private func translateContentPart(_ part: ContentPart, role: MessageRole, supportsNativePDF: Bool) -> [String: Any]? {
@@ -452,6 +481,16 @@ actor OpenAIAdapter: LLMProviderAdapter {
             return [:]
         }
         return object.mapValues(AnyCodable.init)
+    }
+
+    private func encodeJSONObject(_ object: [String: AnyCodable]) -> String {
+        let raw = object.mapValues { $0.value }
+        guard JSONSerialization.isValidJSONObject(raw),
+              let data = try? JSONSerialization.data(withJSONObject: raw),
+              let str = String(data: data, encoding: .utf8) else {
+            return "{}"
+        }
+        return str
     }
 }
 

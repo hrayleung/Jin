@@ -1,6 +1,9 @@
 import SwiftUI
 import SwiftData
 import Combine
+#if os(macOS)
+import AppKit
+#endif
 
 struct SettingsView: View {
     @Environment(\.modelContext) private var modelContext
@@ -158,7 +161,6 @@ struct SettingsView: View {
                 }
             }
             .listStyle(.sidebar)
-            .navigationTitle("")
             .scrollContentBackground(.hidden)
             .background {
                 JinSemanticColor.sidebarSurface
@@ -199,10 +201,7 @@ struct SettingsView: View {
 
         } detail: {
             // Column 3: Configuration / Detail
-            ZStack {
-                JinSemanticColor.detailSurface
-                    .ignoresSafeArea()
-                
+            Group {
                 switch selectedSection {
                 case .providers:
                     if let id = selectedProviderID, let provider = providers.first(where: { $0.id == id }) {
@@ -241,6 +240,12 @@ struct SettingsView: View {
                     GeneralSettingsView()
                 }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background {
+                JinSemanticColor.detailSurface
+                    .ignoresSafeArea()
+            }
+            .toolbarBackground(JinSemanticColor.detailSurface, for: .windowToolbar)
             .navigationSplitViewColumnWidth(min: 500, ideal: 640)
         }
         .navigationSplitViewStyle(.balanced)
@@ -773,6 +778,9 @@ struct AddProviderView: View {
             }
             .frame(width: 500, height: 400)
         }
+        #if os(macOS)
+        .background(MovableWindowHelper())
+        #endif
     }
 
     private func addProvider() {
@@ -992,7 +1000,10 @@ struct AddMCPServerView: View {
             }
             .formStyle(.grouped)
             .scrollContentBackground(.hidden)
-            .background(JinSemanticColor.detailSurface)
+            .background {
+                JinSemanticColor.detailSurface
+                    .ignoresSafeArea()
+            }
             .navigationTitle("Add MCP Server")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -1005,6 +1016,9 @@ struct AddMCPServerView: View {
             }
             .frame(width: 620, height: 760)
         }
+        #if os(macOS)
+        .background(MovableWindowHelper())
+        #endif
     }
 
     private var isAddDisabled: Bool {
@@ -1211,6 +1225,31 @@ struct AddMCPServerView: View {
         }
     }
 }
+
+#if os(macOS)
+/// Sets `isMovableByWindowBackground = true` on the hosting NSWindow,
+/// allowing the sheet to be dragged from any non-interactive area.
+private struct MovableWindowHelper: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSView {
+        let view = MovableWindowNSView()
+        view.wantsLayer = true
+        view.layer?.backgroundColor = NSColor.clear.cgColor
+        return view
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {}
+}
+
+private final class MovableWindowNSView: NSView {
+    override var isOpaque: Bool { false }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        window?.isMovableByWindowBackground = true
+    }
+}
+#endif
+
 
 struct GeneralSettingsView: View {
     @Environment(\.modelContext) private var modelContext

@@ -3028,30 +3028,46 @@ struct ChatView: View {
                         do {
                             let result = try await MCPHub.shared.executeTool(functionName: call.name, arguments: call.arguments)
                             let duration = Date().timeIntervalSince(callStart)
+                            let normalizedContent = normalizedToolResultContent(
+                                result.text,
+                                toolName: call.name,
+                                isError: result.isError
+                            )
                             toolResults.append(
                                 ToolResult(
                                     toolCallID: call.id,
                                     toolName: call.name,
-                                    content: result.text,
+                                    content: normalizedContent,
                                     isError: result.isError,
                                     signature: call.signature,
                                     durationSeconds: duration
                                 )
                             )
-                            toolOutputLines.append("Tool \(call.name):\n\(result.text)")
+
+                            if result.isError {
+                                toolOutputLines.append("Tool \(call.name) failed:\n\(normalizedContent)")
+                            } else {
+                                toolOutputLines.append("Tool \(call.name):\n\(normalizedContent)")
+                            }
                         } catch {
                             let duration = Date().timeIntervalSince(callStart)
+                            let normalizedError = normalizedToolResultContent(
+                                error.localizedDescription,
+                                toolName: call.name,
+                                isError: true
+                            )
+                            let llmErrorContent = "Tool execution failed: \(normalizedError). You may retry this tool call with corrected arguments."
                             toolResults.append(
                                 ToolResult(
                                     toolCallID: call.id,
                                     toolName: call.name,
-                                    content: error.localizedDescription,
+                                    content: llmErrorContent,
                                     isError: true,
                                     signature: call.signature,
                                     durationSeconds: duration
                                 )
                             )
-                            toolOutputLines.append("Tool \(call.name) failed:\n\(error.localizedDescription)")
+                            toolOutputLines.append("Tool \(call.name) failed:\n\(llmErrorContent)")
                         }
                     }
 
@@ -3173,6 +3189,18 @@ struct ChatView: View {
 
         guard let text else { return "New Chat" }
         return makeConversationTitle(from: text)
+    }
+
+    nonisolated private func normalizedToolResultContent(_ text: String, toolName: String, isError: Bool) -> String {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmed.isEmpty {
+            return trimmed
+        }
+
+        if isError {
+            return "Tool \(toolName) failed without details"
+        }
+        return "Tool \(toolName) returned no output"
     }
     
     // MARK: - Model Controls (Shortened for brevity, preserving existing logic)
