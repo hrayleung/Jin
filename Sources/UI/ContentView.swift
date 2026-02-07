@@ -621,11 +621,32 @@ struct ContentView: View {
                 reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium)
             ),
             ModelInfo(
+                id: "gemini-3-pro-image-preview",
+                name: "Gemini 3 Pro Image (Preview)",
+                capabilities: [.streaming, .vision, .reasoning, .imageGeneration],
+                contextWindow: 1_048_576,
+                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium)
+            ),
+            ModelInfo(
                 id: "gemini-3-flash-preview",
                 name: "Gemini 3 Flash (Preview)",
                 capabilities: [.streaming, .toolCalling, .vision, .reasoning, .nativePDF],
                 contextWindow: 1_048_576,
                 reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium)
+            ),
+            ModelInfo(
+                id: "gemini-2.5-pro",
+                name: "Gemini 2.5 Pro",
+                capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+                contextWindow: 1_048_576,
+                reasoningConfig: ModelReasoningConfig(type: .budget, defaultBudget: 2048)
+            ),
+            ModelInfo(
+                id: "gemini-2.5-flash-image",
+                name: "Gemini 2.5 Flash Image",
+                capabilities: [.streaming, .vision, .imageGeneration],
+                contextWindow: 1_048_576,
+                reasoningConfig: nil
             )
         ]
 
@@ -638,11 +659,25 @@ struct ContentView: View {
                 reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high)
             ),
             ModelInfo(
+                id: "gemini-3-pro-image-preview",
+                name: "Gemini 3 Pro Image (Preview)",
+                capabilities: [.streaming, .vision, .reasoning, .imageGeneration],
+                contextWindow: 1_048_576,
+                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high)
+            ),
+            ModelInfo(
                 id: "gemini-3-flash-preview",
                 name: "Gemini 3 Flash (Preview)",
                 capabilities: [.streaming, .toolCalling, .vision, .reasoning, .nativePDF],
                 contextWindow: 1_048_576,
                 reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high)
+            ),
+            ModelInfo(
+                id: "gemini-2.5-flash-image",
+                name: "Gemini 2.5 Flash Image",
+                capabilities: [.streaming, .vision, .imageGeneration],
+                contextWindow: 1_048_576,
+                reasoningConfig: nil
             )
         ]
 

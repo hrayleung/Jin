@@ -54,7 +54,7 @@ actor MCPHub {
     }
 
     private func withClient<T>(for server: MCPServerConfig, operation: (MCPClient) async throws -> T) async throws -> T {
-        if server.isLongRunning {
+        if server.lifecycle.isPersistent {
             let client = await clientForServer(server)
             return try await operation(client)
         }
@@ -73,7 +73,7 @@ actor MCPHub {
     private func clientForServer(_ server: MCPServerConfig) async -> MCPClient {
         if let existing = clients[server.id],
            let existingConfig = clientConfigs[server.id],
-           isSameProcessConfig(existingConfig, server) {
+           isSameConnectionConfig(existingConfig, server) {
             clientConfigs[server.id] = server
             return existing
         }
@@ -88,11 +88,9 @@ actor MCPHub {
         return client
     }
 
-    private func isSameProcessConfig(_ lhs: MCPServerConfig, _ rhs: MCPServerConfig) -> Bool {
-        lhs.command == rhs.command
-            && lhs.args == rhs.args
-            && lhs.env == rhs.env
-            && lhs.isLongRunning == rhs.isLongRunning
+    private func isSameConnectionConfig(_ lhs: MCPServerConfig, _ rhs: MCPServerConfig) -> Bool {
+        lhs.transport == rhs.transport
+            && lhs.lifecycle == rhs.lifecycle
     }
 
     private func makeFunctionName(serverID: String, toolName: String) -> String {

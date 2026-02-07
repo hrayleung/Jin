@@ -6,6 +6,9 @@ struct JinApp: App {
     private let modelContainer: ModelContainer
     @StateObject private var streamingStore = ConversationStreamingStore()
 
+    private let mcpSchemaVersionPreferenceKey = "mcpTransportSchemaVersion"
+    private let mcpSchemaVersion = 2
+
     init() {
         do {
             modelContainer = try ModelContainer(
@@ -16,7 +19,7 @@ struct JinApp: App {
                 MCPServerConfigEntity.self,
                 AttachmentEntity.self
             )
-            seedDefaultMCPServersIfNeeded()
+            resetMCPServersForTransportV2IfNeeded()
             updateProviderModelsIfNeeded()
         } catch {
             fatalError("Failed to create SwiftData ModelContainer: \(error)")
@@ -39,52 +42,71 @@ struct JinApp: App {
         .modelContainer(modelContainer)
     }
 
-    private func seedDefaultMCPServersIfNeeded() {
-        let context = ModelContext(modelContainer)
-
-        func hasServer(id: String) -> Bool {
-            let descriptor = FetchDescriptor<MCPServerConfigEntity>(
-                predicate: #Predicate { $0.id == id }
-            )
-            return ((try? context.fetchCount(descriptor)) ?? 0) > 0
+    private func resetMCPServersForTransportV2IfNeeded() {
+        let defaults = UserDefaults.standard
+        guard defaults.integer(forKey: mcpSchemaVersionPreferenceKey) < mcpSchemaVersion else {
+            return
         }
 
-        func seedIfMissing(id: String, name: String, command: String, args: [String], env: [String: String]) {
-            guard !hasServer(id: id) else { return }
+        let context = ModelContext(modelContainer)
+        let descriptor = FetchDescriptor<MCPServerConfigEntity>()
+        if let existing = try? context.fetch(descriptor) {
+            for server in existing {
+                context.delete(server)
+            }
+        }
 
-            let argsData = (try? JSONEncoder().encode(args)) ?? Data()
-            let envData = env.isEmpty ? nil : (try? JSONEncoder().encode(env))
-
+        func seedServer(
+            id: String,
+            name: String,
+            transport: MCPTransportConfig,
+            isEnabled: Bool = false,
+            runToolsAutomatically: Bool = true
+        ) {
+            let transportData = (try? JSONEncoder().encode(transport)) ?? Data()
             let server = MCPServerConfigEntity(
                 id: id,
                 name: name,
-                command: command,
-                argsData: argsData,
-                envData: envData,
-                isEnabled: false,
-                runToolsAutomatically: true,
+                transportKindRaw: transport.kind.rawValue,
+                transportData: transportData,
+                lifecycleRaw: MCPLifecyclePolicy.persistent.rawValue,
+                isEnabled: isEnabled,
+                runToolsAutomatically: runToolsAutomatically,
                 isLongRunning: true
             )
-
+            server.setTransport(transport)
             context.insert(server)
         }
 
-        seedIfMissing(
+        seedServer(
             id: "firecrawl",
             name: "Firecrawl",
-            command: "npx",
-            args: ["-y", "firecrawl-mcp"],
-            env: ["FIRECRAWL_API_KEY": ""]
-        )
-        seedIfMissing(
-            id: "exa",
-            name: "Exa",
-            command: "npx",
-            args: ["-y", "exa-mcp-server"],
-            env: ["EXA_API_KEY": ""]
+            transport: .stdio(
+                MCPStdioTransportConfig(
+                    command: "npx",
+                    args: ["-y", "firecrawl-mcp"],
+                    env: ["FIRECRAWL_API_KEY": ""]
+                )
+            )
         )
 
+        if let exaEndpoint = URL(string: "https://mcp.exa.ai/mcp") {
+            seedServer(
+                id: "exa",
+                name: "Exa",
+                transport: .http(
+                    MCPHTTPTransportConfig(
+                        endpoint: exaEndpoint,
+                        streaming: true,
+                        headers: [MCPHeader(name: "X-Client", value: "jin")],
+                        bearerToken: nil
+                    )
+                )
+            )
+        }
+
         try? context.save()
+        defaults.set(mcpSchemaVersion, forKey: mcpSchemaVersionPreferenceKey)
     }
 
     private func updateProviderModelsIfNeeded() {

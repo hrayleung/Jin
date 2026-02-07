@@ -3,18 +3,16 @@ import Foundation
 struct MCPImportedServer: Sendable, Equatable {
     let id: String
     let name: String
-    let command: String
-    let args: [String]
-    let env: [String: String]
+    let transport: MCPTransportConfig
 }
 
 enum MCPServerImportError: Error, LocalizedError {
     case unsupportedFormat
     case multipleServers([String])
     case missingHTTPURL
+    case invalidHTTPURL(String)
     case missingCommand
     case invalidArgs(String)
-    case invalidEnvValue(String)
 
     var errorDescription: String? {
         switch self {
@@ -24,12 +22,12 @@ enum MCPServerImportError: Error, LocalizedError {
             return "Multiple MCP servers found (\(ids.joined(separator: ", "))). Add a top-level \"id\" to select one."
         case .missingHTTPURL:
             return "Missing \"url\" for HTTP MCP server."
+        case .invalidHTTPURL(let value):
+            return "Invalid HTTP URL: \(value)"
         case .missingCommand:
             return "Missing \"command\" for MCP server."
         case .invalidArgs(let message):
             return "Invalid args: \(message)"
-        case .invalidEnvValue(let key):
-            return "Invalid env value for key: \(key)"
         }
     }
 }
@@ -77,24 +75,49 @@ struct MCPServerImportParser {
             args: file.args,
             env: file.env,
             type: file.type,
-            url: file.url
+            url: file.url,
+            headers: file.headers,
+            bearerToken: file.bearerToken,
+            streaming: file.streaming
         )
         return try resolveSingle(id: serverID, name: serverName, server: server)
     }
 
     private static func resolveSingle(id: String, name: String, server: ImportServer) throws -> MCPImportedServer {
-        if let type = server.type?.trimmingCharacters(in: .whitespacesAndNewlines),
-           type.lowercased() == "http" {
-            guard let url = server.url?.trimmingCharacters(in: .whitespacesAndNewlines), !url.isEmpty else {
+        if server.isHTTPLike {
+            guard let rawURL = server.url?.trimmingCharacters(in: .whitespacesAndNewlines), !rawURL.isEmpty else {
                 throw MCPServerImportError.missingHTTPURL
+            }
+            guard let endpoint = URL(string: rawURL), endpoint.scheme != nil else {
+                throw MCPServerImportError.invalidHTTPURL(rawURL)
+            }
+
+            var headers = server.headersList()
+            var bearerToken = server.trimmedBearerToken
+
+            if bearerToken == nil,
+               let authIndex = headers.firstIndex(where: { $0.name.caseInsensitiveCompare("Authorization") == .orderedSame }) {
+                let authValue = headers[authIndex].value.trimmingCharacters(in: .whitespacesAndNewlines)
+                if authValue.lowercased().hasPrefix("bearer ") {
+                    let token = String(authValue.dropFirst("bearer ".count)).trimmingCharacters(in: .whitespacesAndNewlines)
+                    if !token.isEmpty {
+                        bearerToken = token
+                        headers.remove(at: authIndex)
+                    }
+                }
             }
 
             return MCPImportedServer(
                 id: id,
                 name: name,
-                command: "npx",
-                args: ["-y", "mcp-remote", url],
-                env: server.envStringDict()
+                transport: .http(
+                    MCPHTTPTransportConfig(
+                        endpoint: endpoint,
+                        streaming: server.streaming ?? true,
+                        headers: headers,
+                        bearerToken: bearerToken
+                    )
+                )
             )
         }
 
@@ -105,9 +128,13 @@ struct MCPServerImportParser {
         return MCPImportedServer(
             id: id,
             name: name,
-            command: command,
-            args: try server.argsTokenized(),
-            env: server.envStringDict()
+            transport: .stdio(
+                MCPStdioTransportConfig(
+                    command: command,
+                    args: try server.argsTokenized(),
+                    env: server.envStringDict()
+                )
+            )
         )
     }
 }
@@ -119,20 +146,41 @@ private struct ImportFile: Decodable {
 
     let command: String?
     let args: ImportArgs?
-    let env: [String: ImportEnvValue]?
+    let env: [String: ImportScalar]?
 
     let type: String?
     let url: String?
+    let headers: [String: ImportScalar]?
+    let bearerToken: String?
+    let streaming: Bool?
 }
 
 private struct ImportServer: Decodable {
     let name: String?
     let command: String?
     let args: ImportArgs?
-    let env: [String: ImportEnvValue]?
+    let env: [String: ImportScalar]?
 
     let type: String?
     let url: String?
+    let headers: [String: ImportScalar]?
+    let bearerToken: String?
+    let streaming: Bool?
+
+    var isHTTPLike: Bool {
+        let normalizedType = type?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if normalizedType == "http" { return true }
+        if let url, !url.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return true
+        }
+        return false
+    }
+
+    var trimmedBearerToken: String? {
+        let value = bearerToken?.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let value, !value.isEmpty else { return nil }
+        return value
+    }
 
     func argsTokenized() throws -> [String] {
         try args?.tokens() ?? []
@@ -141,6 +189,23 @@ private struct ImportServer: Decodable {
     func envStringDict() -> [String: String] {
         guard let env else { return [:] }
         return env.compactMapValues { $0.stringValue }
+    }
+
+    func headersList() -> [MCPHeader] {
+        guard let headers else { return [] }
+        return headers
+            .compactMapValues { $0.stringValue }
+            .map { key, value in
+                MCPHeader(name: key, value: value, isSensitive: Self.isSensitiveHeaderName(key))
+            }
+            .sorted { lhs, rhs in
+                lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
+            }
+    }
+
+    private static func isSensitiveHeaderName(_ name: String) -> Bool {
+        let normalized = name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return ["authorization", "proxy-authorization", "x-api-key", "api-key"].contains(normalized)
     }
 }
 
@@ -175,7 +240,7 @@ private enum ImportArgs: Decodable {
     }
 }
 
-private enum ImportEnvValue: Decodable {
+private enum ImportScalar: Decodable {
     case string(String)
     case number(Double)
     case bool(Bool)
@@ -209,7 +274,7 @@ private enum ImportEnvValue: Decodable {
             return
         }
 
-        throw DecodingError.dataCorruptedError(in: container, debugDescription: "Invalid env value")
+        throw DecodingError.dataCorruptedError(in: container, debugDescription: "Invalid scalar value")
     }
 
     var stringValue: String? {
@@ -228,4 +293,3 @@ private enum ImportEnvValue: Decodable {
         }
     }
 }
-

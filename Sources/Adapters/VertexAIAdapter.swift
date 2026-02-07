@@ -3,7 +3,7 @@ import Security
 
 actor VertexAIAdapter: LLMProviderAdapter {
     let providerConfig: ProviderConfig
-    let capabilities: ModelCapability = [.streaming, .toolCalling, .vision, .reasoning]
+    let capabilities: ModelCapability = [.streaming, .toolCalling, .vision, .reasoning, .nativePDF, .imageGeneration]
 
     private let networkManager: NetworkManager
     private let serviceAccountJSON: ServiceAccountCredentials
@@ -63,8 +63,8 @@ actor VertexAIAdapter: LLMProviderAdapter {
                             }
                         }
 
-                        if pendingJSON.count > 1_000_000 {
-                            pendingJSON = String(pendingJSON.suffix(32_768))
+                        if pendingJSON.count > 64_000_000 {
+                            pendingJSON = String(pendingJSON.suffix(1_048_576))
                         }
                     }
                     if didStart {
@@ -107,6 +107,16 @@ actor VertexAIAdapter: LLMProviderAdapter {
                 )
             ),
             ModelInfo(
+                id: "gemini-3-pro-image-preview",
+                name: "Gemini 3 Pro Image (Preview)",
+                capabilities: [.streaming, .vision, .reasoning, .imageGeneration],
+                contextWindow: 1_048_576,
+                reasoningConfig: ModelReasoningConfig(
+                    type: .effort,
+                    defaultEffort: .medium
+                )
+            ),
+            ModelInfo(
                 id: "gemini-3-flash-preview",
                 name: "Gemini 3 Flash (Preview)",
                 capabilities: [.streaming, .toolCalling, .vision, .reasoning, .nativePDF],
@@ -125,6 +135,13 @@ actor VertexAIAdapter: LLMProviderAdapter {
                     type: .budget,
                     defaultBudget: 2048
                 )
+            ),
+            ModelInfo(
+                id: "gemini-2.5-flash-image",
+                name: "Gemini 2.5 Flash Image",
+                capabilities: [.streaming, .vision, .imageGeneration],
+                contextWindow: 1_048_576,
+                reasoningConfig: nil
             )
         ]
     }
@@ -257,7 +274,8 @@ actor VertexAIAdapter: LLMProviderAdapter {
         streaming: Bool,
         accessToken: String
     ) throws -> URLRequest {
-        let endpoint = "\(baseURL)/projects/\(serviceAccountJSON.projectID)/locations/\(location)/publishers/google/models/\(modelID):streamGenerateContent"
+        let method = streaming ? "streamGenerateContent" : "generateContent"
+        let endpoint = "\(baseURL)/projects/\(serviceAccountJSON.projectID)/locations/\(location)/publishers/google/models/\(modelID):\(method)"
         var request = URLRequest(url: URL(string: endpoint)!)
         request.httpMethod = "POST"
         request.addValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
@@ -277,7 +295,7 @@ actor VertexAIAdapter: LLMProviderAdapter {
 
         var body: [String: Any] = [
             "contents": messages.filter { $0.role != .system }.map { translateMessage($0, supportsNativePDF: supportsNativePDF) },
-            "generationConfig": buildGenerationConfig(controls)
+            "generationConfig": buildGenerationConfig(controls, modelID: modelID)
         ]
 
         if let systemText, !systemText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -290,11 +308,12 @@ actor VertexAIAdapter: LLMProviderAdapter {
 
         var toolArray: [[String: Any]] = []
 
-        if controls.webSearch?.enabled == true {
+        if controls.webSearch?.enabled == true, supportsGoogleSearch(modelID) {
             toolArray.append(["googleSearch": [:]])
         }
 
-        if !tools.isEmpty, let functionDeclarations = translateTools(tools) as? [[String: Any]] {
+        if supportsFunctionCalling(modelID), !tools.isEmpty,
+           let functionDeclarations = translateTools(tools) as? [[String: Any]] {
             toolArray.append(["functionDeclarations": functionDeclarations])
         }
 
@@ -302,12 +321,40 @@ actor VertexAIAdapter: LLMProviderAdapter {
             body["tools"] = toolArray
         }
 
+        if !controls.providerSpecific.isEmpty {
+            deepMerge(into: &body, additional: controls.providerSpecific.mapValues { $0.value })
+        }
+
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
         return request
     }
 
-    private func buildGenerationConfig(_ controls: GenerationControls) -> [String: Any] {
+    private func isImageGenerationModel(_ modelID: String) -> Bool {
+        let lower = modelID.lowercased()
+        return lower.contains("-image")
+    }
+
+    private func supportsFunctionCalling(_ modelID: String) -> Bool {
+        !isImageGenerationModel(modelID)
+    }
+
+    private func supportsGoogleSearch(_ modelID: String) -> Bool {
+        // Gemini 2.5 Flash Image does not support grounding with Google Search.
+        !modelID.lowercased().contains("gemini-2.5-flash-image")
+    }
+
+    private func supportsImageSize(_ modelID: String) -> Bool {
+        modelID.lowercased().contains("gemini-3-pro-image")
+    }
+
+    private func supportsThinking(_ modelID: String) -> Bool {
+        // Gemini 2.5 Flash Image does not support thinking.
+        !modelID.lowercased().contains("gemini-2.5-flash-image")
+    }
+
+    private func buildGenerationConfig(_ controls: GenerationControls, modelID: String) -> [String: Any] {
         var config: [String: Any] = [:]
+        let isImageModel = isImageGenerationModel(modelID)
 
         if let temperature = controls.temperature {
             config["temperature"] = temperature
@@ -319,7 +366,7 @@ actor VertexAIAdapter: LLMProviderAdapter {
             config["topP"] = topP
         }
 
-        if let reasoning = controls.reasoning, reasoning.enabled {
+        if supportsThinking(modelID), let reasoning = controls.reasoning, reasoning.enabled {
             var thinkingConfig: [String: Any] = [
                 "includeThoughts": true
             ]
@@ -331,6 +378,43 @@ actor VertexAIAdapter: LLMProviderAdapter {
             }
 
             config["thinkingConfig"] = thinkingConfig
+        }
+
+        if isImageModel {
+            let imageControls = controls.imageGeneration
+            let responseMode = imageControls?.responseMode ?? .textAndImage
+            config["responseModalities"] = responseMode.responseModalities
+
+            if let seed = imageControls?.seed {
+                config["seed"] = seed
+            }
+
+            var imageConfig: [String: Any] = [:]
+            if let aspectRatio = imageControls?.aspectRatio {
+                imageConfig["aspectRatio"] = aspectRatio.rawValue
+            }
+            if supportsImageSize(modelID), let imageSize = imageControls?.imageSize {
+                imageConfig["imageSize"] = imageSize.rawValue
+            }
+            if let person = imageControls?.vertexPersonGeneration {
+                imageConfig["personGeneration"] = person.rawValue
+            }
+
+            var imageOutputOptions: [String: Any] = [:]
+            if let mime = imageControls?.vertexOutputMIMEType {
+                imageOutputOptions["mimeType"] = mime.rawValue
+            }
+            if let quality = imageControls?.vertexCompressionQuality {
+                // Vertex docs define this as JPEG quality [0, 100].
+                imageOutputOptions["compressionQuality"] = min(100, max(0, quality))
+            }
+            if !imageOutputOptions.isEmpty {
+                imageConfig["imageOutputOptions"] = imageOutputOptions
+            }
+
+            if !imageConfig.isEmpty {
+                config["imageConfig"] = imageConfig
+            }
         }
 
         return config
@@ -355,7 +439,7 @@ actor VertexAIAdapter: LLMProviderAdapter {
 
     private func supportsNativePDF(_ modelID: String) -> Bool {
         // Gemini 3 series supports native PDF with free text extraction
-        return modelID.contains("gemini-3")
+        return modelID.lowercased().contains("gemini-3") && !isImageGenerationModel(modelID)
     }
 
     private func translateMessage(_ message: Message, supportsNativePDF: Bool) -> [String: Any] {
@@ -603,10 +687,31 @@ actor VertexAIAdapter: LLMProviderAdapter {
                     events.append(.toolCallStart(toolCall))
                     events.append(.toolCallEnd(toolCall))
                 }
+
+                if let inline = part.inlineData,
+                   let base64 = inline.data,
+                   let data = Data(base64Encoded: base64, options: .ignoreUnknownCharacters) {
+                    let mimeType = inline.mimeType ?? "image/png"
+                    if mimeType.lowercased().hasPrefix("image/") {
+                        events.append(.contentDelta(.image(ImageContent(mimeType: mimeType, data: data))))
+                    }
+                }
             }
         }
 
         return events
+    }
+
+    private func deepMerge(into base: inout [String: Any], additional: [String: Any]) {
+        for (key, value) in additional {
+            if var baseDict = base[key] as? [String: Any],
+               let addDict = value as? [String: Any] {
+                deepMerge(into: &baseDict, additional: addDict)
+                base[key] = baseDict
+                continue
+            }
+            base[key] = value
+        }
     }
 
     private var baseURL: String {
@@ -694,18 +799,24 @@ private struct TokenResponse: Codable {
             let role: String?
         }
 
-    struct Part: Codable {
-        let text: String?
-        let thought: Bool?
-        let thoughtSignature: String?
-        let functionCall: FunctionCall?
-        let functionResponse: FunctionResponse?
-    }
+	    struct Part: Codable {
+	        let text: String?
+	        let thought: Bool?
+	        let thoughtSignature: String?
+	        let functionCall: FunctionCall?
+	        let functionResponse: FunctionResponse?
+	        let inlineData: InlineData?
+	    }
 
-    struct FunctionCall: Codable {
-        let name: String
-        let args: [String: AnyCodable]?
-    }
+	    struct InlineData: Codable {
+	        let mimeType: String?
+	        let data: String?
+	    }
+
+	    struct FunctionCall: Codable {
+	        let name: String
+	        let args: [String: AnyCodable]?
+	    }
 
     struct FunctionResponse: Codable {
         let name: String?

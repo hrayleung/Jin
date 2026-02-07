@@ -50,6 +50,12 @@ struct ChatView: View {
     @State private var showingProviderSpecificParamsSheet = false
     @State private var providerSpecificParamsDraft = ""
     @State private var providerSpecificParamsError: String?
+
+    @State private var showingImageGenerationSheet = false
+    @State private var imageGenerationDraft = ImageGenerationControls()
+    @State private var imageGenerationSeedDraft = ""
+    @State private var imageGenerationCompressionQualityDraft = ""
+    @State private var imageGenerationDraftError: String?
     @State private var mistralOCRConfigured = false
     @State private var deepSeekOCRConfigured = false
     @State private var textToSpeechConfigured = false
@@ -182,55 +188,72 @@ struct ChatView: View {
             .help(supportsNativePDF ? "Attach images / PDFs (Native PDF support ✓)" : "Attach images / PDFs")
             .disabled(isBusy)
 
-            if supportsNativePDF {
-                Image(systemName: "doc.richtext.fill")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                    .help("Model supports native PDF reading")
+            if supportsPDFProcessingControl {
+                if supportsNativePDF {
+                    Image(systemName: "doc.richtext.fill")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .help("Model supports native PDF reading")
+                }
+
+                Menu { pdfProcessingMenuContent } label: {
+                    controlIconLabel(
+                        systemName: "doc.text.magnifyingglass",
+                        isActive: resolvedPDFProcessingMode != .native || isNativePDFModeMisconfigured,
+                        badgeText: pdfProcessingBadgeText
+                    )
+                }
+                .menuStyle(.borderlessButton)
+                .help(pdfProcessingHelpText)
             }
 
-            Menu { pdfProcessingMenuContent } label: {
-                controlIconLabel(
-                    systemName: "doc.text.magnifyingglass",
-                    isActive: resolvedPDFProcessingMode != .native || isNativePDFModeMisconfigured,
-                    badgeText: pdfProcessingBadgeText
-                )
+            if supportsReasoningControl {
+                Menu { reasoningMenuContent } label: {
+                    controlIconLabel(
+                        systemName: "brain",
+                        isActive: isReasoningEnabled,
+                        badgeText: reasoningBadgeText
+                    )
+                }
+                .menuStyle(.borderlessButton)
+                .help(reasoningHelpText)
             }
-            .menuStyle(.borderlessButton)
-            .help(pdfProcessingHelpText)
 
-            Menu { reasoningMenuContent } label: {
-                controlIconLabel(
-                    systemName: "brain",
-                    isActive: isReasoningEnabled,
-                    badgeText: reasoningBadgeText
-                )
+            if supportsWebSearchControl {
+                Menu { webSearchMenuContent } label: {
+                    controlIconLabel(
+                        systemName: "globe",
+                        isActive: isWebSearchEnabled,
+                        badgeText: webSearchBadgeText
+                    )
+                }
+                .menuStyle(.borderlessButton)
+                .help(webSearchHelpText)
             }
-            .menuStyle(.borderlessButton)
-            .disabled(!supportsReasoningControl)
-            .help(reasoningHelpText)
 
-            Menu { webSearchMenuContent } label: {
-                controlIconLabel(
-                    systemName: "globe",
-                    isActive: isWebSearchEnabled,
-                    badgeText: webSearchBadgeText
-                )
+            if supportsMCPToolsControl {
+                Menu { mcpToolsMenuContent } label: {
+                    controlIconLabel(
+                        systemName: "hammer",
+                        isActive: supportsMCPToolsControl && isMCPToolsEnabled,
+                        badgeText: mcpToolsBadgeText
+                    )
+                }
+                .menuStyle(.borderlessButton)
+                .help(mcpToolsHelpText)
             }
-            .menuStyle(.borderlessButton)
-            .disabled(!supportsWebSearchControl)
-            .help(webSearchHelpText)
 
-            Menu { mcpToolsMenuContent } label: {
-                controlIconLabel(
-                    systemName: "hammer",
-                    isActive: supportsMCPToolsControl && isMCPToolsEnabled,
-                    badgeText: mcpToolsBadgeText
-                )
+            if supportsImageGenerationControl {
+                Menu { imageGenerationMenuContent } label: {
+                    controlIconLabel(
+                        systemName: "photo",
+                        isActive: isImageGenerationConfigured,
+                        badgeText: imageGenerationBadgeText
+                    )
+                }
+                .menuStyle(.borderlessButton)
+                .help(imageGenerationHelpText)
             }
-            .menuStyle(.borderlessButton)
-            .disabled(!supportsMCPToolsControl)
-            .help(mcpToolsHelpText)
 
             Menu { providerSpecificParamsMenuContent } label: {
                 controlIconLabel(
@@ -599,17 +622,19 @@ struct ChatView: View {
                         }
                     }
 
-                    Section("Examples") {
-                        VStack(alignment: .leading, spacing: JinSpacing.small) {
-                            Text("Fireworks GLM/Kimi thinking history: {\"reasoning_history\": \"preserved\"} (or \"interleaved\" / \"turn_level\")")
-                            Text("Cerebras GLM preserved thinking: {\"clear_thinking\": false}")
-                            Text("Cerebras GLM disable thinking: {\"disable_reasoning\": true}")
-                            Text("Cerebras reasoning output: {\"reasoning_format\": \"parsed\"} (or \"raw\" / \"hidden\" / \"none\")")
-                        }
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .padding(JinSpacing.small)
-                        .jinSurface(.raised, cornerRadius: JinRadius.small)
+	                    Section("Examples") {
+	                        VStack(alignment: .leading, spacing: JinSpacing.small) {
+	                            Text("Fireworks GLM/Kimi thinking history: {\"reasoning_history\": \"preserved\"} (or \"interleaved\" / \"turn_level\")")
+	                            Text("Cerebras GLM preserved thinking: {\"clear_thinking\": false}")
+	                            Text("Cerebras GLM disable thinking: {\"disable_reasoning\": true}")
+	                            Text("Cerebras reasoning output: {\"reasoning_format\": \"parsed\"} (or \"raw\" / \"hidden\" / \"none\")")
+	                            Text("Gemini image generation: {\"generationConfig\": {\"responseModalities\": [\"TEXT\", \"IMAGE\"], \"imageConfig\": {\"aspectRatio\": \"16:9\", \"imageSize\": \"2K\"}}}")
+	                            Text("Vertex image extras: {\"generationConfig\": {\"imageConfig\": {\"personGeneration\": \"ALLOW_ADULT\", \"imageOutputOptions\": {\"mimeType\": \"image/jpeg\", \"compressionQuality\": 90}}}}")
+	                        }
+	                        .font(.caption)
+	                        .foregroundStyle(.secondary)
+	                        .padding(JinSpacing.small)
+	                        .jinSurface(.raised, cornerRadius: JinRadius.small)
                     }
                 }
                 .scrollContentBackground(.hidden)
@@ -632,6 +657,94 @@ struct ChatView: View {
                 }
             }
             .frame(width: 560, height: 520)
+        }
+        .sheet(isPresented: $showingImageGenerationSheet) {
+            NavigationStack {
+                Form {
+                    Section("Output") {
+                        Picker(
+                            "Response",
+                            selection: Binding(
+                                get: { imageGenerationDraft.responseMode ?? .textAndImage },
+                                set: { value in
+                                    imageGenerationDraft.responseMode = (value == .textAndImage) ? nil : value
+                                }
+                            )
+                        ) {
+                            ForEach(ImageResponseMode.allCases, id: \.self) { mode in
+                                Text(mode.displayName).tag(mode)
+                            }
+                        }
+
+                        Picker("Aspect Ratio", selection: $imageGenerationDraft.aspectRatio) {
+                            Text("Default").tag(Optional<ImageAspectRatio>.none)
+                            ForEach(ImageAspectRatio.allCases, id: \.self) { ratio in
+                                Text(ratio.displayName).tag(Optional(ratio))
+                            }
+                        }
+
+                        if supportsCurrentModelImageSizeControl {
+                            Picker("Image Size", selection: $imageGenerationDraft.imageSize) {
+                                Text("Default").tag(Optional<ImageOutputSize>.none)
+                                ForEach(ImageOutputSize.allCases, id: \.self) { size in
+                                    Text(size.displayName).tag(Optional(size))
+                                }
+                            }
+                        }
+
+                        TextField("Seed (optional)", text: $imageGenerationSeedDraft)
+                            .font(.system(.body, design: .monospaced))
+                            .textFieldStyle(.roundedBorder)
+                    }
+
+                    if providerType == .vertexai {
+                        Section("Vertex") {
+                            Picker("Person generation", selection: $imageGenerationDraft.vertexPersonGeneration) {
+                                Text("Default").tag(Optional<VertexImagePersonGeneration>.none)
+                                ForEach(VertexImagePersonGeneration.allCases, id: \.self) { item in
+                                    Text(item.displayName).tag(Optional(item))
+                                }
+                            }
+
+                            Picker("Output MIME", selection: $imageGenerationDraft.vertexOutputMIMEType) {
+                                Text("Default").tag(Optional<VertexImageOutputMIMEType>.none)
+                                ForEach(VertexImageOutputMIMEType.allCases, id: \.self) { item in
+                                    Text(item.displayName).tag(Optional(item))
+                                }
+                            }
+
+                            TextField("JPEG quality 0-100 (optional)", text: $imageGenerationCompressionQualityDraft)
+                                .font(.system(.body, design: .monospaced))
+                                .textFieldStyle(.roundedBorder)
+                        }
+                    }
+
+                    if let imageGenerationDraftError {
+                        Section {
+                            Text(imageGenerationDraftError)
+                                .foregroundStyle(.red)
+                                .font(.caption)
+                        }
+                    }
+                }
+                .navigationTitle("Image Generation")
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Cancel") {
+                            showingImageGenerationSheet = false
+                        }
+                    }
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Save") {
+                            if applyImageGenerationDraft() {
+                                showingImageGenerationSheet = false
+                            }
+                        }
+                        .disabled(!isImageGenerationDraftValid)
+                    }
+                }
+            }
+            .frame(width: 500)
         }
         .task {
             loadControlsFromConversation()
@@ -1306,12 +1419,78 @@ struct ChatView: View {
         availableModels.first(where: { $0.id == conversationEntity.modelID })
     }
 
+    private var isImageGenerationModelID: Bool {
+        conversationEntity.modelID.lowercased().contains("-image")
+    }
+
     private var supportsNativePDF: Bool {
-        selectedModelInfo?.capabilities.contains(.nativePDF) == true
+        guard !supportsImageGenerationControl else { return false }
+        if selectedModelInfo?.capabilities.contains(.nativePDF) == true {
+            return true
+        }
+
+        switch providerType {
+        case .gemini, .vertexai:
+            return conversationEntity.modelID.lowercased().contains("gemini-3")
+        case .openai, .anthropic, .xai, .fireworks, .cerebras, .none:
+            return false
+        }
     }
 
     private var supportsVision: Bool {
-        selectedModelInfo?.capabilities.contains(.vision) == true
+        selectedModelInfo?.capabilities.contains(.vision) == true || supportsImageGenerationControl
+    }
+
+    private var supportsImageGenerationControl: Bool {
+        selectedModelInfo?.capabilities.contains(.imageGeneration) == true || isImageGenerationModelID
+    }
+
+    private var supportsImageGenerationWebSearch: Bool {
+        guard supportsImageGenerationControl else { return false }
+        switch providerType {
+        case .gemini, .vertexai:
+            return !conversationEntity.modelID.lowercased().contains("gemini-2.5-flash-image")
+        case .openai, .anthropic, .xai, .fireworks, .cerebras, .none:
+            return false
+        }
+    }
+
+    private var supportsPDFProcessingControl: Bool {
+        // Keep PDF preprocessing available for OCR/macOS extract even on image-generation models.
+        true
+    }
+
+    private var supportsCurrentModelImageSizeControl: Bool {
+        conversationEntity.modelID.lowercased().contains("gemini-3-pro-image")
+    }
+
+    private var isImageGenerationConfigured: Bool {
+        !(controls.imageGeneration?.isEmpty ?? true)
+    }
+
+    private var imageGenerationBadgeText: String? {
+        guard supportsImageGenerationControl else { return nil }
+        if controls.imageGeneration?.responseMode == .imageOnly {
+            return "IMG"
+        }
+        if let ratio = controls.imageGeneration?.aspectRatio?.rawValue {
+            return ratio
+        }
+        if controls.imageGeneration?.seed != nil {
+            return "Seed"
+        }
+        return isImageGenerationConfigured ? "On" : nil
+    }
+
+    private var imageGenerationHelpText: String {
+        guard supportsImageGenerationControl else { return "Image Generation: Not supported" }
+        if let ratio = controls.imageGeneration?.aspectRatio?.rawValue {
+            return "Image Generation: \(ratio)"
+        }
+        if controls.imageGeneration?.responseMode == .imageOnly {
+            return "Image Generation: Image only"
+        }
+        return isImageGenerationConfigured ? "Image Generation: Customized" : "Image Generation: Default"
     }
 
     private var resolvedPDFProcessingMode: PDFProcessingMode {
@@ -1388,6 +1567,10 @@ struct ChatView: View {
     }
 
     private var supportsWebSearchControl: Bool {
+        if supportsImageGenerationControl {
+            return supportsImageGenerationWebSearch
+        }
+
         // Provider-native web search, not MCP. Today: OpenAI, Anthropic, xAI, Gemini API, Vertex AI.
         switch providerType {
         case .openai, .anthropic, .xai, .gemini, .vertexai:
@@ -1398,7 +1581,8 @@ struct ChatView: View {
     }
 
     private var supportsMCPToolsControl: Bool {
-        selectedModelInfo?.capabilities.contains(.toolCalling) == true
+        guard !supportsImageGenerationControl else { return false }
+        return selectedModelInfo?.capabilities.contains(.toolCalling) == true
     }
 
     private var reasoningHelpText: String {
@@ -1656,8 +1840,10 @@ struct ChatView: View {
         case .cerebras:
             return lower == "zai-glm-4.7"
         case .gemini:
-            return lower.contains("gemini-3")
-        case .openai, .anthropic, .xai, .vertexai:
+            return lower.contains("gemini-3") || lower.contains("gemini-2.5-flash-image")
+        case .vertexai:
+            return lower.contains("gemini-3") || lower.contains("gemini-2.5")
+        case .openai, .anthropic, .xai:
             return false
         }
     }
@@ -2610,30 +2796,37 @@ struct ChatView: View {
                 var iteration = 0
                 let maxToolIterations = 8
 
-                while iteration < maxToolIterations {
-                    try Task.checkCancellation()
-
-                    var assistantPartRefs: [StreamedAssistantPartRef] = []
-                    var assistantTextSegments: [String] = []
-                    var assistantThinkingSegments: [ThinkingBlockAccumulator] = []
-                    var toolCallsByID: [String: ToolCall] = [:]
-
-                    func appendAssistantTextDelta(_ delta: String) {
-                        guard !delta.isEmpty else { return }
+	                while iteration < maxToolIterations {
+	                    try Task.checkCancellation()
+	
+	                    var assistantPartRefs: [StreamedAssistantPartRef] = []
+	                    var assistantTextSegments: [String] = []
+	                    var assistantImageSegments: [ImageContent] = []
+	                    var assistantThinkingSegments: [ThinkingBlockAccumulator] = []
+	                    var toolCallsByID: [String: ToolCall] = [:]
+	
+	                    func appendAssistantTextDelta(_ delta: String) {
+	                        guard !delta.isEmpty else { return }
                         if let last = assistantPartRefs.last, case .text(let idx) = last {
                             assistantTextSegments[idx].append(delta)
                         } else {
                             let idx = assistantTextSegments.count
                             assistantTextSegments.append(delta)
-                            assistantPartRefs.append(.text(idx))
-                        }
-                    }
+	                            assistantPartRefs.append(.text(idx))
+	                        }
+	                    }
 
-                    func appendAssistantThinkingDelta(_ delta: ThinkingDelta) {
-                        switch delta {
-                        case .thinking(let textDelta, let signature):
-                            if textDelta.isEmpty,
-                               let signature,
+	                    func appendAssistantImage(_ image: ImageContent) {
+	                        let idx = assistantImageSegments.count
+	                        assistantImageSegments.append(image)
+	                        assistantPartRefs.append(.image(idx))
+	                    }
+
+	                    func appendAssistantThinkingDelta(_ delta: ThinkingDelta) {
+	                        switch delta {
+	                        case .thinking(let textDelta, let signature):
+	                            if textDelta.isEmpty,
+	                               let signature,
                                let last = assistantPartRefs.last,
                                case .thinking(let idx) = last {
                                 if assistantThinkingSegments[idx].signature != signature {
@@ -2664,14 +2857,16 @@ struct ChatView: View {
                         var parts: [ContentPart] = []
                         parts.reserveCapacity(assistantPartRefs.count)
 
-                        for ref in assistantPartRefs {
-                            switch ref {
-                            case .text(let idx):
-                                parts.append(.text(assistantTextSegments[idx]))
-                            case .thinking(let idx):
-                                let thinking = assistantThinkingSegments[idx]
-                                parts.append(.thinking(ThinkingBlock(text: thinking.text, signature: thinking.signature)))
-                            case .redacted(let redacted):
+	                        for ref in assistantPartRefs {
+	                            switch ref {
+	                            case .text(let idx):
+	                                parts.append(.text(assistantTextSegments[idx]))
+	                            case .image(let idx):
+	                                parts.append(.image(assistantImageSegments[idx]))
+	                            case .thinking(let idx):
+	                                let thinking = assistantThinkingSegments[idx]
+	                                parts.append(.thinking(ThinkingBlock(text: thinking.text, signature: thinking.signature)))
+	                            case .redacted(let redacted):
                                 parts.append(.redactedThinking(redacted))
                             }
                         }
@@ -2731,18 +2926,20 @@ struct ChatView: View {
                         try Task.checkCancellation()
 
                         switch event {
-                        case .messageStart:
-                            break
-                        case .contentDelta(let part):
-                            if case .text(let delta) = part {
-                                appendAssistantTextDelta(delta)
-                                pendingTextDelta.append(delta)
-                                streamedCharacterCount += delta.count
-                            }
-                        case .thinkingDelta(let delta):
-                            appendAssistantThinkingDelta(delta)
-                            switch delta {
-                            case .thinking(let textDelta, _):
+	                        case .messageStart:
+	                            break
+	                        case .contentDelta(let part):
+	                            if case .text(let delta) = part {
+	                                appendAssistantTextDelta(delta)
+	                                pendingTextDelta.append(delta)
+	                                streamedCharacterCount += delta.count
+	                            } else if case .image(let image) = part {
+	                                appendAssistantImage(image)
+	                            }
+	                        case .thinkingDelta(let delta):
+	                            appendAssistantThinkingDelta(delta)
+	                            switch delta {
+	                            case .thinking(let textDelta, _):
                                 if !textDelta.isEmpty {
                                     didAppendAnyThinkingText = true
                                     pendingThinkingDelta.append(textDelta)
@@ -3150,6 +3347,91 @@ struct ChatView: View {
                 }
             }
         }
+    }
+
+    @ViewBuilder
+    private var imageGenerationMenuContent: some View {
+        Button("Edit…") {
+            openImageGenerationEditor()
+        }
+
+        if isImageGenerationConfigured {
+            Divider()
+            Button("Reset", role: .destructive) {
+                controls.imageGeneration = nil
+                persistControlsToConversation()
+            }
+        }
+    }
+
+    private func openImageGenerationEditor() {
+        let current = controls.imageGeneration ?? ImageGenerationControls()
+        imageGenerationDraft = current
+        imageGenerationSeedDraft = current.seed.map(String.init) ?? ""
+        imageGenerationCompressionQualityDraft = current.vertexCompressionQuality.map(String.init) ?? ""
+        imageGenerationDraftError = nil
+        showingImageGenerationSheet = true
+    }
+
+    private var isImageGenerationDraftValid: Bool {
+        let seedText = imageGenerationSeedDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !seedText.isEmpty, Int(seedText) == nil {
+            return false
+        }
+
+        let qualityText = imageGenerationCompressionQualityDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !qualityText.isEmpty {
+            guard let quality = Int(qualityText), (0...100).contains(quality) else {
+                return false
+            }
+        }
+
+        return true
+    }
+
+    @discardableResult
+    private func applyImageGenerationDraft() -> Bool {
+        var draft = imageGenerationDraft
+
+        let seedText = imageGenerationSeedDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        if seedText.isEmpty {
+            draft.seed = nil
+        } else if let seed = Int(seedText) {
+            draft.seed = seed
+        } else {
+            imageGenerationDraftError = "Seed must be an integer."
+            return false
+        }
+
+        let qualityText = imageGenerationCompressionQualityDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        if qualityText.isEmpty {
+            draft.vertexCompressionQuality = nil
+        } else if let quality = Int(qualityText), (0...100).contains(quality) {
+            draft.vertexCompressionQuality = quality
+        } else {
+            imageGenerationDraftError = "JPEG quality must be an integer between 0 and 100."
+            return false
+        }
+
+        if !supportsCurrentModelImageSizeControl {
+            draft.imageSize = nil
+        }
+
+        if providerType != .vertexai {
+            draft.vertexPersonGeneration = nil
+            draft.vertexOutputMIMEType = nil
+            draft.vertexCompressionQuality = nil
+        }
+
+        if draft.isEmpty {
+            controls.imageGeneration = nil
+        } else {
+            controls.imageGeneration = draft
+        }
+
+        persistControlsToConversation()
+        imageGenerationDraftError = nil
+        return true
     }
 
     private var providerSpecificParamsBadgeText: String? {
@@ -3757,8 +4039,17 @@ struct ChatView: View {
         // Ensure the stored controls remain valid when switching provider/model.
         let originalData = (try? JSONEncoder().encode(controls)) ?? Data()
 
+        if supportsImageGenerationControl {
+            if !supportsReasoningControl {
+                controls.reasoning = nil
+            }
+            if !supportsWebSearchControl {
+                controls.webSearch = nil
+            }
+        }
+
         // Reasoning: enforce model's reasoning config expectations.
-        if let reasoningConfig = selectedReasoningConfig {
+        if supportsReasoningControl, let reasoningConfig = selectedReasoningConfig {
             switch reasoningConfig.type {
             case .effort:
                 if controls.reasoning?.enabled == true, controls.reasoning?.effort == nil {
@@ -3788,43 +4079,64 @@ struct ChatView: View {
             case .none:
                 controls.reasoning = nil
             }
-        } else {
-            // If we don't know, keep user's settings.
+        } else if !supportsReasoningControl {
+            controls.reasoning = nil
         }
 
-        // OpenAI: only GPT-5.2 supports xhigh.
-        if providerType == .openai, controls.reasoning?.effort == .xhigh, !isOpenAIGPT52SeriesModel {
-            controls.reasoning?.effort = .high
-        }
-
-        // Anthropic: xhigh maps to max effort and is only valid on Opus models.
-        if providerType == .anthropic, controls.reasoning?.effort == .xhigh, !isAnthropicOpusSeriesModel {
-            controls.reasoning?.effort = .high
-        }
-
-        // Gemini 3 Pro: only supports low/high thinking levels.
-        if providerType == .gemini,
-           conversationEntity.modelID.lowercased().contains("gemini-3-pro"),
-           let effort = controls.reasoning?.effort {
-            switch effort {
-            case .none:
-                break
-            case .minimal:
-                controls.reasoning?.effort = .low
-            case .low:
-                break
-            case .medium:
+        if supportsReasoningControl {
+            // OpenAI: only GPT-5.2 supports xhigh.
+            if providerType == .openai, controls.reasoning?.effort == .xhigh, !isOpenAIGPT52SeriesModel {
                 controls.reasoning?.effort = .high
-            case .high:
-                break
-            case .xhigh:
+            }
+
+            // Anthropic: xhigh maps to max effort and is only valid on Opus models.
+            if providerType == .anthropic, controls.reasoning?.effort == .xhigh, !isAnthropicOpusSeriesModel {
                 controls.reasoning?.effort = .high
+            }
+
+            // Gemini 3 Pro: only supports low/high thinking levels.
+            if providerType == .gemini,
+               conversationEntity.modelID.lowercased().contains("gemini-3-pro"),
+               let effort = controls.reasoning?.effort {
+                switch effort {
+                case .none:
+                    break
+                case .minimal:
+                    controls.reasoning?.effort = .low
+                case .low:
+                    break
+                case .medium:
+                    controls.reasoning?.effort = .high
+                case .high:
+                    break
+                case .xhigh:
+                    controls.reasoning?.effort = .high
+                }
             }
         }
 
-        // Web search defaults & provider-specific fields.
-        if controls.webSearch?.enabled == true {
-            ensureValidWebSearchDefaultsIfEnabled()
+        if supportsWebSearchControl {
+            if controls.webSearch?.enabled == true {
+                ensureValidWebSearchDefaultsIfEnabled()
+            }
+        } else {
+            controls.webSearch = nil
+        }
+
+        if supportsImageGenerationControl {
+            if !supportsCurrentModelImageSizeControl {
+                controls.imageGeneration?.imageSize = nil
+            }
+            if providerType != .vertexai {
+                controls.imageGeneration?.vertexPersonGeneration = nil
+                controls.imageGeneration?.vertexOutputMIMEType = nil
+                controls.imageGeneration?.vertexCompressionQuality = nil
+            }
+            if controls.imageGeneration?.isEmpty == true {
+                controls.imageGeneration = nil
+            }
+        } else {
+            controls.imageGeneration = nil
         }
 
         let newData = (try? JSONEncoder().encode(controls)) ?? Data()
@@ -3832,6 +4144,7 @@ struct ChatView: View {
             persistControlsToConversation()
         }
     }
+
 
     private func webSearchSourceBinding(_ source: WebSearchSource) -> Binding<Bool> {
         Binding(
@@ -4651,6 +4964,7 @@ private struct ChunkedTextView: View {
 
 private enum StreamedAssistantPartRef {
     case text(Int)
+    case image(Int)
     case thinking(Int)
     case redacted(RedactedThinkingBlock)
 }

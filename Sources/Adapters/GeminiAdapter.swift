@@ -11,7 +11,7 @@ import Foundation
 /// - Grounding with Google Search (`google_search` tool)
 actor GeminiAdapter: LLMProviderAdapter {
     let providerConfig: ProviderConfig
-    let capabilities: ModelCapability = [.streaming, .toolCalling, .vision, .reasoning, .nativePDF]
+    let capabilities: ModelCapability = [.streaming, .toolCalling, .vision, .reasoning, .nativePDF, .imageGeneration]
 
     private let networkManager: NetworkManager
     private let apiKey: String
@@ -174,11 +174,25 @@ actor GeminiAdapter: LLMProviderAdapter {
                     reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high)
                 ),
                 ModelInfo(
+                    id: "gemini-3-pro-image-preview",
+                    name: "Gemini 3 Pro Image (Preview)",
+                    capabilities: [.streaming, .vision, .reasoning, .imageGeneration],
+                    contextWindow: 1_048_576,
+                    reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high)
+                ),
+                ModelInfo(
                     id: "gemini-3-flash-preview",
                     name: "Gemini 3 Flash (Preview)",
                     capabilities: [.streaming, .toolCalling, .vision, .reasoning, .nativePDF],
                     contextWindow: 1_048_576,
                     reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high)
+                ),
+                ModelInfo(
+                    id: "gemini-2.5-flash-image",
+                    name: "Gemini 2.5 Flash Image",
+                    capabilities: [.streaming, .vision, .imageGeneration],
+                    contextWindow: 1_048_576,
+                    reasoningConfig: nil
                 )
             ]
         }
@@ -228,11 +242,12 @@ actor GeminiAdapter: LLMProviderAdapter {
 
         var toolArray: [[String: Any]] = []
 
-        if controls.webSearch?.enabled == true {
+        if controls.webSearch?.enabled == true, supportsGoogleSearch(modelID) {
             toolArray.append(["google_search": [:]])
         }
 
-        if !tools.isEmpty, let functionDeclarations = translateTools(tools) as? [[String: Any]] {
+        if supportsFunctionCalling(modelID), !tools.isEmpty,
+           let functionDeclarations = translateTools(tools) as? [[String: Any]] {
             toolArray.append(["functionDeclarations": functionDeclarations])
         }
 
@@ -271,15 +286,46 @@ actor GeminiAdapter: LLMProviderAdapter {
     }
 
     private func supportsNativePDF(_ modelID: String) -> Bool {
-        isGemini3Model(modelID)
+        isGemini3Model(modelID) && !isImageGenerationModel(modelID)
     }
 
     private func isGemini3Model(_ modelID: String) -> Bool {
         modelID.lowercased().contains("gemini-3")
     }
 
+    private func isImageGenerationModel(_ modelID: String) -> Bool {
+        let lower = modelID.lowercased()
+        // Gemini image-generation models include `-image` (e.g. gemini-2.5-flash-image, gemini-3-pro-image-preview).
+        return lower.contains("-image")
+    }
+
+    private func supportsFunctionCalling(_ modelID: String) -> Bool {
+        // Gemini image-generation models do not support function calling.
+        !isImageGenerationModel(modelID)
+    }
+
+    private func supportsGoogleSearch(_ modelID: String) -> Bool {
+        let lower = modelID.lowercased()
+        // Gemini 2.5 Flash Image does not support Google Search grounding.
+        if lower.contains("gemini-2.5-flash-image") {
+            return false
+        }
+        return true
+    }
+
+    private func supportsImageSize(_ modelID: String) -> Bool {
+        // imageSize is documented for Gemini 3 Pro Image.
+        modelID.lowercased().contains("gemini-3-pro-image")
+    }
+
+    private func supportsThinking(_ modelID: String) -> Bool {
+        // Gemini 2.5 Flash Image does not support thinking; Gemini 3 Pro Image does.
+        !modelID.lowercased().contains("gemini-2.5-flash-image")
+    }
+
     private func buildGenerationConfig(_ controls: GenerationControls, modelID: String) -> [String: Any] {
         var config: [String: Any] = [:]
+        let isImageModel = isImageGenerationModel(modelID)
 
         if let temperature = controls.temperature {
             config["temperature"] = temperature
@@ -292,7 +338,7 @@ actor GeminiAdapter: LLMProviderAdapter {
         }
 
         // Gemini 3: dynamic thinking is on by default; thinkingLevel controls the amount of thinking.
-        if let reasoning = controls.reasoning {
+        if supportsThinking(modelID), let reasoning = controls.reasoning {
             if reasoning.enabled {
                 var thinkingConfig: [String: Any] = [
                     "includeThoughts": true
@@ -310,6 +356,27 @@ actor GeminiAdapter: LLMProviderAdapter {
                 config["thinkingConfig"] = [
                     "thinkingLevel": defaultThinkingLevelWhenOff(modelID: modelID)
                 ]
+            }
+        }
+
+        if isImageModel {
+            let imageControls = controls.imageGeneration
+            let responseMode = imageControls?.responseMode ?? .textAndImage
+            config["responseModalities"] = responseMode.responseModalities
+
+            if let seed = imageControls?.seed {
+                config["seed"] = seed
+            }
+
+            var imageConfig: [String: Any] = [:]
+            if let aspectRatio = imageControls?.aspectRatio {
+                imageConfig["aspectRatio"] = aspectRatio.rawValue
+            }
+            if supportsImageSize(modelID), let imageSize = imageControls?.imageSize {
+                imageConfig["imageSize"] = imageSize.rawValue
+            }
+            if !imageConfig.isEmpty {
+                config["imageConfig"] = imageConfig
             }
         }
 
@@ -546,6 +613,15 @@ actor GeminiAdapter: LLMProviderAdapter {
             out.append(.contentDelta(.text(text)))
         }
 
+        if let inline = part.inlineData,
+           let base64 = inline.data,
+           let data = Data(base64Encoded: base64) {
+            let mimeType = inline.mimeType ?? "image/png"
+            if mimeType.lowercased().hasPrefix("image/") {
+                out.append(.contentDelta(.image(ImageContent(mimeType: mimeType, data: data))))
+            }
+        }
+
         if let functionCall = part.functionCall {
             let toolCall = ToolCall(
                 id: UUID().uuidString,
@@ -571,11 +647,27 @@ actor GeminiAdapter: LLMProviderAdapter {
 
     private func makeModelInfo(from model: ListModelsResponse.Model) -> ModelInfo? {
         let id = model.id
-        guard id.lowercased().contains("gemini-3") else { return nil }
+        let lower = id.lowercased()
 
-        var caps: ModelCapability = [.streaming, .toolCalling, .vision, .reasoning]
-        if id.lowercased().contains("gemini-3") {
-            caps.insert(.nativePDF)
+        guard lower.contains("gemini-3") || lower.contains("gemini-2.5-flash-image") else {
+            return nil
+        }
+
+        let caps: ModelCapability
+        let reasoningConfig: ModelReasoningConfig?
+
+        if isImageGenerationModel(id) {
+            // Gemini image models support multimodal generation but not function calling.
+            if supportsThinking(id) {
+                caps = [.streaming, .vision, .reasoning, .imageGeneration]
+                reasoningConfig = ModelReasoningConfig(type: .effort, defaultEffort: .high)
+            } else {
+                caps = [.streaming, .vision, .imageGeneration]
+                reasoningConfig = nil
+            }
+        } else {
+            caps = [.streaming, .toolCalling, .vision, .reasoning, .nativePDF]
+            reasoningConfig = ModelReasoningConfig(type: .effort, defaultEffort: .high)
         }
 
         let contextWindow = model.inputTokenLimit ?? 1_048_576
@@ -585,7 +677,7 @@ actor GeminiAdapter: LLMProviderAdapter {
             name: model.displayName ?? id,
             capabilities: caps,
             contextWindow: contextWindow,
-            reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high)
+            reasoningConfig: reasoningConfig
         )
     }
 
@@ -642,6 +734,12 @@ private struct GenerateContentResponse: Codable {
         let thoughtSignature: String?
         let functionCall: FunctionCall?
         let functionResponse: FunctionResponse?
+        let inlineData: InlineData?
+    }
+
+    struct InlineData: Codable {
+        let mimeType: String?
+        let data: String?
     }
 
     struct FunctionCall: Codable {

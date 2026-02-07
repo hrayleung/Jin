@@ -25,18 +25,21 @@ actor MCPClient {
 
     private let logTailLimitBytes = 32 * 1024
 
+    // stdio lifecycle state
     private var process: Process?
     private var stdinPipe: Pipe?
     private var stdoutPipe: Pipe?
     private var stderrPipe: Pipe?
     private var stderrReadTask: Task<Void, Never>?
-
     private var stderrTail = Data()
     private var launchDiagnostics: LaunchDiagnostics?
     private var lastProcessExit: MCPClientError?
 
+    // shared MCP SDK state
     private var client: MCP.Client?
-    private var transport: MCP.StdioTransport?
+    private var stdioTransport: MCP.StdioTransport?
+    private var httpTransport: MCP.HTTPClientTransport?
+    private var httpDiagnostics: HTTPDiagnostics?
 
     init(config: MCPServerConfig) {
         self.config = config
@@ -45,7 +48,9 @@ actor MCPClient {
     func stop() async {
         await client?.disconnect()
         client = nil
-        transport = nil
+        stdioTransport = nil
+        httpTransport = nil
+        httpDiagnostics = nil
 
         stderrReadTask?.cancel()
         stderrReadTask = nil
@@ -121,17 +126,24 @@ actor MCPClient {
 
     private func startIfNeeded() async throws {
         if let lastProcessExit {
-            // Prefer a clear exit error over opaque downstream failures.
+            // Prefer a clear process-exit error over opaque downstream transport failures.
             self.lastProcessExit = nil
             throw lastProcessExit
         }
 
         if client != nil { return }
 
-        try startProcess()
+        let client = MCP.Client(name: "Jin", version: "0.1.0")
+        self.client = client
 
         do {
-            try await connectClient()
+            switch config.transport {
+            case .stdio(let stdio):
+                try startProcess(stdio: stdio)
+                try await connectStdioClient(client: client)
+            case .http(let http):
+                try await connectHTTPClient(client: client, http: http)
+            }
         } catch {
             let enriched = enrich(error, method: "initialize")
             await stop()
@@ -139,35 +151,55 @@ actor MCPClient {
         }
     }
 
-    private func connectClient() async throws {
+    private func connectStdioClient(client: MCP.Client) async throws {
         guard let stdinPipe, let stdoutPipe else { throw MCPClientError.notRunning }
 
         let inputFD = FileDescriptor(rawValue: stdoutPipe.fileHandleForReading.fileDescriptor)
         let outputFD = FileDescriptor(rawValue: stdinPipe.fileHandleForWriting.fileDescriptor)
 
         let transport = MCP.StdioTransport(input: inputFD, output: outputFD)
-        let client = MCP.Client(name: "Jin", version: "0.1.0")
-
-        self.transport = transport
-        self.client = client
+        self.stdioTransport = transport
 
         _ = try await withTimeout(method: "initialize", seconds: handshakeTimeoutSeconds) {
             try await client.connect(transport: transport)
         }
     }
 
-    // MARK: - Process lifecycle
+    private func connectHTTPClient(client: MCP.Client, http: MCPHTTPTransportConfig) async throws {
+        let headers = http.resolvedHeaders()
+        httpDiagnostics = HTTPDiagnostics(endpoint: http.endpoint.absoluteString, headerNames: headers.keys.sorted())
 
-    private func startProcess() throws {
+        let transport = MCP.HTTPClientTransport(
+            endpoint: http.endpoint,
+            streaming: http.streaming,
+            requestModifier: { request in
+                var modified = request
+                for (key, value) in headers {
+                    modified.setValue(value, forHTTPHeaderField: key)
+                }
+                return modified
+            }
+        )
+
+        httpTransport = transport
+
+        _ = try await withTimeout(method: "initialize", seconds: handshakeTimeoutSeconds) {
+            try await client.connect(transport: transport)
+        }
+    }
+
+    // MARK: - Process lifecycle (stdio)
+
+    private func startProcess(stdio: MCPStdioTransportConfig) throws {
         guard process == nil else { return }
 
         stderrTail.removeAll(keepingCapacity: true)
         launchDiagnostics = nil
         lastProcessExit = nil
 
-        let (command, args) = try parseCommandAndArgs()
+        let (command, args) = try parseCommandAndArgs(stdio: stdio)
         let workingDirectory = try workingDirectoryForProcess(command: command)
-        let env = try makeProcessEnvironment(command: command)
+        let env = try makeProcessEnvironment(stdio: stdio, command: command)
 
         guard let executableURL = resolveExecutableURL(command: command, environment: env, workingDirectory: workingDirectory) else {
             throw MCPClientError.executableNotFound(command: command)
@@ -237,7 +269,8 @@ actor MCPClient {
 
         await client?.disconnect()
         client = nil
-        transport = nil
+        stdioTransport = nil
+        httpTransport = nil
 
         lastProcessExit = .processExited(status: status, stderr: stderr, diagnostics: launchDiagnostics)
     }
@@ -249,7 +282,7 @@ actor MCPClient {
         }
     }
 
-    // MARK: - Encoding/decoding helpers
+    // MARK: - Encoding / decoding helpers
 
     private func decodeArguments(_ arguments: [String: AnyCodable]) throws -> [String: MCP.Value]? {
         guard !arguments.isEmpty else { return nil }
@@ -266,10 +299,10 @@ actor MCPClient {
         }
     }
 
-    // MARK: - Command parsing & environment
+    // MARK: - Command parsing & environment (stdio)
 
-    private func parseCommandAndArgs() throws -> (command: String, args: [String]) {
-        let trimmedCommandLine = config.command.trimmingCharacters(in: .whitespacesAndNewlines)
+    private func parseCommandAndArgs(stdio: MCPStdioTransportConfig) throws -> (command: String, args: [String]) {
+        let trimmedCommandLine = stdio.command.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedCommandLine.isEmpty else {
             throw MCPClientError.invalidCommand
         }
@@ -286,22 +319,22 @@ actor MCPClient {
         }
 
         var args = Array(tokens.dropFirst())
-        if !config.args.isEmpty {
-            args.append(contentsOf: config.args)
+        if !stdio.args.isEmpty {
+            args.append(contentsOf: stdio.args)
         }
 
         return (command, args)
     }
 
-    private func makeProcessEnvironment(command: String) throws -> [String: String] {
+    private func makeProcessEnvironment(stdio: MCPStdioTransportConfig, command: String) throws -> [String: String] {
         var env = ProcessInfo.processInfo.environment
 
-        for (key, value) in config.env {
+        for (key, value) in stdio.env {
             env[key] = value
         }
 
         env["PATH"] = mergedPath(existing: env["PATH"])
-        try applyNodeIsolationIfNeeded(command: command, environment: &env)
+        try applyNodeIsolationIfNeeded(stdio: stdio, command: command, environment: &env)
         return env
     }
 
@@ -335,7 +368,11 @@ actor MCPClient {
         return merged.joined(separator: ":")
     }
 
-    private func applyNodeIsolationIfNeeded(command: String, environment: inout [String: String]) throws {
+    private func applyNodeIsolationIfNeeded(
+        stdio: MCPStdioTransportConfig,
+        command: String,
+        environment: inout [String: String]
+    ) throws {
         let base = (command as NSString).lastPathComponent.lowercased()
         let isNodeLauncher = ["npx", "npm", "pnpm", "yarn", "bunx", "bun"].contains(base)
         guard isNodeLauncher else { return }
@@ -350,11 +387,11 @@ actor MCPClient {
         try FileManager.default.createDirectory(at: npmCache, withIntermediateDirectories: true)
         try FileManager.default.createDirectory(at: npmPrefix, withIntermediateDirectories: true)
 
-        if config.env["HOME"] == nil {
+        if stdio.env["HOME"] == nil {
             environment["HOME"] = home.path
         }
 
-        if config.env["NPM_CONFIG_USERCONFIG"] == nil && config.env["npm_config_userconfig"] == nil {
+        if stdio.env["NPM_CONFIG_USERCONFIG"] == nil && stdio.env["npm_config_userconfig"] == nil {
             let inherited = safeNpmrcEntriesToInherit(from: environment)
             try ensureIsolatedNpmrc(at: npmrc, npmPrefix: npmPrefix, npmCache: npmCache, inherited: inherited)
 
@@ -362,12 +399,12 @@ actor MCPClient {
             environment["npm_config_userconfig"] = npmrc.path
         }
 
-        if config.env["NPM_CONFIG_CACHE"] == nil && config.env["npm_config_cache"] == nil {
+        if stdio.env["NPM_CONFIG_CACHE"] == nil && stdio.env["npm_config_cache"] == nil {
             environment["NPM_CONFIG_CACHE"] = npmCache.path
             environment["npm_config_cache"] = npmCache.path
         }
 
-        if config.env["NPM_CONFIG_PREFIX"] == nil && config.env["npm_config_prefix"] == nil {
+        if stdio.env["NPM_CONFIG_PREFIX"] == nil && stdio.env["npm_config_prefix"] == nil {
             environment["NPM_CONFIG_PREFIX"] = npmPrefix.path
             environment["npm_config_prefix"] = npmPrefix.path
         }
@@ -524,8 +561,7 @@ actor MCPClient {
         let isNodeLauncher = ["npx", "npm", "pnpm", "yarn", "bunx", "bun"].contains(base)
         guard isNodeLauncher else { return defaultWorkingDirectory() }
 
-        // Avoid treating the user's `~/.npmrc` as a project-level `.npmrc` by running in a clean directory.
-        // (npm loads `${cwd}/.npmrc` as "project config" and can error on certain keys like `prefix=`.)
+        // Avoid treating the user's ~/.npmrc as a project-level .npmrc by running in a clean directory.
         return try nodeIsolationRoot()
     }
 
@@ -576,16 +612,27 @@ actor MCPClient {
         return trimmed
     }
 
-    private func currentDiagnosticsSnapshot() -> (stderr: String?, diagnostics: LaunchDiagnostics?) {
-        (diagnosticsTailString(from: stderrTail), launchDiagnostics)
+    private func currentDiagnosticsSnapshot() -> DiagnosticsSnapshot {
+        DiagnosticsSnapshot(
+            stderr: diagnosticsTailString(from: stderrTail),
+            launch: launchDiagnostics,
+            http: httpDiagnostics
+        )
     }
 
     private func enrich(_ error: Error, method: String) -> Error {
         if let error = error as? MCPClientError { return error }
         if let lastProcessExit { return lastProcessExit }
 
-        let stderr = diagnosticsTailString(from: stderrTail)
-        return MCPClientError.requestFailed(method: method, underlying: error, stderr: stderr, diagnostics: launchDiagnostics)
+        let snapshot = currentDiagnosticsSnapshot()
+        return MCPClientError.requestFailed(
+            method: method,
+            transport: config.transport.kind,
+            underlying: error,
+            stderr: snapshot.stderr,
+            diagnostics: snapshot.launch,
+            httpDiagnostics: snapshot.http
+        )
     }
 
     private func withTimeout<T>(
@@ -606,8 +653,10 @@ actor MCPClient {
                 throw MCPClientError.requestTimedOut(
                     method: method,
                     seconds: seconds,
+                    transport: self.config.transport.kind,
                     stderr: snapshot.stderr,
-                    diagnostics: snapshot.diagnostics
+                    diagnostics: snapshot.launch,
+                    httpDiagnostics: snapshot.http
                 )
             }
 
@@ -631,6 +680,12 @@ struct MCPToolCallResult: Sendable {
     let isError: Bool
 }
 
+private struct DiagnosticsSnapshot: Sendable {
+    let stderr: String?
+    let launch: LaunchDiagnostics?
+    let http: HTTPDiagnostics?
+}
+
 private enum MCPClientError: Error, LocalizedError {
     case notRunning
     case executableNotFound(command: String)
@@ -638,8 +693,22 @@ private enum MCPClientError: Error, LocalizedError {
     case environmentSetupFailed(message: String)
     case processLaunchFailed(command: String, underlying: Error)
     case processExited(status: Int32, stderr: String?, diagnostics: LaunchDiagnostics?)
-    case requestTimedOut(method: String, seconds: Double, stderr: String?, diagnostics: LaunchDiagnostics?)
-    case requestFailed(method: String, underlying: Error, stderr: String?, diagnostics: LaunchDiagnostics?)
+    case requestTimedOut(
+        method: String,
+        seconds: Double,
+        transport: MCPTransportKind,
+        stderr: String?,
+        diagnostics: LaunchDiagnostics?,
+        httpDiagnostics: HTTPDiagnostics?
+    )
+    case requestFailed(
+        method: String,
+        transport: MCPTransportKind,
+        underlying: Error,
+        stderr: String?,
+        diagnostics: LaunchDiagnostics?,
+        httpDiagnostics: HTTPDiagnostics?
+    )
 
     var errorDescription: String? {
         switch self {
@@ -662,27 +731,47 @@ private enum MCPClientError: Error, LocalizedError {
                 message += "\n\nstderr:\n\(stderr)"
             }
             return message
-        case .requestTimedOut(let method, let seconds, let stderr, let diagnostics):
-            var message = "MCP request timed out (\(method)) after \(Int(seconds))s."
+        case .requestTimedOut(let method, let seconds, let transport, let stderr, let diagnostics, let httpDiagnostics):
+            var message = "MCP request timed out (\(method), \(transport.rawValue)) after \(Int(seconds))s."
+
             if let diagnostics {
                 message += "\n\n\(diagnostics.formatted())"
             }
+
+            if let httpDiagnostics {
+                message += "\n\n\(httpDiagnostics.formatted())"
+            }
+
             if let stderr, !stderr.isEmpty {
                 message += "\n\nstderr:\n\(stderr)"
             }
+
             if method == "initialize" {
-                message += "\n\nTip: If this server works in another client, compare the exact command line + env. Jin runs the command directly (no login shell), so tools installed via nvm/asdf/fnm may require using a wrapper script or running via `/bin/zsh -lc`."
-                message += "\n\nIf you’re using `npx` and it hangs without output, check your `~/.npmrc` (e.g. custom `prefix=`) and consider setting `HOME` or `NPM_CONFIG_USERCONFIG` in the server’s env vars to isolate npm state."
+                switch transport {
+                case .stdio:
+                    message += "\n\nTip: If this server works in another client, compare the exact command line + env. Jin runs the command directly (no login shell), so tools installed via nvm/asdf/fnm may require using a wrapper script or running via /bin/zsh -lc."
+                    message += "\n\nIf you're using npx and it hangs without output, check your ~/.npmrc (e.g. custom prefix=) and consider setting HOME or NPM_CONFIG_USERCONFIG in the server env vars to isolate npm state."
+                case .http:
+                    message += "\n\nTip: Verify endpoint URL, auth headers/token, and whether the server expects streamable HTTP with SSE enabled."
+                }
             }
+
             return message
-        case .requestFailed(let method, let underlying, let stderr, let diagnostics):
-            var message = "MCP request failed (\(method)): \(underlying.localizedDescription)"
+        case .requestFailed(let method, let transport, let underlying, let stderr, let diagnostics, let httpDiagnostics):
+            var message = "MCP request failed (\(method), \(transport.rawValue)): \(underlying.localizedDescription)"
+
             if let diagnostics {
                 message += "\n\n\(diagnostics.formatted())"
             }
+
+            if let httpDiagnostics {
+                message += "\n\n\(httpDiagnostics.formatted())"
+            }
+
             if let stderr, !stderr.isEmpty {
                 message += "\n\nstderr:\n\(stderr)"
             }
+
             return message
         }
     }
@@ -718,4 +807,20 @@ private struct NodeEnvironmentDiagnostics: Sendable {
     let npmUserConfig: String
     let npmCache: String?
     let npmPrefix: String?
+}
+
+private struct HTTPDiagnostics: Sendable {
+    let endpoint: String
+    let headerNames: [String]
+
+    func formatted() -> String {
+        var lines: [String] = []
+        lines.append("HTTP endpoint:")
+        lines.append(endpoint)
+        if !headerNames.isEmpty {
+            lines.append("HTTP headers:")
+            lines.append(headerNames.joined(separator: ", "))
+        }
+        return lines.joined(separator: "\n")
+    }
 }

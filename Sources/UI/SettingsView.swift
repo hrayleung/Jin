@@ -128,7 +128,8 @@ struct SettingsView: View {
         return mcpServers.filter { server in
             return server.name.localizedCaseInsensitiveContains(needle)
                 || server.id.localizedCaseInsensitiveContains(needle)
-                || server.command.localizedCaseInsensitiveContains(needle)
+                || server.transportSummary.localizedCaseInsensitiveContains(needle)
+                || server.transportKind.rawValue.localizedCaseInsensitiveContains(needle)
         }
     }
 
@@ -489,12 +490,20 @@ struct SettingsView: View {
                         Text(server.name)
                             .font(.system(.body, design: .default))
                             .fontWeight(.medium)
-                        Text(server.command)
+                        Text(server.transportSummary)
                             .font(.system(.caption, design: .monospaced))
                             .foregroundColor(.secondary)
                             .lineLimit(1)
                     }
+
                     Spacer()
+
+                    Text(server.transportKind == .http ? "HTTP" : "STDIO")
+                        .font(.system(.caption2, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .jinSurface(.subtle, cornerRadius: JinRadius.small)
                 }
                 .padding(.vertical, JinSpacing.xSmall)
             }
@@ -839,8 +848,8 @@ struct AddMCPServerView: View {
 
     private enum Preset: String, CaseIterable, Identifiable {
         case custom = "Custom"
+        case exaHTTP = "Exa (Native HTTP)"
         case exaLocal = "Exa (Local via npx)"
-        case exaRemote = "Exa (Remote via mcp-remote)"
         case firecrawlLocal = "Firecrawl (Local via npx)"
 
         var id: String { rawValue }
@@ -848,11 +857,18 @@ struct AddMCPServerView: View {
 
     @State private var id = ""
     @State private var name = ""
+    @State private var transportKind: MCPTransportKind = .stdio
+
     @State private var command = ""
     @State private var args = ""
     @State private var envPairs: [EnvironmentVariablePair] = []
+
+    @State private var endpoint = ""
+    @State private var bearerToken = ""
+    @State private var headerPairs: [EnvironmentVariablePair] = []
+    @State private var httpStreaming = true
+
     @State private var runToolsAutomatically = true
-    @State private var isLongRunning = false
     @State private var isEnabled = true
 
     @State private var preset: Preset = .custom
@@ -888,7 +904,7 @@ struct AddMCPServerView: View {
                             .jinSurface(.raised, cornerRadius: JinRadius.small)
                             .overlay(alignment: .topLeading) {
                                 if importJSON.isEmpty {
-                                    Text("{ \"mcpServers\": { \"exa\": { \"command\": \"npx\", \"args\": [\"-y\", \"exa-mcp-server\"], \"env\": { \"EXA_API_KEY\": \"…\" } } } }")
+                                    Text("{ \"mcpServers\": { \"exa\": { \"type\": \"http\", \"url\": \"https://mcp.exa.ai/mcp\", \"headers\": { \"Authorization\": \"Bearer …\" } } } }")
                                         .foregroundColor(.secondary)
                                         .padding(.top, 8)
                                         .padding(.leading, 5)
@@ -903,26 +919,66 @@ struct AddMCPServerView: View {
                                 .padding(JinSpacing.small)
                                 .jinSurface(.subtleStrong, cornerRadius: JinRadius.small)
                         } else {
-                            Text("Supports Claude Desktop-style configs (`mcpServers`) and single-server configs (`command`, `args`, `env`).")
+                            Text("Supports Claude Desktop-style configs (`mcpServers`) plus single-server payloads. HTTP imports are mapped to native HTTP transport.")
                                 .jinInfoCallout()
                         }
                     }
                 }
 
-                TextField("ID", text: $id)
-                    .help("Short identifier (e.g. 'git').")
-                TextField("Name", text: $name)
-                TextField("Command", text: $command)
-                TextField("Arguments", text: $args)
+                Section("Server") {
+                    TextField("ID", text: $id)
+                        .help("Short identifier (e.g. 'git').")
+                    TextField("Name", text: $name)
 
-                Section {
+                    Picker("Transport", selection: $transportKind) {
+                        Text("Command-line (stdio)").tag(MCPTransportKind.stdio)
+                        Text("Remote HTTP").tag(MCPTransportKind.http)
+                    }
+
                     Toggle("Enabled", isOn: $isEnabled)
                     Toggle("Run tools automatically", isOn: $runToolsAutomatically)
-                    Toggle("Long-running", isOn: $isLongRunning)
                 }
 
-                Section("Environment variables") {
-                    EnvironmentVariablesEditor(pairs: $envPairs)
+                if transportKind == .stdio {
+                    Section("Stdio transport") {
+                        TextField("Command", text: $command)
+                            .font(.system(.body, design: .monospaced))
+                        TextField("Arguments", text: $args)
+                            .font(.system(.body, design: .monospaced))
+
+                        if shouldShowNodeIsolationNote {
+                            Text("For Node launchers (`npx`, `npm`, `pnpm`, `yarn`, `bunx`, `bun`), Jin isolates npm HOME/cache under Application Support to avoid ~/.npmrc permission or prefix conflicts.")
+                                .jinInfoCallout()
+                        }
+                    }
+
+                    Section("Environment variables") {
+                        EnvironmentVariablesEditor(pairs: $envPairs)
+                    }
+                } else {
+                    Section("HTTP transport") {
+                        TextField("Endpoint URL", text: $endpoint)
+                            .font(.system(.body, design: .monospaced))
+                            
+                        SecureField("Bearer token (optional)", text: $bearerToken)
+                            .font(.system(.body, design: .monospaced))
+
+                        Toggle("Enable streaming (SSE)", isOn: $httpStreaming)
+                    }
+
+                    Section("Headers") {
+                        EnvironmentVariablesEditor(pairs: $headerPairs)
+                    }
+                }
+
+                Section("Troubleshooting") {
+                    if transportKind == .stdio {
+                        Text("If verify times out on initialize, compare command/env with a known-working client. Jin launches directly (no login shell).")
+                        Text("For Node-based servers, ensure command resolves without shell init scripts or use full executable paths.")
+                    } else {
+                        Text("401/403 usually means missing or invalid auth. Prefer Bearer token field for Authorization.")
+                        Text("If initialize times out, verify endpoint supports streamable MCP over HTTP and try toggling streaming.")
+                    }
                 }
             }
             .formStyle(.grouped)
@@ -935,11 +991,38 @@ struct AddMCPServerView: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Add") { addServer() }
-                        .disabled(name.isEmpty || command.isEmpty)
+                        .disabled(isAddDisabled)
                 }
             }
-            .frame(width: 560, height: 680)
+            .frame(width: 620, height: 760)
         }
+    }
+
+    private var isAddDisabled: Bool {
+        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedName.isEmpty else { return true }
+
+        switch transportKind {
+        case .stdio:
+            return command.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        case .http:
+            return parsedEndpoint == nil
+        }
+    }
+
+    private var parsedEndpoint: URL? {
+        let trimmed = endpoint.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, let url = URL(string: trimmed), url.scheme != nil else {
+            return nil
+        }
+        return url
+    }
+
+    private var shouldShowNodeIsolationNote: Bool {
+        let trimmed = command.trimmingCharacters(in: .whitespacesAndNewlines)
+        let parsedCommand = (try? CommandLineTokenizer.tokenize(trimmed))?.first ?? trimmed
+        let base = (parsedCommand as NSString).lastPathComponent.lowercased()
+        return ["npx", "npm", "pnpm", "yarn", "bunx", "bun"].contains(base)
     }
 
     private func applyPreset(_ preset: Preset) {
@@ -948,22 +1031,28 @@ struct AddMCPServerView: View {
         switch preset {
         case .custom:
             break
+        case .exaHTTP:
+            if id.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { id = "exa" }
+            if name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { name = "Exa" }
+            transportKind = .http
+            endpoint = "https://mcp.exa.ai/mcp"
+            bearerToken = ""
+            if !headerPairs.contains(where: { $0.key.caseInsensitiveCompare("X-Client") == .orderedSame }) {
+                headerPairs.append(EnvironmentVariablePair(key: "X-Client", value: "jin"))
+            }
         case .exaLocal:
             if id.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { id = "exa" }
             if name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { name = "Exa" }
+            transportKind = .stdio
             command = "npx"
             args = "-y exa-mcp-server"
             if envPairs.first(where: { $0.key == "EXA_API_KEY" }) == nil {
                 envPairs.append(EnvironmentVariablePair(key: "EXA_API_KEY", value: ""))
             }
-        case .exaRemote:
-            if id.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { id = "exa" }
-            if name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { name = "Exa (Remote)" }
-            command = "npx"
-            args = "-y mcp-remote https://mcp.exa.ai/mcp?exaApiKey=YOUR_EXA_API_KEY"
         case .firecrawlLocal:
             if id.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { id = "firecrawl" }
             if name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { name = "Firecrawl" }
+            transportKind = .stdio
             command = "npx"
             args = "-y firecrawl-mcp"
             if envPairs.first(where: { $0.key == "FIRECRAWL_API_KEY" }) == nil {
@@ -980,47 +1069,108 @@ struct AddMCPServerView: View {
 
             id = imported.id
             name = imported.name
-            command = imported.command
-            args = CommandLineTokenizer.render(imported.args)
-            envPairs = imported.env.keys.sorted().map { EnvironmentVariablePair(key: $0, value: imported.env[$0] ?? "") }
+            applyImportedTransport(imported.transport)
         } catch {
             importError = formatJSONImportError(error)
         }
     }
 
+    private func applyImportedTransport(_ transport: MCPTransportConfig) {
+        switch transport {
+        case .stdio(let stdio):
+            transportKind = .stdio
+            command = stdio.command
+            args = CommandLineTokenizer.render(stdio.args)
+            envPairs = stdio.env.keys.sorted().map { EnvironmentVariablePair(key: $0, value: stdio.env[$0] ?? "") }
+        case .http(let http):
+            transportKind = .http
+            endpoint = http.endpoint.absoluteString
+            bearerToken = http.bearerToken ?? ""
+            headerPairs = http.headers.map { EnvironmentVariablePair(key: $0.name, value: $0.value) }
+            httpStreaming = http.streaming
+        }
+    }
+
     private func addServer() {
-        let argsArray: [String]
-        do {
-            argsArray = try CommandLineTokenizer.tokenize(args)
-        } catch {
-            importError = error.localizedDescription
-            return
+        let transport: MCPTransportConfig
+
+        switch transportKind {
+        case .stdio:
+            let argsArray: [String]
+            do {
+                argsArray = try CommandLineTokenizer.tokenize(args)
+            } catch {
+                importError = error.localizedDescription
+                return
+            }
+
+            let env: [String: String] = envPairs.reduce(into: [:]) { partial, pair in
+                let key = pair.key.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !key.isEmpty else { return }
+                partial[key] = pair.value
+            }
+
+            transport = .stdio(
+                MCPStdioTransportConfig(
+                    command: command.trimmingCharacters(in: .whitespacesAndNewlines),
+                    args: argsArray,
+                    env: env
+                )
+            )
+
+        case .http:
+            guard let endpointURL = parsedEndpoint else {
+                importError = "Invalid endpoint URL."
+                return
+            }
+
+            let headers: [MCPHeader] = headerPairs.compactMap { pair in
+                let key = pair.key.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !key.isEmpty else { return nil }
+                return MCPHeader(
+                    name: key,
+                    value: pair.value,
+                    isSensitive: Self.isSensitiveHeaderName(key)
+                )
+            }
+
+            let token = bearerToken.trimmingCharacters(in: .whitespacesAndNewlines)
+            transport = .http(
+                MCPHTTPTransportConfig(
+                    endpoint: endpointURL,
+                    streaming: httpStreaming,
+                    headers: headers,
+                    bearerToken: token.isEmpty ? nil : token
+                )
+            )
         }
-        let argsData = (try? JSONEncoder().encode(argsArray)) ?? Data()
-        let env: [String: String] = envPairs.reduce(into: [:]) { partial, pair in
-            let key = pair.key.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !key.isEmpty else { return }
-            partial[key] = pair.value
-        }
-        let envData = env.isEmpty ? nil : (try? JSONEncoder().encode(env))
 
         let serverID = id.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             ? UUID().uuidString
             : id.trimmingCharacters(in: .whitespacesAndNewlines)
 
+        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let transportData = (try? JSONEncoder().encode(transport)) ?? Data()
+
         let server = MCPServerConfigEntity(
             id: serverID,
-            name: name.trimmingCharacters(in: .whitespacesAndNewlines),
-            command: command.trimmingCharacters(in: .whitespacesAndNewlines),
-            argsData: argsData,
-            envData: envData,
+            name: trimmedName,
+            transportKindRaw: transport.kind.rawValue,
+            transportData: transportData,
+            lifecycleRaw: MCPLifecyclePolicy.persistent.rawValue,
             isEnabled: isEnabled,
             runToolsAutomatically: runToolsAutomatically,
-            isLongRunning: isLongRunning
+            isLongRunning: true
         )
+        server.setTransport(transport)
 
         modelContext.insert(server)
         dismiss()
+    }
+
+    private static func isSensitiveHeaderName(_ name: String) -> Bool {
+        let normalized = name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return ["authorization", "proxy-authorization", "x-api-key", "api-key"].contains(normalized)
     }
 
     private func formatJSONImportError(_ error: Error) -> String {

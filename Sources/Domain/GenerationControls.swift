@@ -11,6 +11,8 @@ struct GenerationControls: Codable {
     /// How to process PDF attachments before sending to the model.
     /// `nil` means "default" (Native).
     var pdfProcessingMode: PDFProcessingMode?
+    /// Image-generation specific controls for Gemini image models.
+    var imageGeneration: ImageGenerationControls?
     var providerSpecific: [String: AnyCodable] = [:] // Escape hatch for provider-specific params
 
     init(
@@ -21,6 +23,7 @@ struct GenerationControls: Codable {
         webSearch: WebSearchControls? = nil,
         mcpTools: MCPToolsControls? = nil,
         pdfProcessingMode: PDFProcessingMode? = nil,
+        imageGeneration: ImageGenerationControls? = nil,
         providerSpecific: [String: AnyCodable] = [:]
     ) {
         self.temperature = temperature
@@ -30,7 +33,127 @@ struct GenerationControls: Codable {
         self.webSearch = webSearch
         self.mcpTools = mcpTools
         self.pdfProcessingMode = pdfProcessingMode
+        self.imageGeneration = imageGeneration
         self.providerSpecific = providerSpecific
+    }
+}
+
+/// Image-generation controls shared by Gemini (AI Studio) and Vertex AI.
+struct ImageGenerationControls: Codable {
+    /// `nil` defaults to `TEXT + IMAGE` for image-generation models.
+    var responseMode: ImageResponseMode?
+    var aspectRatio: ImageAspectRatio?
+    /// Gemini 3 Pro Image supports 1K/2K/4K. Keep `nil` for model default.
+    var imageSize: ImageOutputSize?
+    /// Seed for reproducible image generation (where supported).
+    var seed: Int?
+
+    // Vertex-only extensions.
+    var vertexPersonGeneration: VertexImagePersonGeneration?
+    var vertexOutputMIMEType: VertexImageOutputMIMEType?
+    var vertexCompressionQuality: Int?
+
+    init(
+        responseMode: ImageResponseMode? = nil,
+        aspectRatio: ImageAspectRatio? = nil,
+        imageSize: ImageOutputSize? = nil,
+        seed: Int? = nil,
+        vertexPersonGeneration: VertexImagePersonGeneration? = nil,
+        vertexOutputMIMEType: VertexImageOutputMIMEType? = nil,
+        vertexCompressionQuality: Int? = nil
+    ) {
+        self.responseMode = responseMode
+        self.aspectRatio = aspectRatio
+        self.imageSize = imageSize
+        self.seed = seed
+        self.vertexPersonGeneration = vertexPersonGeneration
+        self.vertexOutputMIMEType = vertexOutputMIMEType
+        self.vertexCompressionQuality = vertexCompressionQuality
+    }
+
+    var isEmpty: Bool {
+        responseMode == nil
+            && aspectRatio == nil
+            && imageSize == nil
+            && seed == nil
+            && vertexPersonGeneration == nil
+            && vertexOutputMIMEType == nil
+            && vertexCompressionQuality == nil
+    }
+}
+
+enum ImageResponseMode: String, Codable, CaseIterable {
+    case textAndImage
+    case imageOnly
+
+    var displayName: String {
+        switch self {
+        case .textAndImage:
+            return "Text + Image"
+        case .imageOnly:
+            return "Image only"
+        }
+    }
+
+    var responseModalities: [String] {
+        switch self {
+        case .textAndImage:
+            return ["TEXT", "IMAGE"]
+        case .imageOnly:
+            return ["IMAGE"]
+        }
+    }
+}
+
+enum ImageAspectRatio: String, Codable, CaseIterable {
+    case ratio1x1 = "1:1"
+    case ratio3x4 = "3:4"
+    case ratio4x3 = "4:3"
+    case ratio9x16 = "9:16"
+    case ratio16x9 = "16:9"
+    case ratio2x3 = "2:3"
+    case ratio3x2 = "3:2"
+    case ratio4x5 = "4:5"
+    case ratio5x4 = "5:4"
+
+    var displayName: String { rawValue }
+}
+
+enum ImageOutputSize: String, Codable, CaseIterable {
+    case size1K = "1K"
+    case size2K = "2K"
+    case size4K = "4K"
+
+    var displayName: String { rawValue }
+}
+
+enum VertexImagePersonGeneration: String, Codable, CaseIterable {
+    case unspecified = "PERSON_GENERATION_UNSPECIFIED"
+    case allowNone = "ALLOW_NONE"
+    case allowAdult = "ALLOW_ADULT"
+    case allowAll = "ALLOW_ALL"
+
+    var displayName: String {
+        switch self {
+        case .unspecified:
+            return "Default"
+        case .allowNone:
+            return "Don't allow people"
+        case .allowAdult:
+            return "Allow adults"
+        case .allowAll:
+            return "Allow all"
+        }
+    }
+}
+
+enum VertexImageOutputMIMEType: String, Codable, CaseIterable {
+    case png = "image/png"
+    case jpeg = "image/jpeg"
+    case webp = "image/webp"
+
+    var displayName: String {
+        rawValue
     }
 }
 
@@ -272,8 +395,9 @@ struct ModelCapability: OptionSet, Codable {
     static let reasoning = ModelCapability(rawValue: 1 << 4)
     static let promptCaching = ModelCapability(rawValue: 1 << 5)
     static let nativePDF = ModelCapability(rawValue: 1 << 6)
+    static let imageGeneration = ModelCapability(rawValue: 1 << 7)
 
-    static let all: ModelCapability = [.streaming, .toolCalling, .vision, .audio, .reasoning, .promptCaching, .nativePDF]
+    static let all: ModelCapability = [.streaming, .toolCalling, .vision, .audio, .reasoning, .promptCaching, .nativePDF, .imageGeneration]
 }
 
 /// Model reasoning configuration

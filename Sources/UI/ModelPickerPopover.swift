@@ -70,7 +70,8 @@ struct ModelPickerPopover: View {
                 List {
                     ForEach(sections) { section in
                         Section {
-                            ForEach(section.models) { model in
+                            ForEach(section.scopedModels) { scopedModel in
+                                let model = scopedModel.model
                                 ModelPickerRow(
                                     provider: section.provider,
                                     model: model,
@@ -146,6 +147,20 @@ private struct ProviderSection: Identifiable {
     let models: [ModelInfo]
 
     var id: String { provider.id }
+
+    var scopedModels: [ScopedModel] {
+        models.enumerated().map { index, model in
+            ScopedModel(providerID: provider.id, model: model, index: index)
+        }
+    }
+}
+
+private struct ScopedModel: Identifiable {
+    let providerID: String
+    let model: ModelInfo
+    let index: Int
+
+    var id: String { "\(providerID)::\(model.id)::\(index)" }
 }
 
 private struct ProviderSectionHeader: View {

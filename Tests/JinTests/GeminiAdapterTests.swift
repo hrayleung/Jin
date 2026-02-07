@@ -323,6 +323,269 @@ final class GeminiAdapterTests: XCTestCase {
         XCTAssertEqual(usage?.inputTokens, 1)
         XCTAssertEqual(usage?.outputTokens, 2)
     }
+
+    func testGeminiAdapterAddsResponseModalitiesForImageModels() async throws {
+        let (session, protocolType) = makeMockedURLSession()
+        let networkManager = NetworkManager(urlSession: session)
+
+        let providerConfig = ProviderConfig(
+            id: "g",
+            name: "Gemini",
+            type: .gemini,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://example.com/models/gemini-3-pro-image-preview:generateContent")
+
+            let body = try XCTUnwrap(requestBodyData(request))
+            let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+            let root = try XCTUnwrap(json)
+
+            let generationConfig = try XCTUnwrap(root["generationConfig"] as? [String: Any])
+            let responseModalities = try XCTUnwrap(generationConfig["responseModalities"] as? [String])
+            XCTAssertEqual(responseModalities, ["TEXT", "IMAGE"])
+
+            let response: [String: Any] = [
+                "candidates": [
+                    [
+                        "content": [
+                            "parts": [
+                                ["text": "OK"]
+                            ]
+                        ]
+                    ]
+                ]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = GeminiAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+
+        let stream = try await adapter.sendMessage(
+            messages: [
+                Message(role: .user, content: [.text("draw")])
+            ],
+            modelID: "gemini-3-pro-image-preview",
+            controls: GenerationControls(),
+            tools: [],
+            streaming: false
+        )
+
+        for try await _ in stream {}
+    }
+
+    func testGemini25FlashImageDoesNotSendToolsOrGoogleSearch() async throws {
+        let (session, protocolType) = makeMockedURLSession()
+        let networkManager = NetworkManager(urlSession: session)
+
+        let providerConfig = ProviderConfig(
+            id: "g",
+            name: "Gemini",
+            type: .gemini,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://example.com/models/gemini-2.5-flash-image:generateContent")
+
+            let body = try XCTUnwrap(requestBodyData(request))
+            let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+            let root = try XCTUnwrap(json)
+            XCTAssertNil(root["tools"])
+
+            let response: [String: Any] = [
+                "candidates": [
+                    [
+                        "content": [
+                            "parts": [
+                                ["text": "Done"]
+                            ]
+                        ]
+                    ]
+                ]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = GeminiAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+
+        let tool = ToolDefinition(
+            id: "t",
+            name: "tool_name",
+            description: "desc",
+            parameters: ParameterSchema(
+                properties: [
+                    "q": PropertySchema(type: "string", description: "query")
+                ],
+                required: ["q"]
+            ),
+            source: .builtin
+        )
+
+        let stream = try await adapter.sendMessage(
+            messages: [
+                Message(role: .user, content: [.text("draw a lake")])
+            ],
+            modelID: "gemini-2.5-flash-image",
+            controls: GenerationControls(webSearch: WebSearchControls(enabled: true)),
+            tools: [tool],
+            streaming: false
+        )
+
+        for try await _ in stream {}
+    }
+
+    func testGeminiAdapterUsesImageGenerationControlsForImageModels() async throws {
+        let (session, protocolType) = makeMockedURLSession()
+        let networkManager = NetworkManager(urlSession: session)
+
+        let providerConfig = ProviderConfig(
+            id: "g",
+            name: "Gemini",
+            type: .gemini,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://example.com/models/gemini-3-pro-image-preview:generateContent")
+
+            let body = try XCTUnwrap(requestBodyData(request))
+            let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+            let root = try XCTUnwrap(json)
+
+            let generationConfig = try XCTUnwrap(root["generationConfig"] as? [String: Any])
+            let responseModalities = try XCTUnwrap(generationConfig["responseModalities"] as? [String])
+            XCTAssertEqual(responseModalities, ["IMAGE"])
+            XCTAssertEqual(generationConfig["seed"] as? Int, 1234)
+
+            let imageConfig = try XCTUnwrap(generationConfig["imageConfig"] as? [String: Any])
+            XCTAssertEqual(imageConfig["aspectRatio"] as? String, "16:9")
+            XCTAssertEqual(imageConfig["imageSize"] as? String, "2K")
+
+            let tools = try XCTUnwrap(root["tools"] as? [[String: Any]])
+            XCTAssertEqual(tools.count, 1)
+            XCTAssertNotNil(tools.first?["google_search"])
+            XCTAssertNil(tools.first?["functionDeclarations"])
+
+            let response: [String: Any] = [
+                "candidates": [
+                    [
+                        "content": [
+                            "parts": [
+                                ["text": "Done"]
+                            ]
+                        ]
+                    ]
+                ]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = GeminiAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+
+        let tool = ToolDefinition(
+            id: "t",
+            name: "tool_name",
+            description: "desc",
+            parameters: ParameterSchema(
+                properties: [
+                    "q": PropertySchema(type: "string", description: "query")
+                ],
+                required: ["q"]
+            ),
+            source: .builtin
+        )
+
+        let stream = try await adapter.sendMessage(
+            messages: [
+                Message(role: .user, content: [.text("draw a lake")])
+            ],
+            modelID: "gemini-3-pro-image-preview",
+            controls: GenerationControls(
+                webSearch: WebSearchControls(enabled: true),
+                imageGeneration: ImageGenerationControls(
+                    responseMode: .imageOnly,
+                    aspectRatio: .ratio16x9,
+                    imageSize: .size2K,
+                    seed: 1234
+                )
+            ),
+            tools: [tool],
+            streaming: false
+        )
+
+        for try await _ in stream {}
+    }
+
+    func testGeminiAdapterParsesInlineDataImageAsContentDeltaImage() async throws {
+        let (session, protocolType) = makeMockedURLSession()
+        let networkManager = NetworkManager(urlSession: session)
+
+        let providerConfig = ProviderConfig(
+            id: "g",
+            name: "Gemini",
+            type: .gemini,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        let expectedData = Data([0x01, 0x02, 0x03])
+        let expectedBase64 = expectedData.base64EncodedString()
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://example.com/models/gemini-3-pro-image-preview:generateContent")
+
+            let response: [String: Any] = [
+                "candidates": [
+                    [
+                        "content": [
+                            "parts": [
+                                [
+                                    "inlineData": [
+                                        "mimeType": "image/png",
+                                        "data": expectedBase64
+                                    ]
+                                ],
+                                ["text": "Done"]
+                            ]
+                        ]
+                    ]
+                ]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = GeminiAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+
+        let stream = try await adapter.sendMessage(
+            messages: [
+                Message(role: .user, content: [.text("draw")])
+            ],
+            modelID: "gemini-3-pro-image-preview",
+            controls: GenerationControls(),
+            tools: [],
+            streaming: false
+        )
+
+        var images: [ImageContent] = []
+        for try await event in stream {
+            if case .contentDelta(.image(let image)) = event {
+                images.append(image)
+            }
+        }
+
+        XCTAssertEqual(images.count, 1)
+        XCTAssertEqual(images[0].mimeType, "image/png")
+        XCTAssertEqual(images[0].data, expectedData)
+    }
 }
 
 // MARK: - URLProtocol stubbing
@@ -390,4 +653,3 @@ private func requestBodyData(_ request: URLRequest) -> Data? {
 
     return data
 }
-

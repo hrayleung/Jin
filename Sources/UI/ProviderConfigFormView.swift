@@ -204,8 +204,10 @@ struct ProviderConfigFormView: View {
         case .cerebras:
             return lower == "zai-glm-4.7"
         case .gemini:
-            return lower.contains("gemini-3")
-        case .openai, .anthropic, .xai, .vertexai:
+            return lower.contains("gemini-3") || lower.contains("gemini-2.5-flash-image")
+        case .vertexai:
+            return lower.contains("gemini-3") || lower.contains("gemini-2.5")
+        case .openai, .anthropic, .xai:
             return false
         }
     }
@@ -627,14 +629,38 @@ private struct AddModelSheet: View {
             }
 
         case .gemini?:
-            if lower.contains("gemini-3") {
+            if lower.contains("gemini-3-pro-image") {
+                caps = [.streaming, .vision, .reasoning, .imageGeneration]
+                reasoningConfig = ModelReasoningConfig(type: .effort, defaultEffort: .high)
+            } else if lower.contains("-image") {
+                caps = [.streaming, .vision, .imageGeneration]
+                reasoningConfig = nil
+            } else if lower.contains("gemini-3") {
                 caps.insert(.vision)
                 caps.insert(.reasoning)
                 caps.insert(.nativePDF)
                 reasoningConfig = ModelReasoningConfig(type: .effort, defaultEffort: .high)
             }
 
-        case .openai?, .anthropic?, .xai?, .vertexai?, .none:
+        case .vertexai?:
+            if lower.contains("gemini-3-pro-image") {
+                caps = [.streaming, .vision, .reasoning, .imageGeneration]
+                reasoningConfig = ModelReasoningConfig(type: .effort, defaultEffort: .medium)
+            } else if lower.contains("-image") {
+                caps = [.streaming, .vision, .imageGeneration]
+                reasoningConfig = nil
+            } else if lower.contains("gemini-2.5") {
+                caps.insert(.vision)
+                caps.insert(.reasoning)
+                reasoningConfig = ModelReasoningConfig(type: .budget, defaultBudget: 2048)
+            } else if lower.contains("gemini-3") {
+                caps.insert(.vision)
+                caps.insert(.reasoning)
+                caps.insert(.nativePDF)
+                reasoningConfig = ModelReasoningConfig(type: .effort, defaultEffort: .medium)
+            }
+
+        case .openai?, .anthropic?, .xai?, .none:
             break
         }
 
