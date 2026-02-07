@@ -19,8 +19,7 @@ struct DeepSeekOCRPluginSettingsView: View {
         Form {
             Section("DeepSeek OCR (DeepInfra)") {
                 Text("Used to OCR PDFs via DeepInfra-hosted DeepSeek-OCR when your selected model does not support native PDF reading, or when you choose DeepSeek OCR in the chat composer.")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
+                    .jinInfoCallout()
             }
 
             Section("API Key") {
@@ -28,8 +27,7 @@ struct DeepSeekOCRPluginSettingsView: View {
                     .textContentType(.password)
 
                 Text("Stored in Keychain. Unsigned builds (e.g. `swift run`) may prompt repeatedly; running from Xcode (signed) is smoother.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .jinInfoCallout()
 
                 HStack(spacing: 12) {
                     Button("Save") { saveKey() }
@@ -57,7 +55,8 @@ struct DeepSeekOCRPluginSettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .padding()
+        .scrollContentBackground(.hidden)
+        .background(JinSemanticColor.detailSurface)
         .navigationTitle("DeepSeek OCR")
         .task {
             await loadExistingKey()

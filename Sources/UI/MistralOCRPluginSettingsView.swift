@@ -19,8 +19,7 @@ struct MistralOCRPluginSettingsView: View {
         Form {
             Section("Mistral OCR") {
                 Text("Used to OCR PDFs when your selected model does not support native PDF reading, or when you choose OCR in the chat composer.")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
+                    .jinInfoCallout()
             }
 
             Section("API Key") {
@@ -28,8 +27,7 @@ struct MistralOCRPluginSettingsView: View {
                     .textContentType(.password)
 
                 Text("Stored in Keychain. Unsigned builds (e.g. `swift run`) may prompt repeatedly; running from Xcode (signed) is smoother.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .jinInfoCallout()
 
                 HStack(spacing: 12) {
                     Button("Save") {
@@ -63,7 +61,8 @@ struct MistralOCRPluginSettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .padding()
+        .scrollContentBackground(.hidden)
+        .background(JinSemanticColor.detailSurface)
         .navigationTitle("Mistral OCR")
         .task {
             await loadExistingKey()

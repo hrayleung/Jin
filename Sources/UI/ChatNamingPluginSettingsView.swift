@@ -12,8 +12,7 @@ struct ChatNamingPluginSettingsView: View {
         Form {
             Section("Chat Naming") {
                 Text("Use a selected model to automatically generate concise chat titles.")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
+                    .jinInfoCallout()
             }
 
             Section("Behavior") {
@@ -53,7 +52,8 @@ struct ChatNamingPluginSettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .padding()
+        .scrollContentBackground(.hidden)
+        .background(JinSemanticColor.detailSurface)
         .navigationTitle("Chat Naming")
         .onAppear {
             ensureValidSelection()

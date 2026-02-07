@@ -54,8 +54,7 @@ struct SpeechToTextPluginSettingsView: View {
         Form {
             Section("Speech to Text") {
                 Text("Adds a microphone button to the chat composer so you can dictate messages.")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
+                    .jinInfoCallout()
             }
 
             Section("Provider") {
@@ -135,7 +134,8 @@ struct SpeechToTextPluginSettingsView: View {
             providerSpecificSettings
         }
         .formStyle(.grouped)
-        .padding()
+        .scrollContentBackground(.hidden)
+        .background(JinSemanticColor.detailSurface)
         .navigationTitle("Speech to Text")
         .task {
             await loadExistingKey()

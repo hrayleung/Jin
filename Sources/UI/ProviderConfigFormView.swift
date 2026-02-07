@@ -141,7 +141,6 @@ struct ProviderConfigFormView: View {
             }
         }
         .formStyle(.grouped)
-        .padding()
         .scrollContentBackground(.hidden)
         .background(JinSemanticColor.detailSurface)
         .task {
@@ -232,10 +231,8 @@ struct ProviderConfigFormView: View {
         HStack {
             if showingAPIKey {
                 TextField("API Key", text: $apiKey)
-                    .textFieldStyle(.roundedBorder)
             } else {
                 SecureField("API Key", text: $apiKey)
-                    .textFieldStyle(.roundedBorder)
             }
 
             Button(action: { showingAPIKey.toggle() }) {
@@ -288,9 +285,7 @@ struct ProviderConfigFormView: View {
             Spacer()
 
             switch testStatus {
-            case .idle:
-                EmptyView()
-            case .testing:
+            case .idle, .testing:
                 EmptyView()
             case .success:
                 Label("Connected", systemImage: "checkmark.circle.fill")
@@ -302,8 +297,6 @@ struct ProviderConfigFormView: View {
                     .font(.caption)
             }
         }
-        .padding(JinSpacing.small)
-        .jinSurface(.raised, cornerRadius: JinRadius.small)
     }
 
     private var decodedModels: [ModelInfo] {

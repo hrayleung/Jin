@@ -497,6 +497,7 @@ struct ChatView: View {
             }
         }
         .background(JinSemanticColor.detailSurface)
+        .toolbarBackground(JinSemanticColor.detailSurface, for: .windowToolbar)
         .navigationTitle(conversationEntity.title)
         .navigationSubtitle(currentModelName)
         .toolbar {

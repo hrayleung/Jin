@@ -36,11 +36,9 @@ struct MCPServerConfigFormView: View {
                 httpSections
             }
 
-            guidanceSection
             toolsSection
         }
         .formStyle(.grouped)
-        .padding()
         .scrollContentBackground(.hidden)
         .background(JinSemanticColor.detailSurface)
         .task {
@@ -114,11 +112,11 @@ struct MCPServerConfigFormView: View {
     private var httpSections: some View {
         Group {
             Section("HTTP transport") {
-                TextField("Endpoint URL", text: $endpoint)
+                TextField("Endpoint", text: $endpoint)
                     .font(.system(.body, design: .monospaced))
                     .textSelection(.enabled)
 
-                SecureField("Bearer token (optional)", text: $bearerToken)
+                SecureField("Bearer token", text: $bearerToken)
                     .font(.system(.body, design: .monospaced))
 
                 Toggle("Enable streaming (SSE)", isOn: $httpStreaming)
@@ -132,20 +130,6 @@ struct MCPServerConfigFormView: View {
 
             Section("Headers") {
                 EnvironmentVariablesEditor(pairs: $headerPairs)
-            }
-        }
-    }
-
-    private var guidanceSection: some View {
-        Section("Guidance") {
-            if transportKind == .stdio {
-                Text("Quick setup: start with command + args, then verify tools before enabling auto-run.")
-                Text("Advanced: if command resolves only in your shell profile, switch to full executable path or wrapper script.")
-                Text("Troubleshooting: initialize timeouts are usually PATH/env mismatch or missing API keys.")
-            } else {
-                Text("Quick setup: set endpoint + bearer token, then verify tools.")
-                Text("Advanced: use custom headers for non-bearer auth or gateway routing.")
-                Text("Troubleshooting: 401/403 means auth; initialize timeout usually means incompatible endpoint or streaming mismatch.")
             }
         }
     }

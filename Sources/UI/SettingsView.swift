@@ -974,10 +974,10 @@ struct AddMCPServerView: View {
                     }
                 } else {
                     Section("HTTP transport") {
-                        TextField("Endpoint URL", text: $endpoint)
+                        TextField("Endpoint", text: $endpoint)
                             .font(.system(.body, design: .monospaced))
-                            
-                        SecureField("Bearer token (optional)", text: $bearerToken)
+
+                        SecureField("Bearer token", text: $bearerToken)
                             .font(.system(.body, design: .monospaced))
 
                         Toggle("Enable streaming (SSE)", isOn: $httpStreaming)
@@ -985,16 +985,6 @@ struct AddMCPServerView: View {
 
                     Section("Headers") {
                         EnvironmentVariablesEditor(pairs: $headerPairs)
-                    }
-                }
-
-                Section("Troubleshooting") {
-                    if transportKind == .stdio {
-                        Text("If verify times out on initialize, compare command/env with a known-working client. Jin launches directly (no login shell).")
-                        Text("For Node-based servers, ensure command resolves without shell init scripts or use full executable paths.")
-                    } else {
-                        Text("401/403 usually means missing or invalid auth. Prefer Bearer token field for Authorization.")
-                        Text("If initialize times out, verify endpoint supports streamable MCP over HTTP and try toggling streaming.")
                     }
                 }
             }
@@ -1366,7 +1356,6 @@ struct GeneralSettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .padding()
         .scrollContentBackground(.hidden)
         .background(JinSemanticColor.detailSurface)
         .onAppear {

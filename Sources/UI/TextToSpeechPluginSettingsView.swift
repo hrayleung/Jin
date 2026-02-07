@@ -66,8 +66,7 @@ struct TextToSpeechPluginSettingsView: View {
         Form {
             Section("Text to Speech") {
                 Text("Adds a speaker button to assistant messages so you can play responses aloud.")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
+                    .jinInfoCallout()
             }
 
             Section("Provider") {
@@ -139,7 +138,8 @@ struct TextToSpeechPluginSettingsView: View {
             providerSpecificSettings
         }
         .formStyle(.grouped)
-        .padding()
+        .scrollContentBackground(.hidden)
+        .background(JinSemanticColor.detailSurface)
         .navigationTitle("Text to Speech")
         .task {
             await loadExistingKeyAndMaybeVoices()
