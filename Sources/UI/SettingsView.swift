@@ -62,6 +62,12 @@ struct SettingsView: View {
             name: "DeepSeek OCR (DeepInfra)",
             systemImage: "doc.text.magnifyingglass",
             summary: "OCR PDFs via DeepInfra-hosted DeepSeek-OCR."
+        ),
+        PluginDescriptor(
+            id: "chat_naming",
+            name: "Chat Naming",
+            systemImage: "text.bubble",
+            summary: "Name chats automatically via a selected model."
         )
     ]
 
@@ -225,6 +231,9 @@ struct SettingsView: View {
                     } else if selectedPluginID == "speech_to_text" {
                         SpeechToTextPluginSettingsView()
                             .id("speech_to_text")
+                    } else if selectedPluginID == "chat_naming" {
+                        ChatNamingPluginSettingsView()
+                            .id("chat_naming")
                     } else {
                         ContentUnavailableView("Select a Plugin", systemImage: "puzzlepiece.extension")
                     }
@@ -724,7 +733,7 @@ struct AddProviderView: View {
                     .help("Keychain is more secure, but unsigned builds may prompt for your Mac password.")
 
                 switch providerType {
-                case .openai, .anthropic, .xai, .fireworks, .cerebras, .gemini:
+                case .openai, .anthropic, .xai, .deepseek, .fireworks, .cerebras, .gemini:
                     SecureField("API Key", text: $apiKey)
                 case .vertexai:
                     TextEditor(text: $serviceAccountJSON)
@@ -782,7 +791,7 @@ struct AddProviderView: View {
                 if storeCredentialsInKeychain {
                     let keychainManager = KeychainManager()
                     switch providerType {
-                    case .openai, .anthropic, .xai, .fireworks, .cerebras, .gemini:
+                    case .openai, .anthropic, .xai, .deepseek, .fireworks, .cerebras, .gemini:
                         try await keychainManager.saveAPIKey(trimmedAPIKey, for: providerID)
                     case .vertexai:
                         _ = try JSONDecoder().decode(ServiceAccountCredentials.self, from: Data(trimmedServiceAccountJSON.utf8))
@@ -834,7 +843,7 @@ struct AddProviderView: View {
         guard !trimmedName.isEmpty, !isSaving else { return true }
 
         switch providerType {
-        case .openai, .anthropic, .xai, .fireworks, .cerebras, .gemini:
+        case .openai, .anthropic, .xai, .deepseek, .fireworks, .cerebras, .gemini:
             return apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         case .vertexai:
             return serviceAccountJSON.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty

@@ -17,6 +17,12 @@ enum AppPreferenceKeys {
     static let pluginSpeechToTextEnabled = "pluginSpeechToTextEnabled"
     static let pluginMistralOCREnabled = "pluginMistralOCREnabled"
     static let pluginDeepSeekOCREnabled = "pluginDeepSeekOCREnabled"
+    static let pluginChatNamingEnabled = "pluginChatNamingEnabled"
+
+    // Chat naming
+    static let chatNamingMode = "chatNamingMode"
+    static let chatNamingProviderID = "chatNamingProviderID"
+    static let chatNamingModelID = "chatNamingModelID"
 
     // Text to Speech
     static let ttsProvider = "ttsProvider"
@@ -95,6 +101,22 @@ enum NewChatMCPMode: String, CaseIterable, Identifiable {
     }
 }
 
+enum ChatNamingMode: String, CaseIterable, Identifiable {
+    case firstRoundFixed
+    case everyRound
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .firstRoundFixed:
+            return "First Round Only"
+        case .everyRound:
+            return "Rename Every Round"
+        }
+    }
+}
+
 enum AppPreferences {
     static func pluginEnabledPreferenceKey(for pluginID: String) -> String? {
         switch pluginID {
@@ -106,6 +128,8 @@ enum AppPreferences {
             return AppPreferenceKeys.pluginMistralOCREnabled
         case "deepseek_ocr":
             return AppPreferenceKeys.pluginDeepSeekOCREnabled
+        case "chat_naming":
+            return AppPreferenceKeys.pluginChatNamingEnabled
         default:
             return nil
         }
@@ -115,6 +139,9 @@ enum AppPreferences {
         guard let key = pluginEnabledPreferenceKey(for: pluginID) else { return true }
         if let value = defaults.object(forKey: key) as? Bool {
             return value
+        }
+        if pluginID == "chat_naming" {
+            return false
         }
         return true
     }

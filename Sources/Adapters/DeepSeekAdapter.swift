@@ -1,14 +1,14 @@
 import Foundation
 
-/// Fireworks provider adapter (OpenAI-compatible Chat Completions API)
+/// DeepSeek official provider adapter (OpenAI-compatible Chat Completions API)
 ///
 /// Docs:
-/// - Base URL: https://api.fireworks.ai/inference/v1
+/// - Base URL: https://api.deepseek.com
 /// - Endpoint: POST /chat/completions
-/// - Models: `fireworks/kimi-k2p5`, `fireworks/glm-4p7`, ...
-actor FireworksAdapter: LLMProviderAdapter {
+/// - Models: `deepseek-chat`, `deepseek-reasoner`, `deepseek-v3.2-exp`, ...
+actor DeepSeekAdapter: LLMProviderAdapter {
     let providerConfig: ProviderConfig
-    let capabilities: ModelCapability = [.streaming, .toolCalling, .vision, .reasoning]
+    let capabilities: ModelCapability = [.streaming, .toolCalling, .reasoning]
 
     private let networkManager: NetworkManager
     private let apiKey: String
@@ -52,9 +52,11 @@ actor FireworksAdapter: LLMProviderAdapter {
     }
 
     func validateAPIKey(_ key: String) async throws -> Bool {
-        var request = URLRequest(url: URL(string: "\(baseURL)/models")!)
+        var request = URLRequest(url: URL(string: "\(baseURLRoot)/v1/models")!)
         request.httpMethod = "GET"
         request.addValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
+        request.addValue("application/json", forHTTPHeaderField: "Accept")
+        request.addValue("Jin", forHTTPHeaderField: "User-Agent")
 
         do {
             _ = try await networkManager.sendRequest(request)
@@ -65,9 +67,11 @@ actor FireworksAdapter: LLMProviderAdapter {
     }
 
     func fetchAvailableModels() async throws -> [ModelInfo] {
-        var request = URLRequest(url: URL(string: "\(baseURL)/models")!)
+        var request = URLRequest(url: URL(string: "\(baseURLRoot)/v1/models")!)
         request.httpMethod = "GET"
         request.addValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        request.addValue("application/json", forHTTPHeaderField: "Accept")
+        request.addValue("Jin", forHTTPHeaderField: "User-Agent")
 
         let (data, _) = try await networkManager.sendRequest(request)
         let response = try JSONDecoder().decode(OpenAIModelsResponse.self, from: data)
@@ -80,8 +84,38 @@ actor FireworksAdapter: LLMProviderAdapter {
 
     // MARK: - Private
 
-    private var baseURL: String {
-        providerConfig.baseURL ?? "https://api.fireworks.ai/inference/v1"
+    private var baseURLRoot: String {
+        let raw = (providerConfig.baseURL ?? "https://api.deepseek.com")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmed = raw.hasSuffix("/") ? String(raw.dropLast()) : raw
+
+        if trimmed.hasSuffix("/v1") {
+            let withoutV1 = String(trimmed.dropLast(3))
+            return withoutV1.hasSuffix("/") ? String(withoutV1.dropLast()) : withoutV1
+        }
+
+        return trimmed
+    }
+
+    private var isDefaultHost: Bool {
+        guard let url = URL(string: baseURLRoot), let host = url.host?.lowercased() else { return false }
+        return host == "api.deepseek.com"
+    }
+
+    private func chatCompletionsURL(for modelID: String) throws -> URL {
+        let lower = modelID.lowercased()
+        if isDefaultHost, lower.contains("v3.2-exp") {
+            return try requireURL("\(baseURLRoot)/beta/chat/completions")
+        }
+
+        return try requireURL("\(baseURLRoot)/v1/chat/completions")
+    }
+
+    private func requireURL(_ raw: String) throws -> URL {
+        guard let url = URL(string: raw) else {
+            throw LLMError.invalidRequest(message: "Invalid DeepSeek base URL.")
+        }
+        return url
     }
 
     private func buildRequest(
@@ -91,10 +125,12 @@ actor FireworksAdapter: LLMProviderAdapter {
         tools: [ToolDefinition],
         streaming: Bool
     ) throws -> URLRequest {
-        var request = URLRequest(url: URL(string: "\(baseURL)/chat/completions")!)
+        var request = URLRequest(url: try chatCompletionsURL(for: modelID))
         request.httpMethod = "POST"
         request.addValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
         request.addValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.addValue("application/json", forHTTPHeaderField: "Accept")
+        request.addValue("Jin", forHTTPHeaderField: "User-Agent")
 
         var body: [String: Any] = [
             "model": modelID,
@@ -102,22 +138,25 @@ actor FireworksAdapter: LLMProviderAdapter {
             "stream": streaming
         ]
 
-        if let temperature = controls.temperature {
-            body["temperature"] = temperature
+        let isReasoningModel = modelID.lowercased().contains("reasoner")
+        if !isReasoningModel {
+            if let temperature = controls.temperature {
+                body["temperature"] = temperature
+            }
+            if let topP = controls.topP {
+                body["top_p"] = topP
+            }
         }
+
         if let maxTokens = controls.maxTokens {
             body["max_tokens"] = maxTokens
         }
-        if let topP = controls.topP {
-            body["top_p"] = topP
-        }
 
-        // Fireworks reasoning controls: `reasoning_effort` (string/bool/int) + `reasoning_history` (for Kimi/GLM 4.7).
         if let reasoning = controls.reasoning {
-            if reasoning.enabled == false || (reasoning.effort ?? ReasoningEffort.none) == .none {
-                body["reasoning_effort"] = "none"
-            } else if let effort = reasoning.effort {
-                body["reasoning_effort"] = mapReasoningEffort(effort)
+            if reasoning.enabled == false {
+                body["reasoning"] = false
+            } else if isReasoningModel {
+                body["reasoning"] = true
             }
         }
 
@@ -169,35 +208,22 @@ actor FireworksAdapter: LLMProviderAdapter {
     }
 
     private func translateNonToolMessage(_ message: Message) -> [String: Any] {
-        let (visibleContent, thinkingContent, hasImage) = splitContent(message.content)
+        let (visibleContent, reasoningContent) = splitContent(message.content)
 
         var dict: [String: Any] = [
             "role": message.role.rawValue
         ]
 
         switch message.role {
-        case .system:
+        case .system, .user:
             dict["content"] = visibleContent
-
-        case .user:
-            if hasImage {
-                dict["content"] = translateUserContentParts(message.content)
-            } else {
-                dict["content"] = visibleContent
-            }
 
         case .assistant:
             let hasToolCalls = (message.toolCalls?.isEmpty == false)
-            if visibleContent.isEmpty {
-                // OpenAI-style: assistant content can be null when tool_calls exist.
-                dict["content"] = hasToolCalls ? NSNull() : ""
-            } else {
-                dict["content"] = visibleContent
-            }
+            dict["content"] = visibleContent.isEmpty ? (hasToolCalls ? NSNull() : "") : visibleContent
 
-            if !thinkingContent.isEmpty {
-                // Fireworks returns this as `reasoning_content`; preserving it improves multi-turn stability for supported models.
-                dict["reasoning_content"] = thinkingContent
+            if !reasoningContent.isEmpty {
+                dict["reasoning_content"] = reasoningContent
             }
 
             if let toolCalls = message.toolCalls, !toolCalls.isEmpty {
@@ -205,72 +231,18 @@ actor FireworksAdapter: LLMProviderAdapter {
             }
 
         case .tool:
-            // Not used here; tool results are expanded in translateMessages(_:).
             dict["content"] = ""
         }
 
         return dict
     }
 
-    private func translateUserContentParts(_ parts: [ContentPart]) -> [[String: Any]] {
-        var out: [[String: Any]] = []
-        out.reserveCapacity(parts.count)
-
-        for part in parts {
-            switch part {
-            case .text(let text):
-                out.append([
-                    "type": "text",
-                    "text": text
-                ])
-
-            case .image(let image):
-                if let urlString = imageURLString(image) {
-                    out.append([
-                        "type": "image_url",
-                        "image_url": [
-                            "url": urlString
-                        ]
-                    ])
-                }
-
-            case .file(let file):
-                let text = AttachmentPromptRenderer.fallbackText(for: file)
-                out.append([
-                    "type": "text",
-                    "text": text
-                ])
-
-            case .thinking, .redactedThinking, .audio:
-                // Do not send provider reasoning blocks or audio via Chat Completions.
-                continue
-            }
-        }
-
-        return out
-    }
-
-    private func imageURLString(_ image: ImageContent) -> String? {
-        if let data = image.data {
-            return "data:\(image.mimeType);base64,\(data.base64EncodedString())"
-        }
-        if let url = image.url {
-            if url.isFileURL, let data = try? Data(contentsOf: url) {
-                return "data:\(image.mimeType);base64,\(data.base64EncodedString())"
-            }
-            return url.absoluteString
-        }
-        return nil
-    }
-
-    private func splitContent(_ parts: [ContentPart]) -> (visible: String, thinking: String, hasImage: Bool) {
+    private func splitContent(_ parts: [ContentPart]) -> (visible: String, reasoning: String) {
         var visibleParts: [String] = []
         visibleParts.reserveCapacity(parts.count)
 
-        var thinkingParts: [String] = []
-        thinkingParts.reserveCapacity(2)
-
-        var hasImage = false
+        var reasoningParts: [String] = []
+        reasoningParts.reserveCapacity(2)
 
         for part in parts {
             switch part {
@@ -278,19 +250,18 @@ actor FireworksAdapter: LLMProviderAdapter {
                 visibleParts.append(text)
             case .file(let file):
                 visibleParts.append(AttachmentPromptRenderer.fallbackText(for: file))
-            case .image:
-                hasImage = true
+            case .image(let image):
+                if image.url != nil || image.data != nil {
+                    visibleParts.append("[Image attachment omitted: this provider does not support vision in Jin yet]")
+                }
             case .thinking(let thinking):
-                thinkingParts.append(thinking.text)
-            case .redactedThinking:
-                // Redacted reasoning is not safe to replay as model input.
-                continue
-            case .audio:
+                reasoningParts.append(thinking.text)
+            case .redactedThinking, .audio:
                 continue
             }
         }
 
-        return (visibleParts.joined(), thinkingParts.joined(), hasImage)
+        return (visibleParts.joined(), reasoningParts.joined())
     }
 
     private func translateToolCalls(_ calls: [ToolCall]) -> [[String: Any]] {
@@ -336,48 +307,22 @@ actor FireworksAdapter: LLMProviderAdapter {
         return str
     }
 
-    private func mapReasoningEffort(_ effort: ReasoningEffort) -> String {
-        // Fireworks supports: none, low, medium, high (and may accept ints/bools for some models).
-        switch effort {
-        case .none:
-            return "none"
-        case .minimal, .low:
-            return "low"
-        case .medium:
-            return "medium"
-        case .high, .xhigh:
-            return "high"
-        }
-    }
-
     private func makeModelInfo(id: String) -> ModelInfo {
         let lower = id.lowercased()
-        let isKimiK2p5 = lower == "fireworks/kimi-k2p5" || lower == "accounts/fireworks/models/kimi-k2p5"
-        let isGLM4p7 = lower == "fireworks/glm-4p7" || lower == "accounts/fireworks/models/glm-4p7"
 
         var caps: ModelCapability = [.streaming, .toolCalling]
-        var reasoningConfig: ModelReasoningConfig?
-        var contextWindow = 128000
+        var reasoningConfig: ModelReasoningConfig? = nil
 
-        // Known models we explicitly support well.
-        if isKimiK2p5 {
-            caps.insert(.vision)
+        if lower.contains("reasoner") {
             caps.insert(.reasoning)
-            reasoningConfig = ModelReasoningConfig(type: .effort, defaultEffort: .medium)
-            // Kimi K2.* models are commonly long-context (often 256k+). Keep conservative by default.
-            contextWindow = 128000
-        } else if isGLM4p7 {
-            caps.insert(.reasoning)
-            reasoningConfig = ModelReasoningConfig(type: .effort, defaultEffort: .medium)
-        } else if lower.contains("kimi") || lower.contains("glm") {
-            caps.insert(.reasoning)
+            reasoningConfig = ModelReasoningConfig(type: .toggle)
         }
 
         return ModelInfo(
             id: id,
             name: id,
             capabilities: caps,
-            contextWindow: contextWindow,
+            contextWindow: 128000,
             reasoningConfig: reasoningConfig
         )
     }

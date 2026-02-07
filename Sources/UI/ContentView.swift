@@ -38,6 +38,12 @@ struct ContentView: View {
     @State private var showingDeleteAssistantConfirmation = false
     @State private var conversationPendingDeletion: ConversationEntity?
     @State private var showingDeleteConversationConfirmation = false
+    @State private var conversationPendingRename: ConversationEntity?
+    @State private var showingRenameConversationAlert = false
+    @State private var renameConversationDraftTitle = ""
+    @State private var titleRegenerationErrorMessage = ""
+    @State private var showingTitleRegenerationError = false
+    @State private var regeneratingConversationID: UUID?
     @AppStorage("assistantSidebarLayout") private var assistantSidebarLayoutRaw = AssistantSidebarLayout.grid.rawValue
     @AppStorage("assistantSidebarSort") private var assistantSidebarSortRaw = AssistantSidebarSort.custom.rawValue
     @AppStorage("assistantSidebarShowName") private var assistantSidebarShowName = true
@@ -50,6 +56,8 @@ struct ContentView: View {
     @AppStorage(AppPreferenceKeys.newChatFixedMCPEnabled) private var newChatFixedMCPEnabled = true
     @AppStorage(AppPreferenceKeys.newChatFixedMCPUseAllServers) private var newChatFixedMCPUseAllServers = true
     @AppStorage(AppPreferenceKeys.newChatFixedMCPServerIDsJSON) private var newChatFixedMCPServerIDsJSON = "[]"
+
+    private let conversationTitleGenerator = ConversationTitleGenerator()
 
     var body: some View {
         NavigationSplitView {
@@ -142,6 +150,23 @@ struct ContentView: View {
             }
         } message: { conversation in
             Text("This will permanently delete “\(conversation.title)”.")
+        }
+        .alert("Rename Chat", isPresented: $showingRenameConversationAlert, presenting: conversationPendingRename) { _ in
+            TextField("Chat title", text: $renameConversationDraftTitle)
+            Button("Cancel", role: .cancel) {
+                conversationPendingRename = nil
+            }
+            Button("Save") {
+                applyManualConversationRename()
+            }
+            .disabled(renameConversationDraftTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+        } message: { _ in
+            Text("Enter a new title for this chat.")
+        }
+        .alert("Title Regeneration Failed", isPresented: $showingTitleRegenerationError) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(titleRegenerationErrorMessage)
         }
     }
 
@@ -393,6 +418,8 @@ struct ContentView: View {
                 return "claude-opus-4-6"
             case "xai":
                 return "grok-4-1-fast"
+            case "deepseek":
+                return "deepseek-chat"
             case "vertexai":
                 return "gemini-3-pro-preview"
             default:
@@ -411,6 +438,9 @@ struct ContentView: View {
         }
         if providerID == "xai", let grok41Fast = models.first(where: { $0.id == "grok-4-1-fast" }) {
             return grok41Fast.id
+        }
+        if providerID == "deepseek", let deepseekChat = models.first(where: { $0.id == "deepseek-chat" }) {
+            return deepseekChat.id
         }
         if providerID == "vertexai", let gemini3Pro = models.first(where: { $0.id == "gemini-3-pro-preview" }) {
             return gemini3Pro.id
@@ -503,6 +533,23 @@ struct ContentView: View {
         showingDeleteConversationConfirmation = true
     }
 
+    private func requestRenameConversation(_ conversation: ConversationEntity) {
+        conversationPendingRename = conversation
+        renameConversationDraftTitle = conversation.title
+        showingRenameConversationAlert = true
+    }
+
+    private func applyManualConversationRename() {
+        guard let conversation = conversationPendingRename else { return }
+        let trimmed = renameConversationDraftTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+
+        conversation.title = trimmed
+        conversation.updatedAt = Date()
+        conversationPendingRename = nil
+        showingRenameConversationAlert = false
+    }
+
     private func deleteConversation(_ conversation: ConversationEntity) {
         streamingStore.cancel(conversationID: conversation.id)
         streamingStore.endSession(conversationID: conversation.id)
@@ -511,6 +558,88 @@ struct ContentView: View {
             selectedConversation = nil
         }
         conversationPendingDeletion = nil
+    }
+
+    private func resolvedChatNamingTargetForRegeneration() -> (provider: ProviderConfig, modelID: String)? {
+        let defaults = UserDefaults.standard
+        let providerID = (defaults.string(forKey: AppPreferenceKeys.chatNamingProviderID) ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let modelID = (defaults.string(forKey: AppPreferenceKeys.chatNamingModelID) ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard !providerID.isEmpty, !modelID.isEmpty else { return nil }
+        guard let providerEntity = providers.first(where: { $0.id == providerID }),
+              let provider = try? providerEntity.toDomain() else {
+            return nil
+        }
+
+        let models = (try? JSONDecoder().decode([ModelInfo].self, from: providerEntity.modelsData)) ?? []
+        guard models.contains(where: { $0.id == modelID }) else { return nil }
+
+        return (provider, modelID)
+    }
+
+    private func latestMessagesForTitleRegeneration(in conversation: ConversationEntity) -> [Message] {
+        let history = conversation.messages
+            .sorted(by: { $0.timestamp < $1.timestamp })
+            .compactMap { try? $0.toDomain() }
+
+        guard !history.isEmpty else { return [] }
+
+        if let assistantIndex = history.lastIndex(where: { $0.role == .assistant }) {
+            let latestAssistant = history[assistantIndex]
+            let prior = history[..<assistantIndex]
+            if let latestUserBeforeAssistant = prior.last(where: { $0.role == .user }) {
+                return [latestUserBeforeAssistant, latestAssistant]
+            }
+            return [latestAssistant]
+        }
+
+        if let latestUser = history.last(where: { $0.role == .user }) {
+            return [latestUser]
+        }
+
+        return []
+    }
+
+    @MainActor
+    private func regenerateConversationTitle(_ conversation: ConversationEntity) async {
+        guard regeneratingConversationID != conversation.id else { return }
+
+        guard let target = resolvedChatNamingTargetForRegeneration() else {
+            titleRegenerationErrorMessage = "Please choose a provider/model in Settings → Plugins → Chat Naming first."
+            showingTitleRegenerationError = true
+            return
+        }
+
+        let contextMessages = latestMessagesForTitleRegeneration(in: conversation)
+        guard !contextMessages.isEmpty else {
+            titleRegenerationErrorMessage = "No usable conversation messages found to generate a title."
+            showingTitleRegenerationError = true
+            return
+        }
+
+        regeneratingConversationID = conversation.id
+        defer { regeneratingConversationID = nil }
+
+        do {
+            let title = try await conversationTitleGenerator.generateTitle(
+                providerConfig: target.provider,
+                modelID: target.modelID,
+                contextMessages: contextMessages,
+                maxCharacters: 20
+            )
+            let normalized = ConversationTitleGenerator.normalizeTitle(title, maxCharacters: 20)
+            guard !normalized.isEmpty else {
+                throw LLMError.decodingError(message: "Generated empty title.")
+            }
+
+            conversation.title = normalized
+            conversation.updatedAt = Date()
+        } catch {
+            titleRegenerationErrorMessage = error.localizedDescription
+            showingTitleRegenerationError = true
+        }
     }
 
     @ViewBuilder
@@ -538,7 +667,7 @@ struct ContentView: View {
         guard !didBootstrapDefaults else { return }
         didBootstrapDefaults = true
 
-        guard providers.isEmpty else { return }
+        let existingIDs = Set(providers.map(\.id))
 
         let openAIModels: [ModelInfo] = [
             ModelInfo(
@@ -607,6 +736,30 @@ struct ContentView: View {
                 id: "grok-4-1",
                 name: "Grok 4.1",
                 capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+                contextWindow: 128000,
+                reasoningConfig: nil
+            )
+        ]
+
+        let deepSeekModels: [ModelInfo] = [
+            ModelInfo(
+                id: "deepseek-chat",
+                name: "DeepSeek Chat",
+                capabilities: [.streaming, .toolCalling],
+                contextWindow: 128000,
+                reasoningConfig: nil
+            ),
+            ModelInfo(
+                id: "deepseek-reasoner",
+                name: "DeepSeek Reasoner",
+                capabilities: [.streaming, .toolCalling, .reasoning],
+                contextWindow: 128000,
+                reasoningConfig: ModelReasoningConfig(type: .toggle)
+            ),
+            ModelInfo(
+                id: "deepseek-v3.2-exp",
+                name: "DeepSeek V3.2 Exp",
+                capabilities: [.streaming, .toolCalling],
                 contextWindow: 128000,
                 reasoningConfig: nil
             )
@@ -704,6 +857,13 @@ struct ContentView: View {
                 models: xAIModels
             ),
             ProviderConfig(
+                id: "deepseek",
+                name: "DeepSeek",
+                type: .deepseek,
+                baseURL: ProviderType.deepseek.defaultBaseURL,
+                models: deepSeekModels
+            ),
+            ProviderConfig(
                 id: "gemini",
                 name: "Gemini (AI Studio)",
                 type: .gemini,
@@ -719,6 +879,7 @@ struct ContentView: View {
         ]
 
         for config in defaults {
+            guard !existingIDs.contains(config.id) else { continue }
             if let entity = try? ProviderConfigEntity.fromDomain(config) {
                 modelContext.insert(entity)
             }
@@ -929,6 +1090,7 @@ private extension ContentView {
             ForEach(groupedConversations, id: \.key) { period, convs in
                 Section(period) {
                     ForEach(convs) { conversation in
+                        let isRegeneratingTitle = regeneratingConversationID == conversation.id
                         NavigationLink(value: conversation) {
                             ConversationRowView(
                                 title: conversation.title,
@@ -938,6 +1100,21 @@ private extension ContentView {
                             )
                         }
                         .contextMenu {
+                            Button {
+                                requestRenameConversation(conversation)
+                            } label: {
+                                Label("Rename Chat", systemImage: "pencil")
+                            }
+
+                            Button {
+                                Task { await regenerateConversationTitle(conversation) }
+                            } label: {
+                                Label(isRegeneratingTitle ? "Regenerating Title…" : "Regenerate Title", systemImage: "wand.and.stars")
+                            }
+                            .disabled(streamingStore.isStreaming(conversationID: conversation.id) || isRegeneratingTitle)
+
+                            Divider()
+
                             Button(role: .destructive) {
                                 requestDeleteConversation(conversation)
                             } label: {

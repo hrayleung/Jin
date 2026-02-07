@@ -194,6 +194,8 @@ private struct ProviderSectionHeader: View {
             return "person.crop.circle"
         case .xai:
             return "bolt"
+        case .deepseek:
+            return "aqi.medium"
         case .fireworks:
             return "flame"
         case .cerebras:

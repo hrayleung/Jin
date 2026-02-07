@@ -63,7 +63,7 @@ struct ProviderConfigFormView: View {
                 }
 
                 switch providerType {
-                case .openai, .anthropic, .xai, .fireworks, .cerebras, .gemini:
+                case .openai, .anthropic, .xai, .deepseek, .fireworks, .cerebras, .gemini:
                     apiKeyField
                 case .vertexai:
                     vertexAISection
@@ -207,7 +207,7 @@ struct ProviderConfigFormView: View {
             return lower.contains("gemini-3") || lower.contains("gemini-2.5-flash-image")
         case .vertexai:
             return lower.contains("gemini-3") || lower.contains("gemini-2.5")
-        case .openai, .anthropic, .xai:
+        case .openai, .anthropic, .xai, .deepseek:
             return false
         }
     }
@@ -329,7 +329,7 @@ struct ProviderConfigFormView: View {
         }
 
         switch ProviderType(rawValue: provider.typeRaw) {
-        case .openai, .anthropic, .xai, .fireworks, .cerebras, .gemini:
+        case .openai, .anthropic, .xai, .deepseek, .fireworks, .cerebras, .gemini:
             if usesKeychain {
                 await MainActor.run { apiKey = "" }
             } else {
@@ -409,7 +409,7 @@ struct ProviderConfigFormView: View {
                     let trimmedAPIKey = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
                     let trimmedJSON = serviceAccountJSON.trimmingCharacters(in: .whitespacesAndNewlines)
                     switch ProviderType(rawValue: provider.typeRaw) {
-                    case .openai, .anthropic, .xai, .fireworks, .cerebras, .gemini:
+                    case .openai, .anthropic, .xai, .deepseek, .fireworks, .cerebras, .gemini:
                         if trimmedAPIKey.isEmpty {
                             await MainActor.run {
                                 credentialSaveError = "Keychain disabled. Paste your API key again to use this provider."
@@ -446,7 +446,7 @@ struct ProviderConfigFormView: View {
         guard !keychainID.isEmpty else { return }
 
         switch ProviderType(rawValue: provider.typeRaw) {
-        case .openai, .anthropic, .xai, .fireworks, .cerebras, .gemini:
+        case .openai, .anthropic, .xai, .deepseek, .fireworks, .cerebras, .gemini:
             let key = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
             await MainActor.run {
                 provider.apiKeyKeychainID = keychainID
@@ -485,7 +485,7 @@ struct ProviderConfigFormView: View {
 
     private func persistCredentialsLocally(validate: Bool) async throws {
         switch ProviderType(rawValue: provider.typeRaw) {
-        case .openai, .anthropic, .xai, .fireworks, .cerebras, .gemini:
+        case .openai, .anthropic, .xai, .deepseek, .fireworks, .cerebras, .gemini:
             let key = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
             await MainActor.run {
                 provider.apiKeyKeychainID = nil
@@ -538,7 +538,7 @@ struct ProviderConfigFormView: View {
 
     private var isTestDisabled: Bool {
         switch ProviderType(rawValue: provider.typeRaw) {
-        case .openai, .anthropic, .xai, .fireworks, .cerebras, .gemini:
+        case .openai, .anthropic, .xai, .deepseek, .fireworks, .cerebras, .gemini:
             return (!storeCredentialsInKeychain && apiKey.isEmpty) || testStatus == .testing
         case .vertexai:
             return (!storeCredentialsInKeychain && serviceAccountJSON.isEmpty) || testStatus == .testing
@@ -550,7 +550,7 @@ struct ProviderConfigFormView: View {
     private var isFetchModelsDisabled: Bool {
         guard !isFetchingModels else { return true }
         switch providerType {
-        case .openai, .anthropic, .xai, .fireworks, .cerebras, .gemini:
+        case .openai, .anthropic, .xai, .deepseek, .fireworks, .cerebras, .gemini:
             return !storeCredentialsInKeychain && apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         case .vertexai:
             return !storeCredentialsInKeychain && serviceAccountJSON.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -660,7 +660,7 @@ private struct AddModelSheet: View {
                 reasoningConfig = ModelReasoningConfig(type: .effort, defaultEffort: .medium)
             }
 
-        case .openai?, .anthropic?, .xai?, .none:
+        case .openai?, .anthropic?, .xai?, .deepseek?, .none:
             break
         }
 

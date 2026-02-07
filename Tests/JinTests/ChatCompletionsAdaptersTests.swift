@@ -201,6 +201,161 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         XCTAssertEqual(content, "OK")
         guard case .messageEnd = events[3] else { return XCTFail("Expected messageEnd") }
     }
+
+    func testDeepSeekAdapterUsesV1RouteAndParsesReasoningAndToolCalls() async throws {
+        let (session, protocolType) = makeMockedURLSession()
+        let networkManager = NetworkManager(urlSession: session)
+
+        let providerConfig = ProviderConfig(
+            id: "ds",
+            name: "DeepSeek",
+            type: .deepseek,
+            apiKey: "ignored",
+            baseURL: "https://api.deepseek.com/v1"
+        )
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://api.deepseek.com/v1/chat/completions")
+            XCTAssertEqual(request.httpMethod, "POST")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer test-key")
+
+            let body = try XCTUnwrap(requestBodyData(request))
+            let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+            let root = try XCTUnwrap(json)
+
+            XCTAssertEqual(root["model"] as? String, "deepseek-chat")
+            XCTAssertEqual(root["stream"] as? Bool, false)
+
+            let messages = try XCTUnwrap(root["messages"] as? [[String: Any]])
+            XCTAssertEqual(messages.count, 1)
+            XCTAssertEqual(messages[0]["role"] as? String, "user")
+            XCTAssertEqual(messages[0]["content"] as? String, "hello")
+
+            let response: [String: Any] = [
+                "id": "cmpl_ds_1",
+                "choices": [
+                    [
+                        "message": [
+                            "role": "assistant",
+                            "content": "Answer",
+                            "reasoning_content": "Reason",
+                            "tool_calls": [
+                                [
+                                    "id": "call_1",
+                                    "type": "function",
+                                    "function": [
+                                        "name": "search_docs",
+                                        "arguments": "{\"q\":\"swift\"}"
+                                    ]
+                                ]
+                            ]
+                        ],
+                        "finish_reason": "stop"
+                    ]
+                ],
+                "usage": [
+                    "prompt_tokens": 4,
+                    "completion_tokens": 7,
+                    "total_tokens": 11
+                ]
+            ]
+
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = DeepSeekAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hello")])],
+            modelID: "deepseek-chat",
+            controls: GenerationControls(),
+            tools: [],
+            streaming: false
+        )
+
+        var events: [StreamEvent] = []
+        for try await event in stream {
+            events.append(event)
+        }
+
+        XCTAssertEqual(events.count, 6)
+
+        guard case .messageStart(let id) = events[0] else { return XCTFail("Expected messageStart") }
+        XCTAssertEqual(id, "cmpl_ds_1")
+
+        guard case .thinkingDelta(.thinking(let reasoning, _)) = events[1] else { return XCTFail("Expected thinkingDelta") }
+        XCTAssertEqual(reasoning, "Reason")
+
+        guard case .contentDelta(.text(let content)) = events[2] else { return XCTFail("Expected contentDelta") }
+        XCTAssertEqual(content, "Answer")
+
+        guard case .toolCallStart(let startCall) = events[3] else { return XCTFail("Expected toolCallStart") }
+        XCTAssertEqual(startCall.id, "call_1")
+        XCTAssertEqual(startCall.name, "search_docs")
+
+        guard case .toolCallEnd(let endCall) = events[4] else { return XCTFail("Expected toolCallEnd") }
+        XCTAssertEqual(endCall.id, "call_1")
+        XCTAssertEqual(endCall.name, "search_docs")
+        XCTAssertEqual(endCall.arguments["q"]?.value as? String, "swift")
+
+        guard case .messageEnd(let usage) = events[5] else { return XCTFail("Expected messageEnd") }
+        XCTAssertEqual(usage?.inputTokens, 4)
+        XCTAssertEqual(usage?.outputTokens, 7)
+    }
+
+    func testDeepSeekAdapterUsesBetaRouteForV32ExpModelOnDefaultHost() async throws {
+        let (session, protocolType) = makeMockedURLSession()
+        let networkManager = NetworkManager(urlSession: session)
+
+        let providerConfig = ProviderConfig(
+            id: "ds",
+            name: "DeepSeek",
+            type: .deepseek,
+            apiKey: "ignored",
+            baseURL: "https://api.deepseek.com/v1"
+        )
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://api.deepseek.com/beta/chat/completions")
+
+            let response: [String: Any] = [
+                "id": "cmpl_ds_2",
+                "choices": [
+                    [
+                        "message": [
+                            "role": "assistant",
+                            "content": "OK"
+                        ],
+                        "finish_reason": "stop"
+                    ]
+                ]
+            ]
+
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = DeepSeekAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hi")])],
+            modelID: "deepseek-v3.2-exp",
+            controls: GenerationControls(),
+            tools: [],
+            streaming: false
+        )
+
+        var events: [StreamEvent] = []
+        for try await event in stream {
+            events.append(event)
+        }
+
+        XCTAssertEqual(events.count, 3)
+        guard case .messageStart(let id) = events[0] else { return XCTFail("Expected messageStart") }
+        XCTAssertEqual(id, "cmpl_ds_2")
+        guard case .contentDelta(.text(let content)) = events[1] else { return XCTFail("Expected contentDelta") }
+        XCTAssertEqual(content, "OK")
+        guard case .messageEnd = events[2] else { return XCTFail("Expected messageEnd") }
+    }
 }
 
 // MARK: - URLProtocol stubbing

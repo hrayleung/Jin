@@ -323,6 +323,7 @@ enum ProviderType: String, Codable, CaseIterable {
     case openai
     case anthropic
     case xai
+    case deepseek
     case fireworks
     case cerebras
     case gemini
@@ -333,6 +334,7 @@ enum ProviderType: String, Codable, CaseIterable {
         case .openai: return "OpenAI"
         case .anthropic: return "Anthropic"
         case .xai: return "xAI"
+        case .deepseek: return "DeepSeek"
         case .fireworks: return "Fireworks"
         case .cerebras: return "Cerebras"
         case .gemini: return "Gemini (AI Studio)"
@@ -348,6 +350,8 @@ enum ProviderType: String, Codable, CaseIterable {
             return "https://api.anthropic.com/v1"
         case .xai:
             return "https://api.x.ai/v1"
+        case .deepseek:
+            return "https://api.deepseek.com/v1"
         case .fireworks:
             return "https://api.fireworks.ai/inference/v1"
         case .cerebras:

@@ -37,6 +37,14 @@ actor ProviderManager {
                 networkManager: networkManager
             )
 
+        case .deepseek:
+            let apiKey = try await resolveAPIKey(for: config)
+            return DeepSeekAdapter(
+                providerConfig: config,
+                apiKey: apiKey,
+                networkManager: networkManager
+            )
+
         case .fireworks:
             let apiKey = try await resolveAPIKey(for: config)
             return FireworksAdapter(
@@ -84,7 +92,7 @@ actor ProviderManager {
         let adapter = try await createAdapter(for: config)
 
         switch config.type {
-        case .openai, .anthropic, .xai, .fireworks, .cerebras, .gemini:
+        case .openai, .anthropic, .xai, .deepseek, .fireworks, .cerebras, .gemini:
             let apiKey = try await resolveAPIKey(for: config)
             return try await adapter.validateAPIKey(apiKey)
 

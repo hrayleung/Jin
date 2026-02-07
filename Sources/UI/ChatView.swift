@@ -70,6 +70,8 @@ struct ChatView: View {
     @StateObject private var ttsPlaybackManager = TextToSpeechPlaybackManager()
     @StateObject private var speechToTextManager = SpeechToTextManager()
 
+    private let conversationTitleGenerator = ConversationTitleGenerator()
+
     private var isStreaming: Bool {
         streamingStore.isStreaming(conversationID: conversationEntity.id)
     }
@@ -1432,7 +1434,7 @@ struct ChatView: View {
         switch providerType {
         case .gemini, .vertexai:
             return conversationEntity.modelID.lowercased().contains("gemini-3")
-        case .openai, .anthropic, .xai, .fireworks, .cerebras, .none:
+        case .openai, .anthropic, .xai, .deepseek, .fireworks, .cerebras, .none:
             return false
         }
     }
@@ -1450,7 +1452,7 @@ struct ChatView: View {
         switch providerType {
         case .gemini, .vertexai:
             return !conversationEntity.modelID.lowercased().contains("gemini-2.5-flash-image")
-        case .openai, .anthropic, .xai, .fireworks, .cerebras, .none:
+        case .openai, .anthropic, .xai, .deepseek, .fireworks, .cerebras, .none:
             return false
         }
     }
@@ -1575,7 +1577,7 @@ struct ChatView: View {
         switch providerType {
         case .openai, .anthropic, .xai, .gemini, .vertexai:
             return true
-        case .fireworks, .cerebras, .none:
+        case .deepseek, .fireworks, .cerebras, .none:
             return false
         }
     }
@@ -1590,7 +1592,7 @@ struct ChatView: View {
         switch providerType {
         case .anthropic, .gemini, .vertexai:
             return "Thinking: \(reasoningLabel)"
-        case .openai, .xai, .fireworks, .cerebras, .none:
+        case .openai, .xai, .deepseek, .fireworks, .cerebras, .none:
             return "Reasoning: \(reasoningLabel)"
         }
     }
@@ -1615,7 +1617,7 @@ struct ChatView: View {
             return (controls.webSearch?.contextSize ?? .medium).displayName
         case .xai:
             return webSearchSourcesLabel
-        case .anthropic, .gemini, .vertexai, .fireworks, .cerebras, .none:
+        case .anthropic, .gemini, .vertexai, .deepseek, .fireworks, .cerebras, .none:
             return "On"
         }
     }
@@ -1675,7 +1677,7 @@ struct ChatView: View {
             if sources == [.x] { return "X" }
             if sources.contains(.web), sources.contains(.x) { return "W+X" }
             return "On"
-        case .anthropic, .gemini, .vertexai, .fireworks, .cerebras, .none:
+        case .anthropic, .gemini, .vertexai, .deepseek, .fireworks, .cerebras, .none:
             return "On"
         }
     }
@@ -1843,7 +1845,7 @@ struct ChatView: View {
             return lower.contains("gemini-3") || lower.contains("gemini-2.5-flash-image")
         case .vertexai:
             return lower.contains("gemini-3") || lower.contains("gemini-2.5")
-        case .openai, .anthropic, .xai:
+        case .openai, .anthropic, .xai, .deepseek:
             return false
         }
     }
@@ -1892,6 +1894,9 @@ struct ChatView: View {
         case .anthropic:
             return models.first(where: { $0.id == "claude-opus-4-6" })?.id
                 ?? models.first(where: { $0.id == "claude-sonnet-4-5-20250929" })?.id
+        case .deepseek:
+            return models.first(where: { $0.id == "deepseek-chat" })?.id
+                ?? models.first(where: { $0.id == "deepseek-reasoner" })?.id
         case .fireworks:
             return models.first(where: { $0.id.lowercased() == "fireworks/kimi-k2p5" || $0.id.lowercased() == "accounts/fireworks/models/kimi-k2p5" })?.id
                 ?? models.first(where: { $0.id.lowercased() == "fireworks/glm-4p7" || $0.id.lowercased() == "accounts/fireworks/models/glm-4p7" })?.id
@@ -2079,13 +2084,13 @@ struct ChatView: View {
     private func regenerateFromUserMessage(_ messageEntity: MessageEntity) {
         guard let keepCount = keepCountForRegeneratingUserMessage(messageEntity) else { return }
         truncateConversation(keepingMessages: keepCount)
-        startStreamingResponse()
+        startStreamingResponse(triggeredByUserSend: false)
     }
 
     private func regenerateFromAssistantMessage(_ messageEntity: MessageEntity) {
         guard let keepCount = keepCountForRegeneratingAssistantMessage(messageEntity) else { return }
         truncateConversation(keepingMessages: keepCount)
-        startStreamingResponse()
+        startStreamingResponse(triggeredByUserSend: false)
     }
 
     private func keepCountForRegeneratingUserMessage(_ messageEntity: MessageEntity) -> Int? {
@@ -2263,7 +2268,7 @@ struct ChatView: View {
                 await MainActor.run {
                     messageEntity.conversation = conversationEntity
                     conversationEntity.messages.append(messageEntity)
-                    if conversationEntity.title == "New Chat" {
+                    if conversationEntity.title == "New Chat", !isChatNamingPluginEnabled {
                         if !messageTextSnapshot.isEmpty {
                             conversationEntity.title = makeConversationTitle(from: messageTextSnapshot)
                         } else if let firstAttachment = attachmentsSnapshot.first {
@@ -2277,7 +2282,7 @@ struct ChatView: View {
                     isPreparingToSend = false
                     prepareToSendStatus = nil
                     prepareToSendTask = nil
-                    startStreamingResponse()
+                    startStreamingResponse(triggeredByUserSend: true)
                 }
             } catch is CancellationError {
                 await MainActor.run {
@@ -2725,7 +2730,8 @@ struct ChatView: View {
         return String(trimmed.prefix(48))
     }
 
-    private func startStreamingResponse() {
+    @MainActor
+    private func startStreamingResponse(triggeredByUserSend: Bool = false) {
         let conversationID = conversationEntity.id
         guard !streamingStore.isStreaming(conversationID: conversationID) else { return }
 
@@ -2759,6 +2765,7 @@ struct ChatView: View {
         let modelContextWindow = modelInfoSnapshot?.contextWindow ?? 128000
         let reservedOutputTokens = max(0, controlsToUse.maxTokens ?? 2048)
         let mcpServerConfigs = resolvedMCPServerConfigs(for: controlsToUse)
+        let chatNamingTarget = resolvedChatNamingTarget()
 
         let task = Task.detached(priority: .userInitiated) {
             do {
@@ -2993,6 +3000,17 @@ struct ChatView: View {
                         }
 
                         history.append(assistantMessage)
+
+                        if triggeredByUserSend,
+                           toolCalls.isEmpty,
+                           let target = chatNamingTarget {
+                            await maybeAutoRenameConversation(
+                                targetProvider: target.provider,
+                                targetModelID: target.modelID,
+                                history: history,
+                                finalAssistantMessage: assistantMessage
+                            )
+                        }
                     }
 
                     guard !toolCalls.isEmpty else { break }
@@ -3064,6 +3082,97 @@ struct ChatView: View {
             }
         }
         streamingStore.attachTask(task, conversationID: conversationID)
+    }
+
+    private var isChatNamingPluginEnabled: Bool {
+        AppPreferences.isPluginEnabled("chat_naming")
+    }
+
+    private var chatNamingMode: ChatNamingMode {
+        let defaults = UserDefaults.standard
+        let raw = defaults.string(forKey: AppPreferenceKeys.chatNamingMode) ?? ChatNamingMode.firstRoundFixed.rawValue
+        return ChatNamingMode(rawValue: raw) ?? .firstRoundFixed
+    }
+
+    @MainActor
+    private func resolvedChatNamingTarget() -> (provider: ProviderConfig, modelID: String)? {
+        guard isChatNamingPluginEnabled else { return nil }
+
+        let defaults = UserDefaults.standard
+        let providerID = (defaults.string(forKey: AppPreferenceKeys.chatNamingProviderID) ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let modelID = (defaults.string(forKey: AppPreferenceKeys.chatNamingModelID) ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard !providerID.isEmpty, !modelID.isEmpty else { return nil }
+        guard let providerEntity = providers.first(where: { $0.id == providerID }),
+              let provider = try? providerEntity.toDomain() else {
+            return nil
+        }
+
+        let models = (try? JSONDecoder().decode([ModelInfo].self, from: providerEntity.modelsData)) ?? []
+        guard models.contains(where: { $0.id == modelID }) else { return nil }
+
+        return (provider, modelID)
+    }
+
+    @MainActor
+    private func maybeAutoRenameConversation(
+        targetProvider: ProviderConfig,
+        targetModelID: String,
+        history: [Message],
+        finalAssistantMessage: Message
+    ) async {
+        guard let latestUser = history.last(where: { $0.role == .user }) else { return }
+
+        if chatNamingMode == .firstRoundFixed {
+            let current = conversationEntity.title
+            if current != "New Chat" {
+                return
+            }
+        }
+
+        do {
+            let title = try await conversationTitleGenerator.generateTitle(
+                providerConfig: targetProvider,
+                modelID: targetModelID,
+                contextMessages: [latestUser, finalAssistantMessage],
+                maxCharacters: 20
+            )
+
+            let normalized = ConversationTitleGenerator.normalizeTitle(title, maxCharacters: 20)
+            guard !normalized.isEmpty else { return }
+            conversationEntity.title = normalized
+            conversationEntity.updatedAt = Date()
+        } catch {
+            if chatNamingMode == .firstRoundFixed {
+                if conversationEntity.title == "New Chat" {
+                    conversationEntity.title = fallbackTitleFromMessage(latestUser)
+                    conversationEntity.updatedAt = Date()
+                }
+            }
+        }
+    }
+
+    private func fallbackTitleFromMessage(_ message: Message) -> String {
+        let text = message.content.compactMap { part -> String? in
+            switch part {
+            case .text(let value):
+                let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+                return trimmed.isEmpty ? nil : trimmed
+            case .file(let file):
+                let base = (file.filename as NSString).deletingPathExtension
+                let trimmed = base.trimmingCharacters(in: .whitespacesAndNewlines)
+                return trimmed.isEmpty ? nil : trimmed
+            case .image:
+                return "Image"
+            case .thinking, .redactedThinking, .audio:
+                return nil
+            }
+        }.first
+
+        guard let text else { return "New Chat" }
+        return makeConversationTitle(from: text)
     }
     
     // MARK: - Model Controls (Shortened for brevity, preserving existing logic)
@@ -3166,7 +3275,7 @@ struct ChatView: View {
                     Button { setReasoningEffort(.medium) } label: { menuItemLabel("Medium", isSelected: isReasoningEnabled && controls.reasoning?.effort == .medium) }
                     Button { setReasoningEffort(.high) } label: { menuItemLabel("High", isSelected: isReasoningEnabled && controls.reasoning?.effort == .high) }
 
-                case .xai, .cerebras, .none:
+                case .xai, .deepseek, .cerebras, .none:
                     EmptyView()
                 }
 
@@ -3294,7 +3403,7 @@ struct ChatView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
-            case .anthropic, .gemini, .vertexai, .fireworks, .cerebras, .none:
+            case .anthropic, .gemini, .vertexai, .deepseek, .fireworks, .cerebras, .none:
                 EmptyView()
             }
         }
@@ -4010,7 +4119,7 @@ struct ChatView: View {
             return WebSearchControls(enabled: true, contextSize: .medium, sources: nil)
         case .xai:
             return WebSearchControls(enabled: true, contextSize: nil, sources: [.web])
-        case .anthropic, .gemini, .vertexai, .fireworks, .cerebras, .none:
+        case .anthropic, .gemini, .vertexai, .deepseek, .fireworks, .cerebras, .none:
             return WebSearchControls(enabled: true, contextSize: nil, sources: nil)
         }
     }
@@ -4029,7 +4138,7 @@ struct ChatView: View {
             if sources.isEmpty {
                 controls.webSearch?.sources = [.web]
             }
-        case .anthropic, .gemini, .vertexai, .fireworks, .cerebras, .none:
+        case .anthropic, .gemini, .vertexai, .deepseek, .fireworks, .cerebras, .none:
             controls.webSearch?.contextSize = nil
             controls.webSearch?.sources = nil
         }
