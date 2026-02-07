@@ -889,6 +889,7 @@ struct AddMCPServerView: View {
     @State private var isEnabled = true
 
     @State private var preset: Preset = .custom
+    @State private var isImportSectionExpanded = false
     @State private var importJSON = ""
     @State private var importError: String?
 
@@ -905,40 +906,45 @@ struct AddMCPServerView: View {
                         applyPreset(newValue)
                     }
 
-                    VStack(alignment: .leading, spacing: 8) {
-                        HStack {
-                            Text("Import from JSON")
-                                .font(.headline)
-                            Spacer()
-                            Button("Import") { importFromJSON() }
-                                .disabled(importJSON.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                        }
-
-                        TextEditor(text: $importJSON)
-                            .font(.system(.body, design: .monospaced))
-                            .frame(minHeight: 120)
-                            .padding(JinSpacing.small)
-                            .jinSurface(.raised, cornerRadius: JinRadius.small)
-                            .overlay(alignment: .topLeading) {
-                                if importJSON.isEmpty {
-                                    Text("{ \"mcpServers\": { \"exa\": { \"type\": \"http\", \"url\": \"https://mcp.exa.ai/mcp\", \"headers\": { \"Authorization\": \"Bearer …\" } } } }")
-                                        .foregroundColor(.secondary)
-                                        .padding(.top, 8)
-                                        .padding(.leading, 5)
-                                        .allowsHitTesting(false)
-                                }
+                    DisclosureGroup(isExpanded: $isImportSectionExpanded) {
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack {
+                                Text("Import from JSON")
+                                    .font(.headline)
+                                Spacer()
+                                Button("Import") { importFromJSON() }
+                                    .disabled(importJSON.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                             }
 
-                        if let importError {
-                            Text(importError)
-                                .foregroundStyle(.red)
-                                .font(.caption)
+                            TextEditor(text: $importJSON)
+                                .font(.system(.body, design: .monospaced))
+                                .frame(minHeight: 120)
                                 .padding(JinSpacing.small)
-                                .jinSurface(.subtleStrong, cornerRadius: JinRadius.small)
-                        } else {
-                            Text("Supports Claude Desktop-style configs (`mcpServers`) plus single-server payloads. HTTP imports are mapped to native HTTP transport.")
-                                .jinInfoCallout()
+                                .jinSurface(.raised, cornerRadius: JinRadius.small)
+                                .overlay(alignment: .topLeading) {
+                                    if importJSON.isEmpty {
+                                        Text("{ \"mcpServers\": { \"exa\": { \"type\": \"http\", \"url\": \"https://mcp.exa.ai/mcp\", \"headers\": { \"Authorization\": \"Bearer …\" } } } }")
+                                            .foregroundColor(.secondary)
+                                            .padding(.top, 8)
+                                            .padding(.leading, 5)
+                                            .allowsHitTesting(false)
+                                    }
+                                }
+
+                            if let importError {
+                                Text(importError)
+                                    .foregroundStyle(.red)
+                                    .font(.caption)
+                                    .padding(JinSpacing.small)
+                                    .jinSurface(.subtleStrong, cornerRadius: JinRadius.small)
+                            } else {
+                                Text("Supports Claude Desktop-style configs (`mcpServers`) plus single-server payloads. HTTP imports are mapped to native HTTP transport.")
+                                    .jinInfoCallout()
+                            }
                         }
+                        .padding(.top, 4)
+                    } label: {
+                        Text("Import from JSON")
                     }
                 }
 
@@ -988,6 +994,9 @@ struct AddMCPServerView: View {
                     }
                 }
             }
+            .safeAreaInset(edge: .top, spacing: 0) {
+                addMCPServerActionBar
+            }
             .formStyle(.grouped)
             .scrollContentBackground(.hidden)
             .background {
@@ -995,20 +1004,37 @@ struct AddMCPServerView: View {
                     .ignoresSafeArea()
             }
             .navigationTitle("Add MCP Server")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Add") { addServer() }
-                        .disabled(isAddDisabled)
-                }
-            }
-            .frame(width: 620, height: 760)
+            .onExitCommand { dismiss() }
+            .frame(
+                minWidth: 620,
+                idealWidth: 680,
+                maxWidth: 760,
+                minHeight: 540,
+                idealHeight: 680,
+                maxHeight: 760
+            )
         }
         #if os(macOS)
         .background(MovableWindowHelper())
         #endif
+    }
+
+    private var addMCPServerActionBar: some View {
+        HStack {
+            Button("Cancel") { dismiss() }
+                .keyboardShortcut(.cancelAction)
+            Spacer()
+            Button("Add") { addServer() }
+                .keyboardShortcut(.defaultAction)
+                .buttonStyle(.borderedProminent)
+                .disabled(isAddDisabled)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .background(JinSemanticColor.detailSurface)
+        .overlay(alignment: .bottom) {
+            Divider()
+        }
     }
 
     private var isAddDisabled: Bool {
@@ -1083,8 +1109,10 @@ struct AddMCPServerView: View {
             id = imported.id
             name = imported.name
             applyImportedTransport(imported.transport)
+            isImportSectionExpanded = false
         } catch {
             importError = formatJSONImportError(error)
+            isImportSectionExpanded = true
         }
     }
 
