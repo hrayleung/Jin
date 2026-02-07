@@ -76,6 +76,11 @@ struct SettingsView: View {
 
     private static let generalSidebarHints: [GeneralSidebarHint] = [
         GeneralSidebarHint(
+            title: "Appearance",
+            subtitle: "Theme, font family, code font, and chat text size.",
+            systemImage: "textformat"
+        ),
+        GeneralSidebarHint(
             title: "Model defaults",
             subtitle: "Control provider/model used by new chats.",
             systemImage: "sparkles"
@@ -1242,6 +1247,14 @@ struct GeneralSettingsView: View {
     @Query(sort: \MCPServerConfigEntity.name) private var mcpServers: [MCPServerConfigEntity]
 
     @State private var showingDeleteAllChatsConfirmation = false
+    @State private var showingAppFontPicker = false
+    @State private var showingCodeFontPicker = false
+
+    @AppStorage(AppPreferenceKeys.appAppearanceMode) private var appAppearanceMode: AppAppearanceMode = .system
+    @AppStorage(AppPreferenceKeys.appFontFamily) private var appFontFamily = JinTypography.systemFontPreferenceValue
+    @AppStorage(AppPreferenceKeys.codeFontFamily) private var codeFontFamily = JinTypography.systemFontPreferenceValue
+    @AppStorage(AppPreferenceKeys.chatMessageFontScale) private var chatMessageFontScale = JinTypography.defaultChatMessageScale
+
     @AppStorage(AppPreferenceKeys.newChatModelMode) private var newChatModelMode: NewChatModelMode = .lastUsed
     @AppStorage(AppPreferenceKeys.newChatFixedProviderID) private var newChatFixedProviderID = "openai"
     @AppStorage(AppPreferenceKeys.newChatFixedModelID) private var newChatFixedModelID = "gpt-5.2"
@@ -1252,6 +1265,58 @@ struct GeneralSettingsView: View {
 
     var body: some View {
         Form {
+            Section("Appearance") {
+                Picker("Mode", selection: $appAppearanceMode) {
+                    ForEach(AppAppearanceMode.allCases) { mode in
+                        Text(mode.label).tag(mode)
+                    }
+                }
+
+                LabeledContent("App Font") {
+                    Button(appFontDisplayName) {
+                        showingAppFontPicker = true
+                    }
+                    .buttonStyle(.borderless)
+                }
+
+                LabeledContent("Code Font") {
+                    Button(codeFontDisplayName) {
+                        showingCodeFontPicker = true
+                    }
+                    .buttonStyle(.borderless)
+                }
+
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        Text("Chat Text Size")
+                        Spacer()
+                        Text(chatMessageScalePercentLabel)
+                            .font(.system(.caption, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Slider(
+                        value: chatMessageFontScaleBinding,
+                        in: JinTypography.chatMessageScaleRange,
+                        step: JinTypography.chatMessageScaleStep
+                    )
+
+                    HStack(spacing: 10) {
+                        Text("Applies to user and assistant message text.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+
+                        Spacer(minLength: 8)
+
+                        Button("Reset") {
+                            chatMessageFontScale = JinTypography.defaultChatMessageScale
+                        }
+                        .disabled(abs(chatMessageFontScaleBinding.wrappedValue - JinTypography.defaultChatMessageScale) < 0.001)
+                    }
+                }
+                .padding(.vertical, 4)
+            }
+
             Section("New Chat Defaults") {
                 Picker("Model", selection: $newChatModelMode) {
                     ForEach(NewChatModelMode.allCases) { mode in
@@ -1352,8 +1417,23 @@ struct GeneralSettingsView: View {
         .formStyle(.grouped)
         .scrollContentBackground(.hidden)
         .background(JinSemanticColor.detailSurface)
+        .sheet(isPresented: $showingAppFontPicker) {
+            FontPickerSheet(
+                title: "App Font",
+                subtitle: "Pick the default typeface used across the app.",
+                selectedFontFamily: $appFontFamily
+            )
+        }
+        .sheet(isPresented: $showingCodeFontPicker) {
+            FontPickerSheet(
+                title: "Code Font",
+                subtitle: "Used for markdown code blocks in chat.",
+                selectedFontFamily: $codeFontFamily
+            )
+        }
         .onAppear {
             ensureValidFixedModelSelection()
+            normalizeTypographyPreferences()
         }
         .confirmationDialog("Delete all chats?", isPresented: $showingDeleteAllChatsConfirmation) {
             Button("Delete All Chats", role: .destructive) {
@@ -1362,6 +1442,37 @@ struct GeneralSettingsView: View {
         } message: {
             Text("This will permanently delete all chats across all assistants.")
         }
+    }
+
+    private var appFontDisplayName: String {
+        JinTypography.displayName(for: appFontFamily)
+    }
+
+    private var codeFontDisplayName: String {
+        JinTypography.displayName(for: codeFontFamily)
+    }
+
+    private var chatMessageFontScaleBinding: Binding<Double> {
+        Binding(
+            get: {
+                JinTypography.clampedChatMessageScale(chatMessageFontScale)
+            },
+            set: { newValue in
+                chatMessageFontScale = JinTypography.clampedChatMessageScale(newValue)
+            }
+        )
+    }
+
+    private var chatMessageScalePercentLabel: String {
+        let clamped = JinTypography.clampedChatMessageScale(chatMessageFontScale)
+        let percent = Int((clamped * 100).rounded())
+        return "\(percent)%"
+    }
+
+    private func normalizeTypographyPreferences() {
+        appFontFamily = JinTypography.normalizedFontPreference(appFontFamily)
+        codeFontFamily = JinTypography.normalizedFontPreference(codeFontFamily)
+        chatMessageFontScale = JinTypography.clampedChatMessageScale(chatMessageFontScale)
     }
 
     private var eligibleMCPServers: [MCPServerConfigEntity] {

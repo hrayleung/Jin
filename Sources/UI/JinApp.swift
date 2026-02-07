@@ -6,6 +6,9 @@ struct JinApp: App {
     private let modelContainer: ModelContainer
     @StateObject private var streamingStore = ConversationStreamingStore()
 
+    @AppStorage(AppPreferenceKeys.appAppearanceMode) private var appAppearanceMode: AppAppearanceMode = .system
+    @AppStorage(AppPreferenceKeys.appFontFamily) private var appFontFamily = JinTypography.systemFontPreferenceValue
+
     private let mcpSchemaVersionPreferenceKey = "mcpTransportSchemaVersion"
     private let mcpSchemaVersion = 2
 
@@ -30,6 +33,8 @@ struct JinApp: App {
         WindowGroup {
             ContentView()
                 .environmentObject(streamingStore)
+                .font(JinTypography.appFont(familyPreference: appFontFamily))
+                .preferredColorScheme(preferredColorScheme)
         }
         .modelContainer(modelContainer)
         .commands {
@@ -38,8 +43,21 @@ struct JinApp: App {
 
         Settings {
             SettingsView()
+                .font(JinTypography.appFont(familyPreference: appFontFamily))
+                .preferredColorScheme(preferredColorScheme)
         }
         .modelContainer(modelContainer)
+    }
+
+    private var preferredColorScheme: ColorScheme? {
+        switch appAppearanceMode {
+        case .system:
+            return nil
+        case .light:
+            return .light
+        case .dark:
+            return .dark
+        }
     }
 
     private func resetMCPServersForTransportV2IfNeeded() {

@@ -10,6 +10,11 @@ enum AppPreferenceKeys {
     static let newChatFixedMCPUseAllServers = "newChatFixedMCPUseAllServers"
     static let newChatFixedMCPServerIDsJSON = "newChatFixedMCPServerIDsJSON"
 
+    static let appAppearanceMode = "appAppearanceMode"
+    static let appFontFamily = "appFontFamily"
+    static let codeFontFamily = "codeFontFamily"
+    static let chatMessageFontScale = "chatMessageFontScale"
+
     // MARK: - Extensions
 
     // Plugin visibility toggles (default: true)
@@ -105,6 +110,25 @@ enum NewChatMCPMode: String, CaseIterable, Identifiable {
         switch self {
         case .fixed: return "Use Custom Defaults"
         case .lastUsed: return "Use Last Chat's MCP"
+        }
+    }
+}
+
+enum AppAppearanceMode: String, CaseIterable, Identifiable {
+    case system
+    case light
+    case dark
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .system:
+            return "System"
+        case .light:
+            return "Light"
+        case .dark:
+            return "Dark"
         }
     }
 }

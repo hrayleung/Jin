@@ -14,6 +14,10 @@ struct MessageTextView: View {
     let mode: RenderingMode
     let normalizedMarkdownText: String?
 
+    @AppStorage(AppPreferenceKeys.appFontFamily) private var appFontFamily = JinTypography.systemFontPreferenceValue
+    @AppStorage(AppPreferenceKeys.codeFontFamily) private var codeFontFamily = JinTypography.systemFontPreferenceValue
+    @AppStorage(AppPreferenceKeys.chatMessageFontScale) private var chatMessageFontScale = JinTypography.defaultChatMessageScale
+
     init(text: String, mode: RenderingMode = .markdown) {
         self.text = text
         self.mode = mode
@@ -34,7 +38,7 @@ struct MessageTextView: View {
 
             case .plainText:
                 Text(text)
-                    .font(.body)
+                    .font(chatBodyFont)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
@@ -46,17 +50,33 @@ struct MessageTextView: View {
         let renderedMarkdown = normalizedMarkdownText ?? text.normalizingMathDelimitersForMarkdownView()
 
         #if canImport(LaTeXSwiftUI)
-        MarkdownView(renderedMarkdown)
-            .font(.body)
-            .markdownMathRenderingEnabled()
+        configuredMarkdownView(renderedMarkdown)
             .renderingStyle(.empty)
             .ignoreStringFormatting()
             .fixedSize(horizontal: false, vertical: true)
         #else
-        MarkdownView(renderedMarkdown)
-            .font(.body)
-            .markdownMathRenderingEnabled()
+        configuredMarkdownView(renderedMarkdown)
             .fixedSize(horizontal: false, vertical: true)
         #endif
+    }
+
+    private func configuredMarkdownView(_ text: String) -> some View {
+        MarkdownView(text)
+            .font(chatBodyFont)
+            .font(chatBodyFont, for: .body)
+            .font(chatBodyFont, for: .blockQuote)
+            .font(chatBodyFont, for: .tableBody)
+            .font(chatBodyFont, for: .inlineMath)
+            .font(chatBodyFont, for: .displayMath)
+            .font(chatCodeFont, for: .codeBlock)
+            .markdownMathRenderingEnabled()
+    }
+
+    private var chatBodyFont: Font {
+        JinTypography.chatBodyFont(appFamilyPreference: appFontFamily, scale: chatMessageFontScale)
+    }
+
+    private var chatCodeFont: Font {
+        JinTypography.chatCodeFont(codeFamilyPreference: codeFontFamily, scale: chatMessageFontScale)
     }
 }
