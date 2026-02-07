@@ -285,26 +285,7 @@ struct ContentView: View {
     }
 
     private var groupedConversations: [(key: String, value: [ConversationEntity])] {
-        let filtered = filteredConversations
-        let grouped = Dictionary(grouping: filtered) { conv in
-            relativeDateString(for: conv.updatedAt)
-        }
-        
-        let order = ["Today", "Yesterday", "Previous 7 Days", "Older"]
-        return order.compactMap { key in
-            guard let values = grouped[key] else { return nil }
-            return (key: key, value: values.sorted { $0.updatedAt > $1.updatedAt })
-        }
-    }
-
-    private func relativeDateString(for date: Date) -> String {
-        let calendar = Calendar.current
-        if calendar.isDateInToday(date) { return "Today" }
-        if calendar.isDateInYesterday(date) { return "Yesterday" }
-        if let weekAgo = calendar.date(byAdding: .day, value: -7, to: Date()), date > weekAgo {
-            return "Previous 7 Days"
-        }
-        return "Older"
+        ConversationGrouping.groupedConversations(filteredConversations)
     }
 
     private func deleteConversations(at offsets: IndexSet, in sourceList: [ConversationEntity]) {
@@ -537,6 +518,10 @@ struct ContentView: View {
         conversationPendingRename = conversation
         renameConversationDraftTitle = conversation.title
         showingRenameConversationAlert = true
+    }
+
+    private func toggleConversationStar(_ conversation: ConversationEntity) {
+        conversation.isStarred = !(conversation.isStarred == true)
     }
 
     private func applyManualConversationRename() {
@@ -923,15 +908,25 @@ struct ContentView: View {
 
 private struct ConversationRowView: View {
     let title: String
+    let isStarred: Bool
     let subtitle: String
     let updatedAt: Date
     let isStreaming: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: JinSpacing.small) {
-            Text(title)
-                .font(.headline)
-                .lineLimit(1)
+            HStack(spacing: 8) {
+                Text(title)
+                    .lineLimit(1)
+                Spacer(minLength: 0)
+                if isStarred {
+                    Image(systemName: "star.fill")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(Color.orange)
+                        .help("Starred")
+                }
+            }
+            .font(.headline)
             HStack {
                 Text(subtitle)
                     .lineLimit(1)
@@ -1091,15 +1086,23 @@ private extension ContentView {
                 Section(period) {
                     ForEach(convs) { conversation in
                         let isRegeneratingTitle = regeneratingConversationID == conversation.id
+                        let isStarred = conversation.isStarred == true
                         NavigationLink(value: conversation) {
                             ConversationRowView(
                                 title: conversation.title,
+                                isStarred: isStarred,
                                 subtitle: "\(providerName(for: conversation.providerID)) • \(conversation.modelID)",
                                 updatedAt: conversation.updatedAt,
                                 isStreaming: streamingStore.isStreaming(conversationID: conversation.id)
                             )
                         }
                         .contextMenu {
+                            Button {
+                                toggleConversationStar(conversation)
+                            } label: {
+                                Label(isStarred ? "Unstar Chat" : "Star Chat", systemImage: isStarred ? "star.slash" : "star")
+                            }
+
                             Button {
                                 requestRenameConversation(conversation)
                             } label: {

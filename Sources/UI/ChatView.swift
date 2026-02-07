@@ -504,6 +504,15 @@ struct ChatView: View {
             ToolbarItemGroup {
                 modelPickerButton
 
+                let isStarred = conversationEntity.isStarred == true
+                Button {
+                    conversationEntity.isStarred = !isStarred
+                } label: {
+                    Image(systemName: isStarred ? "star.fill" : "star")
+                        .foregroundStyle(isStarred ? Color.orange : Color.primary)
+                }
+                .help(isStarred ? "Unstar chat" : "Star chat")
+
                 Button {
                     isAssistantInspectorPresented = true
                 } label: {

@@ -60,6 +60,7 @@ final class AssistantEntity {
 final class ConversationEntity {
     @Attribute(.unique) var id: UUID
     var title: String
+    var isStarred: Bool?
     var createdAt: Date
     var updatedAt: Date
     var systemPrompt: String?
@@ -75,6 +76,7 @@ final class ConversationEntity {
     init(
         id: UUID = UUID(),
         title: String,
+        isStarred: Bool = false,
         createdAt: Date = Date(),
         updatedAt: Date = Date(),
         systemPrompt: String? = nil,
@@ -85,6 +87,7 @@ final class ConversationEntity {
     ) {
         self.id = id
         self.title = title
+        self.isStarred = isStarred
         self.createdAt = createdAt
         self.updatedAt = updatedAt
         self.systemPrompt = systemPrompt
