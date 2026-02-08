@@ -224,6 +224,7 @@ final class ProviderConfigEntity {
     @Attribute(.unique) var id: String
     var name: String
     var typeRaw: String // ProviderType.rawValue
+    var iconID: String?
     var apiKey: String?
     var serviceAccountJSON: String?
     // Legacy: no longer used (credentials are stored directly on this entity).
@@ -235,6 +236,7 @@ final class ProviderConfigEntity {
         id: String,
         name: String,
         typeRaw: String,
+        iconID: String? = nil,
         apiKey: String? = nil,
         serviceAccountJSON: String? = nil,
         apiKeyKeychainID: String? = nil,
@@ -244,6 +246,7 @@ final class ProviderConfigEntity {
         self.id = id
         self.name = name
         self.typeRaw = typeRaw
+        self.iconID = iconID
         self.apiKey = apiKey
         self.serviceAccountJSON = serviceAccountJSON
         self.apiKeyKeychainID = apiKeyKeychainID
@@ -264,6 +267,7 @@ final class ProviderConfigEntity {
             id: id,
             name: name,
             type: providerType,
+            iconID: iconID,
             apiKey: apiKey,
             serviceAccountJSON: serviceAccountJSON,
             baseURL: baseURL,
@@ -280,6 +284,7 @@ final class ProviderConfigEntity {
             id: config.id,
             name: config.name,
             typeRaw: config.type.rawValue,
+            iconID: config.iconID,
             apiKey: config.apiKey,
             serviceAccountJSON: config.serviceAccountJSON,
             apiKeyKeychainID: nil,

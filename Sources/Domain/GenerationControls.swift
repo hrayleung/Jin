@@ -291,6 +291,7 @@ struct ProviderConfig: Identifiable, Codable {
     let id: String
     let name: String
     let type: ProviderType
+    var iconID: String?
     var apiKey: String?
     var serviceAccountJSON: String?
     var baseURL: String?
@@ -300,6 +301,7 @@ struct ProviderConfig: Identifiable, Codable {
         id: String,
         name: String,
         type: ProviderType,
+        iconID: String? = nil,
         apiKey: String? = nil,
         serviceAccountJSON: String? = nil,
         baseURL: String? = nil,
@@ -308,6 +310,7 @@ struct ProviderConfig: Identifiable, Codable {
         self.id = id
         self.name = name
         self.type = type
+        self.iconID = iconID
         self.apiKey = apiKey
         self.serviceAccountJSON = serviceAccountJSON
         self.baseURL = baseURL

@@ -329,9 +329,7 @@ struct SettingsView: View {
         List(filteredProviders, selection: $selectedProviderID) { provider in
             NavigationLink(value: provider.id) {
                 HStack(spacing: JinSpacing.small + 2) {
-                    Image(systemName: "network")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundColor(.secondary)
+                    ProviderIconView(iconID: provider.resolvedProviderIconID, fallbackSystemName: "network", size: 14)
                         .frame(width: 20, height: 20)
                         .jinSurface(.subtle, cornerRadius: JinRadius.small)
 
@@ -702,6 +700,7 @@ struct AddProviderView: View {
 
     @State private var name = ""
     @State private var providerType: ProviderType = .openai
+    @State private var iconID: String? = LobeProviderIconCatalog.defaultIconID(for: .openai)
     @State private var baseURL = ProviderType.openai.defaultBaseURL ?? ""
     @State private var apiKey = ""
     @State private var serviceAccountJSON = ""
@@ -713,7 +712,12 @@ struct AddProviderView: View {
         NavigationStack {
             Form {
                 TextField("Name", text: $name)
-                
+
+                ProviderIconPickerField(
+                    selectedIconID: $iconID,
+                    defaultIconID: LobeProviderIconCatalog.defaultIconID(for: providerType)
+                )
+
                 Picker("Type", selection: $providerType) {
                     ForEach(ProviderType.allCases, id: \.self) { type in
                         Text(type.displayName).tag(type)
@@ -723,6 +727,12 @@ struct AddProviderView: View {
                     let trimmed = baseURL.trimmingCharacters(in: .whitespacesAndNewlines)
                     if trimmed.isEmpty || trimmed == oldValue.defaultBaseURL {
                         baseURL = newValue.defaultBaseURL ?? ""
+                    }
+
+                    let oldDefaultIconID = LobeProviderIconCatalog.defaultIconID(for: oldValue)
+                    let currentIconID = iconID?.trimmingCharacters(in: .whitespacesAndNewlines)
+                    if currentIconID == nil || currentIconID?.isEmpty == true || currentIconID == oldDefaultIconID {
+                        iconID = LobeProviderIconCatalog.defaultIconID(for: newValue)
                     }
                 }
 
@@ -788,6 +798,7 @@ struct AddProviderView: View {
                 let trimmedBaseURL = baseURL.trimmingCharacters(in: .whitespacesAndNewlines)
                 let trimmedAPIKey = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
                 let trimmedServiceAccountJSON = serviceAccountJSON.trimmingCharacters(in: .whitespacesAndNewlines)
+                let trimmedIconID = iconID?.trimmingCharacters(in: .whitespacesAndNewlines)
 
                 if providerType == .vertexai {
                     _ = try JSONDecoder().decode(ServiceAccountCredentials.self, from: Data(trimmedServiceAccountJSON.utf8))
@@ -797,6 +808,7 @@ struct AddProviderView: View {
                     id: providerID,
                     name: trimmedName,
                     type: providerType,
+                    iconID: trimmedIconID?.isEmpty == false ? trimmedIconID : nil,
                     apiKey: providerType == .vertexai ? nil : trimmedAPIKey,
                     serviceAccountJSON: providerType == .vertexai ? trimmedServiceAccountJSON : nil,
                     baseURL: providerType == .vertexai ? nil : trimmedBaseURL.isEmpty ? nil : trimmedBaseURL

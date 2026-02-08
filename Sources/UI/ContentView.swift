@@ -503,6 +503,10 @@ struct ContentView: View {
         providers.first(where: { $0.id == providerID })?.name ?? providerID
     }
 
+    private func providerIconID(for providerID: String) -> String? {
+        providers.first(where: { $0.id == providerID })?.resolvedProviderIconID
+    }
+
     private func selectAssistant(_ assistant: AssistantEntity) {
         withAnimation(.easeInOut(duration: 0.15)) {
             selectedAssistant = assistant
@@ -707,6 +711,13 @@ struct ContentView: View {
 
         let existingIDs = Set(providers.map(\.id))
 
+        for provider in providers {
+            let current = provider.iconID?.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard current == nil || current?.isEmpty == true else { continue }
+            guard let providerType = ProviderType(rawValue: provider.typeRaw) else { continue }
+            provider.iconID = LobeProviderIconCatalog.defaultIconID(for: providerType)
+        }
+
         let openAIModels: [ModelInfo] = [
             ModelInfo(
                 id: "gpt-5.2",
@@ -877,6 +888,7 @@ struct ContentView: View {
                 id: "openai",
                 name: "OpenAI",
                 type: .openai,
+                iconID: LobeProviderIconCatalog.defaultIconID(for: .openai),
                 baseURL: ProviderType.openai.defaultBaseURL,
                 models: openAIModels
             ),
@@ -884,6 +896,7 @@ struct ContentView: View {
                 id: "openrouter",
                 name: "OpenRouter",
                 type: .openrouter,
+                iconID: LobeProviderIconCatalog.defaultIconID(for: .openrouter),
                 baseURL: ProviderType.openrouter.defaultBaseURL,
                 models: []
             ),
@@ -891,6 +904,7 @@ struct ContentView: View {
                 id: "anthropic",
                 name: "Anthropic",
                 type: .anthropic,
+                iconID: LobeProviderIconCatalog.defaultIconID(for: .anthropic),
                 baseURL: ProviderType.anthropic.defaultBaseURL,
                 models: anthropicModels
             ),
@@ -898,6 +912,7 @@ struct ContentView: View {
                 id: "xai",
                 name: "xAI",
                 type: .xai,
+                iconID: LobeProviderIconCatalog.defaultIconID(for: .xai),
                 baseURL: ProviderType.xai.defaultBaseURL,
                 models: xAIModels
             ),
@@ -905,6 +920,7 @@ struct ContentView: View {
                 id: "deepseek",
                 name: "DeepSeek",
                 type: .deepseek,
+                iconID: LobeProviderIconCatalog.defaultIconID(for: .deepseek),
                 baseURL: ProviderType.deepseek.defaultBaseURL,
                 models: deepSeekModels
             ),
@@ -912,6 +928,7 @@ struct ContentView: View {
                 id: "gemini",
                 name: "Gemini (AI Studio)",
                 type: .gemini,
+                iconID: LobeProviderIconCatalog.defaultIconID(for: .gemini),
                 baseURL: ProviderType.gemini.defaultBaseURL,
                 models: geminiModels
             ),
@@ -919,6 +936,7 @@ struct ContentView: View {
                 id: "vertexai",
                 name: "Vertex AI",
                 type: .vertexai,
+                iconID: LobeProviderIconCatalog.defaultIconID(for: .vertexai),
                 models: vertexModels
             )
         ]
@@ -970,6 +988,7 @@ private struct ConversationRowView: View {
     let title: String
     let isStarred: Bool
     let subtitle: String
+    let providerIconID: String?
     let updatedAt: Date
     let isStreaming: Bool
 
@@ -988,8 +1007,12 @@ private struct ConversationRowView: View {
             }
             .font(.headline)
             HStack {
-                Text(subtitle)
-                    .lineLimit(1)
+                HStack(spacing: 4) {
+                    ProviderIconView(iconID: providerIconID, fallbackSystemName: "network", size: 10)
+                        .frame(width: 10, height: 10)
+                    Text(subtitle)
+                        .lineLimit(1)
+                }
                 Spacer()
                 if isStreaming {
                     ProgressView()
@@ -1152,6 +1175,7 @@ private extension ContentView {
                                 title: conversation.title,
                                 isStarred: isStarred,
                                 subtitle: "\(providerName(for: conversation.providerID)) • \(conversation.modelID)",
+                                providerIconID: providerIconID(for: conversation.providerID),
                                 updatedAt: conversation.updatedAt,
                                 isStreaming: streamingStore.isStreaming(conversationID: conversation.id)
                             )

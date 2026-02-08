@@ -335,7 +335,7 @@ struct ChatView: View {
                     ScrollView {
                         let bubbleMaxWidth = maxBubbleWidth(for: geometry.size.width)
                         let assistantDisplayName = conversationEntity.assistant?.displayName ?? "Assistant"
-                        let assistantIcon = conversationEntity.assistant?.icon
+                        let providerIconID = currentProviderIconID
                         let toolResultsByCallID = cachedToolResultsByCallID
                         let messageEntitiesByID = cachedMessageEntitiesByID
 
@@ -362,7 +362,7 @@ struct ChatView: View {
                                     item: message,
                                     maxBubbleWidth: bubbleMaxWidth,
                                     assistantDisplayName: assistantDisplayName,
-                                    assistantIcon: assistantIcon,
+                                    providerIconID: providerIconID,
                                     toolResultsByCallID: toolResultsByCallID,
                                     actionsEnabled: !isStreaming,
                                     textToSpeechEnabled: textToSpeechPluginEnabled,
@@ -407,7 +407,7 @@ struct ChatView: View {
                                     maxBubbleWidth: bubbleMaxWidth,
                                     assistantDisplayName: assistantDisplayName,
                                     modelLabel: streamingModelLabel,
-                                    assistantIcon: assistantIcon,
+                                    providerIconID: providerIconID,
                                     onContentUpdate: {
                                         throttledScrollToBottom(proxy: proxy)
                                     }
@@ -1876,7 +1876,10 @@ struct ChatView: View {
     }
 
     private var modelPickerButton: some View {
-        HStack(spacing: 4) {
+        HStack(spacing: 6) {
+            ProviderIconView(iconID: currentProviderIconID, size: 14)
+                .frame(width: 16, height: 16)
+
             Text(currentModelName)
                 .font(.callout)
                 .fontWeight(.medium)
@@ -1910,11 +1913,16 @@ struct ChatView: View {
         availableModels.first(where: { $0.id == conversationEntity.modelID })?.name ?? conversationEntity.modelID
     }
 
+    private var currentProvider: ProviderConfigEntity? {
+        providers.first(where: { $0.id == conversationEntity.providerID })
+    }
+
+    private var currentProviderIconID: String? {
+        currentProvider?.resolvedProviderIconID
+    }
+
     private var availableModels: [ModelInfo] {
-        guard let provider = providers.first(where: { $0.id == conversationEntity.providerID }) else {
-            return []
-        }
-        return provider.enabledModels
+        currentProvider?.enabledModels ?? []
     }
 
     private func isFullySupportedModel(modelID: String) -> Bool {
@@ -4617,7 +4625,7 @@ struct MessageRow: View {
     let item: MessageRenderItem
     let maxBubbleWidth: CGFloat
     let assistantDisplayName: String
-    let assistantIcon: String?
+    let providerIconID: String?
     let toolResultsByCallID: [String: ToolResult]
     let actionsEnabled: Bool
     let textToSpeechEnabled: Bool
@@ -4717,7 +4725,7 @@ struct MessageRow: View {
     private func headerView(isUser: Bool, isTool: Bool, assistantModelLabel: String?) -> some View {
         HStack(spacing: JinSpacing.small - 2) {
             if !isUser && !isTool {
-                AssistantBadgeIcon(icon: assistantIcon)
+                ProviderBadgeIcon(iconID: providerIconID)
             }
 
             Text(isUser ? "You" : (isTool ? "Tool Output" : assistantDisplayName))
@@ -4898,26 +4906,12 @@ struct MessageRow: View {
     }
 }
 
-private struct AssistantBadgeIcon: View {
-    let icon: String?
+private struct ProviderBadgeIcon: View {
+    let iconID: String?
 
     var body: some View {
-        Group {
-            let trimmed = (icon ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-            if trimmed.isEmpty {
-                Image(systemName: "sparkles")
-                    .font(.caption2)
-                    .foregroundStyle(Color.accentColor)
-            } else if trimmed.count <= 2 {
-                Text(trimmed)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            } else {
-                Image(systemName: trimmed)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-            }
-        }
+        ProviderIconView(iconID: iconID, fallbackSystemName: "network", size: 14)
+            .frame(width: 14, height: 14)
     }
 }
 
@@ -5387,7 +5381,7 @@ struct StreamingMessageView: View {
     let maxBubbleWidth: CGFloat
     let assistantDisplayName: String
     let modelLabel: String?
-    let assistantIcon: String?
+    let providerIconID: String?
     let onContentUpdate: () -> Void
 
     var body: some View {
@@ -5397,7 +5391,7 @@ struct StreamingMessageView: View {
             ConstrainedWidth(maxBubbleWidth) {
                 VStack(alignment: .leading, spacing: JinSpacing.small - 2) {
                     HStack(spacing: JinSpacing.small - 2) {
-                        AssistantBadgeIcon(icon: assistantIcon)
+                        ProviderBadgeIcon(iconID: providerIconID)
                         Text(assistantDisplayName)
                             .font(.caption)
                             .fontWeight(.semibold)

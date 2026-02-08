@@ -169,11 +169,8 @@ private struct ProviderSectionHeader: View {
 
     var body: some View {
         HStack(spacing: 6) {
-            if let providerType = ProviderType(rawValue: provider.typeRaw) {
-                Image(systemName: iconName(for: providerType))
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-            }
+            ProviderIconView(iconID: provider.resolvedProviderIconID, fallbackSystemName: "network", size: 12)
+                .frame(width: 12, height: 12)
 
             Text(provider.name)
                 .font(.caption)
@@ -185,31 +182,6 @@ private struct ProviderSectionHeader: View {
         .textCase(nil)
         .padding(.top, 6)
         .padding(.bottom, 2)
-    }
-
-    private func iconName(for type: ProviderType) -> String {
-        switch type {
-        case .openai:
-            return "sparkles"
-        case .openaiCompatible:
-            return "point.3.filled.connected.trianglepath.dotted"
-        case .openrouter:
-            return "point.3.connected.trianglepath.dotted"
-        case .anthropic:
-            return "person.crop.circle"
-        case .xai:
-            return "bolt"
-        case .deepseek:
-            return "aqi.medium"
-        case .fireworks:
-            return "flame"
-        case .cerebras:
-            return "cpu"
-        case .gemini:
-            return "g.circle"
-        case .vertexai:
-            return "cloud"
-        }
     }
 }
 

@@ -27,6 +27,17 @@ struct ProviderConfigFormView: View {
             Section("Configuration") {
                 TextField("Name", text: $provider.name)
 
+                ProviderIconPickerField(
+                    selectedIconID: Binding(
+                        get: { provider.iconID },
+                        set: { newValue in
+                            let trimmed = newValue?.trimmingCharacters(in: .whitespacesAndNewlines)
+                            provider.iconID = trimmed?.isEmpty == false ? trimmed : nil
+                        }
+                    ),
+                    defaultIconID: providerType.map { LobeProviderIconCatalog.defaultIconID(for: $0) }
+                )
+
                 if let providerType, let defaultBaseURL = providerType.defaultBaseURL {
                     HStack {
                         TextField("Base URL", text: baseURLBinding(defaultBaseURL: defaultBaseURL))
