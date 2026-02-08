@@ -97,7 +97,10 @@ struct ContentView: View {
                     onRequestDeleteConversation: {
                         requestDeleteConversation(conversation)
                     },
-                    isAssistantInspectorPresented: $isAssistantInspectorPresented
+                    isAssistantInspectorPresented: $isAssistantInspectorPresented,
+                    onPersistConversationIfNeeded: {
+                        persistConversationIfNeeded(conversation)
+                    }
                 )
                     .id(conversation.id) // Ensure view rebuilds when switching
                     .background(JinSemanticColor.detailSurface)
@@ -228,7 +231,7 @@ struct ContentView: View {
                 $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending
             }
         case .recent:
-            let lastConversationByAssistantID = Dictionary(grouping: conversations) { conversation in
+            let lastConversationByAssistantID = Dictionary(grouping: conversations.filter { !$0.messages.isEmpty }) { conversation in
                 conversation.assistant?.id ?? "default"
             }
             .mapValues { conversations in
@@ -300,15 +303,66 @@ struct ContentView: View {
         }
     }
 
+    private func isPersistedConversation(_ conversation: ConversationEntity) -> Bool {
+        conversation.modelContext != nil
+    }
+
+    @discardableResult
+    private func discardSelectedEmptyConversationIfNeeded() -> UUID? {
+        guard let conversation = selectedConversation, conversation.messages.isEmpty else {
+            return nil
+        }
+
+        let conversationID = conversation.id
+        streamingStore.cancel(conversationID: conversationID)
+        streamingStore.endSession(conversationID: conversationID)
+
+        if isPersistedConversation(conversation) {
+            modelContext.delete(conversation)
+        }
+
+        if conversationPendingDeletion == conversation {
+            conversationPendingDeletion = nil
+            showingDeleteConversationConfirmation = false
+        }
+
+        if conversationPendingRename == conversation {
+            conversationPendingRename = nil
+            showingRenameConversationAlert = false
+            renameConversationDraftTitle = ""
+        }
+
+        if regeneratingConversationID == conversationID {
+            regeneratingConversationID = nil
+        }
+
+        selectedConversation = nil
+        return conversationID
+    }
+
+    private func persistConversationIfNeeded(_ conversation: ConversationEntity) {
+        guard !isPersistedConversation(conversation) else { return }
+        modelContext.insert(conversation)
+    }
+
     private func createNewConversation() {
         bootstrapDefaultProvidersIfNeeded()
         bootstrapDefaultAssistantsIfNeeded()
+
+        let discardedConversationID = discardSelectedEmptyConversationIfNeeded()
 
         guard let assistant = selectedAssistant ?? assistants.first(where: { $0.id == "default" }) ?? assistants.first else {
             return
         }
 
-        let lastConversation = selectedConversation ?? conversations.first
+        let lastConversation: ConversationEntity?
+        if let selectedConversation, selectedConversation.id != discardedConversationID {
+            lastConversation = selectedConversation
+        } else {
+            lastConversation = conversations.first { conversation in
+                conversation.id != discardedConversationID && !conversation.messages.isEmpty
+            }
+        }
 
         var providerID: String
         var modelID: String
@@ -379,7 +433,6 @@ struct ContentView: View {
             assistant: assistant
         )
 
-        modelContext.insert(conversation)
         selectedConversation = conversation
     }
 
@@ -431,6 +484,7 @@ struct ContentView: View {
     private var filteredConversations: [ConversationEntity] {
         let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
         let assistantFiltered = conversations.filter { conversation in
+            guard !conversation.messages.isEmpty else { return false }
             guard let selectedAssistant else { return true }
             return conversation.assistant?.id == selectedAssistant.id
         }
@@ -529,7 +583,6 @@ struct ContentView: View {
         guard !trimmed.isEmpty else { return }
 
         conversation.title = trimmed
-        conversation.updatedAt = Date()
         conversationPendingRename = nil
         showingRenameConversationAlert = false
     }
@@ -537,7 +590,9 @@ struct ContentView: View {
     private func deleteConversation(_ conversation: ConversationEntity) {
         streamingStore.cancel(conversationID: conversation.id)
         streamingStore.endSession(conversationID: conversation.id)
-        modelContext.delete(conversation)
+        if isPersistedConversation(conversation) {
+            modelContext.delete(conversation)
+        }
         if selectedConversation == conversation {
             selectedConversation = nil
         }
@@ -619,7 +674,6 @@ struct ContentView: View {
             }
 
             conversation.title = normalized
-            conversation.updatedAt = Date()
         } catch {
             titleRegenerationErrorMessage = error.localizedDescription
             showingTitleRegenerationError = true

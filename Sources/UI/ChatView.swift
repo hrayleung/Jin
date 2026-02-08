@@ -11,6 +11,7 @@ struct ChatView: View {
     @Bindable var conversationEntity: ConversationEntity
     let onRequestDeleteConversation: () -> Void
     @Binding var isAssistantInspectorPresented: Bool
+    var onPersistConversationIfNeeded: () -> Void = {}
     @Query private var providers: [ProviderConfigEntity]
     @Query private var mcpServers: [MCPServerConfigEntity]
 
@@ -1925,7 +1926,6 @@ struct ChatView: View {
         guard providerID != conversationEntity.providerID else { return }
 
         conversationEntity.providerID = providerID
-        conversationEntity.updatedAt = Date()
 
         let models = availableModels
         if let preferredModelID = preferredModelID(in: models, providerID: providerID) {
@@ -1940,7 +1940,6 @@ struct ChatView: View {
     private func setModel(_ modelID: String) {
         guard modelID != conversationEntity.modelID else { return }
         conversationEntity.modelID = modelID
-        conversationEntity.updatedAt = Date()
         normalizeControlsForCurrentSelection()
     }
 
@@ -1949,7 +1948,6 @@ struct ChatView: View {
 
         conversationEntity.providerID = providerID
         conversationEntity.modelID = modelID
-        conversationEntity.updatedAt = Date()
         normalizeControlsForCurrentSelection()
     }
 
@@ -2154,7 +2152,10 @@ struct ChatView: View {
 
     private func regenerateFromUserMessage(_ messageEntity: MessageEntity) {
         guard let keepCount = keepCountForRegeneratingUserMessage(messageEntity) else { return }
+        let askedAt = Date()
         truncateConversation(keepingMessages: keepCount)
+        messageEntity.timestamp = askedAt
+        conversationEntity.updatedAt = askedAt
         startStreamingResponse(triggeredByUserSend: false)
     }
 
@@ -2191,10 +2192,19 @@ struct ChatView: View {
         }
 
         conversationEntity.messages.removeAll { !keepIDs.contains($0.id) }
-        conversationEntity.updatedAt = Date()
+        refreshConversationActivityTimestampFromLatestUserMessage()
         pendingRestoreScrollMessageID = nil
         isPinnedToBottom = true
         rebuildMessageCaches()
+    }
+
+    private func refreshConversationActivityTimestampFromLatestUserMessage() {
+        let latestUserTimestamp = conversationEntity.messages
+            .filter { $0.role == MessageRole.user.rawValue }
+            .map(\.timestamp)
+            .max()
+
+        conversationEntity.updatedAt = latestUserTimestamp ?? conversationEntity.createdAt
     }
 
     private func editableUserText(from message: Message) -> String? {
@@ -2254,7 +2264,6 @@ struct ChatView: View {
         }
 
         entity.contentData = try encoder.encode(newContent)
-        conversationEntity.updatedAt = Date()
     }
 
     private func toolResultsByToolCallID(in messageEntities: [MessageEntity]) -> [String: ToolResult] {
@@ -2319,6 +2328,7 @@ struct ChatView: View {
 
         let messageTextSnapshot = trimmedMessageText
         let attachmentsSnapshot = draftAttachments
+        let askedAt = Date()
 
         messageText = ""
         draftAttachments = []
@@ -2333,10 +2343,14 @@ struct ChatView: View {
                     attachments: attachmentsSnapshot
                 )
 
-                let message = Message(role: .user, content: parts)
+                let message = Message(role: .user, content: parts, timestamp: askedAt)
                 let messageEntity = try MessageEntity.fromDomain(message)
 
                 await MainActor.run {
+                    if conversationEntity.messages.isEmpty {
+                        onPersistConversationIfNeeded()
+                    }
+
                     messageEntity.conversation = conversationEntity
                     conversationEntity.messages.append(messageEntity)
                     if conversationEntity.title == "New Chat", !isChatNamingPluginEnabled {
@@ -2346,7 +2360,7 @@ struct ChatView: View {
                             conversationEntity.title = makeConversationTitle(from: (firstAttachment.filename as NSString).deletingPathExtension)
                         }
                     }
-                    conversationEntity.updatedAt = Date()
+                    conversationEntity.updatedAt = askedAt
                 }
 
                 await MainActor.run {
@@ -3061,7 +3075,6 @@ struct ChatView: View {
                                 entity.generatedModelName = modelNameSnapshot
                                 entity.conversation = conversationEntity
                                 conversationEntity.messages.append(entity)
-                                conversationEntity.updatedAt = Date()
                             } catch {
                                 errorMessage = error.localizedDescription
                                 showingError = true
@@ -3146,7 +3159,6 @@ struct ChatView: View {
                             let entity = try MessageEntity.fromDomain(toolMessage)
                             entity.conversation = conversationEntity
                             conversationEntity.messages.append(entity)
-                            conversationEntity.updatedAt = Date()
                         } catch {
                             errorMessage = error.localizedDescription
                             showingError = true
@@ -3228,12 +3240,10 @@ struct ChatView: View {
             let normalized = ConversationTitleGenerator.normalizeTitle(title, maxCharacters: 20)
             guard !normalized.isEmpty else { return }
             conversationEntity.title = normalized
-            conversationEntity.updatedAt = Date()
         } catch {
             if chatNamingMode == .firstRoundFixed {
                 if conversationEntity.title == "New Chat" {
                     conversationEntity.title = fallbackTitleFromMessage(latestUser)
-                    conversationEntity.updatedAt = Date()
                 }
             }
         }
@@ -4102,7 +4112,6 @@ struct ChatView: View {
     private func persistControlsToConversation() {
         do {
             conversationEntity.modelConfigData = try JSONEncoder().encode(controls)
-            conversationEntity.updatedAt = Date()
         } catch {
             errorMessage = error.localizedDescription
             showingError = true
