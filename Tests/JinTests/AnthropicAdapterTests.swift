@@ -3,6 +3,86 @@ import XCTest
 @testable import Jin
 
 final class AnthropicAdapterTests: XCTestCase {
+    func testAnthropicAdapterDefaultsMaxTokensToClaude45ModelLimitWhenMissing() async throws {
+        let (session, protocolType) = makeMockedURLSession()
+        let networkManager = NetworkManager(urlSession: session)
+
+        let providerConfig = ProviderConfig(
+            id: "anthropic",
+            name: "Anthropic",
+            type: .anthropic,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        protocolType.requestHandler = { request in
+            let body = try XCTUnwrap(requestBodyData(request))
+            let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+            let root = try XCTUnwrap(json)
+
+            XCTAssertEqual(root["model"] as? String, "claude-sonnet-4-5-20250929")
+            XCTAssertEqual(root["max_tokens"] as? Int, 64000)
+
+            let response = Data("data: [DONE]\n\n".utf8)
+            return (
+                HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                response
+            )
+        }
+
+        let adapter = AnthropicAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hi")])],
+            modelID: "claude-sonnet-4-5-20250929",
+            controls: GenerationControls(reasoning: ReasoningControls(enabled: true, budgetTokens: 2048)),
+            tools: [],
+            streaming: true
+        )
+
+        for try await _ in stream {}
+    }
+
+    func testAnthropicAdapterCapsMaxTokensToClaude45ModelLimit() async throws {
+        let (session, protocolType) = makeMockedURLSession()
+        let networkManager = NetworkManager(urlSession: session)
+
+        let providerConfig = ProviderConfig(
+            id: "anthropic",
+            name: "Anthropic",
+            type: .anthropic,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        protocolType.requestHandler = { request in
+            let body = try XCTUnwrap(requestBodyData(request))
+            let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+            let root = try XCTUnwrap(json)
+
+            XCTAssertEqual(root["model"] as? String, "claude-haiku-4-5-20251001")
+            XCTAssertEqual(root["max_tokens"] as? Int, 64000)
+
+            let response = Data("data: [DONE]\n\n".utf8)
+            return (
+                HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                response
+            )
+        }
+
+        let adapter = AnthropicAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hi")])],
+            modelID: "claude-haiku-4-5-20251001",
+            controls: GenerationControls(maxTokens: 999_999),
+            tools: [],
+            streaming: true
+        )
+
+        for try await _ in stream {}
+    }
+
     func testAnthropicOpus46BuildsAdaptiveThinkingAndEffortRequest() async throws {
         let (session, protocolType) = makeMockedURLSession()
         let networkManager = NetworkManager(urlSession: session)
@@ -94,6 +174,56 @@ final class AnthropicAdapterTests: XCTestCase {
         for try await _ in stream {}
     }
 
+    func testAnthropicOpus45BuildsBudgetThinkingWithoutEffortOutputConfig() async throws {
+        let (session, protocolType) = makeMockedURLSession()
+        let networkManager = NetworkManager(urlSession: session)
+
+        let providerConfig = ProviderConfig(
+            id: "anthropic",
+            name: "Anthropic",
+            type: .anthropic,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        protocolType.requestHandler = { request in
+            let body = try XCTUnwrap(requestBodyData(request))
+            let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+            let root = try XCTUnwrap(json)
+
+            XCTAssertEqual(root["model"] as? String, "claude-opus-4-5-20251101")
+
+            let thinking = try XCTUnwrap(root["thinking"] as? [String: Any])
+            XCTAssertEqual(thinking["type"] as? String, "enabled")
+            XCTAssertEqual(thinking["budget_tokens"] as? Int, 4096)
+
+            let outputConfig = root["output_config"] as? [String: Any]
+            XCTAssertNil(outputConfig?["effort"])
+
+            let response = Data("data: [DONE]\n\n".utf8)
+            return (
+                HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                response
+            )
+        }
+
+        let adapter = AnthropicAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+
+        let controls = GenerationControls(
+            reasoning: ReasoningControls(enabled: true, budgetTokens: 4096)
+        )
+
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hi")])],
+            modelID: "claude-opus-4-5-20251101",
+            controls: controls,
+            tools: [],
+            streaming: true
+        )
+
+        for try await _ in stream {}
+    }
+
     func testAnthropicStreamingUsageParsingIncludesInputOutputAndCacheRead() async throws {
         let (session, protocolType) = makeMockedURLSession()
         let networkManager = NetworkManager(urlSession: session)
@@ -175,6 +305,24 @@ final class AnthropicAdapterTests: XCTestCase {
         XCTAssertEqual(usageWithValues.inputTokens, 120)
         XCTAssertEqual(usageWithValues.outputTokens, 25)
         XCTAssertEqual(usageWithValues.cachedTokens, 40)
+    }
+
+    func testAnthropicModelLimitsKnownClaude45AndOpus46() {
+        XCTAssertEqual(AnthropicModelLimits.maxOutputTokens(for: "claude-opus-4-6"), 128000)
+        XCTAssertEqual(AnthropicModelLimits.maxOutputTokens(for: "claude-opus-4-5-20251101"), 64000)
+        XCTAssertEqual(AnthropicModelLimits.maxOutputTokens(for: "claude-sonnet-4-5-20250929"), 64000)
+        XCTAssertEqual(AnthropicModelLimits.maxOutputTokens(for: "claude-haiku-4-5-20251001"), 64000)
+        XCTAssertNil(AnthropicModelLimits.maxOutputTokens(for: "claude-3-5-sonnet-20241022"))
+    }
+
+    func testAnthropicThinkingCapabilitiesSplitOpus46From45Series() {
+        XCTAssertTrue(AnthropicModelLimits.supportsAdaptiveThinking(for: "claude-opus-4-6"))
+        XCTAssertTrue(AnthropicModelLimits.supportsEffort(for: "claude-opus-4-6"))
+        XCTAssertTrue(AnthropicModelLimits.supportsMaxEffort(for: "claude-opus-4-6"))
+
+        XCTAssertFalse(AnthropicModelLimits.supportsAdaptiveThinking(for: "claude-opus-4-5-20251101"))
+        XCTAssertFalse(AnthropicModelLimits.supportsEffort(for: "claude-opus-4-5-20251101"))
+        XCTAssertFalse(AnthropicModelLimits.supportsMaxEffort(for: "claude-opus-4-5-20251101"))
     }
 }
 

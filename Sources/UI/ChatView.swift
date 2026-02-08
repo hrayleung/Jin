@@ -572,23 +572,64 @@ struct ChatView: View {
             NavigationStack {
                 Form {
                     Section("Claude thinking") {
-                        Text("Use token budgets to control extended thinking and tool interleaving.")
-                            .foregroundStyle(.secondary)
+                        Text(anthropicThinkingSummaryText)
+                            .font(.body)
+                            .foregroundStyle(.primary)
+                            .fixedSize(horizontal: false, vertical: true)
 
-                        TextField("Thinking budget tokens", text: $thinkingBudgetDraft)
-                            .font(.system(.body, design: .monospaced))
-                            .textFieldStyle(.roundedBorder)
+                        if anthropicUsesEffortMode {
+                            LabeledContent("Thinking effort") {
+                                Picker("Thinking effort", selection: anthropicEffortBinding) {
+                                    Text("Low").tag(ReasoningEffort.low)
+                                    Text("Medium").tag(ReasoningEffort.medium)
+                                    Text("High").tag(ReasoningEffort.high)
+                                    if AnthropicModelLimits.supportsMaxEffort(for: conversationEntity.modelID) {
+                                        Text("Max").tag(ReasoningEffort.xhigh)
+                                    }
+                                }
+                                .labelsHidden()
+                                .pickerStyle(.menu)
+                                .frame(minWidth: 150, alignment: .trailing)
+                            }
 
-                        TextField("Max tokens (optional)", text: $maxTokensDraft)
-                            .font(.system(.body, design: .monospaced))
-                            .textFieldStyle(.roundedBorder)
+                            LabeledContent("Max output tokens") {
+                                thinkingTokenField(placeholder: anthropicMaxTokensPlaceholder, text: $maxTokensDraft)
+                            }
+                        } else {
+                            LabeledContent("Thinking budget") {
+                                thinkingTokenField(placeholder: anthropicBudgetPlaceholder, text: $thinkingBudgetDraft)
+                            }
+
+                            LabeledContent("Max output tokens") {
+                                thinkingTokenField(placeholder: anthropicMaxTokensPlaceholder, text: $maxTokensDraft)
+                            }
+                        }
 
                         if let warning = thinkingBudgetValidationWarning {
-                            Text(warning)
+                            Label(warning, systemImage: "exclamationmark.triangle.fill")
+                                .font(.caption)
+                                .foregroundStyle(.orange)
+                                .padding(.vertical, 2)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+
+                        if let modelMax = AnthropicModelLimits.maxOutputTokens(for: conversationEntity.modelID) {
+                            Text("Model max output tokens: \(modelMax.formatted())")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
+
+                        Text(anthropicThinkingFootnote)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
+                }
+                .formStyle(.grouped)
+                .scrollContentBackground(.hidden)
+                .background {
+                    JinSemanticColor.detailSurface
+                        .ignoresSafeArea()
                 }
                 .navigationTitle("Thinking")
                 .toolbar {
@@ -602,11 +643,11 @@ struct ChatView: View {
                             applyThinkingBudgetDraft()
                             showingThinkingBudgetSheet = false
                         }
-                        .disabled(thinkingBudgetDraftInt == nil)
+                        .disabled(!isThinkingBudgetDraftValid)
                     }
                 }
             }
-            .frame(width: 420)
+            .frame(minWidth: 640, idealWidth: 700)
         }
         .sheet(isPresented: $showingProviderSpecificParamsSheet) {
             NavigationStack {
@@ -3248,14 +3289,16 @@ struct ChatView: View {
         switch reasoningType {
         case .budget:
             guard let budgetTokens = controls.reasoning?.budgetTokens else { return "On" }
-            switch budgetTokens {
-            case 1024: return "Low"
-            case 2048: return "Medium"
-            case 4096: return "High"
-            case 8192: return "Extreme"
-            default: return "\(budgetTokens) tokens"
-            }
+            return "\(budgetTokens) tokens"
         case .effort:
+            if providerType == .anthropic {
+                if anthropicUsesEffortMode {
+                    let effort = controls.reasoning?.effort ?? selectedReasoningConfig?.defaultEffort ?? .high
+                    return effort == .xhigh ? "Max" : effort.displayName
+                }
+                let budgetTokens = controls.reasoning?.budgetTokens ?? selectedReasoningConfig?.defaultBudget ?? 2048
+                return "\(budgetTokens) tokens"
+            }
             return controls.reasoning?.effort?.displayName ?? "On"
         case .toggle:
             return "On"
@@ -3280,65 +3323,63 @@ struct ChatView: View {
                 }
 
             case .effort:
-                switch providerType {
-                case .vertexai:
-                    Button { setReasoningEffort(.minimal) } label: { menuItemLabel("Minimal", isSelected: isReasoningEnabled && controls.reasoning?.effort == .minimal) }
-                    Button { setReasoningEffort(.low) } label: { menuItemLabel("Low", isSelected: isReasoningEnabled && controls.reasoning?.effort == .low) }
-                    Button { setReasoningEffort(.medium) } label: { menuItemLabel("Medium", isSelected: isReasoningEnabled && controls.reasoning?.effort == .medium) }
-                    Button { setReasoningEffort(.high) } label: { menuItemLabel("High", isSelected: isReasoningEnabled && controls.reasoning?.effort == .high) }
-
-                case .gemini:
-                    if conversationEntity.modelID.lowercased().contains("gemini-3-pro") {
-                        Button { setReasoningEffort(.low) } label: { menuItemLabel("Low", isSelected: isReasoningEnabled && controls.reasoning?.effort == .low) }
-                        Button { setReasoningEffort(.high) } label: { menuItemLabel("High", isSelected: isReasoningEnabled && controls.reasoning?.effort == .high) }
-                    } else {
+                if providerType == .anthropic {
+                    Button { openThinkingBudgetEditor() } label: {
+                        menuItemLabel("Configure thinking…", isSelected: isReasoningEnabled)
+                    }
+                } else {
+                    switch providerType {
+                    case .vertexai:
                         Button { setReasoningEffort(.minimal) } label: { menuItemLabel("Minimal", isSelected: isReasoningEnabled && controls.reasoning?.effort == .minimal) }
                         Button { setReasoningEffort(.low) } label: { menuItemLabel("Low", isSelected: isReasoningEnabled && controls.reasoning?.effort == .low) }
                         Button { setReasoningEffort(.medium) } label: { menuItemLabel("Medium", isSelected: isReasoningEnabled && controls.reasoning?.effort == .medium) }
                         Button { setReasoningEffort(.high) } label: { menuItemLabel("High", isSelected: isReasoningEnabled && controls.reasoning?.effort == .high) }
-                    }
 
-                case .openai:
-                    Button { setReasoningEffort(.low) } label: { menuItemLabel("Low", isSelected: isReasoningEnabled && controls.reasoning?.effort == .low) }
-                    Button { setReasoningEffort(.medium) } label: { menuItemLabel("Medium", isSelected: isReasoningEnabled && controls.reasoning?.effort == .medium) }
-                    Button { setReasoningEffort(.high) } label: { menuItemLabel("High", isSelected: isReasoningEnabled && controls.reasoning?.effort == .high) }
-                    if isOpenAIGPT52SeriesModel {
-                        Button { setReasoningEffort(.xhigh) } label: { menuItemLabel("Extreme", isSelected: isReasoningEnabled && controls.reasoning?.effort == .xhigh) }
-                    }
-
-                    Divider()
-                    Text("Reasoning summary")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-
-                    ForEach(ReasoningSummary.allCases, id: \.self) { summary in
-                        Button {
-                            setReasoningSummary(summary)
-                        } label: {
-                            menuItemLabel(summary.displayName, isSelected: (controls.reasoning?.summary ?? .auto) == summary)
+                    case .gemini:
+                        if conversationEntity.modelID.lowercased().contains("gemini-3-pro") {
+                            Button { setReasoningEffort(.low) } label: { menuItemLabel("Low", isSelected: isReasoningEnabled && controls.reasoning?.effort == .low) }
+                            Button { setReasoningEffort(.high) } label: { menuItemLabel("High", isSelected: isReasoningEnabled && controls.reasoning?.effort == .high) }
+                        } else {
+                            Button { setReasoningEffort(.minimal) } label: { menuItemLabel("Minimal", isSelected: isReasoningEnabled && controls.reasoning?.effort == .minimal) }
+                            Button { setReasoningEffort(.low) } label: { menuItemLabel("Low", isSelected: isReasoningEnabled && controls.reasoning?.effort == .low) }
+                            Button { setReasoningEffort(.medium) } label: { menuItemLabel("Medium", isSelected: isReasoningEnabled && controls.reasoning?.effort == .medium) }
+                            Button { setReasoningEffort(.high) } label: { menuItemLabel("High", isSelected: isReasoningEnabled && controls.reasoning?.effort == .high) }
                         }
+
+                    case .openai:
+                        Button { setReasoningEffort(.low) } label: { menuItemLabel("Low", isSelected: isReasoningEnabled && controls.reasoning?.effort == .low) }
+                        Button { setReasoningEffort(.medium) } label: { menuItemLabel("Medium", isSelected: isReasoningEnabled && controls.reasoning?.effort == .medium) }
+                        Button { setReasoningEffort(.high) } label: { menuItemLabel("High", isSelected: isReasoningEnabled && controls.reasoning?.effort == .high) }
+                        if isOpenAIGPT52SeriesModel {
+                            Button { setReasoningEffort(.xhigh) } label: { menuItemLabel("Extreme", isSelected: isReasoningEnabled && controls.reasoning?.effort == .xhigh) }
+                        }
+
+                        Divider()
+                        Text("Reasoning summary")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+
+                        ForEach(ReasoningSummary.allCases, id: \.self) { summary in
+                            Button {
+                                setReasoningSummary(summary)
+                            } label: {
+                                menuItemLabel(summary.displayName, isSelected: (controls.reasoning?.summary ?? .auto) == summary)
+                            }
+                        }
+
+                    case .fireworks:
+                        Button { setReasoningEffort(.low) } label: { menuItemLabel("Low", isSelected: isReasoningEnabled && controls.reasoning?.effort == .low) }
+                        Button { setReasoningEffort(.medium) } label: { menuItemLabel("Medium", isSelected: isReasoningEnabled && controls.reasoning?.effort == .medium) }
+                        Button { setReasoningEffort(.high) } label: { menuItemLabel("High", isSelected: isReasoningEnabled && controls.reasoning?.effort == .high) }
+
+                    case .openrouter:
+                        Button { setReasoningEffort(.low) } label: { menuItemLabel("Low", isSelected: isReasoningEnabled && controls.reasoning?.effort == .low) }
+                        Button { setReasoningEffort(.medium) } label: { menuItemLabel("Medium", isSelected: isReasoningEnabled && controls.reasoning?.effort == .medium) }
+                        Button { setReasoningEffort(.high) } label: { menuItemLabel("High", isSelected: isReasoningEnabled && controls.reasoning?.effort == .high) }
+
+                    case .anthropic, .xai, .deepseek, .cerebras, .none:
+                        EmptyView()
                     }
-
-                case .anthropic:
-                    Button { setReasoningEffort(.low) } label: { menuItemLabel("Low", isSelected: isReasoningEnabled && controls.reasoning?.effort == .low) }
-                    Button { setReasoningEffort(.medium) } label: { menuItemLabel("Medium", isSelected: isReasoningEnabled && controls.reasoning?.effort == .medium) }
-                    Button { setReasoningEffort(.high) } label: { menuItemLabel("High", isSelected: isReasoningEnabled && controls.reasoning?.effort == .high) }
-                    if isAnthropicOpusSeriesModel {
-                        Button { setReasoningEffort(.xhigh) } label: { menuItemLabel("Max", isSelected: isReasoningEnabled && controls.reasoning?.effort == .xhigh) }
-                    }
-
-                case .fireworks:
-                    Button { setReasoningEffort(.low) } label: { menuItemLabel("Low", isSelected: isReasoningEnabled && controls.reasoning?.effort == .low) }
-                    Button { setReasoningEffort(.medium) } label: { menuItemLabel("Medium", isSelected: isReasoningEnabled && controls.reasoning?.effort == .medium) }
-                    Button { setReasoningEffort(.high) } label: { menuItemLabel("High", isSelected: isReasoningEnabled && controls.reasoning?.effort == .high) }
-
-                case .openrouter:
-                    Button { setReasoningEffort(.low) } label: { menuItemLabel("Low", isSelected: isReasoningEnabled && controls.reasoning?.effort == .low) }
-                    Button { setReasoningEffort(.medium) } label: { menuItemLabel("Medium", isSelected: isReasoningEnabled && controls.reasoning?.effort == .medium) }
-                    Button { setReasoningEffort(.high) } label: { menuItemLabel("High", isSelected: isReasoningEnabled && controls.reasoning?.effort == .high) }
-
-                case .xai, .deepseek, .cerebras, .none:
-                    EmptyView()
                 }
 
                 if supportsFireworksReasoningHistoryToggle {
@@ -4073,6 +4114,9 @@ struct ChatView: View {
         updateReasoning { reasoning in
             reasoning.enabled = false
         }
+        if providerType == .anthropic {
+            normalizeAnthropicReasoningAndMaxTokens()
+        }
         persistControlsToConversation()
     }
 
@@ -4080,10 +4124,18 @@ struct ChatView: View {
         updateReasoning { reasoning in
             reasoning.enabled = true
         }
+        if providerType == .anthropic {
+            normalizeAnthropicReasoningAndMaxTokens()
+        }
         persistControlsToConversation()
     }
 
     private func setReasoningEffort(_ effort: ReasoningEffort) {
+        guard providerType != .anthropic else {
+            openThinkingBudgetEditor()
+            return
+        }
+
         updateReasoning { reasoning in
             reasoning.enabled = true
             reasoning.effort = effort
@@ -4102,6 +4154,7 @@ struct ChatView: View {
             reasoning.budgetTokens = budgetTokens
             reasoning.summary = nil
         }
+        normalizeAnthropicReasoningAndMaxTokens()
         persistControlsToConversation()
     }
 
@@ -4109,41 +4162,188 @@ struct ChatView: View {
         Int(thinkingBudgetDraft.trimmingCharacters(in: .whitespacesAndNewlines))
     }
 
+    private var anthropicUsesEffortMode: Bool {
+        guard providerType == .anthropic else { return false }
+        return AnthropicModelLimits.supportsEffort(for: conversationEntity.modelID)
+    }
+
+    private var anthropicEffortBinding: Binding<ReasoningEffort> {
+        Binding(
+            get: {
+                let value = controls.reasoning?.effort ?? selectedReasoningConfig?.defaultEffort ?? .high
+                switch value {
+                case .none, .minimal:
+                    return .low
+                case .low, .medium, .high, .xhigh:
+                    return value
+                }
+            },
+            set: { newValue in
+                updateReasoning { reasoning in
+                    reasoning.enabled = true
+                    reasoning.effort = newValue
+                    reasoning.budgetTokens = nil
+                    reasoning.summary = nil
+                }
+                normalizeAnthropicReasoningAndMaxTokens()
+                persistControlsToConversation()
+            }
+        )
+    }
+
+    private var anthropicThinkingSummaryText: String {
+        if anthropicUsesEffortMode {
+            return "Opus 4.6 uses adaptive thinking. Choose an effort level, then set a max output limit."
+        }
+        return "Claude 4.5 uses budget-based thinking. Set budget tokens and max output tokens together."
+    }
+
+    private var anthropicThinkingFootnote: String {
+        if anthropicUsesEffortMode {
+            return "Sent as thinking.type=adaptive with output_config.effort."
+        }
+        return "Sent as thinking.type=enabled with budget_tokens."
+    }
+
+    private var anthropicBudgetPlaceholder: String {
+        "\(selectedReasoningConfig?.defaultBudget ?? 2048)"
+    }
+
+    private var anthropicMaxTokensPlaceholder: String {
+        if let modelMax = AnthropicModelLimits.maxOutputTokens(for: conversationEntity.modelID) {
+            return "\(modelMax)"
+        }
+        return "4096"
+    }
+
     private var maxTokensDraftInt: Int? {
         let trimmed = maxTokensDraft.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return nil }
-        return Int(trimmed)
+        guard !trimmed.isEmpty, let value = Int(trimmed), value > 0 else { return nil }
+        return value
+    }
+
+    @ViewBuilder
+    private func thinkingTokenField(placeholder: String, text: Binding<String>) -> some View {
+        TextField(placeholder, text: text)
+            .font(.body.monospacedDigit())
+            .multilineTextAlignment(.trailing)
+            .textFieldStyle(.roundedBorder)
+            .frame(width: 150)
+    }
+
+    private var isThinkingBudgetDraftValid: Bool {
+        if !anthropicUsesEffortMode {
+            guard let budget = thinkingBudgetDraftInt, budget > 0 else { return false }
+        }
+        guard providerType == .anthropic else { return true }
+        guard let maxTokens = maxTokensDraftInt else { return false }
+        if let modelMax = AnthropicModelLimits.maxOutputTokens(for: conversationEntity.modelID), maxTokens > modelMax {
+            return false
+        }
+        return true
     }
 
     private var thinkingBudgetValidationWarning: String? {
         guard providerType == .anthropic else { return nil }
-        guard let budget = thinkingBudgetDraftInt else { return "Enter an integer token budget (e.g., 10000)." }
+        if !anthropicUsesEffortMode {
+            guard let budget = thinkingBudgetDraftInt else { return "Enter an integer token budget (e.g., 4096)." }
 
-        if budget <= 0 {
-            return "Thinking budget must be a positive integer."
+            if budget <= 0 {
+                return "Thinking budget must be a positive integer."
+            }
+
+            if let maxTokens = maxTokensDraftInt, maxTokens > 0, budget >= maxTokens {
+                return "Recommended: keep budget tokens below max output tokens."
+            }
         }
 
-        if let maxTokens = maxTokensDraftInt, maxTokens > 0, budget >= maxTokens {
-            return "Note: Anthropic recommends budget_tokens < max_tokens unless using tools + interleaved thinking."
+        if maxTokensDraftInt == nil {
+            return "Enter a valid positive max output token value."
         }
 
-        return "Tip: For Claude 3.7+ / 4.x, max_tokens is a strict limit and includes thinking tokens when enabled."
+        if let modelMax = AnthropicModelLimits.maxOutputTokens(for: conversationEntity.modelID),
+           let maxTokens = maxTokensDraftInt,
+           maxTokens > modelMax {
+            return "This model allows at most \(modelMax) max output tokens."
+        }
+
+        return nil
     }
 
     private func openThinkingBudgetEditor() {
-        let budget = controls.reasoning?.budgetTokens
-            ?? selectedReasoningConfig?.defaultBudget
-            ?? 2048
-        thinkingBudgetDraft = "\(budget)"
-        maxTokensDraft = controls.maxTokens.map(String.init) ?? ""
+        if anthropicUsesEffortMode {
+            thinkingBudgetDraft = ""
+        } else {
+            let budget = controls.reasoning?.budgetTokens
+                ?? selectedReasoningConfig?.defaultBudget
+                ?? 2048
+            thinkingBudgetDraft = "\(budget)"
+        }
+
+        if providerType == .anthropic {
+            let resolvedMax = AnthropicModelLimits.resolvedMaxTokens(
+                requested: controls.maxTokens,
+                for: conversationEntity.modelID,
+                fallback: 4096
+            )
+            maxTokensDraft = "\(resolvedMax)"
+        } else {
+            maxTokensDraft = controls.maxTokens.map(String.init) ?? ""
+        }
+
         showingThinkingBudgetSheet = true
     }
 
     private func applyThinkingBudgetDraft() {
-        guard let budgetTokens = thinkingBudgetDraftInt else { return }
-        setAnthropicThinkingBudget(budgetTokens)
+        guard providerType != .anthropic || maxTokensDraftInt != nil else { return }
+
         controls.maxTokens = maxTokensDraftInt
+
+        if anthropicUsesEffortMode {
+            normalizeAnthropicReasoningAndMaxTokens()
+        } else {
+            guard let budgetTokens = thinkingBudgetDraftInt else { return }
+            setAnthropicThinkingBudget(budgetTokens)
+        }
+
+        if providerType == .anthropic {
+            let resolvedMax = AnthropicModelLimits.resolvedMaxTokens(
+                requested: controls.maxTokens,
+                for: conversationEntity.modelID,
+                fallback: 4096
+            )
+            maxTokensDraft = "\(resolvedMax)"
+        }
+
         persistControlsToConversation()
+    }
+
+    private func normalizeAnthropicReasoningAndMaxTokens() {
+        guard providerType == .anthropic else { return }
+
+        if controls.reasoning?.enabled == true {
+            if anthropicUsesEffortMode {
+                controls.reasoning?.budgetTokens = nil
+                if controls.reasoning?.effort == nil || controls.reasoning?.effort == ReasoningEffort.none {
+                    controls.reasoning?.effort = selectedReasoningConfig?.defaultEffort ?? .high
+                }
+            } else {
+                controls.reasoning?.effort = nil
+                if controls.reasoning?.budgetTokens == nil {
+                    controls.reasoning?.budgetTokens = selectedReasoningConfig?.defaultBudget ?? 2048
+                }
+            }
+
+            controls.maxTokens = AnthropicModelLimits.resolvedMaxTokens(
+                requested: controls.maxTokens,
+                for: conversationEntity.modelID,
+                fallback: 4096
+            )
+        } else {
+            controls.reasoning?.effort = nil
+            controls.reasoning?.budgetTokens = nil
+            controls.maxTokens = nil
+        }
     }
 
     private func setReasoningSummary(_ summary: ReasoningSummary) {
@@ -4166,11 +4366,6 @@ struct ChatView: View {
     private var isOpenAIGPT52SeriesModel: Bool {
         guard providerType == .openai else { return false }
         return conversationEntity.modelID.hasPrefix("gpt-5.2")
-    }
-
-    private var isAnthropicOpusSeriesModel: Bool {
-        guard providerType == .anthropic else { return false }
-        return conversationEntity.modelID.lowercased().contains("claude-opus")
     }
 
     private func defaultWebSearchControls(enabled: Bool) -> WebSearchControls {
@@ -4223,16 +4418,24 @@ struct ChatView: View {
         if supportsReasoningControl, let reasoningConfig = selectedReasoningConfig {
             switch reasoningConfig.type {
             case .effort:
-                if controls.reasoning?.enabled == true, controls.reasoning?.effort == nil {
+                if providerType != .anthropic,
+                   controls.reasoning?.enabled == true,
+                   controls.reasoning?.effort == nil {
                     updateReasoning { $0.effort = reasoningConfig.defaultEffort ?? .medium }
                 }
-                controls.reasoning?.budgetTokens = nil
+                if providerType != .anthropic {
+                    controls.reasoning?.budgetTokens = nil
+                }
                 if providerType == .openai,
                    controls.reasoning?.enabled == true,
                    (controls.reasoning?.effort ?? ReasoningEffort.none) != ReasoningEffort.none,
                    controls.reasoning?.summary == nil {
                     controls.reasoning?.summary = .auto
                 }
+                if providerType == .anthropic {
+                    normalizeAnthropicReasoningAndMaxTokens()
+                }
+
             case .budget:
                 if controls.reasoning?.enabled == true, controls.reasoning?.budgetTokens == nil {
                     updateReasoning { $0.budgetTokens = reasoningConfig.defaultBudget ?? 2048 }
@@ -4260,9 +4463,8 @@ struct ChatView: View {
                 controls.reasoning?.effort = .high
             }
 
-            // Anthropic: xhigh maps to max effort and is only valid on Opus models.
-            if providerType == .anthropic, controls.reasoning?.effort == .xhigh, !isAnthropicOpusSeriesModel {
-                controls.reasoning?.effort = .high
+            if providerType == .anthropic {
+                normalizeAnthropicReasoningAndMaxTokens()
             }
 
             // Gemini 3 Pro: only supports low/high thinking levels.
@@ -4292,6 +4494,16 @@ struct ChatView: View {
             }
         } else {
             controls.webSearch = nil
+        }
+
+        if !supportsReasoningControl, providerType == .anthropic {
+            controls.maxTokens = nil
+        }
+
+        if providerType == .anthropic,
+           controls.maxTokens != nil,
+           controls.reasoning?.enabled != true {
+            controls.maxTokens = nil
         }
 
         if supportsImageGenerationControl {

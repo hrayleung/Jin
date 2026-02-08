@@ -691,7 +691,7 @@ struct ContentView: View {
                 name: "Claude Opus 4.5",
                 capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .nativePDF],
                 contextWindow: 200000,
-                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high)
+                reasoningConfig: ModelReasoningConfig(type: .budget, defaultBudget: 2048)
             ),
             ModelInfo(
                 id: "claude-sonnet-4-5-20250929",

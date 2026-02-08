@@ -108,7 +108,7 @@ actor AnthropicAdapter: LLMProviderAdapter {
                     name: "Claude Opus 4.5",
                     capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .nativePDF],
                     contextWindow: 200000,
-                    reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high)
+                    reasoningConfig: ModelReasoningConfig(type: .budget, defaultBudget: 2048)
                 ),
                 ModelInfo(
                     id: "claude-sonnet-4-5-20250929",
@@ -173,21 +173,15 @@ actor AnthropicAdapter: LLMProviderAdapter {
     }
 
     private func supportsAdaptiveThinking(_ modelID: String) -> Bool {
-        let lower = modelID.lowercased()
-        return lower == "claude-opus-4-6" || lower.contains("claude-opus-4-6-")
+        AnthropicModelLimits.supportsAdaptiveThinking(for: modelID)
     }
 
     private func supportsEffort(_ modelID: String) -> Bool {
-        let lower = modelID.lowercased()
-        return lower == "claude-opus-4-6"
-            || lower.contains("claude-opus-4-6-")
-            || lower == "claude-opus-4-5"
-            || lower.contains("claude-opus-4-5-")
+        AnthropicModelLimits.supportsEffort(for: modelID)
     }
 
     private func supportsMaxEffort(_ modelID: String) -> Bool {
-        let lower = modelID.lowercased()
-        return lower == "claude-opus-4-6" || lower.contains("claude-opus-4-6-")
+        AnthropicModelLimits.supportsMaxEffort(for: modelID)
     }
 
     private func mapAnthropicEffort(_ effort: ReasoningEffort, modelID: String) -> String {
@@ -286,10 +280,16 @@ actor AnthropicAdapter: LLMProviderAdapter {
 
         try AnthropicRequestPreflight.validate(messages: translatedMessages)
 
+        let resolvedMaxTokens = AnthropicModelLimits.resolvedMaxTokens(
+            requested: controls.maxTokens,
+            for: modelID,
+            fallback: 4096
+        )
+
         var body: [String: Any] = [
             "model": modelID,
             "messages": translatedMessages,
-            "max_tokens": controls.maxTokens ?? 4096,
+            "max_tokens": resolvedMaxTokens,
             "stream": streaming
         ]
 
@@ -333,7 +333,9 @@ actor AnthropicAdapter: LLMProviderAdapter {
                 }
             }
 
-            if supportsEffortControl, let effort = controls.reasoning?.effort {
+            if supportsEffortControl,
+               controls.reasoning?.budgetTokens == nil,
+               let effort = controls.reasoning?.effort {
                 mergeOutputConfig(
                     into: &body,
                     additional: [
