@@ -732,7 +732,7 @@ struct AddProviderView: View {
                 }
 
                 switch providerType {
-                case .openai, .openrouter, .anthropic, .xai, .deepseek, .fireworks, .cerebras, .gemini:
+                case .openai, .openaiCompatible, .openrouter, .anthropic, .xai, .deepseek, .fireworks, .cerebras, .gemini:
                     SecureField("API Key", text: $apiKey)
                 case .vertexai:
                     TextEditor(text: $serviceAccountJSON)
@@ -822,7 +822,7 @@ struct AddProviderView: View {
         guard !trimmedName.isEmpty, !isSaving else { return true }
 
         switch providerType {
-        case .openai, .openrouter, .anthropic, .xai, .deepseek, .fireworks, .cerebras, .gemini:
+        case .openai, .openaiCompatible, .openrouter, .anthropic, .xai, .deepseek, .fireworks, .cerebras, .gemini:
             return apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         case .vertexai:
             return serviceAccountJSON.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -1482,11 +1482,10 @@ struct GeneralSettingsView: View {
     }
 
     private func modelsForProvider(_ providerID: String) -> [ModelInfo] {
-        guard let provider = providers.first(where: { $0.id == providerID }),
-              let models = try? JSONDecoder().decode([ModelInfo].self, from: provider.modelsData) else {
+        guard let provider = providers.first(where: { $0.id == providerID }) else {
             return []
         }
-        return models
+        return provider.enabledModels
     }
 
     private func ensureValidFixedModelSelection() {

@@ -66,8 +66,8 @@ struct ChatNamingPluginSettingsView: View {
     private var providerOptions: [ProviderOption] {
         providers
             .compactMap { provider in
-                guard let models = try? JSONDecoder().decode([ModelInfo].self, from: provider.modelsData),
-                      !models.isEmpty else {
+                let models = provider.enabledModels
+                guard !models.isEmpty else {
                     return nil
                 }
 
@@ -77,11 +77,10 @@ struct ChatNamingPluginSettingsView: View {
     }
 
     private var modelsForSelectedProvider: [ModelInfo] {
-        guard let provider = providers.first(where: { $0.id == chatNamingProviderID }),
-              let models = try? JSONDecoder().decode([ModelInfo].self, from: provider.modelsData) else {
+        guard let provider = providers.first(where: { $0.id == chatNamingProviderID }) else {
             return []
         }
-        return models
+        return provider.enabledModels
     }
 
     private var allProviderModelPairs: [(providerID: String, modelID: String)] {
@@ -92,11 +91,10 @@ struct ChatNamingPluginSettingsView: View {
     }
 
     private func decodedModels(forProviderID providerID: String) -> [ModelInfo] {
-        guard let provider = providers.first(where: { $0.id == providerID }),
-              let models = try? JSONDecoder().decode([ModelInfo].self, from: provider.modelsData) else {
+        guard let provider = providers.first(where: { $0.id == providerID }) else {
             return []
         }
-        return models
+        return provider.enabledModels
     }
 
     private func ensureValidSelection() {

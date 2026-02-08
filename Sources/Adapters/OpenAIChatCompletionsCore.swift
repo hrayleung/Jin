@@ -3,6 +3,7 @@ import Foundation
 enum OpenAIChatCompletionsReasoningField {
     case reasoning
     case reasoningContent
+    case reasoningOrReasoningContent
 }
 
 struct OpenAIChatCompletionsCore {
@@ -151,6 +152,8 @@ struct OpenAIChatCompletionsCore {
             return normalized(message.reasoning)
         case .reasoningContent:
             return normalized(message.reasoningContent)
+        case .reasoningOrReasoningContent:
+            return normalized(message.reasoning) ?? normalized(message.reasoningContent)
         }
     }
 
@@ -163,6 +166,8 @@ struct OpenAIChatCompletionsCore {
             return normalized(delta.reasoning)
         case .reasoningContent:
             return normalized(delta.reasoningContent)
+        case .reasoningOrReasoningContent:
+            return normalized(delta.reasoning) ?? normalized(delta.reasoningContent)
         }
     }
 

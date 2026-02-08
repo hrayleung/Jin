@@ -110,7 +110,8 @@ struct ModelPickerPopover: View {
         sections.reserveCapacity(providersSorted.count)
 
         for provider in providersSorted {
-            guard let models = try? JSONDecoder().decode([ModelInfo].self, from: provider.modelsData) else { continue }
+            let models = provider.enabledModels
+            guard !models.isEmpty else { continue }
             var filtered = models
 
             if scope == .favorites {
@@ -190,6 +191,8 @@ private struct ProviderSectionHeader: View {
         switch type {
         case .openai:
             return "sparkles"
+        case .openaiCompatible:
+            return "point.3.filled.connected.trianglepath.dotted"
         case .openrouter:
             return "point.3.connected.trianglepath.dotted"
         case .anthropic:

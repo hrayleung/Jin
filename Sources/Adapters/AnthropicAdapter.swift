@@ -82,49 +82,53 @@ actor AnthropicAdapter: LLMProviderAdapter {
     }
 
     func fetchAvailableModels() async throws -> [ModelInfo] {
-        var request = URLRequest(url: URL(string: "\(baseURL)/models")!)
-        request.httpMethod = "GET"
-        request.addValue(apiKey, forHTTPHeaderField: "x-api-key")
-        request.addValue(anthropicVersion, forHTTPHeaderField: "anthropic-version")
+        var allModels: [ModelInfo] = []
+        var afterID: String?
+        var seenIDs: Set<String> = []
 
-        do {
+        while true {
+            var components = URLComponents(string: "\(baseURL)/models")
+            var queryItems: [URLQueryItem] = [
+                URLQueryItem(name: "limit", value: "100")
+            ]
+            if let afterID {
+                queryItems.append(URLQueryItem(name: "after_id", value: afterID))
+            }
+            components?.queryItems = queryItems
+
+            guard let url = components?.url else {
+                throw LLMError.invalidRequest(message: "Invalid Anthropic models URL")
+            }
+
+            var request = URLRequest(url: url)
+            request.httpMethod = "GET"
+            request.addValue(apiKey, forHTTPHeaderField: "x-api-key")
+            request.addValue(anthropicVersion, forHTTPHeaderField: "anthropic-version")
+
             let (data, _) = try await networkManager.sendRequest(request)
+
             let decoder = JSONDecoder()
             decoder.keyDecodingStrategy = .convertFromSnakeCase
             let response = try decoder.decode(ModelsListResponse.self, from: data)
-            return response.data.map(makeModelInfo(from:))
-        } catch {
-            // Fallback (offline / restricted org / temporary outage): include a sane baseline set.
-            return [
-                ModelInfo(
-                    id: "claude-opus-4-6",
-                    name: "Claude Opus 4.6",
-                    capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .nativePDF],
-                    contextWindow: 200000,
-                    reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high)
-                ),
-                ModelInfo(
-                    id: "claude-opus-4-5-20251101",
-                    name: "Claude Opus 4.5",
-                    capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .nativePDF],
-                    contextWindow: 200000,
-                    reasoningConfig: ModelReasoningConfig(type: .budget, defaultBudget: 2048)
-                ),
-                ModelInfo(
-                    id: "claude-sonnet-4-5-20250929",
-                    name: "Claude Sonnet 4.5",
-                    capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .nativePDF],
-                    contextWindow: 200000,
-                    reasoningConfig: ModelReasoningConfig(type: .budget, defaultBudget: 2048)
-                ),
-                ModelInfo(
-                    id: "claude-haiku-4-5-20251001",
-                    name: "Claude Haiku 4.5",
-                    capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .nativePDF],
-                    contextWindow: 200000,
-                    reasoningConfig: ModelReasoningConfig(type: .budget, defaultBudget: 1024)
-                )
-            ]
+
+            for model in response.data {
+                guard !seenIDs.contains(model.id) else { continue }
+                seenIDs.insert(model.id)
+                allModels.append(makeModelInfo(from: model))
+            }
+
+            guard response.hasMore == true,
+                  let lastID = response.lastID,
+                  !lastID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                  lastID != afterID else {
+                break
+            }
+
+            afterID = lastID
+        }
+
+        return allModels.sorted { lhs, rhs in
+            lhs.name.localizedStandardCompare(rhs.name) == .orderedAscending
         }
     }
 
@@ -651,7 +655,8 @@ actor AnthropicAdapter: LLMProviderAdapter {
             name: name,
             capabilities: caps,
             contextWindow: 200000,
-            reasoningConfig: reasoningConfig
+            reasoningConfig: reasoningConfig,
+            isEnabled: true
         )
     }
 }
@@ -750,6 +755,9 @@ private struct AnthropicUsageAccumulator {
 
 private struct ModelsListResponse: Codable {
     let data: [ModelInfo]
+    let hasMore: Bool?
+    let firstID: String?
+    let lastID: String?
 
     struct ModelInfo: Codable {
         let id: String

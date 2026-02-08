@@ -384,11 +384,10 @@ struct ContentView: View {
     }
 
     private func modelsForProvider(_ providerID: String) -> [ModelInfo] {
-        guard let provider = providers.first(where: { $0.id == providerID }),
-              let models = try? JSONDecoder().decode([ModelInfo].self, from: provider.modelsData) else {
+        guard let provider = providers.first(where: { $0.id == providerID }) else {
             return []
         }
-        return models
+        return provider.enabledModels
     }
 
     private func defaultModelID(for providerID: String) -> String {
@@ -558,7 +557,7 @@ struct ContentView: View {
             return nil
         }
 
-        let models = (try? JSONDecoder().decode([ModelInfo].self, from: providerEntity.modelsData)) ?? []
+        let models = providerEntity.enabledModels
         guard models.contains(where: { $0.id == modelID }) else { return nil }
 
         return (provider, modelID)
@@ -691,14 +690,14 @@ struct ContentView: View {
                 name: "Claude Opus 4.5",
                 capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .nativePDF],
                 contextWindow: 200000,
-                reasoningConfig: ModelReasoningConfig(type: .budget, defaultBudget: 2048)
+                reasoningConfig: ModelReasoningConfig(type: .budget, defaultBudget: 1024)
             ),
             ModelInfo(
                 id: "claude-sonnet-4-5-20250929",
                 name: "Claude Sonnet 4.5",
                 capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .nativePDF],
                 contextWindow: 200000,
-                reasoningConfig: ModelReasoningConfig(type: .budget, defaultBudget: 2048)
+                reasoningConfig: ModelReasoningConfig(type: .budget, defaultBudget: 1024)
             ),
             ModelInfo(
                 id: "claude-haiku-4-5-20251001",

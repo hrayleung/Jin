@@ -446,6 +446,111 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         XCTAssertEqual(usage?.outputTokens, 5)
     }
 
+
+    func testOpenAICompatibleAdapterNormalizesRootBaseURLAndParsesReasoningContent() async throws {
+        let (session, protocolType) = makeMockedURLSession()
+        let networkManager = NetworkManager(urlSession: session)
+
+        let providerConfig = ProviderConfig(
+            id: "oac",
+            name: "Third Party",
+            type: .openaiCompatible,
+            apiKey: "ignored",
+            baseURL: "https://example-compat.ai"
+        )
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://example-compat.ai/v1/chat/completions")
+            XCTAssertEqual(request.httpMethod, "POST")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer test-key")
+
+            let body = try XCTUnwrap(requestBodyData(request))
+            let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+            let root = try XCTUnwrap(json)
+            XCTAssertEqual(root["model"] as? String, "foo-reasoning")
+
+            let response: [String: Any] = [
+                "id": "cmpl_oac_1",
+                "choices": [
+                    [
+                        "message": [
+                            "role": "assistant",
+                            "content": "OK",
+                            "reasoning_content": "R"
+                        ],
+                        "finish_reason": "stop"
+                    ]
+                ],
+                "usage": [
+                    "prompt_tokens": 2,
+                    "completion_tokens": 3,
+                    "total_tokens": 5
+                ]
+            ]
+
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = OpenAICompatibleAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hello")])],
+            modelID: "foo-reasoning",
+            controls: GenerationControls(reasoning: ReasoningControls(enabled: true, effort: .medium)),
+            tools: [],
+            streaming: false
+        )
+
+        var events: [StreamEvent] = []
+        for try await event in stream {
+            events.append(event)
+        }
+
+        XCTAssertEqual(events.count, 4)
+        guard case .messageStart(let id) = events[0] else { return XCTFail("Expected messageStart") }
+        XCTAssertEqual(id, "cmpl_oac_1")
+        guard case .thinkingDelta(.thinking(let reasoning, _)) = events[1] else { return XCTFail("Expected thinkingDelta") }
+        XCTAssertEqual(reasoning, "R")
+        guard case .contentDelta(.text(let content)) = events[2] else { return XCTFail("Expected contentDelta") }
+        XCTAssertEqual(content, "OK")
+        guard case .messageEnd(let usage) = events[3] else { return XCTFail("Expected messageEnd") }
+        XCTAssertEqual(usage?.inputTokens, 2)
+        XCTAssertEqual(usage?.outputTokens, 3)
+    }
+
+    func testOpenAICompatibleAdapterFetchModelsNormalizesAPIBaseURL() async throws {
+        let (session, protocolType) = makeMockedURLSession()
+        let networkManager = NetworkManager(urlSession: session)
+
+        let providerConfig = ProviderConfig(
+            id: "oac",
+            name: "Third Party",
+            type: .openaiCompatible,
+            apiKey: "ignored",
+            baseURL: "https://example-compat.ai/api"
+        )
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://example-compat.ai/api/v1/models")
+            XCTAssertEqual(request.httpMethod, "GET")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer test-key")
+
+            let payload: [String: Any] = [
+                "data": [
+                    ["id": "foo-chat"],
+                    ["id": "foo-reasoning"]
+                ]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: payload)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = OpenAICompatibleAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let models = try await adapter.fetchAvailableModels()
+
+        XCTAssertEqual(models.map(\.id), ["foo-chat", "foo-reasoning"])
+        XCTAssertTrue(models.allSatisfy(\.isEnabled))
+    }
     func testOpenRouterAdapterNormalizesRootBaseURLForKeyValidation() async throws {
         let (session, protocolType) = makeMockedURLSession()
         let networkManager = NetworkManager(urlSession: session)

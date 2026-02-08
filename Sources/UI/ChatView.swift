@@ -572,57 +572,73 @@ struct ChatView: View {
             NavigationStack {
                 Form {
                     Section("Claude thinking") {
-                        Text(anthropicThinkingSummaryText)
-                            .font(.body)
-                            .foregroundStyle(.primary)
-                            .fixedSize(horizontal: false, vertical: true)
-
-                        if anthropicUsesEffortMode {
-                            LabeledContent("Thinking effort") {
-                                Picker("Thinking effort", selection: anthropicEffortBinding) {
-                                    Text("Low").tag(ReasoningEffort.low)
-                                    Text("Medium").tag(ReasoningEffort.medium)
-                                    Text("High").tag(ReasoningEffort.high)
-                                    if AnthropicModelLimits.supportsMaxEffort(for: conversationEntity.modelID) {
-                                        Text("Max").tag(ReasoningEffort.xhigh)
-                                    }
-                                }
-                                .labelsHidden()
-                                .pickerStyle(.menu)
-                                .frame(minWidth: 150, alignment: .trailing)
-                            }
-
-                            LabeledContent("Max output tokens") {
-                                thinkingTokenField(placeholder: anthropicMaxTokensPlaceholder, text: $maxTokensDraft)
-                            }
-                        } else {
-                            LabeledContent("Thinking budget") {
-                                thinkingTokenField(placeholder: anthropicBudgetPlaceholder, text: $thinkingBudgetDraft)
-                            }
-
-                            LabeledContent("Max output tokens") {
-                                thinkingTokenField(placeholder: anthropicMaxTokensPlaceholder, text: $maxTokensDraft)
-                            }
-                        }
-
-                        if let warning = thinkingBudgetValidationWarning {
-                            Label(warning, systemImage: "exclamationmark.triangle.fill")
-                                .font(.caption)
-                                .foregroundStyle(.orange)
-                                .padding(.vertical, 2)
+                        VStack(alignment: .leading, spacing: JinSpacing.medium) {
+                            Text(anthropicThinkingSummaryText)
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
                                 .fixedSize(horizontal: false, vertical: true)
-                        }
 
-                        if let modelMax = AnthropicModelLimits.maxOutputTokens(for: conversationEntity.modelID) {
-                            Text("Model max output tokens: \(modelMax.formatted())")
+                            Divider()
+
+                            if anthropicUsesEffortMode {
+                                thinkingControlRow("Thinking effort") {
+                                    Picker("Thinking effort", selection: anthropicEffortBinding) {
+                                        Text("Low").tag(ReasoningEffort.low)
+                                        Text("Medium").tag(ReasoningEffort.medium)
+                                        Text("High").tag(ReasoningEffort.high)
+                                        if AnthropicModelLimits.supportsMaxEffort(for: conversationEntity.modelID) {
+                                            Text("Max").tag(ReasoningEffort.xhigh)
+                                        }
+                                    }
+                                    .labelsHidden()
+                                    .pickerStyle(.menu)
+                                    .frame(width: 180, alignment: .trailing)
+                                }
+                            } else {
+                                thinkingControlRow("Thinking budget") {
+                                    thinkingTokenField(placeholder: anthropicBudgetPlaceholder, text: $thinkingBudgetDraft)
+                                }
+                            }
+
+                            thinkingControlRow("Max output tokens") {
+                                thinkingTokenField(placeholder: anthropicMaxTokensPlaceholder, text: $maxTokensDraft)
+                            }
+
+                            if let modelMax = AnthropicModelLimits.maxOutputTokens(for: conversationEntity.modelID) {
+                                Text("Model max output tokens: \(modelMax.formatted())")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+
+                            if let warning = thinkingBudgetValidationWarning {
+                                HStack(alignment: .top, spacing: JinSpacing.small) {
+                                    Image(systemName: "exclamationmark.triangle.fill")
+                                        .foregroundStyle(.orange)
+                                    Text(warning)
+                                        .foregroundStyle(.secondary)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                }
+                                .font(.caption)
+                                .padding(JinSpacing.small)
+                                .jinSurface(.subtleStrong, cornerRadius: JinRadius.small)
+                            }
+
+                            Label(anthropicThinkingFootnote, systemImage: "info.circle")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
                         }
-
-                        Text(anthropicThinkingFootnote)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
+                        .padding(JinSpacing.large)
+                        .jinSurface(.raised, cornerRadius: JinRadius.large)
+                        .listRowInsets(
+                            EdgeInsets(
+                                top: JinSpacing.small,
+                                leading: JinSpacing.small,
+                                bottom: JinSpacing.small,
+                                trailing: JinSpacing.small
+                            )
+                        )
+                        .listRowBackground(Color.clear)
                     }
                 }
                 .formStyle(.grouped)
@@ -1495,7 +1511,7 @@ struct ChatView: View {
                 || lowerModelID.contains("grok-6")
         case .gemini, .vertexai:
             return lowerModelID.contains("gemini-3")
-        case .openrouter, .deepseek, .fireworks, .cerebras, .none:
+        case .openaiCompatible, .openrouter, .deepseek, .fireworks, .cerebras, .none:
             return false
         }
     }
@@ -1513,7 +1529,7 @@ struct ChatView: View {
         switch providerType {
         case .gemini, .vertexai:
             return !conversationEntity.modelID.lowercased().contains("gemini-2.5-flash-image")
-        case .openai, .openrouter, .anthropic, .xai, .deepseek, .fireworks, .cerebras, .none:
+        case .openai, .openaiCompatible, .openrouter, .anthropic, .xai, .deepseek, .fireworks, .cerebras, .none:
             return false
         }
     }
@@ -1652,7 +1668,7 @@ struct ChatView: View {
         switch providerType {
         case .openai, .openrouter, .anthropic, .xai, .gemini, .vertexai:
             return true
-        case .deepseek, .fireworks, .cerebras, .none:
+        case .openaiCompatible, .deepseek, .fireworks, .cerebras, .none:
             return false
         }
     }
@@ -1667,7 +1683,7 @@ struct ChatView: View {
         switch providerType {
         case .anthropic, .gemini, .vertexai:
             return "Thinking: \(reasoningLabel)"
-        case .openai, .openrouter, .xai, .deepseek, .fireworks, .cerebras, .none:
+        case .openai, .openaiCompatible, .openrouter, .xai, .deepseek, .fireworks, .cerebras, .none:
             return "Reasoning: \(reasoningLabel)"
         }
     }
@@ -1692,7 +1708,7 @@ struct ChatView: View {
             return (controls.webSearch?.contextSize ?? .medium).displayName
         case .xai:
             return webSearchSourcesLabel
-        case .openrouter, .anthropic, .gemini, .vertexai, .deepseek, .fireworks, .cerebras, .none:
+        case .openaiCompatible, .openrouter, .anthropic, .gemini, .vertexai, .deepseek, .fireworks, .cerebras, .none:
             return "On"
         }
     }
@@ -1752,7 +1768,7 @@ struct ChatView: View {
             if sources == [.x] { return "X" }
             if sources.contains(.web), sources.contains(.x) { return "W+X" }
             return "On"
-        case .openrouter, .anthropic, .gemini, .vertexai, .deepseek, .fireworks, .cerebras, .none:
+        case .openaiCompatible, .openrouter, .anthropic, .gemini, .vertexai, .deepseek, .fireworks, .cerebras, .none:
             return "On"
         }
     }
@@ -1894,32 +1910,15 @@ struct ChatView: View {
     }
 
     private var availableModels: [ModelInfo] {
-        guard let provider = providers.first(where: { $0.id == conversationEntity.providerID }),
-              let models = try? JSONDecoder().decode([ModelInfo].self, from: provider.modelsData) else {
+        guard let provider = providers.first(where: { $0.id == conversationEntity.providerID }) else {
             return []
         }
-        return models
+        return provider.enabledModels
     }
 
     private func isFullySupportedModel(modelID: String) -> Bool {
         guard let providerType else { return false }
-        let lower = modelID.lowercased()
-
-        switch providerType {
-        case .fireworks:
-            return lower == "fireworks/kimi-k2p5"
-                || lower == "accounts/fireworks/models/kimi-k2p5"
-                || lower == "fireworks/glm-4p7"
-                || lower == "accounts/fireworks/models/glm-4p7"
-        case .cerebras:
-            return lower == "zai-glm-4.7"
-        case .gemini:
-            return lower.contains("gemini-3") || lower.contains("gemini-2.5-flash-image")
-        case .vertexai:
-            return lower.contains("gemini-3") || lower.contains("gemini-2.5")
-        case .openai, .openrouter, .anthropic, .xai, .deepseek:
-            return false
-        }
+        return JinModelSupport.isFullySupported(providerType: providerType, modelID: modelID)
     }
 
     private func setProvider(_ providerID: String) {
@@ -1977,7 +1976,7 @@ struct ChatView: View {
         case .gemini:
             return models.first(where: { $0.id.lowercased().contains("gemini-3-pro") })?.id
                 ?? models.first(where: { $0.id.lowercased().contains("gemini-3-flash") })?.id
-        case .openrouter, .xai, .vertexai:
+        case .openaiCompatible, .openrouter, .xai, .vertexai:
             return nil
         }
     }
@@ -3196,7 +3195,7 @@ struct ChatView: View {
             return nil
         }
 
-        let models = (try? JSONDecoder().decode([ModelInfo].self, from: providerEntity.modelsData)) ?? []
+        let models = providerEntity.enabledModels
         guard models.contains(where: { $0.id == modelID }) else { return nil }
 
         return (provider, modelID)
@@ -3296,7 +3295,7 @@ struct ChatView: View {
                     let effort = controls.reasoning?.effort ?? selectedReasoningConfig?.defaultEffort ?? .high
                     return effort == .xhigh ? "Max" : effort.displayName
                 }
-                let budgetTokens = controls.reasoning?.budgetTokens ?? selectedReasoningConfig?.defaultBudget ?? 2048
+                let budgetTokens = controls.reasoning?.budgetTokens ?? anthropicDefaultBudgetTokens
                 return "\(budgetTokens) tokens"
             }
             return controls.reasoning?.effort?.displayName ?? "On"
@@ -3372,7 +3371,7 @@ struct ChatView: View {
                         Button { setReasoningEffort(.medium) } label: { menuItemLabel("Medium", isSelected: isReasoningEnabled && controls.reasoning?.effort == .medium) }
                         Button { setReasoningEffort(.high) } label: { menuItemLabel("High", isSelected: isReasoningEnabled && controls.reasoning?.effort == .high) }
 
-                    case .openrouter:
+                    case .openaiCompatible, .openrouter:
                         Button { setReasoningEffort(.low) } label: { menuItemLabel("Low", isSelected: isReasoningEnabled && controls.reasoning?.effort == .low) }
                         Button { setReasoningEffort(.medium) } label: { menuItemLabel("Medium", isSelected: isReasoningEnabled && controls.reasoning?.effort == .medium) }
                         Button { setReasoningEffort(.high) } label: { menuItemLabel("High", isSelected: isReasoningEnabled && controls.reasoning?.effort == .high) }
@@ -3397,7 +3396,7 @@ struct ChatView: View {
 
             case .budget:
                 Button { openThinkingBudgetEditor() } label: {
-                    let current = controls.reasoning?.budgetTokens ?? reasoningConfig.defaultBudget ?? 2048
+                    let current = controls.reasoning?.budgetTokens ?? reasoningConfig.defaultBudget ?? 1024
                     menuItemLabel("Budget tokens… (\(current))", isSelected: isReasoningEnabled)
                 }
 
@@ -3506,7 +3505,7 @@ struct ChatView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
-            case .openrouter, .anthropic, .gemini, .vertexai, .deepseek, .fireworks, .cerebras, .none:
+            case .openaiCompatible, .openrouter, .anthropic, .gemini, .vertexai, .deepseek, .fireworks, .cerebras, .none:
                 EmptyView()
             }
         }
@@ -4205,8 +4204,12 @@ struct ChatView: View {
         return "Sent as thinking.type=enabled with budget_tokens."
     }
 
+    private var anthropicDefaultBudgetTokens: Int {
+        selectedReasoningConfig?.defaultBudget ?? 1024
+    }
+
     private var anthropicBudgetPlaceholder: String {
-        "\(selectedReasoningConfig?.defaultBudget ?? 2048)"
+        "\(anthropicDefaultBudgetTokens)"
     }
 
     private var anthropicMaxTokensPlaceholder: String {
@@ -4223,12 +4226,25 @@ struct ChatView: View {
     }
 
     @ViewBuilder
+    private func thinkingControlRow<Control: View>(_ title: String, @ViewBuilder control: () -> Control) -> some View {
+        HStack(alignment: .center, spacing: JinSpacing.medium) {
+            Text(title)
+                .font(.body)
+                .foregroundStyle(.primary)
+
+            Spacer(minLength: 0)
+
+            control()
+        }
+    }
+
+    @ViewBuilder
     private func thinkingTokenField(placeholder: String, text: Binding<String>) -> some View {
-        TextField(placeholder, text: text)
-            .font(.body.monospacedDigit())
+        TextField("", text: text, prompt: Text(placeholder))
+            .font(.system(.body, design: .monospaced))
             .multilineTextAlignment(.trailing)
             .textFieldStyle(.roundedBorder)
-            .frame(width: 150)
+            .frame(width: 170)
     }
 
     private var isThinkingBudgetDraftValid: Bool {
@@ -4276,7 +4292,7 @@ struct ChatView: View {
         } else {
             let budget = controls.reasoning?.budgetTokens
                 ?? selectedReasoningConfig?.defaultBudget
-                ?? 2048
+                ?? anthropicDefaultBudgetTokens
             thinkingBudgetDraft = "\(budget)"
         }
 
@@ -4330,7 +4346,7 @@ struct ChatView: View {
             } else {
                 controls.reasoning?.effort = nil
                 if controls.reasoning?.budgetTokens == nil {
-                    controls.reasoning?.budgetTokens = selectedReasoningConfig?.defaultBudget ?? 2048
+                    controls.reasoning?.budgetTokens = anthropicDefaultBudgetTokens
                 }
             }
 
@@ -4376,7 +4392,7 @@ struct ChatView: View {
             return WebSearchControls(enabled: true, contextSize: .medium, sources: nil)
         case .xai:
             return WebSearchControls(enabled: true, contextSize: nil, sources: [.web])
-        case .openrouter, .anthropic, .gemini, .vertexai, .deepseek, .fireworks, .cerebras, .none:
+        case .openaiCompatible, .openrouter, .anthropic, .gemini, .vertexai, .deepseek, .fireworks, .cerebras, .none:
             return WebSearchControls(enabled: true, contextSize: nil, sources: nil)
         }
     }
@@ -4395,7 +4411,7 @@ struct ChatView: View {
             if sources.isEmpty {
                 controls.webSearch?.sources = [.web]
             }
-        case .openrouter, .anthropic, .gemini, .vertexai, .deepseek, .fireworks, .cerebras, .none:
+        case .openaiCompatible, .openrouter, .anthropic, .gemini, .vertexai, .deepseek, .fireworks, .cerebras, .none:
             controls.webSearch?.contextSize = nil
             controls.webSearch?.sources = nil
         }

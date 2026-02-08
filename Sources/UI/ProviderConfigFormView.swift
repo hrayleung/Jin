@@ -14,7 +14,7 @@ struct ProviderConfigFormView: View {
     @State private var modelsError: String?
     @State private var showingAddModel = false
     @State private var showingDeleteAllModelsConfirmation = false
-    @State private var selectedModelIDs: Set<ModelInfo.ID> = []
+    @State private var modelSearchText = ""
     @State private var openRouterUsageStatus: OpenRouterUsageStatus = .idle
     @State private var openRouterUsage: OpenRouterKeyUsage?
     @State private var openRouterUsageTask: Task<Void, Never>?
@@ -57,7 +57,7 @@ struct ProviderConfigFormView: View {
                     .jinInfoCallout()
 
                 switch providerType {
-                case .openai, .openrouter, .anthropic, .xai, .deepseek, .fireworks, .cerebras, .gemini:
+                case .openai, .openaiCompatible, .openrouter, .anthropic, .xai, .deepseek, .fireworks, .cerebras, .gemini:
                     apiKeyField
                 case .vertexai:
                     vertexAISection
@@ -85,28 +85,66 @@ struct ProviderConfigFormView: View {
                         .foregroundColor(.red)
                         .font(.caption)
                 }
-                
+
+                if !decodedModels.isEmpty {
+                    TextField("Search models", text: $modelSearchText)
+                        .textFieldStyle(.roundedBorder)
+
+                    HStack(spacing: 10) {
+                        Text("Enabled \(enabledModelCount) / \(decodedModels.count)")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+
+                        Spacer()
+
+                        Button("Enable All") {
+                            setAllModelsEnabled(true)
+                        }
+                        .buttonStyle(.borderless)
+
+                        Button("Disable All") {
+                            setAllModelsEnabled(false)
+                        }
+                        .buttonStyle(.borderless)
+                    }
+                }
+
                 if decodedModels.isEmpty {
                     Text("No models found. Fetch from provider or add manually.")
                         .jinInfoCallout()
-                 } else {
-                     List(decodedModels, selection: $selectedModelIDs) { model in
-                         HStack {
-                             Text(model.name)
-                             if isFullySupportedModel(model.id) {
-                                 Text("Full")
-                                     .jinTagStyle(foreground: .green)
-                             }
-                             Spacer()
-                             Text(model.id)
-                                 .foregroundStyle(.secondary)
-                                 .font(.caption)
-                         }
-                     }
-                     .frame(minHeight: 150)
-                     .scrollContentBackground(.hidden)
-                     .background(JinSemanticColor.detailSurface)
-                     .jinSurface(.raised, cornerRadius: JinRadius.medium)
+                } else if filteredModels.isEmpty {
+                    Text("No models match your search.")
+                        .jinInfoCallout()
+                } else {
+                    List(filteredModels) { model in
+                        HStack(spacing: 8) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                HStack(spacing: 6) {
+                                    Text(model.name)
+                                        .lineLimit(1)
+
+                                    if isFullySupportedModel(model.id) {
+                                        Text(JinModelSupport.fullSupportSymbol)
+                                            .jinTagStyle(foreground: .green)
+                                            .help("Jin full support")
+                                    }
+                                }
+
+                                Text(model.id)
+                                    .foregroundStyle(.secondary)
+                                    .font(.caption)
+                            }
+
+                            Spacer(minLength: 8)
+
+                            Toggle("", isOn: modelEnabledBinding(modelID: model.id))
+                                .labelsHidden()
+                        }
+                    }
+                    .frame(minHeight: 180)
+                    .scrollContentBackground(.hidden)
+                    .background(JinSemanticColor.detailSurface)
+                    .jinSurface(.raised, cornerRadius: JinRadius.medium)
                 }
 
                 HStack {
@@ -196,23 +234,7 @@ struct ProviderConfigFormView: View {
 
     private func isFullySupportedModel(_ modelID: String) -> Bool {
         guard let providerType else { return false }
-        let lower = modelID.lowercased()
-
-        switch providerType {
-        case .fireworks:
-            return lower == "fireworks/kimi-k2p5"
-                || lower == "accounts/fireworks/models/kimi-k2p5"
-                || lower == "fireworks/glm-4p7"
-                || lower == "accounts/fireworks/models/glm-4p7"
-        case .cerebras:
-            return lower == "zai-glm-4.7"
-        case .gemini:
-            return lower.contains("gemini-3") || lower.contains("gemini-2.5-flash-image")
-        case .vertexai:
-            return lower.contains("gemini-3") || lower.contains("gemini-2.5")
-        case .openai, .openrouter, .anthropic, .xai, .deepseek:
-            return false
-        }
+        return JinModelSupport.isFullySupported(providerType: providerType, modelID: modelID)
     }
 
     private func baseURLBinding(defaultBaseURL: String) -> Binding<String> {
@@ -371,16 +393,57 @@ struct ProviderConfigFormView: View {
     }
 
     private var decodedModels: [ModelInfo] {
-        (try? JSONDecoder().decode([ModelInfo].self, from: provider.modelsData)) ?? []
+        provider.allModels
+    }
+
+    private var filteredModels: [ModelInfo] {
+        let query = modelSearchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !query.isEmpty else { return decodedModels }
+
+        return decodedModels.filter { model in
+            model.name.lowercased().contains(query) || model.id.lowercased().contains(query)
+        }
+    }
+
+    private var enabledModelCount: Int {
+        decodedModels.filter(\.isEnabled).count
     }
 
     private func setModels(_ models: [ModelInfo]) {
         do {
             provider.modelsData = try JSONEncoder().encode(models)
-            selectedModelIDs = []
         } catch {
             modelsError = error.localizedDescription
         }
+    }
+
+    private func modelEnabledBinding(modelID: String) -> Binding<Bool> {
+        Binding(
+            get: {
+                decodedModels.first(where: { $0.id == modelID })?.isEnabled ?? true
+            },
+            set: { isEnabled in
+                var models = decodedModels
+                guard let index = models.firstIndex(where: { $0.id == modelID }) else { return }
+                models[index].isEnabled = isEnabled
+                setModels(models)
+            }
+        )
+    }
+
+    private func setAllModelsEnabled(_ enabled: Bool) {
+        guard !decodedModels.isEmpty else { return }
+        let models = decodedModels.map { model in
+            ModelInfo(
+                id: model.id,
+                name: model.name,
+                capabilities: model.capabilities,
+                contextWindow: model.contextWindow,
+                reasoningConfig: model.reasoningConfig,
+                isEnabled: enabled
+            )
+        }
+        setModels(models)
     }
 
     // MARK: - Actions
@@ -388,7 +451,7 @@ struct ProviderConfigFormView: View {
     private func loadCredentials() async {
         await MainActor.run {
             switch ProviderType(rawValue: provider.typeRaw) {
-            case .openai, .openrouter, .anthropic, .xai, .deepseek, .fireworks, .cerebras, .gemini:
+            case .openai, .openaiCompatible, .openrouter, .anthropic, .xai, .deepseek, .fireworks, .cerebras, .gemini:
                 apiKey = provider.apiKey ?? ""
             case .vertexai:
                 serviceAccountJSON = provider.serviceAccountJSON ?? ""
@@ -562,7 +625,7 @@ struct ProviderConfigFormView: View {
 
     private func persistCredentials(validate: Bool) async throws {
         switch ProviderType(rawValue: provider.typeRaw) {
-        case .openai, .openrouter, .anthropic, .xai, .deepseek, .fireworks, .cerebras, .gemini:
+        case .openai, .openaiCompatible, .openrouter, .anthropic, .xai, .deepseek, .fireworks, .cerebras, .gemini:
             let key = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
             await MainActor.run {
                 provider.apiKeyKeychainID = nil
@@ -606,10 +669,42 @@ struct ProviderConfigFormView: View {
                 throw PersistenceError.invalidProviderType(provider.typeRaw)
             }
             let adapter = try await providerManager.createAdapter(for: config)
-            let models = try await adapter.fetchAvailableModels()
-            await MainActor.run { setModels(models) }
+            let fetchedModels = try await adapter.fetchAvailableModels()
+            await MainActor.run {
+                let merged = mergeFetchedModelsWithExisting(fetchedModels)
+                setModels(merged)
+            }
         } catch {
             await MainActor.run { modelsError = error.localizedDescription }
+        }
+    }
+
+    private func mergeFetchedModelsWithExisting(_ fetchedModels: [ModelInfo]) -> [ModelInfo] {
+        let previousByID = Dictionary(uniqueKeysWithValues: decodedModels.map { ($0.id, $0) })
+
+        var merged: [ModelInfo] = []
+        var seenIDs: Set<String> = []
+        merged.reserveCapacity(fetchedModels.count)
+
+        for model in fetchedModels {
+            guard !seenIDs.contains(model.id) else { continue }
+            seenIDs.insert(model.id)
+
+            let isEnabled = previousByID[model.id]?.isEnabled ?? true
+            merged.append(
+                ModelInfo(
+                    id: model.id,
+                    name: model.name,
+                    capabilities: model.capabilities,
+                    contextWindow: model.contextWindow,
+                    reasoningConfig: model.reasoningConfig,
+                    isEnabled: isEnabled
+                )
+            )
+        }
+
+        return merged.sorted { lhs, rhs in
+            lhs.name.localizedStandardCompare(rhs.name) == .orderedAscending
         }
     }
 
@@ -617,7 +712,7 @@ struct ProviderConfigFormView: View {
 
     private var isTestDisabled: Bool {
         switch ProviderType(rawValue: provider.typeRaw) {
-        case .openai, .openrouter, .anthropic, .xai, .deepseek, .fireworks, .cerebras, .gemini:
+        case .openai, .openaiCompatible, .openrouter, .anthropic, .xai, .deepseek, .fireworks, .cerebras, .gemini:
             return apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || testStatus == .testing
         case .vertexai:
             return serviceAccountJSON.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || testStatus == .testing
@@ -629,7 +724,7 @@ struct ProviderConfigFormView: View {
     private var isFetchModelsDisabled: Bool {
         guard !isFetchingModels else { return true }
         switch providerType {
-        case .openai, .openrouter, .anthropic, .xai, .deepseek, .fireworks, .cerebras, .gemini:
+        case .openai, .openaiCompatible, .openrouter, .anthropic, .xai, .deepseek, .fireworks, .cerebras, .gemini:
             return apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         case .vertexai:
             return serviceAccountJSON.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -820,7 +915,7 @@ private struct AddModelSheet: View {
                 reasoningConfig = ModelReasoningConfig(type: .effort, defaultEffort: .medium)
             }
 
-        case .openai?, .openrouter?, .anthropic?, .xai?, .deepseek?, .none:
+        case .openai?, .openaiCompatible?, .openrouter?, .anthropic?, .xai?, .deepseek?, .none:
             break
         }
 

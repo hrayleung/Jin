@@ -95,55 +95,57 @@ actor VertexAIAdapter: LLMProviderAdapter {
     }
 
     func fetchAvailableModels() async throws -> [ModelInfo] {
-        [
-            ModelInfo(
-                id: "gemini-3-pro-preview",
-                name: "Gemini 3 Pro (Preview)",
-                capabilities: [.streaming, .toolCalling, .vision, .reasoning, .nativePDF],
-                contextWindow: 1_048_576,
-                reasoningConfig: ModelReasoningConfig(
-                    type: .effort,
-                    defaultEffort: .medium
-                )
-            ),
-            ModelInfo(
-                id: "gemini-3-pro-image-preview",
-                name: "Gemini 3 Pro Image (Preview)",
-                capabilities: [.streaming, .vision, .reasoning, .imageGeneration],
-                contextWindow: 1_048_576,
-                reasoningConfig: ModelReasoningConfig(
-                    type: .effort,
-                    defaultEffort: .medium
-                )
-            ),
-            ModelInfo(
-                id: "gemini-3-flash-preview",
-                name: "Gemini 3 Flash (Preview)",
-                capabilities: [.streaming, .toolCalling, .vision, .reasoning, .nativePDF],
-                contextWindow: 1_048_576,
-                reasoningConfig: ModelReasoningConfig(
-                    type: .effort,
-                    defaultEffort: .medium
-                )
-            ),
-            ModelInfo(
-                id: "gemini-2.5-pro",
-                name: "Gemini 2.5 Pro",
-                capabilities: [.streaming, .toolCalling, .vision, .reasoning],
-                contextWindow: 1_048_576,
-                reasoningConfig: ModelReasoningConfig(
-                    type: .budget,
-                    defaultBudget: 2048
-                )
-            ),
-            ModelInfo(
-                id: "gemini-2.5-flash-image",
-                name: "Gemini 2.5 Flash Image",
-                capabilities: [.streaming, .vision, .imageGeneration],
-                contextWindow: 1_048_576,
-                reasoningConfig: nil
-            )
-        ]
+        let token = try await getAccessToken()
+
+        var pageToken: String?
+        var models: [ModelInfo] = []
+        var seenIDs: Set<String> = []
+
+        while true {
+            var components = URLComponents(string: "\(baseURL)/publishers/google/models")
+            var queryItems: [URLQueryItem] = [
+                URLQueryItem(name: "pageSize", value: "1000"),
+                URLQueryItem(name: "listAllVersions", value: "true")
+            ]
+            if let pageToken {
+                queryItems.append(URLQueryItem(name: "pageToken", value: pageToken))
+            }
+            components?.queryItems = queryItems
+
+            guard let url = components?.url else {
+                throw LLMError.invalidRequest(message: "Invalid Vertex models URL")
+            }
+
+            var request = URLRequest(url: url)
+            request.httpMethod = "GET"
+            request.addValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+            request.addValue("application/json", forHTTPHeaderField: "Accept")
+
+            let (data, _) = try await networkManager.sendRequest(request)
+
+            let decoder = JSONDecoder()
+            decoder.keyDecodingStrategy = .convertFromSnakeCase
+            let response = try decoder.decode(VertexListModelsResponse.self, from: data)
+
+            for model in response.items {
+                let info = makeModelInfo(from: model)
+                guard !seenIDs.contains(info.id) else { continue }
+                seenIDs.insert(info.id)
+                models.append(info)
+            }
+
+            guard let next = response.nextPageToken,
+                  !next.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                  next != pageToken else {
+                break
+            }
+
+            pageToken = next
+        }
+
+        return models.sorted { lhs, rhs in
+            lhs.name.localizedStandardCompare(rhs.name) == .orderedAscending
+        }
     }
 
     func translateTools(_ tools: [ToolDefinition]) -> Any {
@@ -350,6 +352,67 @@ actor VertexAIAdapter: LLMProviderAdapter {
     private func supportsThinking(_ modelID: String) -> Bool {
         // Gemini 2.5 Flash Image does not support thinking.
         !modelID.lowercased().contains("gemini-2.5-flash-image")
+    }
+
+    private func makeModelInfo(from model: VertexListModelsResponse.PublisherModel) -> ModelInfo {
+        let id = normalizedVertexModelID(from: model.name)
+        let lower = id.lowercased()
+
+        let methods = Set((model.supportedGenerationMethods ?? model.supportedActions ?? []).map { $0.lowercased() })
+        let supportsGenerateContent = methods.contains("generatecontent") || methods.contains("streamgeneratecontent") || methods.isEmpty
+        let supportsStream = methods.contains("streamgeneratecontent") || methods.isEmpty
+
+        var caps: ModelCapability = []
+
+        if supportsStream {
+            caps.insert(.streaming)
+        }
+
+        let imageModel = isImageGenerationModel(id) || lower.contains("imagen")
+        let geminiModel = lower.contains("gemini")
+
+        if supportsGenerateContent && !imageModel {
+            caps.insert(.toolCalling)
+        }
+
+        if geminiModel || imageModel || lower.contains("vision") || lower.contains("multimodal") {
+            caps.insert(.vision)
+        }
+
+        var reasoningConfig: ModelReasoningConfig?
+        if supportsThinking(id) && (geminiModel || lower.contains("reason") || lower.contains("thinking")) {
+            caps.insert(.reasoning)
+            if lower.contains("gemini-2.5") {
+                reasoningConfig = ModelReasoningConfig(type: .budget, defaultBudget: 2048)
+            } else {
+                reasoningConfig = ModelReasoningConfig(type: .effort, defaultEffort: .medium)
+            }
+        }
+
+        if supportsNativePDF(id) {
+            caps.insert(.nativePDF)
+        }
+
+        if imageModel {
+            caps.insert(.imageGeneration)
+        }
+
+        return ModelInfo(
+            id: id,
+            name: model.displayName ?? id,
+            capabilities: caps,
+            contextWindow: model.inputTokenLimit ?? 1_048_576,
+            reasoningConfig: reasoningConfig,
+            isEnabled: true
+        )
+    }
+
+    private func normalizedVertexModelID(from name: String) -> String {
+        let lower = name.lowercased()
+        if let range = lower.range(of: "/models/") {
+            return String(name[range.upperBound...])
+        }
+        return name
     }
 
     private func buildGenerationConfig(_ controls: GenerationControls, modelID: String) -> [String: Any] {
@@ -723,6 +786,30 @@ actor VertexAIAdapter: LLMProviderAdapter {
 
     private var location: String {
         serviceAccountJSON.location ?? "global"
+    }
+}
+
+private struct VertexListModelsResponse: Codable {
+    let publisherModels: [PublisherModel]?
+    let models: [PublisherModel]?
+    let nextPageToken: String?
+
+    var items: [PublisherModel] {
+        if let publisherModels {
+            return publisherModels
+        }
+        return models ?? []
+    }
+
+    struct PublisherModel: Codable {
+        let name: String
+        let displayName: String?
+        let supportedActions: [String]?
+        let supportedGenerationMethods: [String]?
+        let inputTokenLimit: Int?
+        let outputTokenLimit: Int?
+        let versionID: String?
+        let description: String?
     }
 }
 

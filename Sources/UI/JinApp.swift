@@ -145,9 +145,22 @@ struct JinApp: App {
                     let adapter = try await providerManager.createAdapter(for: providerConfig)
                     let latestModels = try await adapter.fetchAvailableModels()
 
-                    // Update modelsData with latest capabilities
+                    // Preserve user enable/disable choices when refreshing model metadata.
+                    let existingByID = Dictionary(uniqueKeysWithValues: providerEntity.allModels.map { ($0.id, $0) })
+                    let merged = latestModels.map { model in
+                        let isEnabled = existingByID[model.id]?.isEnabled ?? true
+                        return ModelInfo(
+                            id: model.id,
+                            name: model.name,
+                            capabilities: model.capabilities,
+                            contextWindow: model.contextWindow,
+                            reasoningConfig: model.reasoningConfig,
+                            isEnabled: isEnabled
+                        )
+                    }
+
                     let encoder = JSONEncoder()
-                    if let newModelsData = try? encoder.encode(latestModels) {
+                    if let newModelsData = try? encoder.encode(merged) {
                         providerEntity.modelsData = newModelsData
                     }
                 } catch {

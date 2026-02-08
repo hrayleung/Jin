@@ -318,6 +318,7 @@ struct ProviderConfig: Identifiable, Codable {
 /// Provider type
 enum ProviderType: String, Codable, CaseIterable {
     case openai
+    case openaiCompatible
     case openrouter
     case anthropic
     case xai
@@ -330,6 +331,7 @@ enum ProviderType: String, Codable, CaseIterable {
     var displayName: String {
         switch self {
         case .openai: return "OpenAI"
+        case .openaiCompatible: return "OpenAI Compatible"
         case .openrouter: return "OpenRouter"
         case .anthropic: return "Anthropic"
         case .xai: return "xAI"
@@ -344,6 +346,9 @@ enum ProviderType: String, Codable, CaseIterable {
     var defaultBaseURL: String? {
         switch self {
         case .openai:
+            return "https://api.openai.com/v1"
+        case .openaiCompatible:
+            // Keep the official OpenAI base as a sane default; users can replace this with any compatible endpoint.
             return "https://api.openai.com/v1"
         case .openrouter:
             return "https://openrouter.ai/api/v1"
@@ -373,19 +378,51 @@ struct ModelInfo: Identifiable, Codable {
     let capabilities: ModelCapability
     let contextWindow: Int
     let reasoningConfig: ModelReasoningConfig?
+    var isEnabled: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case name
+        case capabilities
+        case contextWindow
+        case reasoningConfig
+        case isEnabled
+    }
 
     init(
         id: String,
         name: String,
         capabilities: ModelCapability = [],
         contextWindow: Int,
-        reasoningConfig: ModelReasoningConfig? = nil
+        reasoningConfig: ModelReasoningConfig? = nil,
+        isEnabled: Bool = true
     ) {
         self.id = id
         self.name = name
         self.capabilities = capabilities
         self.contextWindow = contextWindow
         self.reasoningConfig = reasoningConfig
+        self.isEnabled = isEnabled
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        name = try container.decode(String.self, forKey: .name)
+        capabilities = try container.decode(ModelCapability.self, forKey: .capabilities)
+        contextWindow = try container.decode(Int.self, forKey: .contextWindow)
+        reasoningConfig = try container.decodeIfPresent(ModelReasoningConfig.self, forKey: .reasoningConfig)
+        isEnabled = try container.decodeIfPresent(Bool.self, forKey: .isEnabled) ?? true
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(name, forKey: .name)
+        try container.encode(capabilities, forKey: .capabilities)
+        try container.encode(contextWindow, forKey: .contextWindow)
+        try container.encode(reasoningConfig, forKey: .reasoningConfig)
+        try container.encode(isEnabled, forKey: .isEnabled)
     }
 }
 

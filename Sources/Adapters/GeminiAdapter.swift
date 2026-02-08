@@ -153,48 +153,52 @@ actor GeminiAdapter: LLMProviderAdapter {
     }
 
     func fetchAvailableModels() async throws -> [ModelInfo] {
-        var request = URLRequest(url: URL(string: "\(baseURL)/models")!)
-        request.httpMethod = "GET"
-        request.addValue(apiKey, forHTTPHeaderField: "x-goog-api-key")
+        var pageToken: String?
+        var models: [ModelInfo] = []
+        var seenIDs: Set<String> = []
 
-        do {
+        while true {
+            var components = URLComponents(string: "\(baseURL)/models")
+            var queryItems: [URLQueryItem] = [
+                URLQueryItem(name: "pageSize", value: "1000")
+            ]
+            if let pageToken {
+                queryItems.append(URLQueryItem(name: "pageToken", value: pageToken))
+            }
+            components?.queryItems = queryItems
+
+            guard let url = components?.url else {
+                throw LLMError.invalidRequest(message: "Invalid Gemini models URL")
+            }
+
+            var request = URLRequest(url: url)
+            request.httpMethod = "GET"
+            request.addValue(apiKey, forHTTPHeaderField: "x-goog-api-key")
+
             let (data, _) = try await networkManager.sendRequest(request)
+
             let decoder = JSONDecoder()
             decoder.keyDecodingStrategy = .convertFromSnakeCase
             let response = try decoder.decode(ListModelsResponse.self, from: data)
-            return response.models.compactMap(makeModelInfo(from:))
-        } catch {
-            // Fallback (offline / restricted network): include a sane baseline set.
-            return [
-                ModelInfo(
-                    id: "gemini-3-pro-preview",
-                    name: "Gemini 3 Pro (Preview)",
-                    capabilities: [.streaming, .toolCalling, .vision, .reasoning, .nativePDF],
-                    contextWindow: 1_048_576,
-                    reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high)
-                ),
-                ModelInfo(
-                    id: "gemini-3-pro-image-preview",
-                    name: "Gemini 3 Pro Image (Preview)",
-                    capabilities: [.streaming, .vision, .reasoning, .imageGeneration],
-                    contextWindow: 1_048_576,
-                    reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high)
-                ),
-                ModelInfo(
-                    id: "gemini-3-flash-preview",
-                    name: "Gemini 3 Flash (Preview)",
-                    capabilities: [.streaming, .toolCalling, .vision, .reasoning, .nativePDF],
-                    contextWindow: 1_048_576,
-                    reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high)
-                ),
-                ModelInfo(
-                    id: "gemini-2.5-flash-image",
-                    name: "Gemini 2.5 Flash Image",
-                    capabilities: [.streaming, .vision, .imageGeneration],
-                    contextWindow: 1_048_576,
-                    reasoningConfig: nil
-                )
-            ]
+
+            for model in response.models {
+                let info = makeModelInfo(from: model)
+                guard !seenIDs.contains(info.id) else { continue }
+                seenIDs.insert(info.id)
+                models.append(info)
+            }
+
+            guard let next = response.nextPageToken,
+                  !next.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                  next != pageToken else {
+                break
+            }
+
+            pageToken = next
+        }
+
+        return models.sorted { lhs, rhs in
+            lhs.name.localizedStandardCompare(rhs.name) == .orderedAscending
         }
     }
 
@@ -645,29 +649,43 @@ actor GeminiAdapter: LLMProviderAdapter {
         return false
     }
 
-    private func makeModelInfo(from model: ListModelsResponse.Model) -> ModelInfo? {
+    private func makeModelInfo(from model: ListModelsResponse.Model) -> ModelInfo {
         let id = model.id
         let lower = id.lowercased()
+        let methods = Set(model.supportedGenerationMethods?.map { $0.lowercased() } ?? [])
 
-        guard lower.contains("gemini-3") || lower.contains("gemini-2.5-flash-image") else {
-            return nil
+        var caps: ModelCapability = []
+
+        let supportsGenerateContent = methods.contains("generatecontent") || methods.contains("streamgeneratecontent") || methods.isEmpty
+        let supportsStream = methods.contains("streamgeneratecontent") || methods.isEmpty
+
+        if supportsStream {
+            caps.insert(.streaming)
         }
 
-        let caps: ModelCapability
-        let reasoningConfig: ModelReasoningConfig?
+        let isImageModel = isImageGenerationModel(id) || lower.contains("imagen")
+        let isGeminiModel = lower.contains("gemini")
 
-        if isImageGenerationModel(id) {
-            // Gemini image models support multimodal generation but not function calling.
-            if supportsThinking(id) {
-                caps = [.streaming, .vision, .reasoning, .imageGeneration]
-                reasoningConfig = ModelReasoningConfig(type: .effort, defaultEffort: .high)
-            } else {
-                caps = [.streaming, .vision, .imageGeneration]
-                reasoningConfig = nil
-            }
-        } else {
-            caps = [.streaming, .toolCalling, .vision, .reasoning, .nativePDF]
+        if supportsGenerateContent && !isImageModel {
+            caps.insert(.toolCalling)
+        }
+
+        if isGeminiModel || isImageModel || lower.contains("vision") || lower.contains("multimodal") {
+            caps.insert(.vision)
+        }
+
+        var reasoningConfig: ModelReasoningConfig?
+        if supportsThinking(id) && (isGeminiModel || lower.contains("reason") || lower.contains("thinking")) {
+            caps.insert(.reasoning)
             reasoningConfig = ModelReasoningConfig(type: .effort, defaultEffort: .high)
+        }
+
+        if supportsNativePDF(id) {
+            caps.insert(.nativePDF)
+        }
+
+        if isImageModel {
+            caps.insert(.imageGeneration)
         }
 
         let contextWindow = model.inputTokenLimit ?? 1_048_576
@@ -677,7 +695,8 @@ actor GeminiAdapter: LLMProviderAdapter {
             name: model.displayName ?? id,
             capabilities: caps,
             contextWindow: contextWindow,
-            reasoningConfig: reasoningConfig
+            reasoningConfig: reasoningConfig,
+            isEnabled: true
         )
     }
 
@@ -698,11 +717,15 @@ actor GeminiAdapter: LLMProviderAdapter {
 
 private struct ListModelsResponse: Codable {
     let models: [Model]
+    let nextPageToken: String?
 
     struct Model: Codable {
         let name: String
         let displayName: String?
+        let description: String?
         let inputTokenLimit: Int?
+        let outputTokenLimit: Int?
+        let supportedGenerationMethods: [String]?
 
         var id: String {
             if name.lowercased().hasPrefix("models/") {
