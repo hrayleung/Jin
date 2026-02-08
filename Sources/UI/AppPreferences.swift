@@ -15,6 +15,11 @@ enum AppPreferenceKeys {
     static let codeFontFamily = "codeFontFamily"
     static let chatMessageFontScale = "chatMessageFontScale"
 
+    // MARK: - Network
+
+    // When disabled, Jin will avoid initiating network requests automatically (e.g., refreshing model lists on launch).
+    static let allowAutomaticNetworkRequests = "allowAutomaticNetworkRequests"
+
     // MARK: - Extensions
 
     // Plugin visibility toggles (default: true)

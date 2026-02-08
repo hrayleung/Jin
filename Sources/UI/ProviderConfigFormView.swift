@@ -19,6 +19,8 @@ struct ProviderConfigFormView: View {
     @State private var openRouterUsage: OpenRouterKeyUsage?
     @State private var openRouterUsageTask: Task<Void, Never>?
 
+    @AppStorage(AppPreferenceKeys.allowAutomaticNetworkRequests) private var allowAutomaticNetworkRequests = false
+
     private let providerManager = ProviderManager()
     private let networkManager = NetworkManager()
 
@@ -195,14 +197,14 @@ struct ProviderConfigFormView: View {
             await MainActor.run {
                 hasLoadedCredentials = true
             }
-            if providerType == .openrouter {
+            if providerType == .openrouter, allowAutomaticNetworkRequests {
                 await refreshOpenRouterUsage(force: true)
             }
         }
         .onChange(of: apiKey) { _, _ in
             guard hasLoadedCredentials else { return }
             scheduleCredentialSave()
-            if providerType == .openrouter {
+            if providerType == .openrouter, allowAutomaticNetworkRequests {
                 scheduleOpenRouterUsageRefresh()
             }
         }

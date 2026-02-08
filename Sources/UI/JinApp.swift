@@ -128,7 +128,15 @@ struct JinApp: App {
     }
 
     private func updateProviderModelsIfNeeded() {
+        let defaults = UserDefaults.standard
+        guard defaults.bool(forKey: AppPreferenceKeys.allowAutomaticNetworkRequests) else {
+            return
+        }
+
+        let refreshInterval: TimeInterval = 24 * 60 * 60
+
         Task {
+            let now = Date()
             let context = ModelContext(modelContainer)
             let descriptor = FetchDescriptor<ProviderConfigEntity>()
 
@@ -138,6 +146,13 @@ struct JinApp: App {
 
             for providerEntity in providers {
                 do {
+                    let refreshKey = "providerModelsLastRefreshAt.\(providerEntity.id)"
+                    let lastRefreshedAt = defaults.double(forKey: refreshKey)
+                    if lastRefreshedAt > 0,
+                       now.timeIntervalSince1970 - lastRefreshedAt < refreshInterval {
+                        continue
+                    }
+
                     // Convert to domain model
                     let providerConfig = try providerEntity.toDomain()
 
@@ -162,6 +177,7 @@ struct JinApp: App {
                     let encoder = JSONEncoder()
                     if let newModelsData = try? encoder.encode(merged) {
                         providerEntity.modelsData = newModelsData
+                        defaults.set(now.timeIntervalSince1970, forKey: refreshKey)
                     }
                 } catch {
                     // If fetching fails, continue with next provider

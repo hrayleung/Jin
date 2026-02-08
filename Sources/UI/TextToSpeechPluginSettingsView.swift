@@ -3,6 +3,7 @@ import AVFoundation
 
 struct TextToSpeechPluginSettingsView: View {
     @AppStorage(AppPreferenceKeys.ttsProvider) private var providerRaw = TextToSpeechProvider.openai.rawValue
+    @AppStorage(AppPreferenceKeys.allowAutomaticNetworkRequests) private var allowAutomaticNetworkRequests = false
 
     @AppStorage(AppPreferenceKeys.ttsOpenAIBaseURL) private var openAIBaseURL = OpenAIAudioClient.Constants.defaultBaseURL.absoluteString
     @AppStorage(AppPreferenceKeys.ttsOpenAIModel) private var openAIModel = "gpt-4o-mini-tts"
@@ -307,7 +308,7 @@ struct TextToSpeechPluginSettingsView: View {
 
     private func loadExistingKeyAndMaybeVoices() async {
         await loadExistingKey()
-        if provider == .elevenlabs, !trimmedAPIKey.isEmpty {
+        if provider == .elevenlabs, allowAutomaticNetworkRequests, !trimmedAPIKey.isEmpty {
             await loadElevenLabsVoices()
         } else {
             await MainActor.run {

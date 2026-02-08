@@ -1274,6 +1274,7 @@ struct GeneralSettingsView: View {
     @AppStorage(AppPreferenceKeys.newChatFixedMCPEnabled) private var newChatFixedMCPEnabled = true
     @AppStorage(AppPreferenceKeys.newChatFixedMCPUseAllServers) private var newChatFixedMCPUseAllServers = true
     @AppStorage(AppPreferenceKeys.newChatFixedMCPServerIDsJSON) private var newChatFixedMCPServerIDsJSON = "[]"
+    @AppStorage(AppPreferenceKeys.allowAutomaticNetworkRequests) private var allowAutomaticNetworkRequests = false
 
     var body: some View {
         Form {
@@ -1409,6 +1410,13 @@ struct GeneralSettingsView: View {
                     Text("New chats will copy MCP Tools settings from your most recently used chat.")
                         .jinInfoCallout()
                 }
+            }
+
+            Section("Network") {
+                Toggle("Allow automatic network requests", isOn: $allowAutomaticNetworkRequests)
+
+                Text("When off, Jin only makes network requests from explicit actions (e.g. Send, Fetch Models, Test Connection).")
+                    .jinInfoCallout()
             }
 
             Section("Data") {
