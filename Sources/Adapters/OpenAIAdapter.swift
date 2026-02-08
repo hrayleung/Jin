@@ -375,7 +375,7 @@ actor OpenAIAdapter: LLMProviderAdapter {
                 "text": text
             ]
 
-        case .thinking, .redactedThinking, .audio:
+        case .thinking, .redactedThinking, .audio, .video:
             return nil
         }
     }

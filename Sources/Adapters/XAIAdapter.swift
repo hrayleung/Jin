@@ -1,9 +1,12 @@
 import Foundation
 
-/// xAI provider adapter (OpenAI-compatible Responses API)
+/// xAI provider adapter.
+///
+/// - Chat models use the Responses API (`/responses`).
+/// - Image models use `/images/generations` + `/images/edits`.
 actor XAIAdapter: LLMProviderAdapter {
     let providerConfig: ProviderConfig
-    let capabilities: ModelCapability = [.streaming, .toolCalling, .vision, .reasoning]
+    let capabilities: ModelCapability = [.streaming, .toolCalling, .vision, .reasoning, .imageGeneration]
 
     private let networkManager: NetworkManager
     private let apiKey: String
@@ -21,7 +24,77 @@ actor XAIAdapter: LLMProviderAdapter {
         tools: [ToolDefinition],
         streaming: Bool
     ) async throws -> AsyncThrowingStream<StreamEvent, Error> {
-        let request = try buildRequest(
+        if isImageGenerationModel(modelID) {
+            return try makeImageGenerationStream(messages: messages, modelID: modelID, controls: controls)
+        }
+
+        return try await sendResponsesConversation(
+            messages: messages,
+            modelID: modelID,
+            controls: controls,
+            tools: tools,
+            streaming: streaming
+        )
+    }
+
+    func validateAPIKey(_ key: String) async throws -> Bool {
+        var request = URLRequest(url: URL(string: "\(baseURL)/models")!)
+        request.httpMethod = "GET"
+        request.addValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
+
+        do {
+            _ = try await networkManager.sendRequest(request)
+            return true
+        } catch {
+            return false
+        }
+    }
+
+    func fetchAvailableModels() async throws -> [ModelInfo] {
+        var request = URLRequest(url: URL(string: "\(baseURL)/models")!)
+        request.httpMethod = "GET"
+        request.addValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+
+        let (data, _) = try await networkManager.sendRequest(request)
+
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        let response = try decoder.decode(ModelsResponse.self, from: data)
+
+        return response.data
+            .filter { !isUnsupportedVideoGenerationModel($0) }
+            .map { model in
+                let caps = inferCapabilities(for: model)
+                return ModelInfo(
+                    id: model.id,
+                    name: model.id,
+                    capabilities: caps,
+                    contextWindow: model.contextWindow ?? 128000,
+                    reasoningConfig: nil
+                )
+            }
+    }
+
+    func translateTools(_ tools: [ToolDefinition]) -> Any {
+        tools.map(translateSingleTool)
+    }
+
+    // MARK: - Private
+
+    private var baseURL: String {
+        providerConfig.baseURL ?? "https://api.x.ai/v1"
+    }
+
+    // MARK: - Chat (Responses API)
+
+    private func sendResponsesConversation(
+        messages: [Message],
+        modelID: String,
+        controls: GenerationControls,
+        tools: [ToolDefinition],
+        streaming: Bool
+    ) async throws -> AsyncThrowingStream<StreamEvent, Error> {
+        let request = try buildResponsesRequest(
             messages: messages,
             modelID: modelID,
             controls: controls,
@@ -56,11 +129,11 @@ actor XAIAdapter: LLMProviderAdapter {
                     for try await event in sseStream {
                         switch event {
                         case .event(let type, let data):
-                            if type == "response.completed" {
-                                if let encrypted = extractEncryptedReasoningEncryptedContent(from: data) {
-                                    continuation.yield(.thinkingDelta(.redacted(data: encrypted)))
-                                }
+                            if type == "response.completed",
+                               let encrypted = extractEncryptedReasoningEncryptedContent(from: data) {
+                                continuation.yield(.thinkingDelta(.redacted(data: encrypted)))
                             }
+
                             if let streamEvent = try parseSSEEvent(
                                 type: type,
                                 data: data,
@@ -80,62 +153,7 @@ actor XAIAdapter: LLMProviderAdapter {
         }
     }
 
-    func validateAPIKey(_ key: String) async throws -> Bool {
-        var request = URLRequest(url: URL(string: "\(baseURL)/models")!)
-        request.httpMethod = "GET"
-        request.addValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
-
-        do {
-            _ = try await networkManager.sendRequest(request)
-            return true
-        } catch {
-            return false
-        }
-    }
-
-    func fetchAvailableModels() async throws -> [ModelInfo] {
-        var request = URLRequest(url: URL(string: "\(baseURL)/models")!)
-        request.httpMethod = "GET"
-        request.addValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-
-        let (data, _) = try await networkManager.sendRequest(request)
-        let response = try JSONDecoder().decode(ModelsResponse.self, from: data)
-
-        return response.data.map { model in
-            var caps: ModelCapability = [.streaming, .toolCalling]
-
-            if model.id.contains("grok") {
-                caps.insert(.vision)
-                caps.insert(.reasoning)
-            }
-
-            // Grok 4.1+ supports native PDF via Files API
-            if model.id.contains("grok-4.1") || model.id.contains("grok-4.2") ||
-               model.id.contains("grok-5") || model.id.contains("grok-6") {
-                caps.insert(.nativePDF)
-            }
-
-            return ModelInfo(
-                id: model.id,
-                name: model.id,
-                capabilities: caps,
-                contextWindow: 128000,
-                reasoningConfig: nil
-            )
-        }
-    }
-
-    func translateTools(_ tools: [ToolDefinition]) -> Any {
-        tools.map(translateSingleTool)
-    }
-
-    // MARK: - Private
-
-    private var baseURL: String {
-        providerConfig.baseURL ?? "https://api.x.ai/v1"
-    }
-
-    private func buildRequest(
+    private func buildResponsesRequest(
         messages: [Message],
         modelID: String,
         controls: GenerationControls,
@@ -166,7 +184,10 @@ actor XAIAdapter: LLMProviderAdapter {
             body["top_p"] = topP
         }
 
-        if supportsReasoningEffort(modelID: modelID), let reasoning = controls.reasoning, reasoning.enabled, let effort = reasoning.effort {
+        if supportsReasoningEffort(modelID: modelID),
+           let reasoning = controls.reasoning,
+           reasoning.enabled,
+           let effort = reasoning.effort {
             body["reasoning_effort"] = mapReasoningEffort(effort)
         }
 
@@ -198,13 +219,169 @@ actor XAIAdapter: LLMProviderAdapter {
             body["tools"] = toolObjects
         }
 
-        for (key, value) in controls.providerSpecific {
-            body[key] = value.value
-        }
+        applyProviderSpecificOverrides(controls: controls, body: &body)
 
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
         return request
     }
+
+    // MARK: - Image generation
+
+    private func makeImageGenerationStream(
+        messages: [Message],
+        modelID: String,
+        controls: GenerationControls
+    ) throws -> AsyncThrowingStream<StreamEvent, Error> {
+        let prompt = try mediaPrompt(from: messages)
+        let imageURL = firstImageURLString(from: messages)
+
+        return AsyncThrowingStream { continuation in
+            let task = Task {
+                do {
+                    let request = try buildImageGenerationRequest(
+                        modelID: modelID,
+                        prompt: prompt,
+                        imageURL: imageURL,
+                        controls: controls
+                    )
+                    let (data, _) = try await networkManager.sendRequest(request)
+
+                    let decoder = JSONDecoder()
+                    decoder.keyDecodingStrategy = .convertFromSnakeCase
+                    let response = try decoder.decode(XAIImageGenerationResponse.self, from: data)
+
+                    if let error = response.error {
+                        throw LLMError.providerError(code: error.code ?? "image_generation_failed", message: error.message)
+                    }
+
+                    let images = resolveImageOutputs(from: response.mediaItems)
+                    guard !images.isEmpty else {
+                        throw LLMError.decodingError(message: "xAI image generation returned no image output.")
+                    }
+
+                    continuation.yield(.messageStart(id: response.resolvedID ?? "img_\(UUID().uuidString)"))
+                    for image in images {
+                        continuation.yield(.contentDelta(.image(image)))
+                    }
+                    continuation.yield(.messageEnd(usage: nil))
+                    continuation.finish()
+                } catch {
+                    continuation.finish(throwing: error)
+                }
+            }
+
+            continuation.onTermination = { @Sendable _ in
+                task.cancel()
+            }
+        }
+    }
+
+    private func buildImageGenerationRequest(
+        modelID: String,
+        prompt: String,
+        imageURL: String?,
+        controls: GenerationControls
+    ) throws -> URLRequest {
+        let endpoint = (imageURL?.isEmpty == false) ? "images/edits" : "images/generations"
+
+        var request = URLRequest(url: URL(string: "\(baseURL)/\(endpoint)")!)
+        request.httpMethod = "POST"
+        request.addValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        let imageControls = controls.xaiImageGeneration
+
+        var body: [String: Any] = [
+            "model": modelID,
+            "prompt": prompt
+        ]
+
+        if let count = imageControls?.count, count > 0 {
+            body["n"] = min(max(count, 1), 10)
+        }
+        if let imageURL, !imageURL.isEmpty {
+            body["image_url"] = imageURL
+        }
+
+        // xAI currently uses `aspect_ratio`; map older persisted `size` values for compatibility.
+        if let aspectRatio = imageControls?.aspectRatio ?? imageControls?.size?.mappedAspectRatio {
+            body["aspect_ratio"] = aspectRatio.rawValue
+        }
+
+        let responseFormat = imageControls?.responseFormat ?? .url
+        body["response_format"] = responseFormat.rawValue
+        if let user = imageControls?.user?.trimmingCharacters(in: .whitespacesAndNewlines), !user.isEmpty {
+            body["user"] = user
+        }
+
+        applyProviderSpecificOverrides(controls: controls, body: &body)
+
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        return request
+    }
+
+    // MARK: - Capability/model inference
+
+    private func isUnsupportedVideoGenerationModel(_ model: ModelData) -> Bool {
+        let lowerID = model.id.lowercased()
+        if lowerID.contains("imagine-video")
+            || lowerID.contains("grok-video")
+            || lowerID.contains("video-generation")
+            || lowerID.hasSuffix("-video") {
+            return true
+        }
+
+        let outputModalities = (model.outputModalities ?? []) + (model.modalities ?? [])
+        return outputModalities.contains(where: { $0.lowercased().contains("video") })
+    }
+
+    private func inferCapabilities(for model: ModelData) -> ModelCapability {
+        let lowerID = model.id.lowercased()
+
+        let inputModalities = Set((model.inputModalities ?? []).map { $0.lowercased() })
+        let outputModalities = Set((model.outputModalities ?? []).map { $0.lowercased() })
+        let allModalities = Set((model.modalities ?? []).map { $0.lowercased() })
+
+        let hasImageOutput = outputModalities.contains(where: { $0.contains("image") })
+            || allModalities.contains(where: { $0.contains("image") })
+        let imageModel = hasImageOutput || isImageGenerationModelID(lowerID)
+
+        if imageModel {
+            return [.imageGeneration]
+        }
+
+        var caps: ModelCapability = [.streaming, .toolCalling]
+
+        if inputModalities.contains(where: { $0.contains("image") }) || outputModalities.contains(where: { $0.contains("image") }) {
+            caps.insert(.vision)
+        }
+
+        if lowerID.contains("grok") {
+            caps.insert(.vision)
+            caps.insert(.reasoning)
+        }
+
+        if supportsNativePDF(model.id) {
+            caps.insert(.nativePDF)
+        }
+
+        return caps
+    }
+
+    private func isImageGenerationModel(_ modelID: String) -> Bool {
+        if providerConfig.models.first(where: { $0.id == modelID })?.capabilities.contains(.imageGeneration) == true {
+            return true
+        }
+        return isImageGenerationModelID(modelID.lowercased())
+    }
+
+    private func isImageGenerationModelID(_ lowerModelID: String) -> Bool {
+        lowerModelID.contains("imagine-image")
+            || lowerModelID.hasSuffix("-image")
+            || lowerModelID.contains("grok-2-image")
+    }
+
+    // MARK: - Shared helpers
 
     private func mapReasoningEffort(_ effort: ReasoningEffort) -> String {
         switch effort {
@@ -220,21 +397,110 @@ actor XAIAdapter: LLMProviderAdapter {
     }
 
     private func supportsReasoningEffort(modelID: String) -> Bool {
-        // Per xAI docs: reasoning_effort is only supported for grok-3-mini (not Grok 4/4.1).
-        modelID.contains("grok-3-mini")
+        modelID.lowercased().contains("grok-3-mini")
     }
 
     private func supportsEncryptedReasoning(modelID: String) -> Bool {
-        // Per xAI docs: Grok 4 reasoning can be returned encrypted via include:["reasoning.encrypted_content"].
-        // Avoid requesting for explicit non-reasoning variants.
-        guard modelID.contains("grok-4") else { return false }
-        return !modelID.contains("non-reasoning")
+        let lower = modelID.lowercased()
+        guard lower.contains("grok-4") else { return false }
+        return !lower.contains("non-reasoning")
     }
 
     private func supportsNativePDF(_ modelID: String) -> Bool {
-        // Grok 4.1+ supports native PDF via Files API
-        return modelID.contains("grok-4.1") || modelID.contains("grok-4.2") ||
-               modelID.contains("grok-5") || modelID.contains("grok-6")
+        let lower = modelID.lowercased()
+        return lower.contains("grok-4.1")
+            || lower.contains("grok-4-1")
+            || lower.contains("grok-4.2")
+            || lower.contains("grok-4-2")
+            || lower.contains("grok-5")
+            || lower.contains("grok-6")
+    }
+
+    private func mediaPrompt(from messages: [Message]) throws -> String {
+        for message in messages.reversed() where message.role == .user {
+            let text = message.content.compactMap { part -> String? in
+                guard case .text(let value) = part else { return nil }
+                let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+                return trimmed.isEmpty ? nil : trimmed
+            }
+            .joined(separator: "\n\n")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+            if !text.isEmpty {
+                return text
+            }
+        }
+
+        throw LLMError.invalidRequest(message: "xAI image generation requires a text prompt.")
+    }
+
+    private func firstImageURLString(from messages: [Message]) -> String? {
+        for message in messages.reversed() where message.role == .user {
+            for part in message.content {
+                if case .image(let image) = part,
+                   let urlString = imageURLString(image) {
+                    return urlString
+                }
+            }
+        }
+        return nil
+    }
+
+    private func imageURLString(_ image: ImageContent) -> String? {
+        if let data = image.data {
+            return "data:\(image.mimeType);base64,\(data.base64EncodedString())"
+        }
+
+        if let url = image.url {
+            if url.isFileURL, let data = try? Data(contentsOf: url) {
+                return "data:\(image.mimeType);base64,\(data.base64EncodedString())"
+            }
+            return url.absoluteString
+        }
+
+        return nil
+    }
+
+    private func resolveImageOutputs(from items: [XAIMediaItem]) -> [ImageContent] {
+        var out: [ImageContent] = []
+        out.reserveCapacity(items.count)
+
+        for item in items {
+            if let b64 = item.b64JSON,
+               let data = Data(base64Encoded: b64) {
+                out.append(ImageContent(mimeType: item.mimeType ?? "image/png", data: data, url: nil))
+                continue
+            }
+
+            if let rawURL = item.resolvedURL,
+               let url = URL(string: rawURL) {
+                let mime = item.mimeType ?? inferImageMIMEType(from: url) ?? "image/png"
+                out.append(ImageContent(mimeType: mime, data: nil, url: url))
+            }
+        }
+
+        return out
+    }
+
+    private func inferImageMIMEType(from url: URL) -> String? {
+        switch url.pathExtension.lowercased() {
+        case "jpg", "jpeg":
+            return "image/jpeg"
+        case "png":
+            return "image/png"
+        case "webp":
+            return "image/webp"
+        case "gif":
+            return "image/gif"
+        default:
+            return nil
+        }
+    }
+
+    private func applyProviderSpecificOverrides(controls: GenerationControls, body: inout [String: Any]) {
+        for (key, value) in controls.providerSpecific {
+            body[key] = value.value
+        }
     }
 
     private func extractEncryptedReasoningEncryptedContent(from jsonString: String) -> String? {
@@ -380,9 +646,7 @@ actor XAIAdapter: LLMProviderAdapter {
             return nil
 
         case .file(let file):
-            // Native PDF support for Grok 4.1+
             if supportsNativePDF && file.mimeType == "application/pdf" {
-                // Load PDF data from file URL or use existing data
                 let pdfData: Data?
                 if let data = file.data {
                     pdfData = data
@@ -392,7 +656,7 @@ actor XAIAdapter: LLMProviderAdapter {
                     pdfData = nil
                 }
 
-                if let pdfData = pdfData {
+                if let pdfData {
                     return [
                         "type": "input_file",
                         "filename": file.filename,
@@ -401,14 +665,13 @@ actor XAIAdapter: LLMProviderAdapter {
                 }
             }
 
-            // Fallback to text extraction
             let text = AttachmentPromptRenderer.fallbackText(for: file)
             return [
                 "type": "input_text",
                 "text": text
             ]
 
-        case .thinking, .redactedThinking, .audio:
+        case .thinking, .redactedThinking, .audio, .video:
             return nil
         }
     }
@@ -541,6 +804,10 @@ private struct ModelsResponse: Codable {
 
 private struct ModelData: Codable {
     let id: String
+    let inputModalities: [String]?
+    let outputModalities: [String]?
+    let modalities: [String]?
+    let contextWindow: Int?
 }
 
 // MARK: - Streaming Event Types
@@ -617,7 +884,80 @@ private struct ResponseFailedEvent: Codable {
     }
 }
 
-// MARK: - Non-streaming Response Types
+// MARK: - Media Generation Response Types
+
+private struct XAIAPIError: Codable {
+    let code: String?
+    let message: String
+}
+
+private struct XAIMediaItem: Codable {
+    let url: String?
+    let imageUrl: String?
+    let videoUrl: String?
+    let resultUrl: String?
+    let b64Json: String?
+    let mimeType: String?
+
+    var b64JSON: String? {
+        b64Json
+    }
+
+    var resolvedURL: String? {
+        url ?? imageUrl ?? videoUrl ?? resultUrl
+    }
+}
+
+private struct XAIImageGenerationResponse: Codable {
+    let id: String?
+    let requestId: String?
+    let responseId: String?
+    let data: [XAIMediaItem]?
+    let output: [XAIMediaItem]?
+    let result: [XAIMediaItem]?
+    let images: [XAIMediaItem]?
+    let url: String?
+    let imageUrl: String?
+    let b64Json: String?
+    let mimeType: String?
+    let error: XAIAPIError?
+
+    var resolvedID: String? {
+        requestId ?? responseId ?? id
+    }
+
+    var mediaItems: [XAIMediaItem] {
+        var merged: [XAIMediaItem] = []
+        for collection in [data, output, result, images] {
+            if let collection {
+                merged.append(contentsOf: collection)
+            }
+        }
+
+        if let inline = inlineMediaItem {
+            merged.append(inline)
+        }
+
+        return merged
+    }
+
+    private var inlineMediaItem: XAIMediaItem? {
+        guard url != nil || imageUrl != nil || b64Json != nil else {
+            return nil
+        }
+
+        return XAIMediaItem(
+            url: url,
+            imageUrl: imageUrl,
+            videoUrl: nil,
+            resultUrl: nil,
+            b64Json: b64Json,
+            mimeType: mimeType
+        )
+    }
+}
+
+// MARK: - Non-streaming Responses API Types
 
 private struct ResponsesAPIResponse: Codable {
     let id: String

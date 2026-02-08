@@ -241,7 +241,7 @@ actor FireworksAdapter: LLMProviderAdapter {
                     "text": text
                 ])
 
-            case .thinking, .redactedThinking, .audio:
+            case .thinking, .redactedThinking, .audio, .video:
                 // Do not send provider reasoning blocks or audio via Chat Completions.
                 continue
             }
@@ -286,6 +286,8 @@ actor FireworksAdapter: LLMProviderAdapter {
                 // Redacted reasoning is not safe to replay as model input.
                 continue
             case .audio:
+                continue
+            case .video:
                 continue
             }
         }

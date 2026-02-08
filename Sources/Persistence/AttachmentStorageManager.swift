@@ -89,6 +89,12 @@ actor AttachmentStorageManager {
             return "mp3"
         case "audio/wav":
             return "wav"
+        case "video/mp4":
+            return "mp4"
+        case "video/webm":
+            return "webm"
+        case "video/quicktime":
+            return "mov"
         default:
             return nil
         }

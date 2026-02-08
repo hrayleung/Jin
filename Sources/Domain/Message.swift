@@ -12,6 +12,7 @@ enum MessageRole: String, Codable {
 enum ContentPart: Codable {
     case text(String)
     case image(ImageContent)
+    case video(VideoContent)
     case file(FileContent)
     case audio(AudioContent)
     case thinking(ThinkingBlock) // Reasoning output
@@ -21,6 +22,7 @@ enum ContentPart: Codable {
         case type
         case text
         case image
+        case video
         case file
         case audio
         case thinking
@@ -31,6 +33,7 @@ enum ContentPart: Codable {
     enum ContentType: String, Codable {
         case text
         case image
+        case video
         case file
         case audio
         case thinking
@@ -48,6 +51,9 @@ enum ContentPart: Codable {
         case .image:
             let image = try container.decode(ImageContent.self, forKey: .image)
             self = .image(image)
+        case .video:
+            let video = try container.decode(VideoContent.self, forKey: .video)
+            self = .video(video)
         case .file:
             let file = try container.decode(FileContent.self, forKey: .file)
             self = .file(file)
@@ -74,6 +80,9 @@ enum ContentPart: Codable {
         case .image(let image):
             try container.encode(ContentType.image, forKey: .type)
             try container.encode(image, forKey: .image)
+        case .video(let video):
+            try container.encode(ContentType.video, forKey: .type)
+            try container.encode(video, forKey: .video)
         case .file(let file):
             try container.encode(ContentType.file, forKey: .type)
             try container.encode(file, forKey: .file)
@@ -116,6 +125,19 @@ struct ImageContent: Codable {
     let mimeType: String // image/jpeg, image/png, image/webp
     let data: Data? // Base64 encoded
     let url: URL? // Remote URL
+
+    init(mimeType: String, data: Data? = nil, url: URL? = nil) {
+        self.mimeType = mimeType
+        self.data = data
+        self.url = url
+    }
+}
+
+/// Video content with base64 data or URL
+struct VideoContent: Codable {
+    let mimeType: String // video/mp4, video/webm
+    let data: Data?
+    let url: URL?
 
     init(mimeType: String, data: Data? = nil, url: URL? = nil) {
         self.mimeType = mimeType

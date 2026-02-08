@@ -926,7 +926,15 @@ private struct AddModelSheet: View {
                 reasoningConfig = ModelReasoningConfig(type: .effort, defaultEffort: .medium)
             }
 
-        case .openai?, .openaiCompatible?, .openrouter?, .anthropic?, .xai?, .deepseek?, .none:
+        case .xai?:
+            if lower.contains("imagine-image")
+                || lower.contains("grok-2-image")
+                || lower.hasSuffix("-image") {
+                caps = [.imageGeneration]
+                reasoningConfig = nil
+            }
+
+        case .openai?, .openaiCompatible?, .openrouter?, .anthropic?, .deepseek?, .none:
             break
         }
 

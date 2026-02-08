@@ -249,6 +249,8 @@ actor CerebrasAdapter: LLMProviderAdapter {
                 continue
             case .audio:
                 continue
+            case .video:
+                continue
             }
         }
 

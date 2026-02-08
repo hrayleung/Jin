@@ -271,7 +271,7 @@ actor OpenRouterAdapter: LLMProviderAdapter {
                     "text": text
                 ])
 
-            case .thinking, .redactedThinking, .audio:
+            case .thinking, .redactedThinking, .audio, .video:
                 continue
             }
         }
@@ -314,6 +314,8 @@ actor OpenRouterAdapter: LLMProviderAdapter {
             case .redactedThinking:
                 continue
             case .audio:
+                continue
+            case .video:
                 continue
             }
         }

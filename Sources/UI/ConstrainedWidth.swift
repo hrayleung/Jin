@@ -3,24 +3,37 @@ import SwiftUI
 struct ConstrainedWidth: Layout {
     let maxWidth: CGFloat
 
+    struct Cache {
+        var measuredSize: CGSize = .zero
+        var measuredWidth: CGFloat = -1
+    }
+
     init(_ maxWidth: CGFloat) {
         self.maxWidth = maxWidth
+    }
+
+    func makeCache(subviews: Subviews) -> Cache {
+        Cache()
     }
 
     func sizeThatFits(
         proposal: ProposedViewSize,
         subviews: Subviews,
-        cache: inout ()
+        cache: inout Cache
     ) -> CGSize {
         guard let subview = subviews.first else { return .zero }
 
         let proposedWidth = min(maxWidth, proposal.width ?? maxWidth)
-        let size = subview.sizeThatFits(
+        let measured = subview.sizeThatFits(
             ProposedViewSize(
                 width: proposedWidth,
                 height: proposal.height
             )
         )
+
+        let size = CGSize(width: min(measured.width, proposedWidth), height: measured.height)
+        cache.measuredSize = size
+        cache.measuredWidth = proposedWidth
         return size
     }
 
@@ -28,17 +41,27 @@ struct ConstrainedWidth: Layout {
         in bounds: CGRect,
         proposal: ProposedViewSize,
         subviews: Subviews,
-        cache: inout ()
+        cache: inout Cache
     ) {
         guard let subview = subviews.first else { return }
 
         let proposedWidth = min(maxWidth, bounds.width)
-        let size = subview.sizeThatFits(ProposedViewSize(width: proposedWidth, height: bounds.height))
+        let targetSize: CGSize
+
+        if abs(cache.measuredWidth - proposedWidth) < 0.5, cache.measuredSize != .zero {
+            targetSize = cache.measuredSize
+        } else {
+            let measured = subview.sizeThatFits(ProposedViewSize(width: proposedWidth, height: nil))
+            let normalized = CGSize(width: min(measured.width, proposedWidth), height: measured.height)
+            cache.measuredSize = normalized
+            cache.measuredWidth = proposedWidth
+            targetSize = normalized
+        }
+
         subview.place(
             at: CGPoint(x: bounds.minX, y: bounds.minY),
             anchor: .topLeading,
-            proposal: ProposedViewSize(width: size.width, height: size.height)
+            proposal: ProposedViewSize(width: proposedWidth, height: targetSize.height)
         )
     }
 }
-

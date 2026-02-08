@@ -256,7 +256,7 @@ actor DeepSeekAdapter: LLMProviderAdapter {
                 }
             case .thinking(let thinking):
                 reasoningParts.append(thinking.text)
-            case .redactedThinking, .audio:
+            case .redactedThinking, .audio, .video:
                 continue
             }
         }

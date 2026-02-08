@@ -4,6 +4,7 @@ import AppKit
 import UniformTypeIdentifiers
 import Combine
 import AVFoundation
+import AVKit
 
 struct ChatView: View {
     @Environment(\.modelContext) private var modelContext
@@ -1489,17 +1490,25 @@ struct ChatView: View {
         availableModels.first(where: { $0.id == conversationEntity.modelID })
     }
 
+    private var lowerModelID: String {
+        conversationEntity.modelID.lowercased()
+    }
+
     private var isImageGenerationModelID: Bool {
-        conversationEntity.modelID.lowercased().contains("-image")
+        if lowerModelID.contains("-image") { return true }
+        if providerType == .xai {
+            return lowerModelID.contains("imagine-image")
+                || lowerModelID.contains("grok-2-image")
+        }
+        return false
     }
 
     private var supportsNativePDF: Bool {
-        guard !supportsImageGenerationControl else { return false }
+        guard !supportsMediaGenerationControl else { return false }
         if selectedModelInfo?.capabilities.contains(.nativePDF) == true {
             return true
         }
 
-        let lowerModelID = conversationEntity.modelID.lowercased()
         switch providerType {
         case .openai:
             return lowerModelID.contains("gpt-5.2") || lowerModelID.contains("o3") || lowerModelID.contains("o4")
@@ -1507,7 +1516,9 @@ struct ChatView: View {
             return lowerModelID.contains("-4-") || lowerModelID.contains("-4.")
         case .xai:
             return lowerModelID.contains("grok-4.1")
+                || lowerModelID.contains("grok-4-1")
                 || lowerModelID.contains("grok-4.2")
+                || lowerModelID.contains("grok-4-2")
                 || lowerModelID.contains("grok-5")
                 || lowerModelID.contains("grok-6")
         case .gemini, .vertexai:
@@ -1518,38 +1529,60 @@ struct ChatView: View {
     }
 
     private var supportsVision: Bool {
-        selectedModelInfo?.capabilities.contains(.vision) == true || supportsImageGenerationControl
+        selectedModelInfo?.capabilities.contains(.vision) == true
+            || supportsImageGenerationControl
     }
 
     private var supportsImageGenerationControl: Bool {
         selectedModelInfo?.capabilities.contains(.imageGeneration) == true || isImageGenerationModelID
     }
 
+    private var supportsMediaGenerationControl: Bool {
+        supportsImageGenerationControl
+    }
+
     private var supportsImageGenerationWebSearch: Bool {
         guard supportsImageGenerationControl else { return false }
         switch providerType {
         case .gemini, .vertexai:
-            return !conversationEntity.modelID.lowercased().contains("gemini-2.5-flash-image")
+            return !lowerModelID.contains("gemini-2.5-flash-image")
         case .openai, .openaiCompatible, .openrouter, .anthropic, .xai, .deepseek, .fireworks, .cerebras, .none:
             return false
         }
     }
 
     private var supportsPDFProcessingControl: Bool {
-        // Keep PDF preprocessing available for OCR/macOS extract even on image-generation models.
+        // Keep PDF preprocessing available for OCR/macOS extract even on media-generation models.
         true
     }
 
     private var supportsCurrentModelImageSizeControl: Bool {
-        conversationEntity.modelID.lowercased().contains("gemini-3-pro-image")
+        lowerModelID.contains("gemini-3-pro-image")
     }
 
     private var isImageGenerationConfigured: Bool {
-        !(controls.imageGeneration?.isEmpty ?? true)
+        if providerType == .xai {
+            return !(controls.xaiImageGeneration?.isEmpty ?? true)
+        }
+        return !(controls.imageGeneration?.isEmpty ?? true)
     }
 
     private var imageGenerationBadgeText: String? {
         guard supportsImageGenerationControl else { return nil }
+
+        if providerType == .xai {
+            if let ratio = controls.xaiImageGeneration?.aspectRatio ?? controls.xaiImageGeneration?.size?.mappedAspectRatio {
+                return ratio.displayName
+            }
+            if let count = controls.xaiImageGeneration?.count, count > 1 {
+                return "x\(count)"
+            }
+            if let format = controls.xaiImageGeneration?.responseFormat {
+                return format == .url ? "URL" : "B64"
+            }
+            return isImageGenerationConfigured ? "On" : nil
+        }
+
         if controls.imageGeneration?.responseMode == .imageOnly {
             return "IMG"
         }
@@ -1564,6 +1597,17 @@ struct ChatView: View {
 
     private var imageGenerationHelpText: String {
         guard supportsImageGenerationControl else { return "Image Generation: Not supported" }
+
+        if providerType == .xai {
+            if let ratio = controls.xaiImageGeneration?.aspectRatio ?? controls.xaiImageGeneration?.size?.mappedAspectRatio {
+                return "Image Generation: \(ratio.displayName)"
+            }
+            if let count = controls.xaiImageGeneration?.count {
+                return "Image Generation: Count \(count)"
+            }
+            return isImageGenerationConfigured ? "Image Generation: Customized" : "Image Generation: Default"
+        }
+
         if let ratio = controls.imageGeneration?.aspectRatio?.rawValue {
             return "Image Generation: \(ratio)"
         }
@@ -1661,8 +1705,11 @@ struct ChatView: View {
     }
 
     private var supportsWebSearchControl: Bool {
-        if supportsImageGenerationControl {
-            return supportsImageGenerationWebSearch
+        if supportsMediaGenerationControl {
+            if supportsImageGenerationControl {
+                return supportsImageGenerationWebSearch
+            }
+            return false
         }
 
         // Provider-native web search, not MCP. Today: OpenAI, OpenRouter, Anthropic, xAI, Gemini API, Vertex AI.
@@ -1675,7 +1722,7 @@ struct ChatView: View {
     }
 
     private var supportsMCPToolsControl: Bool {
-        guard !supportsImageGenerationControl else { return false }
+        guard !supportsMediaGenerationControl else { return false }
         return selectedModelInfo?.capabilities.contains(.toolCalling) == true
     }
 
@@ -2338,6 +2385,12 @@ struct ChatView: View {
         let attachmentsSnapshot = draftAttachments
         let askedAt = Date()
 
+        if supportsMediaGenerationControl && messageTextSnapshot.isEmpty {
+            errorMessage = "Image generation models require a text prompt."
+            showingError = true
+            return
+        }
+
         messageText = ""
         draftAttachments = []
 
@@ -2900,6 +2953,7 @@ struct ChatView: View {
 	                    var assistantPartRefs: [StreamedAssistantPartRef] = []
 	                    var assistantTextSegments: [String] = []
 	                    var assistantImageSegments: [ImageContent] = []
+	                    var assistantVideoSegments: [VideoContent] = []
 	                    var assistantThinkingSegments: [ThinkingBlockAccumulator] = []
 	                    var toolCallsByID: [String: ToolCall] = [:]
 	
@@ -2918,6 +2972,12 @@ struct ChatView: View {
 	                        let idx = assistantImageSegments.count
 	                        assistantImageSegments.append(image)
 	                        assistantPartRefs.append(.image(idx))
+	                    }
+
+	                    func appendAssistantVideo(_ video: VideoContent) {
+	                        let idx = assistantVideoSegments.count
+	                        assistantVideoSegments.append(video)
+	                        assistantPartRefs.append(.video(idx))
 	                    }
 
 	                    func appendAssistantThinkingDelta(_ delta: ThinkingDelta) {
@@ -2961,6 +3021,8 @@ struct ChatView: View {
 	                                parts.append(.text(assistantTextSegments[idx]))
 	                            case .image(let idx):
 	                                parts.append(.image(assistantImageSegments[idx]))
+	                            case .video(let idx):
+	                                parts.append(.video(assistantVideoSegments[idx]))
 	                            case .thinking(let idx):
 	                                let thinking = assistantThinkingSegments[idx]
 	                                parts.append(.thinking(ThinkingBlock(text: thinking.text, signature: thinking.signature)))
@@ -3033,6 +3095,8 @@ struct ChatView: View {
 	                                streamedCharacterCount += delta.count
 	                            } else if case .image(let image) = part {
 	                                appendAssistantImage(image)
+	                            } else if case .video(let video) = part {
+	                                appendAssistantVideo(video)
 	                            }
 	                        case .thinkingDelta(let delta):
 	                            appendAssistantThinkingDelta(delta)
@@ -3269,7 +3333,7 @@ struct ChatView: View {
                 return trimmed.isEmpty ? nil : trimmed
             case .image:
                 return "Image"
-            case .thinking, .redactedThinking, .audio:
+            case .thinking, .redactedThinking, .audio, .video:
                 return nil
             }
         }.first
@@ -3580,17 +3644,91 @@ struct ChatView: View {
 
     @ViewBuilder
     private var imageGenerationMenuContent: some View {
-        Button("Edit…") {
-            openImageGenerationEditor()
-        }
+        if providerType == .xai {
+            Text("xAI Image")
+                .font(.caption)
+                .foregroundStyle(.secondary)
 
-        if isImageGenerationConfigured {
             Divider()
-            Button("Reset", role: .destructive) {
-                controls.imageGeneration = nil
-                persistControlsToConversation()
+
+            Menu("Count") {
+                Button { updateXAIImageGeneration { $0.count = nil } } label: {
+                    menuItemLabel("Default", isSelected: controls.xaiImageGeneration?.count == nil)
+                }
+                ForEach([1, 2, 4], id: \.self) { count in
+                    Button { updateXAIImageGeneration { $0.count = count } } label: {
+                        menuItemLabel("\(count)", isSelected: (controls.xaiImageGeneration?.count ?? 1) == count)
+                    }
+                }
+            }
+
+            Menu("Aspect ratio") {
+                Button { updateXAIImageGeneration { $0.aspectRatio = nil } } label: {
+                    let selected = controls.xaiImageGeneration?.aspectRatio == nil
+                        && controls.xaiImageGeneration?.size == nil
+                    menuItemLabel("Default", isSelected: selected)
+                }
+                ForEach(XAIAspectRatio.allCases, id: \.self) { ratio in
+                    Button {
+                        updateXAIImageGeneration {
+                            $0.aspectRatio = ratio
+                            $0.size = nil // legacy fallback only
+                        }
+                    } label: {
+                        menuItemLabel(
+                            ratio.displayName,
+                            isSelected: (controls.xaiImageGeneration?.aspectRatio ?? controls.xaiImageGeneration?.size?.mappedAspectRatio) == ratio
+                        )
+                    }
+                }
+            }
+
+            Menu("Response format") {
+                Button { updateXAIImageGeneration { $0.responseFormat = nil } } label: {
+                    menuItemLabel("Default", isSelected: controls.xaiImageGeneration?.responseFormat == nil)
+                }
+                ForEach(XAIMediaResponseFormat.allCases, id: \.self) { format in
+                    Button { updateXAIImageGeneration { $0.responseFormat = format } } label: {
+                        menuItemLabel(format.displayName, isSelected: controls.xaiImageGeneration?.responseFormat == format)
+                    }
+                }
+            }
+
+            if isImageGenerationConfigured {
+                Divider()
+                Button("Reset", role: .destructive) {
+                    controls.xaiImageGeneration = nil
+                    persistControlsToConversation()
+                }
+            }
+        } else {
+            Button("Edit…") {
+                openImageGenerationEditor()
+            }
+
+            if isImageGenerationConfigured {
+                Divider()
+                Button("Reset", role: .destructive) {
+                    controls.imageGeneration = nil
+                    persistControlsToConversation()
+                }
             }
         }
+    }
+
+    private func updateXAIImageGeneration(_ mutate: (inout XAIImageGenerationControls) -> Void) {
+        var draft = controls.xaiImageGeneration ?? XAIImageGenerationControls()
+        mutate(&draft)
+
+        // These legacy fields are not supported by current xAI image APIs.
+        draft.quality = nil
+        draft.style = nil
+        if draft.aspectRatio != nil {
+            draft.size = nil
+        }
+
+        controls.xaiImageGeneration = draft.isEmpty ? nil : draft
+        persistControlsToConversation()
     }
 
     private func openImageGenerationEditor() {
@@ -4438,13 +4576,14 @@ struct ChatView: View {
         // Ensure the stored controls remain valid when switching provider/model.
         let originalData = (try? JSONEncoder().encode(controls)) ?? Data()
 
-        if supportsImageGenerationControl {
+        if supportsMediaGenerationControl {
             if !supportsReasoningControl {
                 controls.reasoning = nil
             }
             if !supportsWebSearchControl {
                 controls.webSearch = nil
             }
+            controls.mcpTools = nil
         }
 
         // Reasoning: enforce model's reasoning config expectations.
@@ -4540,19 +4679,35 @@ struct ChatView: View {
         }
 
         if supportsImageGenerationControl {
-            if !supportsCurrentModelImageSizeControl {
-                controls.imageGeneration?.imageSize = nil
-            }
-            if providerType != .vertexai {
-                controls.imageGeneration?.vertexPersonGeneration = nil
-                controls.imageGeneration?.vertexOutputMIMEType = nil
-                controls.imageGeneration?.vertexCompressionQuality = nil
-            }
-            if controls.imageGeneration?.isEmpty == true {
+            if providerType == .xai {
                 controls.imageGeneration = nil
+
+                if var xaiImage = controls.xaiImageGeneration {
+                    // Drop deprecated fields so persisted controls match current xAI API support.
+                    xaiImage.quality = nil
+                    xaiImage.style = nil
+                    if xaiImage.aspectRatio != nil {
+                        xaiImage.size = nil
+                    }
+                    controls.xaiImageGeneration = xaiImage.isEmpty ? nil : xaiImage
+                }
+            } else {
+                if !supportsCurrentModelImageSizeControl {
+                    controls.imageGeneration?.imageSize = nil
+                }
+                if providerType != .vertexai {
+                    controls.imageGeneration?.vertexPersonGeneration = nil
+                    controls.imageGeneration?.vertexOutputMIMEType = nil
+                    controls.imageGeneration?.vertexCompressionQuality = nil
+                }
+                if controls.imageGeneration?.isEmpty == true {
+                    controls.imageGeneration = nil
+                }
+                controls.xaiImageGeneration = nil
             }
         } else {
             controls.imageGeneration = nil
+            controls.xaiImageGeneration = nil
         }
 
         let newData = (try? JSONEncoder().encode(controls)) ?? Data()
@@ -4987,6 +5142,9 @@ struct ContentPartView: View {
                     .font(.caption)
             }
 
+        case .video(let video):
+            renderedVideo(video)
+
         case .file(let file):
             let row = HStack {
                 Image(systemName: "doc")
@@ -5082,6 +5240,67 @@ struct ContentPartView: View {
     }
 
     @ViewBuilder
+    private func renderedVideo(_ video: VideoContent) -> some View {
+        if let fileURL = video.url, fileURL.isFileURL {
+            VideoPlayer(player: AVPlayer(url: fileURL))
+                .frame(maxWidth: 560, minHeight: 220, maxHeight: 360)
+                .clipShape(RoundedRectangle(cornerRadius: JinRadius.small, style: .continuous))
+                .contextMenu {
+                    Button {
+                        NSWorkspace.shared.open(fileURL)
+                    } label: {
+                        Label("Open", systemImage: "arrow.up.right.square")
+                    }
+
+                    Button {
+                        NSWorkspace.shared.activateFileViewerSelecting([fileURL])
+                    } label: {
+                        Label("Reveal in Finder", systemImage: "folder")
+                    }
+
+                    Divider()
+
+                    Button {
+                        let pasteboard = NSPasteboard.general
+                        pasteboard.clearContents()
+                        pasteboard.setString(fileURL.path, forType: .string)
+                    } label: {
+                        Label("Copy Path", systemImage: "doc.on.doc")
+                    }
+                }
+        } else if let url = video.url {
+            VideoPlayer(player: AVPlayer(url: url))
+                .frame(maxWidth: 560, minHeight: 220, maxHeight: 360)
+                .clipShape(RoundedRectangle(cornerRadius: JinRadius.small, style: .continuous))
+                .contextMenu {
+                    Button {
+                        NSWorkspace.shared.open(url)
+                    } label: {
+                        Label("Open", systemImage: "arrow.up.right.square")
+                    }
+
+                    Divider()
+
+                    Button {
+                        let pasteboard = NSPasteboard.general
+                        pasteboard.clearContents()
+                        pasteboard.setString(url.absoluteString, forType: .string)
+                    } label: {
+                        Label("Copy URL", systemImage: "doc.on.doc")
+                    }
+                }
+        } else if let data = video.data {
+            Label("Video data (\(data.count) bytes)", systemImage: "video")
+                .padding(JinSpacing.small)
+                .jinSurface(.neutral, cornerRadius: JinRadius.small)
+        } else {
+            Label("Video", systemImage: "video")
+                .padding(JinSpacing.small)
+                .jinSurface(.neutral, cornerRadius: JinRadius.small)
+        }
+    }
+
+    @ViewBuilder
     private func renderedImage(_ image: NSImage, fileURL: URL?) -> some View {
         Image(nsImage: image)
             .resizable()
@@ -5131,6 +5350,7 @@ struct ContentPartView: View {
             }
     }
 }
+
 
 struct ToolCallView: View {
     let toolCall: ToolCall
@@ -5367,6 +5587,7 @@ private struct ChunkedTextView: View {
 private enum StreamedAssistantPartRef {
     case text(Int)
     case image(Int)
+    case video(Int)
     case thinking(Int)
     case redacted(RedactedThinkingBlock)
 }

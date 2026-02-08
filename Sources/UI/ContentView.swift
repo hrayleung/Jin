@@ -777,15 +777,29 @@ struct ContentView: View {
             ModelInfo(
                 id: "grok-4-1-fast",
                 name: "Grok 4.1 Fast",
-                capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+                capabilities: [.streaming, .toolCalling, .vision, .reasoning, .nativePDF],
                 contextWindow: 128000,
                 reasoningConfig: nil
             ),
             ModelInfo(
                 id: "grok-4-1",
                 name: "Grok 4.1",
-                capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+                capabilities: [.streaming, .toolCalling, .vision, .reasoning, .nativePDF],
                 contextWindow: 128000,
+                reasoningConfig: nil
+            ),
+            ModelInfo(
+                id: "grok-imagine-image",
+                name: "Grok Imagine Image",
+                capabilities: [.imageGeneration],
+                contextWindow: 32768,
+                reasoningConfig: nil
+            ),
+            ModelInfo(
+                id: "grok-2-image-1212",
+                name: "Grok 2 Image",
+                capabilities: [.imageGeneration],
+                contextWindow: 32768,
                 reasoningConfig: nil
             )
         ]

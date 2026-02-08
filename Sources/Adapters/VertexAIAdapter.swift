@@ -577,7 +577,7 @@ actor VertexAIAdapter: LLMProviderAdapter {
                     // Fallback to text extraction for non-Gemini-3 or non-PDF files
                     let text = AttachmentPromptRenderer.fallbackText(for: file)
                     parts.append(["text": text])
-                case .thinking, .redactedThinking, .audio:
+                case .thinking, .redactedThinking, .audio, .video:
                     break
                 }
             }

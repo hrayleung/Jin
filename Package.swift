@@ -23,7 +23,10 @@ let package = Package(
                 .product(name: "MarkdownView", package: "MarkdownView"),
                 .product(name: "MCP", package: "swift-sdk")
             ],
-            path: "Sources"
+            path: "Sources",
+            resources: [
+                .process("Resources")
+            ]
         ),
         .testTarget(
             name: "JinTests",

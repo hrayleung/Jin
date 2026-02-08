@@ -76,7 +76,7 @@ Rules:
                     return trimmed.isEmpty ? nil : trimmed
                 case .image:
                     return "[image]"
-                case .thinking, .redactedThinking, .audio:
+                case .thinking, .redactedThinking, .audio, .video:
                     return nil
                 }
             }

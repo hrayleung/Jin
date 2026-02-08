@@ -246,7 +246,7 @@ actor OpenAICompatibleAdapter: LLMProviderAdapter {
                 if !text.isEmpty {
                     thinkingSegments.append(text)
                 }
-            case .redactedThinking, .audio:
+            case .redactedThinking, .audio, .video:
                 continue
             case .image:
                 hasImage = true
@@ -286,7 +286,7 @@ actor OpenAICompatibleAdapter: LLMProviderAdapter {
                     "text": AttachmentPromptRenderer.fallbackText(for: file)
                 ])
 
-            case .thinking, .redactedThinking, .audio:
+            case .thinking, .redactedThinking, .audio, .video:
                 continue
             }
         }

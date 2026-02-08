@@ -26,6 +26,8 @@ enum JinModelSupport {
             return lower.contains("grok-4")
                 || lower.contains("grok-5")
                 || lower.contains("grok-6")
+                || lower.contains("imagine-image")
+                || lower.contains("grok-2-image")
 
         case .deepseek:
             return lower == "deepseek-chat"

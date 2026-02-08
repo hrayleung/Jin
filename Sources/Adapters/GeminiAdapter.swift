@@ -499,7 +499,7 @@ actor GeminiAdapter: LLMProviderAdapter {
                 let text = AttachmentPromptRenderer.fallbackText(for: file)
                 parts.append(["text": text])
 
-            case .thinking, .redactedThinking, .audio:
+            case .thinking, .redactedThinking, .audio, .video:
                 continue
             }
         }
