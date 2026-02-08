@@ -201,7 +201,7 @@ struct ChatView: View {
                 Menu { pdfProcessingMenuContent } label: {
                     controlIconLabel(
                         systemName: "doc.text.magnifyingglass",
-                        isActive: resolvedPDFProcessingMode != .native || isNativePDFModeMisconfigured,
+                        isActive: resolvedPDFProcessingMode != .native,
                         badgeText: pdfProcessingBadgeText
                     )
                 }
@@ -1441,10 +1441,20 @@ struct ChatView: View {
             return true
         }
 
+        let lowerModelID = conversationEntity.modelID.lowercased()
         switch providerType {
+        case .openai:
+            return lowerModelID.contains("gpt-5.2") || lowerModelID.contains("o3") || lowerModelID.contains("o4")
+        case .anthropic:
+            return lowerModelID.contains("-4-") || lowerModelID.contains("-4.")
+        case .xai:
+            return lowerModelID.contains("grok-4.1")
+                || lowerModelID.contains("grok-4.2")
+                || lowerModelID.contains("grok-5")
+                || lowerModelID.contains("grok-6")
         case .gemini, .vertexai:
-            return conversationEntity.modelID.lowercased().contains("gemini-3")
-        case .openai, .openrouter, .anthropic, .xai, .deepseek, .fireworks, .cerebras, .none:
+            return lowerModelID.contains("gemini-3")
+        case .openrouter, .deepseek, .fireworks, .cerebras, .none:
             return false
         }
     }
@@ -1510,12 +1520,33 @@ struct ChatView: View {
         if isPDFProcessingModeAvailable(requested) {
             return requested
         }
-        return supportsNativePDF ? .native : .macOSExtract
+        if supportsNativePDF {
+            return .native
+        }
+        return defaultPDFProcessingFallbackMode
+    }
+
+    private var defaultPDFProcessingFallbackMode: PDFProcessingMode {
+        if mistralOCRPluginEnabled, mistralOCRConfigured {
+            return .mistralOCR
+        }
+        if deepSeekOCRPluginEnabled, deepSeekOCRConfigured {
+            return .deepSeekOCR
+        }
+        if mistralOCRPluginEnabled {
+            return .mistralOCR
+        }
+        if deepSeekOCRPluginEnabled {
+            return .deepSeekOCR
+        }
+        return .macOSExtract
     }
 
     private func isPDFProcessingModeAvailable(_ mode: PDFProcessingMode) -> Bool {
         switch mode {
-        case .native, .macOSExtract:
+        case .native:
+            return supportsNativePDF
+        case .macOSExtract:
             return true
         case .mistralOCR:
             return mistralOCRPluginEnabled
@@ -1524,14 +1555,10 @@ struct ChatView: View {
         }
     }
 
-    private var isNativePDFModeMisconfigured: Bool {
-        resolvedPDFProcessingMode == .native && !supportsNativePDF
-    }
-
     private var pdfProcessingBadgeText: String? {
         switch resolvedPDFProcessingMode {
         case .native:
-            return supportsNativePDF ? nil : "!"
+            return nil
         case .mistralOCR:
             return "OCR"
         case .deepSeekOCR:
@@ -1544,10 +1571,7 @@ struct ChatView: View {
     private var pdfProcessingHelpText: String {
         switch resolvedPDFProcessingMode {
         case .native:
-            if supportsNativePDF {
-                return "PDF: Native"
-            }
-            return "PDF: Native (unsupported — choose OCR/Extract)"
+            return "PDF: Native"
         case .mistralOCR:
             return mistralOCRConfigured ? "PDF: Mistral OCR" : "PDF: Mistral OCR (API key required)"
         case .deepSeekOCR:
@@ -1721,7 +1745,9 @@ struct ChatView: View {
 
     @ViewBuilder
     private var pdfProcessingMenuContent: some View {
-        Button { setPDFProcessingMode(.native) } label: { menuItemLabel("Native (if supported)", isSelected: resolvedPDFProcessingMode == .native) }
+        if supportsNativePDF {
+            Button { setPDFProcessingMode(.native) } label: { menuItemLabel("Native", isSelected: resolvedPDFProcessingMode == .native) }
+        }
 
         if mistralOCRPluginEnabled {
             Button { setPDFProcessingMode(.mistralOCR) } label: { menuItemLabel("Mistral OCR", isSelected: resolvedPDFProcessingMode == .mistralOCR) }
@@ -1750,11 +1776,6 @@ struct ChatView: View {
         if !mistralOCRPluginEnabled && !deepSeekOCRPluginEnabled {
             Divider()
             Text("OCR plugins are turned off. Enable them in Settings → Plugins to show OCR modes.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-        } else if resolvedPDFProcessingMode == .native, !supportsNativePDF {
-            Divider()
-            Text("Model doesn't support native PDF. Select OCR or macOS Extract.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
