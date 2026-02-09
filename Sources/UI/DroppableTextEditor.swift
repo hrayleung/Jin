@@ -48,8 +48,8 @@ struct DroppableTextEditor: NSViewRepresentable {
         textView.onFocusChanged = { isFocused in
             context.coordinator.setFocused(isFocused)
         }
-        textView.onPerformPaste = {
-            context.coordinator.performPaste()
+        textView.onPerformPasteboard = { pasteboard in
+            context.coordinator.performPaste(pasteboard)
         }
         textView.onSubmit = {
             context.coordinator.submit()
@@ -152,8 +152,8 @@ struct DroppableTextEditor: NSViewRepresentable {
             }
         }
 
-        func performPaste() -> Bool {
-            handlePasteboard(NSPasteboard.general)
+        func performPaste(_ pasteboard: NSPasteboard) -> Bool {
+            handlePasteboard(pasteboard, preferImages: true, allowFilePromises: false)
         }
 
         func submit() {
@@ -165,12 +165,15 @@ struct DroppableTextEditor: NSViewRepresentable {
         }
 
         func performDrop(_ draggingInfo: NSDraggingInfo) -> Bool {
-            handlePasteboard(draggingInfo.draggingPasteboard)
+            handlePasteboard(draggingInfo.draggingPasteboard, preferImages: false, allowFilePromises: true)
         }
 
-        private func handlePasteboard(_ pasteboard: NSPasteboard) -> Bool {
-            if handleFilePromises(in: pasteboard) {
-                return true
+        private func handlePasteboard(_ pasteboard: NSPasteboard, preferImages: Bool, allowFilePromises: Bool) -> Bool {
+            if preferImages {
+                let images = readImages(from: pasteboard)
+                if !images.isEmpty {
+                    return onDropImages(images)
+                }
             }
 
             let fileURLs = readFileURLs(from: pasteboard)
@@ -178,23 +181,15 @@ struct DroppableTextEditor: NSViewRepresentable {
                 return onDropFileURLs(fileURLs)
             }
 
-            let images = readImages(from: pasteboard)
-            if !images.isEmpty {
-                return onDropImages(images)
+            if !preferImages {
+                let images = readImages(from: pasteboard)
+                if !images.isEmpty {
+                    return onDropImages(images)
+                }
             }
 
-            let strings = readStrings(from: pasteboard)
-            if !strings.isEmpty {
-                let parsed = strings
-                    .map(ChatView.parseDroppedString)
-                    .reduce(into: (fileURLs: [URL](), textChunks: [String]())) { accum, item in
-                        accum.fileURLs.append(contentsOf: item.fileURLs)
-                        accum.textChunks.append(contentsOf: item.textChunks)
-                    }
-
-                if !parsed.fileURLs.isEmpty {
-                    return onDropFileURLs(parsed.fileURLs)
-                }
+            if allowFilePromises, handleFilePromises(in: pasteboard) {
+                return true
             }
 
             return false
@@ -247,45 +242,87 @@ struct DroppableTextEditor: NSViewRepresentable {
         }
 
         private func readFileURLs(from pasteboard: NSPasteboard) -> [URL] {
-            let objects = pasteboard.readObjects(
+            let urls = (pasteboard.readObjects(
                 forClasses: [NSURL.self],
                 options: [.urlReadingFileURLsOnly: true]
-            ) as? [NSURL] ?? []
-            return objects.map { $0 as URL }
+            ) as? [NSURL] ?? []).map { $0 as URL }
+            return urls
         }
 
         private func readImages(from pasteboard: NSPasteboard) -> [NSImage] {
-            let objects = pasteboard.readObjects(forClasses: [NSImage.self], options: nil) as? [NSImage] ?? []
-            return objects
-        }
+            if let objects = pasteboard.readObjects(forClasses: [NSImage.self], options: nil) as? [NSImage],
+               !objects.isEmpty {
+                return objects
+            }
 
-        private func readStrings(from pasteboard: NSPasteboard) -> [String] {
-            var strings: [String] = []
+            var images: [NSImage] = []
+
+            if let image = NSImage(pasteboard: pasteboard) {
+                images.append(image)
+            }
 
             if let items = pasteboard.pasteboardItems {
                 for item in items {
-                    if let value = item.string(forType: .string) {
-                        strings.append(value)
-                    } else if let value = item.string(forType: .fileURL) {
-                        strings.append(value)
+                    if let image = imageFromPasteboardItem(item) {
+                        images.append(image)
+                    }
+                }
+            } else {
+                for type in pasteboard.types ?? [] {
+                    if let image = imageFromPasteboardData(type: type, from: pasteboard) {
+                        images.append(image)
+                        break
                     }
                 }
             }
 
-            if let value = pasteboard.string(forType: .string) {
-                strings.append(value)
+            return images
+        }
+
+        private func imageFromPasteboardItem(_ item: NSPasteboardItem) -> NSImage? {
+            for type in item.types {
+                if let image = imageFromPasteboardData(type: type, from: item) {
+                    return image
+                }
+            }
+            return nil
+        }
+
+        private func imageFromPasteboardData(type: NSPasteboard.PasteboardType, from item: NSPasteboardItem) -> NSImage? {
+            guard isImageType(type),
+                  let data = item.data(forType: type),
+                  let image = NSImage(data: data) else {
+                return nil
             }
 
-            return strings
+            return image
+        }
+
+        private func imageFromPasteboardData(type: NSPasteboard.PasteboardType, from pasteboard: NSPasteboard) -> NSImage? {
+            guard isImageType(type),
+                  let data = pasteboard.data(forType: type),
+                  let image = NSImage(data: data) else {
+                return nil
+            }
+
+            return image
+        }
+
+        private func isImageType(_ type: NSPasteboard.PasteboardType) -> Bool {
+            if let utType = UTType(type.rawValue), utType.conforms(to: .image) {
+                return true
+            }
+
+            return type == .png || type == .tiff
         }
     }
 }
 
-private final class DroppableNSTextView: NSTextView {
+final class DroppableNSTextView: NSTextView {
     var onDragTargetedChanged: ((Bool) -> Void)?
     var onPerformDrop: ((NSDraggingInfo) -> Bool)?
     var onFocusChanged: ((Bool) -> Void)?
-    var onPerformPaste: (() -> Bool)?
+    var onPerformPasteboard: ((NSPasteboard) -> Bool)?
     var onSubmit: (() -> Void)?
     var onCancel: (() -> Bool)?
 
@@ -306,10 +343,57 @@ private final class DroppableNSTextView: NSTextView {
     }
 
     override func paste(_ sender: Any?) {
-        if onPerformPaste?() == true {
+        if performCustomPaste(using: .general) {
             return
         }
         super.paste(sender)
+    }
+
+    override func pasteAsPlainText(_ sender: Any?) {
+        if performCustomPaste(using: .general) {
+            return
+        }
+        super.pasteAsPlainText(sender)
+    }
+
+    override func pasteAsRichText(_ sender: Any?) {
+        if performCustomPaste(using: .general) {
+            return
+        }
+        super.pasteAsRichText(sender)
+    }
+
+    override func readSelection(from pboard: NSPasteboard) -> Bool {
+        if performCustomPaste(using: pboard) {
+            return true
+        }
+        return super.readSelection(from: pboard)
+    }
+
+    override func readSelection(from pboard: NSPasteboard, type typeName: NSPasteboard.PasteboardType) -> Bool {
+        if performCustomPaste(using: pboard) {
+            return true
+        }
+        return super.readSelection(from: pboard, type: typeName)
+    }
+
+    override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        if event.type == .keyDown,
+           event.charactersIgnoringModifiers?.lowercased() == "v" {
+            let modifiers = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+            if modifiers == [.command], performCustomPaste(using: .general) {
+                return true
+            }
+        }
+
+        return super.performKeyEquivalent(with: event)
+    }
+
+    private func performCustomPaste(using pasteboard: NSPasteboard) -> Bool {
+        if onPerformPasteboard?(pasteboard) == true {
+            return true
+        }
+        return false
     }
 
     override func keyDown(with event: NSEvent) {
