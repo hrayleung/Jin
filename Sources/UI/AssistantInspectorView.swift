@@ -3,15 +3,13 @@ import SwiftData
 
 struct AssistantInspectorView: View {
     let assistant: AssistantEntity
-    let onRequestDelete: (AssistantEntity) -> Void
 
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         NavigationStack {
             AssistantSettingsEditorView(
-                assistant: assistant,
-                onRequestDelete: onRequestDelete
+                assistant: assistant
             )
             .navigationTitle("Assistant Settings")
             .toolbar {
@@ -244,8 +242,6 @@ private struct AssistantSettingsEditorView: View {
     @Bindable var assistant: AssistantEntity
     @Environment(\.modelContext) private var modelContext
 
-    let onRequestDelete: (AssistantEntity) -> Void
-
     @State private var customReplyLanguageDraft = ""
 
     var body: some View {
@@ -413,22 +409,6 @@ private struct AssistantSettingsEditorView: View {
                                 try? modelContext.save()
                             }
                     }
-                }
-            }
-
-            if assistant.id != "default" {
-                Section {
-                    Button(role: .destructive) {
-                        onRequestDelete(assistant)
-                    } label: {
-                        Label("Delete Assistant", systemImage: "trash")
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                    .buttonStyle(.bordered)
-                    .tint(.red)
-                } header: {
-                    Text("Danger Zone")
-                        .foregroundStyle(.red)
                 }
             }
         }

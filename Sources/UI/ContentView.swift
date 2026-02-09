@@ -34,6 +34,7 @@ struct ContentView: View {
     @State private var didBootstrapAssistants = false
     @State private var searchText = ""
     @State private var isAssistantInspectorPresented = false
+    @State private var assistantContextMenuTargetID: String?
     @State private var assistantPendingDeletion: AssistantEntity?
     @State private var showingDeleteAssistantConfirmation = false
     @State private var conversationPendingDeletion: ConversationEntity?
@@ -127,8 +128,7 @@ struct ContentView: View {
         .sheet(isPresented: $isAssistantInspectorPresented) {
             if let selectedAssistant {
                 AssistantInspectorView(
-                    assistant: selectedAssistant,
-                    onRequestDelete: requestDeleteAssistant
+                    assistant: selectedAssistant
                 )
             }
         }
@@ -249,7 +249,12 @@ struct ContentView: View {
 
     private var selectedAssistantIDBinding: Binding<String> {
         Binding(
-            get: { selectedAssistant?.id ?? "default" },
+            get: {
+                selectedAssistant?.id
+                    ?? assistants.first(where: { $0.id == "default" })?.id
+                    ?? assistants.first?.id
+                    ?? "default"
+            },
             set: { newValue in
                 guard let assistant = assistants.first(where: { $0.id == newValue }) else { return }
                 selectAssistant(assistant)
@@ -507,6 +512,17 @@ struct ContentView: View {
         providers.first(where: { $0.id == providerID })?.resolvedProviderIconID
     }
 
+    private func resolveAssistantForContextMenu() -> AssistantEntity? {
+        if let assistantContextMenuTargetID,
+           let assistant = assistants.first(where: { $0.id == assistantContextMenuTargetID }) {
+            return assistant
+        }
+
+        return selectedAssistant
+            ?? assistants.first(where: { $0.id == "default" })
+            ?? assistants.first
+    }
+
     private func selectAssistant(_ assistant: AssistantEntity) {
         withAnimation(.easeInOut(duration: 0.15)) {
             selectedAssistant = assistant
@@ -547,12 +563,15 @@ struct ContentView: View {
     }
 
     private func requestDeleteAssistant(_ assistant: AssistantEntity) {
+        guard assistants.count > 1 else { return }
         guard assistant.id != "default" else { return }
         assistantPendingDeletion = assistant
         showingDeleteAssistantConfirmation = true
     }
 
     private func deleteAssistant(_ assistant: AssistantEntity) {
+        guard assistant.id != "default" else { return }
+
         if selectedConversation?.assistant?.id == assistant.id {
             selectedConversation = nil
         }
@@ -563,6 +582,7 @@ struct ContentView: View {
         }
 
         modelContext.delete(assistant)
+        try? modelContext.save()
         assistantPendingDeletion = nil
     }
 
@@ -699,9 +719,9 @@ struct ContentView: View {
             selectAssistant(assistant)
             requestDeleteAssistant(assistant)
         } label: {
-            Label("Delete Assistant", systemImage: "trash")
+            Label("Delete “\(assistant.displayName)”", systemImage: "trash")
         }
-        .disabled(assistant.id == "default")
+        .disabled(assistant.id == "default" || assistants.count <= 1)
     }
 
     @MainActor
@@ -1066,8 +1086,18 @@ private extension ContentView {
                     }
                     .labelsHidden()
                     .pickerStyle(.menu)
+                    .contextMenu {
+                        if let assistant = selectedAssistant ?? assistants.first(where: { $0.id == "default" }) {
+                            assistantContextMenu(for: assistant)
+                        }
+                    }
                 }
                 .listRowInsets(EdgeInsets(top: 8, leading: 12, bottom: 8, trailing: 12))
+                .contextMenu {
+                    if let assistant = selectedAssistant ?? assistants.first(where: { $0.id == "default" }) {
+                        assistantContextMenu(for: assistant)
+                    }
+                }
 
             case .grid:
                 LazyVGrid(
@@ -1090,7 +1120,18 @@ private extension ContentView {
                             )
                         }
                         .buttonStyle(.plain)
-                        .contextMenu { assistantContextMenu(for: assistant) }
+                        .onHover { isHovering in
+                            if isHovering {
+                                assistantContextMenuTargetID = assistant.id
+                            } else if assistantContextMenuTargetID == assistant.id {
+                                assistantContextMenuTargetID = nil
+                            }
+                        }
+                    }
+                }
+                .contextMenu {
+                    if let assistant = resolveAssistantForContextMenu() {
+                        assistantContextMenu(for: assistant)
                     }
                 }
                 .listRowInsets(EdgeInsets(top: 10, leading: 12, bottom: 10, trailing: 12))
@@ -1173,6 +1214,10 @@ private extension ContentView {
                 .menuIndicator(.hidden)
                 .help("Assistant view options")
             }
+        }
+        .onDeleteCommand {
+            guard let selectedAssistant else { return }
+            requestDeleteAssistant(selectedAssistant)
         }
     }
 
