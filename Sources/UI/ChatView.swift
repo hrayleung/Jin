@@ -98,7 +98,7 @@ struct ChatView: View {
             composerSendButton
         }
         .padding(JinSpacing.medium)
-        .frame(maxWidth: 840)
+        .frame(maxWidth: 800)
         .background {
             shape.fill(.regularMaterial)
         }
@@ -108,7 +108,7 @@ struct ChatView: View {
         .overlay(
             shape.stroke(isComposerDropTargeted ? Color.accentColor : Color.clear, lineWidth: JinStrokeWidth.emphasized)
         )
-        .shadow(color: Color.black.opacity(0.10), radius: 10, x: 0, y: 4)
+        .shadow(color: Color.black.opacity(0.06), radius: 10, x: 0, y: 4)
     }
 
     @ViewBuilder
@@ -1896,11 +1896,11 @@ struct ChatView: View {
                 .frame(width: JinControlMetrics.iconButtonHitSize, height: JinControlMetrics.iconButtonHitSize)
                 .background(
                     Circle()
-                        .fill(isActive ? activeColor.opacity(0.18) : JinSemanticColor.subtleSurfaceStrong)
+                        .fill(isActive ? activeColor.opacity(0.18) : Color.clear)
                 )
                 .overlay(
                     Circle()
-                        .stroke(JinSemanticColor.separator.opacity(0.45), lineWidth: JinStrokeWidth.hairline)
+                        .stroke(isActive ? JinSemanticColor.separator.opacity(0.45) : Color.clear, lineWidth: JinStrokeWidth.hairline)
                 )
 
             if let badgeText, !badgeText.isEmpty {
@@ -4878,85 +4878,90 @@ struct MessageRow: View {
 
     @ViewBuilder
     private func headerView(isUser: Bool, isTool: Bool, assistantModelLabel: String?) -> some View {
-        HStack(spacing: JinSpacing.small - 2) {
-            if !isUser && !isTool {
-                ProviderBadgeIcon(iconID: providerIconID)
-            }
+        if isUser {
+            EmptyView()
+        } else {
+            HStack(spacing: JinSpacing.small - 2) {
+                if !isTool {
+                    ProviderBadgeIcon(iconID: providerIconID)
+                }
 
-            Text(isUser ? "You" : (isTool ? "Tool Output" : assistantDisplayName))
-                .font(.caption)
-                .fontWeight(.semibold)
-                .foregroundStyle(.secondary)
+                if isTool {
+                    Image(systemName: "hammer")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                    Text("Tool Output")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else if assistantDisplayName != "Assistant" {
+                    Text(assistantDisplayName)
+                        .font(.caption)
+                        .fontWeight(.medium)
+                        .foregroundStyle(.secondary)
+                }
 
-            if !isUser, !isTool, let label = assistantModelLabel?.trimmingCharacters(in: .whitespacesAndNewlines), !label.isEmpty {
-                Text(label)
-                    .jinTagStyle()
+                if !isTool, let label = assistantModelLabel?.trimmingCharacters(in: .whitespacesAndNewlines), !label.isEmpty {
+                    Text(label)
+                        .jinTagStyle()
+                }
             }
-
-            if isTool {
-                Image(systemName: "hammer")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-            }
+            .padding(.horizontal, JinSpacing.medium)
+            .padding(.bottom, 2) // Added small bottom padding to separate from bubble
         }
-        .padding(.horizontal, JinSpacing.medium)
-        .padding(.top, JinSpacing.xSmall)
     }
 
     @ViewBuilder
     private func footerView(isUser: Bool, isAssistant: Bool, isEditingUserMessage: Bool, showsCopyButton: Bool, copyText: String, canEditUserMessage: Bool) -> some View {
         if isAssistant {
-            HStack(spacing: JinSpacing.medium - 2) {
-                HStack(spacing: JinSpacing.medium - 2) {
-                    if showsCopyButton {
-                        CopyToPasteboardButton(text: copyText, helpText: "Copy message", useProminentStyle: false)
-                            .accessibilityLabel("Copy message")
-                            .disabled(!actionsEnabled)
-                    }
-
-                    if textToSpeechEnabled {
-                        Button {
-                            onToggleSpeakAssistantMessage(item.id, copyText)
-                        } label: {
-                            if textToSpeechIsGenerating {
-                                ProgressView()
-                                    .controlSize(.small)
-                                    .frame(width: 20, height: 20)
-                            } else {
-                                Image(systemName: textToSpeechPrimarySystemName)
-                                    .font(.system(size: JinControlMetrics.iconButtonGlyphSize, weight: .semibold))
-                                    .foregroundStyle(.secondary)
-                                    .frame(width: 20, height: 20)
-                            }
-                        }
-                        .buttonStyle(.plain)
-                        .help(textToSpeechHelpText)
-                        .disabled(!actionsEnabled || copyText.isEmpty || !textToSpeechConfigured)
-
-                        if textToSpeechIsActive {
-                            actionIconButton(systemName: "stop.circle", helpText: textToSpeechStopHelpText) {
-                                onStopSpeakAssistantMessage(item.id)
-                            }
-                            .disabled(!actionsEnabled)
-                        }
-                    }
-
-                    actionIconButton(systemName: "arrow.clockwise", helpText: "Regenerate") {
-                        onRegenerate(item.id)
-                    }
-                    .disabled(!actionsEnabled)
+            HStack(spacing: JinSpacing.small) {
+                if showsCopyButton {
+                    CopyToPasteboardButton(text: copyText, helpText: "Copy message", useProminentStyle: false)
+                        .accessibilityLabel("Copy message")
+                        .disabled(!actionsEnabled)
                 }
+
+                if textToSpeechEnabled {
+                    Button {
+                        onToggleSpeakAssistantMessage(item.id, copyText)
+                    } label: {
+                        if textToSpeechIsGenerating {
+                            ProgressView()
+                                .controlSize(.small)
+                                .frame(width: 14, height: 14)
+                        } else {
+                            Image(systemName: textToSpeechPrimarySystemName)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .frame(width: 14, height: 14)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .help(textToSpeechHelpText)
+                    .disabled(!actionsEnabled || copyText.isEmpty || !textToSpeechConfigured)
+
+                    if textToSpeechIsActive {
+                        actionIconButton(systemName: "stop.circle", helpText: textToSpeechStopHelpText) {
+                            onStopSpeakAssistantMessage(item.id)
+                        }
+                        .disabled(!actionsEnabled)
+                    }
+                }
+
+                actionIconButton(systemName: "arrow.clockwise", helpText: "Regenerate") {
+                    onRegenerate(item.id)
+                }
+                .disabled(!actionsEnabled)
 
                 Spacer(minLength: 0)
 
                 Text(formattedTimestamp(item.timestamp))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
                     .lineLimit(1)
             }
         } else if isUser {
-            if isEditingUserMessage {
-                HStack(spacing: JinSpacing.medium - 2) {
+            HStack(spacing: JinSpacing.small) {
+                if isEditingUserMessage {
                     actionIconButton(systemName: "xmark", helpText: "Cancel editing") {
                         onCancelUserEdit()
                     }
@@ -4966,9 +4971,7 @@ struct MessageRow: View {
                         onSubmitUserEdit(item.id)
                     }
                     .disabled(!actionsEnabled)
-                }
-            } else {
-                HStack(spacing: JinSpacing.medium - 2) {
+                } else {
                     if showsCopyButton {
                         CopyToPasteboardButton(text: copyText, helpText: "Copy message", useProminentStyle: false)
                             .accessibilityLabel("Copy message")
@@ -5044,14 +5047,14 @@ struct MessageRow: View {
         let time = timestamp.formatted(date: .omitted, time: .shortened)
 
         if calendar.isDateInToday(timestamp) {
-            return "Today at \(time)"
+            return time
         }
         if calendar.isDateInYesterday(timestamp) {
-            return "Yesterday at \(time)"
+            return "Yesterday \(time)"
         }
 
         let day = timestamp.formatted(.dateTime.month(.abbreviated).day().year())
-        return "\(day) at \(time)"
+        return "\(day) \(time)"
     }
 
     private func bubbleBackground(isUser: Bool, isTool: Bool) -> JinSurfaceVariant {
@@ -5613,10 +5616,13 @@ struct StreamingMessageView: View {
                 VStack(alignment: .leading, spacing: JinSpacing.small - 2) {
                     HStack(spacing: JinSpacing.small - 2) {
                         ProviderBadgeIcon(iconID: providerIconID)
-                        Text(assistantDisplayName)
-                            .font(.caption)
-                            .fontWeight(.semibold)
-                            .foregroundStyle(.secondary)
+                        
+                        if assistantDisplayName != "Assistant" {
+                            Text(assistantDisplayName)
+                                .font(.caption)
+                                .fontWeight(.medium)
+                                .foregroundStyle(.secondary)
+                        }
 
                         if let label = modelLabel?.trimmingCharacters(in: .whitespacesAndNewlines), !label.isEmpty {
                             Text(label)
@@ -5624,7 +5630,7 @@ struct StreamingMessageView: View {
                         }
                     }
                     .padding(.horizontal, JinSpacing.medium)
-                    .padding(.top, JinSpacing.xSmall)
+                    .padding(.bottom, 2)
 
                     VStack(alignment: .leading, spacing: JinSpacing.small) {
                         if !state.thinkingChunks.isEmpty {

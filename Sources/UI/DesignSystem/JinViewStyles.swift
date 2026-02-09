@@ -32,6 +32,8 @@ enum JinSurfaceVariant {
         switch self {
         case .selected:
             return JinSemanticColor.selectedStroke
+        case .neutral, .accent, .tool:
+            return Color.clear
         default:
             return JinSemanticColor.separator.opacity(0.5)
         }
@@ -41,6 +43,8 @@ enum JinSurfaceVariant {
         switch self {
         case .selected:
             return JinStrokeWidth.regular
+        case .neutral, .accent, .tool:
+            return 0
         default:
             return JinStrokeWidth.hairline
         }

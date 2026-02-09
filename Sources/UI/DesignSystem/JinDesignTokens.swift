@@ -9,9 +9,9 @@ enum JinSpacing {
 }
 
 enum JinRadius {
-    static let small: CGFloat = 6
-    static let medium: CGFloat = 10
-    static let large: CGFloat = 14
+    static let small: CGFloat = 8
+    static let medium: CGFloat = 12
+    static let large: CGFloat = 18
 }
 
 enum JinStrokeWidth {

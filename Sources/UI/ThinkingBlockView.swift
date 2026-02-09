@@ -47,7 +47,6 @@ struct ThinkingBlockView: View {
                 .transition(.opacity.combined(with: .move(edge: .bottom)))
             }
         }
-        .padding(.vertical, JinSpacing.xSmall)
     }
 }
 
@@ -67,7 +66,7 @@ struct RedactedThinkingBlockView: View {
                 .italic()
         }
         .padding(.horizontal, JinSpacing.medium)
-        .padding(.vertical, JinSpacing.xSmall + 2)
+        .padding(.vertical, JinSpacing.xSmall)
         .jinSurface(.subtleStrong, cornerRadius: JinRadius.small)
     }
 }
