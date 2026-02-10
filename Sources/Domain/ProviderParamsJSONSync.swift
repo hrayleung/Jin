@@ -311,14 +311,10 @@ enum ProviderParamsJSONSync {
         if let webSearch = controls.webSearch {
             if webSearch.enabled == false {
                 out["disable_search"] = true
-            } else {
-                var webOptions: [String: Any] = [:]
-                if let contextSize = webSearch.contextSize {
-                    webOptions["search_context_size"] = contextSize.rawValue
-                }
-                if !webOptions.isEmpty {
-                    out["web_search_options"] = webOptions
-                }
+            } else if let contextSize = webSearch.contextSize {
+                out["web_search_options"] = [
+                    "search_context_size": contextSize.rawValue
+                ]
             }
         }
 
@@ -652,42 +648,50 @@ enum ProviderParamsJSONSync {
             controls.reasoning = nil
         }
 
-        var webControls: WebSearchControls?
-        var shouldRemoveWebOptions = false
+        let hasDisableSearchKey = draft["disable_search"] != nil
+        let hasWebSearchOptionsKey = draft["web_search_options"] != nil
+
+        var promotedContextSize: WebSearchContextSize?
+        var promotedDisableSearch: Bool?
 
         if let raw = draft["web_search_options"]?.value as? [String: Any] {
             var remaining = raw
-            var contextSize: WebSearchContextSize?
 
             if let sizeString = raw["search_context_size"] as? String,
                let parsed = WebSearchContextSize(rawValue: sizeString.lowercased()) {
-                contextSize = parsed
+                promotedContextSize = parsed
                 remaining.removeValue(forKey: "search_context_size")
             }
 
-            webControls = WebSearchControls(enabled: true, contextSize: contextSize, sources: nil)
+            // Backwards compatibility: accept web_search_options.disable_search if present.
+            if let disable = raw["disable_search"] as? Bool {
+                promotedDisableSearch = disable
+                remaining.removeValue(forKey: "disable_search")
+            }
+
             if remaining.isEmpty {
-                shouldRemoveWebOptions = true
+                providerSpecific.removeValue(forKey: "web_search_options")
             } else {
                 providerSpecific["web_search_options"] = AnyCodable(remaining)
             }
         }
 
         if let rawDisable = draft["disable_search"]?.value as? Bool {
-            if rawDisable {
-                webControls = WebSearchControls(enabled: false, contextSize: webControls?.contextSize, sources: nil)
-            }
+            promotedDisableSearch = rawDisable
             providerSpecific.removeValue(forKey: "disable_search")
         }
 
-        if let webControls {
-            controls.webSearch = webControls
-        } else if draft["disable_search"] == nil && draft["web_search_options"] == nil {
+        if promotedDisableSearch == false && promotedContextSize == nil {
+            // Explicitly enabled: fall back to provider default (search on).
             controls.webSearch = nil
-        }
-
-        if shouldRemoveWebOptions {
-            providerSpecific.removeValue(forKey: "web_search_options")
+        } else if promotedDisableSearch != nil || promotedContextSize != nil {
+            let isDisabled = promotedDisableSearch == true
+            controls.webSearch = WebSearchControls(enabled: !isDisabled, contextSize: promotedContextSize, sources: nil)
+        } else if !hasDisableSearchKey && hasWebSearchOptionsKey {
+            // web_search_options is present (e.g. other search fields), but nothing is promoted into UI state.
+            controls.webSearch = nil
+        } else if !hasDisableSearchKey && !hasWebSearchOptionsKey {
+            controls.webSearch = nil
         }
     }
 

@@ -921,30 +921,30 @@ struct ContentView: View {
             ModelInfo(
                 id: "sonar",
                 name: "Sonar",
-                capabilities: [.streaming, .vision, .nativePDF],
-                contextWindow: 200_000,
+                capabilities: [.streaming, .vision],
+                contextWindow: 128_000,
                 reasoningConfig: nil
             ),
             ModelInfo(
                 id: "sonar-pro",
                 name: "Sonar Pro",
-                capabilities: [.streaming, .toolCalling, .vision, .nativePDF],
+                capabilities: [.streaming, .toolCalling, .vision],
                 contextWindow: 200_000,
                 reasoningConfig: nil
             ),
             ModelInfo(
                 id: "sonar-reasoning-pro",
                 name: "Sonar Reasoning Pro",
-                capabilities: [.streaming, .toolCalling, .vision, .reasoning, .nativePDF],
-                contextWindow: 200_000,
-                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high)
+                capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+                contextWindow: 128_000,
+                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium)
             ),
             ModelInfo(
                 id: "sonar-deep-research",
                 name: "Sonar Deep Research",
-                capabilities: [.streaming, .toolCalling, .vision, .reasoning, .nativePDF],
-                contextWindow: 200_000,
-                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high)
+                capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+                contextWindow: 128_000,
+                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium)
             )
         ]
 

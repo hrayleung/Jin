@@ -348,6 +348,7 @@ final class ProviderParamsJSONSyncTests: XCTestCase {
         let draft = ProviderParamsJSONSync.makeDraft(providerType: .perplexity, modelID: "sonar", controls: controls)
 
         XCTAssertEqual(draft["disable_search"]?.value as? Bool, true)
+        XCTAssertNil(draft["web_search_options"])
 
         var applied = GenerationControls()
         let remainder = ProviderParamsJSONSync.applyDraft(
@@ -360,5 +361,6 @@ final class ProviderParamsJSONSyncTests: XCTestCase {
 
         XCTAssertEqual(applied.webSearch?.enabled, false)
         XCTAssertNil(applied.providerSpecific["disable_search"])
+        XCTAssertNil(applied.providerSpecific["web_search_options"])
     }
 }

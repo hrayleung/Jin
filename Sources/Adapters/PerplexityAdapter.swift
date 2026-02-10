@@ -4,7 +4,7 @@ import Foundation
 actor PerplexityAdapter: LLMProviderAdapter {
     let providerConfig: ProviderConfig
     /// Perplexity supports streaming, vision, and web-grounded search. Function calling is OpenAI-compatible.
-    let capabilities: ModelCapability = [.streaming, .toolCalling, .vision, .reasoning, .nativePDF]
+    let capabilities: ModelCapability = [.streaming, .toolCalling, .vision, .reasoning]
 
     private let networkManager: NetworkManager
     private let apiKey: String
@@ -81,30 +81,30 @@ actor PerplexityAdapter: LLMProviderAdapter {
             ModelInfo(
                 id: "sonar",
                 name: "Sonar",
-                capabilities: [.streaming, .vision, .nativePDF],
-                contextWindow: 200_000,
+                capabilities: [.streaming, .vision],
+                contextWindow: 128_000,
                 reasoningConfig: nil
             ),
             ModelInfo(
                 id: "sonar-pro",
                 name: "Sonar Pro",
-                capabilities: [.streaming, .toolCalling, .vision, .nativePDF],
+                capabilities: [.streaming, .toolCalling, .vision],
                 contextWindow: 200_000,
                 reasoningConfig: nil
             ),
             ModelInfo(
                 id: "sonar-reasoning-pro",
                 name: "Sonar Reasoning Pro",
-                capabilities: [.streaming, .toolCalling, .vision, .reasoning, .nativePDF],
-                contextWindow: 200_000,
-                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high)
+                capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+                contextWindow: 128_000,
+                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium)
             ),
             ModelInfo(
                 id: "sonar-deep-research",
                 name: "Sonar Deep Research",
-                capabilities: [.streaming, .toolCalling, .vision, .reasoning, .nativePDF],
-                contextWindow: 200_000,
-                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high)
+                capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+                contextWindow: 128_000,
+                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium)
             )
         ]
     }
@@ -157,14 +157,10 @@ actor PerplexityAdapter: LLMProviderAdapter {
         if let webSearch = controls.webSearch {
             if webSearch.enabled == false {
                 body["disable_search"] = true
-            } else {
-                var webOptions: [String: Any] = [:]
-                if let contextSize = webSearch.contextSize {
-                    webOptions["search_context_size"] = contextSize.rawValue
-                }
-                if !webOptions.isEmpty {
-                    body["web_search_options"] = webOptions
-                }
+            } else if let contextSize = webSearch.contextSize {
+                body["web_search_options"] = [
+                    "search_context_size": contextSize.rawValue
+                ]
             }
         }
 
@@ -176,9 +172,8 @@ actor PerplexityAdapter: LLMProviderAdapter {
             body["tools"] = functionTools
         }
 
-        // Provider-specific escape hatch: allow any extra parameters to flow through untouched.
-        for (key, value) in controls.providerSpecific {
-            body[key] = value.value
+        if !controls.providerSpecific.isEmpty {
+            deepMerge(into: &body, additional: controls.providerSpecific.mapValues { $0.value })
         }
 
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
@@ -251,7 +246,7 @@ actor PerplexityAdapter: LLMProviderAdapter {
             }
 
         case .user:
-            if hasImage || containsFile(message.content) {
+            if hasImage {
                 dict["content"] = translateUserContentParts(message.content)
             } else {
                 dict["content"] = visibleContent
@@ -315,19 +310,10 @@ actor PerplexityAdapter: LLMProviderAdapter {
                 }
 
             case .file(let file):
-                if let fileURL = fileURLString(file) {
-                    out.append([
-                        "type": "file_url",
-                        "file_url": [
-                            "url": fileURL
-                        ]
-                    ])
-                } else {
-                    out.append([
-                        "type": "text",
-                        "text": AttachmentPromptRenderer.fallbackText(for: file)
-                    ])
-                }
+                out.append([
+                    "type": "text",
+                    "text": AttachmentPromptRenderer.fallbackText(for: file)
+                ])
 
             case .thinking, .redactedThinking, .audio, .video:
                 continue
@@ -349,13 +335,6 @@ actor PerplexityAdapter: LLMProviderAdapter {
         return false
     }
 
-    private func containsFile(_ parts: [ContentPart]) -> Bool {
-        parts.contains { part in
-            if case .file = part { return true }
-            return false
-        }
-    }
-
     private func imageURLString(_ image: ImageContent) -> String? {
         if let data = image.data {
             return "data:\(image.mimeType);base64,\(data.base64EncodedString())"
@@ -366,21 +345,6 @@ actor PerplexityAdapter: LLMProviderAdapter {
             }
             return url.absoluteString
         }
-        return nil
-    }
-
-    private func fileURLString(_ file: FileContent) -> String? {
-        if let data = file.data {
-            return data.base64EncodedString()
-        }
-
-        if let url = file.url {
-            if url.isFileURL, let data = try? Data(contentsOf: url) {
-                return data.base64EncodedString()
-            }
-            return url.absoluteString
-        }
-
         return nil
     }
 
@@ -429,6 +393,17 @@ actor PerplexityAdapter: LLMProviderAdapter {
             return "high"
         case .none:
             return nil
+        }
+    }
+
+    private func deepMerge(into base: inout [String: Any], additional: [String: Any]) {
+        for (key, value) in additional {
+            if var baseDict = base[key] as? [String: Any], let addDict = value as? [String: Any] {
+                deepMerge(into: &baseDict, additional: addDict)
+                base[key] = baseDict
+            } else {
+                base[key] = value
+            }
         }
     }
 }

@@ -698,6 +698,8 @@ struct ChatView: View {
 
                     Section("Examples") {
                         VStack(alignment: .leading, spacing: JinSpacing.small) {
+                            Text("Perplexity disable search: {\"disable_search\": true}")
+                            Text("Perplexity academic search: {\"search_mode\": \"academic\"}")
                             Text("Fireworks GLM/Kimi thinking history: {\"reasoning_history\": \"preserved\"} (or \"interleaved\" / \"turn_level\")")
                             Text("Cerebras GLM preserved thinking: {\"clear_thinking\": false}")
                             Text("Cerebras GLM disable thinking: {\"disable_reasoning\": true}")
@@ -1700,7 +1702,12 @@ struct ChatView: View {
     }
 
     private var isWebSearchEnabled: Bool {
-        controls.webSearch?.enabled == true
+        switch providerType {
+        case .perplexity:
+            return controls.webSearch?.enabled ?? true
+        case .openai, .openaiCompatible, .openrouter, .anthropic, .xai, .deepseek, .fireworks, .cerebras, .gemini, .vertexai, .none:
+            return controls.webSearch?.enabled == true
+        }
     }
 
     private var isMCPToolsEnabled: Bool {
@@ -1765,7 +1772,7 @@ struct ChatView: View {
         case .openai:
             return (controls.webSearch?.contextSize ?? .medium).displayName
         case .perplexity:
-            return (controls.webSearch?.contextSize ?? .medium).displayName
+            return (controls.webSearch?.contextSize ?? .low).displayName
         case .xai:
             return webSearchSourcesLabel
         case .openaiCompatible, .openrouter, .anthropic, .gemini, .vertexai, .deepseek, .fireworks, .cerebras, .none:
@@ -3579,7 +3586,12 @@ struct ChatView: View {
 
     private var webSearchEnabledBinding: Binding<Bool> {
         Binding(
-            get: { controls.webSearch?.enabled ?? false },
+            get: {
+                if providerType == .perplexity {
+                    return controls.webSearch?.enabled ?? true
+                }
+                return controls.webSearch?.enabled ?? false
+            },
             set: { enabled in
                 if controls.webSearch == nil {
                     controls.webSearch = defaultWebSearchControls(enabled: enabled)
@@ -3595,7 +3607,7 @@ struct ChatView: View {
     @ViewBuilder
     private var webSearchMenuContent: some View {
         Toggle("Web Search", isOn: webSearchEnabledBinding)
-        if controls.webSearch?.enabled == true {
+        if isWebSearchEnabled {
             switch providerType {
             case .openai:
                 Divider()
@@ -3611,10 +3623,13 @@ struct ChatView: View {
                 Divider()
                 ForEach(WebSearchContextSize.allCases, id: \.self) { size in
                     Button {
+                        if controls.webSearch == nil {
+                            controls.webSearch = defaultWebSearchControls(enabled: true)
+                        }
                         controls.webSearch?.contextSize = size
                         persistControlsToConversation()
                     } label: {
-                        menuItemLabel(size.displayName, isSelected: (controls.webSearch?.contextSize ?? .medium) == size)
+                        menuItemLabel(size.displayName, isSelected: (controls.webSearch?.contextSize ?? .low) == size)
                     }
                 }
             case .xai:
@@ -3872,7 +3887,6 @@ struct ChatView: View {
     private func openProviderSpecificParamsEditor() {
         providerSpecificParamsError = nil
         providerSpecificParamsBaselineControls = controls
-        providerSpecificParamsEditorID = UUID()
 
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
@@ -3897,7 +3911,13 @@ struct ChatView: View {
             providerSpecificParamsDraft = "{}"
         }
 
-        showingProviderSpecificParamsSheet = true
+        // Force the editor to reset when reopening, but keep a stable ID while presenting.
+        providerSpecificParamsEditorID = UUID()
+
+        // Present on the next runloop tick so the TextEditor reliably picks up the draft text.
+        DispatchQueue.main.async {
+            showingProviderSpecificParamsSheet = true
+        }
     }
 
     private var isProviderSpecificParamsDraftValid: Bool {
@@ -4629,7 +4649,8 @@ struct ChatView: View {
         case .openai:
             return WebSearchControls(enabled: true, contextSize: .medium, sources: nil)
         case .perplexity:
-            return WebSearchControls(enabled: true, contextSize: .medium, sources: nil)
+            // Perplexity defaults `search_context_size` to `low` when omitted.
+            return WebSearchControls(enabled: true, contextSize: nil, sources: nil)
         case .xai:
             return WebSearchControls(enabled: true, contextSize: nil, sources: [.web])
         case .openaiCompatible, .openrouter, .anthropic, .gemini, .vertexai, .deepseek, .fireworks, .cerebras, .none:
@@ -4647,9 +4668,7 @@ struct ChatView: View {
             }
         case .perplexity:
             controls.webSearch?.sources = nil
-            if controls.webSearch?.contextSize == nil {
-                controls.webSearch?.contextSize = .medium
-            }
+            // Leave contextSize nil to use Perplexity defaults unless explicitly set.
         case .xai:
             controls.webSearch?.contextSize = nil
             let sources = controls.webSearch?.sources ?? []
