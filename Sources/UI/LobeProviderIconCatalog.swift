@@ -197,6 +197,8 @@ enum LobeProviderIconCatalog {
             return "OpenRouter"
         case .anthropic:
             return "Anthropic"
+        case .perplexity:
+            return "Perplexity"
         case .xai:
             return "XAI"
         case .deepseek:

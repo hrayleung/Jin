@@ -22,6 +22,11 @@ enum JinModelSupport {
                 || lower.contains("claude-sonnet-4")
                 || lower.contains("claude-haiku-4")
 
+        case .perplexity:
+            return lower.contains("sonar-pro")
+                || lower.contains("sonar-reasoning")
+                || lower.contains("sonar-deep-research")
+
         case .xai:
             return lower.contains("grok-4")
                 || lower.contains("grok-5")

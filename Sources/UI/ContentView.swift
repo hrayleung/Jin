@@ -917,6 +917,37 @@ struct ContentView: View {
             )
         ]
 
+        let perplexityModels: [ModelInfo] = [
+            ModelInfo(
+                id: "sonar",
+                name: "Sonar",
+                capabilities: [.streaming, .vision, .nativePDF],
+                contextWindow: 200_000,
+                reasoningConfig: nil
+            ),
+            ModelInfo(
+                id: "sonar-pro",
+                name: "Sonar Pro",
+                capabilities: [.streaming, .toolCalling, .vision, .nativePDF],
+                contextWindow: 200_000,
+                reasoningConfig: nil
+            ),
+            ModelInfo(
+                id: "sonar-reasoning-pro",
+                name: "Sonar Reasoning Pro",
+                capabilities: [.streaming, .toolCalling, .vision, .reasoning, .nativePDF],
+                contextWindow: 200_000,
+                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high)
+            ),
+            ModelInfo(
+                id: "sonar-deep-research",
+                name: "Sonar Deep Research",
+                capabilities: [.streaming, .toolCalling, .vision, .reasoning, .nativePDF],
+                contextWindow: 200_000,
+                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high)
+            )
+        ]
+
         let defaults: [ProviderConfig] = [
             ProviderConfig(
                 id: "openai",
@@ -941,6 +972,14 @@ struct ContentView: View {
                 iconID: LobeProviderIconCatalog.defaultIconID(for: .anthropic),
                 baseURL: ProviderType.anthropic.defaultBaseURL,
                 models: anthropicModels
+            ),
+            ProviderConfig(
+                id: "perplexity",
+                name: "Perplexity",
+                type: .perplexity,
+                iconID: LobeProviderIconCatalog.defaultIconID(for: .perplexity),
+                baseURL: ProviderType.perplexity.defaultBaseURL,
+                models: perplexityModels
             ),
             ProviderConfig(
                 id: "xai",

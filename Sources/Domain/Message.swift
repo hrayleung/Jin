@@ -263,6 +263,11 @@ struct AnyCodable: Codable {
     init(from decoder: Decoder) throws {
         let container = try decoder.singleValueContainer()
 
+        if container.decodeNil() {
+            value = NSNull()
+            return
+        }
+
         if let bool = try? container.decode(Bool.self) {
             value = bool
         } else if let int = try? container.decode(Int.self) {
@@ -287,6 +292,8 @@ struct AnyCodable: Codable {
         var container = encoder.singleValueContainer()
 
         switch value {
+        case is NSNull:
+            try container.encodeNil()
         case let bool as Bool:
             try container.encode(bool)
         case let int as Int:

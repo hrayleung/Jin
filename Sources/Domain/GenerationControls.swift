@@ -443,6 +443,7 @@ enum ProviderType: String, Codable, CaseIterable {
     case openaiCompatible
     case openrouter
     case anthropic
+    case perplexity
     case xai
     case deepseek
     case fireworks
@@ -456,6 +457,7 @@ enum ProviderType: String, Codable, CaseIterable {
         case .openaiCompatible: return "OpenAI Compatible"
         case .openrouter: return "OpenRouter"
         case .anthropic: return "Anthropic"
+        case .perplexity: return "Perplexity"
         case .xai: return "xAI"
         case .deepseek: return "DeepSeek"
         case .fireworks: return "Fireworks"
@@ -476,6 +478,8 @@ enum ProviderType: String, Codable, CaseIterable {
             return "https://openrouter.ai/api/v1"
         case .anthropic:
             return "https://api.anthropic.com/v1"
+        case .perplexity:
+            return "https://api.perplexity.ai"
         case .xai:
             return "https://api.x.ai/v1"
         case .deepseek:

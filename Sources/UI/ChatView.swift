@@ -52,6 +52,8 @@ struct ChatView: View {
     @State private var showingProviderSpecificParamsSheet = false
     @State private var providerSpecificParamsDraft = ""
     @State private var providerSpecificParamsError: String?
+    @State private var providerSpecificParamsBaselineControls: GenerationControls?
+    @State private var providerSpecificParamsEditorID = UUID()
 
     @State private var showingImageGenerationSheet = false
     @State private var imageGenerationDraft = ImageGenerationControls()
@@ -670,8 +672,9 @@ struct ChatView: View {
         .sheet(isPresented: $showingProviderSpecificParamsSheet) {
             NavigationStack {
                 Form {
-                    Section("Provider-specific parameters (JSON)") {
+                    Section("Request parameters (JSON)") {
                         TextEditor(text: $providerSpecificParamsDraft)
+                            .id(providerSpecificParamsEditorID)
                             .font(.system(.body, design: .monospaced))
                             .frame(minHeight: 220)
                             .padding(JinSpacing.small)
@@ -688,24 +691,24 @@ struct ChatView: View {
                                 .padding(JinSpacing.small)
                                 .jinSurface(.subtleStrong, cornerRadius: JinRadius.small)
                         } else {
-                            Text("These fields are merged into the provider request body (overrides take precedence).")
+                            Text("Edits sync with the UI when a matching control exists. Unrecognized fields are stored as provider-specific overrides.")
                                 .jinInfoCallout()
                         }
                     }
 
-	                    Section("Examples") {
-	                        VStack(alignment: .leading, spacing: JinSpacing.small) {
-	                            Text("Fireworks GLM/Kimi thinking history: {\"reasoning_history\": \"preserved\"} (or \"interleaved\" / \"turn_level\")")
-	                            Text("Cerebras GLM preserved thinking: {\"clear_thinking\": false}")
-	                            Text("Cerebras GLM disable thinking: {\"disable_reasoning\": true}")
-	                            Text("Cerebras reasoning output: {\"reasoning_format\": \"parsed\"} (or \"raw\" / \"hidden\" / \"none\")")
-	                            Text("Gemini image generation: {\"generationConfig\": {\"responseModalities\": [\"TEXT\", \"IMAGE\"], \"imageConfig\": {\"aspectRatio\": \"16:9\", \"imageSize\": \"2K\"}}}")
-	                            Text("Vertex image extras: {\"generationConfig\": {\"imageConfig\": {\"personGeneration\": \"ALLOW_ADULT\", \"imageOutputOptions\": {\"mimeType\": \"image/jpeg\", \"compressionQuality\": 90}}}}")
-	                        }
-	                        .font(.caption)
-	                        .foregroundStyle(.secondary)
-	                        .padding(JinSpacing.small)
-	                        .jinSurface(.raised, cornerRadius: JinRadius.small)
+                    Section("Examples") {
+                        VStack(alignment: .leading, spacing: JinSpacing.small) {
+                            Text("Fireworks GLM/Kimi thinking history: {\"reasoning_history\": \"preserved\"} (or \"interleaved\" / \"turn_level\")")
+                            Text("Cerebras GLM preserved thinking: {\"clear_thinking\": false}")
+                            Text("Cerebras GLM disable thinking: {\"disable_reasoning\": true}")
+                            Text("Cerebras reasoning output: {\"reasoning_format\": \"parsed\"} (or \"raw\" / \"hidden\" / \"none\")")
+                            Text("Gemini image generation: {\"generationConfig\": {\"responseModalities\": [\"TEXT\", \"IMAGE\"], \"imageConfig\": {\"aspectRatio\": \"16:9\", \"imageSize\": \"2K\"}}}")
+                            Text("Vertex image extras: {\"generationConfig\": {\"imageConfig\": {\"personGeneration\": \"ALLOW_ADULT\", \"imageOutputOptions\": {\"mimeType\": \"image/jpeg\", \"compressionQuality\": 90}}}}")
+                        }
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .padding(JinSpacing.small)
+                        .jinSurface(.raised, cornerRadius: JinRadius.small)
                     }
                 }
                 .scrollContentBackground(.hidden)
@@ -714,6 +717,7 @@ struct ChatView: View {
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) {
                         Button("Cancel") {
+                            providerSpecificParamsBaselineControls = nil
                             showingProviderSpecificParamsSheet = false
                         }
                     }
@@ -1514,6 +1518,8 @@ struct ChatView: View {
             return lowerModelID.contains("gpt-5.2") || lowerModelID.contains("o3") || lowerModelID.contains("o4")
         case .anthropic:
             return lowerModelID.contains("-4-") || lowerModelID.contains("-4.")
+        case .perplexity:
+            return lowerModelID.contains("sonar")
         case .xai:
             return lowerModelID.contains("grok-4.1")
                 || lowerModelID.contains("grok-4-1")
@@ -1546,6 +1552,8 @@ struct ChatView: View {
         switch providerType {
         case .gemini, .vertexai:
             return !lowerModelID.contains("gemini-2.5-flash-image")
+        case .perplexity:
+            return false
         case .openai, .openaiCompatible, .openrouter, .anthropic, .xai, .deepseek, .fireworks, .cerebras, .none:
             return false
         }
@@ -1714,7 +1722,7 @@ struct ChatView: View {
 
         // Provider-native web search, not MCP. Today: OpenAI, OpenRouter, Anthropic, xAI, Gemini API, Vertex AI.
         switch providerType {
-        case .openai, .openrouter, .anthropic, .xai, .gemini, .vertexai:
+        case .openai, .openrouter, .anthropic, .perplexity, .xai, .gemini, .vertexai:
             return true
         case .openaiCompatible, .deepseek, .fireworks, .cerebras, .none:
             return false
@@ -1731,6 +1739,8 @@ struct ChatView: View {
         switch providerType {
         case .anthropic, .gemini, .vertexai:
             return "Thinking: \(reasoningLabel)"
+        case .perplexity:
+            return "Reasoning: \(reasoningLabel)"
         case .openai, .openaiCompatible, .openrouter, .xai, .deepseek, .fireworks, .cerebras, .none:
             return "Reasoning: \(reasoningLabel)"
         }
@@ -1753,6 +1763,8 @@ struct ChatView: View {
     private var webSearchLabel: String {
         switch providerType {
         case .openai:
+            return (controls.webSearch?.contextSize ?? .medium).displayName
+        case .perplexity:
             return (controls.webSearch?.contextSize ?? .medium).displayName
         case .xai:
             return webSearchSourcesLabel
@@ -1805,6 +1817,12 @@ struct ChatView: View {
 
         switch providerType {
         case .openai:
+            switch controls.webSearch?.contextSize ?? .medium {
+            case .low: return "L"
+            case .medium: return "M"
+            case .high: return "H"
+            }
+        case .perplexity:
             switch controls.webSearch?.contextSize ?? .medium {
             case .low: return "L"
             case .medium: return "M"
@@ -2018,6 +2036,9 @@ struct ChatView: View {
         case .anthropic:
             return models.first(where: { $0.id == "claude-opus-4-6" })?.id
                 ?? models.first(where: { $0.id == "claude-sonnet-4-5-20250929" })?.id
+        case .perplexity:
+            return models.first(where: { $0.id == "sonar-pro" })?.id
+                ?? models.first(where: { $0.id == "sonar" })?.id
         case .deepseek:
             return models.first(where: { $0.id == "deepseek-chat" })?.id
                 ?? models.first(where: { $0.id == "deepseek-reasoner" })?.id
@@ -2897,12 +2918,11 @@ struct ChatView: View {
         )
         var controlsToUse: GenerationControls = (try? JSONDecoder().decode(GenerationControls.self, from: conversationEntity.modelConfigData))
             ?? controls
-        if let assistant {
-            controlsToUse.temperature = assistant.temperature
-            if let maxOutputTokens = assistant.maxOutputTokens {
-                controlsToUse.maxTokens = maxOutputTokens
-            }
-        }
+        controlsToUse = GenerationControlsResolver.resolvedForRequest(
+            base: controlsToUse,
+            assistantTemperature: assistant?.temperature,
+            assistantMaxOutputTokens: assistant?.maxOutputTokens
+        )
 
         let shouldTruncateMessages = assistant?.truncateMessages ?? false
         let maxHistoryMessages = assistant?.maxHistoryMessages
@@ -3357,8 +3377,13 @@ struct ChatView: View {
     // MARK: - Model Controls (Shortened for brevity, preserving existing logic)
     
     private var providerType: ProviderType? {
-        guard let provider = providers.first(where: { $0.id == conversationEntity.providerID }) else { return nil }
-        return ProviderType(rawValue: provider.typeRaw)
+        if let provider = providers.first(where: { $0.id == conversationEntity.providerID }),
+           let providerType = ProviderType(rawValue: provider.typeRaw) {
+            return providerType
+        }
+
+        // Fallback: for the built-in providers, `providerID` matches the provider type.
+        return ProviderType(rawValue: conversationEntity.providerID)
     }
 
     private var reasoningLabel: String {
@@ -3426,6 +3451,12 @@ struct ChatView: View {
                             Button { setReasoningEffort(.medium) } label: { menuItemLabel("Medium", isSelected: isReasoningEnabled && controls.reasoning?.effort == .medium) }
                             Button { setReasoningEffort(.high) } label: { menuItemLabel("High", isSelected: isReasoningEnabled && controls.reasoning?.effort == .high) }
                         }
+
+                    case .perplexity:
+                        Button { setReasoningEffort(.minimal) } label: { menuItemLabel("Minimal", isSelected: isReasoningEnabled && controls.reasoning?.effort == .minimal) }
+                        Button { setReasoningEffort(.low) } label: { menuItemLabel("Low", isSelected: isReasoningEnabled && controls.reasoning?.effort == .low) }
+                        Button { setReasoningEffort(.medium) } label: { menuItemLabel("Medium", isSelected: isReasoningEnabled && controls.reasoning?.effort == .medium) }
+                        Button { setReasoningEffort(.high) } label: { menuItemLabel("High", isSelected: isReasoningEnabled && controls.reasoning?.effort == .high) }
 
                     case .openai:
                         Button { setReasoningEffort(.low) } label: { menuItemLabel("Low", isSelected: isReasoningEnabled && controls.reasoning?.effort == .low) }
@@ -3567,6 +3598,16 @@ struct ChatView: View {
         if controls.webSearch?.enabled == true {
             switch providerType {
             case .openai:
+                Divider()
+                ForEach(WebSearchContextSize.allCases, id: \.self) { size in
+                    Button {
+                        controls.webSearch?.contextSize = size
+                        persistControlsToConversation()
+                    } label: {
+                        menuItemLabel(size.displayName, isSelected: (controls.webSearch?.contextSize ?? .medium) == size)
+                    }
+                }
+            case .perplexity:
                 Divider()
                 ForEach(WebSearchContextSize.allCases, id: \.self) { size in
                     Button {
@@ -3830,15 +3871,30 @@ struct ChatView: View {
 
     private func openProviderSpecificParamsEditor() {
         providerSpecificParamsError = nil
+        providerSpecificParamsBaselineControls = controls
+        providerSpecificParamsEditorID = UUID()
 
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
 
-        if let data = try? encoder.encode(controls.providerSpecific),
+        let assistant = conversationEntity.assistant
+        let controlsForDraft = GenerationControlsResolver.resolvedForRequest(
+            base: controls,
+            assistantTemperature: assistant?.temperature,
+            assistantMaxOutputTokens: assistant?.maxOutputTokens
+        )
+
+        let draft = ProviderParamsJSONSync.makeDraft(
+            providerType: providerType,
+            modelID: conversationEntity.modelID,
+            controls: controlsForDraft
+        )
+
+        if let data = try? encoder.encode(draft),
            let json = String(data: data, encoding: .utf8) {
             providerSpecificParamsDraft = json
         } else {
-            providerSpecificParamsDraft = controls.providerSpecific.isEmpty ? "{}" : "{}"
+            providerSpecificParamsDraft = "{}"
         }
 
         showingProviderSpecificParamsSheet = true
@@ -3852,22 +3908,49 @@ struct ChatView: View {
         return (try? JSONDecoder().decode([String: AnyCodable].self, from: data)) != nil
     }
 
+    private func stripAssistantDefaultsFromControlsIfNeeded() {
+        guard let baseline = providerSpecificParamsBaselineControls else { return }
+        defer { providerSpecificParamsBaselineControls = nil }
+
+        guard let assistant = conversationEntity.assistant else { return }
+
+        if baseline.temperature == nil,
+           let temperature = controls.temperature,
+           abs(temperature - assistant.temperature) < 0.000_001 {
+            controls.temperature = nil
+        }
+
+        if baseline.maxTokens == nil,
+           let assistantMaxTokens = assistant.maxOutputTokens,
+           controls.maxTokens == assistantMaxTokens {
+            controls.maxTokens = nil
+        }
+    }
+
     @discardableResult
     private func applyProviderSpecificParamsDraft() -> Bool {
         let trimmed = providerSpecificParamsDraft.trimmingCharacters(in: .whitespacesAndNewlines)
 
-        guard !trimmed.isEmpty else {
-            controls.providerSpecific = [:]
-            persistControlsToConversation()
-            providerSpecificParamsError = nil
-            return true
-        }
-
         do {
-            guard let data = trimmed.data(using: .utf8) else {
-                throw NSError(domain: "ProviderParams", code: 1, userInfo: [NSLocalizedDescriptionKey: "Invalid UTF-8 JSON."])
+            let decoded: [String: AnyCodable]
+            if trimmed.isEmpty {
+                decoded = [:]
+            } else {
+                guard let data = trimmed.data(using: .utf8) else {
+                    throw NSError(domain: "ProviderParams", code: 1, userInfo: [NSLocalizedDescriptionKey: "Invalid UTF-8 JSON."])
+                }
+                decoded = try JSONDecoder().decode([String: AnyCodable].self, from: data)
             }
-            controls.providerSpecific = try JSONDecoder().decode([String: AnyCodable].self, from: data)
+
+            let remainder = ProviderParamsJSONSync.applyDraft(
+                providerType: providerType,
+                modelID: conversationEntity.modelID,
+                draft: decoded,
+                controls: &controls
+            )
+            controls.providerSpecific = remainder
+            stripAssistantDefaultsFromControlsIfNeeded()
+            normalizeControlsForCurrentSelection()
             persistControlsToConversation()
             providerSpecificParamsError = nil
             return true
@@ -4545,6 +4628,8 @@ struct ChatView: View {
         switch providerType {
         case .openai:
             return WebSearchControls(enabled: true, contextSize: .medium, sources: nil)
+        case .perplexity:
+            return WebSearchControls(enabled: true, contextSize: .medium, sources: nil)
         case .xai:
             return WebSearchControls(enabled: true, contextSize: nil, sources: [.web])
         case .openaiCompatible, .openrouter, .anthropic, .gemini, .vertexai, .deepseek, .fireworks, .cerebras, .none:
@@ -4556,6 +4641,11 @@ struct ChatView: View {
         guard controls.webSearch?.enabled == true else { return }
         switch providerType {
         case .openai:
+            controls.webSearch?.sources = nil
+            if controls.webSearch?.contextSize == nil {
+                controls.webSearch?.contextSize = .medium
+            }
+        case .perplexity:
             controls.webSearch?.sources = nil
             if controls.webSearch?.contextSize == nil {
                 controls.webSearch?.contextSize = .medium

@@ -43,6 +43,14 @@ actor ProviderManager {
                 networkManager: networkManager
             )
 
+        case .perplexity:
+            let apiKey = try await resolveAPIKey(for: config)
+            return PerplexityAdapter(
+                providerConfig: config,
+                apiKey: apiKey,
+                networkManager: networkManager
+            )
+
         case .xai:
             let apiKey = try await resolveAPIKey(for: config)
             return XAIAdapter(
@@ -106,7 +114,7 @@ actor ProviderManager {
         let adapter = try await createAdapter(for: config)
 
         switch config.type {
-        case .openai, .openaiCompatible, .openrouter, .anthropic, .xai, .deepseek, .fireworks, .cerebras, .gemini:
+        case .openai, .openaiCompatible, .openrouter, .anthropic, .perplexity, .xai, .deepseek, .fireworks, .cerebras, .gemini:
             let apiKey = try await resolveAPIKey(for: config)
             return try await adapter.validateAPIKey(apiKey)
 

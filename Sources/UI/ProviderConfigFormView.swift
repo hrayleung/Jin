@@ -70,7 +70,7 @@ struct ProviderConfigFormView: View {
                     .jinInfoCallout()
 
                 switch providerType {
-                case .openai, .openaiCompatible, .openrouter, .anthropic, .xai, .deepseek, .fireworks, .cerebras, .gemini:
+                case .openai, .openaiCompatible, .openrouter, .anthropic, .perplexity, .xai, .deepseek, .fireworks, .cerebras, .gemini:
                     apiKeyField
                 case .vertexai:
                     vertexAISection
@@ -464,7 +464,7 @@ struct ProviderConfigFormView: View {
     private func loadCredentials() async {
         await MainActor.run {
             switch ProviderType(rawValue: provider.typeRaw) {
-            case .openai, .openaiCompatible, .openrouter, .anthropic, .xai, .deepseek, .fireworks, .cerebras, .gemini:
+            case .openai, .openaiCompatible, .openrouter, .anthropic, .perplexity, .xai, .deepseek, .fireworks, .cerebras, .gemini:
                 apiKey = provider.apiKey ?? ""
             case .vertexai:
                 serviceAccountJSON = provider.serviceAccountJSON ?? ""
@@ -638,7 +638,7 @@ struct ProviderConfigFormView: View {
 
     private func persistCredentials(validate: Bool) async throws {
         switch ProviderType(rawValue: provider.typeRaw) {
-        case .openai, .openaiCompatible, .openrouter, .anthropic, .xai, .deepseek, .fireworks, .cerebras, .gemini:
+        case .openai, .openaiCompatible, .openrouter, .anthropic, .perplexity, .xai, .deepseek, .fireworks, .cerebras, .gemini:
             let key = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
             await MainActor.run {
                 provider.apiKeyKeychainID = nil
@@ -725,7 +725,7 @@ struct ProviderConfigFormView: View {
 
     private var isTestDisabled: Bool {
         switch ProviderType(rawValue: provider.typeRaw) {
-        case .openai, .openaiCompatible, .openrouter, .anthropic, .xai, .deepseek, .fireworks, .cerebras, .gemini:
+        case .openai, .openaiCompatible, .openrouter, .anthropic, .perplexity, .xai, .deepseek, .fireworks, .cerebras, .gemini:
             return apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || testStatus == .testing
         case .vertexai:
             return serviceAccountJSON.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || testStatus == .testing
@@ -737,7 +737,7 @@ struct ProviderConfigFormView: View {
     private var isFetchModelsDisabled: Bool {
         guard !isFetchingModels else { return true }
         switch providerType {
-        case .openai, .openaiCompatible, .openrouter, .anthropic, .xai, .deepseek, .fireworks, .cerebras, .gemini:
+        case .openai, .openaiCompatible, .openrouter, .anthropic, .perplexity, .xai, .deepseek, .fireworks, .cerebras, .gemini:
             return apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         case .vertexai:
             return serviceAccountJSON.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -934,6 +934,17 @@ private struct AddModelSheet: View {
                 || lower.hasSuffix("-image") {
                 caps = [.imageGeneration]
                 reasoningConfig = nil
+            }
+
+        case .perplexity?:
+            if lower.contains("reasoning") || lower.contains("deep-research") {
+                caps.insert(.reasoning)
+                caps.insert(.nativePDF)
+                reasoningConfig = ModelReasoningConfig(type: .effort, defaultEffort: .high)
+            }
+            if lower.contains("sonar") {
+                caps.insert(.vision)
+                caps.insert(.nativePDF)
             }
 
         case .openai?, .openaiCompatible?, .openrouter?, .anthropic?, .deepseek?, .none:
