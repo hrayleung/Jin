@@ -488,16 +488,19 @@ struct ContentView: View {
 
     private var filteredConversations: [ConversationEntity] {
         let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-        let assistantFiltered = conversations.filter { conversation in
+        let isSearching = !query.isEmpty
+
+        let baseConversations = conversations.filter { conversation in
             guard !conversation.messages.isEmpty else { return false }
+            if isSearching { return true }
             guard let selectedAssistant else { return true }
             return conversation.assistant?.id == selectedAssistant.id
         }
 
-        guard !query.isEmpty else { return assistantFiltered }
+        guard isSearching else { return baseConversations }
 
         let lowered = query.lowercased()
-        return assistantFiltered.filter {
+        return baseConversations.filter {
             $0.title.lowercased().contains(lowered)
                 || $0.modelID.lowercased().contains(lowered)
                 || providerName(for: $0.providerID).lowercased().contains(lowered)
