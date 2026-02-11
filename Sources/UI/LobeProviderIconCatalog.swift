@@ -130,6 +130,7 @@ enum LobeProviderIconCatalog {
         LobeProviderIcon(id: "Menlo", docsSlug: "menlo", filename: "menlo.svg"),
         LobeProviderIcon(id: "Meta", docsSlug: "meta", filename: "meta.svg"),
         LobeProviderIcon(id: "Microsoft", docsSlug: "microsoft", filename: "microsoft.svg"),
+        LobeProviderIcon(id: "Mistral", docsSlug: "mistral", filename: "mistral.svg"),
         LobeProviderIcon(id: "ModelScope", docsSlug: "model-scope", filename: "modelscope.svg"),
         LobeProviderIcon(id: "Moonshot", docsSlug: "moonshot", filename: "moonshot.svg"),
         LobeProviderIcon(id: "Nebius", docsSlug: "nebius", filename: "nebius.svg"),
@@ -199,6 +200,14 @@ enum LobeProviderIconCatalog {
             return "Anthropic"
         case .perplexity:
             return "Perplexity"
+        case .groq:
+            return "Groq"
+        case .cohere:
+            return "Cohere"
+        case .mistral:
+            return "Mistral"
+        case .deepinfra:
+            return "DeepInfra"
         case .xai:
             return "XAI"
         case .deepseek:
@@ -228,4 +237,3 @@ extension ProviderConfigEntity {
         return LobeProviderIconCatalog.defaultIconID(for: providerType)
     }
 }
-

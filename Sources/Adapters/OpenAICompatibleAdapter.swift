@@ -82,7 +82,7 @@ actor OpenAICompatibleAdapter: LLMProviderAdapter {
     // MARK: - Private
 
     private var baseURL: String {
-        let raw = (providerConfig.baseURL ?? ProviderType.openaiCompatible.defaultBaseURL ?? "https://api.openai.com/v1")
+        let raw = (providerConfig.baseURL ?? providerConfig.type.defaultBaseURL ?? "https://api.openai.com/v1")
             .trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmed = raw.hasSuffix("/") ? String(raw.dropLast()) : raw
         let lower = trimmed.lowercased()

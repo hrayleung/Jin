@@ -958,6 +958,14 @@ struct ContentView: View {
                 models: openAIModels
             ),
             ProviderConfig(
+                id: "groq",
+                name: "Groq",
+                type: .groq,
+                iconID: LobeProviderIconCatalog.defaultIconID(for: .groq),
+                baseURL: ProviderType.groq.defaultBaseURL,
+                models: []
+            ),
+            ProviderConfig(
                 id: "openrouter",
                 name: "OpenRouter",
                 type: .openrouter,
@@ -974,12 +982,36 @@ struct ContentView: View {
                 models: anthropicModels
             ),
             ProviderConfig(
+                id: "cohere",
+                name: "Cohere",
+                type: .cohere,
+                iconID: LobeProviderIconCatalog.defaultIconID(for: .cohere),
+                baseURL: ProviderType.cohere.defaultBaseURL,
+                models: []
+            ),
+            ProviderConfig(
+                id: "mistral",
+                name: "Mistral",
+                type: .mistral,
+                iconID: LobeProviderIconCatalog.defaultIconID(for: .mistral),
+                baseURL: ProviderType.mistral.defaultBaseURL,
+                models: []
+            ),
+            ProviderConfig(
                 id: "perplexity",
                 name: "Perplexity",
                 type: .perplexity,
                 iconID: LobeProviderIconCatalog.defaultIconID(for: .perplexity),
                 baseURL: ProviderType.perplexity.defaultBaseURL,
                 models: perplexityModels
+            ),
+            ProviderConfig(
+                id: "deepinfra",
+                name: "DeepInfra",
+                type: .deepinfra,
+                iconID: LobeProviderIconCatalog.defaultIconID(for: .deepinfra),
+                baseURL: ProviderType.deepinfra.defaultBaseURL,
+                models: []
             ),
             ProviderConfig(
                 id: "xai",

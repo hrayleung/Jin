@@ -742,7 +742,7 @@ struct AddProviderView: View {
                 }
 
                 switch providerType {
-                case .openai, .openaiCompatible, .openrouter, .anthropic, .perplexity, .xai, .deepseek, .fireworks, .cerebras, .gemini:
+                case .openai, .openaiCompatible, .openrouter, .anthropic, .perplexity, .groq, .cohere, .mistral, .deepinfra, .xai, .deepseek, .fireworks, .cerebras, .gemini:
                     SecureField("API Key", text: $apiKey)
                 case .vertexai:
                     TextEditor(text: $serviceAccountJSON)
@@ -834,7 +834,7 @@ struct AddProviderView: View {
         guard !trimmedName.isEmpty, !isSaving else { return true }
 
         switch providerType {
-        case .openai, .openaiCompatible, .openrouter, .anthropic, .perplexity, .xai, .deepseek, .fireworks, .cerebras, .gemini:
+        case .openai, .openaiCompatible, .openrouter, .anthropic, .perplexity, .groq, .cohere, .mistral, .deepinfra, .xai, .deepseek, .fireworks, .cerebras, .gemini:
             return apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         case .vertexai:
             return serviceAccountJSON.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty

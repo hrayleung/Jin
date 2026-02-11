@@ -23,7 +23,7 @@ enum ProviderParamsJSONSync {
             base = makeFireworksDraft(controls: controls)
         case .perplexity:
             base = makePerplexityDraft(controls: controls)
-        case .openaiCompatible, .openrouter, .xai, .deepseek, .none:
+        case .openaiCompatible, .openrouter, .groq, .cohere, .mistral, .deepinfra, .xai, .deepseek, .none:
             base = [:]
         }
 
@@ -62,7 +62,7 @@ enum ProviderParamsJSONSync {
             applyFireworks(draft: normalizedDraft, controls: &controls, providerSpecific: &providerSpecific)
         case .perplexity:
             applyPerplexity(draft: normalizedDraft, controls: &controls, providerSpecific: &providerSpecific)
-        case .openaiCompatible, .openrouter, .xai, .deepseek, .none:
+        case .openaiCompatible, .openrouter, .groq, .cohere, .mistral, .deepinfra, .xai, .deepseek, .none:
             break
         }
 
@@ -1473,7 +1473,7 @@ enum ProviderParamsJSONSync {
                 base[key] = value
             }
 
-        case .openai, .cerebras, .fireworks, .openaiCompatible, .openrouter, .xai, .deepseek, .none:
+        case .openai, .cerebras, .fireworks, .openaiCompatible, .openrouter, .groq, .cohere, .mistral, .deepinfra, .xai, .deepseek, .none:
             for (key, value) in additional {
                 base[key] = value
             }

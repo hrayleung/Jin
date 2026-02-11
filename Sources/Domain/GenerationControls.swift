@@ -444,6 +444,10 @@ enum ProviderType: String, Codable, CaseIterable {
     case openrouter
     case anthropic
     case perplexity
+    case groq
+    case cohere
+    case mistral
+    case deepinfra
     case xai
     case deepseek
     case fireworks
@@ -458,6 +462,10 @@ enum ProviderType: String, Codable, CaseIterable {
         case .openrouter: return "OpenRouter"
         case .anthropic: return "Anthropic"
         case .perplexity: return "Perplexity"
+        case .groq: return "Groq"
+        case .cohere: return "Cohere"
+        case .mistral: return "Mistral"
+        case .deepinfra: return "DeepInfra"
         case .xai: return "xAI"
         case .deepseek: return "DeepSeek"
         case .fireworks: return "Fireworks"
@@ -480,6 +488,15 @@ enum ProviderType: String, Codable, CaseIterable {
             return "https://api.anthropic.com/v1"
         case .perplexity:
             return "https://api.perplexity.ai"
+        case .groq:
+            return "https://api.groq.com/openai/v1"
+        case .cohere:
+            return "https://api.cohere.com/v2"
+        case .mistral:
+            return "https://api.mistral.ai/v1"
+        case .deepinfra:
+            // OpenAI-compatible base URL per DeepInfra docs.
+            return "https://api.deepinfra.com/v1/openai"
         case .xai:
             return "https://api.x.ai/v1"
         case .deepseek:

@@ -575,6 +575,160 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         let result = try await adapter.validateAPIKey("test-key")
         XCTAssertTrue(result)
     }
+
+    func testCohereAdapterBuildsChatRequestAndParsesToolCalls() async throws {
+        let (session, protocolType) = makeMockedURLSession()
+        let networkManager = NetworkManager(urlSession: session)
+
+        let providerConfig = ProviderConfig(
+            id: "co",
+            name: "Cohere",
+            type: .cohere,
+            apiKey: "ignored",
+            baseURL: "https://example.com/v2"
+        )
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://example.com/v2/chat")
+            XCTAssertEqual(request.httpMethod, "POST")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer test-key")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Accept"), "application/json")
+
+            let body = try XCTUnwrap(requestBodyData(request))
+            let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+            let root = try XCTUnwrap(json)
+
+            XCTAssertEqual(root["model"] as? String, "command-r-plus")
+            XCTAssertEqual(root["stream"] as? Bool, false)
+            XCTAssertEqual(root["max_tokens"] as? Int, 12)
+            XCTAssertEqual(root["temperature"] as? Double, 0.2)
+            XCTAssertEqual(root["p"] as? Double, 0.9)
+
+            let messages = try XCTUnwrap(root["messages"] as? [[String: Any]])
+            XCTAssertEqual(messages.count, 4)
+            XCTAssertEqual(messages[0]["role"] as? String, "system")
+            XCTAssertEqual(messages[0]["content"] as? String, "sys")
+            XCTAssertEqual(messages[1]["role"] as? String, "user")
+            XCTAssertEqual(messages[1]["content"] as? String, "hi")
+
+            let assistant = try XCTUnwrap(messages[2] as [String: Any])
+            XCTAssertEqual(assistant["role"] as? String, "assistant")
+            XCTAssertEqual(assistant["content"] as? String, "answer")
+
+            let toolCalls = try XCTUnwrap(assistant["tool_calls"] as? [[String: Any]])
+            XCTAssertEqual(toolCalls.count, 1)
+            XCTAssertEqual(toolCalls[0]["id"] as? String, "call_1")
+            let fn = try XCTUnwrap(toolCalls[0]["function"] as? [String: Any])
+            XCTAssertEqual(fn["name"] as? String, "tool_name")
+            XCTAssertEqual(fn["arguments"] as? String, "{\"q\":\"x\"}")
+
+            XCTAssertEqual(messages[3]["role"] as? String, "tool")
+            XCTAssertEqual(messages[3]["tool_call_id"] as? String, "call_1")
+            XCTAssertEqual(messages[3]["content"] as? String, "tool result")
+
+            let tools = try XCTUnwrap(root["tools"] as? [[String: Any]])
+            XCTAssertEqual(tools.count, 1)
+            let tool = try XCTUnwrap(tools[0]["function"] as? [String: Any])
+            XCTAssertEqual(tool["name"] as? String, "tool_name")
+
+            let response: [String: Any] = [
+                "id": "msg_123",
+                "finish_reason": "COMPLETE",
+                "message": [
+                    "role": "assistant",
+                    "content": [
+                        [
+                            "type": "text",
+                            "text": "OK"
+                        ]
+                    ],
+                    "tool_calls": [
+                        [
+                            "id": "call_2",
+                            "type": "function",
+                            "function": [
+                                "name": "tool_name",
+                                "arguments": "{\"q\":\"y\"}"
+                            ]
+                        ]
+                    ]
+                ],
+                "usage": [
+                    "tokens": [
+                        "input_tokens": 1,
+                        "output_tokens": 2
+                    ]
+                ]
+            ]
+
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = CohereAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+
+        let tool = ToolDefinition(
+            id: "t",
+            name: "tool_name",
+            description: "desc",
+            parameters: ParameterSchema(
+                properties: [
+                    "q": PropertySchema(type: "string", description: "query")
+                ],
+                required: ["q"]
+            ),
+            source: .builtin
+        )
+
+        let messages: [Message] = [
+            Message(role: .system, content: [.text("sys")]),
+            Message(role: .user, content: [.text("hi")]),
+            Message(
+                role: .assistant,
+                content: [.text("answer")],
+                toolCalls: [ToolCall(id: "call_1", name: "tool_name", arguments: ["q": AnyCodable("x")])]
+            ),
+            Message(
+                role: .tool,
+                content: [],
+                toolResults: [ToolResult(toolCallID: "call_1", toolName: "tool_name", content: "tool result")]
+            )
+        ]
+
+        let stream = try await adapter.sendMessage(
+            messages: messages,
+            modelID: "command-r-plus",
+            controls: GenerationControls(temperature: 0.2, maxTokens: 12, topP: 0.9),
+            tools: [tool],
+            streaming: false
+        )
+
+        var events: [StreamEvent] = []
+        for try await event in stream {
+            events.append(event)
+        }
+
+        XCTAssertEqual(events.count, 5)
+
+        guard case .messageStart(let id) = events[0] else { return XCTFail("Expected messageStart") }
+        XCTAssertEqual(id, "msg_123")
+
+        guard case .contentDelta(.text(let content)) = events[1] else { return XCTFail("Expected contentDelta") }
+        XCTAssertEqual(content, "OK")
+
+        guard case .toolCallStart(let call) = events[2] else { return XCTFail("Expected toolCallStart") }
+        XCTAssertEqual(call.id, "call_2")
+        XCTAssertEqual(call.name, "tool_name")
+        XCTAssertEqual(call.arguments["q"]?.value as? String, "y")
+
+        guard case .toolCallEnd(let endCall) = events[3] else { return XCTFail("Expected toolCallEnd") }
+        XCTAssertEqual(endCall.id, "call_2")
+        XCTAssertEqual(endCall.name, "tool_name")
+
+        guard case .messageEnd(let usage) = events[4] else { return XCTFail("Expected messageEnd") }
+        XCTAssertEqual(usage?.inputTokens, 1)
+        XCTAssertEqual(usage?.outputTokens, 2)
+    }
 }
 
 // MARK: - URLProtocol stubbing

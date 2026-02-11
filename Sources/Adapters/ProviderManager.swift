@@ -51,6 +51,22 @@ actor ProviderManager {
                 networkManager: networkManager
             )
 
+        case .groq, .mistral, .deepinfra:
+            let apiKey = try await resolveAPIKey(for: config)
+            return OpenAICompatibleAdapter(
+                providerConfig: config,
+                apiKey: apiKey,
+                networkManager: networkManager
+            )
+
+        case .cohere:
+            let apiKey = try await resolveAPIKey(for: config)
+            return CohereAdapter(
+                providerConfig: config,
+                apiKey: apiKey,
+                networkManager: networkManager
+            )
+
         case .xai:
             let apiKey = try await resolveAPIKey(for: config)
             return XAIAdapter(
@@ -114,7 +130,7 @@ actor ProviderManager {
         let adapter = try await createAdapter(for: config)
 
         switch config.type {
-        case .openai, .openaiCompatible, .openrouter, .anthropic, .perplexity, .xai, .deepseek, .fireworks, .cerebras, .gemini:
+        case .openai, .openaiCompatible, .openrouter, .anthropic, .perplexity, .groq, .cohere, .mistral, .deepinfra, .xai, .deepseek, .fireworks, .cerebras, .gemini:
             let apiKey = try await resolveAPIKey(for: config)
             return try await adapter.validateAPIKey(apiKey)
 
