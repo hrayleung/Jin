@@ -29,18 +29,45 @@ struct FontPickerSheet: View {
         VStack(spacing: 0) {
             header
 
-            List {
-                Button {
-                    selectFont(JinTypography.systemFontPreferenceValue)
-                } label: {
-                    row(
-                        name: JinTypography.defaultFontDisplayName,
-                        preview: "Use the system default font.",
-                        previewFont: .system(size: 13),
-                        isSelected: normalizedSelection.isEmpty
-                    )
+            HStack(spacing: 6) {
+                Image(systemName: "magnifyingglass")
+                    .foregroundStyle(.secondary)
+                    .font(.system(size: 12))
+                TextField("Search fonts", text: $searchText)
+                    .textFieldStyle(.plain)
+                    .font(.body)
+                if !trimmedSearchText.isEmpty {
+                    Button {
+                        searchText = ""
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundStyle(.secondary)
+                            .font(.system(size: 12))
+                    }
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 7)
+            .background(Color(nsColor: .controlBackgroundColor))
+            .clipShape(RoundedRectangle(cornerRadius: 7))
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+
+            List {
+                if trimmedSearchText.isEmpty {
+                    Button {
+                        selectFont(JinTypography.systemFontPreferenceValue)
+                    } label: {
+                        row(
+                            name: JinTypography.defaultFontDisplayName,
+                            preview: "Use the system default font.",
+                            previewFont: .system(size: 13),
+                            isSelected: normalizedSelection.isEmpty
+                        )
+                    }
+                    .buttonStyle(.plain)
+                }
 
                 Section("All Fonts") {
                     ForEach(filteredFamilies, id: \.self) { family in
@@ -59,7 +86,6 @@ struct FontPickerSheet: View {
                 }
             }
             .listStyle(.inset)
-            .searchable(text: $searchText, prompt: "Search fonts")
             .overlay {
                 if filteredFamilies.isEmpty && !trimmedSearchText.isEmpty {
                     ContentUnavailableView.search(text: trimmedSearchText)

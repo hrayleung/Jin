@@ -58,7 +58,7 @@ struct MarkdownWebRenderer: NSViewRepresentable {
                 context.coordinator.lastBodyFont = bodyFont
                 context.coordinator.lastCodeFont = codeFont
                 context.coordinator.lastFontSize = fontSize
-                let js = "document.body.style.fontFamily='\(bodyFont)';document.body.style.fontSize='\(fontSize)px';document.querySelectorAll('code').forEach(function(e){e.style.fontFamily='\(codeFont)'});"
+                let js = "document.documentElement.style.setProperty('--body-font','\(bodyFont)');document.documentElement.style.setProperty('--code-font','\(codeFont)');document.documentElement.style.setProperty('--body-font-size','\(fontSize)px');"
                 webView.evaluateJavaScript(js, completionHandler: nil)
             }
             sendMarkdown(to: webView, markdown: markdownText)

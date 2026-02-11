@@ -8,12 +8,17 @@
 
 </style>
 <style>
-:root { color-scheme: light dark; }
+:root {
+    color-scheme: light dark;
+    --body-font: BODY_FONT_FAMILY;
+    --code-font: CODE_FONT_FAMILY;
+    --body-font-size: BODY_FONT_SIZE;
+}
 * { margin: 0; padding: 0; box-sizing: border-box; }
 html, body { overflow: hidden; }
 body {
-    font-family: BODY_FONT_FAMILY;
-    font-size: BODY_FONT_SIZE;
+    font-family: var(--body-font);
+    font-size: var(--body-font-size);
     line-height: 1.6;
     color: light-dark(#1d1d1f, #f5f5f7);
     background: transparent;
@@ -29,11 +34,12 @@ p:last-child { margin-bottom: 0; }
 a { color: light-dark(#0066cc, #4ca6ff); text-decoration: none; }
 a:hover { text-decoration: underline; }
 code {
-    font-family: CODE_FONT_FAMILY;
-    font-size: 0.9em;
-    background: light-dark(rgba(0,0,0,0.06), rgba(255,255,255,0.1));
-    padding: 0.15em 0.35em;
-    border-radius: 4px;
+    font-family: var(--code-font);
+    font-size: 0.88em;
+    background: light-dark(rgba(0,0,0,0.05), rgba(255,255,255,0.08));
+    padding: 0.15em 0.4em;
+    border-radius: 5px;
+    border: 0.5px solid light-dark(rgba(0,0,0,0.08), rgba(255,255,255,0.1));
 }
 pre {
     margin: 0.6em 0;
@@ -41,6 +47,7 @@ pre {
     overflow-x: auto;
     background: light-dark(#f6f8fa, #161b22) !important;
     position: relative;
+    border: 1px solid light-dark(#e1e4e8, #30363d);
 }
 pre code {
     display: block;
@@ -55,37 +62,46 @@ pre code {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 0.35em 0.8em;
-    background: light-dark(#e8ecf0, #1c2128);
-    border-bottom: 1px solid light-dark(#d0d7de, #2d333b);
+    padding: 0.3em 0.6em 0.3em 0.8em;
+    background: light-dark(rgba(0,0,0,0.03), rgba(255,255,255,0.04));
+    border-bottom: 1px solid light-dark(#e1e4e8, #30363d);
     border-radius: 8px 8px 0 0;
-    font-size: 0.78em;
-    color: light-dark(#57606a, #8b949e);
+    font-size: 0.75em;
+    color: light-dark(#656d76, #8b949e);
     user-select: none;
     -webkit-user-select: none;
 }
 .code-header .lang-label {
-    font-weight: 600;
+    font-weight: 500;
     text-transform: lowercase;
+    letter-spacing: 0.02em;
 }
 .code-header .copy-btn {
     cursor: pointer;
-    padding: 0.15em 0.5em;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 0.15em 0.45em;
     border-radius: 4px;
-    border: 1px solid light-dark(#d0d7de, #444c56);
-    background: light-dark(#f6f8fa, #21262d);
-    color: light-dark(#57606a, #8b949e);
+    border: none;
+    background: transparent;
+    color: light-dark(#656d76, #8b949e);
     font-size: 1em;
     line-height: 1.4;
     transition: background 0.15s, color 0.15s;
+    opacity: 0;
+    transition: opacity 0.15s, background 0.15s, color 0.15s;
+}
+pre:hover .code-header .copy-btn {
+    opacity: 1;
 }
 .code-header .copy-btn:hover {
-    background: light-dark(#eaeef2, #30363d);
-    color: light-dark(#24292f, #c9d1d9);
+    background: light-dark(rgba(0,0,0,0.07), rgba(255,255,255,0.1));
+    color: light-dark(#24292f, #e6edf3);
 }
 .code-header .copy-btn.copied {
+    opacity: 1;
     color: light-dark(#1a7f37, #3fb950);
-    border-color: light-dark(#1a7f37, #3fb950);
 }
 blockquote {
     border-left: 3px solid light-dark(#d0d7de, #444c56);
@@ -1352,8 +1368,10 @@ var _codeBlockSrc = {};
 function copyCode(id) {
     var text = _codeBlockSrc[id] || '';
     var btn = document.getElementById('copy-' + id);
+    var copyIcon = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="5.5" y="5.5" width="8" height="8" rx="1.5"/><path d="M3.5 10.5h-1a1 1 0 0 1-1-1v-7a1 1 0 0 1 1-1h7a1 1 0 0 1 1 1v1"/></svg>';
+    var checkIcon = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3.5 8.5 6.5 11.5 12.5 4.5"/></svg>';
     function onSuccess() {
-        if (btn) { btn.textContent = 'Copied!'; btn.classList.add('copied'); setTimeout(function(){ btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 1500); }
+        if (btn) { btn.innerHTML = checkIcon; btn.classList.add('copied'); setTimeout(function(){ btn.innerHTML = copyIcon; btn.classList.remove('copied'); }, 1500); }
     }
     if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.copyText) {
         window.webkit.messageHandlers.copyText.postMessage(text);
@@ -1376,7 +1394,7 @@ var md = window.markdownit({
         }
         if (!highlighted) highlighted = md.utils.escapeHtml(str);
         var label = lang ? lang : 'code';
-        return '<pre><div class="code-header"><span class="lang-label">' + md.utils.escapeHtml(label) + '</span><span class="copy-btn" id="copy-' + id + '" onclick="copyCode(' + id + ')">Copy</span></div><code class="hljs">' + highlighted + '</code></pre>';
+        return '<pre><div class="code-header"><span class="lang-label">' + md.utils.escapeHtml(label) + '</span><span class="copy-btn" id="copy-' + id + '" onclick="copyCode(' + id + ')"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="5.5" y="5.5" width="8" height="8" rx="1.5"/><path d="M3.5 10.5h-1a1 1 0 0 1-1-1v-7a1 1 0 0 1 1-1h7a1 1 0 0 1 1 1v1"/></svg></span></div><code class="hljs">' + highlighted + '</code></pre>';
     }
 });
 
