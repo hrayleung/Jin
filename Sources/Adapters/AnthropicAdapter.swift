@@ -151,13 +151,7 @@ actor AnthropicAdapter: LLMProviderAdapter {
     }
 
     private func translateProperties(_ properties: [String: PropertySchema]) -> [String: Any] {
-        var result: [String: Any] = [:]
-        for key in properties.keys {
-            if let prop = properties[key] {
-                result[key] = prop.toDictionary()
-            }
-        }
-        return result
+        properties.mapValues { $0.toDictionary() }
     }
 
     // MARK: - Private

@@ -242,7 +242,6 @@ actor DeepSeekAdapter: LLMProviderAdapter {
         visibleParts.reserveCapacity(parts.count)
 
         var reasoningParts: [String] = []
-        reasoningParts.reserveCapacity(2)
 
         for part in parts {
             switch part {
@@ -257,7 +256,7 @@ actor DeepSeekAdapter: LLMProviderAdapter {
             case .thinking(let thinking):
                 reasoningParts.append(thinking.text)
             case .redactedThinking, .audio, .video:
-                continue
+                break
             }
         }
 
@@ -278,19 +277,14 @@ actor DeepSeekAdapter: LLMProviderAdapter {
     }
 
     private func translateSingleTool(_ tool: ToolDefinition) -> [String: Any] {
-        var propertiesDict: [String: Any] = [:]
-        for (key, prop) in tool.parameters.properties {
-            propertiesDict[key] = prop.toDictionary()
-        }
-
-        return [
+        [
             "type": "function",
             "function": [
                 "name": tool.name,
                 "description": tool.description,
                 "parameters": [
                     "type": tool.parameters.type,
-                    "properties": propertiesDict,
+                    "properties": tool.parameters.properties.mapValues { $0.toDictionary() },
                     "required": tool.parameters.required
                 ]
             ]
@@ -311,7 +305,7 @@ actor DeepSeekAdapter: LLMProviderAdapter {
         let lower = id.lowercased()
 
         var caps: ModelCapability = [.streaming, .toolCalling]
-        var reasoningConfig: ModelReasoningConfig? = nil
+        var reasoningConfig: ModelReasoningConfig?
 
         if lower.contains("reasoner") {
             caps.insert(.reasoning)

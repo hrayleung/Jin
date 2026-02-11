@@ -230,7 +230,6 @@ actor CerebrasAdapter: LLMProviderAdapter {
         visibleParts.reserveCapacity(parts.count)
 
         var thinkingParts: [String] = []
-        thinkingParts.reserveCapacity(2)
 
         for part in parts {
             switch part {
@@ -239,18 +238,13 @@ actor CerebrasAdapter: LLMProviderAdapter {
             case .file(let file):
                 visibleParts.append(AttachmentPromptRenderer.fallbackText(for: file))
             case .image(let image):
-                // Cerebras chat completions are text-only today. Keep a small placeholder to avoid silently dropping context.
                 if image.url != nil || image.data != nil {
                     visibleParts.append("[Image attachment omitted: this provider does not support vision in Jin yet]")
                 }
             case .thinking(let thinking):
                 thinkingParts.append(thinking.text)
-            case .redactedThinking:
-                continue
-            case .audio:
-                continue
-            case .video:
-                continue
+            case .redactedThinking, .audio, .video:
+                break
             }
         }
 
@@ -271,19 +265,14 @@ actor CerebrasAdapter: LLMProviderAdapter {
     }
 
     private func translateSingleTool(_ tool: ToolDefinition) -> [String: Any] {
-        var propertiesDict: [String: Any] = [:]
-        for (key, prop) in tool.parameters.properties {
-            propertiesDict[key] = prop.toDictionary()
-        }
-
-        return [
+        [
             "type": "function",
             "function": [
                 "name": tool.name,
                 "description": tool.description,
                 "parameters": [
                     "type": tool.parameters.type,
-                    "properties": propertiesDict,
+                    "properties": tool.parameters.properties.mapValues { $0.toDictionary() },
                     "required": tool.parameters.required
                 ]
             ]

@@ -268,8 +268,6 @@ actor FireworksAdapter: LLMProviderAdapter {
         visibleParts.reserveCapacity(parts.count)
 
         var thinkingParts: [String] = []
-        thinkingParts.reserveCapacity(2)
-
         var hasImage = false
 
         for part in parts {
@@ -282,13 +280,8 @@ actor FireworksAdapter: LLMProviderAdapter {
                 hasImage = true
             case .thinking(let thinking):
                 thinkingParts.append(thinking.text)
-            case .redactedThinking:
-                // Redacted reasoning is not safe to replay as model input.
-                continue
-            case .audio:
-                continue
-            case .video:
-                continue
+            case .redactedThinking, .audio, .video:
+                break
             }
         }
 
@@ -309,19 +302,14 @@ actor FireworksAdapter: LLMProviderAdapter {
     }
 
     private func translateSingleTool(_ tool: ToolDefinition) -> [String: Any] {
-        var propertiesDict: [String: Any] = [:]
-        for (key, prop) in tool.parameters.properties {
-            propertiesDict[key] = prop.toDictionary()
-        }
-
-        return [
+        [
             "type": "function",
             "function": [
                 "name": tool.name,
                 "description": tool.description,
                 "parameters": [
                     "type": tool.parameters.type,
-                    "properties": propertiesDict,
+                    "properties": tool.parameters.properties.mapValues { $0.toDictionary() },
                     "required": tool.parameters.required
                 ]
             ]

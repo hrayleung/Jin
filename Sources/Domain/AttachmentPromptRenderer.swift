@@ -10,19 +10,10 @@ enum AttachmentPromptRenderer {
             return "Attachment: \(filename) (\(mimeType))"
         }
 
-        let header: String
-        if mimeType == "application/pdf" {
-            header = "PDF: \(filename) (\(mimeType))"
-        } else {
-            header = "File: \(filename) (\(mimeType))"
-        }
-
-        let note: String
-        if mimeType == "application/pdf" {
-            note = "The following text was extracted from the PDF. Treat it as the PDF’s contents (formatting may be imperfect)."
-        } else {
-            note = "The following text was extracted from the file. Treat it as the file’s contents (formatting may be imperfect)."
-        }
+        let isPDF = mimeType == "application/pdf"
+        let kind = isPDF ? "PDF" : "File"
+        let header = "\(kind): \(filename) (\(mimeType))"
+        let note = "The following text was extracted from the \(kind.lowercased()). Treat it as the \(kind.lowercased())'s contents (formatting may be imperfect)."
 
         return "\(header)\n\n\(note)\n\n\(trimmedExtracted)"
     }

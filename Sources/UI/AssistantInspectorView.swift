@@ -30,34 +30,6 @@ private struct IconPickerButton: View {
     @Binding var selectedIcon: String
     @State private var isPickerPresented = false
 
-    // Popular SF Symbols for assistants
-    private let iconOptions: [IconCategory] = [
-        IconCategory(
-            name: "Characters",
-            icons: ["person.crop.circle", "person.fill", "person.2.fill", "figure.wave", "sparkles", "star.fill", "heart.fill", "face.smiling"]
-        ),
-        IconCategory(
-            name: "Technology",
-            icons: ["laptopcomputer", "desktopcomputer", "iphone", "applewatch", "brain", "cpu", "antenna.radiowaves.left.and.right", "waveform"]
-        ),
-        IconCategory(
-            name: "Communication",
-            icons: ["bubble.left.and.bubble.right", "message.fill", "envelope.fill", "phone.fill", "video.fill", "mic.fill", "speaker.wave.3.fill", "quote.bubble"]
-        ),
-        IconCategory(
-            name: "Creative",
-            icons: ["paintbrush.fill", "pencil", "pencil.and.outline", "book.fill", "doc.text.fill", "photo.fill", "music.note", "film"]
-        ),
-        IconCategory(
-            name: "Business",
-            icons: ["briefcase.fill", "chart.line.uptrend.xyaxis", "dollarsign.circle.fill", "building.2.fill", "cart.fill", "creditcard.fill", "paperplane.fill", "folder.fill"]
-        ),
-        IconCategory(
-            name: "Science",
-            icons: ["graduationcap.fill", "atom", "flask.fill", "testtube.2", "leaf.fill", "globe", "pawprint.fill", "dna"]
-        )
-    ]
-
     var body: some View {
         Button {
             isPickerPresented = true

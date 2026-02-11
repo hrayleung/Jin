@@ -10,133 +10,66 @@ actor ProviderManager {
     }
 
     func createAdapter(for config: ProviderConfig) async throws -> any LLMProviderAdapter {
+        if config.type == .vertexai {
+            return try await createVertexAIAdapter(for: config)
+        }
+
+        let apiKey = try await resolveAPIKey(for: config)
+        return createAPIKeyAdapter(for: config, apiKey: apiKey)
+    }
+
+    private func createVertexAIAdapter(for config: ProviderConfig) async throws -> any LLMProviderAdapter {
+        let jsonString: String
+        let credentials: ServiceAccountCredentials
+        do {
+            jsonString = try await resolveServiceAccountJSON(for: config)
+            credentials = try JSONDecoder().decode(
+                ServiceAccountCredentials.self,
+                from: Data(jsonString.utf8)
+            )
+        } catch {
+            throw ProviderError.invalidServiceAccount
+        }
+        return VertexAIAdapter(
+            providerConfig: config,
+            serviceAccountJSON: credentials,
+            networkManager: networkManager
+        )
+    }
+
+    private func createAPIKeyAdapter(for config: ProviderConfig, apiKey: String) -> any LLMProviderAdapter {
         switch config.type {
         case .openai:
-            let apiKey = try await resolveAPIKey(for: config)
-            return OpenAIAdapter(
-                providerConfig: config,
-                apiKey: apiKey,
-                networkManager: networkManager
-            )
-
-        case .openaiCompatible:
-            let apiKey = try await resolveAPIKey(for: config)
-            return OpenAICompatibleAdapter(
-                providerConfig: config,
-                apiKey: apiKey,
-                networkManager: networkManager
-            )
-
+            return OpenAIAdapter(providerConfig: config, apiKey: apiKey, networkManager: networkManager)
+        case .openaiCompatible, .groq, .mistral, .deepinfra:
+            return OpenAICompatibleAdapter(providerConfig: config, apiKey: apiKey, networkManager: networkManager)
         case .openrouter:
-            let apiKey = try await resolveAPIKey(for: config)
-            return OpenRouterAdapter(
-                providerConfig: config,
-                apiKey: apiKey,
-                networkManager: networkManager
-            )
-
+            return OpenRouterAdapter(providerConfig: config, apiKey: apiKey, networkManager: networkManager)
         case .anthropic:
-            let apiKey = try await resolveAPIKey(for: config)
-            return AnthropicAdapter(
-                providerConfig: config,
-                apiKey: apiKey,
-                networkManager: networkManager
-            )
-
+            return AnthropicAdapter(providerConfig: config, apiKey: apiKey, networkManager: networkManager)
         case .perplexity:
-            let apiKey = try await resolveAPIKey(for: config)
-            return PerplexityAdapter(
-                providerConfig: config,
-                apiKey: apiKey,
-                networkManager: networkManager
-            )
-
-        case .groq, .mistral, .deepinfra:
-            let apiKey = try await resolveAPIKey(for: config)
-            return OpenAICompatibleAdapter(
-                providerConfig: config,
-                apiKey: apiKey,
-                networkManager: networkManager
-            )
-
+            return PerplexityAdapter(providerConfig: config, apiKey: apiKey, networkManager: networkManager)
         case .cohere:
-            let apiKey = try await resolveAPIKey(for: config)
-            return CohereAdapter(
-                providerConfig: config,
-                apiKey: apiKey,
-                networkManager: networkManager
-            )
-
+            return CohereAdapter(providerConfig: config, apiKey: apiKey, networkManager: networkManager)
         case .xai:
-            let apiKey = try await resolveAPIKey(for: config)
-            return XAIAdapter(
-                providerConfig: config,
-                apiKey: apiKey,
-                networkManager: networkManager
-            )
-
+            return XAIAdapter(providerConfig: config, apiKey: apiKey, networkManager: networkManager)
         case .deepseek:
-            let apiKey = try await resolveAPIKey(for: config)
-            return DeepSeekAdapter(
-                providerConfig: config,
-                apiKey: apiKey,
-                networkManager: networkManager
-            )
-
+            return DeepSeekAdapter(providerConfig: config, apiKey: apiKey, networkManager: networkManager)
         case .fireworks:
-            let apiKey = try await resolveAPIKey(for: config)
-            return FireworksAdapter(
-                providerConfig: config,
-                apiKey: apiKey,
-                networkManager: networkManager
-            )
-
+            return FireworksAdapter(providerConfig: config, apiKey: apiKey, networkManager: networkManager)
         case .cerebras:
-            let apiKey = try await resolveAPIKey(for: config)
-            return CerebrasAdapter(
-                providerConfig: config,
-                apiKey: apiKey,
-                networkManager: networkManager
-            )
-
+            return CerebrasAdapter(providerConfig: config, apiKey: apiKey, networkManager: networkManager)
         case .gemini:
-            let apiKey = try await resolveAPIKey(for: config)
-            return GeminiAdapter(
-                providerConfig: config,
-                apiKey: apiKey,
-                networkManager: networkManager
-            )
-
+            return GeminiAdapter(providerConfig: config, apiKey: apiKey, networkManager: networkManager)
         case .vertexai:
-            let credentials: ServiceAccountCredentials
-            do {
-                let jsonString = try await resolveServiceAccountJSON(for: config)
-                credentials = try JSONDecoder().decode(
-                    ServiceAccountCredentials.self,
-                    from: Data(jsonString.utf8)
-                )
-            } catch {
-                throw ProviderError.invalidServiceAccount
-            }
-            return VertexAIAdapter(
-                providerConfig: config,
-                serviceAccountJSON: credentials,
-                networkManager: networkManager
-            )
+            fatalError("VertexAI should be handled by createVertexAIAdapter")
         }
     }
 
     func validateConfiguration(for config: ProviderConfig) async throws -> Bool {
         let adapter = try await createAdapter(for: config)
-
-        switch config.type {
-        case .openai, .openaiCompatible, .openrouter, .anthropic, .perplexity, .groq, .cohere, .mistral, .deepinfra, .xai, .deepseek, .fireworks, .cerebras, .gemini:
-            let apiKey = try await resolveAPIKey(for: config)
-            return try await adapter.validateAPIKey(apiKey)
-
-        case .vertexai:
-            return try await adapter.validateAPIKey("")
-        }
+        let apiKey = (config.type == .vertexai) ? "" : try await resolveAPIKey(for: config)
+        return try await adapter.validateAPIKey(apiKey)
     }
 
     private func resolveAPIKey(for config: ProviderConfig) async throws -> String {

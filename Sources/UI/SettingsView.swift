@@ -223,22 +223,23 @@ struct SettingsView: View {
                         ContentUnavailableView("Select an MCP Server", systemImage: "server.rack")
                     }
                 case .plugins:
-                    if selectedPluginID == "mistral_ocr" {
+                    switch selectedPluginID {
+                    case "mistral_ocr":
                         MistralOCRPluginSettingsView()
                             .id("mistral_ocr")
-                    } else if selectedPluginID == "deepseek_ocr" {
+                    case "deepseek_ocr":
                         DeepSeekOCRPluginSettingsView()
                             .id("deepseek_ocr")
-                    } else if selectedPluginID == "text_to_speech" {
+                    case "text_to_speech":
                         TextToSpeechPluginSettingsView()
                             .id("text_to_speech")
-                    } else if selectedPluginID == "speech_to_text" {
+                    case "speech_to_text":
                         SpeechToTextPluginSettingsView()
                             .id("speech_to_text")
-                    } else if selectedPluginID == "chat_naming" {
+                    case "chat_naming":
                         ChatNamingPluginSettingsView()
                             .id("chat_naming")
-                    } else {
+                    default:
                         ContentUnavailableView("Select a Plugin", systemImage: "puzzlepiece.extension")
                     }
                 case .general, .none:
@@ -254,6 +255,8 @@ struct SettingsView: View {
             .navigationSplitViewColumnWidth(min: 500, ideal: 640)
         }
         .navigationSplitViewStyle(.balanced)
+        .toolbar(removing: .sidebarToggle)
+        .modifier(HideWindowToolbarModifier())
         .frame(minWidth: 900, minHeight: 620)
         .sheet(isPresented: $showingAddProvider) {
             AddProviderView()
@@ -656,40 +659,40 @@ struct SettingsView: View {
             selectedSection = .providers
         }
 
+        // Clear unrelated selections for current section
+        if selectedSection != .providers { selectedProviderID = nil }
+        if selectedSection != .mcpServers { selectedServerID = nil }
+        if selectedSection != .plugins { selectedPluginID = nil }
+
         switch selectedSection {
         case .providers:
-            selectedServerID = nil
-            selectedPluginID = nil
             let candidates = filteredProviders
             if let selectedProviderID,
                candidates.contains(where: { $0.id == selectedProviderID }) {
                 return
             }
             selectedProviderID = candidates.first?.id
+
         case .mcpServers:
-            selectedProviderID = nil
-            selectedPluginID = nil
             let candidates = filteredMCPServers
             if let selectedServerID,
                candidates.contains(where: { $0.id == selectedServerID }) {
                 return
             }
             selectedServerID = candidates.first?.id
+
         case .plugins:
-            selectedProviderID = nil
-            selectedServerID = nil
             let candidates = filteredPlugins
             if let selectedPluginID,
                candidates.contains(where: { $0.id == selectedPluginID }) {
                 return
             }
             selectedPluginID = candidates.first?.id
-        case .general:
-            selectedProviderID = nil
-            selectedServerID = nil
-            selectedPluginID = nil
-        case .none:
-            selectedSection = .providers
+
+        case .general, .none:
+            if selectedSection == nil {
+                selectedSection = .providers
+            }
         }
     }
 }
@@ -1547,5 +1550,27 @@ struct GeneralSettingsView: View {
         for conversation in conversations {
             modelContext.delete(conversation)
         }
+    }
+}
+
+private struct HideWindowToolbarModifier: ViewModifier {
+    func body(content: Content) -> some View {
+        content
+            .background(WindowToolbarHider())
+    }
+
+    private struct WindowToolbarHider: NSViewRepresentable {
+        func makeNSView(context: Context) -> NSView {
+            let view = NSView()
+            DispatchQueue.main.async {
+                if let window = view.window {
+                    window.titlebarAppearsTransparent = true
+                    window.titleVisibility = .hidden
+                    window.toolbar = nil
+                }
+            }
+            return view
+        }
+        func updateNSView(_ nsView: NSView, context: Context) {}
     }
 }

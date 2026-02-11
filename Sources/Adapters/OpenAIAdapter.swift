@@ -218,13 +218,10 @@ actor OpenAIAdapter: LLMProviderAdapter {
     }
 
     private func mapReasoningEffort(_ effort: ReasoningEffort) -> String {
-        // OpenAI supports: none, low, medium, high, xhigh (GPT-5.2). Map unknowns safely.
         switch effort {
         case .none:
             return "none"
-        case .minimal:
-            return "low"
-        case .low:
+        case .minimal, .low:
             return "low"
         case .medium:
             return "medium"
@@ -381,18 +378,13 @@ actor OpenAIAdapter: LLMProviderAdapter {
     }
 
     private func translateSingleTool(_ tool: ToolDefinition) -> [String: Any] {
-        var propertiesDict: [String: Any] = [:]
-        for (key, prop) in tool.parameters.properties {
-            propertiesDict[key] = prop.toDictionary()
-        }
-
-        return [
+        [
             "type": "function",
             "name": tool.name,
             "description": tool.description,
             "parameters": [
                 "type": tool.parameters.type,
-                "properties": propertiesDict,
+                "properties": tool.parameters.properties.mapValues { $0.toDictionary() },
                 "required": tool.parameters.required
             ]
         ]

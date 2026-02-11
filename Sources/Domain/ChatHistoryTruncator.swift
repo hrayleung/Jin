@@ -76,18 +76,14 @@ enum ChatHistoryTruncator {
         case .redactedThinking:
             return 16
         case .image(let image):
-            if image.data != nil { return 1024 }
-            if image.url != nil { return 256 }
-            return 256
+            return image.data != nil ? 1024 : 256
         case .file(let file):
             let extractedTokens = approximateTokenCount(for: file.extractedText ?? "")
             return approximateTokenCount(for: file.filename) + max(256, extractedTokens)
         case .audio:
             return 1024
         case .video(let video):
-            if video.data != nil { return 1536 }
-            if video.url != nil { return 384 }
-            return 384
+            return video.data != nil ? 1536 : 384
         }
     }
 

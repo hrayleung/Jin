@@ -153,18 +153,12 @@ actor VertexAIAdapter: LLMProviderAdapter {
     }
 
     private func translateSingleTool(_ tool: ToolDefinition) -> [String: Any] {
-        // Vertex AI function declarations accept JSON schema via parametersJsonSchema.
-        var properties: [String: Any] = [:]
-        for (key, prop) in tool.parameters.properties {
-            properties[key] = prop.toDictionary()
-        }
-
-        return [
+        [
             "name": tool.name,
             "description": tool.description,
             "parametersJsonSchema": [
                 "type": tool.parameters.type,
-                "properties": properties,
+                "properties": tool.parameters.properties.mapValues { $0.toDictionary() },
                 "required": tool.parameters.required
             ]
         ]

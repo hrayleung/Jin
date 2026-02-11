@@ -588,17 +588,12 @@ actor GeminiAdapter: LLMProviderAdapter {
     }
 
     private func translateSingleTool(_ tool: ToolDefinition) -> [String: Any] {
-        var propertiesDict: [String: Any] = [:]
-        for (key, prop) in tool.parameters.properties {
-            propertiesDict[key] = prop.toDictionary()
-        }
-
-        return [
+        [
             "name": tool.name,
             "description": tool.description,
             "parameters": [
                 "type": tool.parameters.type,
-                "properties": propertiesDict,
+                "properties": tool.parameters.properties.mapValues { $0.toDictionary() },
                 "required": tool.parameters.required
             ]
         ]
