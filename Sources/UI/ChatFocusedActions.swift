@@ -6,6 +6,7 @@ struct ChatFocusedActions {
     let focusComposer: () -> Void
     let attach: () -> Void
     let stopStreaming: () -> Void
+    let toggleExpandedComposer: () -> Void
 }
 
 private struct ChatFocusedActionsKey: FocusedValueKey {

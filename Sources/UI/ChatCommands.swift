@@ -17,6 +17,12 @@ struct ChatCommands: Commands {
             .keyboardShortcut("a", modifiers: [.command, .shift])
             .disabled(!(chatActions?.canAttach ?? false))
 
+            Button("Expand Composer") {
+                chatActions?.toggleExpandedComposer()
+            }
+            .keyboardShortcut("e", modifiers: [.command, .shift])
+            .disabled(chatActions == nil)
+
             Divider()
 
             Button("Stop Generating") {

@@ -31,6 +31,7 @@ struct ChatView: View {
     @State private var messageRenderLimit: Int = 160
     @State private var pendingRestoreScrollMessageID: UUID?
     @State private var isPinnedToBottom = true
+    @State private var isExpandedComposerPresented = false
 
     // Cache expensive derived data so typing/streaming doesn't repeatedly sort/decode the entire history.
     @State private var cachedVisibleMessages: [MessageRenderItem] = []
@@ -110,6 +111,11 @@ struct ChatView: View {
             shape.stroke(isComposerDropTargeted ? Color.accentColor : Color.clear, lineWidth: JinStrokeWidth.emphasized)
         )
         .shadow(color: Color.black.opacity(0.06), radius: 10, x: 0, y: 4)
+        .overlay(alignment: .topTrailing) {
+            composerExpandButton
+                .padding(.top, JinSpacing.medium)
+                .padding(.trailing, JinSpacing.medium)
+        }
     }
 
     @ViewBuilder
@@ -316,6 +322,21 @@ struct ChatView: View {
         }
     }
 
+    private var composerExpandButton: some View {
+        Button {
+            isExpandedComposerPresented = true
+        } label: {
+            Image(systemName: "arrow.up.left.and.arrow.down.right")
+                .font(.system(size: 10, weight: .medium))
+                .foregroundStyle(.tertiary)
+                .frame(width: 22, height: 22)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help("Expand composer (\u{21E7}\u{2318}E)")
+        .disabled(isBusy)
+    }
+
     private var composerSendButton: some View {
         Button(action: sendMessage) {
             Image(systemName: isBusy ? "stop.circle.fill" : "arrow.up.circle.fill")
@@ -488,6 +509,27 @@ struct ChatView: View {
                 .allowsHitTesting(false)
             }
         }
+        .overlay {
+            if isExpandedComposerPresented {
+                ExpandedComposerOverlay(
+                    messageText: $messageText,
+                    draftAttachments: $draftAttachments,
+                    isPresented: $isExpandedComposerPresented,
+                    isComposerDropTargeted: $isComposerDropTargeted,
+                    isBusy: isBusy,
+                    canSendDraft: canSendDraft,
+                    onSend: {
+                        isExpandedComposerPresented = false
+                        sendMessage()
+                    },
+                    onDropFileURLs: handleDroppedFileURLs,
+                    onDropImages: handleDroppedImages,
+                    onRemoveAttachment: removeDraftAttachment
+                )
+                .transition(.opacity.combined(with: .scale(scale: 0.96, anchor: .bottom)))
+            }
+        }
+        .animation(.easeInOut(duration: 0.2), value: isExpandedComposerPresented)
         .toolbarBackground(JinSemanticColor.detailSurface, for: .windowToolbar)
         .navigationTitle(conversationEntity.title)
         .navigationSubtitle(currentModelName)
@@ -531,6 +573,7 @@ struct ChatView: View {
             messageRenderLimit = 160
             pendingRestoreScrollMessageID = nil
             isPinnedToBottom = true
+            isExpandedComposerPresented = false
             ttsPlaybackManager.stop()
             rebuildMessageCaches()
         }
@@ -828,6 +871,9 @@ struct ChatView: View {
                 stopStreaming: {
                     guard isBusy else { return }
                     sendMessage()
+                },
+                toggleExpandedComposer: {
+                    isExpandedComposerPresented.toggle()
                 }
             )
         )
@@ -1477,7 +1523,177 @@ struct ChatView: View {
             }
         }
     }
-    
+
+    private struct ExpandedComposerOverlay: View {
+        @Binding var messageText: String
+        @Binding var draftAttachments: [DraftAttachment]
+        @Binding var isPresented: Bool
+        @Binding var isComposerDropTargeted: Bool
+
+        let isBusy: Bool
+        let canSendDraft: Bool
+        let onSend: () -> Void
+        let onDropFileURLs: ([URL]) -> Bool
+        let onDropImages: ([NSImage]) -> Bool
+        let onRemoveAttachment: (DraftAttachment) -> Void
+
+        @State private var isEditorFocused = true
+
+        private var wordCount: Int {
+            let trimmed = messageText.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { return 0 }
+            return trimmed.components(separatedBy: .whitespacesAndNewlines)
+                .filter { !$0.isEmpty }
+                .count
+        }
+
+        private var characterCount: Int {
+            messageText.count
+        }
+
+        var body: some View {
+            ZStack {
+                Color.black.opacity(0.15)
+                    .ignoresSafeArea()
+                    .onTapGesture {
+                        isPresented = false
+                    }
+
+                panelContent
+                    .frame(maxWidth: 720, maxHeight: 560)
+                    .background {
+                        RoundedRectangle(cornerRadius: JinRadius.large, style: .continuous)
+                            .fill(.regularMaterial)
+                    }
+                    .overlay(
+                        RoundedRectangle(cornerRadius: JinRadius.large, style: .continuous)
+                            .stroke(JinSemanticColor.separator.opacity(0.45), lineWidth: JinStrokeWidth.hairline)
+                    )
+                    .shadow(color: Color.black.opacity(0.12), radius: 24, x: 0, y: 8)
+                    .padding(40)
+            }
+        }
+
+        private var panelContent: some View {
+            VStack(spacing: 0) {
+                panelHeader
+                Divider()
+                panelAttachmentChips
+                panelEditor
+                Divider()
+                panelFooter
+            }
+        }
+
+        private var panelHeader: some View {
+            HStack {
+                Text("Compose")
+                    .font(.headline)
+
+                Spacer()
+
+                Button {
+                    isPresented = false
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 24, height: 24)
+                        .background(
+                            Circle()
+                                .fill(Color.secondary.opacity(0.12))
+                        )
+                }
+                .buttonStyle(.plain)
+                .keyboardShortcut(.escape, modifiers: [])
+            }
+            .padding(.horizontal, JinSpacing.large)
+            .padding(.vertical, JinSpacing.medium)
+        }
+
+        @ViewBuilder
+        private var panelAttachmentChips: some View {
+            if !draftAttachments.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: JinSpacing.small) {
+                        ForEach(draftAttachments) { attachment in
+                            DraftAttachmentChip(
+                                attachment: attachment,
+                                onRemove: { onRemoveAttachment(attachment) }
+                            )
+                        }
+                    }
+                    .padding(.horizontal, JinSpacing.large)
+                    .padding(.vertical, JinSpacing.small)
+                }
+            }
+        }
+
+        private var panelEditor: some View {
+            ZStack(alignment: .topLeading) {
+                if messageText.isEmpty {
+                    Text("Type a message...")
+                        .font(.body)
+                        .foregroundStyle(.tertiary)
+                        .padding(.top, 2)
+                        .padding(.leading, 6)
+                }
+
+                DroppableTextEditor(
+                    text: $messageText,
+                    isDropTargeted: $isComposerDropTargeted,
+                    isFocused: $isEditorFocused,
+                    font: NSFont.preferredFont(forTextStyle: .body),
+                    useCommandEnterToSubmit: true,
+                    onDropFileURLs: onDropFileURLs,
+                    onDropImages: onDropImages,
+                    onSubmit: {
+                        guard canSendDraft, !isBusy else { return }
+                        onSend()
+                    },
+                    onCancel: {
+                        isPresented = false
+                        return true
+                    }
+                )
+            }
+            .padding(.horizontal, JinSpacing.large)
+            .frame(maxHeight: .infinity)
+        }
+
+        private var panelFooter: some View {
+            HStack(spacing: JinSpacing.small) {
+                Text("\(wordCount) words \u{00B7} \(characterCount) characters")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+                    .monospacedDigit()
+
+                Spacer()
+
+                Text("\u{2318}\u{21A9}")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+
+                Button {
+                    guard canSendDraft, !isBusy else { return }
+                    onSend()
+                } label: {
+                    HStack(spacing: 4) {
+                        Text("Send")
+                            .font(.body.weight(.medium))
+                        Image(systemName: "arrow.up.circle.fill")
+                            .font(.body)
+                    }
+                    .foregroundStyle(canSendDraft && !isBusy ? Color.accentColor : .gray)
+                }
+                .buttonStyle(.plain)
+                .disabled(!canSendDraft || isBusy)
+            }
+            .padding(.horizontal, JinSpacing.large)
+            .padding(.vertical, JinSpacing.medium)
+        }
+    }
+
     private var selectedModelInfo: ModelInfo? {
         availableModels.first(where: { $0.id == conversationEntity.modelID })
     }

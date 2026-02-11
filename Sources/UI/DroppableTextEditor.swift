@@ -8,10 +8,33 @@ struct DroppableTextEditor: NSViewRepresentable {
     @Binding var isFocused: Bool
 
     let font: NSFont
+    let useCommandEnterToSubmit: Bool
     let onDropFileURLs: ([URL]) -> Bool
     let onDropImages: ([NSImage]) -> Bool
     let onSubmit: () -> Void
     let onCancel: () -> Bool
+
+    init(
+        text: Binding<String>,
+        isDropTargeted: Binding<Bool>,
+        isFocused: Binding<Bool>,
+        font: NSFont,
+        useCommandEnterToSubmit: Bool = false,
+        onDropFileURLs: @escaping ([URL]) -> Bool,
+        onDropImages: @escaping ([NSImage]) -> Bool,
+        onSubmit: @escaping () -> Void,
+        onCancel: @escaping () -> Bool
+    ) {
+        _text = text
+        _isDropTargeted = isDropTargeted
+        _isFocused = isFocused
+        self.font = font
+        self.useCommandEnterToSubmit = useCommandEnterToSubmit
+        self.onDropFileURLs = onDropFileURLs
+        self.onDropImages = onDropImages
+        self.onSubmit = onSubmit
+        self.onCancel = onCancel
+    }
 
     func makeCoordinator() -> Coordinator {
         Coordinator(
@@ -29,6 +52,7 @@ struct DroppableTextEditor: NSViewRepresentable {
         let textView = DroppableNSTextView()
         textView.delegate = context.coordinator
         textView.font = font
+        textView.useCommandEnterToSubmit = useCommandEnterToSubmit
         textView.isEditable = true
         textView.isSelectable = true
         textView.isRichText = false
@@ -89,7 +113,11 @@ struct DroppableTextEditor: NSViewRepresentable {
     }
 
     func updateNSView(_ nsView: NSScrollView, context: Context) {
-        guard let textView = nsView.documentView as? NSTextView else { return }
+        guard let textView = nsView.documentView as? DroppableNSTextView else { return }
+
+        if textView.useCommandEnterToSubmit != useCommandEnterToSubmit {
+            textView.useCommandEnterToSubmit = useCommandEnterToSubmit
+        }
 
         if textView.string != text {
             let selectedRanges = textView.selectedRanges
@@ -319,6 +347,7 @@ final class DroppableNSTextView: NSTextView {
     var onPerformPasteboard: ((NSPasteboard) -> Bool)?
     var onSubmit: (() -> Void)?
     var onCancel: (() -> Bool)?
+    var useCommandEnterToSubmit = false
 
     override func becomeFirstResponder() -> Bool {
         let didBecome = super.becomeFirstResponder()
@@ -403,6 +432,17 @@ final class DroppableNSTextView: NSTextView {
                 return
             }
 
+            if useCommandEnterToSubmit {
+                // In expanded mode: Cmd+Enter sends, plain Enter inserts newline
+                if event.modifierFlags.contains(.command) {
+                    onSubmit?()
+                    return
+                }
+                super.keyDown(with: event)
+                return
+            }
+
+            // Default mode: Enter sends, Shift+Enter inserts newline
             if event.modifierFlags.contains(.shift) {
                 super.keyDown(with: event)
                 return
