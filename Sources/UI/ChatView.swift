@@ -30,13 +30,11 @@ struct ChatView: View {
     @State private var messageRenderLimit: Int = 160
     @State private var pendingRestoreScrollMessageID: UUID?
     @State private var isPinnedToBottom = true
-    @State private var lastStreamingAutoScrollUptime: TimeInterval = 0
 
     // Cache expensive derived data so typing/streaming doesn't repeatedly sort/decode the entire history.
     @State private var cachedVisibleMessages: [MessageRenderItem] = []
     @State private var cachedMessagesVersion: Int = 0
     @State private var cachedMessageEntitiesByID: [UUID: MessageEntity] = [:]
-    @State private var cachedNormalizedMarkdownByKey: [MarkdownNormalizationCacheKey: String] = [:]
     @State private var cachedToolResultsByCallID: [String: ToolResult] = [:]
     @State private var lastCacheRebuildMessageCount: Int = 0
     @State private var lastCacheRebuildUpdatedAt: Date = .distantPast
@@ -411,9 +409,7 @@ struct ChatView: View {
                                     assistantDisplayName: assistantDisplayName,
                                     modelLabel: streamingModelLabel,
                                     providerIconID: providerIconID,
-                                    onContentUpdate: {
-                                        throttledScrollToBottom(proxy: proxy)
-                                    }
+                                    onContentUpdate: { }
                                 )
                                 .id("streaming")
                             }
@@ -434,45 +430,13 @@ struct ChatView: View {
                         .padding(.horizontal, 20)
                         .padding(.top, 24)
                     }
+                    .defaultScrollAnchor(.bottom)
                     .coordinateSpace(name: "chatScroll")
                     .onPreferenceChange(BottomSentinelMaxYPreferenceKey.self) { sentinelMaxY in
                         let threshold: CGFloat = 80
                         let pinned = sentinelMaxY <= geometry.size.height + threshold
                         if pinned != isPinnedToBottom {
                             isPinnedToBottom = pinned
-                        }
-                    }
-                    .onAppear {
-                        // On first open, jump to the latest message instead of the start of the conversation.
-                        DispatchQueue.main.async {
-                            scrollToBottom(proxy: proxy)
-                        }
-                    }
-                    .onChange(of: conversationEntity.id) { _, _ in
-                        DispatchQueue.main.async {
-                            scrollToBottom(proxy: proxy)
-                        }
-                    }
-                    .onChange(of: cachedMessagesVersion) { _, _ in
-                        guard isPinnedToBottom else { return }
-                        DispatchQueue.main.async {
-                            scrollToBottom(proxy: proxy)
-                        }
-                    }
-                    .onChange(of: streamingMessage != nil) { _, isActive in
-                        if isActive {
-                            lastStreamingAutoScrollUptime = 0
-                        }
-                        guard isPinnedToBottom else { return }
-                        // Ensure the streaming row has been laid out before scrolling to it.
-                        DispatchQueue.main.async {
-                            scrollToBottom(proxy: proxy)
-                        }
-                    }
-                    .onChange(of: composerHeight) { _, _ in
-                        guard isPinnedToBottom else { return }
-                        DispatchQueue.main.async {
-                            scrollToBottom(proxy: proxy)
                         }
                     }
                     .onChange(of: messageRenderLimit) { _, _ in
@@ -544,7 +508,6 @@ struct ChatView: View {
             messageRenderLimit = 160
             pendingRestoreScrollMessageID = nil
             isPinnedToBottom = true
-            lastStreamingAutoScrollUptime = 0
             ttsPlaybackManager.stop()
             rebuildMessageCaches()
         }
@@ -2062,21 +2025,6 @@ struct ChatView: View {
         }
     }
 
-    private func scrollToBottom(proxy: ScrollViewProxy) {
-        proxy.scrollTo("bottom", anchor: .bottom)
-    }
-
-    private func throttledScrollToBottom(proxy: ScrollViewProxy) {
-        // Streaming updates can be very frequent; throttle auto-scroll to keep the UI responsive.
-        guard isStreaming, streamingMessage != nil, isPinnedToBottom else { return }
-
-        let now = ProcessInfo.processInfo.systemUptime
-        let minInterval: TimeInterval = 0.25
-        guard now - lastStreamingAutoScrollUptime >= minInterval else { return }
-
-        lastStreamingAutoScrollUptime = now
-        scrollToBottom(proxy: proxy)
-    }
 
     private func orderedConversationMessages() -> [MessageEntity] {
         conversationEntity.messages.sorted { lhs, rhs in
@@ -2099,9 +2047,6 @@ struct ChatView: View {
     private func rebuildMessageCaches() {
         let ordered = orderedConversationMessages()
 
-        var nextNormalizedMarkdownByKey: [MarkdownNormalizationCacheKey: String] = [:]
-        nextNormalizedMarkdownByKey.reserveCapacity(cachedNormalizedMarkdownByKey.count)
-
         var messageEntitiesByID: [UUID: MessageEntity] = [:]
         messageEntitiesByID.reserveCapacity(ordered.count)
 
@@ -2113,11 +2058,7 @@ struct ChatView: View {
             guard entity.role != "tool" else { continue }
 
             guard let message = try? entity.toDomain() else { continue }
-            let renderedParts = renderedContentParts(
-                messageID: entity.id,
-                content: message.content,
-                normalizationCache: &nextNormalizedMarkdownByKey
-            )
+            let renderedParts = renderedContentParts(content: message.content)
 
             renderedItems.append(
                 MessageRenderItem(
@@ -2141,32 +2082,15 @@ struct ChatView: View {
 
         cachedVisibleMessages = renderedItems
         cachedMessageEntitiesByID = messageEntitiesByID
-        cachedNormalizedMarkdownByKey = nextNormalizedMarkdownByKey
         cachedToolResultsByCallID = toolResultsByToolCallID(in: ordered)
         cachedMessagesVersion &+= 1
         lastCacheRebuildMessageCount = ordered.count
         lastCacheRebuildUpdatedAt = conversationEntity.updatedAt
     }
 
-    private func renderedContentParts(
-        messageID: UUID,
-        content: [ContentPart],
-        normalizationCache: inout [MarkdownNormalizationCacheKey: String]
-    ) -> [RenderedMessageContentPart] {
-        content.enumerated().map { index, part in
-            guard case .text(let text) = part else {
-                return RenderedMessageContentPart(part: part, normalizedMarkdownText: nil)
-            }
-
-            let key = MarkdownNormalizationCacheKey(messageID: messageID, partIndex: index, rawText: text)
-            if let cached = cachedNormalizedMarkdownByKey[key] {
-                normalizationCache[key] = cached
-                return RenderedMessageContentPart(part: part, normalizedMarkdownText: cached)
-            }
-
-            let normalized = text.normalizingMathDelimitersForMarkdownView()
-            normalizationCache[key] = normalized
-            return RenderedMessageContentPart(part: part, normalizedMarkdownText: normalized)
+    private func renderedContentParts(content: [ContentPart]) -> [RenderedMessageContentPart] {
+        content.map { part in
+            RenderedMessageContentPart(part: part)
         }
     }
 
@@ -4864,25 +4788,6 @@ struct MessageRenderItem: Identifiable {
 
 struct RenderedMessageContentPart {
     let part: ContentPart
-    let normalizedMarkdownText: String?
-}
-
-private struct MarkdownNormalizationCacheKey: Hashable {
-    let messageID: UUID
-    let partIndex: Int
-
-    private let textLength: Int
-    private let textHash: Int
-
-    init(messageID: UUID, partIndex: Int, rawText: String) {
-        self.messageID = messageID
-        self.partIndex = partIndex
-        self.textLength = rawText.utf8.count
-
-        var hasher = Hasher()
-        hasher.combine(rawText)
-        self.textHash = hasher.finalize()
-    }
 }
 
 struct MessageRow: View {
@@ -4944,7 +4849,7 @@ struct MessageRow: View {
                             .frame(minHeight: 36, maxHeight: 200)
                         } else {
                             ForEach(Array(item.renderedContentParts.enumerated()), id: \.offset) { _, rendered in
-                                ContentPartView(part: rendered.part, normalizedMarkdownText: rendered.normalizedMarkdownText)
+                                ContentPartView(part: rendered.part, isUser: isUser)
                             }
 
                             if !item.toolCalls.isEmpty {
@@ -5225,16 +5130,12 @@ private struct LoadEarlierMessagesRow: View {
 
 struct ContentPartView: View {
     let part: ContentPart
-    let normalizedMarkdownText: String?
+    var isUser: Bool = false
 
     var body: some View {
         switch part {
         case .text(let text):
-            if let normalizedMarkdownText {
-                MessageTextView(normalizedMarkdownText: normalizedMarkdownText)
-            } else {
-                MessageTextView(text: text)
-            }
+            MessageTextView(text: text, mode: isUser ? .plainText : .markdown)
 
         case .thinking(let thinking):
             ThinkingBlockView(thinking: thinking)
