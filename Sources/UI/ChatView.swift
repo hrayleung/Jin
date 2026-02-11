@@ -21,6 +21,7 @@ struct ChatView: View {
     @State private var draftAttachments: [DraftAttachment] = []
     @State private var isFileImporterPresented = false
     @State private var isComposerDropTargeted = false
+    @State private var isFullPageDropTargeted = false
     @State private var isComposerFocused = false
     @State private var editingUserMessageID: UUID?
     @State private var editingUserMessageText = ""
@@ -465,6 +466,28 @@ struct ChatView: View {
             }
         }
         .background(JinSemanticColor.detailSurface)
+        .onDrop(of: [.fileURL, .image], isTargeted: $isFullPageDropTargeted) { providers in
+            handleDrop(providers)
+        }
+        .overlay {
+            if isFullPageDropTargeted {
+                ZStack {
+                    Color.accentColor.opacity(0.08)
+                        .ignoresSafeArea()
+                    VStack(spacing: 8) {
+                        Image(systemName: "arrow.down.doc")
+                            .font(.system(size: 32, weight: .light))
+                            .foregroundStyle(.secondary)
+                        Text("Drop to attach")
+                            .font(.headline)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(24)
+                    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: JinRadius.large, style: .continuous))
+                }
+                .allowsHitTesting(false)
+            }
+        }
         .toolbarBackground(JinSemanticColor.detailSurface, for: .windowToolbar)
         .navigationTitle(conversationEntity.title)
         .navigationSubtitle(currentModelName)
@@ -5779,3 +5802,4 @@ final class StreamingMessageState: ObservableObject {
         }
     }
 }
+

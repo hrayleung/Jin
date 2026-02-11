@@ -182,6 +182,13 @@ private struct MarkdownWebRendererRepresentable: NSViewRepresentable {
 final class MarkdownWKWebView: WKWebView {
     var contentHeight: CGFloat = 0
 
+    override func viewDidMoveToSuperview() {
+        super.viewDidMoveToSuperview()
+        // Unregister WKWebView's default drag types so drag-and-drop events
+        // pass through to the parent SwiftUI .onDrop handler on ChatView.
+        unregisterDraggedTypes()
+    }
+
     override var intrinsicContentSize: NSSize {
         NSSize(width: super.intrinsicContentSize.width, height: contentHeight)
     }
