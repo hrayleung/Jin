@@ -1395,12 +1395,15 @@ function updateContent(base64) {
 }
 
 function reportHeight() {
-    window.webkit.messageHandlers.heightChanged.postMessage(document.documentElement.scrollHeight);
+    var el = document.getElementById('content');
+    var h = el ? Math.ceil(el.getBoundingClientRect().height) : document.documentElement.scrollHeight;
+    window.webkit.messageHandlers.heightChanged.postMessage(h);
 }
 
 var _rh = 0;
 var resizeObserver = new ResizeObserver(function() {
-    var h = document.documentElement.scrollHeight;
+    var el = document.getElementById('content');
+    var h = el ? Math.ceil(el.getBoundingClientRect().height) : document.documentElement.scrollHeight;
     if (h !== _rh) { _rh = h; reportHeight(); }
 });
 resizeObserver.observe(document.body);

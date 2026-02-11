@@ -27,12 +27,19 @@ struct OpenAIChatCompletionsCore {
             continuation.yield(.messageStart(id: response.id))
 
             for choice in response.choices {
-                if let reasoning = messageReasoning(choice.message, field: reasoningField) {
+                let explicitReasoning = messageReasoning(choice.message, field: reasoningField)
+                if let reasoning = explicitReasoning {
                     continuation.yield(.thinkingDelta(.thinking(textDelta: reasoning, signature: nil)))
                 }
 
-                if let content = normalized(choice.message.content) {
-                    continuation.yield(.contentDelta(.text(content)))
+                if let rawContent = normalized(choice.message.content) {
+                    let split = ThinkTagStreamSplitter.splitNonStreaming(rawContent)
+                    if explicitReasoning == nil, let thinking = normalized(split.thinking) {
+                        continuation.yield(.thinkingDelta(.thinking(textDelta: thinking, signature: nil)))
+                    }
+                    if let visible = normalized(split.visible) {
+                        continuation.yield(.contentDelta(.text(visible)))
+                    }
                 }
 
                 if let toolCalls = choice.message.toolCalls, !toolCalls.isEmpty {
@@ -44,6 +51,10 @@ struct OpenAIChatCompletionsCore {
                         continuation.yield(.toolCallEnd(toolCall))
                     }
                 }
+            }
+
+            if let sources = sourcesMarkdown(citations: response.citations, searchResults: response.searchResults) {
+                continuation.yield(.contentDelta(.text(sources)))
             }
 
             continuation.yield(.messageEnd(usage: response.toUsage()))
@@ -61,7 +72,10 @@ struct OpenAIChatCompletionsCore {
                     var didStart = false
                     var messageID: String = UUID().uuidString
                     var pendingUsage: Usage?
+                    var pendingCitations: [String]?
+                    var pendingSearchResults: [OpenAIChatCompletionsSearchResult]?
                     var toolCallsByIndex: [Int: OpenAIChatCompletionsToolCallState] = [:]
+                    var thinkSplitter = ThinkTagStreamSplitter()
 
                     for try await event in sseStream {
                         switch event {
@@ -79,6 +93,13 @@ struct OpenAIChatCompletionsCore {
                                 pendingUsage = usage
                             }
 
+                            if let citations = chunk.citations, !citations.isEmpty {
+                                pendingCitations = citations
+                            }
+                            if let results = chunk.searchResults, !results.isEmpty {
+                                pendingSearchResults = results
+                            }
+
                             guard let choice = chunk.choices.first else { continue }
 
                             if let delta = deltaReasoning(choice.delta, field: reasoningField) {
@@ -86,7 +107,13 @@ struct OpenAIChatCompletionsCore {
                             }
 
                             if let delta = normalized(choice.delta.content) {
-                                continuation.yield(.contentDelta(.text(delta)))
+                                let split = thinkSplitter.process(delta)
+                                if !split.thinking.isEmpty {
+                                    continuation.yield(.thinkingDelta(.thinking(textDelta: split.thinking, signature: nil)))
+                                }
+                                if !split.visible.isEmpty {
+                                    continuation.yield(.contentDelta(.text(split.visible)))
+                                }
                             }
 
                             if let toolDeltas = choice.delta.toolCalls {
@@ -129,6 +156,18 @@ struct OpenAIChatCompletionsCore {
                                 guard !state.callID.isEmpty, !state.name.isEmpty else { continue }
                                 let args = parseJSONObject(state.argumentsBuffer)
                                 continuation.yield(.toolCallEnd(ToolCall(id: state.callID, name: state.name, arguments: args)))
+                            }
+
+                            let remainder = thinkSplitter.flushRemainder()
+                            if !remainder.thinking.isEmpty {
+                                continuation.yield(.thinkingDelta(.thinking(textDelta: remainder.thinking, signature: nil)))
+                            }
+                            if !remainder.visible.isEmpty {
+                                continuation.yield(.contentDelta(.text(remainder.visible)))
+                            }
+
+                            if let sources = sourcesMarkdown(citations: pendingCitations, searchResults: pendingSearchResults) {
+                                continuation.yield(.contentDelta(.text(sources)))
                             }
 
                             continuation.yield(.messageEnd(usage: pendingUsage))
@@ -184,6 +223,200 @@ struct OpenAIChatCompletionsCore {
         }
         return object.mapValues(AnyCodable.init)
     }
+
+    private static func sourcesMarkdown(
+        citations: [String]?,
+        searchResults: [OpenAIChatCompletionsSearchResult]?
+    ) -> String? {
+        func trimmedNonEmpty(_ value: String?) -> String? {
+            guard let value else { return nil }
+            let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+            return trimmed.isEmpty ? nil : trimmed
+        }
+
+        func escapeMarkdownLinkText(_ value: String) -> String {
+            value
+                .replacingOccurrences(of: "\\", with: "\\\\")
+                .replacingOccurrences(of: "[", with: "\\[")
+                .replacingOccurrences(of: "]", with: "\\]")
+        }
+
+        if let searchResults {
+            var seenURLs = Set<String>()
+            var lines: [String] = ["\n\n---\n\n### Sources"]
+
+            var index = 0
+            for raw in searchResults {
+                guard let url = trimmedNonEmpty(raw.url) else { continue }
+                guard seenURLs.insert(url).inserted else { continue }
+
+                index += 1
+
+                let title = trimmedNonEmpty(raw.title) ?? url
+                let titleEscaped = escapeMarkdownLinkText(title)
+                var line = "\(index). [\(titleEscaped)](<\(url)>)"
+
+                if let snippet = trimmedNonEmpty(raw.snippet) {
+                    let oneLine = snippet.replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+                    line += " — \(oneLine)"
+                }
+
+                lines.append(line)
+            }
+
+            if lines.count > 1 {
+                return lines.joined(separator: "\n")
+            }
+        }
+
+        if let citations {
+            var seen = Set<String>()
+            var unique: [String] = []
+            unique.reserveCapacity(citations.count)
+            for raw in citations {
+                let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !trimmed.isEmpty else { continue }
+                guard seen.insert(trimmed).inserted else { continue }
+                unique.append(trimmed)
+            }
+
+            guard !unique.isEmpty else { return nil }
+
+            var lines: [String] = ["\n\n---\n\n### Sources"]
+            for (idx, citation) in unique.enumerated() {
+                if citation.lowercased().hasPrefix("http") {
+                    lines.append("\(idx + 1). <\(citation)>")
+                } else {
+                    lines.append("\(idx + 1). \(citation)")
+                }
+            }
+            return lines.joined(separator: "\n")
+        }
+
+        return nil
+    }
+
+    /// Splits leading `<think>...</think>` blocks out of streamed `content` so reasoning models that
+    /// embed thinking inline (instead of using `reasoning` fields) still render correctly.
+    private struct ThinkTagStreamSplitter {
+        private static let startTag = "<think>"
+        private static let endTag = "</think>"
+
+        private var isInThinking = false
+        private var hasEmittedVisibleNonWhitespace = false
+        private var tagBuffer = ""
+
+        mutating func process(_ input: String) -> (visible: String, thinking: String) {
+            if tagBuffer.isEmpty, !input.contains("<") {
+                if isInThinking {
+                    return (visible: "", thinking: input)
+                }
+
+                if !hasEmittedVisibleNonWhitespace,
+                   input.rangeOfCharacter(from: CharacterSet.whitespacesAndNewlines.inverted) != nil {
+                    hasEmittedVisibleNonWhitespace = true
+                }
+                return (visible: input, thinking: "")
+            }
+
+            var visibleOut = ""
+            var thinkingOut = ""
+            visibleOut.reserveCapacity(input.count)
+
+            func appendLiteral(_ ch: Character) {
+                if isInThinking {
+                    thinkingOut.append(ch)
+                } else {
+                    visibleOut.append(ch)
+                    if !hasEmittedVisibleNonWhitespace,
+                       String(ch).rangeOfCharacter(from: CharacterSet.whitespacesAndNewlines.inverted) != nil {
+                        hasEmittedVisibleNonWhitespace = true
+                    }
+                }
+            }
+
+            func flushTagBufferAsLiteral() {
+                guard !tagBuffer.isEmpty else { return }
+                for ch in tagBuffer {
+                    appendLiteral(ch)
+                }
+                tagBuffer.removeAll(keepingCapacity: true)
+            }
+
+            func isPossibleTagPrefix(_ lower: String) -> Bool {
+                Self.startTag.hasPrefix(lower) || Self.endTag.hasPrefix(lower)
+            }
+
+            for ch in input {
+                if tagBuffer.isEmpty {
+                    if ch == "<" {
+                        tagBuffer.append(ch)
+                        continue
+                    }
+                    appendLiteral(ch)
+                    continue
+                }
+
+                tagBuffer.append(ch)
+                let lower = tagBuffer.lowercased()
+
+                if lower == Self.startTag {
+                    if !isInThinking, !hasEmittedVisibleNonWhitespace {
+                        isInThinking = true
+                        tagBuffer.removeAll(keepingCapacity: true)
+                        continue
+                    }
+                    flushTagBufferAsLiteral()
+                    continue
+                }
+
+                if lower == Self.endTag {
+                    if isInThinking {
+                        isInThinking = false
+                        tagBuffer.removeAll(keepingCapacity: true)
+                        continue
+                    }
+                    flushTagBufferAsLiteral()
+                    continue
+                }
+
+                if isPossibleTagPrefix(lower) {
+                    continue
+                }
+
+                while !tagBuffer.isEmpty {
+                    let currentLower = tagBuffer.lowercased()
+                    if isPossibleTagPrefix(currentLower) {
+                        break
+                    }
+                    let first = tagBuffer.removeFirst()
+                    appendLiteral(first)
+                }
+            }
+
+            return (visibleOut, thinkingOut)
+        }
+
+        mutating func flushRemainder() -> (visible: String, thinking: String) {
+            guard !tagBuffer.isEmpty else { return ("", "") }
+            let remainder = tagBuffer
+            tagBuffer.removeAll(keepingCapacity: true)
+            return isInThinking ? ("", remainder) : (remainder, "")
+        }
+
+        static func splitNonStreaming(_ input: String) -> (visible: String, thinking: String?) {
+            guard input.lowercased().contains("<think>") else {
+                return (input, nil)
+            }
+
+            var splitter = ThinkTagStreamSplitter()
+            let first = splitter.process(input)
+            let remainder = splitter.flushRemainder()
+            let visible = first.visible + remainder.visible
+            let thinkingRaw = first.thinking + remainder.thinking
+            return (visible, thinkingRaw.isEmpty ? nil : thinkingRaw)
+        }
+    }
 }
 
 struct OpenAIModelsResponse: Codable {
@@ -198,6 +431,8 @@ struct OpenAIChatCompletionsResponse: Codable {
     let id: String
     let choices: [Choice]
     let usage: UsageInfo?
+    let citations: [String]?
+    let searchResults: [OpenAIChatCompletionsSearchResult]?
 
     struct Choice: Codable {
         let message: AssistantMessage
@@ -240,6 +475,8 @@ struct OpenAIChatCompletionsChunk: Codable {
     let id: String?
     let choices: [Choice]
     let usage: OpenAIChatCompletionsResponse.UsageInfo?
+    let citations: [String]?
+    let searchResults: [OpenAIChatCompletionsSearchResult]?
 
     struct Choice: Codable {
         let index: Int?
@@ -272,6 +509,12 @@ struct OpenAIChatCompletionsChunk: Codable {
         guard let input = usage.promptTokens, let output = usage.completionTokens else { return nil }
         return Usage(inputTokens: input, outputTokens: output)
     }
+}
+
+struct OpenAIChatCompletionsSearchResult: Codable {
+    let title: String?
+    let url: String?
+    let snippet: String?
 }
 
 struct OpenAIChatCompletionsToolCallState {
