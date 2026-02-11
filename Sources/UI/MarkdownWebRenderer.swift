@@ -12,17 +12,50 @@ private func cachedTemplateHTML() -> String? {
     return html
 }
 
-struct MarkdownWebRenderer: NSViewRepresentable {
+struct MarkdownWebRenderer: View {
     let markdownText: String
 
     @AppStorage(AppPreferenceKeys.appFontFamily) private var appFontFamily = JinTypography.systemFontPreferenceValue
     @AppStorage(AppPreferenceKeys.codeFontFamily) private var codeFontFamily = JinTypography.systemFontPreferenceValue
     @AppStorage(AppPreferenceKeys.chatMessageFontScale) private var chatMessageFontScale = JinTypography.defaultChatMessageScale
 
-    private static func estimatedHeight(for text: String) -> CGFloat {
+    @State private var contentHeight: CGFloat
+
+    init(markdownText: String) {
+        self.markdownText = markdownText
+        let estimated = Self.estimatedHeight(for: markdownText)
+        self._contentHeight = State(initialValue: estimated)
+    }
+
+    var body: some View {
+        MarkdownWebRendererRepresentable(
+            markdownText: markdownText,
+            contentHeight: $contentHeight,
+            appFontFamily: appFontFamily,
+            codeFontFamily: codeFontFamily,
+            chatMessageFontScale: chatMessageFontScale
+        )
+        .frame(height: contentHeight)
+    }
+
+    static func estimatedHeight(for text: String) -> CGFloat {
         let lines = max(1, CGFloat(text.utf8.count) / 80.0)
         return max(24, lines * 20.0)
     }
+
+    static func sendMarkdown(to webView: WKWebView, markdown: String) {
+        guard let data = markdown.data(using: .utf8) else { return }
+        let b64 = data.base64EncodedString()
+        webView.evaluateJavaScript("window.updateWithBase64('\(b64)')", completionHandler: nil)
+    }
+}
+
+private struct MarkdownWebRendererRepresentable: NSViewRepresentable {
+    let markdownText: String
+    @Binding var contentHeight: CGFloat
+    let appFontFamily: String
+    let codeFontFamily: String
+    let chatMessageFontScale: Double
 
     func makeCoordinator() -> Coordinator { Coordinator() }
 
@@ -37,9 +70,9 @@ struct MarkdownWebRenderer: NSViewRepresentable {
         webView.navigationDelegate = context.coordinator
         webView.setValue(false, forKey: "drawsBackground")
         webView.setContentHuggingPriority(.required, for: .vertical)
-        webView.contentHeight = Self.estimatedHeight(for: markdownText)
 
         context.coordinator.webView = webView
+        context.coordinator.heightBinding = $contentHeight
         context.coordinator.pendingMarkdown = markdownText
 
         loadTemplate(into: webView)
@@ -47,6 +80,8 @@ struct MarkdownWebRenderer: NSViewRepresentable {
     }
 
     func updateNSView(_ webView: MarkdownWKWebView, context: Context) {
+        context.coordinator.heightBinding = $contentHeight
+
         let bodyFont = resolvedBodyFontCSS()
         let codeFont = resolvedCodeFontCSS()
         let fontSize = resolvedBodyFontSize()
@@ -61,7 +96,7 @@ struct MarkdownWebRenderer: NSViewRepresentable {
                 let js = "document.documentElement.style.setProperty('--body-font','\(bodyFont)');document.documentElement.style.setProperty('--code-font','\(codeFont)');document.documentElement.style.setProperty('--body-font-size','\(fontSize)px');"
                 webView.evaluateJavaScript(js, completionHandler: nil)
             }
-            sendMarkdown(to: webView, markdown: markdownText)
+            MarkdownWebRenderer.sendMarkdown(to: webView, markdown: markdownText)
         } else {
             context.coordinator.pendingMarkdown = markdownText
         }
@@ -74,16 +109,6 @@ struct MarkdownWebRenderer: NSViewRepresentable {
             .replacingOccurrences(of: "BODY_FONT_SIZE", with: "\(resolvedBodyFontSize())px")
             .replacingOccurrences(of: "CODE_FONT_FAMILY", with: resolvedCodeFontCSS())
         webView.loadHTMLString(html, baseURL: nil)
-    }
-
-    static func sendMarkdown(to webView: WKWebView, markdown: String) {
-        guard let data = markdown.data(using: .utf8) else { return }
-        let b64 = data.base64EncodedString()
-        webView.evaluateJavaScript("window.updateWithBase64('\(b64)')", completionHandler: nil)
-    }
-
-    private func sendMarkdown(to webView: WKWebView, markdown: String) {
-        Self.sendMarkdown(to: webView, markdown: markdown)
     }
 
     private func resolvedBodyFontCSS() -> String {
@@ -107,6 +132,7 @@ struct MarkdownWebRenderer: NSViewRepresentable {
 
     final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
         weak var webView: MarkdownWKWebView?
+        var heightBinding: Binding<CGFloat>?
         var isReady = false
         var pendingMarkdown: String?
         var lastBodyFont: String = ""
@@ -138,10 +164,17 @@ struct MarkdownWebRenderer: NSViewRepresentable {
             }
             guard message.name == "heightChanged",
                   let height = message.body as? CGFloat,
-                  let webView = webView,
-                  webView.contentHeight != height else { return }
-            webView.contentHeight = height
-            webView.invalidateIntrinsicContentSize()
+                  let webView = webView else { return }
+
+            let clamped = max(height, 1)
+            if webView.contentHeight != clamped {
+                webView.contentHeight = clamped
+                webView.invalidateIntrinsicContentSize()
+            }
+            // Update the SwiftUI-observed height so LazyVStack re-layouts
+            if heightBinding?.wrappedValue != clamped {
+                heightBinding?.wrappedValue = clamped
+            }
         }
     }
 }
