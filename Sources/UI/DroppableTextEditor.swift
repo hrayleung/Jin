@@ -153,7 +153,7 @@ struct DroppableTextEditor: NSViewRepresentable {
         }
 
         func performPaste(_ pasteboard: NSPasteboard) -> Bool {
-            handlePasteboard(pasteboard, preferImages: true, allowFilePromises: false)
+            handlePasteboard(pasteboard, allowFilePromises: false)
         }
 
         func submit() {
@@ -165,27 +165,21 @@ struct DroppableTextEditor: NSViewRepresentable {
         }
 
         func performDrop(_ draggingInfo: NSDraggingInfo) -> Bool {
-            handlePasteboard(draggingInfo.draggingPasteboard, preferImages: false, allowFilePromises: true)
+            handlePasteboard(draggingInfo.draggingPasteboard, allowFilePromises: true)
         }
 
-        private func handlePasteboard(_ pasteboard: NSPasteboard, preferImages: Bool, allowFilePromises: Bool) -> Bool {
-            if preferImages {
-                let images = readImages(from: pasteboard)
-                if !images.isEmpty {
-                    return onDropImages(images)
-                }
-            }
-
+        private func handlePasteboard(_ pasteboard: NSPasteboard, allowFilePromises: Bool) -> Bool {
+            // Always check file URLs first. When a file is copied from Finder,
+            // the pasteboard contains both the file URL and the app icon as a
+            // TIFF image. Checking images first would mistake the icon for content.
             let fileURLs = readFileURLs(from: pasteboard)
             if !fileURLs.isEmpty {
                 return onDropFileURLs(fileURLs)
             }
 
-            if !preferImages {
-                let images = readImages(from: pasteboard)
-                if !images.isEmpty {
-                    return onDropImages(images)
-                }
+            let images = readImages(from: pasteboard)
+            if !images.isEmpty {
+                return onDropImages(images)
             }
 
             if allowFilePromises, handleFilePromises(in: pasteboard) {
