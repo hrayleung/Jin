@@ -97,6 +97,7 @@ struct SettingsView: View {
         )
     ]
 
+    @State private var columnVisibility: NavigationSplitViewVisibility = .all
     @State private var selectedSection: SettingsSection? = .providers
     @State private var selectedProviderID: String?
     @State private var selectedServerID: String?
@@ -158,7 +159,7 @@ struct SettingsView: View {
     }
 
     var body: some View {
-        NavigationSplitView {
+        NavigationSplitView(columnVisibility: $columnVisibility) {
             // Column 1: Navigation Sidebar
             List(SettingsSection.allCases, selection: $selectedSection) { section in
                 NavigationLink(value: section) {
@@ -1561,16 +1562,37 @@ private struct HideWindowToolbarModifier: ViewModifier {
 
     private struct WindowToolbarHider: NSViewRepresentable {
         func makeNSView(context: Context) -> NSView {
-            let view = NSView()
-            DispatchQueue.main.async {
-                if let window = view.window {
-                    window.titlebarAppearsTransparent = true
-                    window.titleVisibility = .hidden
-                    window.toolbar = nil
-                }
-            }
+            let view = ToolbarObservingView()
             return view
         }
-        func updateNSView(_ nsView: NSView, context: Context) {}
+        func updateNSView(_ nsView: NSView, context: Context) {
+            (nsView as? ToolbarObservingView)?.hideToolbar()
+        }
+    }
+
+    private final class ToolbarObservingView: NSView {
+        private var windowObservation: NSKeyValueObservation?
+        private var toolbarObservation: NSKeyValueObservation?
+
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            hideToolbar()
+
+            // Observe in case NavigationSplitView re-creates the toolbar
+            windowObservation = observe(\.window?.toolbar, options: [.new]) { [weak self] _, _ in
+                DispatchQueue.main.async {
+                    self?.hideToolbar()
+                }
+            }
+        }
+
+        func hideToolbar() {
+            guard let window else { return }
+            window.titlebarAppearsTransparent = true
+            window.titleVisibility = .hidden
+            if let toolbar = window.toolbar {
+                toolbar.isVisible = false
+            }
+        }
     }
 }
