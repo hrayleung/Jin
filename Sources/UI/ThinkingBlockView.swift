@@ -8,7 +8,7 @@ struct ThinkingBlockView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             Button {
-                withAnimation(.easeInOut(duration: 0.2)) {
+                withAnimation(.spring(duration: 0.25, bounce: 0.0)) {
                     isExpanded.toggle()
                 }
             } label: {
@@ -33,19 +33,22 @@ struct ThinkingBlockView: View {
             }
             .buttonStyle(.plain)
 
-            if isExpanded {
-                VStack(alignment: .leading, spacing: JinSpacing.small) {
-                    Text(thinking.text)
-                        .font(.subheadline)
-                        .foregroundStyle(.primary)
-                        .textSelection(.enabled)
-                        .padding(.horizontal, JinSpacing.medium)
-                        .padding(.vertical, JinSpacing.small)
+            VStack(spacing: 0) {
+                if isExpanded {
+                    VStack(alignment: .leading, spacing: JinSpacing.small) {
+                        Text(thinking.text)
+                            .font(.subheadline)
+                            .foregroundStyle(.primary)
+                            .textSelection(.enabled)
+                            .padding(.horizontal, JinSpacing.medium)
+                            .padding(.vertical, JinSpacing.small)
+                    }
+                    .jinSurface(.subtle, cornerRadius: JinRadius.small)
+                    .padding(.top, JinSpacing.xSmall)
+                    .transition(.move(edge: .top).combined(with: .opacity))
                 }
-                .jinSurface(.subtle, cornerRadius: JinRadius.small)
-                .padding(.top, JinSpacing.xSmall)
-                .transition(.opacity.combined(with: .move(edge: .bottom)))
             }
+            .clipped()
         }
     }
 }
