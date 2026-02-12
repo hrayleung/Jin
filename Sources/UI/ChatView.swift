@@ -207,13 +207,6 @@ struct ChatView: View {
             .disabled(isBusy)
 
             if supportsPDFProcessingControl {
-                if supportsNativePDF {
-                    Image(systemName: "doc.richtext.fill")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                        .help("Model supports native PDF reading")
-                }
-
                 Menu { pdfProcessingMenuContent } label: {
                     controlIconLabel(
                         systemName: "doc.text.magnifyingglass",
