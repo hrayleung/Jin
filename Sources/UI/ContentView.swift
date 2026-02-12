@@ -26,24 +26,19 @@ struct ContentView: View {
     @EnvironmentObject private var streamingStore: ConversationStreamingStore
     @Query(sort: \AssistantEntity.sortOrder, order: .forward) private var assistants: [AssistantEntity]
     @Query(sort: \ConversationEntity.updatedAt, order: .reverse) private var conversations: [ConversationEntity]
-    @Query(sort: \ProjectEntity.sortOrder, order: .forward) private var projects: [ProjectEntity]
     @Query private var providers: [ProviderConfigEntity]
 
     @StateObject private var ttsPlaybackManager = TextToSpeechPlaybackManager()
 
     @State private var selectedAssistant: AssistantEntity?
     @State private var selectedConversation: ConversationEntity?
-    @State private var selectedProject: ProjectEntity?
     @State private var didBootstrapDefaults = false
     @State private var didBootstrapAssistants = false
     @State private var searchText = ""
     @State private var isAssistantInspectorPresented = false
-    @State private var isProjectInspectorPresented = false
     @State private var assistantContextMenuTargetID: String?
     @State private var assistantPendingDeletion: AssistantEntity?
     @State private var showingDeleteAssistantConfirmation = false
-    @State private var projectPendingDeletion: ProjectEntity?
-    @State private var showingDeleteProjectConfirmation = false
     @State private var conversationPendingDeletion: ConversationEntity?
     @State private var showingDeleteConversationConfirmation = false
     @State private var conversationPendingRename: ConversationEntity?
@@ -71,7 +66,6 @@ struct ContentView: View {
         NavigationSplitView {
             List(selection: $selectedConversation) {
                 assistantsSection
-                projectsSection
                 chatsSection
             }
             .listStyle(.sidebar)
@@ -158,13 +152,6 @@ struct ContentView: View {
                 )
             }
         }
-        .sheet(isPresented: $isProjectInspectorPresented) {
-            if let selectedProject {
-                ProjectInspectorView(
-                    project: selectedProject
-                )
-            }
-        }
         .confirmationDialog(
             "Delete assistant?",
             isPresented: $showingDeleteAssistantConfirmation,
@@ -175,17 +162,6 @@ struct ContentView: View {
             }
         } message: { assistant in
             Text("This will permanently delete “\(assistant.displayName)” and all of its chats.")
-        }
-        .confirmationDialog(
-            "Delete project?",
-            isPresented: $showingDeleteProjectConfirmation,
-            presenting: projectPendingDeletion
-        ) { project in
-            Button("Delete", role: .destructive) {
-                deleteProject(project)
-            }
-        } message: { _ in
-            Text("This will permanently delete this project and its documents. Conversations will be preserved.")
         }
         .confirmationDialog(
             "Delete chat?",
@@ -479,8 +455,7 @@ struct ContentView: View {
             providerID: providerID,
             modelID: modelID,
             modelConfigData: controlsData,
-            assistant: assistant,
-            project: selectedProject
+            assistant: assistant
         )
 
         selectedConversation = conversation
@@ -538,12 +513,6 @@ struct ContentView: View {
         let baseConversations = conversations.filter { conversation in
             guard !conversation.messages.isEmpty else { return false }
             if isSearching { return true }
-
-            // Filter by selected project
-            if let selectedProject {
-                guard conversation.project?.id == selectedProject.id else { return false }
-            }
-
             guard let selectedAssistant else { return true }
             return conversation.assistant?.id == selectedAssistant.id
         }
@@ -638,61 +607,6 @@ struct ContentView: View {
         modelContext.delete(assistant)
         try? modelContext.save()
         assistantPendingDeletion = nil
-    }
-
-    // MARK: - Project Management
-
-    private func createProject() {
-        let nextSortOrder = (projects.map(\.sortOrder).max() ?? 0) + 1
-        let project = ProjectEntity(
-            name: "New Project",
-            icon: "folder.fill",
-            sortOrder: nextSortOrder
-        )
-
-        modelContext.insert(project)
-        try? modelContext.save()
-        selectedProject = project
-        isProjectInspectorPresented = true
-    }
-
-    private func selectProject(_ project: ProjectEntity?) {
-        withAnimation(.easeInOut(duration: 0.15)) {
-            if selectedProject?.id == project?.id {
-                selectedProject = nil
-            } else {
-                selectedProject = project
-            }
-            selectedConversation = nil
-        }
-    }
-
-    private func requestDeleteProject(_ project: ProjectEntity) {
-        projectPendingDeletion = project
-        showingDeleteProjectConfirmation = true
-    }
-
-    private func deleteProject(_ project: ProjectEntity) {
-        if selectedProject?.id == project.id {
-            selectedProject = nil
-        }
-        if selectedConversation?.project?.id == project.id {
-            selectedConversation = nil
-        }
-
-        // Clean up document files
-        Task {
-            do {
-                let storageManager = try ProjectDocumentStorageManager()
-                try await storageManager.deleteProjectDocuments(projectID: project.id)
-            } catch {
-                // File cleanup failure is non-fatal
-            }
-        }
-
-        modelContext.delete(project)
-        try? modelContext.save()
-        projectPendingDeletion = nil
     }
 
     private func requestDeleteConversation(_ conversation: ConversationEntity) {
@@ -1400,124 +1314,6 @@ private extension ContentView {
         .onDeleteCommand {
             guard let selectedAssistant else { return }
             requestDeleteAssistant(selectedAssistant)
-        }
-    }
-
-    @ViewBuilder
-    var projectsSection: some View {
-        Section {
-            ForEach(projects) { project in
-                projectRow(for: project)
-            }
-
-            Button {
-                createProject()
-            } label: {
-                Label("New Project", systemImage: "plus")
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.vertical, 4)
-            }
-            .buttonStyle(.plain)
-            .foregroundStyle(.secondary)
-            .help("New Project")
-        } header: {
-            projectsSectionHeader
-        }
-    }
-
-    @ViewBuilder
-    private var projectsSectionHeader: some View {
-        HStack {
-            Text("Projects")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            Spacer()
-            if selectedProject != nil {
-                Button {
-                    selectProject(nil)
-                } label: {
-                    Text("Clear")
-                        .font(.caption)
-                }
-                .buttonStyle(.borderless)
-            }
-        }
-    }
-
-    @ViewBuilder
-    private func projectRow(for project: ProjectEntity) -> some View {
-        let isSelected = selectedProject?.id == project.id
-        let projectName = project.name.trimmingCharacters(in: .whitespacesAndNewlines)
-        let displayName = projectName.isEmpty ? "Untitled Project" : projectName
-        let readyCount = project.documents.filter { $0.processingStatus == "ready" }.count
-        let modeName = (ProjectContextMode(rawValue: project.contextMode) ?? .directInjection).displayName
-
-        Button {
-            selectProject(project)
-        } label: {
-            HStack(spacing: JinSpacing.medium) {
-                projectIconView(for: project)
-                    .frame(width: 20, height: 20)
-                    .foregroundStyle(isSelected ? Color.accentColor : .secondary)
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(displayName)
-                        .font(.body)
-                        .fontWeight(.medium)
-                        .lineLimit(1)
-
-                    HStack(spacing: 4) {
-                        Text("\(readyCount) doc\(readyCount == 1 ? "" : "s")")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        Text(modeName)
-                            .font(.caption2)
-                            .jinTagStyle()
-                    }
-                }
-
-                Spacer(minLength: 0)
-
-                if isSelected {
-                    Image(systemName: "checkmark")
-                        .font(.caption)
-                        .foregroundColor(.accentColor)
-                }
-            }
-            .padding(.vertical, JinSpacing.xSmall)
-        }
-        .buttonStyle(.plain)
-        .listRowBackground(isSelected ? Color.accentColor.opacity(0.10) : Color.clear)
-        .contextMenu {
-            Button {
-                selectedProject = project
-                isProjectInspectorPresented = true
-            } label: {
-                Label("Project Settings", systemImage: "slider.horizontal.3")
-            }
-
-            Divider()
-
-            Button(role: .destructive) {
-                requestDeleteProject(project)
-            } label: {
-                Label("Delete Project", systemImage: "trash")
-            }
-        }
-    }
-
-    @ViewBuilder
-    func projectIconView(for project: ProjectEntity) -> some View {
-        let trimmed = (project.icon ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-        if trimmed.isEmpty {
-            Image(systemName: "folder.fill")
-                .font(.system(size: 14, weight: .semibold))
-        } else if trimmed.count <= 2 {
-            Text(trimmed)
-                .font(.system(size: 14))
-        } else {
-            Image(systemName: trimmed)
-                .font(.system(size: 14, weight: .semibold))
         }
     }
 

@@ -535,25 +535,6 @@ struct ChatView: View {
         .navigationSubtitle(currentModelName)
         .toolbar {
             ToolbarItemGroup {
-                if let project = conversationEntity.project {
-                    let contextMode = ProjectContextMode(rawValue: project.contextMode) ?? .directInjection
-                    let docCount = project.documents.filter { $0.processingStatus == "ready" }.count
-                    HStack(spacing: 4) {
-                        Image(systemName: "folder.fill")
-                            .font(.caption)
-                        Text(project.name)
-                            .font(.caption)
-                            .lineLimit(1)
-                        Text("\(docCount)")
-                            .font(.caption2)
-                            .jinTagStyle()
-                        Text(contextMode.displayName)
-                            .font(.caption2)
-                            .jinTagStyle()
-                    }
-                    .foregroundStyle(.secondary)
-                }
-
                 modelPickerButton
 
                 let isStarred = conversationEntity.isStarred == true
@@ -2560,13 +2541,7 @@ struct ChatView: View {
         return max(260, usable * 0.78)
     }
 
-    private func resolvedSystemPrompt(
-        conversationSystemPrompt: String?,
-        assistant: AssistantEntity?,
-        project: ProjectEntity?,
-        userQuery: String?,
-        modelContextWindow: Int
-    ) -> String? {
+    private func resolvedSystemPrompt(conversationSystemPrompt: String?, assistant: AssistantEntity?) -> String? {
         let conversationPrompt = conversationSystemPrompt?.trimmingCharacters(in: .whitespacesAndNewlines)
         let assistantPrompt = assistant?.systemInstruction.trimmingCharacters(in: .whitespacesAndNewlines)
         let replyLanguage = assistant?.replyLanguage?.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -2584,36 +2559,8 @@ struct ChatView: View {
             }
         }
 
-        // Inject project context if available
-        if let project {
-            let documents = project.documents
-            let contextMode = ProjectContextMode(rawValue: project.contextMode) ?? .directInjection
-            let reservedTokens = max(0, (try? JSONDecoder().decode(GenerationControls.self, from: conversationEntity.modelConfigData))?.maxTokens ?? 2048)
-
-            let injectionResult = ProjectContextInjector.buildContext(
-                documents: documents,
-                customInstruction: project.customInstruction,
-                query: userQuery,
-                contextMode: contextMode,
-                modelContextWindow: modelContextWindow,
-                reservedTokens: reservedTokens + estimateTokenCount(prompt ?? "")
-            )
-
-            if !injectionResult.contextText.isEmpty {
-                if prompt?.isEmpty != false {
-                    prompt = injectionResult.contextText
-                } else {
-                    prompt = "\(prompt!)\n\n\(injectionResult.contextText)"
-                }
-            }
-        }
-
         let trimmed = prompt?.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed?.isEmpty == false ? trimmed : nil
-    }
-
-    private func estimateTokenCount(_ text: String) -> Int {
-        Int(ceil(Double(text.count) / 3.5))
     }
 
     private func sendMessage() {
@@ -3142,23 +3089,9 @@ struct ChatView: View {
             .sorted(by: { $0.timestamp < $1.timestamp })
             .compactMap { try? $0.toDomain() }
         let assistant = conversationEntity.assistant
-        let project = conversationEntity.project
-        let modelContextWindow = modelInfoSnapshot?.contextWindow ?? 128000
-
-        // Extract latest user query for RAG retrieval
-        let latestUserQuery = baseHistory.last(where: { $0.role == .user })?.content
-            .compactMap { part -> String? in
-                if case .text(let text) = part { return text }
-                return nil
-            }
-            .joined(separator: " ")
-
         let systemPrompt = resolvedSystemPrompt(
             conversationSystemPrompt: conversationEntity.systemPrompt,
-            assistant: assistant,
-            project: project,
-            userQuery: latestUserQuery,
-            modelContextWindow: modelContextWindow
+            assistant: assistant
         )
         var controlsToUse: GenerationControls = (try? JSONDecoder().decode(GenerationControls.self, from: conversationEntity.modelConfigData))
             ?? controls
@@ -3170,6 +3103,7 @@ struct ChatView: View {
 
         let shouldTruncateMessages = assistant?.truncateMessages ?? false
         let maxHistoryMessages = assistant?.maxHistoryMessages
+        let modelContextWindow = modelInfoSnapshot?.contextWindow ?? 128000
         let reservedOutputTokens = max(0, controlsToUse.maxTokens ?? 2048)
         let mcpServerConfigs = resolvedMCPServerConfigs(for: controlsToUse)
         let chatNamingTarget = resolvedChatNamingTarget()
