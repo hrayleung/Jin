@@ -13,6 +13,7 @@ struct DroppableTextEditor: NSViewRepresentable {
     let onDropImages: ([NSImage]) -> Bool
     let onSubmit: () -> Void
     let onCancel: () -> Bool
+    let onContentHeightChanged: ((CGFloat) -> Void)?
 
     init(
         text: Binding<String>,
@@ -23,7 +24,8 @@ struct DroppableTextEditor: NSViewRepresentable {
         onDropFileURLs: @escaping ([URL]) -> Bool,
         onDropImages: @escaping ([NSImage]) -> Bool,
         onSubmit: @escaping () -> Void,
-        onCancel: @escaping () -> Bool
+        onCancel: @escaping () -> Bool,
+        onContentHeightChanged: ((CGFloat) -> Void)? = nil
     ) {
         _text = text
         _isDropTargeted = isDropTargeted
@@ -34,6 +36,7 @@ struct DroppableTextEditor: NSViewRepresentable {
         self.onDropImages = onDropImages
         self.onSubmit = onSubmit
         self.onCancel = onCancel
+        self.onContentHeightChanged = onContentHeightChanged
     }
 
     func makeCoordinator() -> Coordinator {
@@ -44,7 +47,8 @@ struct DroppableTextEditor: NSViewRepresentable {
             onDropFileURLs: onDropFileURLs,
             onDropImages: onDropImages,
             onSubmit: onSubmit,
-            onCancel: onCancel
+            onCancel: onCancel,
+            onContentHeightChanged: onContentHeightChanged
         )
     }
 
@@ -109,6 +113,11 @@ struct DroppableTextEditor: NSViewRepresentable {
         textView.textContainer?.containerSize = NSSize(width: scrollView.contentSize.width, height: CGFloat.greatestFiniteMagnitude)
         textView.textContainer?.widthTracksTextView = true
 
+        // Report initial content height after layout
+        DispatchQueue.main.async {
+            context.coordinator.reportContentHeight(textView)
+        }
+
         return scrollView
     }
 
@@ -123,6 +132,7 @@ struct DroppableTextEditor: NSViewRepresentable {
             let selectedRanges = textView.selectedRanges
             textView.string = text
             textView.selectedRanges = selectedRanges
+            context.coordinator.reportContentHeight(textView)
         }
 
         if textView.font != font {
@@ -144,6 +154,7 @@ struct DroppableTextEditor: NSViewRepresentable {
         private let onDropImages: ([NSImage]) -> Bool
         private let onSubmit: () -> Void
         private let onCancel: () -> Bool
+        private let onContentHeightChanged: ((CGFloat) -> Void)?
 
         init(
             text: Binding<String>,
@@ -152,7 +163,8 @@ struct DroppableTextEditor: NSViewRepresentable {
             onDropFileURLs: @escaping ([URL]) -> Bool,
             onDropImages: @escaping ([NSImage]) -> Bool,
             onSubmit: @escaping () -> Void,
-            onCancel: @escaping () -> Bool
+            onCancel: @escaping () -> Bool,
+            onContentHeightChanged: ((CGFloat) -> Void)? = nil
         ) {
             textBinding = text
             isDropTargetedBinding = isDropTargeted
@@ -161,11 +173,24 @@ struct DroppableTextEditor: NSViewRepresentable {
             self.onDropImages = onDropImages
             self.onSubmit = onSubmit
             self.onCancel = onCancel
+            self.onContentHeightChanged = onContentHeightChanged
         }
 
         func textDidChange(_ notification: Notification) {
             guard let textView = notification.object as? NSTextView else { return }
             textBinding.wrappedValue = textView.string
+            reportContentHeight(textView)
+        }
+
+        func reportContentHeight(_ textView: NSTextView) {
+            guard let onContentHeightChanged else { return }
+            guard let layoutManager = textView.layoutManager,
+                  let textContainer = textView.textContainer else { return }
+            layoutManager.ensureLayout(for: textContainer)
+            let usedRect = layoutManager.usedRect(for: textContainer)
+            let insets = textView.textContainerInset
+            let height = usedRect.height + insets.height * 2
+            onContentHeightChanged(height)
         }
 
         func setDropTargeted(_ isTargeted: Bool) {

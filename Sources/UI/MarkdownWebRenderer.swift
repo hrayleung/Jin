@@ -1,8 +1,6 @@
 import SwiftUI
 import WebKit
 
-private let sharedProcessPool = WKProcessPool()
-
 private var _cachedTemplateHTML: String?
 private func cachedTemplateHTML() -> String? {
     if let cached = _cachedTemplateHTML { return cached }
@@ -61,7 +59,6 @@ private struct MarkdownWebRendererRepresentable: NSViewRepresentable {
 
     func makeNSView(context: Context) -> MarkdownWKWebView {
         let config = WKWebViewConfiguration()
-        config.processPool = sharedProcessPool
         config.userContentController = WKUserContentController()
         config.userContentController.add(context.coordinator, name: "heightChanged")
         config.userContentController.add(context.coordinator, name: "copyText")

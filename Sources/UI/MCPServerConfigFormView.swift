@@ -3,6 +3,7 @@ import SwiftData
 
 struct MCPServerConfigFormView: View {
     @Bindable var server: MCPServerConfigEntity
+    @Environment(\.modelContext) private var modelContext
 
     @State private var transportKind: MCPTransportKind = .stdio
 
@@ -65,13 +66,17 @@ struct MCPServerConfigFormView: View {
             }
 
             TextField("Name", text: $server.name)
+                .onChange(of: server.name) { _, _ in try? modelContext.save() }
             TextField("ID", text: $server.id)
                 .font(.system(.body, design: .monospaced))
                 .textSelection(.enabled)
-                .help("Keep this short to avoid tool name length limits (e.g. “exa”).")
+                .onChange(of: server.id) { _, _ in try? modelContext.save() }
+                .help("Keep this short to avoid tool name length limits (e.g. \u{201C}exa\u{201D}).")
 
             Toggle("Enabled", isOn: $server.isEnabled)
+                .onChange(of: server.isEnabled) { _, _ in try? modelContext.save() }
             Toggle("Run tools automatically", isOn: $server.runToolsAutomatically)
+                .onChange(of: server.runToolsAutomatically) { _, _ in try? modelContext.save() }
         }
     }
 
@@ -190,6 +195,7 @@ struct MCPServerConfigFormView: View {
                                             disabledTools.insert(tool.name)
                                         }
                                         server.setDisabledTools(disabledTools)
+                                        try? modelContext.save()
                                     }
                                 ),
                                 viewSchema: {
@@ -336,6 +342,7 @@ struct MCPServerConfigFormView: View {
 
         server.lifecycleRaw = MCPLifecyclePolicy.persistent.rawValue
         server.isLongRunning = true
+        try? modelContext.save()
     }
 
     private func verifyTools() {

@@ -3,6 +3,7 @@ import SwiftData
 
 struct ProviderConfigFormView: View {
     @Bindable var provider: ProviderConfigEntity
+    @Environment(\.modelContext) private var modelContext
     @State private var apiKey = ""
     @State private var serviceAccountJSON = ""
     @State private var showingAPIKey = false
@@ -28,6 +29,7 @@ struct ProviderConfigFormView: View {
         Form {
             Section("Configuration") {
                 TextField("Name", text: $provider.name)
+                    .onChange(of: provider.name) { _, _ in try? modelContext.save() }
 
                 ProviderIconPickerField(
                     selectedIconID: Binding(
@@ -35,6 +37,7 @@ struct ProviderConfigFormView: View {
                         set: { newValue in
                             let trimmed = newValue?.trimmingCharacters(in: .whitespacesAndNewlines)
                             provider.iconID = trimmed?.isEmpty == false ? trimmed : nil
+                            try? modelContext.save()
                         }
                     ),
                     defaultIconID: providerType.map { LobeProviderIconCatalog.defaultIconID(for: $0) }
@@ -257,9 +260,10 @@ struct ProviderConfigFormView: View {
                 let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
                 if trimmed.isEmpty {
                     provider.baseURL = defaultBaseURL
-                    return
+                } else {
+                    provider.baseURL = trimmed
                 }
-                provider.baseURL = trimmed
+                try? modelContext.save()
             }
         )
     }
@@ -425,6 +429,7 @@ struct ProviderConfigFormView: View {
     private func setModels(_ models: [ModelInfo]) {
         do {
             provider.modelsData = try JSONEncoder().encode(models)
+            try? modelContext.save()
         } catch {
             modelsError = error.localizedDescription
         }
@@ -644,6 +649,7 @@ struct ProviderConfigFormView: View {
                 provider.apiKeyKeychainID = nil
                 provider.apiKey = key.isEmpty ? nil : key
                 provider.serviceAccountJSON = nil
+                try? modelContext.save()
             }
 
         case .vertexai:
@@ -657,6 +663,7 @@ struct ProviderConfigFormView: View {
                 provider.apiKeyKeychainID = nil
                 provider.serviceAccountJSON = json.isEmpty ? nil : json
                 provider.apiKey = nil
+                try? modelContext.save()
             }
 
         case .none:

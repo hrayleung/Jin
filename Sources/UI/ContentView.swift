@@ -602,6 +602,7 @@ struct ContentView: View {
 
     private func toggleConversationStar(_ conversation: ConversationEntity) {
         conversation.isStarred = !(conversation.isStarred == true)
+        try? modelContext.save()
     }
 
     private func applyManualConversationRename() {
@@ -610,6 +611,7 @@ struct ContentView: View {
         guard !trimmed.isEmpty else { return }
 
         conversation.title = trimmed
+        try? modelContext.save()
         conversationPendingRename = nil
         showingRenameConversationAlert = false
     }
@@ -693,9 +695,9 @@ struct ContentView: View {
                 providerConfig: target.provider,
                 modelID: target.modelID,
                 contextMessages: contextMessages,
-                maxCharacters: 20
+                maxCharacters: 40
             )
-            let normalized = ConversationTitleGenerator.normalizeTitle(title, maxCharacters: 20)
+            let normalized = ConversationTitleGenerator.normalizeTitle(title, maxCharacters: 40)
             guard !normalized.isEmpty else {
                 throw LLMError.decodingError(message: "Generated empty title.")
             }

@@ -27,6 +27,7 @@ struct ChatView: View {
     @State private var editingUserMessageText = ""
     @State private var isEditingUserMessageFocused = false
     @State private var composerHeight: CGFloat = 0
+    @State private var composerTextContentHeight: CGFloat = 36
     @State private var isModelPickerPresented = false
     @State private var messageRenderLimit: Int = 160
     @State private var pendingRestoreScrollMessageID: UUID?
@@ -165,9 +166,15 @@ struct ChatView: View {
                 onDropFileURLs: handleDroppedFileURLs,
                 onDropImages: handleDroppedImages,
                 onSubmit: handleComposerSubmit,
-                onCancel: handleComposerCancel
+                onCancel: handleComposerCancel,
+                onContentHeightChanged: { height in
+                    let clamped = max(36, min(height, 120))
+                    if abs(composerTextContentHeight - clamped) > 0.5 {
+                        composerTextContentHeight = clamped
+                    }
+                }
             )
-            .frame(height: 36)
+            .frame(height: composerTextContentHeight)
         }
     }
 
@@ -540,6 +547,7 @@ struct ChatView: View {
                 let isStarred = conversationEntity.isStarred == true
                 Button {
                     conversationEntity.isStarred = !isStarred
+                    try? modelContext.save()
                 } label: {
                     Image(systemName: isStarred ? "star.fill" : "star")
                         .foregroundStyle(isStarred ? Color.orange : Color.primary)
@@ -984,7 +992,8 @@ struct ChatView: View {
     }
 
     private func handleDroppedFileURLs(_ urls: [URL]) -> Bool {
-        let uniqueURLs = Array(Set(urls))
+        var seen = Set<URL>()
+        let uniqueURLs = urls.filter { seen.insert($0).inserted }
         guard !uniqueURLs.isEmpty else { return false }
 
         if isBusy {
@@ -2213,16 +2222,19 @@ struct ChatView: View {
         if let preferredModelID = preferredModelID(in: models, providerID: providerID) {
             conversationEntity.modelID = preferredModelID
             normalizeControlsForCurrentSelection()
+            try? modelContext.save()
             return
         }
         conversationEntity.modelID = models.first?.id ?? conversationEntity.modelID
         normalizeControlsForCurrentSelection()
+        try? modelContext.save()
     }
 
     private func setModel(_ modelID: String) {
         guard modelID != conversationEntity.modelID else { return }
         conversationEntity.modelID = modelID
         normalizeControlsForCurrentSelection()
+        try? modelContext.save()
     }
 
     private func setProviderAndModel(providerID: String, modelID: String) {
@@ -2231,6 +2243,7 @@ struct ChatView: View {
         conversationEntity.providerID = providerID
         conversationEntity.modelID = modelID
         normalizeControlsForCurrentSelection()
+        try? modelContext.save()
     }
 
     private func preferredModelID(in models: [ModelInfo], providerID: String) -> String? {
@@ -2583,6 +2596,7 @@ struct ChatView: View {
         }
 
         messageText = ""
+        composerTextContentHeight = 36
         draftAttachments = []
 
         isPreparingToSend = true
@@ -2613,6 +2627,7 @@ struct ChatView: View {
                         }
                     }
                     conversationEntity.updatedAt = askedAt
+                    try? modelContext.save()
                 }
 
                 await MainActor.run {
@@ -3337,6 +3352,7 @@ struct ChatView: View {
                                 entity.generatedModelName = modelNameSnapshot
                                 entity.conversation = conversationEntity
                                 conversationEntity.messages.append(entity)
+                                try? modelContext.save()
                             } catch {
                                 errorMessage = error.localizedDescription
                                 showingError = true
@@ -3421,6 +3437,7 @@ struct ChatView: View {
                             let entity = try MessageEntity.fromDomain(toolMessage)
                             entity.conversation = conversationEntity
                             conversationEntity.messages.append(entity)
+                            try? modelContext.save()
                         } catch {
                             errorMessage = error.localizedDescription
                             showingError = true
@@ -3496,16 +3513,18 @@ struct ChatView: View {
                 providerConfig: targetProvider,
                 modelID: targetModelID,
                 contextMessages: [latestUser, finalAssistantMessage],
-                maxCharacters: 20
+                maxCharacters: 40
             )
 
-            let normalized = ConversationTitleGenerator.normalizeTitle(title, maxCharacters: 20)
+            let normalized = ConversationTitleGenerator.normalizeTitle(title, maxCharacters: 40)
             guard !normalized.isEmpty else { return }
             conversationEntity.title = normalized
+            try? modelContext.save()
         } catch {
             if chatNamingMode == .firstRoundFixed {
                 if conversationEntity.title == "New Chat" {
                     conversationEntity.title = fallbackTitleFromMessage(latestUser)
+                    try? modelContext.save()
                 }
             }
         }
@@ -5085,7 +5104,7 @@ struct MessageRow: View {
                                     return true
                                 }
                             )
-                            .frame(minHeight: 36, maxHeight: 200)
+                            .frame(minHeight: 36, maxHeight: 400)
                         } else {
                             ForEach(Array(item.renderedContentParts.enumerated()), id: \.offset) { _, rendered in
                                 ContentPartView(part: rendered.part, isUser: isUser)
@@ -5242,6 +5261,13 @@ struct MessageRow: View {
                         }
                         .disabled(!actionsEnabled)
                     }
+
+                    Spacer(minLength: 0)
+
+                    Text(formattedTimestamp(item.timestamp))
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                        .lineLimit(1)
                 }
             }
         }

@@ -14,8 +14,7 @@ actor MCPHub {
     }
 
     func toolDefinitions(for servers: [MCPServerConfig]) async throws -> [ToolDefinition] {
-        toolRoutes.removeAll()
-
+        var newRoutes: [String: ToolRoute] = [:]
         var definitions: [ToolDefinition] = []
 
         for server in servers where server.isEnabled {
@@ -26,7 +25,7 @@ actor MCPHub {
             for tool in tools {
                 if server.disabledTools.contains(tool.name) { continue }
                 let functionName = makeFunctionName(serverID: server.id, toolName: tool.name)
-                toolRoutes[functionName] = ToolRoute(server: server, toolName: tool.name)
+                newRoutes[functionName] = ToolRoute(server: server, toolName: tool.name)
 
                 definitions.append(
                     ToolDefinition(
@@ -40,6 +39,7 @@ actor MCPHub {
             }
         }
 
+        toolRoutes = newRoutes
         return definitions
     }
 

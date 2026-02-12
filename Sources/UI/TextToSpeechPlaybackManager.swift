@@ -391,7 +391,8 @@ private extension Data {
 
 extension TextToSpeechPlaybackManager: AVAudioPlayerDelegate {
     nonisolated func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
-        Task { @MainActor in
+        Task { @MainActor [weak self] in
+            guard let self else { return }
             if self.player === player {
                 self.player = nil
             }
@@ -400,7 +401,8 @@ extension TextToSpeechPlaybackManager: AVAudioPlayerDelegate {
     }
 
     nonisolated func audioPlayerDecodeErrorDidOccur(_ player: AVAudioPlayer, error: (any Error)?) {
-        Task { @MainActor in
+        Task { @MainActor [weak self] in
+            guard let self else { return }
             if self.player === player {
                 self.player = nil
             }
