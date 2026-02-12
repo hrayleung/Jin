@@ -21,6 +21,10 @@ open Package.swift             # Open in Xcode for UI development
 
 **Requirements**: macOS 14 (Sonoma)+, Swift 5.9+
 
+## Workflow
+
+After completing each feature or fix, run `./Packaging/package.sh` to build the release .app bundle.
+
 ## Architecture
 
 Jin follows a layered architecture in `Sources/`:
