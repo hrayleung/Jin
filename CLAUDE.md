@@ -5,7 +5,7 @@ When searching for code, use the augment MCP tool (`mcp__augment-context-engine_
 
 ## Project Overview
 
-**Jin** is a native macOS application (SwiftUI + SwiftData) for interacting with multiple LLM providers. It supports multimodal conversations (text, images, files, audio), reasoning models with thinking blocks, tool calling, image generation, and Model Context Protocol (MCP) integration.
+**Jin** is a native macOS application (SwiftUI + SwiftData) for interacting with multiple LLM providers. It supports multimodal conversations (text, images, files, audio), reasoning models with thinking blocks, tool calling, image generation, project document context injection, and Model Context Protocol (MCP) integration.
 
 ## Build & Run Commands
 
@@ -33,7 +33,7 @@ Jin follows a layered architecture in `Sources/`:
 UI/           → SwiftUI views, app entry (JinApp.swift), streaming state, preferences
 Domain/       → Core models (Message, ContentPart, GenerationControls, ToolDefinition)
 Adapters/     → LLM provider implementations (LLMProviderAdapter protocol)
-Networking/   → HTTP, SSE streaming, PDF/OCR/audio clients
+Networking/   → HTTP, SSE streaming, retry logic, PDF/OCR/audio clients
 Persistence/  → SwiftData entities, attachment storage, favorite models
 MCP/          → Model Context Protocol client (MCPHub, MCPClient)
 Resources/    → HTML templates, provider icons
@@ -49,6 +49,10 @@ All providers implement the `LLMProviderAdapter` protocol (`sendMessage`, `valid
 
 **Anthropic-specific**: `AnthropicRequestPreflight.swift` preprocesses requests, `AnthropicToolUseNormalizer.swift` normalizes tool use. `AnthropicModelLimits.swift` tracks model-specific limits.
 
+**StreamEvent** (normalized across all providers): `.messageStart`, `.contentDelta`, `.thinkingDelta`, `.toolCallStart/Delta/End`, `.messageEnd`, `.error`
+
+**LLMError variants**: `.authenticationFailed`, `.rateLimitExceeded(retryAfter:)`, `.invalidRequest`, `.contentFiltered`, `.networkError`, `.providerError`, `.decodingError`
+
 **Adding a new provider**:
 1. Create `Sources/Adapters/NewProviderAdapter.swift` implementing `LLMProviderAdapter`
 2. Add case to `ProviderType` enum in `GenerationControls.swift`
@@ -59,10 +63,17 @@ All providers implement the `LLMProviderAdapter` protocol (`sendMessage`, `valid
 - `Message` - Contains `role`, `content: [ContentPart]`, `toolCalls`, `toolResults`
 - `ContentPart` - `.text`, `.image`, `.file`, `.audio`, `.thinking`, `.redactedThinking`
 - `GenerationControls` - Temperature, max tokens, reasoning, web search, MCP tools, image generation, PDF processing mode, provider-specific params
-- `GenerationControlsResolver` - Resolves effective controls from assistant defaults + conversation overrides
+- `GenerationControlsResolver` - Resolves effective controls by merging assistant defaults with conversation overrides (simple static method, ~23 lines)
 - `ProviderConfig` - Provider metadata, API key references, models
 - `JinModelSupport` - Model capability detection
 - `ProviderParamsJSONSync` - Syncs provider-specific JSON params
+
+### Networking Layer
+
+- **NetworkManager** (actor) - Handles streaming (`streamRequest<P: StreamParser>()`) and non-streaming (`sendRequest()`) HTTP requests
+- **RetryManager** (actor) - Exponential backoff (max 3 attempts, base 1s delay), respects Retry-After headers, skips retry for auth/invalid/content-filtered errors
+- **StreamParser protocol** - `append(_ byte: UInt8)` and `nextEvent() -> Event?` for custom stream parsers
+- **StreamingTaskManager** - Manages active streaming tasks by UUID
 
 ### Persistence Layer
 
@@ -73,21 +84,33 @@ SwiftData entities in `SwiftDataModels.swift`:
 - `ProviderConfigEntity` - Provider configurations with `apiKeyKeychainID`
 - `MCPServerConfigEntity` - MCP server configurations (see `MCPServerConfigEntity+Domain.swift` for mapping)
 - `AttachmentEntity` - File attachments
+- `ProjectEntity` / `ProjectDocumentEntity` / `DocumentChunkEntity` - Project document context system
+- `EmbeddingProviderConfigEntity` / `RerankProviderConfigEntity` - RAG provider configs
 
-**Pattern**: Complex fields are stored as serialized JSON `Data` (e.g., `contentData`, `modelConfigData`).
+**Pattern**: Complex fields are stored as serialized JSON `Data` (e.g., `contentData`, `modelConfigData`) with `toDomain()` / `fromDomain()` conversion methods.
 
 ### Streaming Architecture
 
-1. `ConversationStreamingStore` (main actor) tracks active streaming sessions by conversation ID
-2. Adapters return `AsyncThrowingStream<StreamEvent, Error>` with events: `.messageStart`, `.contentDelta`, `.thinkingDelta`, `.toolCallStart/Delta/End`, `.messageEnd`, `.error`
-3. Streaming continues in background even when user navigates away
+1. `ConversationStreamingStore` (@MainActor) tracks active streaming sessions by conversation ID
+2. Each session holds a `StreamingMessageState` that accumulates text in 2KB chunks for UI rendering performance
+3. Adapters return `AsyncThrowingStream<StreamEvent, Error>` normalized from provider-specific formats
+4. Streaming continues in background even when user navigates away
+
+### Project Context System
+
+Injects project document content into conversation system prompts:
+- `ProjectContextMode` - `.directInjection` (all text in system prompt) or `.rag` (embedding-based retrieval)
+- `ProjectContextInjector` - Builds context with token budget management (reserves 8,000 tokens for conversation history, estimates ~3.5 chars/token)
+- `ProjectDocumentStorageManager` (actor) - Manages document files on disk
+- `ProjectDocumentTextExtractor` - Extracts text from various file formats
 
 ### MCP Integration
 
 - `MCPHub` (actor) manages connections and routes tool calls to correct server
 - Function names namespaced as `{serverID}__{toolName}` (truncated if >64 chars)
 - Tools disabled per-server via `disabledTools` array
-- Supports long-running (persistent) vs. ephemeral servers
+- **Persistent servers**: Connections cached and reused across tool calls
+- **Ephemeral servers**: New connection per tool call, then stopped
 - Default servers seeded in `JinApp.seedDefaultMCPServersIfNeeded()`
 
 ### Tool Execution Flow
@@ -115,7 +138,7 @@ Optional features configured via Settings, each with dedicated keychain IDs:
 
 ## Swift Concurrency
 
-- **Actors**: `ProviderManager`, `MCPHub`, `MCPClient`, adapter protocol
+- **Actors**: `ProviderManager`, `MCPHub`, `MCPClient`, `NetworkManager`, `RetryManager`, adapter protocol
 - **@MainActor**: `ConversationStreamingStore`, SwiftUI views
 - **AsyncThrowingStream** for all streaming responses
 
@@ -132,6 +155,11 @@ Optional features configured via Settings, each with dedicated keychain IDs:
 - Pattern: `*Tests.swift`, `final class FooTests: XCTestCase`
 - Focus: Unit tests for Domain, Networking, Persistence; avoid network-dependent tests
 - Run single suite: `swift test --filter FooTests`
+
+## Architectural Notes
+
+- `ChatView.swift` is ~6,100 lines. When modifying chat UI, be precise about which section you're editing.
+- `ContentView.swift` is ~1,700 lines (sidebar + navigation).
 
 ## SwiftData Pitfalls
 

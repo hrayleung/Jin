@@ -69,6 +69,7 @@ final class ConversationEntity {
     var modelConfigData: Data // Codable GenerationControls
 
     @Relationship var assistant: AssistantEntity?
+    @Relationship var project: ProjectEntity?
 
     @Relationship(deleteRule: .cascade, inverse: \MessageEntity.conversation)
     var messages: [MessageEntity] = []
@@ -83,7 +84,8 @@ final class ConversationEntity {
         providerID: String,
         modelID: String,
         modelConfigData: Data,
-        assistant: AssistantEntity? = nil
+        assistant: AssistantEntity? = nil,
+        project: ProjectEntity? = nil
     ) {
         self.id = id
         self.title = title
@@ -95,6 +97,7 @@ final class ConversationEntity {
         self.modelID = modelID
         self.modelConfigData = modelConfigData
         self.assistant = assistant
+        self.project = project
     }
 
     /// Convert to domain model
@@ -362,6 +365,193 @@ final class AttachmentEntity {
         self.mimeType = mimeType
         self.fileURL = fileURL
         self.uploadedAt = uploadedAt
+    }
+}
+
+/// Project entity (SwiftData)
+@Model
+final class ProjectEntity {
+    @Attribute(.unique) var id: String
+    var name: String
+    var icon: String?
+    var projectDescription: String?
+    var customInstruction: String?
+    var contextMode: String // "directInjection" (default), "rag"
+    var createdAt: Date
+    var updatedAt: Date
+    var sortOrder: Int
+    var embeddingProviderID: String?
+    var embeddingModelID: String?
+    var rerankProviderID: String?
+    var rerankModelID: String?
+
+    @Relationship(deleteRule: .cascade, inverse: \ProjectDocumentEntity.project)
+    var documents: [ProjectDocumentEntity] = []
+
+    @Relationship(deleteRule: .nullify, inverse: \ConversationEntity.project)
+    var conversations: [ConversationEntity] = []
+
+    init(
+        id: String = UUID().uuidString,
+        name: String,
+        icon: String? = nil,
+        projectDescription: String? = nil,
+        customInstruction: String? = nil,
+        contextMode: String = ProjectContextMode.directInjection.rawValue,
+        createdAt: Date = Date(),
+        updatedAt: Date = Date(),
+        sortOrder: Int = 0,
+        embeddingProviderID: String? = nil,
+        embeddingModelID: String? = nil,
+        rerankProviderID: String? = nil,
+        rerankModelID: String? = nil
+    ) {
+        self.id = id
+        self.name = name
+        self.icon = icon
+        self.projectDescription = projectDescription
+        self.customInstruction = customInstruction
+        self.contextMode = contextMode
+        self.createdAt = createdAt
+        self.updatedAt = updatedAt
+        self.sortOrder = sortOrder
+        self.embeddingProviderID = embeddingProviderID
+        self.embeddingModelID = embeddingModelID
+        self.rerankProviderID = rerankProviderID
+        self.rerankModelID = rerankModelID
+    }
+}
+
+/// Project document entity (SwiftData)
+@Model
+final class ProjectDocumentEntity {
+    @Attribute(.unique) var id: UUID
+    var filename: String
+    var mimeType: String
+    var fileURL: URL
+    var extractedText: String?
+    var fileSizeBytes: Int64
+    var addedAt: Date
+    var processingStatus: String // "pending", "extracting", "indexing", "ready", "failed"
+    var processingError: String?
+    var chunkCount: Int
+
+    @Relationship var project: ProjectEntity?
+
+    @Relationship(deleteRule: .cascade, inverse: \DocumentChunkEntity.document)
+    var chunks: [DocumentChunkEntity] = []
+
+    init(
+        id: UUID = UUID(),
+        filename: String,
+        mimeType: String,
+        fileURL: URL,
+        extractedText: String? = nil,
+        fileSizeBytes: Int64 = 0,
+        addedAt: Date = Date(),
+        processingStatus: String = "pending",
+        processingError: String? = nil,
+        chunkCount: Int = 0
+    ) {
+        self.id = id
+        self.filename = filename
+        self.mimeType = mimeType
+        self.fileURL = fileURL
+        self.extractedText = extractedText
+        self.fileSizeBytes = fileSizeBytes
+        self.addedAt = addedAt
+        self.processingStatus = processingStatus
+        self.processingError = processingError
+        self.chunkCount = chunkCount
+    }
+}
+
+/// Document chunk entity for RAG (SwiftData)
+@Model
+final class DocumentChunkEntity {
+    @Attribute(.unique) var id: UUID
+    var chunkIndex: Int
+    var text: String
+    var embeddingData: Data?
+    var startOffset: Int
+    var endOffset: Int
+
+    @Relationship var document: ProjectDocumentEntity?
+
+    init(
+        id: UUID = UUID(),
+        chunkIndex: Int,
+        text: String,
+        embeddingData: Data? = nil,
+        startOffset: Int,
+        endOffset: Int
+    ) {
+        self.id = id
+        self.chunkIndex = chunkIndex
+        self.text = text
+        self.embeddingData = embeddingData
+        self.startOffset = startOffset
+        self.endOffset = endOffset
+    }
+}
+
+/// Embedding provider config entity (SwiftData)
+@Model
+final class EmbeddingProviderConfigEntity {
+    @Attribute(.unique) var id: String
+    var name: String
+    var typeRaw: String // "openai", "cohere", "voyage", "jina", "gemini", "openaiCompatible"
+    var apiKey: String?
+    var baseURL: String?
+    var defaultModelID: String?
+    var isEnabled: Bool
+
+    init(
+        id: String = UUID().uuidString,
+        name: String,
+        typeRaw: String,
+        apiKey: String? = nil,
+        baseURL: String? = nil,
+        defaultModelID: String? = nil,
+        isEnabled: Bool = true
+    ) {
+        self.id = id
+        self.name = name
+        self.typeRaw = typeRaw
+        self.apiKey = apiKey
+        self.baseURL = baseURL
+        self.defaultModelID = defaultModelID
+        self.isEnabled = isEnabled
+    }
+}
+
+/// Rerank provider config entity (SwiftData)
+@Model
+final class RerankProviderConfigEntity {
+    @Attribute(.unique) var id: String
+    var name: String
+    var typeRaw: String // "cohere", "voyage", "jina"
+    var apiKey: String?
+    var baseURL: String?
+    var defaultModelID: String?
+    var isEnabled: Bool
+
+    init(
+        id: String = UUID().uuidString,
+        name: String,
+        typeRaw: String,
+        apiKey: String? = nil,
+        baseURL: String? = nil,
+        defaultModelID: String? = nil,
+        isEnabled: Bool = true
+    ) {
+        self.id = id
+        self.name = name
+        self.typeRaw = typeRaw
+        self.apiKey = apiKey
+        self.baseURL = baseURL
+        self.defaultModelID = defaultModelID
+        self.isEnabled = isEnabled
     }
 }
 

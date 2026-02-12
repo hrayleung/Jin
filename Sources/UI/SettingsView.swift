@@ -12,6 +12,7 @@ struct SettingsView: View {
     private enum SettingsSection: String, CaseIterable, Identifiable {
         case providers = "Providers"
         case mcpServers = "MCP Servers"
+        case embeddingRerank = "Embedding & Rerank"
         case plugins = "Plugins"
         case general = "General"
 
@@ -21,6 +22,7 @@ struct SettingsView: View {
             switch self {
             case .providers: return "network"
             case .mcpServers: return "server.rack"
+            case .embeddingRerank: return "arrow.triangle.2.circlepath"
             case .plugins: return "puzzlepiece.extension"
             case .general: return "gearshape"
             }
@@ -188,6 +190,8 @@ struct SettingsView: View {
                     providersListWithActions
                 case .mcpServers:
                     mcpServersListWithActions
+                case .embeddingRerank:
+                    EmbeddingProviderSettingsView()
                 case .plugins:
                     pluginsList
                 case .general, .none:
@@ -223,6 +227,8 @@ struct SettingsView: View {
                     } else {
                         ContentUnavailableView("Select an MCP Server", systemImage: "server.rack")
                     }
+                case .embeddingRerank:
+                    ContentUnavailableView("Configure providers in the list", systemImage: "arrow.triangle.2.circlepath")
                 case .plugins:
                     switch selectedPluginID {
                     case "mistral_ocr":
@@ -689,6 +695,9 @@ struct SettingsView: View {
                 return
             }
             selectedPluginID = candidates.first?.id
+
+        case .embeddingRerank:
+            break
 
         case .general, .none:
             if selectedSection == nil {

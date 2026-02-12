@@ -20,7 +20,12 @@ struct JinApp: App {
                 MessageEntity.self,
                 ProviderConfigEntity.self,
                 MCPServerConfigEntity.self,
-                AttachmentEntity.self
+                AttachmentEntity.self,
+                ProjectEntity.self,
+                ProjectDocumentEntity.self,
+                DocumentChunkEntity.self,
+                EmbeddingProviderConfigEntity.self,
+                RerankProviderConfigEntity.self
             )
             resetMCPServersForTransportV2IfNeeded()
             updateProviderModelsIfNeeded()
