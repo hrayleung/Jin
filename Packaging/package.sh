@@ -44,6 +44,7 @@ mkdir -p "$APP_BUNDLE/Contents/MacOS" "$APP_BUNDLE/Contents/Resources"
 cp "$BIN" "$APP_BUNDLE/Contents/MacOS/$APP_NAME"
 chmod +x "$APP_BUNDLE/Contents/MacOS/$APP_NAME"
 cp "$ROOT/Packaging/Info.plist" "$APP_BUNDLE/Contents/Info.plist"
+cp "$ROOT/Packaging/AppIcon.icns" "$APP_BUNDLE/Contents/Resources/AppIcon.icns"
 
 echo "Copying SwiftPM resource bundles…"
 shopt -s nullglob
