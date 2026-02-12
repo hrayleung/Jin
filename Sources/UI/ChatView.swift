@@ -534,35 +534,51 @@ struct ChatView: View {
         .navigationTitle(conversationEntity.title)
         .navigationSubtitle(currentModelName)
         .toolbar {
-            ToolbarItemGroup {
+            ToolbarItem(placement: .primaryAction) {
                 modelPickerButton
+            }
+            .jinHideSharedBackgroundIfAvailable()
 
+            ToolbarItem(placement: .primaryAction) {
                 let isStarred = conversationEntity.isStarred == true
                 Button {
                     conversationEntity.isStarred = !isStarred
                     try? modelContext.save()
                 } label: {
                     Image(systemName: isStarred ? "star.fill" : "star")
+                        .font(.system(size: 14))
                         .foregroundStyle(isStarred ? Color.orange : Color.primary)
+                        .frame(width: 28, height: 28)
                 }
                 .help(isStarred ? "Unstar chat" : "Star chat")
+            }
+            .jinHideSharedBackgroundIfAvailable()
 
+            ToolbarItem(placement: .primaryAction) {
                 Button {
                     isAssistantInspectorPresented = true
                 } label: {
-                    Label("Assistant Settings", systemImage: "slider.horizontal.3")
+                    Image(systemName: "slider.horizontal.3")
+                        .font(.system(size: 14))
+                        .frame(width: 28, height: 28)
                 }
                 .help("Assistant Settings")
                 .keyboardShortcut("i", modifiers: [.command])
+            }
+            .jinHideSharedBackgroundIfAvailable()
 
+            ToolbarItem(placement: .primaryAction) {
                 Button(role: .destructive) {
                     onRequestDeleteConversation()
                 } label: {
                     Image(systemName: "trash")
+                        .font(.system(size: 14))
+                        .frame(width: 28, height: 28)
                 }
                 .help("Delete chat")
                 .keyboardShortcut(.delete, modifiers: [.command])
             }
+            .jinHideSharedBackgroundIfAvailable()
         }
         .onAppear {
             isComposerFocused = true
@@ -2151,25 +2167,25 @@ struct ChatView: View {
     }
 
     private var modelPickerButton: some View {
-        HStack(spacing: 6) {
-            ProviderIconView(iconID: currentProviderIconID, size: 14)
-                .frame(width: 16, height: 16)
-
-            Text(currentModelName)
-                .font(.callout)
-                .fontWeight(.medium)
-
-            Image(systemName: "chevron.down")
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-        }
-        .contentShape(Rectangle())
-        .onTapGesture {
+        Button {
             isModelPickerPresented = true
+        } label: {
+            HStack(spacing: 6) {
+                ProviderIconView(iconID: currentProviderIconID, size: 14)
+                    .frame(width: 16, height: 16)
+
+                Text(currentModelName)
+                    .font(.callout)
+                    .fontWeight(.medium)
+
+                Image(systemName: "chevron.down")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
         }
+        .buttonStyle(.plain)
         .help("Select model")
         .accessibilityLabel("Select model")
-        .accessibilityAddTraits(.isButton)
         .popover(isPresented: $isModelPickerPresented, arrowEdge: .bottom) {
             ModelPickerPopover(
                 favoritesStore: favoriteModelsStore,
@@ -6037,4 +6053,3 @@ final class StreamingMessageState: ObservableObject {
         }
     }
 }
-
