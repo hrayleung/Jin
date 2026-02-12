@@ -5242,6 +5242,8 @@ struct MessageRow: View {
                     }
                     .disabled(!actionsEnabled)
                 } else {
+                    Spacer(minLength: 0)
+
                     if showsCopyButton {
                         CopyToPasteboardButton(text: copyText, helpText: "Copy message", useProminentStyle: false)
                             .accessibilityLabel("Copy message")
@@ -5259,13 +5261,6 @@ struct MessageRow: View {
                         }
                         .disabled(!actionsEnabled)
                     }
-
-                    Spacer(minLength: 0)
-
-                    Text(formattedTimestamp(item.timestamp))
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
-                        .lineLimit(1)
                 }
             }
         }
