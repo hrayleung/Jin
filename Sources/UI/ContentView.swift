@@ -28,6 +28,8 @@ struct ContentView: View {
     @Query(sort: \ConversationEntity.updatedAt, order: .reverse) private var conversations: [ConversationEntity]
     @Query private var providers: [ProviderConfigEntity]
 
+    @StateObject private var ttsPlaybackManager = TextToSpeechPlaybackManager()
+
     @State private var selectedAssistant: AssistantEntity?
     @State private var selectedConversation: ConversationEntity?
     @State private var didBootstrapDefaults = false
@@ -92,34 +94,52 @@ struct ContentView: View {
                     .frame(width: JinStrokeWidth.hairline)
             }
         } detail: {
-            if let conversation = selectedConversation {
-                ChatView(
-                    conversationEntity: conversation,
-                    onRequestDeleteConversation: {
-                        requestDeleteConversation(conversation)
-                    },
-                    isAssistantInspectorPresented: $isAssistantInspectorPresented,
-                    onPersistConversationIfNeeded: {
-                        persistConversationIfNeeded(conversation)
-                    }
-                )
-                    .id(conversation.id) // Ensure view rebuilds when switching
-                    .background(JinSemanticColor.detailSurface)
-            } else {
-                noConversationSelectedView
-                .toolbar {
-                    ToolbarItem(placement: .primaryAction) {
-                        Button {
-                            isAssistantInspectorPresented = true
-                        } label: {
-                            Label("Assistant Settings", systemImage: "slider.horizontal.3")
+            VStack(spacing: 0) {
+                if ttsPlaybackManager.state != .idle,
+                   let ctx = ttsPlaybackManager.playbackContext,
+                   ctx.conversationID != selectedConversation?.id {
+                    TTSMiniPlayerView(
+                        manager: ttsPlaybackManager,
+                        onNavigate: { conversationID in
+                            if let conv = conversations.first(where: { $0.id == conversationID }) {
+                                selectedConversation = conv
+                            }
                         }
-                        .help("Assistant Settings")
-                        .keyboardShortcut("i", modifiers: [.command])
-                    }
+                    )
+                    .transition(.move(edge: .top).combined(with: .opacity))
                 }
-                .background(JinSemanticColor.detailSurface)
+
+                if let conversation = selectedConversation {
+                    ChatView(
+                        conversationEntity: conversation,
+                        onRequestDeleteConversation: {
+                            requestDeleteConversation(conversation)
+                        },
+                        isAssistantInspectorPresented: $isAssistantInspectorPresented,
+                        onPersistConversationIfNeeded: {
+                            persistConversationIfNeeded(conversation)
+                        }
+                    )
+                        .id(conversation.id)
+                        .background(JinSemanticColor.detailSurface)
+                        .environmentObject(ttsPlaybackManager)
+                } else {
+                    noConversationSelectedView
+                    .toolbar {
+                        ToolbarItem(placement: .primaryAction) {
+                            Button {
+                                isAssistantInspectorPresented = true
+                            } label: {
+                                Label("Assistant Settings", systemImage: "slider.horizontal.3")
+                            }
+                            .help("Assistant Settings")
+                            .keyboardShortcut("i", modifiers: [.command])
+                        }
+                    }
+                    .background(JinSemanticColor.detailSurface)
+                }
             }
+            .animation(.easeInOut(duration: 0.2), value: ttsPlaybackManager.state != .idle)
         }
         .task {
             bootstrapDefaultProvidersIfNeeded()

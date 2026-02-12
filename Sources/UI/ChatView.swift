@@ -72,7 +72,7 @@ struct ChatView: View {
     @State private var isPreparingToSend = false
     @State private var prepareToSendStatus: String?
     @State private var prepareToSendTask: Task<Void, Never>?
-    @StateObject private var ttsPlaybackManager = TextToSpeechPlaybackManager()
+    @EnvironmentObject private var ttsPlaybackManager: TextToSpeechPlaybackManager
     @StateObject private var speechToTextManager = SpeechToTextManager()
 
     private let conversationTitleGenerator = ConversationTitleGenerator()
@@ -582,7 +582,6 @@ struct ChatView: View {
             pendingRestoreScrollMessageID = nil
             isPinnedToBottom = true
             isExpandedComposerPresented = false
-            ttsPlaybackManager.stop()
             rebuildMessageCaches()
         }
         .onChange(of: conversationEntity.messages.count) { _, _ in
@@ -4400,10 +4399,16 @@ struct ChatView: View {
 
             do {
                 let config = try await currentTextToSpeechSynthesisConfig()
+                let context = TextToSpeechPlaybackManager.PlaybackContext(
+                    conversationID: conversationEntity.id,
+                    conversationTitle: conversationEntity.title,
+                    textPreview: String(text.prefix(80))
+                )
                 ttsPlaybackManager.toggleSpeak(
                     messageID: messageEntity.id,
                     text: text,
                     config: config,
+                    context: context,
                     onError: { error in
                         errorMessage = textToSpeechErrorMessage(error, provider: provider)
                         showingError = true

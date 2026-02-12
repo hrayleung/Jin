@@ -45,7 +45,14 @@ final class TextToSpeechPlaybackManager: NSObject, ObservableObject {
         case elevenlabs(ElevenLabsConfig)
     }
 
+    struct PlaybackContext: Equatable {
+        let conversationID: UUID
+        let conversationTitle: String
+        let textPreview: String
+    }
+
     @Published private(set) var state: State = .idle
+    @Published private(set) var playbackContext: PlaybackContext?
 
     private var synthesisTask: Task<Void, Never>?
     private var player: AVAudioPlayer?
@@ -58,6 +65,7 @@ final class TextToSpeechPlaybackManager: NSObject, ObservableObject {
         messageID: UUID,
         text: String,
         config: SynthesisConfig,
+        context: PlaybackContext,
         onError: @escaping (Error) -> Void
     ) {
         if case .playing(let id) = state, id == messageID {
@@ -82,6 +90,7 @@ final class TextToSpeechPlaybackManager: NSObject, ObservableObject {
         didFinishSynthesis = false
         currentMessageID = messageID
         currentErrorHandler = onError
+        playbackContext = context
         state = .generating(messageID: messageID)
 
         synthesisTask = Task { [weak self] in
@@ -160,6 +169,7 @@ final class TextToSpeechPlaybackManager: NSObject, ObservableObject {
         currentMessageID = nil
         currentErrorHandler = nil
         didFinishSynthesis = true
+        playbackContext = nil
         state = .idle
     }
 
@@ -276,6 +286,7 @@ final class TextToSpeechPlaybackManager: NSObject, ObservableObject {
         currentMessageID = nil
         currentErrorHandler = nil
         didFinishSynthesis = true
+        playbackContext = nil
         state = .idle
     }
 
