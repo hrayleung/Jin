@@ -13,7 +13,6 @@ actor AttachmentStorageManager {
     private let baseURL: URL
 
     init() throws {
-        // Get Application Support directory
         let appSupport = try fileManager.url(
             for: .applicationSupportDirectory,
             in: .userDomainMask,
@@ -22,10 +21,9 @@ actor AttachmentStorageManager {
         )
 
         baseURL = appSupport
-            .appendingPathComponent("LLMChat", isDirectory: true)
+            .appendingPathComponent("Jin", isDirectory: true)
             .appendingPathComponent("Attachments", isDirectory: true)
 
-        // Create attachments directory if needed
         if !fileManager.fileExists(atPath: baseURL.path) {
             try fileManager.createDirectory(at: baseURL, withIntermediateDirectories: true)
         }

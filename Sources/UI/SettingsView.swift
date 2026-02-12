@@ -1433,6 +1433,12 @@ struct GeneralSettingsView: View {
                         .foregroundStyle(.secondary)
                 }
 
+                Button {
+                    openDataDirectory()
+                } label: {
+                    Label("Open Data Directory", systemImage: "folder")
+                }
+
                 Button("Delete All Chats", role: .destructive) {
                     showingDeleteAllChatsConfirmation = true
                 }
@@ -1550,6 +1556,21 @@ struct GeneralSettingsView: View {
     private func deleteAllChats() {
         for conversation in conversations {
             modelContext.delete(conversation)
+        }
+    }
+
+    private func openDataDirectory() {
+        guard let appSupport = FileManager.default.urls(
+            for: .applicationSupportDirectory,
+            in: .userDomainMask
+        ).first else { return }
+
+        let jinDir = appSupport.appendingPathComponent("Jin", isDirectory: true)
+
+        if FileManager.default.fileExists(atPath: jinDir.path) {
+            NSWorkspace.shared.open(jinDir)
+        } else {
+            NSWorkspace.shared.open(appSupport)
         }
     }
 }
