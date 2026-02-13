@@ -1422,21 +1422,14 @@ function updateContent(base64) {
 function measuredHeight() {
     var el = document.getElementById('content');
     if (!el) {
-        var fallback = Math.max(
-            Math.ceil(document.documentElement.scrollHeight || 0),
-            Math.ceil(document.body ? document.body.scrollHeight : 0),
-            1
-        );
-        return fallback;
+        return Math.max(Math.ceil(document.body ? document.body.scrollHeight : 0), 1);
     }
 
     var rect = Math.ceil(el.getBoundingClientRect().height || 0);
     var scroll = Math.ceil(el.scrollHeight || 0);
     var offset = Math.ceil(el.offsetHeight || 0);
-    var bodyScroll = Math.ceil(document.body ? document.body.scrollHeight : 0);
-    var docScroll = Math.ceil(document.documentElement.scrollHeight || 0);
 
-    return Math.max(rect, scroll, offset, bodyScroll, docScroll, 1) + 2;
+    return Math.max(rect, scroll, offset, 1) + 2;
 }
 
 function reportHeight() {

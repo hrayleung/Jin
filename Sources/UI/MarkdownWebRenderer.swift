@@ -35,8 +35,11 @@ struct MarkdownWebRenderer: View {
     }
 
     static func estimatedHeight(for text: String) -> CGFloat {
-        let lines = max(1, CGFloat(text.utf8.count) / 80.0)
-        return max(24, lines * 20.0)
+        // Count actual newlines for a more accurate estimate than pure byte count.
+        // Markdown renders more compactly than raw text (headings, code blocks, etc.)
+        let newlineCount = CGFloat(text.filter { $0 == "\n" }.count)
+        let lineEstimate = max(1, newlineCount + 1)
+        return max(24, min(lineEstimate * 22.0, 600))
     }
 
     static func sendMarkdown(to webView: WKWebView, markdown: String) {

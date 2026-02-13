@@ -468,6 +468,23 @@ struct ChatView: View {
                             pendingRestoreScrollMessageID = nil
                         }
                     }
+                    .onChange(of: conversationEntity.messages.count) { _, _ in
+                        guard isPinnedToBottom else { return }
+                        DispatchQueue.main.async {
+                            withAnimation(.easeOut(duration: 0.15)) {
+                                proxy.scrollTo("bottom", anchor: .bottom)
+                            }
+                        }
+                    }
+                    .onChange(of: isStreaming) { wasStreaming, nowStreaming in
+                        if wasStreaming && !nowStreaming && isPinnedToBottom {
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                                withAnimation(.easeOut(duration: 0.15)) {
+                                    proxy.scrollTo("bottom", anchor: .bottom)
+                                }
+                            }
+                        }
+                    }
                 }
             }
 
