@@ -60,7 +60,7 @@ enum JinTypography {
     }
 
     static func chatBodyFont(appFamilyPreference: String, scale: Double) -> Font {
-        let size = preferredBodyPointSize * clampedScaleCGFloat(scale)
+        let size = chatBodyPointSize(scale: scale)
         if let custom = customFontIfAvailable(familyPreference: appFamilyPreference, size: size) {
             return custom
         }
@@ -68,11 +68,15 @@ enum JinTypography {
     }
 
     static func chatCodeFont(codeFamilyPreference: String, scale: Double) -> Font {
-        let size = preferredBodyPointSize * clampedScaleCGFloat(scale)
+        let size = chatBodyPointSize(scale: scale)
         if let custom = customFontIfAvailable(familyPreference: codeFamilyPreference, size: size) {
             return custom
         }
         return .system(size: size, weight: .regular, design: .monospaced)
+    }
+
+    static func chatBodyPointSize(scale: Double) -> CGFloat {
+        preferredBodyPointSize * clampedScaleCGFloat(scale)
     }
 
     static func pickerPreviewFont(familyName: String?) -> Font {

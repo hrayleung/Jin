@@ -5891,6 +5891,8 @@ struct StreamingMessageView: View {
     let modelLabel: String?
     let providerIconID: String?
     let onContentUpdate: () -> Void
+    @AppStorage(AppPreferenceKeys.appFontFamily) private var appFontFamily = JinTypography.systemFontPreferenceValue
+    @AppStorage(AppPreferenceKeys.codeFontFamily) private var codeFontFamily = JinTypography.systemFontPreferenceValue
 
     var body: some View {
         let showsCopyButton = state.hasVisibleText
@@ -5921,7 +5923,7 @@ struct StreamingMessageView: View {
                             DisclosureGroup(isExpanded: .constant(true)) {
                                 ChunkedTextView(
                                     chunks: state.thinkingChunks,
-                                    font: .system(.caption, design: .monospaced),
+                                    font: chatCodeFont,
                                     allowsTextSelection: false
                                 )
                                     .foregroundStyle(.secondary)
@@ -5939,7 +5941,7 @@ struct StreamingMessageView: View {
                         }
 
                         if !state.textChunks.isEmpty {
-                            ChunkedTextView(chunks: state.textChunks, font: .body, allowsTextSelection: false)
+                            ChunkedTextView(chunks: state.textChunks, font: chatBodyFont, allowsTextSelection: false)
                         } else if state.thinkingChunks.isEmpty {
                             HStack(spacing: 6) {
                                 ProgressView().scaleEffect(0.5)
@@ -5971,6 +5973,14 @@ struct StreamingMessageView: View {
         .onChange(of: state.renderTick) { _, _ in
             onContentUpdate()
         }
+    }
+
+    private var chatBodyFont: Font {
+        JinTypography.chatBodyFont(appFamilyPreference: appFontFamily, scale: JinTypography.defaultChatMessageScale)
+    }
+
+    private var chatCodeFont: Font {
+        JinTypography.chatCodeFont(codeFamilyPreference: codeFontFamily, scale: JinTypography.defaultChatMessageScale)
     }
 }
 

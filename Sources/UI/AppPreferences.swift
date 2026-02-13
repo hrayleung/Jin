@@ -13,7 +13,6 @@ enum AppPreferenceKeys {
     static let appAppearanceMode = "appAppearanceMode"
     static let appFontFamily = "appFontFamily"
     static let codeFontFamily = "codeFontFamily"
-    static let chatMessageFontScale = "chatMessageFontScale"
 
     // MARK: - Network
 

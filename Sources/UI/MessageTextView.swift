@@ -10,7 +10,6 @@ struct MessageTextView: View {
     let mode: RenderingMode
 
     @AppStorage(AppPreferenceKeys.appFontFamily) private var appFontFamily = JinTypography.systemFontPreferenceValue
-    @AppStorage(AppPreferenceKeys.chatMessageFontScale) private var chatMessageFontScale = JinTypography.defaultChatMessageScale
 
     init(text: String, mode: RenderingMode = .markdown) {
         self.text = text
@@ -36,6 +35,6 @@ struct MessageTextView: View {
     }
 
     private var chatBodyFont: Font {
-        JinTypography.chatBodyFont(appFamilyPreference: appFontFamily, scale: chatMessageFontScale)
+        JinTypography.chatBodyFont(appFamilyPreference: appFontFamily, scale: JinTypography.defaultChatMessageScale)
     }
 }

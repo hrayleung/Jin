@@ -15,7 +15,6 @@ struct MarkdownWebRenderer: View {
 
     @AppStorage(AppPreferenceKeys.appFontFamily) private var appFontFamily = JinTypography.systemFontPreferenceValue
     @AppStorage(AppPreferenceKeys.codeFontFamily) private var codeFontFamily = JinTypography.systemFontPreferenceValue
-    @AppStorage(AppPreferenceKeys.chatMessageFontScale) private var chatMessageFontScale = JinTypography.defaultChatMessageScale
 
     @State private var contentHeight: CGFloat
 
@@ -30,8 +29,7 @@ struct MarkdownWebRenderer: View {
             markdownText: markdownText,
             contentHeight: $contentHeight,
             appFontFamily: appFontFamily,
-            codeFontFamily: codeFontFamily,
-            chatMessageFontScale: chatMessageFontScale
+            codeFontFamily: codeFontFamily
         )
         .frame(height: contentHeight)
     }
@@ -53,7 +51,6 @@ private struct MarkdownWebRendererRepresentable: NSViewRepresentable {
     @Binding var contentHeight: CGFloat
     let appFontFamily: String
     let codeFontFamily: String
-    let chatMessageFontScale: Double
 
     func makeCoordinator() -> Coordinator { Coordinator() }
 
@@ -82,15 +79,16 @@ private struct MarkdownWebRendererRepresentable: NSViewRepresentable {
         let bodyFont = resolvedBodyFontCSS()
         let codeFont = resolvedCodeFontCSS()
         let fontSize = resolvedBodyFontSize()
+        let fontSizeCSS = cssPixelValue(fontSize)
 
         if context.coordinator.isReady {
             if bodyFont != context.coordinator.lastBodyFont
                 || codeFont != context.coordinator.lastCodeFont
-                || fontSize != context.coordinator.lastFontSize {
+                || abs(fontSize - context.coordinator.lastFontSize) > 0.001 {
                 context.coordinator.lastBodyFont = bodyFont
                 context.coordinator.lastCodeFont = codeFont
                 context.coordinator.lastFontSize = fontSize
-                let js = "document.documentElement.style.setProperty('--body-font','\(bodyFont)');document.documentElement.style.setProperty('--code-font','\(codeFont)');document.documentElement.style.setProperty('--body-font-size','\(fontSize)px');"
+                let js = "document.documentElement.style.setProperty('--body-font','\(bodyFont)');document.documentElement.style.setProperty('--code-font','\(codeFont)');document.documentElement.style.setProperty('--body-font-size','\(fontSizeCSS)px');"
                 webView.evaluateJavaScript(js, completionHandler: nil)
             }
             MarkdownWebRenderer.sendMarkdown(to: webView, markdown: markdownText)
@@ -103,7 +101,7 @@ private struct MarkdownWebRendererRepresentable: NSViewRepresentable {
         guard var html = cachedTemplateHTML() else { return }
         html = html
             .replacingOccurrences(of: "BODY_FONT_FAMILY", with: resolvedBodyFontCSS())
-            .replacingOccurrences(of: "BODY_FONT_SIZE", with: "\(resolvedBodyFontSize())px")
+            .replacingOccurrences(of: "BODY_FONT_SIZE", with: "\(cssPixelValue(resolvedBodyFontSize()))px")
             .replacingOccurrences(of: "CODE_FONT_FAMILY", with: resolvedCodeFontCSS())
         webView.loadHTMLString(html, baseURL: nil)
     }
@@ -122,9 +120,16 @@ private struct MarkdownWebRendererRepresentable: NSViewRepresentable {
         return "'\(codeFontFamily)', 'SF Mono', Menlo, monospace"
     }
 
-    private func resolvedBodyFontSize() -> Int {
-        let base = 14.0
-        return Int(base * chatMessageFontScale)
+    private func resolvedBodyFontSize() -> CGFloat {
+        JinTypography.chatBodyPointSize(scale: JinTypography.defaultChatMessageScale)
+    }
+
+    private func cssPixelValue(_ value: CGFloat) -> String {
+        let rounded = (Double(value) * 100).rounded() / 100
+        if rounded.rounded() == rounded {
+            return String(Int(rounded))
+        }
+        return String(rounded)
     }
 
     final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
@@ -134,7 +139,7 @@ private struct MarkdownWebRendererRepresentable: NSViewRepresentable {
         var pendingMarkdown: String?
         var lastBodyFont: String = ""
         var lastCodeFont: String = ""
-        var lastFontSize: Int = 0
+        var lastFontSize: CGFloat = 0
 
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
             isReady = true

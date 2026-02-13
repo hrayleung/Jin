@@ -77,7 +77,7 @@ struct SettingsView: View {
     private static let generalSidebarHints: [GeneralSidebarHint] = [
         GeneralSidebarHint(
             title: "Appearance",
-            subtitle: "Theme, font family, code font, and chat text size.",
+            subtitle: "Theme, font family, and code font.",
             systemImage: "textformat"
         ),
         GeneralSidebarHint(
@@ -1269,7 +1269,6 @@ struct GeneralSettingsView: View {
     @AppStorage(AppPreferenceKeys.appAppearanceMode) private var appAppearanceMode: AppAppearanceMode = .system
     @AppStorage(AppPreferenceKeys.appFontFamily) private var appFontFamily = JinTypography.systemFontPreferenceValue
     @AppStorage(AppPreferenceKeys.codeFontFamily) private var codeFontFamily = JinTypography.systemFontPreferenceValue
-    @AppStorage(AppPreferenceKeys.chatMessageFontScale) private var chatMessageFontScale = JinTypography.defaultChatMessageScale
 
     @AppStorage(AppPreferenceKeys.newChatModelMode) private var newChatModelMode: NewChatModelMode = .lastUsed
     @AppStorage(AppPreferenceKeys.newChatFixedProviderID) private var newChatFixedProviderID = "openai"
@@ -1302,36 +1301,6 @@ struct GeneralSettingsView: View {
                     }
                     .buttonStyle(.borderless)
                 }
-
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack {
-                        Text("Chat Text Size")
-                        Spacer()
-                        Text(chatMessageScalePercentLabel)
-                            .font(.system(.caption, design: .monospaced))
-                            .foregroundStyle(.secondary)
-                    }
-
-                    Slider(
-                        value: chatMessageFontScaleBinding,
-                        in: JinTypography.chatMessageScaleRange,
-                        step: JinTypography.chatMessageScaleStep
-                    )
-
-                    HStack(spacing: 10) {
-                        Text("Applies to user and assistant message text.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-
-                        Spacer(minLength: 8)
-
-                        Button("Reset") {
-                            chatMessageFontScale = JinTypography.defaultChatMessageScale
-                        }
-                        .disabled(abs(chatMessageFontScaleBinding.wrappedValue - JinTypography.defaultChatMessageScale) < 0.001)
-                    }
-                }
-                .padding(.vertical, 4)
             }
 
             Section("New Chat Defaults") {
@@ -1482,27 +1451,9 @@ struct GeneralSettingsView: View {
         JinTypography.displayName(for: codeFontFamily)
     }
 
-    private var chatMessageFontScaleBinding: Binding<Double> {
-        Binding(
-            get: {
-                JinTypography.clampedChatMessageScale(chatMessageFontScale)
-            },
-            set: { newValue in
-                chatMessageFontScale = JinTypography.clampedChatMessageScale(newValue)
-            }
-        )
-    }
-
-    private var chatMessageScalePercentLabel: String {
-        let clamped = JinTypography.clampedChatMessageScale(chatMessageFontScale)
-        let percent = Int((clamped * 100).rounded())
-        return "\(percent)%"
-    }
-
     private func normalizeTypographyPreferences() {
         appFontFamily = JinTypography.normalizedFontPreference(appFontFamily)
         codeFontFamily = JinTypography.normalizedFontPreference(codeFontFamily)
-        chatMessageFontScale = JinTypography.clampedChatMessageScale(chatMessageFontScale)
     }
 
     private var eligibleMCPServers: [MCPServerConfigEntity] {
