@@ -27,6 +27,12 @@ body {
     -webkit-user-select: text;
     padding: 0;
 }
+#content {
+    display: flow-root;
+}
+#content > :last-child {
+    margin-bottom: 0 !important;
+}
 h1, h2, h3, h4, h5, h6 { margin-top: 1em; margin-bottom: 0.5em; font-weight: 600; }
 h1 { font-size: 1.6em; } h2 { font-size: 1.4em; } h3 { font-size: 1.2em; } h4 { font-size: 1.1em; }
 p { margin-bottom: 0.6em; }
@@ -1413,18 +1419,43 @@ function updateContent(base64) {
     reportHeight();
 }
 
-function reportHeight() {
+function measuredHeight() {
     var el = document.getElementById('content');
-    var h = el ? Math.ceil(el.getBoundingClientRect().height) : document.documentElement.scrollHeight;
-    window.webkit.messageHandlers.heightChanged.postMessage(h);
+    if (!el) {
+        var fallback = Math.max(
+            Math.ceil(document.documentElement.scrollHeight || 0),
+            Math.ceil(document.body ? document.body.scrollHeight : 0),
+            1
+        );
+        return fallback;
+    }
+
+    var rect = Math.ceil(el.getBoundingClientRect().height || 0);
+    var scroll = Math.ceil(el.scrollHeight || 0);
+    var offset = Math.ceil(el.offsetHeight || 0);
+    var bodyScroll = Math.ceil(document.body ? document.body.scrollHeight : 0);
+    var docScroll = Math.ceil(document.documentElement.scrollHeight || 0);
+
+    return Math.max(rect, scroll, offset, bodyScroll, docScroll, 1) + 2;
+}
+
+function reportHeight() {
+    var h = measuredHeight();
+    _rh = h;
+    if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.heightChanged) {
+        window.webkit.messageHandlers.heightChanged.postMessage(h);
+    }
 }
 
 var _rh = 0;
 var resizeObserver = new ResizeObserver(function() {
-    var el = document.getElementById('content');
-    var h = el ? Math.ceil(el.getBoundingClientRect().height) : document.documentElement.scrollHeight;
-    if (h !== _rh) { _rh = h; reportHeight(); }
+    var h = measuredHeight();
+    if (h !== _rh) { reportHeight(); }
 });
+var contentEl = document.getElementById('content');
+if (contentEl) {
+    resizeObserver.observe(contentEl);
+}
 resizeObserver.observe(document.body);
 
 window.updateWithBase64 = updateContent;
