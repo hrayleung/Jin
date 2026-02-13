@@ -883,7 +883,7 @@ private struct AddModelSheet: View {
         let lower = id.lowercased()
 
         var caps: ModelCapability = [.streaming, .toolCalling]
-        let contextWindow = 128000
+        var contextWindow = 128000
         var reasoningConfig: ModelReasoningConfig?
 
         switch providerType {
@@ -892,9 +892,15 @@ private struct AddModelSheet: View {
                 caps.insert(.vision)
                 caps.insert(.reasoning)
                 reasoningConfig = ModelReasoningConfig(type: .effort, defaultEffort: .medium)
+                contextWindow = 262_100
+            } else if lower == "fireworks/glm-5" || lower == "accounts/fireworks/models/glm-5" {
+                caps.insert(.reasoning)
+                reasoningConfig = ModelReasoningConfig(type: .effort, defaultEffort: .medium)
+                contextWindow = 202_800
             } else if lower == "fireworks/glm-4p7" || lower == "accounts/fireworks/models/glm-4p7" {
                 caps.insert(.reasoning)
                 reasoningConfig = ModelReasoningConfig(type: .effort, defaultEffort: .medium)
+                contextWindow = 202_800
             }
 
         case .cerebras?:

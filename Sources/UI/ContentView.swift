@@ -873,6 +873,30 @@ struct ContentView: View {
             )
         ]
 
+        let fireworksModels: [ModelInfo] = [
+            ModelInfo(
+                id: "fireworks/glm-5",
+                name: "GLM-5",
+                capabilities: [.streaming, .toolCalling, .reasoning],
+                contextWindow: 202_800,
+                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium)
+            ),
+            ModelInfo(
+                id: "fireworks/kimi-k2p5",
+                name: "Kimi K2.5",
+                capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+                contextWindow: 262_100,
+                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium)
+            ),
+            ModelInfo(
+                id: "fireworks/glm-4p7",
+                name: "GLM-4.7",
+                capabilities: [.streaming, .toolCalling, .reasoning],
+                contextWindow: 202_800,
+                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium)
+            )
+        ]
+
         let vertexModels: [ModelInfo] = [
             ModelInfo(
                 id: "gemini-3-pro-preview",
@@ -1053,6 +1077,14 @@ struct ContentView: View {
                 iconID: LobeProviderIconCatalog.defaultIconID(for: .deepseek),
                 baseURL: ProviderType.deepseek.defaultBaseURL,
                 models: deepSeekModels
+            ),
+            ProviderConfig(
+                id: "fireworks",
+                name: "Fireworks",
+                type: .fireworks,
+                iconID: LobeProviderIconCatalog.defaultIconID(for: .fireworks),
+                baseURL: ProviderType.fireworks.defaultBaseURL,
+                models: fireworksModels
             ),
             ProviderConfig(
                 id: "gemini",

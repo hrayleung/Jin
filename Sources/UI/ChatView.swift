@@ -745,7 +745,7 @@ struct ChatView: View {
                         VStack(alignment: .leading, spacing: JinSpacing.small) {
                             Text("Perplexity disable search: {\"disable_search\": true}")
                             Text("Perplexity academic search: {\"search_mode\": \"academic\"}")
-                            Text("Fireworks GLM/Kimi thinking history: {\"reasoning_history\": \"preserved\"} (or \"interleaved\" / \"turn_level\")")
+                            Text("Fireworks GLM/Kimi thinking history: {\"reasoning_history\": \"preserved\"} (or \"interleaved\" / \"disabled\")")
                             Text("Cerebras GLM preserved thinking: {\"clear_thinking\": false}")
                             Text("Cerebras GLM disable thinking: {\"disable_reasoning\": true}")
                             Text("Cerebras reasoning output: {\"reasoning_format\": \"parsed\"} (or \"raw\" / \"hidden\" / \"none\")")
@@ -2273,8 +2273,9 @@ struct ChatView: View {
             return models.first(where: { $0.id == "deepseek-chat" })?.id
                 ?? models.first(where: { $0.id == "deepseek-reasoner" })?.id
         case .fireworks:
-            return models.first(where: { $0.id.lowercased() == "fireworks/kimi-k2p5" || $0.id.lowercased() == "accounts/fireworks/models/kimi-k2p5" })?.id
-                ?? models.first(where: { $0.id.lowercased() == "fireworks/glm-4p7" || $0.id.lowercased() == "accounts/fireworks/models/glm-4p7" })?.id
+            return models.first(where: { isFireworksModelID($0.id, canonicalID: "glm-5") })?.id
+                ?? models.first(where: { isFireworksModelID($0.id, canonicalID: "kimi-k2p5") })?.id
+                ?? models.first(where: { isFireworksModelID($0.id, canonicalID: "glm-4p7") })?.id
         case .cerebras:
             return models.first(where: { $0.id == "zai-glm-4.7" })?.id
         case .gemini:
@@ -3701,7 +3702,6 @@ struct ChatView: View {
                     Button { setFireworksReasoningHistory("preserved") } label: { menuItemLabel("Preserved", isSelected: fireworksReasoningHistory == "preserved") }
                     Button { setFireworksReasoningHistory("interleaved") } label: { menuItemLabel("Interleaved", isSelected: fireworksReasoningHistory == "interleaved") }
                     Button { setFireworksReasoningHistory("disabled") } label: { menuItemLabel("Disabled", isSelected: fireworksReasoningHistory == "disabled") }
-                    Button { setFireworksReasoningHistory("turn_level") } label: { menuItemLabel("Turn-level", isSelected: fireworksReasoningHistory == "turn_level") }
                 }
 
             case .budget:
@@ -3721,9 +3721,9 @@ struct ChatView: View {
 
     private var supportsFireworksReasoningHistoryToggle: Bool {
         guard providerType == .fireworks else { return false }
-        let id = conversationEntity.modelID.lowercased()
-        // Fireworks documents reasoning_history for Kimi K2 Instruct and GLM-4.7.
-        return id.contains("kimi") || id.contains("glm-4p7")
+        return isFireworksModelID(conversationEntity.modelID, canonicalID: "kimi-k2p5")
+            || isFireworksModelID(conversationEntity.modelID, canonicalID: "glm-4p7")
+            || isFireworksModelID(conversationEntity.modelID, canonicalID: "glm-5")
     }
 
     private var fireworksReasoningHistory: String? {
@@ -3737,6 +3737,12 @@ struct ChatView: View {
             controls.providerSpecific.removeValue(forKey: "reasoning_history")
         }
         persistControlsToConversation()
+    }
+
+    private func isFireworksModelID(_ modelID: String, canonicalID: String) -> Bool {
+        let lower = modelID.lowercased()
+        return lower == "fireworks/\(canonicalID)"
+            || lower == "accounts/fireworks/models/\(canonicalID)"
     }
 
     private var supportsCerebrasPreservedThinkingToggle: Bool {

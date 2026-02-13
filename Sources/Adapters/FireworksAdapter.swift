@@ -5,7 +5,7 @@ import Foundation
 /// Docs:
 /// - Base URL: https://api.fireworks.ai/inference/v1
 /// - Endpoint: POST /chat/completions
-/// - Models: `fireworks/kimi-k2p5`, `fireworks/glm-4p7`, ...
+/// - Models: `fireworks/kimi-k2p5`, `fireworks/glm-4p7`, `fireworks/glm-5`, ...
 actor FireworksAdapter: LLMProviderAdapter {
     let providerConfig: ProviderConfig
     let capabilities: ModelCapability = [.streaming, .toolCalling, .vision, .reasoning]
@@ -112,7 +112,7 @@ actor FireworksAdapter: LLMProviderAdapter {
             body["top_p"] = topP
         }
 
-        // Fireworks reasoning controls: `reasoning_effort` (string/bool/int) + `reasoning_history` (for Kimi/GLM 4.7).
+        // Fireworks reasoning controls: `reasoning_effort` (string/bool/int) + `reasoning_history` (for Kimi/GLM-4.7/GLM-5).
         if let reasoning = controls.reasoning {
             if reasoning.enabled == false || (reasoning.effort ?? ReasoningEffort.none) == .none {
                 body["reasoning_effort"] = "none"
@@ -342,33 +342,50 @@ actor FireworksAdapter: LLMProviderAdapter {
 
     private func makeModelInfo(id: String) -> ModelInfo {
         let lower = id.lowercased()
-        let isKimiK2p5 = lower == "fireworks/kimi-k2p5" || lower == "accounts/fireworks/models/kimi-k2p5"
-        let isGLM4p7 = lower == "fireworks/glm-4p7" || lower == "accounts/fireworks/models/glm-4p7"
+        let isKimiK2p5 = isFireworksModelID(lower, canonicalID: "kimi-k2p5")
+        let isGLM4p7 = isFireworksModelID(lower, canonicalID: "glm-4p7")
+        let isGLM5 = isFireworksModelID(lower, canonicalID: "glm-5")
 
         var caps: ModelCapability = [.streaming, .toolCalling]
         var reasoningConfig: ModelReasoningConfig?
         var contextWindow = 128000
+        var name = id
 
         // Known models we explicitly support well.
         if isKimiK2p5 {
             caps.insert(.vision)
             caps.insert(.reasoning)
             reasoningConfig = ModelReasoningConfig(type: .effort, defaultEffort: .medium)
-            // Kimi K2.* models are commonly long-context (often 256k+). Keep conservative by default.
-            contextWindow = 128000
+            // Fireworks model page advertises 262.1k tokens.
+            contextWindow = 262_100
+            name = "Kimi K2.5"
+        } else if isGLM5 {
+            caps.insert(.reasoning)
+            reasoningConfig = ModelReasoningConfig(type: .effort, defaultEffort: .medium)
+            // Fireworks model page advertises 202.8k tokens.
+            contextWindow = 202_800
+            name = "GLM-5"
         } else if isGLM4p7 {
             caps.insert(.reasoning)
             reasoningConfig = ModelReasoningConfig(type: .effort, defaultEffort: .medium)
+            // Fireworks model page advertises 202.8k tokens.
+            contextWindow = 202_800
+            name = "GLM-4.7"
         } else if lower.contains("kimi") || lower.contains("glm") {
             caps.insert(.reasoning)
         }
 
         return ModelInfo(
             id: id,
-            name: id,
+            name: name,
             capabilities: caps,
             contextWindow: contextWindow,
             reasoningConfig: reasoningConfig
         )
+    }
+
+    private func isFireworksModelID(_ lowerModelID: String, canonicalID: String) -> Bool {
+        lowerModelID == "fireworks/\(canonicalID)"
+            || lowerModelID == "accounts/fireworks/models/\(canonicalID)"
     }
 }

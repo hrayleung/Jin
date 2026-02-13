@@ -131,6 +131,62 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         XCTAssertEqual(usage?.outputTokens, 2)
     }
 
+    func testFireworksAdapterFetchModelsMapsGLM5Metadata() async throws {
+        let (session, protocolType) = makeMockedURLSession()
+        let networkManager = NetworkManager(urlSession: session)
+
+        let providerConfig = ProviderConfig(
+            id: "fw",
+            name: "Fireworks",
+            type: .fireworks,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://example.com/models")
+            XCTAssertEqual(request.httpMethod, "GET")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer test-key")
+
+            let response: [String: Any] = [
+                "data": [
+                    ["id": "fireworks/glm-5"],
+                    ["id": "accounts/fireworks/models/glm-4p7"],
+                    ["id": "accounts/fireworks/models/kimi-k2p5"],
+                    ["id": "accounts/fireworks/models/other"]
+                ]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = FireworksAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let models = try await adapter.fetchAvailableModels()
+        let byID = Dictionary(uniqueKeysWithValues: models.map { ($0.id, $0) })
+
+        let glm5 = try XCTUnwrap(byID["fireworks/glm-5"])
+        XCTAssertEqual(glm5.name, "GLM-5")
+        XCTAssertEqual(glm5.contextWindow, 202_800)
+        XCTAssertTrue(glm5.capabilities.contains(.reasoning))
+        XCTAssertFalse(glm5.capabilities.contains(.vision))
+
+        let glm4p7 = try XCTUnwrap(byID["accounts/fireworks/models/glm-4p7"])
+        XCTAssertEqual(glm4p7.name, "GLM-4.7")
+        XCTAssertEqual(glm4p7.contextWindow, 202_800)
+        XCTAssertTrue(glm4p7.capabilities.contains(.reasoning))
+        XCTAssertFalse(glm4p7.capabilities.contains(.vision))
+
+        let kimiK2p5 = try XCTUnwrap(byID["accounts/fireworks/models/kimi-k2p5"])
+        XCTAssertEqual(kimiK2p5.name, "Kimi K2.5")
+        XCTAssertEqual(kimiK2p5.contextWindow, 262_100)
+        XCTAssertTrue(kimiK2p5.capabilities.contains(.reasoning))
+        XCTAssertTrue(kimiK2p5.capabilities.contains(.vision))
+
+        let other = try XCTUnwrap(byID["accounts/fireworks/models/other"])
+        XCTAssertEqual(other.name, "accounts/fireworks/models/other")
+        XCTAssertEqual(other.contextWindow, 128000)
+    }
+
     func testCerebrasAdapterClampsTemperatureAndSendsReasoningField() async throws {
         let (session, protocolType) = makeMockedURLSession()
         let networkManager = NetworkManager(urlSession: session)

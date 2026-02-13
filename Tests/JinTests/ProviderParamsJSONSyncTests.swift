@@ -296,6 +296,25 @@ final class ProviderParamsJSONSyncTests: XCTestCase {
         XCTAssertNil(applied.providerSpecific["reasoning_effort"])
     }
 
+    func testFireworksReasoningHistoryIsRetainedForGLM5() {
+        var controls = GenerationControls()
+        controls.reasoning = ReasoningControls(enabled: true, effort: .low)
+        controls.providerSpecific = ["reasoning_history": AnyCodable("disabled")]
+
+        let draft = ProviderParamsJSONSync.makeDraft(providerType: .fireworks, modelID: "fireworks/glm-5", controls: controls)
+
+        XCTAssertEqual(draft["reasoning_effort"]?.value as? String, "low")
+        XCTAssertEqual(draft["reasoning_history"]?.value as? String, "disabled")
+
+        var applied = GenerationControls()
+        let remainder = ProviderParamsJSONSync.applyDraft(providerType: .fireworks, modelID: "fireworks/glm-5", draft: draft, controls: &applied)
+        applied.providerSpecific = remainder
+
+        XCTAssertEqual(applied.reasoning?.enabled, true)
+        XCTAssertEqual(applied.reasoning?.effort, .low)
+        XCTAssertEqual(applied.providerSpecific["reasoning_history"]?.value as? String, "disabled")
+    }
+
     func testPerplexityDraftAndApplySyncsCoreParams() {
         var controls = GenerationControls()
         controls.temperature = 0.4
