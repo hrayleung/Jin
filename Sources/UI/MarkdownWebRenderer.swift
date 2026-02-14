@@ -185,9 +185,16 @@ final class MarkdownWKWebView: WKWebView {
 
     override func viewDidMoveToSuperview() {
         super.viewDidMoveToSuperview()
-        // Unregister WKWebView's default drag types so drag-and-drop events
-        // pass through to the parent SwiftUI .onDrop handler on ChatView.
+        // Clear any drag types registered during init so drag events pass
+        // through to the parent SwiftUI .onDrop handler on ChatView.
         unregisterDraggedTypes()
+    }
+
+    override func registerForDraggedTypes(_ newTypes: [NSPasteboard.PasteboardType]) {
+        // No-op: WKWebView internally re-registers drag types after web
+        // content loads, which silently intercepts drag events that should
+        // reach ChatView's .onDrop handler. Blocking re-registration ensures
+        // drag-and-drop pass-through remains stable.
     }
 
     override var intrinsicContentSize: NSSize {
