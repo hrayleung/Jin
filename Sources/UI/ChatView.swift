@@ -504,7 +504,7 @@ struct ChatView: View {
             }
         }
         .background(JinSemanticColor.detailSurface)
-        .onDrop(of: [.fileURL, .image], isTargeted: $isFullPageDropTargeted) { providers in
+        .onDrop(of: [.fileURL, .image, .data], isTargeted: $isFullPageDropTargeted) { providers in
             handleDrop(providers)
         }
         .overlay {
@@ -1165,6 +1165,50 @@ struct ChatView: View {
                     }
 
                     if let error {
+                        lock.lock()
+                        errors.append(error.localizedDescription)
+                        lock.unlock()
+                    }
+                }
+                continue
+            }
+
+            // Fallback: handle file-promise or generic data providers (e.g. PDFs
+            // dragged from a browser) that don't advertise fileURL / NSImage / NSString.
+            let dataTypeID = provider.registeredTypeIdentifiers.first {
+                guard let ut = UTType($0) else { return false }
+                return ut.conforms(to: .data)
+            }
+            if let dataTypeID {
+                didScheduleWork = true
+                group.enter()
+                provider.loadFileRepresentation(forTypeIdentifier: dataTypeID) { url, error in
+                    defer { group.leave() }
+
+                    guard let url else {
+                        if let error {
+                            lock.lock()
+                            errors.append(error.localizedDescription)
+                            lock.unlock()
+                        }
+                        return
+                    }
+
+                    // loadFileRepresentation provides a temporary file that is
+                    // deleted after this callback returns — copy it somewhere stable.
+                    let dir = FileManager.default.temporaryDirectory
+                        .appendingPathComponent("JinDroppedFiles", isDirectory: true)
+                    try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+
+                    let stableURL = dir.appendingPathComponent(url.lastPathComponent)
+                    try? FileManager.default.removeItem(at: stableURL)
+
+                    do {
+                        try FileManager.default.copyItem(at: url, to: stableURL)
+                        lock.lock()
+                        droppedFileURLs.append(stableURL)
+                        lock.unlock()
+                    } catch {
                         lock.lock()
                         errors.append(error.localizedDescription)
                         lock.unlock()
