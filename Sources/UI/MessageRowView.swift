@@ -1,0 +1,831 @@
+import SwiftUI
+import AppKit
+import AVFoundation
+import AVKit
+
+// MARK: - Render Models
+
+struct MessageRenderItem: Identifiable {
+    let id: UUID
+    let role: String
+    let timestamp: Date
+    let renderedContentParts: [RenderedMessageContentPart]
+    let toolCalls: [ToolCall]
+    let assistantModelLabel: String?
+    let copyText: String
+    let canEditUserMessage: Bool
+
+    var isUser: Bool { role == "user" }
+    var isAssistant: Bool { role == "assistant" }
+    var isTool: Bool { role == "tool" }
+}
+
+struct RenderedMessageContentPart {
+    let part: ContentPart
+}
+
+// MARK: - Message Row
+
+struct MessageRow: View {
+    let item: MessageRenderItem
+    let maxBubbleWidth: CGFloat
+    let assistantDisplayName: String
+    let providerIconID: String?
+    let toolResultsByCallID: [String: ToolResult]
+    let actionsEnabled: Bool
+    let textToSpeechEnabled: Bool
+    let textToSpeechConfigured: Bool
+    let textToSpeechIsGenerating: Bool
+    let textToSpeechIsPlaying: Bool
+    let textToSpeechIsPaused: Bool
+    let onToggleSpeakAssistantMessage: (UUID, String) -> Void
+    let onStopSpeakAssistantMessage: (UUID) -> Void
+    let onRegenerate: (UUID) -> Void
+    let onEditUserMessage: (UUID) -> Void
+    let editingUserMessageID: UUID?
+    let editingUserMessageText: Binding<String>
+    let editingUserMessageFocused: Binding<Bool>
+    let onSubmitUserEdit: (UUID) -> Void
+    let onCancelUserEdit: () -> Void
+
+    var body: some View {
+        let isUser = item.isUser
+        let isAssistant = item.isAssistant
+        let isTool = item.isTool
+        let isEditingUserMessage = isUser && editingUserMessageID == item.id
+        let assistantModelLabel = item.assistantModelLabel
+        let copyText = item.copyText
+        let showsCopyButton = (isUser || isAssistant) && !copyText.isEmpty
+        let canEditUserMessage = item.canEditUserMessage
+
+        HStack(alignment: .top, spacing: 0) {
+            if isUser {
+                Spacer(minLength: 0)
+            }
+
+            ConstrainedWidth(maxBubbleWidth) {
+                VStack(alignment: isUser ? .trailing : .leading, spacing: 6) {
+                    headerView(isUser: isUser, isTool: isTool, assistantModelLabel: assistantModelLabel)
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        if isEditingUserMessage {
+                            DroppableTextEditor(
+                                text: editingUserMessageText,
+                                isDropTargeted: .constant(false),
+                                isFocused: editingUserMessageFocused,
+                                font: NSFont.preferredFont(forTextStyle: .body),
+                                onDropFileURLs: { _ in false },
+                                onDropImages: { _ in false },
+                                onSubmit: { onSubmitUserEdit(item.id) },
+                                onCancel: {
+                                    onCancelUserEdit()
+                                    return true
+                                }
+                            )
+                            .frame(minHeight: 36, maxHeight: 400)
+                        } else {
+                            ForEach(Array(item.renderedContentParts.enumerated()), id: \.offset) { _, rendered in
+                                ContentPartView(part: rendered.part, isUser: isUser)
+                            }
+
+                            if !item.toolCalls.isEmpty {
+                                VStack(alignment: .leading, spacing: 8) {
+                                    ForEach(item.toolCalls) { call in
+                                        ToolCallView(
+                                            toolCall: call,
+                                            toolResult: toolResultsByCallID[call.id]
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    .padding(JinSpacing.medium)
+                    .jinSurface(bubbleBackground(isUser: isUser, isTool: isTool), cornerRadius: JinRadius.medium)
+
+                    if isUser || isAssistant {
+                        footerView(
+                            isUser: isUser,
+                            isAssistant: isAssistant,
+                            isEditingUserMessage: isEditingUserMessage,
+                            showsCopyButton: showsCopyButton,
+                            copyText: copyText,
+                            canEditUserMessage: canEditUserMessage
+                        )
+                        .padding(.top, 2)
+                    }
+                }
+            }
+            .padding(.horizontal, 16)
+
+            if !isUser {
+                Spacer(minLength: 0)
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 8)
+    }
+
+    @ViewBuilder
+    private func headerView(isUser: Bool, isTool: Bool, assistantModelLabel: String?) -> some View {
+        if isUser {
+            EmptyView()
+        } else {
+            HStack(spacing: JinSpacing.small - 2) {
+                if !isTool {
+                    ProviderBadgeIcon(iconID: providerIconID)
+                }
+
+                if isTool {
+                    Image(systemName: "hammer")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                    Text("Tool Output")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else if assistantDisplayName != "Assistant" {
+                    Text(assistantDisplayName)
+                        .font(.caption)
+                        .fontWeight(.medium)
+                        .foregroundStyle(.secondary)
+                }
+
+                if !isTool, let label = assistantModelLabel?.trimmingCharacters(in: .whitespacesAndNewlines), !label.isEmpty {
+                    Text(label)
+                        .jinTagStyle()
+                }
+            }
+            .padding(.horizontal, JinSpacing.medium)
+            .padding(.bottom, 2)
+        }
+    }
+
+    @ViewBuilder
+    private func footerView(isUser: Bool, isAssistant: Bool, isEditingUserMessage: Bool, showsCopyButton: Bool, copyText: String, canEditUserMessage: Bool) -> some View {
+        if isAssistant {
+            HStack(spacing: JinSpacing.small) {
+                if showsCopyButton {
+                    CopyToPasteboardButton(text: copyText, helpText: "Copy message", useProminentStyle: false)
+                        .accessibilityLabel("Copy message")
+                        .disabled(!actionsEnabled)
+                }
+
+                if textToSpeechEnabled {
+                    Button {
+                        onToggleSpeakAssistantMessage(item.id, copyText)
+                    } label: {
+                        if textToSpeechIsGenerating {
+                            ProgressView()
+                                .controlSize(.small)
+                                .frame(width: 14, height: 14)
+                        } else {
+                            Image(systemName: textToSpeechPrimarySystemName)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .frame(width: 14, height: 14)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .help(textToSpeechHelpText)
+                    .disabled(!actionsEnabled || copyText.isEmpty || !textToSpeechConfigured)
+
+                    if textToSpeechIsActive {
+                        actionIconButton(systemName: "stop.circle", helpText: textToSpeechStopHelpText) {
+                            onStopSpeakAssistantMessage(item.id)
+                        }
+                        .disabled(!actionsEnabled)
+                    }
+                }
+
+                actionIconButton(systemName: "arrow.clockwise", helpText: "Regenerate") {
+                    onRegenerate(item.id)
+                }
+                .disabled(!actionsEnabled)
+
+                Spacer(minLength: 0)
+
+                Text(formattedTimestamp(item.timestamp))
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+                    .lineLimit(1)
+            }
+        } else if isUser {
+            HStack(spacing: JinSpacing.small) {
+                if isEditingUserMessage {
+                    actionIconButton(systemName: "xmark", helpText: "Cancel editing") {
+                        onCancelUserEdit()
+                    }
+                    .disabled(!actionsEnabled)
+
+                    actionIconButton(systemName: "paperplane", helpText: "Resend") {
+                        onSubmitUserEdit(item.id)
+                    }
+                    .disabled(!actionsEnabled)
+                } else {
+                    Spacer(minLength: 0)
+
+                    if showsCopyButton {
+                        CopyToPasteboardButton(text: copyText, helpText: "Copy message", useProminentStyle: false)
+                            .accessibilityLabel("Copy message")
+                            .disabled(!actionsEnabled)
+                    }
+
+                    actionIconButton(systemName: "arrow.clockwise", helpText: "Regenerate") {
+                        onRegenerate(item.id)
+                    }
+                    .disabled(!actionsEnabled)
+
+                    if canEditUserMessage {
+                        actionIconButton(systemName: "pencil", helpText: "Edit") {
+                            onEditUserMessage(item.id)
+                        }
+                        .disabled(!actionsEnabled)
+                    }
+                }
+            }
+        }
+    }
+
+    private func actionIconButton(systemName: String, helpText: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: systemName)
+                .font(.system(size: JinControlMetrics.iconButtonGlyphSize, weight: .semibold))
+                .foregroundStyle(.secondary)
+                .frame(width: 20, height: 20)
+        }
+        .buttonStyle(.plain)
+        .help(helpText)
+    }
+
+    private var textToSpeechIsActive: Bool {
+        textToSpeechIsGenerating || textToSpeechIsPlaying || textToSpeechIsPaused
+    }
+
+    private var textToSpeechPrimarySystemName: String {
+        if textToSpeechIsPlaying {
+            return "pause.circle"
+        }
+        if textToSpeechIsPaused {
+            return "play.circle"
+        }
+        return "speaker.wave.2"
+    }
+
+    private var textToSpeechHelpText: String {
+        if !textToSpeechConfigured {
+            return "Configure Text to Speech in Settings -> Plugins -> Text to Speech"
+        }
+        if textToSpeechIsGenerating {
+            return "Generating speech..."
+        }
+        if textToSpeechIsPlaying {
+            return "Pause playback"
+        }
+        if textToSpeechIsPaused {
+            return "Resume playback"
+        }
+        return "Speak"
+    }
+
+    private var textToSpeechStopHelpText: String {
+        if textToSpeechIsGenerating {
+            return "Stop generating speech"
+        }
+        return "Stop playback"
+    }
+
+    private func formattedTimestamp(_ timestamp: Date) -> String {
+        let calendar = Calendar.current
+        let time = timestamp.formatted(date: .omitted, time: .shortened)
+
+        if calendar.isDateInToday(timestamp) {
+            return time
+        }
+        if calendar.isDateInYesterday(timestamp) {
+            return "Yesterday \(time)"
+        }
+
+        let day = timestamp.formatted(.dateTime.month(.abbreviated).day().year())
+        return "\(day) \(time)"
+    }
+
+    private func bubbleBackground(isUser: Bool, isTool: Bool) -> JinSurfaceVariant {
+        if isTool { return .tool }
+        if isUser { return .accent }
+        return .neutral
+    }
+}
+
+// MARK: - Provider Badge Icon
+
+struct ProviderBadgeIcon: View {
+    let iconID: String?
+
+    var body: some View {
+        ProviderIconView(iconID: iconID, fallbackSystemName: "network", size: 14)
+            .frame(width: 14, height: 14)
+    }
+}
+
+// MARK: - Content Part View
+
+struct ContentPartView: View {
+    let part: ContentPart
+    var isUser: Bool = false
+
+    var body: some View {
+        switch part {
+        case .text(let text):
+            MessageTextView(text: text, mode: isUser ? .plainText : .markdown)
+
+        case .thinking(let thinking):
+            ThinkingBlockView(thinking: thinking)
+
+        case .redactedThinking(let redacted):
+            RedactedThinkingBlockView(redactedThinking: redacted)
+
+        case .image(let image):
+            let fileURL = (image.url?.isFileURL == true) ? image.url : nil
+
+            if let data = image.data, let nsImage = NSImage(data: data) {
+                renderedImage(nsImage, fileURL: fileURL)
+            } else if let fileURL, let nsImage = NSImage(contentsOf: fileURL) {
+                renderedImage(nsImage, fileURL: fileURL)
+            } else if let url = image.url {
+                Link(url.absoluteString, destination: url)
+                    .font(.caption)
+            }
+
+        case .video(let video):
+            renderedVideo(video)
+
+        case .file(let file):
+            fileContentView(file)
+
+        case .audio:
+            Label("Audio content", systemImage: "waveform")
+                .padding(JinSpacing.small)
+                .jinSurface(.neutral, cornerRadius: JinRadius.small)
+        }
+    }
+
+    @ViewBuilder
+    private func fileContentView(_ file: FileContent) -> some View {
+        let row = HStack {
+            Image(systemName: "doc")
+            Text(file.filename)
+        }
+        .padding(JinSpacing.small)
+        .jinSurface(.neutral, cornerRadius: JinRadius.small)
+
+        if let url = file.url {
+            Button {
+                NSWorkspace.shared.open(url)
+            } label: {
+                row
+            }
+            .buttonStyle(.plain)
+            .help("Open \(file.filename)")
+            .onDrag {
+                NSItemProvider(contentsOf: url) ?? NSItemProvider(object: url as NSURL)
+            }
+            .contextMenu {
+                fileContextMenu(url: url, filename: file.filename, extractedText: file.extractedText)
+            }
+        } else {
+            row
+                .contextMenu {
+                    filenameOnlyContextMenu(filename: file.filename, extractedText: file.extractedText)
+                }
+        }
+    }
+
+    @ViewBuilder
+    private func fileContextMenu(url: URL, filename: String, extractedText: String?) -> some View {
+        Button {
+            NSWorkspace.shared.open(url)
+        } label: {
+            Label("Open", systemImage: "arrow.up.right.square")
+        }
+
+        Button {
+            NSWorkspace.shared.activateFileViewerSelecting([url])
+        } label: {
+            Label("Reveal in Finder", systemImage: "folder")
+        }
+
+        Divider()
+
+        Button {
+            let pasteboard = NSPasteboard.general
+            pasteboard.clearContents()
+            pasteboard.setString(url.path, forType: .string)
+        } label: {
+            Label("Copy Path", systemImage: "doc.on.doc")
+        }
+
+        Button {
+            let pasteboard = NSPasteboard.general
+            pasteboard.clearContents()
+            pasteboard.setString(filename, forType: .string)
+        } label: {
+            Label("Copy Filename", systemImage: "doc.on.doc")
+        }
+
+        extractedTextCopyButton(extractedText)
+    }
+
+    @ViewBuilder
+    private func filenameOnlyContextMenu(filename: String, extractedText: String?) -> some View {
+        Button {
+            let pasteboard = NSPasteboard.general
+            pasteboard.clearContents()
+            pasteboard.setString(filename, forType: .string)
+        } label: {
+            Label("Copy Filename", systemImage: "doc.on.doc")
+        }
+
+        extractedTextCopyButton(extractedText)
+    }
+
+    @ViewBuilder
+    private func extractedTextCopyButton(_ extractedText: String?) -> some View {
+        if let extracted = extractedText?.trimmingCharacters(in: .whitespacesAndNewlines), !extracted.isEmpty {
+            Divider()
+
+            Button {
+                let pasteboard = NSPasteboard.general
+                pasteboard.clearContents()
+                pasteboard.setString(extracted, forType: .string)
+            } label: {
+                Label("Copy Extracted Text", systemImage: "doc.on.doc")
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func renderedVideo(_ video: VideoContent) -> some View {
+        if let fileURL = video.url, fileURL.isFileURL {
+            VideoPlayer(player: AVPlayer(url: fileURL))
+                .frame(maxWidth: 560, minHeight: 220, maxHeight: 360)
+                .clipShape(RoundedRectangle(cornerRadius: JinRadius.small, style: .continuous))
+                .contextMenu {
+                    Button {
+                        NSWorkspace.shared.open(fileURL)
+                    } label: {
+                        Label("Open", systemImage: "arrow.up.right.square")
+                    }
+
+                    Button {
+                        NSWorkspace.shared.activateFileViewerSelecting([fileURL])
+                    } label: {
+                        Label("Reveal in Finder", systemImage: "folder")
+                    }
+
+                    Divider()
+
+                    Button {
+                        let pasteboard = NSPasteboard.general
+                        pasteboard.clearContents()
+                        pasteboard.setString(fileURL.path, forType: .string)
+                    } label: {
+                        Label("Copy Path", systemImage: "doc.on.doc")
+                    }
+                }
+        } else if let url = video.url {
+            VideoPlayer(player: AVPlayer(url: url))
+                .frame(maxWidth: 560, minHeight: 220, maxHeight: 360)
+                .clipShape(RoundedRectangle(cornerRadius: JinRadius.small, style: .continuous))
+                .contextMenu {
+                    Button {
+                        NSWorkspace.shared.open(url)
+                    } label: {
+                        Label("Open", systemImage: "arrow.up.right.square")
+                    }
+
+                    Divider()
+
+                    Button {
+                        let pasteboard = NSPasteboard.general
+                        pasteboard.clearContents()
+                        pasteboard.setString(url.absoluteString, forType: .string)
+                    } label: {
+                        Label("Copy URL", systemImage: "doc.on.doc")
+                    }
+                }
+        } else if let data = video.data {
+            Label("Video data (\(data.count) bytes)", systemImage: "video")
+                .padding(JinSpacing.small)
+                .jinSurface(.neutral, cornerRadius: JinRadius.small)
+        } else {
+            Label("Video", systemImage: "video")
+                .padding(JinSpacing.small)
+                .jinSurface(.neutral, cornerRadius: JinRadius.small)
+        }
+    }
+
+    @ViewBuilder
+    private func renderedImage(_ image: NSImage, fileURL: URL?) -> some View {
+        Image(nsImage: image)
+            .resizable()
+            .scaledToFit()
+            .frame(maxWidth: 500)
+            .clipShape(RoundedRectangle(cornerRadius: JinRadius.small, style: .continuous))
+            .onDrag {
+                if let fileURL {
+                    return NSItemProvider(contentsOf: fileURL) ?? NSItemProvider(object: fileURL as NSURL)
+                }
+                return NSItemProvider(object: image)
+            }
+            .contextMenu {
+                if let fileURL {
+                    Button {
+                        NSWorkspace.shared.open(fileURL)
+                    } label: {
+                        Label("Open", systemImage: "arrow.up.right.square")
+                    }
+
+                    Button {
+                        NSWorkspace.shared.activateFileViewerSelecting([fileURL])
+                    } label: {
+                        Label("Reveal in Finder", systemImage: "folder")
+                    }
+
+                    Divider()
+                }
+
+                Button {
+                    let pasteboard = NSPasteboard.general
+                    pasteboard.clearContents()
+                    pasteboard.writeObjects([image])
+                } label: {
+                    Label("Copy Image", systemImage: "doc.on.doc")
+                }
+
+                if let fileURL {
+                    Button {
+                        let pasteboard = NSPasteboard.general
+                        pasteboard.clearContents()
+                        pasteboard.setString(fileURL.path, forType: .string)
+                    } label: {
+                        Label("Copy Path", systemImage: "doc.on.doc")
+                    }
+                }
+            }
+    }
+}
+
+// MARK: - Tool Call View
+
+struct ToolCallView: View {
+    let toolCall: ToolCall
+    let toolResult: ToolResult?
+
+    @State private var isExpanded = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: JinSpacing.small) {
+            HStack(spacing: JinSpacing.small) {
+                Image(systemName: "hammer")
+                    .font(.system(size: 13))
+                    .foregroundStyle(.secondary)
+
+                Text(displayTitle)
+                    .font(.system(.caption, design: .monospaced))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+
+                Spacer()
+
+                statusPill
+
+                Button {
+                    withAnimation(.easeInOut(duration: 0.15)) {
+                        isExpanded.toggle()
+                    }
+                } label: {
+                    Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(JinIconButtonStyle())
+            }
+
+            if !isExpanded, let argumentSummary {
+                Text("-> \(argumentSummary)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+                    .textSelection(.enabled)
+            }
+
+            if isExpanded {
+                VStack(alignment: .leading, spacing: JinSpacing.medium - 2) {
+                    if let argsString = formattedArgumentsJSON {
+                        ToolCallCodeBlockView(title: "Arguments", text: argsString)
+                    } else {
+                        ToolCallCodeBlockView(title: "Arguments", text: "{}")
+                    }
+
+                    if let toolResult {
+                        ToolCallCodeBlockView(title: toolResult.isError ? "Error" : "Output", text: toolResult.content)
+                    } else {
+                        Text("Waiting for tool result...")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    if let signature = toolCall.signature, !signature.isEmpty {
+                        ToolCallCodeBlockView(title: "Signature", text: signature)
+                    }
+                }
+                .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+        }
+        .padding(.horizontal, JinSpacing.medium)
+        .padding(.vertical, JinSpacing.medium - 2)
+        .jinSurface(.subtleStrong, cornerRadius: JinRadius.medium)
+    }
+
+    private var formattedArgumentsJSON: String? {
+        let raw = toolCall.arguments.mapValues { $0.value }
+        guard JSONSerialization.isValidJSONObject(raw) else { return nil }
+        guard let argsJSON = try? JSONSerialization.data(withJSONObject: raw, options: [.prettyPrinted, .sortedKeys]),
+              let argsString = String(data: argsJSON, encoding: .utf8) else {
+            return nil
+        }
+        return argsString
+    }
+
+    private var displayTitle: String {
+        let (serverID, toolName) = splitFunctionName(toolCall.name)
+        if serverID.isEmpty { return toolName }
+        return "\(serverID) \u{00B7} \(toolName)"
+    }
+
+    @ViewBuilder
+    private var statusPill: some View {
+        let status = resolvedStatus
+        let foreground: Color = {
+            switch status {
+            case .running: return .secondary
+            case .success: return .green
+            case .error: return .red
+            }
+        }()
+
+        HStack(spacing: 6) {
+            switch status {
+            case .running:
+                ProgressView()
+                    .scaleEffect(0.6)
+                Text("Running")
+            case .success:
+                Image(systemName: "checkmark")
+                Text("Success")
+            case .error:
+                Image(systemName: "xmark")
+                Text("Error")
+            }
+
+            if let durationText {
+                Text(durationText)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .font(.caption)
+        .jinTagStyle(foreground: foreground)
+    }
+
+    private var durationText: String? {
+        guard let seconds = toolResult?.durationSeconds, seconds > 0 else { return nil }
+        if seconds < 1 {
+            return "\(Int((seconds * 1000).rounded()))ms"
+        }
+        return "\(Int(seconds.rounded()))s"
+    }
+
+    private var resolvedStatus: ToolCallStatus {
+        guard let toolResult else { return .running }
+        return toolResult.isError ? .error : .success
+    }
+
+    private enum ToolCallStatus {
+        case running
+        case success
+        case error
+    }
+
+    private func splitFunctionName(_ name: String) -> (serverID: String, toolName: String) {
+        guard let range = name.range(of: "__") else { return ("", name) }
+        let serverID = String(name[..<range.lowerBound])
+        let toolName = String(name[range.upperBound...])
+        return (serverID, toolName.isEmpty ? name : toolName)
+    }
+
+    private var argumentSummary: String? {
+        let raw = toolCall.arguments.mapValues { $0.value }
+        guard !raw.isEmpty else { return nil }
+
+        let preferredKeys = ["query", "q", "url", "input", "text"]
+        for key in preferredKeys {
+            if let value = raw[key] as? String {
+                return oneLine(value, maxLength: 200)
+            }
+        }
+
+        guard JSONSerialization.isValidJSONObject(raw),
+              let data = try? JSONSerialization.data(withJSONObject: raw, options: [.sortedKeys]),
+              let json = String(data: data, encoding: .utf8) else {
+            return nil
+        }
+
+        return oneLine(json, maxLength: 200)
+    }
+
+    private func oneLine(_ string: String, maxLength: Int) -> String {
+        let condensed = string
+            .replacingOccurrences(of: "\n", with: " ")
+            .replacingOccurrences(of: "\t", with: " ")
+            .replacingOccurrences(of: "  ", with: " ")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard condensed.count > maxLength else { return condensed }
+        return String(condensed.prefix(maxLength - 1)) + "\u{2026}"
+    }
+}
+
+// MARK: - Helper Views
+
+struct ToolCallCodeBlockView: View {
+    let title: String
+    let text: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: JinSpacing.small - 2) {
+            Text(title)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            ScrollView {
+                Text(text)
+                    .font(.system(.caption, design: .monospaced))
+                    .foregroundStyle(.secondary)
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .frame(maxHeight: 160)
+            .padding(JinSpacing.medium - 2)
+            .jinSurface(.subtle, cornerRadius: JinRadius.small)
+        }
+    }
+}
+
+struct ChunkedTextView: View {
+    let chunks: [String]
+    let font: Font
+    let allowsTextSelection: Bool
+
+    var body: some View {
+        let content = VStack(alignment: .leading, spacing: 0) {
+            ForEach(chunks.indices, id: \.self) { idx in
+                Text(verbatim: chunks[idx])
+                    .font(font)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+
+        if allowsTextSelection {
+            content.textSelection(.enabled)
+        } else {
+            content
+        }
+    }
+}
+
+// MARK: - Load Earlier Messages
+
+struct LoadEarlierMessagesRow: View {
+    let hiddenCount: Int
+    let pageSize: Int
+    let onLoad: () -> Void
+
+    var body: some View {
+        HStack {
+            Spacer()
+
+            Button {
+                onLoad()
+            } label: {
+                let count = min(pageSize, hiddenCount)
+                Text("Load \(count) earlier messages (\(hiddenCount) hidden)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .buttonStyle(.plain)
+
+            Spacer()
+        }
+        .padding(.vertical, 10)
+    }
+}

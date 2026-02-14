@@ -1047,58 +1047,15 @@ enum ProviderParamsJSONSync {
         controls: inout GenerationControls,
         providerSpecific: inout [String: AnyCodable]
     ) {
-        var remaining = dict
-
-        if let raw = dict["temperature"], let value = doubleValue(from: raw) {
-            controls.temperature = value
-            remaining.removeValue(forKey: "temperature")
-        } else {
-            controls.temperature = nil
-        }
-
-        if let raw = dict["maxOutputTokens"], let value = intValue(from: raw) {
-            controls.maxTokens = value
-            remaining.removeValue(forKey: "maxOutputTokens")
-        } else {
-            controls.maxTokens = nil
-        }
-
-        if let raw = dict["topP"], let value = doubleValue(from: raw) {
-            controls.topP = value
-            remaining.removeValue(forKey: "topP")
-        } else {
-            controls.topP = nil
-        }
-
-        if let raw = dict["thinkingConfig"] as? [String: Any] {
-            applyThinkingConfig(
-                raw,
-                defaultLevelWhenOff: defaultGeminiThinkingLevelWhenOff(modelID: modelID),
-                controls: &controls
-            )
-            remaining.removeValue(forKey: "thinkingConfig")
-        } else {
-            controls.reasoning = nil
-        }
-
-        if let raw = dict["responseModalities"] as? [Any] {
-            applyResponseModalities(raw, controls: &controls)
-            remaining.removeValue(forKey: "responseModalities")
-        } else if isGeminiImageModel(modelID) {
-            controls.imageGeneration = nil
-        }
-
-        if let raw = dict["seed"], let value = intValue(from: raw) {
-            var image = controls.imageGeneration ?? ImageGenerationControls()
-            image.seed = value
-            controls.imageGeneration = image
-            remaining.removeValue(forKey: "seed")
-        }
-
-        if let raw = dict["imageConfig"] as? [String: Any] {
-            applyGeminiImageConfig(raw, modelID: modelID, controls: &controls)
-            remaining.removeValue(forKey: "imageConfig")
-        }
+        let remaining = applyGoogleStyleGenerationConfig(
+            dict,
+            defaultLevelWhenOff: defaultGeminiThinkingLevelWhenOff(modelID: modelID),
+            isImageModel: isGeminiImageModel(modelID),
+            controls: &controls,
+            applyImageConfig: { imageDict, ctrl in
+                applyGeminiImageConfig(imageDict, modelID: modelID, controls: &ctrl)
+            }
+        )
 
         if remaining.isEmpty {
             providerSpecific.removeValue(forKey: "generationConfig")
@@ -1241,58 +1198,15 @@ enum ProviderParamsJSONSync {
         controls: inout GenerationControls,
         providerSpecific: inout [String: AnyCodable]
     ) {
-        var remaining = dict
-
-        if let raw = dict["temperature"], let value = doubleValue(from: raw) {
-            controls.temperature = value
-            remaining.removeValue(forKey: "temperature")
-        } else {
-            controls.temperature = nil
-        }
-
-        if let raw = dict["maxOutputTokens"], let value = intValue(from: raw) {
-            controls.maxTokens = value
-            remaining.removeValue(forKey: "maxOutputTokens")
-        } else {
-            controls.maxTokens = nil
-        }
-
-        if let raw = dict["topP"], let value = doubleValue(from: raw) {
-            controls.topP = value
-            remaining.removeValue(forKey: "topP")
-        } else {
-            controls.topP = nil
-        }
-
-        if let raw = dict["thinkingConfig"] as? [String: Any] {
-            applyThinkingConfig(
-                raw,
-                defaultLevelWhenOff: "MINIMAL",
-                controls: &controls
-            )
-            remaining.removeValue(forKey: "thinkingConfig")
-        } else {
-            controls.reasoning = nil
-        }
-
-        if let raw = dict["responseModalities"] as? [Any] {
-            applyResponseModalities(raw, controls: &controls)
-            remaining.removeValue(forKey: "responseModalities")
-        } else if isVertexImageModel(modelID) {
-            controls.imageGeneration = nil
-        }
-
-        if let raw = dict["seed"], let value = intValue(from: raw) {
-            var image = controls.imageGeneration ?? ImageGenerationControls()
-            image.seed = value
-            controls.imageGeneration = image
-            remaining.removeValue(forKey: "seed")
-        }
-
-        if let raw = dict["imageConfig"] as? [String: Any] {
-            applyVertexImageConfig(raw, modelID: modelID, controls: &controls)
-            remaining.removeValue(forKey: "imageConfig")
-        }
+        let remaining = applyGoogleStyleGenerationConfig(
+            dict,
+            defaultLevelWhenOff: "MINIMAL",
+            isImageModel: isVertexImageModel(modelID),
+            controls: &controls,
+            applyImageConfig: { imageDict, ctrl in
+                applyVertexImageConfig(imageDict, modelID: modelID, controls: &ctrl)
+            }
+        )
 
         if remaining.isEmpty {
             providerSpecific.removeValue(forKey: "generationConfig")
@@ -1341,11 +1255,11 @@ enum ProviderParamsJSONSync {
     }
 
     private static func isVertexImageModel(_ modelID: String) -> Bool {
-        modelID.lowercased().contains("-image")
+        isGeminiImageModel(modelID)
     }
 
     private static func isVertexGemini3ProImageModel(_ modelID: String) -> Bool {
-        modelID.lowercased().contains("gemini-3-pro-image")
+        isGemini3ProImageModel(modelID)
     }
 
     private static func mapEffortToVertexThinkingLevel(_ effort: ReasoningEffort) -> String {
@@ -1359,6 +1273,73 @@ enum ProviderParamsJSONSync {
         case .high, .xhigh:
             return "HIGH"
         }
+    }
+
+    // MARK: - Shared Google-style Generation Config
+
+    /// Shared logic for Gemini and VertexAI generation config application.
+    /// Returns the remaining (unrecognized) keys for providerSpecific passthrough.
+    private static func applyGoogleStyleGenerationConfig(
+        _ dict: [String: Any],
+        defaultLevelWhenOff: String,
+        isImageModel: Bool,
+        controls: inout GenerationControls,
+        applyImageConfig: (([String: Any], inout GenerationControls) -> Void)?
+    ) -> [String: Any] {
+        var remaining = dict
+
+        if let raw = dict["temperature"], let value = doubleValue(from: raw) {
+            controls.temperature = value
+            remaining.removeValue(forKey: "temperature")
+        } else {
+            controls.temperature = nil
+        }
+
+        if let raw = dict["maxOutputTokens"], let value = intValue(from: raw) {
+            controls.maxTokens = value
+            remaining.removeValue(forKey: "maxOutputTokens")
+        } else {
+            controls.maxTokens = nil
+        }
+
+        if let raw = dict["topP"], let value = doubleValue(from: raw) {
+            controls.topP = value
+            remaining.removeValue(forKey: "topP")
+        } else {
+            controls.topP = nil
+        }
+
+        if let raw = dict["thinkingConfig"] as? [String: Any] {
+            applyThinkingConfig(
+                raw,
+                defaultLevelWhenOff: defaultLevelWhenOff,
+                controls: &controls
+            )
+            remaining.removeValue(forKey: "thinkingConfig")
+        } else {
+            controls.reasoning = nil
+        }
+
+        if let raw = dict["responseModalities"] as? [Any] {
+            applyResponseModalities(raw, controls: &controls)
+            remaining.removeValue(forKey: "responseModalities")
+        } else if isImageModel {
+            controls.imageGeneration = nil
+        }
+
+        if let raw = dict["seed"], let value = intValue(from: raw) {
+            var image = controls.imageGeneration ?? ImageGenerationControls()
+            image.seed = value
+            controls.imageGeneration = image
+            remaining.removeValue(forKey: "seed")
+        }
+
+        if let raw = dict["imageConfig"] as? [String: Any] {
+            applyImageConfig?(raw, &controls)
+            remaining.removeValue(forKey: "imageConfig")
+        }
+
+        return remaining
     }
 
     // MARK: - Shared helpers

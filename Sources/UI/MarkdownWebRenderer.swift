@@ -1,14 +1,10 @@
 import SwiftUI
 import WebKit
 
-private var _cachedTemplateHTML: String?
-private func cachedTemplateHTML() -> String? {
-    if let cached = _cachedTemplateHTML { return cached }
-    guard let url = Bundle.module.url(forResource: "markdown-template", withExtension: "html"),
-          let html = try? String(contentsOf: url, encoding: .utf8) else { return nil }
-    _cachedTemplateHTML = html
-    return html
-}
+private let cachedTemplateHTML: String? = {
+    guard let url = Bundle.module.url(forResource: "markdown-template", withExtension: "html") else { return nil }
+    return try? String(contentsOf: url, encoding: .utf8)
+}()
 
 struct MarkdownWebRenderer: View {
     let markdownText: String
@@ -101,7 +97,7 @@ private struct MarkdownWebRendererRepresentable: NSViewRepresentable {
     }
 
     private func loadTemplate(into webView: WKWebView) {
-        guard var html = cachedTemplateHTML() else { return }
+        guard var html = cachedTemplateHTML else { return }
         html = html
             .replacingOccurrences(of: "BODY_FONT_FAMILY", with: resolvedBodyFontCSS())
             .replacingOccurrences(of: "BODY_FONT_SIZE", with: "\(cssPixelValue(resolvedBodyFontSize()))px")

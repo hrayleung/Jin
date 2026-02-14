@@ -209,7 +209,7 @@ struct Message: Identifiable, Codable {
 }
 
 /// Tool call from LLM
-struct ToolCall: Codable, Identifiable {
+struct ToolCall: Codable, Identifiable, Sendable {
     let id: String
     let name: String
     let arguments: [String: AnyCodable]
@@ -253,7 +253,9 @@ struct ToolResult: Codable, Identifiable {
 }
 
 /// Type-erased codable value
-struct AnyCodable: Codable {
+// Stores JSON-compatible value graphs (null/bool/number/string/array/object).
+// Marked unchecked because the erased `Any` payload cannot be proven at compile time.
+struct AnyCodable: Codable, @unchecked Sendable {
     let value: Any
 
     init(_ value: Any) {

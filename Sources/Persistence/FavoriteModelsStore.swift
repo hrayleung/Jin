@@ -6,6 +6,7 @@ struct FavoriteModelKey: Codable, Hashable {
     let modelID: String
 }
 
+@MainActor
 final class FavoriteModelsStore: ObservableObject {
     static let shared = FavoriteModelsStore()
 
@@ -49,4 +50,3 @@ final class FavoriteModelsStore: ObservableObject {
         defaults.set(data, forKey: storageKey)
     }
 }
-
