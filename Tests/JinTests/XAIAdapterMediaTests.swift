@@ -163,14 +163,16 @@ final class XAIAdapterMediaTests: XCTestCase {
             XCTAssertEqual(root["model"] as? String, "grok-imagine-image")
             XCTAssertEqual(root["prompt"] as? String, "Make this dreamy")
             XCTAssertEqual(root["aspect_ratio"] as? String, "16:9")
-            XCTAssertEqual(root["response_format"] as? String, "url")
+            XCTAssertEqual(root["response_format"] as? String, "b64_json")
             XCTAssertNotNil(root["image_url"] as? String)
+
+            let expected = Data([0x89, 0x50, 0x4e, 0x47])
 
             let response: [String: Any] = [
                 "request_id": "img_edit_1",
                 "images": [
                     [
-                        "url": "https://cdn.example.com/edited.png",
+                        "b64_json": expected.base64EncodedString(),
                         "mime_type": "image/png"
                     ]
                 ]
@@ -197,21 +199,265 @@ final class XAIAdapterMediaTests: XCTestCase {
         )
 
         var messageID: String?
-        var imageURL: URL?
+        var imageData: Data?
 
         for try await event in stream {
             switch event {
             case .messageStart(let id):
                 messageID = id
             case .contentDelta(.image(let image)):
-                imageURL = image.url
+                imageData = image.data
             default:
                 break
             }
         }
 
         XCTAssertEqual(messageID, "img_edit_1")
-        XCTAssertEqual(imageURL?.absoluteString, "https://cdn.example.com/edited.png")
+        XCTAssertEqual(imageData, Data([0x89, 0x50, 0x4e, 0x47]))
+    }
+
+    func testXAIFollowUpPromptUsesLatestAssistantImageForEdit() async throws {
+        let (session, protocolType) = makeMockedURLSession()
+        let networkManager = NetworkManager(urlSession: session)
+
+        let providerConfig = ProviderConfig(
+            id: "x",
+            name: "xAI",
+            type: .xai,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        let priorImage = Data([0xDE, 0xAD, 0xBE, 0xEF])
+        let expected = Data([0x89, 0x50, 0x4e, 0x47])
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://example.com/images/edits")
+
+            let body = try XCTUnwrap(requestBodyData(request))
+            let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+            let root = try XCTUnwrap(json)
+
+            XCTAssertEqual(root["model"] as? String, "grok-imagine-image")
+            let prompt = try XCTUnwrap(root["prompt"] as? String)
+            XCTAssertTrue(prompt.contains("Original request:"))
+            XCTAssertTrue(prompt.contains("girl sleeping with a cat"))
+            XCTAssertTrue(prompt.contains("Apply this new edit now:"))
+            XCTAssertTrue(prompt.contains("japan style"))
+            XCTAssertEqual(root["response_format"] as? String, "b64_json")
+
+            let imageURL = try XCTUnwrap(root["image_url"] as? String)
+            XCTAssertTrue(imageURL.hasPrefix("data:image/png;base64,"))
+            XCTAssertTrue(imageURL.contains(priorImage.base64EncodedString()))
+
+            let response: [String: Any] = [
+                "id": "img_follow_1",
+                "data": [
+                    [
+                        "b64_json": expected.base64EncodedString(),
+                        "mime_type": "image/png"
+                    ]
+                ]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = XAIAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+
+        let stream = try await adapter.sendMessage(
+            messages: [
+                Message(role: .user, content: [.text("girl sleeping with a cat")]),
+                Message(role: .assistant, content: [
+                    .image(ImageContent(mimeType: "image/png", data: priorImage, url: nil))
+                ]),
+                Message(role: .user, content: [.text("japan style")])
+            ],
+            modelID: "grok-imagine-image",
+            controls: GenerationControls(),
+            tools: [],
+            streaming: false
+        )
+
+        var messageID: String?
+        var imageData: Data?
+
+        for try await event in stream {
+            switch event {
+            case .messageStart(let id):
+                messageID = id
+            case .contentDelta(.image(let image)):
+                imageData = image.data
+            default:
+                break
+            }
+        }
+
+        XCTAssertEqual(messageID, "img_follow_1")
+        XCTAssertEqual(imageData, expected)
+    }
+
+    func testXAIChainedEditPromptRetainsInstructionHistory() async throws {
+        let (session, protocolType) = makeMockedURLSession()
+        let networkManager = NetworkManager(urlSession: session)
+
+        let providerConfig = ProviderConfig(
+            id: "x",
+            name: "xAI",
+            type: .xai,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        let priorEditedImage = Data([0xCA, 0xFE, 0xBA, 0xBE])
+        let expected = Data([0x89, 0x50, 0x4e, 0x47])
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://example.com/images/edits")
+
+            let body = try XCTUnwrap(requestBodyData(request))
+            let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+            let root = try XCTUnwrap(json)
+
+            let prompt = try XCTUnwrap(root["prompt"] as? String)
+            XCTAssertTrue(prompt.contains("Original request:"))
+            XCTAssertTrue(prompt.contains("girl sleeping with a cat"))
+            XCTAssertTrue(prompt.contains("Edits already applied:"))
+            XCTAssertTrue(prompt.contains("japan style"))
+            XCTAssertTrue(prompt.contains("Apply this new edit now:"))
+            XCTAssertTrue(prompt.contains("more realistic"))
+
+            let imageURL = try XCTUnwrap(root["image_url"] as? String)
+            XCTAssertTrue(imageURL.hasPrefix("data:image/png;base64,"))
+            XCTAssertTrue(imageURL.contains(priorEditedImage.base64EncodedString()))
+
+            let response: [String: Any] = [
+                "id": "img_follow_2",
+                "data": [
+                    [
+                        "b64_json": expected.base64EncodedString(),
+                        "mime_type": "image/png"
+                    ]
+                ]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = XAIAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+
+        let stream = try await adapter.sendMessage(
+            messages: [
+                Message(role: .user, content: [.text("girl sleeping with a cat")]),
+                Message(role: .assistant, content: [
+                    .image(ImageContent(mimeType: "image/png", data: Data([0x11, 0x22]), url: nil))
+                ]),
+                Message(role: .user, content: [.text("japan style")]),
+                Message(role: .assistant, content: [
+                    .image(ImageContent(mimeType: "image/png", data: priorEditedImage, url: nil))
+                ]),
+                Message(role: .user, content: [.text("more realistic")])
+            ],
+            modelID: "grok-imagine-image",
+            controls: GenerationControls(),
+            tools: [],
+            streaming: false
+        )
+
+        var messageID: String?
+        var imageData: Data?
+
+        for try await event in stream {
+            switch event {
+            case .messageStart(let id):
+                messageID = id
+            case .contentDelta(.image(let image)):
+                imageData = image.data
+            default:
+                break
+            }
+        }
+
+        XCTAssertEqual(messageID, "img_follow_2")
+        XCTAssertEqual(imageData, expected)
+    }
+
+    func testXAIChainedEditPrefersLatestAssistantImageOverOlderUserUpload() async throws {
+        let (session, protocolType) = makeMockedURLSession()
+        let networkManager = NetworkManager(urlSession: session)
+
+        let providerConfig = ProviderConfig(
+            id: "x",
+            name: "xAI",
+            type: .xai,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        let originalUpload = Data([0x01, 0x02, 0x03])
+        let assistantEdit = Data([0xAA, 0xBB, 0xCC])
+        let expected = Data([0x89, 0x50, 0x4e, 0x47])
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://example.com/images/edits")
+
+            let body = try XCTUnwrap(requestBodyData(request))
+            let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+            let root = try XCTUnwrap(json)
+
+            let imageURL = try XCTUnwrap(root["image_url"] as? String)
+            XCTAssertTrue(imageURL.hasPrefix("data:image/png;base64,"))
+            XCTAssertTrue(imageURL.contains(assistantEdit.base64EncodedString()))
+            XCTAssertFalse(imageURL.contains(originalUpload.base64EncodedString()))
+
+            let response: [String: Any] = [
+                "id": "img_follow_3",
+                "data": [
+                    [
+                        "b64_json": expected.base64EncodedString(),
+                        "mime_type": "image/png"
+                    ]
+                ]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = XAIAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+
+        let stream = try await adapter.sendMessage(
+            messages: [
+                Message(role: .user, content: [
+                    .text("apply anime style"),
+                    .image(ImageContent(mimeType: "image/png", data: originalUpload, url: nil))
+                ]),
+                Message(role: .assistant, content: [
+                    .image(ImageContent(mimeType: "image/png", data: assistantEdit, url: nil))
+                ]),
+                Message(role: .user, content: [.text("make it more realistic")])
+            ],
+            modelID: "grok-imagine-image",
+            controls: GenerationControls(),
+            tools: [],
+            streaming: false
+        )
+
+        var messageID: String?
+        var imageData: Data?
+
+        for try await event in stream {
+            switch event {
+            case .messageStart(let id):
+                messageID = id
+            case .contentDelta(.image(let image)):
+                imageData = image.data
+            default:
+                break
+            }
+        }
+
+        XCTAssertEqual(messageID, "img_follow_3")
+        XCTAssertEqual(imageData, expected)
     }
 
     func testXAIVideoModelIDFallsBackToResponsesAPI() async throws {
