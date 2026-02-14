@@ -7,7 +7,7 @@ enum JinTypography {
     static let systemFontPreferenceValue = ""
     static let defaultFontDisplayName = "System Default"
 
-    static let defaultChatMessageScale = 1.0
+    static let defaultChatMessageScale = 1.15
     static let chatMessageScaleRange: ClosedRange<Double> = 0.85...1.50
     static let chatMessageScaleStep = 0.05
 
