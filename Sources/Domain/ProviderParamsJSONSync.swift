@@ -20,7 +20,7 @@ enum ProviderParamsJSONSync {
         case .cerebras:
             base = makeCerebrasDraft(controls: controls)
         case .fireworks:
-            base = makeFireworksDraft(controls: controls)
+            base = makeFireworksDraft(controls: controls, modelID: modelID)
         case .perplexity:
             base = makePerplexityDraft(controls: controls)
         case .openaiCompatible, .openrouter, .groq, .cohere, .mistral, .deepinfra, .xai, .deepseek, .none:
@@ -59,7 +59,7 @@ enum ProviderParamsJSONSync {
         case .cerebras:
             applyCerebras(draft: normalizedDraft, controls: &controls, providerSpecific: &providerSpecific)
         case .fireworks:
-            applyFireworks(draft: normalizedDraft, controls: &controls, providerSpecific: &providerSpecific)
+            applyFireworks(draft: normalizedDraft, modelID: modelID, controls: &controls, providerSpecific: &providerSpecific)
         case .perplexity:
             applyPerplexity(draft: normalizedDraft, controls: &controls, providerSpecific: &providerSpecific)
         case .openaiCompatible, .openrouter, .groq, .cohere, .mistral, .deepinfra, .xai, .deepseek, .none:
@@ -261,8 +261,9 @@ enum ProviderParamsJSONSync {
         return out
     }
 
-    private static func makeFireworksDraft(controls: GenerationControls) -> [String: Any] {
+    private static func makeFireworksDraft(controls: GenerationControls, modelID: String) -> [String: Any] {
         var out: [String: Any] = [:]
+        let isMiniMaxM2FamilyModel = isFireworksMiniMaxM2FamilyModel(modelID)
 
         if let temperature = controls.temperature {
             out["temperature"] = temperature
@@ -278,7 +279,9 @@ enum ProviderParamsJSONSync {
 
         if let reasoning = controls.reasoning {
             if reasoning.enabled == false || (reasoning.effort ?? ReasoningEffort.none) == ReasoningEffort.none {
-                out["reasoning_effort"] = "none"
+                if !isMiniMaxM2FamilyModel {
+                    out["reasoning_effort"] = "none"
+                }
             } else if let effort = reasoning.effort {
                 out["reasoning_effort"] = mapFireworksEffort(effort)
             }
@@ -563,9 +566,12 @@ enum ProviderParamsJSONSync {
 
     private static func applyFireworks(
         draft: [String: AnyCodable],
+        modelID: String,
         controls: inout GenerationControls,
         providerSpecific: inout [String: AnyCodable]
     ) {
+        let isMiniMaxM2FamilyModel = isFireworksMiniMaxM2FamilyModel(modelID)
+
         if let raw = draft["temperature"]?.value {
             if let value = doubleValue(from: raw) {
                 controls.temperature = value
@@ -597,14 +603,36 @@ enum ProviderParamsJSONSync {
             if let effortString = raw as? String,
                let effort = parseFireworksEffort(effortString) {
                 if effort == .none {
-                    controls.reasoning = ReasoningControls(enabled: false, effort: nil, budgetTokens: nil, summary: nil)
+                    if isMiniMaxM2FamilyModel {
+                        controls.reasoning = ReasoningControls(enabled: true, effort: .medium, budgetTokens: nil, summary: nil)
+                    } else {
+                        controls.reasoning = ReasoningControls(enabled: false, effort: nil, budgetTokens: nil, summary: nil)
+                    }
                 } else {
                     controls.reasoning = ReasoningControls(enabled: true, effort: effort, budgetTokens: nil, summary: nil)
                 }
                 providerSpecific.removeValue(forKey: "reasoning_effort")
+            } else if isMiniMaxM2FamilyModel {
+                controls.reasoning = ReasoningControls(enabled: true, effort: .medium, budgetTokens: nil, summary: nil)
+                providerSpecific.removeValue(forKey: "reasoning_effort")
             }
         } else {
-            controls.reasoning = nil
+            if isMiniMaxM2FamilyModel {
+                controls.reasoning = ReasoningControls(enabled: true, effort: .medium, budgetTokens: nil, summary: nil)
+            } else {
+                controls.reasoning = nil
+            }
+        }
+
+        if let rawHistory = draft["reasoning_history"]?.value as? String {
+            let normalized = rawHistory.lowercased()
+            if supportedFireworksReasoningHistoryValues(for: modelID).contains(normalized) {
+                providerSpecific["reasoning_history"] = AnyCodable(normalized)
+            } else {
+                providerSpecific.removeValue(forKey: "reasoning_history")
+            }
+        } else if draft["reasoning_history"] != nil {
+            providerSpecific.removeValue(forKey: "reasoning_history")
         }
     }
 
@@ -1517,6 +1545,30 @@ enum ProviderParamsJSONSync {
         default:
             return nil
         }
+    }
+
+    private static func isFireworksMiniMaxM2FamilyModel(_ modelID: String) -> Bool {
+        let lower = modelID.lowercased()
+        return lower.hasPrefix("fireworks/minimax-m2")
+            || lower.hasPrefix("accounts/fireworks/models/minimax-m2")
+    }
+
+    private static func supportedFireworksReasoningHistoryValues(for modelID: String) -> Set<String> {
+        if isFireworksMiniMaxM2FamilyModel(modelID) {
+            return ["interleaved", "disabled"]
+        }
+
+        let lower = modelID.lowercased()
+        if lower == "fireworks/kimi-k2p5"
+            || lower == "accounts/fireworks/models/kimi-k2p5"
+            || lower == "fireworks/glm-4p7"
+            || lower == "accounts/fireworks/models/glm-4p7"
+            || lower == "fireworks/glm-5"
+            || lower == "accounts/fireworks/models/glm-5" {
+            return ["preserved", "interleaved", "disabled"]
+        }
+
+        return []
     }
 
     private static func mapPerplexityEffort(_ effort: ReasoningEffort) -> String? {

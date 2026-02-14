@@ -882,6 +882,13 @@ struct ContentView: View {
                 reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium)
             ),
             ModelInfo(
+                id: "fireworks/minimax-m2p5",
+                name: "MiniMax M2.5",
+                capabilities: [.streaming, .toolCalling, .reasoning],
+                contextWindow: 204_800,
+                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium)
+            ),
+            ModelInfo(
                 id: "fireworks/kimi-k2p5",
                 name: "Kimi K2.5",
                 capabilities: [.streaming, .toolCalling, .vision, .reasoning],

@@ -763,6 +763,7 @@ struct ChatView: View {
                             Text("Perplexity disable search: {\"disable_search\": true}")
                             Text("Perplexity academic search: {\"search_mode\": \"academic\"}")
                             Text("Fireworks GLM/Kimi thinking history: {\"reasoning_history\": \"preserved\"} (or \"interleaved\" / \"disabled\")")
+                            Text("Fireworks MiniMax thinking history: {\"reasoning_history\": \"interleaved\"} (or \"disabled\")")
                             Text("Cerebras GLM preserved thinking: {\"clear_thinking\": false}")
                             Text("Cerebras GLM disable thinking: {\"disable_reasoning\": true}")
                             Text("Cerebras reasoning output: {\"reasoning_format\": \"parsed\"} (or \"raw\" / \"hidden\" / \"none\")")
@@ -1729,11 +1730,94 @@ struct ChatView: View {
     }
 
     private var selectedModelInfo: ModelInfo? {
-        availableModels.first(where: { $0.id == conversationEntity.modelID })
+        if let model = availableModels.first(where: { $0.id == conversationEntity.modelID }) {
+            return normalizedSelectedModelInfo(model)
+        }
+        return fallbackSelectedModelInfo()
     }
 
     private var lowerModelID: String {
         conversationEntity.modelID.lowercased()
+    }
+
+    private func normalizedSelectedModelInfo(_ model: ModelInfo) -> ModelInfo {
+        guard providerType == .fireworks else { return model }
+        return normalizedFireworksModelInfo(model)
+    }
+
+    private func fallbackSelectedModelInfo() -> ModelInfo? {
+        guard providerType == .fireworks else { return nil }
+        let base = ModelInfo(
+            id: conversationEntity.modelID,
+            name: conversationEntity.modelID,
+            capabilities: [.streaming, .toolCalling],
+            contextWindow: 128_000,
+            reasoningConfig: nil
+        )
+        return normalizedFireworksModelInfo(base)
+    }
+
+    private func normalizedFireworksModelInfo(_ model: ModelInfo) -> ModelInfo {
+        let canonicalID = fireworksCanonicalModelID(model.id)
+        var caps = model.capabilities
+        var contextWindow = model.contextWindow
+        var reasoningConfig = model.reasoningConfig
+        var name = model.name
+        let defaultReasoningConfig = ModelReasoningConfig(type: .effort, defaultEffort: .medium)
+
+        switch canonicalID {
+        case "kimi-k2p5":
+            caps.insert(.vision)
+            caps.insert(.reasoning)
+            contextWindow = 262_100
+            reasoningConfig = defaultReasoningConfig
+            if name == model.id { name = "Kimi K2.5" }
+        case "glm-5":
+            caps.insert(.reasoning)
+            contextWindow = 202_800
+            reasoningConfig = defaultReasoningConfig
+            if name == model.id { name = "GLM-5" }
+        case "glm-4p7":
+            caps.insert(.reasoning)
+            contextWindow = 202_800
+            reasoningConfig = defaultReasoningConfig
+            if name == model.id { name = "GLM-4.7" }
+        case "minimax-m2p5":
+            caps.insert(.reasoning)
+            contextWindow = 204_800
+            reasoningConfig = defaultReasoningConfig
+            if name == model.id { name = "MiniMax M2.5" }
+        case "minimax-m2p1":
+            caps.insert(.reasoning)
+            contextWindow = 204_800
+            reasoningConfig = defaultReasoningConfig
+            if name == model.id { name = "MiniMax M2.1" }
+        case "minimax-m2":
+            caps.insert(.reasoning)
+            contextWindow = 196_600
+            reasoningConfig = defaultReasoningConfig
+            if name == model.id { name = "MiniMax M2" }
+        case let id? where id.hasPrefix("minimax-m2"):
+            // Compatibility for legacy persisted MiniMax M2 variants without provider prefixes.
+            caps.insert(.reasoning)
+            if reasoningConfig == nil {
+                reasoningConfig = defaultReasoningConfig
+            }
+            if contextWindow == 128_000 {
+                contextWindow = 204_800
+            }
+        default:
+            break
+        }
+
+        return ModelInfo(
+            id: model.id,
+            name: name,
+            capabilities: caps,
+            contextWindow: contextWindow,
+            reasoningConfig: reasoningConfig,
+            isEnabled: model.isEnabled
+        )
     }
 
     private var isImageGenerationModelID: Bool {
@@ -1934,7 +2018,10 @@ struct ChatView: View {
     }
 
     private var isReasoningEnabled: Bool {
-        controls.reasoning?.enabled == true
+        if providerType == .fireworks, isFireworksMiniMaxM2FamilyModel(conversationEntity.modelID) {
+            return true
+        }
+        return controls.reasoning?.enabled == true
     }
 
     private var isWebSearchEnabled: Bool {
@@ -1953,6 +2040,14 @@ struct ChatView: View {
     private var supportsReasoningControl: Bool {
         guard let config = selectedReasoningConfig else { return false }
         return config.type != .none
+    }
+
+    private var supportsReasoningDisableToggle: Bool {
+        guard supportsReasoningControl else { return false }
+        if providerType == .fireworks, isFireworksMiniMaxM2FamilyModel(conversationEntity.modelID) {
+            return false
+        }
+        return true
     }
 
     private var supportsWebSearchControl: Bool {
@@ -2291,6 +2386,7 @@ struct ChatView: View {
                 ?? models.first(where: { $0.id == "deepseek-reasoner" })?.id
         case .fireworks:
             return models.first(where: { isFireworksModelID($0.id, canonicalID: "glm-5") })?.id
+                ?? models.first(where: { isFireworksModelID($0.id, canonicalID: "minimax-m2p5") })?.id
                 ?? models.first(where: { isFireworksModelID($0.id, canonicalID: "kimi-k2p5") })?.id
                 ?? models.first(where: { isFireworksModelID($0.id, canonicalID: "glm-4p7") })?.id
         case .cerebras:
@@ -3631,7 +3727,9 @@ struct ChatView: View {
     @ViewBuilder
     private var reasoningMenuContent: some View {
         if let reasoningConfig = selectedReasoningConfig, reasoningConfig.type != .none {
-            Button { setReasoningOff() } label: { menuItemLabel("Off", isSelected: !isReasoningEnabled) }
+            if supportsReasoningDisableToggle {
+                Button { setReasoningOff() } label: { menuItemLabel("Off", isSelected: !isReasoningEnabled) }
+            }
 
             switch reasoningConfig.type {
             case .toggle:
@@ -3716,9 +3814,16 @@ struct ChatView: View {
                         .foregroundStyle(.secondary)
 
                     Button { setFireworksReasoningHistory(nil) } label: { menuItemLabel("Default (model)", isSelected: fireworksReasoningHistory == nil) }
-                    Button { setFireworksReasoningHistory("preserved") } label: { menuItemLabel("Preserved", isSelected: fireworksReasoningHistory == "preserved") }
-                    Button { setFireworksReasoningHistory("interleaved") } label: { menuItemLabel("Interleaved", isSelected: fireworksReasoningHistory == "interleaved") }
-                    Button { setFireworksReasoningHistory("disabled") } label: { menuItemLabel("Disabled", isSelected: fireworksReasoningHistory == "disabled") }
+                    ForEach(fireworksReasoningHistoryOptions, id: \.self) { option in
+                        Button {
+                            setFireworksReasoningHistory(option)
+                        } label: {
+                            menuItemLabel(
+                                fireworksReasoningHistoryLabel(for: option),
+                                isSelected: fireworksReasoningHistory == option
+                            )
+                        }
+                    }
                 }
 
             case .budget:
@@ -3737,10 +3842,20 @@ struct ChatView: View {
     }
 
     private var supportsFireworksReasoningHistoryToggle: Bool {
-        guard providerType == .fireworks else { return false }
-        return isFireworksModelID(conversationEntity.modelID, canonicalID: "kimi-k2p5")
+        !fireworksReasoningHistoryOptions.isEmpty
+    }
+
+    private var fireworksReasoningHistoryOptions: [String] {
+        guard providerType == .fireworks else { return [] }
+        if isFireworksMiniMaxM2FamilyModel(conversationEntity.modelID) {
+            return ["interleaved", "disabled"]
+        }
+        if isFireworksModelID(conversationEntity.modelID, canonicalID: "kimi-k2p5")
             || isFireworksModelID(conversationEntity.modelID, canonicalID: "glm-4p7")
-            || isFireworksModelID(conversationEntity.modelID, canonicalID: "glm-5")
+            || isFireworksModelID(conversationEntity.modelID, canonicalID: "glm-5") {
+            return ["preserved", "interleaved", "disabled"]
+        }
+        return []
     }
 
     private var fireworksReasoningHistory: String? {
@@ -3757,9 +3872,39 @@ struct ChatView: View {
     }
 
     private func isFireworksModelID(_ modelID: String, canonicalID: String) -> Bool {
+        fireworksCanonicalModelID(modelID) == canonicalID
+    }
+
+    private func isFireworksMiniMaxM2FamilyModel(_ modelID: String) -> Bool {
+        fireworksCanonicalModelID(modelID)?.hasPrefix("minimax-m2") == true
+    }
+
+    private func fireworksCanonicalModelID(_ modelID: String) -> String? {
         let lower = modelID.lowercased()
-        return lower == "fireworks/\(canonicalID)"
-            || lower == "accounts/fireworks/models/\(canonicalID)"
+        if lower.hasPrefix("fireworks/") {
+            return String(lower.dropFirst("fireworks/".count))
+        }
+        if lower.hasPrefix("accounts/fireworks/models/") {
+            return String(lower.dropFirst("accounts/fireworks/models/".count))
+        }
+        // Compatibility for legacy persisted IDs stored without provider prefixes.
+        if !lower.contains("/") {
+            return lower
+        }
+        return nil
+    }
+
+    private func fireworksReasoningHistoryLabel(for option: String) -> String {
+        switch option {
+        case "preserved":
+            return "Preserved"
+        case "interleaved":
+            return "Interleaved"
+        case "disabled":
+            return "Disabled"
+        default:
+            return option
+        }
     }
 
     private var supportsCerebrasPreservedThinkingToggle: Bool {
@@ -4587,6 +4732,17 @@ struct ChatView: View {
     }
 
     private func setReasoningOff() {
+        if providerType == .fireworks, isFireworksMiniMaxM2FamilyModel(conversationEntity.modelID) {
+            updateReasoning { reasoning in
+                reasoning.enabled = true
+                if reasoning.effort == nil || reasoning.effort == ReasoningEffort.none {
+                    reasoning.effort = selectedReasoningConfig?.defaultEffort ?? .medium
+                }
+            }
+            persistControlsToConversation()
+            return
+        }
+
         updateReasoning { reasoning in
             reasoning.enabled = false
         }
@@ -4923,6 +5079,22 @@ struct ChatView: View {
                    controls.reasoning?.effort == nil {
                     updateReasoning { $0.effort = reasoningConfig.defaultEffort ?? .medium }
                 }
+
+                if providerType == .fireworks, isFireworksMiniMaxM2FamilyModel(conversationEntity.modelID) {
+                    if controls.reasoning == nil {
+                        controls.reasoning = ReasoningControls(
+                            enabled: true,
+                            effort: reasoningConfig.defaultEffort ?? .medium,
+                            budgetTokens: nil,
+                            summary: nil
+                        )
+                    }
+                    controls.reasoning?.enabled = true
+                    if controls.reasoning?.effort == nil || controls.reasoning?.effort == ReasoningEffort.none {
+                        controls.reasoning?.effort = reasoningConfig.defaultEffort ?? .medium
+                    }
+                }
+
                 if providerType != .anthropic {
                     controls.reasoning?.budgetTokens = nil
                 }
@@ -4985,6 +5157,23 @@ struct ChatView: View {
                 case .xhigh:
                     controls.reasoning?.effort = .high
                 }
+            }
+        }
+
+        if providerType == .fireworks {
+            if isFireworksMiniMaxM2FamilyModel(conversationEntity.modelID) {
+                controls.providerSpecific.removeValue(forKey: "reasoning_effort")
+            }
+
+            if let rawHistory = controls.providerSpecific["reasoning_history"]?.value as? String {
+                let normalized = rawHistory.lowercased()
+                if fireworksReasoningHistoryOptions.contains(normalized) {
+                    controls.providerSpecific["reasoning_history"] = AnyCodable(normalized)
+                } else {
+                    controls.providerSpecific.removeValue(forKey: "reasoning_history")
+                }
+            } else if controls.providerSpecific["reasoning_history"] != nil {
+                controls.providerSpecific.removeValue(forKey: "reasoning_history")
             }
         }
 

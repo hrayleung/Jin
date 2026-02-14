@@ -131,7 +131,112 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         XCTAssertEqual(usage?.outputTokens, 2)
     }
 
-    func testFireworksAdapterFetchModelsMapsGLM5Metadata() async throws {
+    func testFireworksAdapterOmitsReasoningEffortNoneForMiniMaxM2Family() async throws {
+        let (session, protocolType) = makeMockedURLSession()
+        let networkManager = NetworkManager(urlSession: session)
+
+        let providerConfig = ProviderConfig(
+            id: "fw",
+            name: "Fireworks",
+            type: .fireworks,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://example.com/chat/completions")
+
+            let body = try XCTUnwrap(requestBodyData(request))
+            let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+            let root = try XCTUnwrap(json)
+            XCTAssertEqual(root["model"] as? String, "fireworks/minimax-m2p5")
+            XCTAssertNil(root["reasoning_effort"])
+
+            let response: [String: Any] = [
+                "id": "cmpl_789",
+                "choices": [
+                    [
+                        "message": [
+                            "role": "assistant",
+                            "content": "OK"
+                        ],
+                        "finish_reason": "stop"
+                    ]
+                ]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = FireworksAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hi")])],
+            modelID: "fireworks/minimax-m2p5",
+            controls: GenerationControls(reasoning: ReasoningControls(enabled: false)),
+            tools: [],
+            streaming: false
+        )
+
+        for try await _ in stream {}
+    }
+
+    func testFireworksAdapterSanitizesMiniMaxProviderSpecificReasoningOverrides() async throws {
+        let (session, protocolType) = makeMockedURLSession()
+        let networkManager = NetworkManager(urlSession: session)
+
+        let providerConfig = ProviderConfig(
+            id: "fw",
+            name: "Fireworks",
+            type: .fireworks,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        protocolType.requestHandler = { request in
+            let body = try XCTUnwrap(requestBodyData(request))
+            let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+            let root = try XCTUnwrap(json)
+
+            // `none` is invalid for MiniMax M2 family; adapter should keep control-driven effort.
+            XCTAssertEqual(root["reasoning_effort"] as? String, "high")
+            // MiniMax M2 family does not support preserved history.
+            XCTAssertNil(root["reasoning_history"])
+
+            let response: [String: Any] = [
+                "id": "cmpl_790",
+                "choices": [
+                    [
+                        "message": [
+                            "role": "assistant",
+                            "content": "OK"
+                        ],
+                        "finish_reason": "stop"
+                    ]
+                ]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        var controls = GenerationControls(reasoning: ReasoningControls(enabled: true, effort: .high))
+        controls.providerSpecific = [
+            "reasoning_effort": AnyCodable("none"),
+            "reasoning_history": AnyCodable("preserved")
+        ]
+
+        let adapter = FireworksAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hi")])],
+            modelID: "fireworks/minimax-m2p5",
+            controls: controls,
+            tools: [],
+            streaming: false
+        )
+
+        for try await _ in stream {}
+    }
+
+    func testFireworksAdapterFetchModelsMapsKnownMetadata() async throws {
         let (session, protocolType) = makeMockedURLSession()
         let networkManager = NetworkManager(urlSession: session)
 
@@ -151,8 +256,12 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
             let response: [String: Any] = [
                 "data": [
                     ["id": "fireworks/glm-5"],
+                    ["id": "fireworks/minimax-m2p5"],
+                    ["id": "accounts/fireworks/models/minimax-m2p1"],
+                    ["id": "accounts/fireworks/models/minimax-m2"],
                     ["id": "accounts/fireworks/models/glm-4p7"],
                     ["id": "accounts/fireworks/models/kimi-k2p5"],
+                    ["id": "accounts/fireworks/models/glm-preview"],
                     ["id": "accounts/fireworks/models/other"]
                 ]
             ]
@@ -170,6 +279,24 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         XCTAssertTrue(glm5.capabilities.contains(.reasoning))
         XCTAssertFalse(glm5.capabilities.contains(.vision))
 
+        let minimaxM2p5 = try XCTUnwrap(byID["fireworks/minimax-m2p5"])
+        XCTAssertEqual(minimaxM2p5.name, "MiniMax M2.5")
+        XCTAssertEqual(minimaxM2p5.contextWindow, 204_800)
+        XCTAssertTrue(minimaxM2p5.capabilities.contains(.reasoning))
+        XCTAssertFalse(minimaxM2p5.capabilities.contains(.vision))
+
+        let minimaxM2p1 = try XCTUnwrap(byID["accounts/fireworks/models/minimax-m2p1"])
+        XCTAssertEqual(minimaxM2p1.name, "MiniMax M2.1")
+        XCTAssertEqual(minimaxM2p1.contextWindow, 204_800)
+        XCTAssertTrue(minimaxM2p1.capabilities.contains(.reasoning))
+        XCTAssertFalse(minimaxM2p1.capabilities.contains(.vision))
+
+        let minimaxM2 = try XCTUnwrap(byID["accounts/fireworks/models/minimax-m2"])
+        XCTAssertEqual(minimaxM2.name, "MiniMax M2")
+        XCTAssertEqual(minimaxM2.contextWindow, 196_600)
+        XCTAssertTrue(minimaxM2.capabilities.contains(.reasoning))
+        XCTAssertFalse(minimaxM2.capabilities.contains(.vision))
+
         let glm4p7 = try XCTUnwrap(byID["accounts/fireworks/models/glm-4p7"])
         XCTAssertEqual(glm4p7.name, "GLM-4.7")
         XCTAssertEqual(glm4p7.contextWindow, 202_800)
@@ -181,6 +308,11 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         XCTAssertEqual(kimiK2p5.contextWindow, 262_100)
         XCTAssertTrue(kimiK2p5.capabilities.contains(.reasoning))
         XCTAssertTrue(kimiK2p5.capabilities.contains(.vision))
+
+        let glmPreview = try XCTUnwrap(byID["accounts/fireworks/models/glm-preview"])
+        XCTAssertFalse(glmPreview.capabilities.contains(.reasoning))
+        XCTAssertNil(glmPreview.reasoningConfig)
+        XCTAssertEqual(glmPreview.contextWindow, 128000)
 
         let other = try XCTUnwrap(byID["accounts/fireworks/models/other"])
         XCTAssertEqual(other.name, "accounts/fireworks/models/other")

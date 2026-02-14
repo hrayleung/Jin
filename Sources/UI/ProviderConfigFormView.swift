@@ -888,7 +888,23 @@ private struct AddModelSheet: View {
 
         switch providerType {
         case .fireworks?:
-            if lower == "fireworks/kimi-k2p5" || lower == "accounts/fireworks/models/kimi-k2p5" {
+            if lower == "fireworks/minimax-m2p5" || lower == "accounts/fireworks/models/minimax-m2p5" {
+                caps.insert(.reasoning)
+                reasoningConfig = ModelReasoningConfig(type: .effort, defaultEffort: .medium)
+                contextWindow = 204_800
+            } else if lower == "fireworks/minimax-m2p1" || lower == "accounts/fireworks/models/minimax-m2p1" {
+                caps.insert(.reasoning)
+                reasoningConfig = ModelReasoningConfig(type: .effort, defaultEffort: .medium)
+                contextWindow = 204_800
+            } else if lower == "fireworks/minimax-m2" || lower == "accounts/fireworks/models/minimax-m2" {
+                caps.insert(.reasoning)
+                reasoningConfig = ModelReasoningConfig(type: .effort, defaultEffort: .medium)
+                contextWindow = 196_600
+            } else if lower.hasPrefix("fireworks/minimax-m2") || lower.hasPrefix("accounts/fireworks/models/minimax-m2") {
+                caps.insert(.reasoning)
+                reasoningConfig = ModelReasoningConfig(type: .effort, defaultEffort: .medium)
+                contextWindow = 204_800
+            } else if lower == "fireworks/kimi-k2p5" || lower == "accounts/fireworks/models/kimi-k2p5" {
                 caps.insert(.vision)
                 caps.insert(.reasoning)
                 reasoningConfig = ModelReasoningConfig(type: .effort, defaultEffort: .medium)

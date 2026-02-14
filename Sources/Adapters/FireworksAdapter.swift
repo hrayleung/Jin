@@ -5,7 +5,7 @@ import Foundation
 /// Docs:
 /// - Base URL: https://api.fireworks.ai/inference/v1
 /// - Endpoint: POST /chat/completions
-/// - Models: `fireworks/kimi-k2p5`, `fireworks/glm-4p7`, `fireworks/glm-5`, ...
+/// - Models: `fireworks/kimi-k2p5`, `fireworks/glm-4p7`, `fireworks/glm-5`, `fireworks/minimax-m2p5`, ...
 actor FireworksAdapter: LLMProviderAdapter {
     let providerConfig: ProviderConfig
     let capabilities: ModelCapability = [.streaming, .toolCalling, .vision, .reasoning]
@@ -112,10 +112,15 @@ actor FireworksAdapter: LLMProviderAdapter {
             body["top_p"] = topP
         }
 
-        // Fireworks reasoning controls: `reasoning_effort` (string/bool/int) + `reasoning_history` (for Kimi/GLM-4.7/GLM-5).
+        // Fireworks reasoning controls:
+        // - Most models: `reasoning_effort` supports `none` / `low` / `medium` / `high`.
+        // - MiniMax M2 family: only `low` / `medium` / `high`; omitting the field defaults to `medium`.
+        let isMiniMaxM2FamilyModel = isFireworksMiniMaxM2FamilyModel(modelID)
         if let reasoning = controls.reasoning {
             if reasoning.enabled == false || (reasoning.effort ?? ReasoningEffort.none) == .none {
-                body["reasoning_effort"] = "none"
+                if !isMiniMaxM2FamilyModel {
+                    body["reasoning_effort"] = "none"
+                }
             } else if let effort = reasoning.effort {
                 body["reasoning_effort"] = mapReasoningEffort(effort)
             }
@@ -126,6 +131,20 @@ actor FireworksAdapter: LLMProviderAdapter {
         }
 
         for (key, value) in controls.providerSpecific {
+            if key == "reasoning_effort", isMiniMaxM2FamilyModel {
+                if let normalized = normalizeMiniMaxReasoningEffort(value.value) {
+                    body[key] = normalized
+                }
+                continue
+            }
+
+            if key == "reasoning_history" {
+                if let normalized = normalizeReasoningHistory(value.value, modelID: modelID) {
+                    body[key] = normalized
+                }
+                continue
+            }
+
             body[key] = value.value
         }
 
@@ -327,7 +346,8 @@ actor FireworksAdapter: LLMProviderAdapter {
     }
 
     private func mapReasoningEffort(_ effort: ReasoningEffort) -> String {
-        // Fireworks supports: none, low, medium, high (and may accept ints/bools for some models).
+        // Fireworks accepts: low, medium, high across reasoning models.
+        // For non-MiniMax families, we may also send `none` to disable reasoning.
         switch effort {
         case .none:
             return "none"
@@ -340,11 +360,47 @@ actor FireworksAdapter: LLMProviderAdapter {
         }
     }
 
+    private func normalizeMiniMaxReasoningEffort(_ raw: Any) -> String? {
+        guard let effort = raw as? String else { return nil }
+        switch effort.lowercased() {
+        case "low":
+            return "low"
+        case "medium":
+            return "medium"
+        case "high":
+            return "high"
+        default:
+            return nil
+        }
+    }
+
+    private func normalizeReasoningHistory(_ raw: Any, modelID: String) -> String? {
+        guard let history = raw as? String else { return nil }
+        let normalized = history.lowercased()
+        return supportedReasoningHistoryValues(for: modelID).contains(normalized) ? normalized : nil
+    }
+
+    private func supportedReasoningHistoryValues(for modelID: String) -> Set<String> {
+        if isFireworksMiniMaxM2FamilyModel(modelID) {
+            return ["interleaved", "disabled"]
+        }
+
+        if isFireworksModelID(modelID, canonicalID: "kimi-k2p5")
+            || isFireworksModelID(modelID, canonicalID: "glm-4p7")
+            || isFireworksModelID(modelID, canonicalID: "glm-5") {
+            return ["preserved", "interleaved", "disabled"]
+        }
+
+        return []
+    }
+
     private func makeModelInfo(id: String) -> ModelInfo {
-        let lower = id.lowercased()
-        let isKimiK2p5 = isFireworksModelID(lower, canonicalID: "kimi-k2p5")
-        let isGLM4p7 = isFireworksModelID(lower, canonicalID: "glm-4p7")
-        let isGLM5 = isFireworksModelID(lower, canonicalID: "glm-5")
+        let isKimiK2p5 = isFireworksModelID(id, canonicalID: "kimi-k2p5")
+        let isGLM4p7 = isFireworksModelID(id, canonicalID: "glm-4p7")
+        let isGLM5 = isFireworksModelID(id, canonicalID: "glm-5")
+        let isMiniMaxM2 = isFireworksModelID(id, canonicalID: "minimax-m2")
+        let isMiniMaxM2p1 = isFireworksModelID(id, canonicalID: "minimax-m2p1")
+        let isMiniMaxM2p5 = isFireworksModelID(id, canonicalID: "minimax-m2p5")
 
         var caps: ModelCapability = [.streaming, .toolCalling]
         var reasoningConfig: ModelReasoningConfig?
@@ -359,6 +415,24 @@ actor FireworksAdapter: LLMProviderAdapter {
             // Fireworks model page advertises 262.1k tokens.
             contextWindow = 262_100
             name = "Kimi K2.5"
+        } else if isMiniMaxM2p5 {
+            caps.insert(.reasoning)
+            reasoningConfig = ModelReasoningConfig(type: .effort, defaultEffort: .medium)
+            // Fireworks docs advertise 204,800 tokens.
+            contextWindow = 204_800
+            name = "MiniMax M2.5"
+        } else if isMiniMaxM2p1 {
+            caps.insert(.reasoning)
+            reasoningConfig = ModelReasoningConfig(type: .effort, defaultEffort: .medium)
+            // Fireworks model page advertises 204.8k tokens.
+            contextWindow = 204_800
+            name = "MiniMax M2.1"
+        } else if isMiniMaxM2 {
+            caps.insert(.reasoning)
+            reasoningConfig = ModelReasoningConfig(type: .effort, defaultEffort: .medium)
+            // Fireworks model page advertises 196.6k tokens.
+            contextWindow = 196_600
+            name = "MiniMax M2"
         } else if isGLM5 {
             caps.insert(.reasoning)
             reasoningConfig = ModelReasoningConfig(type: .effort, defaultEffort: .medium)
@@ -371,8 +445,10 @@ actor FireworksAdapter: LLMProviderAdapter {
             // Fireworks model page advertises 202.8k tokens.
             contextWindow = 202_800
             name = "GLM-4.7"
-        } else if lower.contains("kimi") || lower.contains("glm") {
+        } else if isFireworksMiniMaxM2FamilyModel(id) {
             caps.insert(.reasoning)
+            reasoningConfig = ModelReasoningConfig(type: .effort, defaultEffort: .medium)
+            contextWindow = 204_800
         }
 
         return ModelInfo(
@@ -384,8 +460,25 @@ actor FireworksAdapter: LLMProviderAdapter {
         )
     }
 
-    private func isFireworksModelID(_ lowerModelID: String, canonicalID: String) -> Bool {
-        lowerModelID == "fireworks/\(canonicalID)"
-            || lowerModelID == "accounts/fireworks/models/\(canonicalID)"
+    private func isFireworksModelID(_ modelID: String, canonicalID: String) -> Bool {
+        fireworksCanonicalModelID(modelID) == canonicalID
+    }
+
+    private func isFireworksMiniMaxM2FamilyModel(_ modelID: String) -> Bool {
+        fireworksCanonicalModelID(modelID)?.hasPrefix("minimax-m2") == true
+    }
+
+    private func fireworksCanonicalModelID(_ modelID: String) -> String? {
+        let lower = modelID.lowercased()
+        if lower.hasPrefix("fireworks/") {
+            return String(lower.dropFirst("fireworks/".count))
+        }
+        if lower.hasPrefix("accounts/fireworks/models/") {
+            return String(lower.dropFirst("accounts/fireworks/models/".count))
+        }
+        if !lower.contains("/") {
+            return lower
+        }
+        return nil
     }
 }

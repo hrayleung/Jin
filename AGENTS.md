@@ -34,6 +34,12 @@
 - Conventions: `*Tests.swift` files, `final class FooTests: XCTestCase`, `func testSomething()`.
 - Keep tests deterministic (avoid real network calls); prefer unit tests for Domain/Networking/Persistence logic.
 
+## UI & Packaging Checklist
+
+- When adding a new model, always check whether related parameter controls and capability UI must be updated (e.g., reasoning, web search, provider-specific options).
+- When changing functionality, always verify whether corresponding UI behavior/text/options must be updated.
+- After code changes are complete, run `bash Packaging/package.sh` once to produce a packaged build.
+
 ## Commit & Pull Request Guidelines
 
 - This checkout may not include Git history; use a simple Conventional Commits style:

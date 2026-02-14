@@ -46,6 +46,8 @@ enum JinModelSupport {
                 || lower == "accounts/fireworks/models/glm-4p7"
                 || lower == "fireworks/glm-5"
                 || lower == "accounts/fireworks/models/glm-5"
+                || lower == "fireworks/minimax-m2p5"
+                || lower == "accounts/fireworks/models/minimax-m2p5"
 
         case .cerebras:
             return lower == "zai-glm-4.7"

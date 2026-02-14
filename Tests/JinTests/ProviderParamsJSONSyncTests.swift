@@ -315,6 +315,86 @@ final class ProviderParamsJSONSyncTests: XCTestCase {
         XCTAssertEqual(applied.providerSpecific["reasoning_history"]?.value as? String, "disabled")
     }
 
+    func testFireworksMiniMaxDraftOmitsReasoningNone() {
+        var controls = GenerationControls()
+        controls.reasoning = ReasoningControls(enabled: false)
+
+        let draft = ProviderParamsJSONSync.makeDraft(
+            providerType: .fireworks,
+            modelID: "fireworks/minimax-m2p5",
+            controls: controls
+        )
+
+        XCTAssertNil(draft["reasoning_effort"])
+    }
+
+    func testFireworksMiniMaxApplyDraftDefaultsReasoningToMedium() {
+        var applied = GenerationControls()
+        let remainder = ProviderParamsJSONSync.applyDraft(
+            providerType: .fireworks,
+            modelID: "fireworks/minimax-m2p5",
+            draft: [:],
+            controls: &applied
+        )
+        applied.providerSpecific = remainder
+
+        XCTAssertEqual(applied.reasoning?.enabled, true)
+        XCTAssertEqual(applied.reasoning?.effort, .medium)
+    }
+
+    func testFireworksMiniMaxApplyDraftNormalizesReasoningNoneToMedium() {
+        let draft: [String: AnyCodable] = [
+            "reasoning_effort": AnyCodable("none")
+        ]
+
+        var applied = GenerationControls()
+        let remainder = ProviderParamsJSONSync.applyDraft(
+            providerType: .fireworks,
+            modelID: "fireworks/minimax-m2p5",
+            draft: draft,
+            controls: &applied
+        )
+        applied.providerSpecific = remainder
+
+        XCTAssertEqual(applied.reasoning?.enabled, true)
+        XCTAssertEqual(applied.reasoning?.effort, .medium)
+        XCTAssertNil(applied.providerSpecific["reasoning_effort"])
+    }
+
+    func testFireworksMiniMaxApplyDraftDropsUnsupportedReasoningHistory() {
+        let draft: [String: AnyCodable] = [
+            "reasoning_history": AnyCodable("preserved")
+        ]
+
+        var applied = GenerationControls()
+        let remainder = ProviderParamsJSONSync.applyDraft(
+            providerType: .fireworks,
+            modelID: "fireworks/minimax-m2p5",
+            draft: draft,
+            controls: &applied
+        )
+        applied.providerSpecific = remainder
+
+        XCTAssertNil(applied.providerSpecific["reasoning_history"])
+    }
+
+    func testFireworksMiniMaxApplyDraftKeepsSupportedReasoningHistory() {
+        let draft: [String: AnyCodable] = [
+            "reasoning_history": AnyCodable("INTERLEAVED")
+        ]
+
+        var applied = GenerationControls()
+        let remainder = ProviderParamsJSONSync.applyDraft(
+            providerType: .fireworks,
+            modelID: "fireworks/minimax-m2p5",
+            draft: draft,
+            controls: &applied
+        )
+        applied.providerSpecific = remainder
+
+        XCTAssertEqual(applied.providerSpecific["reasoning_history"]?.value as? String, "interleaved")
+    }
+
     func testPerplexityDraftAndApplySyncsCoreParams() {
         var controls = GenerationControls()
         controls.temperature = 0.4
