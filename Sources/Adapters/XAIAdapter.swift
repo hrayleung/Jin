@@ -232,8 +232,8 @@ actor XAIAdapter: LLMProviderAdapter {
         modelID: String,
         controls: GenerationControls
     ) throws -> AsyncThrowingStream<StreamEvent, Error> {
-        let prompt = try mediaPrompt(from: messages)
-        let imageURL = firstImageURLString(from: messages)
+        let imageURL = imageURLForImageGeneration(from: messages)
+        let prompt = try mediaPrompt(from: messages, isImageEdit: imageURL?.isEmpty == false)
 
         return AsyncThrowingStream { continuation in
             let task = Task {
@@ -308,7 +308,7 @@ actor XAIAdapter: LLMProviderAdapter {
             body["aspect_ratio"] = aspectRatio.rawValue
         }
 
-        let responseFormat = imageControls?.responseFormat ?? .url
+        let responseFormat = imageControls?.responseFormat ?? .b64JSON
         body["response_format"] = responseFormat.rawValue
         if let user = imageControls?.user?.trimmingCharacters(in: .whitespacesAndNewlines), !user.isEmpty {
             body["user"] = user
@@ -414,8 +414,56 @@ actor XAIAdapter: LLMProviderAdapter {
             || lower.contains("grok-6")
     }
 
-    private func mediaPrompt(from messages: [Message]) throws -> String {
-        for message in messages.reversed() where message.role == .user {
+    private func mediaPrompt(from messages: [Message], isImageEdit: Bool) throws -> String {
+        let userPrompts = userTextPrompts(from: messages)
+        guard let latest = userPrompts.last else {
+            throw LLMError.invalidRequest(message: "xAI image generation requires a text prompt.")
+        }
+
+        guard isImageEdit else {
+            return latest
+        }
+
+        guard userPrompts.count >= 2 else {
+            return latest
+        }
+
+        let recentPrompts = Array(userPrompts.suffix(6))
+        let originalPrompt = recentPrompts.first ?? latest
+        let latestPrompt = recentPrompts.last ?? latest
+        let priorEdits = Array(recentPrompts.dropFirst().dropLast())
+
+        if priorEdits.isEmpty, originalPrompt.caseInsensitiveCompare(latestPrompt) == .orderedSame {
+            return latest
+        }
+
+        var lines: [String] = [
+            "Edit the provided input image.",
+            "Keep the main subject, composition, and scene continuity unless explicitly changed.",
+            "",
+            "Original request:",
+            originalPrompt
+        ]
+
+        if !priorEdits.isEmpty {
+            lines.append("")
+            lines.append("Edits already applied:")
+            for (idx, edit) in priorEdits.enumerated() {
+                lines.append("\(idx + 1). \(edit)")
+            }
+        }
+
+        lines.append("")
+        lines.append("Apply this new edit now:")
+        lines.append(latestPrompt)
+
+        return lines.joined(separator: "\n")
+    }
+
+    private func userTextPrompts(from messages: [Message]) -> [String] {
+        messages.compactMap { message in
+            guard message.role == .user else { return nil }
+
             let text = message.content.compactMap { part -> String? in
                 guard case .text(let value) = part else { return nil }
                 let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -424,21 +472,48 @@ actor XAIAdapter: LLMProviderAdapter {
             .joined(separator: "\n\n")
             .trimmingCharacters(in: .whitespacesAndNewlines)
 
-            if !text.isEmpty {
-                return text
-            }
+            return text.isEmpty ? nil : text
         }
-
-        throw LLMError.invalidRequest(message: "xAI image generation requires a text prompt.")
     }
 
-    private func firstImageURLString(from messages: [Message]) -> String? {
-        for message in messages.reversed() where message.role == .user {
-            for part in message.content {
-                if case .image(let image) = part,
-                   let urlString = imageURLString(image) {
-                    return urlString
-                }
+    private func imageURLForImageGeneration(from messages: [Message]) -> String? {
+        // If the latest user turn includes an image, prefer that explicit input.
+        if let latestUserImageURL = latestUserImageURL(from: messages) {
+            return latestUserImageURL
+        }
+
+        // Otherwise, continue editing from the latest assistant-generated image.
+        if let assistantImageURL = firstImageURLString(from: messages, roles: [.assistant]) {
+            return assistantImageURL
+        }
+
+        // Finally, fall back to any older user-provided image in history.
+        return firstImageURLString(from: messages, roles: [.user])
+    }
+
+    private func latestUserImageURL(from messages: [Message]) -> String? {
+        guard let latestUserMessage = messages.reversed().first(where: { $0.role == .user }) else {
+            return nil
+        }
+        return firstImageURLString(in: latestUserMessage)
+    }
+
+    private func firstImageURLString(in message: Message) -> String? {
+        for part in message.content {
+            if case .image(let image) = part,
+               let urlString = imageURLString(image) {
+                return urlString
+            }
+        }
+        return nil
+    }
+
+    private func firstImageURLString(from messages: [Message], roles: [MessageRole]) -> String? {
+        let roleSet = Set(roles)
+
+        for message in messages.reversed() where roleSet.contains(message.role) {
+            if let urlString = firstImageURLString(in: message) {
+                return urlString
             }
         }
         return nil
