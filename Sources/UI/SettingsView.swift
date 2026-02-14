@@ -34,13 +34,6 @@ struct SettingsView: View {
         let summary: String
     }
 
-    private struct GeneralSidebarHint: Identifiable {
-        let id = UUID()
-        let title: String
-        let subtitle: String
-        let systemImage: String
-    }
-
     private static let availablePlugins: [PluginDescriptor] = [
         PluginDescriptor(
             id: "text_to_speech",
@@ -74,34 +67,12 @@ struct SettingsView: View {
         )
     ]
 
-    private static let generalSidebarHints: [GeneralSidebarHint] = [
-        GeneralSidebarHint(
-            title: "Appearance",
-            subtitle: "Theme, font family, and code font.",
-            systemImage: "textformat"
-        ),
-        GeneralSidebarHint(
-            title: "Model defaults",
-            subtitle: "Control provider/model used by new chats.",
-            systemImage: "sparkles"
-        ),
-        GeneralSidebarHint(
-            title: "MCP defaults",
-            subtitle: "Set MCP behavior for newly created chats.",
-            systemImage: "server.rack"
-        ),
-        GeneralSidebarHint(
-            title: "Local data",
-            subtitle: "Inspect and manage on-device chat data.",
-            systemImage: "externaldrive"
-        )
-    ]
-
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
     @State private var selectedSection: SettingsSection? = .providers
     @State private var selectedProviderID: String?
     @State private var selectedServerID: String?
     @State private var selectedPluginID: String?
+    @State private var selectedGeneralCategory: GeneralSettingsCategory?
     @State private var searchText = ""
     @State private var providerPendingDeletion: ProviderConfigEntity?
     @State private var showingDeleteProviderConfirmation = false
@@ -191,7 +162,7 @@ struct SettingsView: View {
                 case .plugins:
                     pluginsList
                 case .general, .none:
-                    generalContextList
+                    generalCategoriesList
                 }
             }
             .background {
@@ -244,7 +215,25 @@ struct SettingsView: View {
                         ContentUnavailableView("Select a Plugin", systemImage: "puzzlepiece.extension")
                     }
                 case .general, .none:
-                    GeneralSettingsView()
+                    switch selectedGeneralCategory {
+                    case .appearance:
+                        AppearanceSettingsView()
+                            .id("appearance")
+                    case .chat:
+                        ChatSettingsView()
+                            .id("chat")
+                    case .defaults:
+                        DefaultsSettingsView()
+                            .id("defaults")
+                    case .network:
+                        NetworkSettingsView()
+                            .id("network")
+                    case .data:
+                        DataSettingsView()
+                            .id("data")
+                    case nil:
+                        ContentUnavailableView("Select a Category", systemImage: "gearshape")
+                    }
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -370,29 +359,29 @@ struct SettingsView: View {
         }
     }
 
-    private var generalContextList: some View {
-        List(Self.generalSidebarHints) { hint in
-            HStack(spacing: JinSpacing.small + 2) {
-                Image(systemName: hint.systemImage)
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(.secondary)
-                    .frame(width: 20, height: 20)
-                    .jinSurface(.subtle, cornerRadius: JinRadius.small)
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(hint.title)
-                        .font(.subheadline)
-                        .fontWeight(.medium)
-                        .lineLimit(1)
-                    Text(hint.subtitle)
-                        .font(.caption)
+    private var generalCategoriesList: some View {
+        List(GeneralSettingsCategory.allCases, selection: $selectedGeneralCategory) { category in
+            NavigationLink(value: category) {
+                HStack(spacing: JinSpacing.small + 2) {
+                    Image(systemName: category.systemImage)
+                        .font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(.secondary)
-                        .lineLimit(2)
+                        .frame(width: 20, height: 20)
+                        .jinSurface(.subtle, cornerRadius: JinRadius.small)
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(category.label)
+                            .font(.system(.body, design: .default))
+                            .fontWeight(.medium)
+                            .lineLimit(1)
+                        Text(category.subtitle)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(2)
+                    }
                 }
+                .padding(.vertical, JinSpacing.xSmall)
             }
-            .padding(.vertical, JinSpacing.xSmall)
-            .contentShape(Rectangle())
-            .accessibilityElement(children: .combine)
         }
         .listStyle(.inset)
         .scrollContentBackground(.hidden)
@@ -664,6 +653,7 @@ struct SettingsView: View {
         if selectedSection != .providers { selectedProviderID = nil }
         if selectedSection != .mcpServers { selectedServerID = nil }
         if selectedSection != .plugins { selectedPluginID = nil }
+        if selectedSection != .general { selectedGeneralCategory = nil }
 
         switch selectedSection {
         case .providers:
@@ -690,10 +680,13 @@ struct SettingsView: View {
             }
             selectedPluginID = candidates.first?.id
 
-        case .general, .none:
-            if selectedSection == nil {
-                selectedSection = .providers
+        case .general:
+            if selectedGeneralCategory == nil {
+                selectedGeneralCategory = .appearance
             }
+
+        case .none:
+            selectedSection = .providers
         }
     }
 }
