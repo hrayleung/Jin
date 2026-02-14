@@ -6,6 +6,37 @@ private let cachedTemplateHTML: String? = {
     return try? String(contentsOf: url, encoding: .utf8)
 }()
 
+// MARK: - Shared CSS Helpers
+
+private func resolvedFontCSS(family: String, fallback: String) -> String {
+    if family == JinTypography.systemFontPreferenceValue {
+        return fallback
+    }
+    return "'\(family)', \(fallback)"
+}
+
+private func resolvedBodyFontCSS(family: String) -> String {
+    resolvedFontCSS(family: family, fallback: "-apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif")
+}
+
+private func resolvedCodeFontCSS(family: String) -> String {
+    resolvedFontCSS(family: family, fallback: "'SF Mono', Menlo, monospace")
+}
+
+private func cssPixelValue(_ value: CGFloat) -> String {
+    let rounded = (Double(value) * 100).rounded() / 100
+    if rounded.rounded() == rounded {
+        return String(Int(rounded))
+    }
+    return String(rounded)
+}
+
+private func fontUpdateJavaScript(bodyCSS: String, codeCSS: String, fontSizeCSS: String) -> String {
+    "document.documentElement.style.setProperty('--body-font',\"\(bodyCSS)\");"
+    + "document.documentElement.style.setProperty('--code-font',\"\(codeCSS)\");"
+    + "document.documentElement.style.setProperty('--body-font-size',\"\(fontSizeCSS)px\");"
+}
+
 struct MarkdownWebRenderer: View {
     let markdownText: String
 
@@ -67,6 +98,7 @@ private struct MarkdownWebRendererRepresentable: NSViewRepresentable {
         context.coordinator.webView = webView
         context.coordinator.heightBinding = $contentHeight
         context.coordinator.pendingMarkdown = markdownText
+        context.coordinator.startObservingFontPreferences()
 
         loadTemplate(into: webView)
         return webView
@@ -74,22 +106,14 @@ private struct MarkdownWebRendererRepresentable: NSViewRepresentable {
 
     func updateNSView(_ webView: MarkdownWKWebView, context: Context) {
         context.coordinator.heightBinding = $contentHeight
-
-        let bodyFont = resolvedBodyFontCSS()
-        let codeFont = resolvedCodeFontCSS()
-        let fontSize = resolvedBodyFontSize()
-        let fontSizeCSS = cssPixelValue(fontSize)
+        context.coordinator.currentMarkdown = markdownText
 
         if context.coordinator.isReady {
-            if bodyFont != context.coordinator.lastBodyFont
-                || codeFont != context.coordinator.lastCodeFont
-                || abs(fontSize - context.coordinator.lastFontSize) > 0.001 {
-                context.coordinator.lastBodyFont = bodyFont
-                context.coordinator.lastCodeFont = codeFont
-                context.coordinator.lastFontSize = fontSize
-                let js = "document.documentElement.style.setProperty('--body-font','\(bodyFont)');document.documentElement.style.setProperty('--code-font','\(codeFont)');document.documentElement.style.setProperty('--body-font-size','\(fontSizeCSS)px');"
-                webView.evaluateJavaScript(js, completionHandler: nil)
-            }
+            context.coordinator.applyFontUpdateIfNeeded(
+                appFontFamily: appFontFamily,
+                codeFontFamily: codeFontFamily,
+                webView: webView
+            )
             MarkdownWebRenderer.sendMarkdown(to: webView, markdown: markdownText)
         } else {
             context.coordinator.pendingMarkdown = markdownText
@@ -98,37 +122,18 @@ private struct MarkdownWebRendererRepresentable: NSViewRepresentable {
 
     private func loadTemplate(into webView: WKWebView) {
         guard var html = cachedTemplateHTML else { return }
+        let bodyCSS = resolvedBodyFontCSS(family: appFontFamily)
+        let codeCSS = resolvedCodeFontCSS(family: codeFontFamily)
+        let fontSize = currentBodyFontSize
         html = html
-            .replacingOccurrences(of: "BODY_FONT_FAMILY", with: resolvedBodyFontCSS())
-            .replacingOccurrences(of: "BODY_FONT_SIZE", with: "\(cssPixelValue(resolvedBodyFontSize()))px")
-            .replacingOccurrences(of: "CODE_FONT_FAMILY", with: resolvedCodeFontCSS())
+            .replacingOccurrences(of: "BODY_FONT_FAMILY", with: bodyCSS)
+            .replacingOccurrences(of: "BODY_FONT_SIZE", with: "\(cssPixelValue(fontSize))px")
+            .replacingOccurrences(of: "CODE_FONT_FAMILY", with: codeCSS)
         webView.loadHTMLString(html, baseURL: nil)
     }
 
-    private func resolvedBodyFontCSS() -> String {
-        if appFontFamily == JinTypography.systemFontPreferenceValue {
-            return "-apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif"
-        }
-        return "'\(appFontFamily)', -apple-system, sans-serif"
-    }
-
-    private func resolvedCodeFontCSS() -> String {
-        if codeFontFamily == JinTypography.systemFontPreferenceValue {
-            return "'SF Mono', Menlo, monospace"
-        }
-        return "'\(codeFontFamily)', 'SF Mono', Menlo, monospace"
-    }
-
-    private func resolvedBodyFontSize() -> CGFloat {
+    private var currentBodyFontSize: CGFloat {
         JinTypography.chatBodyPointSize(scale: JinTypography.defaultChatMessageScale)
-    }
-
-    private func cssPixelValue(_ value: CGFloat) -> String {
-        let rounded = (Double(value) * 100).rounded() / 100
-        if rounded.rounded() == rounded {
-            return String(Int(rounded))
-        }
-        return String(rounded)
     }
 
     final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
@@ -136,9 +141,77 @@ private struct MarkdownWebRendererRepresentable: NSViewRepresentable {
         var heightBinding: Binding<CGFloat>?
         var isReady = false
         var pendingMarkdown: String?
+        var currentMarkdown: String?
         var lastBodyFont: String = ""
         var lastCodeFont: String = ""
         var lastFontSize: CGFloat = 0
+        private var isObservingDefaults = false
+
+        func startObservingFontPreferences() {
+            guard !isObservingDefaults else { return }
+            isObservingDefaults = true
+            let defaults = UserDefaults.standard
+            defaults.addObserver(self, forKeyPath: AppPreferenceKeys.appFontFamily, options: [.new], context: nil)
+            defaults.addObserver(self, forKeyPath: AppPreferenceKeys.codeFontFamily, options: [.new], context: nil)
+        }
+
+        deinit {
+            if isObservingDefaults {
+                let defaults = UserDefaults.standard
+                defaults.removeObserver(self, forKeyPath: AppPreferenceKeys.appFontFamily)
+                defaults.removeObserver(self, forKeyPath: AppPreferenceKeys.codeFontFamily)
+            }
+        }
+
+        override func observeValue(forKeyPath keyPath: String?, of object: Any?, change: [NSKeyValueChangeKey: Any]?, context: UnsafeMutableRawPointer?) {
+            if keyPath == AppPreferenceKeys.appFontFamily || keyPath == AppPreferenceKeys.codeFontFamily {
+                DispatchQueue.main.async { [weak self] in
+                    self?.handleFontPreferenceChange()
+                }
+            } else {
+                super.observeValue(forKeyPath: keyPath, of: object, change: change, context: context)
+            }
+        }
+
+        private func handleFontPreferenceChange() {
+            guard isReady, let webView else { return }
+
+            let defaults = UserDefaults.standard
+            let appFont = defaults.string(forKey: AppPreferenceKeys.appFontFamily) ?? JinTypography.systemFontPreferenceValue
+            let codeFont = defaults.string(forKey: AppPreferenceKeys.codeFontFamily) ?? JinTypography.systemFontPreferenceValue
+
+            let didUpdate = applyFontUpdateIfNeeded(
+                appFontFamily: appFont,
+                codeFontFamily: codeFont,
+                webView: webView
+            )
+
+            if didUpdate, let md = currentMarkdown {
+                MarkdownWebRenderer.sendMarkdown(to: webView, markdown: md)
+            }
+        }
+
+        /// Compares resolved CSS values against cached state. If changed, evaluates
+        /// the CSS custom property update JS and returns `true`.
+        @discardableResult
+        func applyFontUpdateIfNeeded(appFontFamily: String, codeFontFamily: String, webView: WKWebView) -> Bool {
+            let bodyCSS = resolvedBodyFontCSS(family: appFontFamily)
+            let codeCSS = resolvedCodeFontCSS(family: codeFontFamily)
+            let fontSize = JinTypography.chatBodyPointSize(scale: JinTypography.defaultChatMessageScale)
+
+            guard bodyCSS != lastBodyFont
+                    || codeCSS != lastCodeFont
+                    || abs(fontSize - lastFontSize) > 0.001 else {
+                return false
+            }
+
+            lastBodyFont = bodyCSS
+            lastCodeFont = codeCSS
+            lastFontSize = fontSize
+            let js = fontUpdateJavaScript(bodyCSS: bodyCSS, codeCSS: codeCSS, fontSizeCSS: cssPixelValue(fontSize))
+            webView.evaluateJavaScript(js, completionHandler: nil)
+            return true
+        }
 
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
             isReady = true

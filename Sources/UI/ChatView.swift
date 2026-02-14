@@ -16,6 +16,8 @@ struct ChatView: View {
     @Query private var providers: [ProviderConfigEntity]
     @Query private var mcpServers: [MCPServerConfigEntity]
 
+    @AppStorage(AppPreferenceKeys.sendWithCommandEnter) private var sendWithCommandEnter = false
+
     @State private var controls: GenerationControls = GenerationControls()
     @State private var messageText = ""
     @State private var draftAttachments: [DraftAttachment] = []
@@ -163,6 +165,7 @@ struct ChatView: View {
                 isDropTargeted: $isComposerDropTargeted,
                 isFocused: $isComposerFocused,
                 font: NSFont.preferredFont(forTextStyle: .body),
+                useCommandEnterToSubmit: sendWithCommandEnter,
                 onDropFileURLs: handleDroppedFileURLs,
                 onDropImages: handleDroppedImages,
                 onSubmit: handleComposerSubmit,

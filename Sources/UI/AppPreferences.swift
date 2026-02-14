@@ -1,6 +1,9 @@
 import Foundation
 
 enum AppPreferenceKeys {
+
+    // MARK: - New Chat Defaults
+
     static let newChatModelMode = "newChatModelMode"
     static let newChatFixedProviderID = "newChatFixedProviderID"
     static let newChatFixedModelID = "newChatFixedModelID"
@@ -10,9 +13,15 @@ enum AppPreferenceKeys {
     static let newChatFixedMCPUseAllServers = "newChatFixedMCPUseAllServers"
     static let newChatFixedMCPServerIDsJSON = "newChatFixedMCPServerIDsJSON"
 
+    // MARK: - Appearance
+
     static let appAppearanceMode = "appAppearanceMode"
     static let appFontFamily = "appFontFamily"
     static let codeFontFamily = "codeFontFamily"
+
+    // MARK: - Chat
+
+    static let sendWithCommandEnter = "sendWithCommandEnter"
 
     // MARK: - Network
 
@@ -149,6 +158,46 @@ enum ChatNamingMode: String, CaseIterable, Identifiable {
             return "First Round Only"
         case .everyRound:
             return "Rename Every Round"
+        }
+    }
+}
+
+enum GeneralSettingsCategory: String, CaseIterable, Identifiable {
+    case appearance
+    case chat
+    case defaults
+    case network
+    case data
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .appearance: return "Appearance"
+        case .chat: return "Chat"
+        case .defaults: return "Defaults"
+        case .network: return "Network"
+        case .data: return "Data"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .appearance: return "textformat"
+        case .chat: return "bubble.left.and.bubble.right"
+        case .defaults: return "sparkles"
+        case .network: return "network"
+        case .data: return "externaldrive"
+        }
+    }
+
+    var subtitle: String {
+        switch self {
+        case .appearance: return "Theme, font family, and code font."
+        case .chat: return "Send behavior and input preferences."
+        case .defaults: return "Model and MCP defaults for new chats."
+        case .network: return "Control automatic network requests."
+        case .data: return "Inspect and manage local chat data."
         }
     }
 }
