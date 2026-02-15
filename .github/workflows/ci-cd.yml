@@ -19,7 +19,7 @@ concurrency:
 jobs:
   test:
     name: Test
-    runs-on: macos-14
+    runs-on: macos-15
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -27,7 +27,7 @@ jobs:
       - name: Select Xcode
         uses: maxim-lobanov/setup-xcode@v1
         with:
-          xcode-version: latest-stable
+          xcode-version: "26.2"
 
       - name: Print Swift version
         run: swift --version
@@ -37,7 +37,7 @@ jobs:
 
   package:
     name: Build app and DMG
-    runs-on: macos-14
+    runs-on: macos-15
     needs: test
     permissions:
       contents: write
@@ -48,7 +48,7 @@ jobs:
       - name: Select Xcode
         uses: maxim-lobanov/setup-xcode@v1
         with:
-          xcode-version: latest-stable
+          xcode-version: "26.2"
 
       - name: Package app and DMG
         run: bash Packaging/package.sh dmg
