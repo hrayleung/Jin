@@ -241,7 +241,7 @@ final class AnthropicAdapterTests: XCTestCase {
 
             let sse = """
             event: message_start
-            data: {"type":"message_start","message":{"id":"msg_123","type":"message","role":"assistant","model":"claude-opus-4-6","usage":{"input_tokens":120,"cache_read_input_tokens":40}}}
+            data: {"type":"message_start","message":{"id":"msg_123","type":"message","role":"assistant","model":"claude-opus-4-6","usage":{"input_tokens":120,"cache_read_input_tokens":40,"cache_creation_input_tokens":18}}}
 
             event: content_block_start
             data: {"type":"content_block_start","index":0,"content_block":{"type":"text"}}
@@ -305,6 +305,8 @@ final class AnthropicAdapterTests: XCTestCase {
         XCTAssertEqual(usageWithValues.inputTokens, 120)
         XCTAssertEqual(usageWithValues.outputTokens, 25)
         XCTAssertEqual(usageWithValues.cachedTokens, 40)
+        XCTAssertEqual(usageWithValues.cacheCreationTokens, 18)
+        XCTAssertEqual(usageWithValues.cacheWriteTokens, 18)
     }
 
     func testAnthropicModelLimitsKnownClaude45AndOpus46() {
