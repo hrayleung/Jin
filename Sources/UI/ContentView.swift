@@ -767,21 +767,21 @@ struct ContentView: View {
             ModelInfo(
                 id: "gpt-5.2",
                 name: "GPT-5.2",
-                capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+                capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
                 contextWindow: 400000,
                 reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium)
             ),
             ModelInfo(
                 id: "gpt-5.2-2025-12-11",
                 name: "GPT-5.2 (2025-12-11)",
-                capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+                capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
                 contextWindow: 400000,
                 reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium)
             ),
             ModelInfo(
                 id: "gpt-4o",
                 name: "GPT-4o",
-                capabilities: [.streaming, .toolCalling, .vision],
+                capabilities: [.streaming, .toolCalling, .vision, .promptCaching],
                 contextWindow: 128000,
                 reasoningConfig: nil
             )
@@ -822,14 +822,14 @@ struct ContentView: View {
             ModelInfo(
                 id: "grok-4-1-fast",
                 name: "Grok 4.1 Fast",
-                capabilities: [.streaming, .toolCalling, .vision, .reasoning, .nativePDF],
+                capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .nativePDF],
                 contextWindow: 128000,
                 reasoningConfig: nil
             ),
             ModelInfo(
                 id: "grok-4-1",
                 name: "Grok 4.1",
-                capabilities: [.streaming, .toolCalling, .vision, .reasoning, .nativePDF],
+                capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .nativePDF],
                 contextWindow: 128000,
                 reasoningConfig: nil
             ),
@@ -915,7 +915,7 @@ struct ContentView: View {
             ModelInfo(
                 id: "gemini-3-pro-preview",
                 name: "Gemini 3 Pro (Preview)",
-                capabilities: [.streaming, .toolCalling, .vision, .reasoning, .nativePDF],
+                capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .nativePDF],
                 contextWindow: 1_048_576,
                 reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium)
             ),
@@ -929,14 +929,14 @@ struct ContentView: View {
             ModelInfo(
                 id: "gemini-3-flash-preview",
                 name: "Gemini 3 Flash (Preview)",
-                capabilities: [.streaming, .toolCalling, .vision, .reasoning, .nativePDF],
+                capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .nativePDF],
                 contextWindow: 1_048_576,
                 reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium)
             ),
             ModelInfo(
                 id: "gemini-2.5-pro",
                 name: "Gemini 2.5 Pro",
-                capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+                capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
                 contextWindow: 1_048_576,
                 reasoningConfig: ModelReasoningConfig(type: .budget, defaultBudget: 2048)
             ),
@@ -953,7 +953,7 @@ struct ContentView: View {
             ModelInfo(
                 id: "gemini-3-pro-preview",
                 name: "Gemini 3 Pro (Preview)",
-                capabilities: [.streaming, .toolCalling, .vision, .reasoning, .nativePDF],
+                capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .nativePDF],
                 contextWindow: 1_048_576,
                 reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high)
             ),
@@ -967,7 +967,7 @@ struct ContentView: View {
             ModelInfo(
                 id: "gemini-3-flash-preview",
                 name: "Gemini 3 Flash (Preview)",
-                capabilities: [.streaming, .toolCalling, .vision, .reasoning, .nativePDF],
+                capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .nativePDF],
                 contextWindow: 1_048_576,
                 reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high)
             ),

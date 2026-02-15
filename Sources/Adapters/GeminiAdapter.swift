@@ -11,7 +11,7 @@ import Foundation
 /// - Grounding with Google Search (`google_search` tool)
 actor GeminiAdapter: LLMProviderAdapter {
     let providerConfig: ProviderConfig
-    let capabilities: ModelCapability = [.streaming, .toolCalling, .vision, .reasoning, .nativePDF, .imageGeneration]
+    let capabilities: ModelCapability = [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .nativePDF, .imageGeneration]
 
     private let networkManager: NetworkManager
     private let apiKey: String
@@ -20,6 +20,95 @@ actor GeminiAdapter: LLMProviderAdapter {
         self.providerConfig = providerConfig
         self.apiKey = apiKey
         self.networkManager = networkManager
+    }
+
+    struct CachedContentResource: Codable, Hashable, Sendable {
+        let name: String
+        let model: String?
+        let displayName: String?
+        let createTime: String?
+        let updateTime: String?
+        let expireTime: String?
+        let usageMetadata: UsageMetadata?
+
+        struct UsageMetadata: Codable, Hashable, Sendable {
+            let textCount: Int?
+        }
+    }
+
+    func listCachedContents() async throws -> [CachedContentResource] {
+        var request = URLRequest(url: URL(string: "\(baseURL)/cachedContents")!)
+        request.httpMethod = "GET"
+        request.addValue(apiKey, forHTTPHeaderField: "x-goog-api-key")
+        request.addValue("application/json", forHTTPHeaderField: "Accept")
+
+        let (data, _) = try await networkManager.sendRequest(request)
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        let response = try decoder.decode(CachedContentsListResponse.self, from: data)
+        return response.cachedContents ?? []
+    }
+
+    func getCachedContent(named name: String) async throws -> CachedContentResource {
+        let path = normalizedCachedContentName(name)
+        var request = URLRequest(url: URL(string: "\(baseURL)/\(path)")!)
+        request.httpMethod = "GET"
+        request.addValue(apiKey, forHTTPHeaderField: "x-goog-api-key")
+        request.addValue("application/json", forHTTPHeaderField: "Accept")
+
+        let (data, _) = try await networkManager.sendRequest(request)
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        return try decoder.decode(CachedContentResource.self, from: data)
+    }
+
+    func createCachedContent(payload: [String: Any]) async throws -> CachedContentResource {
+        guard JSONSerialization.isValidJSONObject(payload) else {
+            throw LLMError.invalidRequest(message: "Invalid cachedContent payload.")
+        }
+
+        var request = URLRequest(url: URL(string: "\(baseURL)/cachedContents")!)
+        request.httpMethod = "POST"
+        request.addValue(apiKey, forHTTPHeaderField: "x-goog-api-key")
+        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONSerialization.data(withJSONObject: payload)
+
+        let (data, _) = try await networkManager.sendRequest(request)
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        return try decoder.decode(CachedContentResource.self, from: data)
+    }
+
+    func updateCachedContent(named name: String, payload: [String: Any], updateMask: String? = nil) async throws -> CachedContentResource {
+        guard JSONSerialization.isValidJSONObject(payload) else {
+            throw LLMError.invalidRequest(message: "Invalid cachedContent payload.")
+        }
+
+        var components = URLComponents(string: "\(baseURL)/\(normalizedCachedContentName(name))")
+        if let updateMask {
+            components?.queryItems = [URLQueryItem(name: "updateMask", value: updateMask)]
+        }
+        guard let url = components?.url else {
+            throw LLMError.invalidRequest(message: "Invalid cachedContent URL.")
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "PATCH"
+        request.addValue(apiKey, forHTTPHeaderField: "x-goog-api-key")
+        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONSerialization.data(withJSONObject: payload)
+
+        let (data, _) = try await networkManager.sendRequest(request)
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        return try decoder.decode(CachedContentResource.self, from: data)
+    }
+
+    func deleteCachedContent(named name: String) async throws {
+        var request = URLRequest(url: URL(string: "\(baseURL)/\(normalizedCachedContentName(name))")!)
+        request.httpMethod = "DELETE"
+        request.addValue(apiKey, forHTTPHeaderField: "x-goog-api-key")
+        _ = try await networkManager.sendRequest(request)
     }
 
     func sendMessage(
@@ -236,12 +325,20 @@ actor GeminiAdapter: LLMProviderAdapter {
             "generationConfig": buildGenerationConfig(controls, modelID: modelID)
         ]
 
-        if let systemInstruction = systemInstructionText(from: messages) {
+        let explicitCachedContent = (controls.contextCache?.mode == .explicit)
+            ? normalizedContextCacheString(controls.contextCache?.cachedContentName)
+            : nil
+
+        if explicitCachedContent == nil, let systemInstruction = systemInstructionText(from: messages) {
             body["systemInstruction"] = [
                 "parts": [
                     ["text": systemInstruction]
                 ]
             ]
+        }
+
+        if let cachedContent = explicitCachedContent {
+            body["cachedContent"] = cachedContent
         }
 
         var toolArray: [[String: Any]] = []
@@ -287,6 +384,20 @@ actor GeminiAdapter: LLMProviderAdapter {
             return String(trimmed.dropFirst("models/".count))
         }
         return trimmed
+    }
+
+    private func normalizedContextCacheString(_ value: String?) -> String? {
+        guard let value else { return nil }
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
+    private func normalizedCachedContentName(_ raw: String) -> String {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.lowercased().hasPrefix("cachedcontents/") {
+            return trimmed
+        }
+        return "cachedContents/\(trimmed)"
     }
 
     private func supportsNativePDF(_ modelID: String) -> Bool {
@@ -679,6 +790,10 @@ actor GeminiAdapter: LLMProviderAdapter {
             caps.insert(.nativePDF)
         }
 
+        if !isImageModel {
+            caps.insert(.promptCaching)
+        }
+
         if isImageModel {
             caps.insert(.imageGeneration)
         }
@@ -709,6 +824,11 @@ actor GeminiAdapter: LLMProviderAdapter {
 }
 
 // MARK: - DTOs
+
+private struct CachedContentsListResponse: Codable {
+    let cachedContents: [GeminiAdapter.CachedContentResource]?
+    let nextPageToken: String?
+}
 
 private struct ListModelsResponse: Codable {
     let models: [Model]
@@ -778,6 +898,7 @@ private struct GenerateContentResponse: Codable {
         let promptTokenCount: Int?
         let candidatesTokenCount: Int?
         let totalTokenCount: Int?
+        let cachedContentTokenCount: Int?
     }
 
     func toUsage() -> Usage? {
@@ -789,7 +910,8 @@ private struct GenerateContentResponse: Codable {
         return Usage(
             inputTokens: input,
             outputTokens: output,
-            thinkingTokens: nil
+            thinkingTokens: nil,
+            cachedTokens: usageMetadata.cachedContentTokenCount
         )
     }
 }

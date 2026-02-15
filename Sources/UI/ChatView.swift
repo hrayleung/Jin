@@ -4,6 +4,31 @@ import AppKit
 import UniformTypeIdentifiers
 import Combine
 import AVFoundation
+import AVKit
+import CryptoKit
+
+private actor AutomaticExplicitCacheRegistry {
+    static let shared = AutomaticExplicitCacheRegistry()
+
+    private struct Entry: Sendable {
+        let name: String
+        let expiresAt: Date
+    }
+
+    private var entries: [String: Entry] = [:]
+
+    func cachedName(for key: String, now: Date = Date()) -> String? {
+        if let entry = entries[key], entry.expiresAt > now {
+            return entry.name
+        }
+        entries.removeValue(forKey: key)
+        return nil
+    }
+
+    func save(name: String, for key: String, ttlSeconds: TimeInterval, now: Date = Date()) {
+        entries[key] = Entry(name: name, expiresAt: now.addingTimeInterval(max(60, ttlSeconds)))
+    }
+}
 
 struct ChatView: View {
     @Environment(\.modelContext) private var modelContext
@@ -57,6 +82,14 @@ struct ChatView: View {
     @State private var providerSpecificParamsBaselineControls: GenerationControls?
     @State private var providerSpecificParamsEditorID = UUID()
 
+    @State private var showingContextCacheSheet = false
+    @State private var contextCacheDraft = ContextCacheControls(mode: .implicit)
+    @State private var contextCacheTTLPreset = ContextCacheTTLPreset.providerDefault
+    @State private var contextCacheCustomTTLDraft = ""
+    @State private var contextCacheMinTokensDraft = ""
+    @State private var contextCacheDraftError: String?
+    @State private var contextCacheAdvancedExpanded = false
+
     @State private var showingImageGenerationSheet = false
     @State private var imageGenerationDraft = ImageGenerationControls()
     @State private var imageGenerationSeedDraft = ""
@@ -77,6 +110,13 @@ struct ChatView: View {
     @StateObject private var speechToTextManager = SpeechToTextManager()
 
     private let conversationTitleGenerator = ConversationTitleGenerator()
+
+    private enum ContextCacheTTLPreset: String, CaseIterable {
+        case providerDefault
+        case minutes5
+        case hour1
+        case custom
+    }
 
     private var isStreaming: Bool {
         streamingStore.isStreaming(conversationID: conversationEntity.id)
@@ -244,6 +284,18 @@ struct ChatView: View {
                 .help(webSearchHelpText)
             }
 
+            if supportsContextCacheControl {
+                Menu { contextCacheMenuContent } label: {
+                    controlIconLabel(
+                        systemName: "archivebox",
+                        isActive: isContextCacheEnabled,
+                        badgeText: contextCacheBadgeText
+                    )
+                }
+                .menuStyle(.borderlessButton)
+                .help(contextCacheHelpText)
+            }
+
             if supportsMCPToolsControl {
                 Menu { mcpToolsMenuContent } label: {
                     controlIconLabel(
@@ -333,6 +385,239 @@ struct ChatView: View {
                 Spacer(minLength: 0)
             }
             .padding(.top, 2)
+        }
+    }
+
+    private var contextCacheSheet: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: JinSpacing.large) {
+                    contextCacheSummaryCard
+                    contextCacheBasicsCard
+
+                    if contextCacheSupportsAdvancedOptions, contextCacheDraft.mode != .off {
+                        contextCacheAdvancedCard
+                    }
+
+                    if let contextCacheDraftError {
+                        Text(contextCacheDraftError)
+                            .foregroundStyle(.red)
+                            .font(.caption)
+                            .padding(JinSpacing.small)
+                            .jinSurface(.subtleStrong, cornerRadius: JinRadius.small)
+                    } else {
+                        Text(contextCacheGuidanceText)
+                            .jinInfoCallout()
+                    }
+                }
+                .padding(JinSpacing.large)
+            }
+            .background {
+                JinSemanticColor.detailSurface
+                    .ignoresSafeArea()
+            }
+            .navigationTitle("Context Cache")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        showingContextCacheSheet = false
+                    }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") {
+                        if applyContextCacheDraft() {
+                            showingContextCacheSheet = false
+                        }
+                    }
+                    .disabled(!isContextCacheDraftValid)
+                }
+            }
+        }
+        .frame(minWidth: 640, idealWidth: 700, minHeight: 480, idealHeight: 560)
+    }
+
+    private var contextCacheSummaryCard: some View {
+        VStack(alignment: .leading, spacing: JinSpacing.small) {
+            HStack(alignment: .center, spacing: JinSpacing.small) {
+                Text("Current mode")
+                    .font(.subheadline.weight(.semibold))
+                Spacer()
+                Text(contextCacheDraft.mode.displayName)
+                    .jinTagStyle(foreground: contextCacheDraft.mode == .off ? .secondary : .accentColor)
+            }
+
+            Text(contextCacheSummaryText)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(JinSpacing.large)
+        .jinSurface(.raised, cornerRadius: JinRadius.large)
+    }
+
+    private var contextCacheBasicsCard: some View {
+        VStack(alignment: .leading, spacing: JinSpacing.medium) {
+            Text("Basics")
+                .font(.headline)
+
+            contextCacheField(
+                "Mode",
+                hint: "Implicit works for OpenAI, Anthropic, and xAI. Gemini/Vertex can also use Explicit mode with a cached content resource."
+            ) {
+                Picker("Mode", selection: $contextCacheDraft.mode) {
+                    Text("Off").tag(ContextCacheMode.off)
+                    Text("Implicit").tag(ContextCacheMode.implicit)
+                    if supportsExplicitContextCacheMode {
+                        Text("Explicit").tag(ContextCacheMode.explicit)
+                    }
+                }
+                .labelsHidden()
+                .pickerStyle(.segmented)
+                .frame(maxWidth: 380)
+            }
+
+            if supportsContextCacheStrategy, contextCacheDraft.mode != .off {
+                contextCacheField(
+                    "Strategy",
+                    hint: "Anthropic only. Controls which stable prompt prefix is marked cacheable."
+                ) {
+                    Picker("Strategy", selection: Binding(
+                        get: { contextCacheDraft.strategy ?? .systemOnly },
+                        set: { contextCacheDraft.strategy = $0 }
+                    )) {
+                        Text("System only").tag(ContextCacheStrategy.systemOnly)
+                        Text("System + tools").tag(ContextCacheStrategy.systemAndTools)
+                        Text("Prefix window").tag(ContextCacheStrategy.prefixWindow)
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.menu)
+                    .frame(maxWidth: 260, alignment: .leading)
+                }
+            }
+
+            if supportsExplicitContextCacheMode, contextCacheDraft.mode == .explicit {
+                contextCacheField(
+                    "Cached content name",
+                    hint: "Gemini/Vertex resource name. Example: cachedContents/project-brief-v2"
+                ) {
+                    TextField("cachedContents/project-brief-v2", text: Binding(
+                        get: { contextCacheDraft.cachedContentName ?? "" },
+                        set: { contextCacheDraft.cachedContentName = $0 }
+                    ))
+                    .font(.system(.body, design: .monospaced))
+                    .textFieldStyle(.roundedBorder)
+                }
+            }
+
+            if contextCacheDraft.mode == .off {
+                Text("Turn on Implicit or Explicit mode to configure caching options.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(JinSpacing.large)
+        .jinSurface(.raised, cornerRadius: JinRadius.large)
+    }
+
+    private var contextCacheAdvancedCard: some View {
+        DisclosureGroup(isExpanded: $contextCacheAdvancedExpanded) {
+            VStack(alignment: .leading, spacing: JinSpacing.medium) {
+                if supportsContextCacheTTL {
+                    contextCacheField(
+                        "TTL",
+                        hint: "OpenAI, Anthropic, and xAI support cache retention hints."
+                    ) {
+                        VStack(alignment: .leading, spacing: JinSpacing.small) {
+                            Picker("TTL", selection: $contextCacheTTLPreset) {
+                                Text("Provider default").tag(ContextCacheTTLPreset.providerDefault)
+                                Text("5 minutes").tag(ContextCacheTTLPreset.minutes5)
+                                Text("1 hour").tag(ContextCacheTTLPreset.hour1)
+                                Text("Custom").tag(ContextCacheTTLPreset.custom)
+                            }
+                            .labelsHidden()
+                            .pickerStyle(.menu)
+                            .frame(maxWidth: 260, alignment: .leading)
+
+                            if contextCacheTTLPreset == .custom {
+                                TextField("Custom TTL seconds", text: $contextCacheCustomTTLDraft)
+                                    .font(.system(.body, design: .monospaced))
+                                    .textFieldStyle(.roundedBorder)
+                                    .frame(maxWidth: 220, alignment: .leading)
+                            }
+                        }
+                    }
+                }
+
+                if providerType == .openai || providerType == .xai {
+                    contextCacheField(
+                        "Cache key",
+                        hint: "Optional stable key for request prefixes that should map to the same cache."
+                    ) {
+                        TextField("stable-prefix-key", text: Binding(
+                            get: { contextCacheDraft.cacheKey ?? "" },
+                            set: { contextCacheDraft.cacheKey = $0 }
+                        ))
+                        .font(.system(.body, design: .monospaced))
+                        .textFieldStyle(.roundedBorder)
+                    }
+
+                    contextCacheField(
+                        "Min tokens threshold",
+                        hint: "Optional. Cache hints apply only when prompt tokens are above this value."
+                    ) {
+                        TextField("1024", text: $contextCacheMinTokensDraft)
+                            .font(.system(.body, design: .monospaced))
+                            .textFieldStyle(.roundedBorder)
+                            .frame(maxWidth: 220, alignment: .leading)
+                    }
+                }
+
+                if providerType == .xai {
+                    contextCacheField(
+                        "Conversation ID",
+                        hint: "Optional xAI conversation scope for cache continuity."
+                    ) {
+                        TextField("x-grok-conv-id", text: Binding(
+                            get: { contextCacheDraft.conversationID ?? "" },
+                            set: { contextCacheDraft.conversationID = $0 }
+                        ))
+                        .font(.system(.body, design: .monospaced))
+                        .textFieldStyle(.roundedBorder)
+                    }
+                }
+            }
+            .padding(.top, JinSpacing.small)
+        } label: {
+            HStack(alignment: .center, spacing: JinSpacing.small) {
+                Text("Advanced")
+                    .font(.headline)
+                Spacer(minLength: 0)
+                Text("Optional")
+                    .jinTagStyle()
+            }
+        }
+        .padding(JinSpacing.large)
+        .jinSurface(.raised, cornerRadius: JinRadius.large)
+    }
+
+    @ViewBuilder
+    private func contextCacheField<Control: View>(
+        _ title: String,
+        hint: String? = nil,
+        @ViewBuilder control: () -> Control
+    ) -> some View {
+        VStack(alignment: .leading, spacing: JinSpacing.xSmall) {
+            Text(title)
+                .font(.subheadline.weight(.semibold))
+            control()
+                .frame(maxWidth: .infinity, alignment: .leading)
+            if let hint, !hint.isEmpty {
+                Text(hint)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
     }
 
@@ -811,6 +1096,9 @@ struct ChatView: View {
                 }
             }
             .frame(width: 560, height: 520)
+        }
+        .sheet(isPresented: $showingContextCacheSheet) {
+            contextCacheSheet
         }
         .sheet(isPresented: $showingImageGenerationSheet) {
             NavigationStack {
@@ -1892,6 +2180,20 @@ struct ChatView: View {
         controls.mcpTools?.enabled ?? true
     }
 
+    private var effectiveContextCacheMode: ContextCacheMode {
+        if let mode = controls.contextCache?.mode {
+            return mode
+        }
+        if providerType == .anthropic {
+            return .implicit
+        }
+        return .off
+    }
+
+    private var isContextCacheEnabled: Bool {
+        effectiveContextCacheMode != .off
+    }
+
     private var supportsReasoningControl: Bool {
         guard let config = selectedReasoningConfig else { return false }
         return config.type != .none
@@ -1920,6 +2222,369 @@ struct ChatView: View {
         case .openaiCompatible, .groq, .cohere, .mistral, .deepinfra, .deepseek, .fireworks, .cerebras, .none:
             return false
         }
+    }
+
+    private var supportsContextCacheControl: Bool {
+        // Context cache is now fully automatic and intentionally hidden from the composer UI.
+        false
+    }
+
+    private var supportsExplicitContextCacheMode: Bool {
+        switch providerType {
+        case .gemini, .vertexai:
+            return true
+        case .openai, .openaiCompatible, .openrouter, .anthropic, .perplexity, .groq, .cohere, .mistral, .deepinfra, .xai, .deepseek, .fireworks, .cerebras, .none:
+            return false
+        }
+    }
+
+    private var supportsContextCacheStrategy: Bool {
+        providerType == .anthropic
+    }
+
+    private var supportsContextCacheTTL: Bool {
+        switch providerType {
+        case .openai, .anthropic, .xai:
+            return true
+        case .openaiCompatible, .openrouter, .perplexity, .groq, .cohere, .mistral, .deepinfra, .gemini, .vertexai, .deepseek, .fireworks, .cerebras, .none:
+            return false
+        }
+    }
+
+    private var contextCacheSupportsAdvancedOptions: Bool {
+        supportsContextCacheTTL || providerType == .openai || providerType == .xai
+    }
+
+    private var contextCacheSummaryText: String {
+        switch providerType {
+        case .gemini, .vertexai:
+            return "Use implicit caching for normal chats, or explicit caching with a cached content resource for long reusable context."
+        case .anthropic:
+            return "Anthropic caches tagged prompt blocks. Keep stable system/tool prefixes to improve cache hit rates."
+        case .openai:
+            return "OpenAI uses prompt cache hints. A stable key and retention hint can improve reuse across similar prompts."
+        case .xai:
+            return "xAI supports prompt cache hints and optional conversation scoping for continuity across related turns."
+        case .openaiCompatible, .openrouter, .perplexity, .groq, .cohere, .mistral, .deepinfra, .deepseek, .fireworks, .cerebras, .none:
+            return "Context cache controls are only available for providers with native prompt caching support."
+        }
+    }
+
+    private var contextCacheGuidanceText: String {
+        switch providerType {
+        case .gemini, .vertexai:
+            return "Explicit mode requires a valid cached content resource name. Keep it stable across requests to reuse cached tokens."
+        case .openai, .xai:
+            return "Use a stable cache key when your prompt prefix is consistent. Add a minimum token threshold to avoid caching short prompts."
+        case .anthropic:
+            return "For best results, keep system prompts and tool descriptions stable so Anthropic can reuse cacheable blocks."
+        case .openaiCompatible, .openrouter, .perplexity, .groq, .cohere, .mistral, .deepinfra, .deepseek, .fireworks, .cerebras, .none:
+            return "Use explicit mode for Gemini/Vertex cached content resources. Other providers use implicit cache hints."
+        }
+    }
+
+    private static let automaticOpenAIMinTokensThreshold = 1024
+    private static let automaticGoogleExplicitCacheTTLSeconds: TimeInterval = 3600
+    private static let automaticGoogleExplicitCacheMinTokenEstimate = 2048
+
+    private func automaticContextCacheControls(
+        providerType: ProviderType?,
+        modelID: String,
+        modelCapabilities: ModelCapability?
+    ) -> ContextCacheControls? {
+        guard !supportsMediaGenerationControl else { return nil }
+        if let modelCapabilities, !modelCapabilities.contains(.promptCaching) {
+            return nil
+        }
+
+        guard let providerType else { return nil }
+
+        let conversationID = automaticContextCacheConversationID(modelID: modelID)
+
+        switch providerType {
+        case .openai:
+            return ContextCacheControls(
+                mode: .implicit,
+                minTokensThreshold: Self.automaticOpenAIMinTokensThreshold
+            )
+        case .xai:
+            return ContextCacheControls(
+                mode: .implicit,
+                conversationID: conversationID
+            )
+        case .anthropic:
+            return ContextCacheControls(
+                mode: .implicit,
+                strategy: .prefixWindow,
+                ttl: .providerDefault
+            )
+        case .gemini, .vertexai:
+            // Explicit cachedContent resources require lifecycle management.
+            // Keep implicit mode so providers can still apply native cache behavior where available.
+            return ContextCacheControls(mode: .implicit)
+        case .openaiCompatible, .openrouter, .perplexity, .groq, .cohere, .mistral, .deepinfra, .deepseek, .fireworks, .cerebras:
+            return nil
+        }
+    }
+
+    private func automaticContextCacheConversationID(modelID: String) -> String {
+        let conversationPart = conversationEntity.id.uuidString.lowercased()
+        let modelPart = sanitizedContextCacheIdentifier(modelID, maxLength: 32)
+        return "jin-conv-\(conversationPart)-\(modelPart)"
+    }
+
+    private func sanitizedContextCacheIdentifier(_ raw: String, maxLength: Int) -> String {
+        let allowed = Set("abcdefghijklmnopqrstuvwxyz0123456789-_")
+        let lower = raw.lowercased()
+        var output = ""
+        output.reserveCapacity(min(lower.count, maxLength))
+
+        var previousWasHyphen = false
+        for scalar in lower.unicodeScalars {
+            guard output.count < maxLength else { break }
+            let character = Character(scalar)
+            if allowed.contains(character) {
+                output.append(character)
+                previousWasHyphen = false
+            } else if !previousWasHyphen {
+                output.append("-")
+                previousWasHyphen = true
+            }
+        }
+
+        let trimmed = output.trimmingCharacters(in: CharacterSet(charactersIn: "-_"))
+        return trimmed.isEmpty ? "model" : trimmed
+    }
+
+    private static func applyAutomaticContextCacheOptimizations(
+        adapter: any LLMProviderAdapter,
+        providerType: ProviderType,
+        modelID: String,
+        messages: [Message],
+        controls: GenerationControls,
+        tools: [ToolDefinition]
+    ) async -> (messages: [Message], controls: GenerationControls) {
+        var adjustedMessages = messages
+        var adjustedControls = controls
+
+        guard adjustedControls.contextCache?.mode != .off else {
+            return (adjustedMessages, adjustedControls)
+        }
+
+        switch providerType {
+        case .openai:
+            adjustedControls.contextCache?.cacheKey = automaticOpenAICacheKey(
+                modelID: modelID,
+                messages: messages,
+                tools: tools
+            )
+        case .anthropic:
+            let systemTokenEstimate = approximateTokenEstimate(for: normalizedSystemPrompt(in: messages) ?? "")
+            adjustedControls.contextCache?.strategy = (systemTokenEstimate >= 1024) ? .prefixWindow : .systemOnly
+        case .gemini:
+            if let geminiAdapter = adapter as? GeminiAdapter,
+               let prepared = await prepareGeminiExplicitContextCache(
+                    adapter: geminiAdapter,
+                    modelID: modelID,
+                    messages: messages,
+                    controls: adjustedControls
+               ) {
+                adjustedMessages = prepared.messages
+                adjustedControls = prepared.controls
+            }
+        case .vertexai:
+            if let vertexAdapter = adapter as? VertexAIAdapter,
+               let prepared = await prepareVertexExplicitContextCache(
+                    adapter: vertexAdapter,
+                    modelID: modelID,
+                    messages: messages,
+                    controls: adjustedControls
+               ) {
+                adjustedMessages = prepared.messages
+                adjustedControls = prepared.controls
+            }
+        case .xai, .openaiCompatible, .openrouter, .perplexity, .groq, .cohere, .mistral, .deepinfra, .deepseek, .fireworks, .cerebras:
+            break
+        }
+
+        return (adjustedMessages, adjustedControls)
+    }
+
+    private static func prepareGeminiExplicitContextCache(
+        adapter: GeminiAdapter,
+        modelID: String,
+        messages: [Message],
+        controls: GenerationControls
+    ) async -> (messages: [Message], controls: GenerationControls)? {
+        guard let systemText = normalizedSystemPrompt(in: messages),
+              approximateTokenEstimate(for: systemText) >= automaticGoogleExplicitCacheMinTokenEstimate else {
+            return nil
+        }
+
+        let fingerprint = sha256Hex("gemini|\(modelID)|\(systemText)")
+        let displayName = "jin-auto-\(fingerprint.prefix(24))"
+        let registryKey = "gemini|\(modelID)|\(fingerprint)"
+
+        let cachedName: String
+        if let name = await AutomaticExplicitCacheRegistry.shared.cachedName(for: registryKey) {
+            cachedName = name
+        } else {
+            let payload: [String: Any] = [
+                "model": normalizedGeminiCachedContentModel(modelID),
+                "displayName": displayName,
+                "ttl": "\(Int(automaticGoogleExplicitCacheTTLSeconds))s",
+                "systemInstruction": [
+                    "parts": [
+                        ["text": systemText]
+                    ]
+                ]
+            ]
+
+            do {
+                let created = try await adapter.createCachedContent(payload: payload)
+                cachedName = created.name
+                await AutomaticExplicitCacheRegistry.shared.save(
+                    name: cachedName,
+                    for: registryKey,
+                    ttlSeconds: automaticGoogleExplicitCacheTTLSeconds * 0.9
+                )
+            } catch {
+                return nil
+            }
+        }
+
+        return applyExplicitGoogleCache(named: cachedName, messages: messages, controls: controls)
+    }
+
+    private static func prepareVertexExplicitContextCache(
+        adapter: VertexAIAdapter,
+        modelID: String,
+        messages: [Message],
+        controls: GenerationControls
+    ) async -> (messages: [Message], controls: GenerationControls)? {
+        guard let systemText = normalizedSystemPrompt(in: messages),
+              approximateTokenEstimate(for: systemText) >= automaticGoogleExplicitCacheMinTokenEstimate else {
+            return nil
+        }
+
+        let fingerprint = sha256Hex("vertex|\(modelID)|\(systemText)")
+        let displayName = "jin-auto-\(fingerprint.prefix(24))"
+        let registryKey = "vertex|\(modelID)|\(fingerprint)"
+
+        let cachedName: String
+        if let name = await AutomaticExplicitCacheRegistry.shared.cachedName(for: registryKey) {
+            cachedName = name
+        } else {
+            let payload: [String: Any] = [
+                "model": normalizedVertexCachedContentModel(modelID),
+                "displayName": displayName,
+                "ttl": "\(Int(automaticGoogleExplicitCacheTTLSeconds))s",
+                "systemInstruction": [
+                    "parts": [
+                        ["text": systemText]
+                    ]
+                ]
+            ]
+
+            do {
+                let created = try await adapter.createCachedContent(payload: payload)
+                cachedName = created.name
+                await AutomaticExplicitCacheRegistry.shared.save(
+                    name: cachedName,
+                    for: registryKey,
+                    ttlSeconds: automaticGoogleExplicitCacheTTLSeconds * 0.9
+                )
+            } catch {
+                return nil
+            }
+        }
+
+        return applyExplicitGoogleCache(named: cachedName, messages: messages, controls: controls)
+    }
+
+    private static func applyExplicitGoogleCache(
+        named cachedContentName: String,
+        messages: [Message],
+        controls: GenerationControls
+    ) -> (messages: [Message], controls: GenerationControls)? {
+        guard let systemIndex = messages.firstIndex(where: { $0.role == .system }) else {
+            return nil
+        }
+
+        var adjustedMessages = messages
+        adjustedMessages.remove(at: systemIndex)
+
+        var adjustedControls = controls
+        var contextCache = adjustedControls.contextCache ?? ContextCacheControls(mode: .explicit)
+        contextCache.mode = .explicit
+        contextCache.cachedContentName = cachedContentName
+        contextCache.strategy = nil
+        contextCache.ttl = nil
+        contextCache.cacheKey = nil
+        contextCache.conversationID = nil
+        contextCache.minTokensThreshold = nil
+        adjustedControls.contextCache = contextCache
+
+        return (adjustedMessages, adjustedControls)
+    }
+
+    private static func automaticOpenAICacheKey(
+        modelID: String,
+        messages: [Message],
+        tools: [ToolDefinition]
+    ) -> String {
+        let systemText = normalizedSystemPrompt(in: messages) ?? ""
+        let toolSignature = tools
+            .map { tool in
+                "\(tool.name)|\(tool.description)|\((tool.parameters.required).joined(separator: ","))"
+            }
+            .sorted()
+            .joined(separator: "\n")
+        let digest = sha256Hex("openai|\(modelID)|\(systemText)|\(toolSignature)")
+        return "jin-prefix-\(digest.prefix(24))"
+    }
+
+    private static func normalizedSystemPrompt(in messages: [Message]) -> String? {
+        guard let systemMessage = messages.first(where: { $0.role == .system }) else {
+            return nil
+        }
+        let text = systemMessage.content.compactMap { part -> String? in
+            if case .text(let value) = part {
+                return value
+            }
+            return nil
+        }.joined(separator: "\n")
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
+    private static func approximateTokenEstimate(for text: String) -> Int {
+        guard !text.isEmpty else { return 0 }
+        return max(1, text.count / 4)
+    }
+
+    private static func normalizedGeminiCachedContentModel(_ modelID: String) -> String {
+        let trimmed = modelID.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.hasPrefix("models/") {
+            return trimmed
+        }
+        return "models/\(trimmed)"
+    }
+
+    private static func normalizedVertexCachedContentModel(_ modelID: String) -> String {
+        let trimmed = modelID.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.hasPrefix("publishers/") {
+            return trimmed
+        }
+        if trimmed.hasPrefix("models/") {
+            return "publishers/google/\(trimmed)"
+        }
+        return "publishers/google/models/\(trimmed)"
+    }
+
+    private static func sha256Hex(_ text: String) -> String {
+        let digest = SHA256.hash(data: Data(text.utf8))
+        return digest.map { String(format: "%02x", $0) }.joined()
     }
 
     private var supportsMCPToolsControl: Bool {
@@ -1951,6 +2616,12 @@ struct ChatView: View {
         let count = selectedMCPServerIDs.count
         if count == 0 { return "MCP Tools: On (no servers)" }
         return "MCP Tools: On (\(count) server\(count == 1 ? "" : "s"))"
+    }
+
+    private var contextCacheHelpText: String {
+        guard supportsContextCacheControl else { return "Context Cache: Not supported" }
+        guard isContextCacheEnabled else { return "Context Cache: Off" }
+        return "Context Cache: \(contextCacheLabel)"
     }
 
     private var webSearchLabel: String {
@@ -2037,6 +2708,34 @@ struct ChatView: View {
         let count = selectedMCPServerIDs.count
         guard count > 0 else { return nil }
         return count > 99 ? "99+" : "\(count)"
+    }
+
+    private var contextCacheLabel: String {
+        let mode = effectiveContextCacheMode
+        switch mode {
+        case .off:
+            return "Off"
+        case .implicit:
+            return "Implicit"
+        case .explicit:
+            if let name = controls.contextCache?.cachedContentName?.trimmingCharacters(in: .whitespacesAndNewlines),
+               !name.isEmpty {
+                return "Explicit (\(name))"
+            }
+            return "Explicit"
+        }
+    }
+
+    private var contextCacheBadgeText: String? {
+        guard supportsContextCacheControl, isContextCacheEnabled else { return nil }
+        switch effectiveContextCacheMode {
+        case .off:
+            return nil
+        case .implicit:
+            return "I"
+        case .explicit:
+            return "E"
+        }
     }
 
     private var eligibleMCPServers: [MCPServerConfigEntity] {
@@ -3086,6 +3785,11 @@ struct ChatView: View {
             assistantTemperature: assistant?.temperature,
             assistantMaxOutputTokens: assistant?.maxOutputTokens
         )
+        controlsToUse.contextCache = automaticContextCacheControls(
+            providerType: providerType,
+            modelID: modelID,
+            modelCapabilities: modelInfoSnapshot?.capabilities
+        )
 
         let shouldTruncateMessages = assistant?.truncateMessages ?? false
         let maxHistoryMessages = assistant?.maxHistoryMessages
@@ -3126,6 +3830,19 @@ struct ChatView: View {
                 let providerManager = ProviderManager()
                 let adapter = try await providerManager.createAdapter(for: providerConfig)
                 let mcpTools = try await MCPHub.shared.toolDefinitions(for: mcpServerConfigs)
+                let providerType = providerConfig.type
+
+                var requestControls = controlsToUse
+                let optimizedContextCache = await Self.applyAutomaticContextCacheOptimizations(
+                    adapter: adapter,
+                    providerType: providerType,
+                    modelID: modelID,
+                    messages: history,
+                    controls: requestControls,
+                    tools: mcpTools
+                )
+                history = optimizedContextCache.messages
+                requestControls = optimizedContextCache.controls
 
                 var iteration = 0
                 let maxToolIterations = 8
@@ -3224,7 +3941,7 @@ struct ChatView: View {
                     let stream = try await adapter.sendMessage(
                         messages: history,
                         modelID: modelID,
-                        controls: controlsToUse,
+                        controls: requestControls,
                         tools: mcpTools,
                         streaming: true
                     )
@@ -3854,6 +4571,63 @@ struct ChatView: View {
         }
     }
 
+    @ViewBuilder
+    private var contextCacheMenuContent: some View {
+        Button {
+            controls.contextCache = ContextCacheControls(mode: .off)
+            persistControlsToConversation()
+        } label: {
+            menuItemLabel("Off", isSelected: effectiveContextCacheMode == .off)
+        }
+
+        Button {
+            var cache = controls.contextCache ?? ContextCacheControls(mode: .implicit)
+            cache.mode = .implicit
+            if providerType != .anthropic {
+                cache.strategy = nil
+            }
+            if providerType != .openai && providerType != .xai {
+                cache.cacheKey = nil
+                cache.minTokensThreshold = nil
+            }
+            if providerType != .xai {
+                cache.conversationID = nil
+            }
+            if providerType != .gemini && providerType != .vertexai {
+                cache.cachedContentName = nil
+            }
+            controls.contextCache = cache
+            persistControlsToConversation()
+        } label: {
+            menuItemLabel("Implicit", isSelected: effectiveContextCacheMode == .implicit)
+        }
+
+        if supportsExplicitContextCacheMode {
+            Button {
+                var cache = controls.contextCache ?? ContextCacheControls(mode: .explicit)
+                cache.mode = .explicit
+                controls.contextCache = cache
+                persistControlsToConversation()
+            } label: {
+                menuItemLabel("Explicit", isSelected: effectiveContextCacheMode == .explicit)
+            }
+        }
+
+        Divider()
+
+        Button("Configure…") {
+            openContextCacheEditor()
+        }
+
+        if controls.contextCache != nil {
+            Divider()
+            Button("Reset", role: .destructive) {
+                controls.contextCache = nil
+                persistControlsToConversation()
+            }
+        }
+    }
+
     private var mcpToolsEnabledBinding: Binding<Bool> {
         Binding(
             get: { controls.mcpTools?.enabled ?? true },
@@ -4109,6 +4883,167 @@ struct ChatView: View {
         persistControlsToConversation()
         imageGenerationDraftError = nil
         return true
+    }
+
+    private func openContextCacheEditor() {
+        let defaultMode: ContextCacheMode = (providerType == .anthropic) ? .implicit : .off
+        contextCacheDraft = controls.contextCache ?? ContextCacheControls(mode: defaultMode)
+        contextCacheTTLPreset = contextCachePreset(from: contextCacheDraft.ttl)
+        if case .customSeconds(let seconds) = contextCacheDraft.ttl {
+            contextCacheCustomTTLDraft = "\(seconds)"
+        } else {
+            contextCacheCustomTTLDraft = ""
+        }
+        contextCacheMinTokensDraft = contextCacheDraft.minTokensThreshold.map(String.init) ?? ""
+        contextCacheAdvancedExpanded = shouldExpandContextCacheAdvancedOptions(for: contextCacheDraft)
+        contextCacheDraftError = nil
+        showingContextCacheSheet = true
+    }
+
+    private func shouldExpandContextCacheAdvancedOptions(for draft: ContextCacheControls) -> Bool {
+        guard draft.mode != .off else { return false }
+
+        if supportsContextCacheTTL,
+           let ttl = draft.ttl,
+           ttl != .providerDefault {
+            return true
+        }
+
+        if providerType == .openai || providerType == .xai {
+            if let cacheKey = draft.cacheKey?.trimmingCharacters(in: .whitespacesAndNewlines),
+               !cacheKey.isEmpty {
+                return true
+            }
+            if draft.minTokensThreshold != nil {
+                return true
+            }
+        }
+
+        if providerType == .xai,
+           let conversationID = draft.conversationID?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !conversationID.isEmpty {
+            return true
+        }
+
+        return false
+    }
+
+    private var isContextCacheDraftValid: Bool {
+        if contextCacheTTLPreset == .custom {
+            let trimmed = contextCacheCustomTTLDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard let value = Int(trimmed), value > 0 else { return false }
+        }
+
+        let minTokensTrimmed = contextCacheMinTokensDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !minTokensTrimmed.isEmpty {
+            guard let value = Int(minTokensTrimmed), value > 0 else { return false }
+        }
+
+        if supportsExplicitContextCacheMode, contextCacheDraft.mode == .explicit {
+            let name = (contextCacheDraft.cachedContentName ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            return !name.isEmpty
+        }
+
+        return true
+    }
+
+    @discardableResult
+    private func applyContextCacheDraft() -> Bool {
+        var draft = contextCacheDraft
+
+        if supportsContextCacheTTL {
+            switch contextCacheTTLPreset {
+            case .providerDefault:
+                draft.ttl = .providerDefault
+            case .minutes5:
+                draft.ttl = .minutes5
+            case .hour1:
+                draft.ttl = .hour1
+            case .custom:
+                let trimmed = contextCacheCustomTTLDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard let value = Int(trimmed), value > 0 else {
+                    contextCacheDraftError = "Custom TTL must be a positive integer (seconds)."
+                    return false
+                }
+                draft.ttl = .customSeconds(value)
+            }
+        } else {
+            draft.ttl = nil
+        }
+
+        let minTokensTrimmed = contextCacheMinTokensDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        if minTokensTrimmed.isEmpty {
+            draft.minTokensThreshold = nil
+        } else if let value = Int(minTokensTrimmed), value > 0 {
+            draft.minTokensThreshold = value
+        } else {
+            contextCacheDraftError = "Min tokens threshold must be a positive integer."
+            return false
+        }
+
+        draft.cacheKey = draft.cacheKey?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if draft.cacheKey?.isEmpty == true {
+            draft.cacheKey = nil
+        }
+
+        draft.conversationID = draft.conversationID?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if draft.conversationID?.isEmpty == true {
+            draft.conversationID = nil
+        }
+
+        draft.cachedContentName = draft.cachedContentName?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if draft.cachedContentName?.isEmpty == true {
+            draft.cachedContentName = nil
+        }
+
+        if !supportsContextCacheStrategy {
+            draft.strategy = nil
+        } else if draft.strategy == nil {
+            draft.strategy = .systemOnly
+        }
+
+        if !supportsExplicitContextCacheMode, draft.mode == .explicit {
+            draft.mode = .implicit
+        }
+
+        if providerType != .openai && providerType != .xai {
+            draft.cacheKey = nil
+            draft.minTokensThreshold = nil
+        }
+        if providerType != .xai {
+            draft.conversationID = nil
+        }
+        if providerType != .gemini && providerType != .vertexai {
+            draft.cachedContentName = nil
+        }
+
+        if draft.mode == .off {
+            if providerType == .anthropic {
+                controls.contextCache = ContextCacheControls(mode: .off)
+            } else {
+                controls.contextCache = nil
+            }
+        } else {
+            controls.contextCache = draft
+        }
+
+        normalizeControlsForCurrentSelection()
+        persistControlsToConversation()
+        contextCacheDraftError = nil
+        return true
+    }
+
+    private func contextCachePreset(from ttl: ContextCacheTTL?) -> ContextCacheTTLPreset {
+        switch ttl {
+        case .minutes5:
+            return .minutes5
+        case .hour1:
+            return .hour1
+        case .customSeconds:
+            return .custom
+        case .providerDefault, .none:
+            return .providerDefault
+        }
     }
 
     private var providerSpecificParamsBadgeText: String? {
@@ -4874,6 +5809,46 @@ struct ChatView: View {
             }
         } else {
             controls.webSearch = nil
+        }
+
+        if supportsContextCacheControl {
+            if var contextCache = controls.contextCache {
+                if !supportsExplicitContextCacheMode, contextCache.mode == .explicit {
+                    contextCache.mode = .implicit
+                    contextCache.cachedContentName = nil
+                }
+
+                if !supportsContextCacheStrategy {
+                    contextCache.strategy = nil
+                } else if contextCache.strategy == nil {
+                    contextCache.strategy = .systemOnly
+                }
+
+                if !supportsContextCacheTTL {
+                    contextCache.ttl = nil
+                }
+
+                if providerType != .openai && providerType != .xai {
+                    contextCache.cacheKey = nil
+                    contextCache.minTokensThreshold = nil
+                }
+
+                if providerType != .xai {
+                    contextCache.conversationID = nil
+                }
+
+                if providerType != .gemini && providerType != .vertexai {
+                    contextCache.cachedContentName = nil
+                }
+
+                if contextCache.mode == .off, providerType != .anthropic {
+                    controls.contextCache = nil
+                } else {
+                    controls.contextCache = contextCache
+                }
+            }
+        } else {
+            controls.contextCache = nil
         }
 
         if !supportsReasoningControl, providerType == .anthropic {

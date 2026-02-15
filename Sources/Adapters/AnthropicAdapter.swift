@@ -262,6 +262,8 @@ actor AnthropicAdapter: LLMProviderAdapter {
         let normalizedMessages = AnthropicToolUseNormalizer.normalize(messages)
         let allowNativePDF = (controls.pdfProcessingMode ?? .native) == .native
         let supportsNativePDF = allowNativePDF && self.supportsNativePDF(modelID)
+        let cacheControl = anthropicCacheControl(from: controls.contextCache)
+        let cacheStrategy = controls.contextCache?.strategy ?? .systemOnly
 
         var request = URLRequest(url: URL(string: "\(baseURL)/messages")!)
         request.httpMethod = "POST"
@@ -272,9 +274,21 @@ actor AnthropicAdapter: LLMProviderAdapter {
             request.addValue(betaHeader, forHTTPHeaderField: "anthropic-beta")
         }
 
+        var userMessageOrdinal = 0
         let translatedMessages = normalizedMessages
             .filter { $0.role != .system }
-            .map { translateMessage($0, supportsNativePDF: supportsNativePDF) }
+            .map { message -> [String: Any] in
+                if message.role != .assistant {
+                    userMessageOrdinal += 1
+                }
+                return translateMessage(
+                    message,
+                    supportsNativePDF: supportsNativePDF,
+                    cacheControl: cacheControl,
+                    cacheStrategy: cacheStrategy,
+                    userMessageOrdinal: userMessageOrdinal
+                )
+            }
 
         try AnthropicRequestPreflight.validate(messages: translatedMessages)
 
@@ -293,13 +307,14 @@ actor AnthropicAdapter: LLMProviderAdapter {
 
         if let systemPrompt = normalizedMessages.first(where: { $0.role == .system })?.content.first,
            case .text(let text) = systemPrompt {
-            body["system"] = [
-                [
-                    "type": "text",
-                    "text": text,
-                    "cache_control": ["type": "ephemeral"]
-                ]
+            var block: [String: Any] = [
+                "type": "text",
+                "text": text
             ]
+            if let cacheControl {
+                block["cache_control"] = cacheControl
+            }
+            body["system"] = [block]
         }
 
         let thinkingEnabled = controls.reasoning?.enabled == true
@@ -383,8 +398,30 @@ actor AnthropicAdapter: LLMProviderAdapter {
         return request
     }
 
-    private func translateMessage(_ message: Message, supportsNativePDF: Bool) -> [String: Any] {
+    private func translateMessage(
+        _ message: Message,
+        supportsNativePDF: Bool,
+        cacheControl: [String: Any]?,
+        cacheStrategy: ContextCacheStrategy,
+        userMessageOrdinal: Int
+    ) -> [String: Any] {
         var content: [[String: Any]] = []
+        var didApplyPrefixCache = false
+
+        func applyCacheControlIfNeeded(to block: inout [String: Any], isCacheableBlock: Bool) {
+            guard isCacheableBlock, let cacheControl, message.role != .assistant else { return }
+
+            switch cacheStrategy {
+            case .systemOnly:
+                return
+            case .systemAndTools:
+                block["cache_control"] = cacheControl
+            case .prefixWindow:
+                guard userMessageOrdinal == 1, !didApplyPrefixCache else { return }
+                block["cache_control"] = cacheControl
+                didApplyPrefixCache = true
+            }
+        }
 
         // Tool result blocks must come first in the user message that follows an assistant tool_use turn.
         // Even if some legacy history stores tool results on a non-`.tool` role, putting them first
@@ -394,12 +431,14 @@ actor AnthropicAdapter: LLMProviderAdapter {
                 let trimmed = result.content.trimmingCharacters(in: .whitespacesAndNewlines)
                 let safeContent = trimmed.isEmpty ? "<empty_content>" : result.content
 
-                content.append([
+                var block: [String: Any] = [
                     "type": "tool_result",
                     "tool_use_id": result.toolCallID,
                     "content": safeContent,
                     "is_error": result.isError
-                ])
+                ]
+                applyCacheControlIfNeeded(to: &block, isCacheableBlock: true)
+                content.append(block)
             }
         }
 
@@ -434,10 +473,12 @@ actor AnthropicAdapter: LLMProviderAdapter {
             for part in message.content {
                 switch part {
                 case .text(let text):
-                    content.append([
+                    var block: [String: Any] = [
                         "type": "text",
                         "text": text
-                    ])
+                    ]
+                    applyCacheControlIfNeeded(to: &block, isCacheableBlock: true)
+                    content.append(block)
                 case .image(let image):
                     if let data = image.data {
                         content.append([
@@ -472,24 +513,28 @@ actor AnthropicAdapter: LLMProviderAdapter {
                         }
 
                         if let pdfData = pdfData {
-                            content.append([
+                            var block: [String: Any] = [
                                 "type": "document",
                                 "source": [
                                     "type": "base64",
                                     "media_type": "application/pdf",
                                     "data": pdfData.base64EncodedString()
                                 ]
-                            ])
+                            ]
+                            applyCacheControlIfNeeded(to: &block, isCacheableBlock: true)
+                            content.append(block)
                             continue
                         }
                     }
 
                     // Fallback to text extraction
                     let text = AttachmentPromptRenderer.fallbackText(for: file)
-                    content.append([
+                    var block: [String: Any] = [
                         "type": "text",
                         "text": text
-                    ])
+                    ]
+                    applyCacheControlIfNeeded(to: &block, isCacheableBlock: true)
+                    content.append(block)
                 default:
                     break
                 }
@@ -514,6 +559,17 @@ actor AnthropicAdapter: LLMProviderAdapter {
             "role": message.role == .assistant ? "assistant" : "user",
             "content": content
         ]
+    }
+
+    private func anthropicCacheControl(from contextCache: ContextCacheControls?) -> [String: Any]? {
+        let mode = contextCache?.mode ?? .implicit
+        guard mode != .off else { return nil }
+
+        var out: [String: Any] = ["type": "ephemeral"]
+        if let ttl = contextCache?.ttl?.providerTTLString {
+            out["ttl"] = ttl
+        }
+        return out
     }
 
     private func parseJSONLine(
@@ -741,6 +797,8 @@ private struct AnthropicUsageAccumulator {
             inputTokens: inputTokens ?? 0,
             outputTokens: outputTokens ?? 0,
             cachedTokens: cacheReadInputTokens,
+            cacheCreationTokens: cacheCreationInputTokens,
+            cacheWriteTokens: cacheCreationInputTokens,
             serviceTier: serviceTier,
             inferenceGeo: inferenceGeo
         )

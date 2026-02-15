@@ -794,6 +794,80 @@ final class XAIAdapterMediaTests: XCTestCase {
         XCTAssertEqual(id, "vid_img2vid_1")
     }
 
+    func testXAIResponsesContextCacheAndUsageCachedTokens() async throws {
+        let (session, protocolType) = makeMockedURLSession()
+        let networkManager = NetworkManager(urlSession: session)
+
+        let providerConfig = ProviderConfig(
+            id: "x",
+            name: "xAI",
+            type: .xai,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://example.com/responses")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "x-grok-conv-id"), "conv-123")
+
+            let body = try XCTUnwrap(requestBodyData(request))
+            let root = try XCTUnwrap(try JSONSerialization.jsonObject(with: body) as? [String: Any])
+            XCTAssertEqual(root["prompt_cache_key"] as? String, "stable-prefix")
+            XCTAssertEqual(root["prompt_cache_retention"] as? String, "1h")
+            XCTAssertEqual(root["prompt_cache_min_tokens"] as? Int, 1024)
+
+            let response: [String: Any] = [
+                "id": "resp_cached_1",
+                "output": [
+                    [
+                        "type": "message",
+                        "content": [
+                            ["type": "output_text", "text": "ok"]
+                        ]
+                    ]
+                ],
+                "usage": [
+                    "input_tokens": 10,
+                    "output_tokens": 4,
+                    "prompt_tokens_details": [
+                        "cached_tokens": 6
+                    ]
+                ]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = XAIAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hi")])],
+            modelID: "grok-4-1",
+            controls: GenerationControls(
+                contextCache: ContextCacheControls(
+                    mode: .implicit,
+                    ttl: .hour1,
+                    cacheKey: "stable-prefix",
+                    conversationID: "conv-123",
+                    minTokensThreshold: 1024
+                )
+            ),
+            tools: [],
+            streaming: false
+        )
+
+        var finalUsage: Usage?
+        for try await event in stream {
+            if case .messageEnd(let usage) = event {
+                finalUsage = usage
+            }
+        }
+
+        XCTAssertEqual(finalUsage?.inputTokens, 10)
+        XCTAssertEqual(finalUsage?.outputTokens, 4)
+        XCTAssertEqual(finalUsage?.cachedTokens, 6)
+    }
+
     func testXAIModelFetchMapsImageCapabilities() async throws {
         let (session, protocolType) = makeMockedURLSession()
         let networkManager = NetworkManager(urlSession: session)
@@ -844,6 +918,7 @@ final class XAIAdapterMediaTests: XCTestCase {
         XCTAssertTrue(chat.capabilities.contains(.toolCalling))
         XCTAssertTrue(chat.capabilities.contains(.vision))
         XCTAssertTrue(chat.capabilities.contains(.reasoning))
+        XCTAssertTrue(chat.capabilities.contains(.promptCaching))
         XCTAssertTrue(chat.capabilities.contains(.nativePDF))
         XCTAssertEqual(chat.contextWindow, 200000)
 

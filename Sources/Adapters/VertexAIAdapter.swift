@@ -3,7 +3,7 @@ import Security
 
 actor VertexAIAdapter: LLMProviderAdapter {
     let providerConfig: ProviderConfig
-    let capabilities: ModelCapability = [.streaming, .toolCalling, .vision, .reasoning, .nativePDF, .imageGeneration]
+    let capabilities: ModelCapability = [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .nativePDF, .imageGeneration]
 
     private let networkManager: NetworkManager
     private let serviceAccountJSON: ServiceAccountCredentials
@@ -17,6 +17,94 @@ actor VertexAIAdapter: LLMProviderAdapter {
         self.providerConfig = providerConfig
         self.serviceAccountJSON = serviceAccountJSON
         self.networkManager = networkManager
+    }
+
+    struct CachedContentResource: Codable, Hashable, Sendable {
+        let name: String
+        let model: String?
+        let displayName: String?
+        let createTime: String?
+        let updateTime: String?
+        let expireTime: String?
+    }
+
+    func listCachedContents() async throws -> [CachedContentResource] {
+        let token = try await getAccessToken()
+        var request = URLRequest(url: URL(string: cachedContentsCollectionEndpoint)!)
+        request.httpMethod = "GET"
+        request.addValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.addValue("application/json", forHTTPHeaderField: "Accept")
+
+        let (data, _) = try await networkManager.sendRequest(request)
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        let response = try decoder.decode(VertexCachedContentsListResponse.self, from: data)
+        return response.cachedContents ?? []
+    }
+
+    func getCachedContent(named name: String) async throws -> CachedContentResource {
+        let token = try await getAccessToken()
+        var request = URLRequest(url: URL(string: cachedContentEndpoint(for: name))!)
+        request.httpMethod = "GET"
+        request.addValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.addValue("application/json", forHTTPHeaderField: "Accept")
+
+        let (data, _) = try await networkManager.sendRequest(request)
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        return try decoder.decode(CachedContentResource.self, from: data)
+    }
+
+    func createCachedContent(payload: [String: Any]) async throws -> CachedContentResource {
+        guard JSONSerialization.isValidJSONObject(payload) else {
+            throw LLMError.invalidRequest(message: "Invalid cachedContent payload.")
+        }
+
+        let token = try await getAccessToken()
+        var request = URLRequest(url: URL(string: cachedContentsCollectionEndpoint)!)
+        request.httpMethod = "POST"
+        request.addValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONSerialization.data(withJSONObject: payload)
+
+        let (data, _) = try await networkManager.sendRequest(request)
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        return try decoder.decode(CachedContentResource.self, from: data)
+    }
+
+    func updateCachedContent(named name: String, payload: [String: Any], updateMask: String? = nil) async throws -> CachedContentResource {
+        guard JSONSerialization.isValidJSONObject(payload) else {
+            throw LLMError.invalidRequest(message: "Invalid cachedContent payload.")
+        }
+
+        let token = try await getAccessToken()
+        var components = URLComponents(string: cachedContentEndpoint(for: name))
+        if let updateMask {
+            components?.queryItems = [URLQueryItem(name: "updateMask", value: updateMask)]
+        }
+        guard let url = components?.url else {
+            throw LLMError.invalidRequest(message: "Invalid cachedContent URL.")
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "PATCH"
+        request.addValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONSerialization.data(withJSONObject: payload)
+
+        let (data, _) = try await networkManager.sendRequest(request)
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        return try decoder.decode(CachedContentResource.self, from: data)
+    }
+
+    func deleteCachedContent(named name: String) async throws {
+        let token = try await getAccessToken()
+        var request = URLRequest(url: URL(string: cachedContentEndpoint(for: name))!)
+        request.httpMethod = "DELETE"
+        request.addValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        _ = try await networkManager.sendRequest(request)
     }
 
     func sendMessage(
@@ -45,6 +133,7 @@ actor VertexAIAdapter: LLMProviderAdapter {
                 do {
                     var didStart = false
                     var pendingJSON = ""
+                    var pendingUsage: Usage?
 
                     for try await line in lineStream {
                         guard let data = normalizeVertexStreamLine(line) else { continue }
@@ -58,7 +147,11 @@ actor VertexAIAdapter: LLMProviderAdapter {
                         pendingJSON += "\n"
 
                         for jsonObject in extractJSONObjectStrings(from: &pendingJSON) {
-                            for streamEvent in try parseStreamEvents(jsonObject) {
+                            let parsed = try parseStreamChunk(jsonObject)
+                            if let usage = parsed.usage {
+                                pendingUsage = usage
+                            }
+                            for streamEvent in parsed.events {
                                 continuation.yield(streamEvent)
                             }
                         }
@@ -70,12 +163,16 @@ actor VertexAIAdapter: LLMProviderAdapter {
                     if didStart {
                         if !pendingJSON.isEmpty {
                             for jsonObject in extractJSONObjectStrings(from: &pendingJSON) {
-                                for streamEvent in try parseStreamEvents(jsonObject) {
+                                let parsed = try parseStreamChunk(jsonObject)
+                                if let usage = parsed.usage {
+                                    pendingUsage = usage
+                                }
+                                for streamEvent in parsed.events {
                                     continuation.yield(streamEvent)
                                 }
                             }
                         }
-                        continuation.yield(.messageEnd(usage: nil))
+                        continuation.yield(.messageEnd(usage: pendingUsage))
                     }
                     continuation.finish()
                 } catch {
@@ -294,12 +391,20 @@ actor VertexAIAdapter: LLMProviderAdapter {
             "generationConfig": buildGenerationConfig(controls, modelID: modelID)
         ]
 
-        if let systemText, !systemText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+        let explicitCachedContent = (controls.contextCache?.mode == .explicit)
+            ? normalizedContextCacheString(controls.contextCache?.cachedContentName)
+            : nil
+
+        if explicitCachedContent == nil, let systemText, !systemText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             body["systemInstruction"] = [
                 "parts": [
                     ["text": systemText]
                 ]
             ]
+        }
+
+        if let cachedContent = explicitCachedContent {
+            body["cachedContent"] = cachedContent
         }
 
         var toolArray: [[String: Any]] = []
@@ -385,6 +490,10 @@ actor VertexAIAdapter: LLMProviderAdapter {
 
         if supportsNativePDF(id) {
             caps.insert(.nativePDF)
+        }
+
+        if !imageModel {
+            caps.insert(.promptCaching)
         }
 
         if imageModel {
@@ -497,6 +606,12 @@ actor VertexAIAdapter: LLMProviderAdapter {
     private func supportsNativePDF(_ modelID: String) -> Bool {
         // Gemini 3 series supports native PDF with free text extraction
         return modelID.lowercased().contains("gemini-3") && !isImageGenerationModel(modelID)
+    }
+
+    private func normalizedContextCacheString(_ value: String?) -> String? {
+        guard let value else { return nil }
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
     }
 
     private func translateMessage(_ message: Message, supportsNativePDF: Bool) -> [String: Any] {
@@ -644,10 +759,10 @@ actor VertexAIAdapter: LLMProviderAdapter {
         return trimmed
     }
 
-    private func parseStreamEvents(_ data: String) throws -> [StreamEvent] {
+    private func parseStreamChunk(_ data: String) throws -> (events: [StreamEvent], usage: Usage?) {
         let trimmed = data.trimmingCharacters(in: .whitespacesAndNewlines)
         guard let jsonData = trimmed.data(using: .utf8) else {
-            return []
+            return ([], nil)
         }
 
         let decoder = JSONDecoder()
@@ -655,11 +770,19 @@ actor VertexAIAdapter: LLMProviderAdapter {
 
         if trimmed.hasPrefix("[") {
             let responses = try decoder.decode([GenerateContentResponse].self, from: jsonData)
-            return responses.flatMap(eventsFromVertexResponse)
+            var events: [StreamEvent] = []
+            var usage: Usage?
+            for response in responses {
+                events.append(contentsOf: eventsFromVertexResponse(response))
+                if let parsed = usageFromVertexResponse(response) {
+                    usage = parsed
+                }
+            }
+            return (events, usage)
         }
 
         let response = try decoder.decode(GenerateContentResponse.self, from: jsonData)
-        return eventsFromVertexResponse(response)
+        return (eventsFromVertexResponse(response), usageFromVertexResponse(response))
     }
 
     private func extractJSONObjectStrings(from buffer: inout String) -> [String] {
@@ -759,6 +882,21 @@ actor VertexAIAdapter: LLMProviderAdapter {
         return events
     }
 
+    private func usageFromVertexResponse(_ response: GenerateContentResponse) -> Usage? {
+        guard let usageMetadata = response.usageMetadata else { return nil }
+        guard let input = usageMetadata.promptTokenCount,
+              let output = usageMetadata.candidatesTokenCount else {
+            return nil
+        }
+
+        return Usage(
+            inputTokens: input,
+            outputTokens: output,
+            thinkingTokens: nil,
+            cachedTokens: usageMetadata.cachedContentTokenCount
+        )
+    }
+
     private func deepMerge(into base: inout [String: Any], additional: [String: Any]) {
         for (key, value) in additional {
             if var baseDict = base[key] as? [String: Any],
@@ -776,6 +914,18 @@ actor VertexAIAdapter: LLMProviderAdapter {
             return "https://aiplatform.googleapis.com/v1"
         }
         return "https://\(location)-aiplatform.googleapis.com/v1"
+    }
+
+    private var cachedContentsCollectionEndpoint: String {
+        "\(baseURL)/projects/\(serviceAccountJSON.projectID)/locations/\(location)/cachedContents"
+    }
+
+    private func cachedContentEndpoint(for rawName: String) -> String {
+        let trimmed = rawName.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.lowercased().hasPrefix("projects/") {
+            return "\(baseURL)/\(trimmed)"
+        }
+        return "\(cachedContentsCollectionEndpoint)/\(trimmed)"
     }
 
     private var location: String {
@@ -805,6 +955,11 @@ private struct VertexListModelsResponse: Codable {
         let versionID: String?
         let description: String?
     }
+}
+
+private struct VertexCachedContentsListResponse: Codable {
+    let cachedContents: [VertexAIAdapter.CachedContentResource]?
+    let nextPageToken: String?
 }
 
 // MARK: - Service Account Types
@@ -880,6 +1035,7 @@ private struct TokenResponse: Codable {
             let promptTokenCount: Int?
             let candidatesTokenCount: Int?
             let totalTokenCount: Int?
+            let cachedContentTokenCount: Int?
         }
     }
 
