@@ -308,8 +308,7 @@ actor XAIAdapter: LLMProviderAdapter {
             body["aspect_ratio"] = aspectRatio.rawValue
         }
 
-        let responseFormat = imageControls?.responseFormat ?? .b64JSON
-        body["response_format"] = responseFormat.rawValue
+        body["response_format"] = "b64_json"
         if let user = imageControls?.user?.trimmingCharacters(in: .whitespacesAndNewlines), !user.isEmpty {
             body["user"] = user
         }

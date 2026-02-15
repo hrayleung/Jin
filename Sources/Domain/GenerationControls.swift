@@ -54,7 +54,6 @@ struct XAIImageGenerationControls: Codable {
     var quality: XAIImageQuality?
     /// Deprecated: currently unsupported by xAI image APIs.
     var style: XAIImageStyle?
-    var responseFormat: XAIMediaResponseFormat?
     var user: String?
 
     init(
@@ -63,7 +62,6 @@ struct XAIImageGenerationControls: Codable {
         size: XAIImageSize? = nil,
         quality: XAIImageQuality? = nil,
         style: XAIImageStyle? = nil,
-        responseFormat: XAIMediaResponseFormat? = nil,
         user: String? = nil
     ) {
         self.count = count
@@ -71,7 +69,6 @@ struct XAIImageGenerationControls: Codable {
         self.size = size
         self.quality = quality
         self.style = style
-        self.responseFormat = responseFormat
         self.user = user
     }
 
@@ -81,22 +78,7 @@ struct XAIImageGenerationControls: Codable {
             && size == nil
             && quality == nil
             && style == nil
-            && responseFormat == nil
             && (user?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true)
-    }
-}
-
-enum XAIMediaResponseFormat: String, Codable, CaseIterable {
-    case url
-    case b64JSON = "b64_json"
-
-    var displayName: String {
-        switch self {
-        case .url:
-            return "URL"
-        case .b64JSON:
-            return "Base64 JSON"
-        }
     }
 }
 

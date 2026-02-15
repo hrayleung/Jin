@@ -33,7 +33,6 @@ final class MessageContentMediaCodableTests: XCTestCase {
             xaiImageGeneration: XAIImageGenerationControls(
                 count: 2,
                 aspectRatio: .ratio3x2,
-                responseFormat: .b64JSON,
                 user: "tester"
             )
         )
@@ -44,7 +43,6 @@ final class MessageContentMediaCodableTests: XCTestCase {
         XCTAssertEqual(decoded.temperature, 0.3)
         XCTAssertEqual(decoded.xaiImageGeneration?.count, 2)
         XCTAssertEqual(decoded.xaiImageGeneration?.aspectRatio, .ratio3x2)
-        XCTAssertEqual(decoded.xaiImageGeneration?.responseFormat, .b64JSON)
         XCTAssertEqual(decoded.xaiImageGeneration?.user, "tester")
     }
 

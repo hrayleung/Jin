@@ -1675,9 +1675,6 @@ struct ChatView: View {
             if let count = controls.xaiImageGeneration?.count, count > 1 {
                 return "x\(count)"
             }
-            if let format = controls.xaiImageGeneration?.responseFormat {
-                return format == .url ? "URL" : "B64"
-            }
             return isImageGenerationConfigured ? "On" : nil
         }
 
@@ -3851,17 +3848,6 @@ struct ChatView: View {
                             ratio.displayName,
                             isSelected: (controls.xaiImageGeneration?.aspectRatio ?? controls.xaiImageGeneration?.size?.mappedAspectRatio) == ratio
                         )
-                    }
-                }
-            }
-
-            Menu("Response format") {
-                Button { updateXAIImageGeneration { $0.responseFormat = nil } } label: {
-                    menuItemLabel("Default", isSelected: controls.xaiImageGeneration?.responseFormat == nil)
-                }
-                ForEach(XAIMediaResponseFormat.allCases, id: \.self) { format in
-                    Button { updateXAIImageGeneration { $0.responseFormat = format } } label: {
-                        menuItemLabel(format.displayName, isSelected: controls.xaiImageGeneration?.responseFormat == format)
                     }
                 }
             }
