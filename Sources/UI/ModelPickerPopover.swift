@@ -66,6 +66,7 @@ struct ModelPickerPopover: View {
                     systemImage: scope == .favorites ? "star" : "magnifyingglass",
                     description: Text(scope == .favorites ? "Star a model to pin it here." : "Try a different search.")
                 )
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 List {
                     ForEach(sections) { section in
