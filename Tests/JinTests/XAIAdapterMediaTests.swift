@@ -28,7 +28,7 @@ final class XAIAdapterMediaTests: XCTestCase {
             XCTAssertEqual(root["prompt"] as? String, "A watercolor skyline")
             XCTAssertEqual(root["n"] as? Int, 2)
             XCTAssertEqual(root["aspect_ratio"] as? String, "1:1")
-            XCTAssertEqual(root["response_format"] as? String, "url")
+            XCTAssertEqual(root["response_format"] as? String, "b64_json")
             XCTAssertEqual(root["user"] as? String, "tester")
             XCTAssertEqual(root["extra_flag"] as? Bool, true)
 
@@ -56,7 +56,6 @@ final class XAIAdapterMediaTests: XCTestCase {
                 xaiImageGeneration: XAIImageGenerationControls(
                     count: 2,
                     aspectRatio: .ratio1x1,
-                    responseFormat: .url,
                     user: "tester"
                 ),
                 providerSpecific: ["extra_flag": AnyCodable(true)]
@@ -122,7 +121,7 @@ final class XAIAdapterMediaTests: XCTestCase {
             messages: [Message(role: .user, content: [.text("draw")])],
             modelID: "grok-imagine-image",
             controls: GenerationControls(
-                xaiImageGeneration: XAIImageGenerationControls(responseFormat: .b64JSON)
+                xaiImageGeneration: XAIImageGenerationControls()
             ),
             tools: [],
             streaming: false
