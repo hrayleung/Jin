@@ -5,7 +5,7 @@ When searching for code, use the augment MCP tool (`mcp__augment-context-engine_
 
 ## Project Overview
 
-**Jin** is a native macOS application (SwiftUI + SwiftData) for interacting with multiple LLM providers. It supports multimodal conversations (text, images, files, audio), reasoning models with thinking blocks, tool calling, image generation, and Model Context Protocol (MCP) integration.
+**Jin** is a native macOS application (SwiftUI + SwiftData) for interacting with multiple LLM providers. It supports multimodal conversations (text, images, files, audio, video), reasoning models with thinking blocks, tool calling, image/video generation, cross-provider context caching, and Model Context Protocol (MCP) integration.
 
 ## Build & Run Commands
 
@@ -57,12 +57,15 @@ All providers implement the `LLMProviderAdapter` protocol (`sendMessage`, `valid
 ### Domain Layer
 
 - `Message` - Contains `role`, `content: [ContentPart]`, `toolCalls`, `toolResults`
-- `ContentPart` - `.text`, `.image`, `.file`, `.audio`, `.thinking`, `.redactedThinking`
-- `GenerationControls` - Temperature, max tokens, reasoning, web search, MCP tools, image generation, PDF processing mode, provider-specific params
+- `ContentPart` - `.text`, `.image`, `.file`, `.audio`, `.video`, `.thinking`, `.redactedThinking`
+- `VideoContent` - Video data model (mirrors `ImageContent`): `mimeType`, `data`, `url`
+- `GenerationControls` - Temperature, max tokens, reasoning, web search, MCP tools, image/video generation, PDF processing mode, context cache controls, provider-specific params
+- `ContextCacheControls` - Unified cross-provider cache configuration: mode (off/implicit/explicit), strategy (systemOnly/systemAndTools/prefixWindow), TTL, and provider-specific fields (`cacheKey` for OpenAI, `conversationID` for xAI, `cachedContentName` for Google)
+- `XAIImageGenerationControls` / `XAIVideoGenerationControls` - xAI-specific generation params (aspect ratio, duration, resolution)
 - `GenerationControlsResolver` - Resolves effective controls from assistant defaults + conversation overrides
 - `ProviderConfig` - Provider metadata, API key references, models
-- `JinModelSupport` - Model capability detection
-- `ProviderParamsJSONSync` - Syncs provider-specific JSON params
+- `JinModelSupport` - Model capability detection (`.videoGeneration`, `.imageGeneration`, `.promptCaching`, `.reasoning`, etc.)
+- `ProviderParamsJSONSync` - Syncs provider-specific JSON params bidirectionally between typed controls and raw JSON
 
 ### Persistence Layer
 
@@ -82,6 +85,34 @@ SwiftData entities in `SwiftDataModels.swift`:
 2. Adapters return `AsyncThrowingStream<StreamEvent, Error>` with events: `.messageStart`, `.contentDelta`, `.thinkingDelta`, `.toolCallStart/Delta/End`, `.messageEnd`, `.error`
 3. Streaming continues in background even when user navigates away
 
+### Video Generation (xAI)
+
+xAI adapter supports async video generation via polling:
+
+1. `sendMessage()` detects video generation models via `isVideoGenerationModel()`
+2. POST to `/videos/generations` → returns a request ID
+3. Polling loop: GET `/videos/{requestID}` every 3s, max 200 attempts (~10 min timeout)
+4. Status resolution from multiple possible JSON response structures
+5. HTTP error handling: 404/410 → expired, 500+ → failed, 4xx → failed
+6. Video downloaded and saved to `~/Library/Application Support/Jin/Attachments/{UUID}.{ext}`
+7. MIME type inferred from Content-Type header → URL extension → default MP4
+8. Yielded as `.contentDelta(.video(VideoContent))`
+
+Supports both text-to-video and image-to-video inputs.
+
+### Context Caching
+
+Cross-provider prompt caching with automatic strategy selection:
+
+| Provider | Method | Key Mechanism |
+|----------|--------|---------------|
+| Anthropic | Native cache headers | `cache_control` blocks on content |
+| OpenAI | Prompt cache control | `prompt_cache_control`, `cache_key` |
+| xAI | Conversation-level cache | `x-grok-conv-id` header + `prompt_cache_key`/`prompt_cache_retention` |
+| Gemini/Vertex | Explicit cache resources | `cachedContents/{id}` resource naming |
+
+Configuration via `ContextCacheControls` in `GenerationControls.swift`. Strategies: `systemOnly` (cache system prompt), `systemAndTools` (cache system + tool definitions), `prefixWindow` (cache conversation prefix). TTL options: provider default, 5 min, 1 hour, custom seconds.
+
 ### MCP Integration
 
 - `MCPHub` (actor) manages connections and routes tool calls to correct server
@@ -97,6 +128,12 @@ SwiftData entities in `SwiftDataModels.swift`:
 3. Provider returns `.toolCallStart/Delta/End` events
 4. ChatView executes tools via `MCPHub.executeTool()`
 5. Tool results appended as new message with `role: .tool`
+
+## Networking
+
+- `NetworkManager` handles HTTP requests with `sendRequest()` (throws on non-2xx) and `sendRawRequest()` (returns raw data + response for custom status handling, used by video polling)
+- SSE streaming via dedicated SSE client
+- All API keys stored in macOS Keychain, referenced by keychain IDs
 
 ## Plugins
 
@@ -132,6 +169,7 @@ Optional features configured via Settings, each with dedicated keychain IDs:
 - Pattern: `*Tests.swift`, `final class FooTests: XCTestCase`
 - Focus: Unit tests for Domain, Networking, Persistence; avoid network-dependent tests
 - Run single suite: `swift test --filter FooTests`
+- Notable test files: `XAIAdapterMediaTests.swift` (video/image generation), `OpenAIAdapterPromptCachingTests.swift` (cache logic)
 
 ## SwiftData Pitfalls
 

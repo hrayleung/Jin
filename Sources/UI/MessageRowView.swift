@@ -4,24 +4,140 @@ import AVFoundation
 import AVKit
 import CryptoKit
 
+// MARK: - Video Helpers
+
+private func persistVideoToDisk(from url: URL) async -> URL? {
+    guard let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else { return nil }
+    let dir = appSupport.appendingPathComponent("Jin/Attachments", isDirectory: true)
+    try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+
+    do {
+        let (data, response) = try await URLSession.shared.data(from: url)
+
+        let contentType = (response as? HTTPURLResponse)?
+            .value(forHTTPHeaderField: "Content-Type")?
+            .components(separatedBy: ";").first?
+            .trimmingCharacters(in: .whitespaces)
+            .lowercased()
+
+        let ext = videoFileExtension(contentType: contentType, url: url)
+
+        let filename = "\(UUID().uuidString).\(ext)"
+        let destination = dir.appendingPathComponent(filename)
+        try data.write(to: destination, options: .atomic)
+        return destination
+    } catch {
+        return nil
+    }
+}
+
+private func videoFileExtension(contentType: String?, url: URL) -> String {
+    let mimeToExt: [String: String] = [
+        "video/mp4": "mp4",
+        "video/quicktime": "mov",
+        "video/webm": "webm",
+        "video/x-msvideo": "avi",
+        "video/x-matroska": "mkv",
+    ]
+
+    if let ct = contentType, let ext = mimeToExt[ct] {
+        return ext
+    }
+
+    let urlExt = url.pathExtension.lowercased()
+    if !urlExt.isEmpty {
+        return urlExt
+    }
+
+    return "mp4"
+}
+
+// MARK: - JinAVPlayerView (AppKit subclass with context menu)
+
+/// Custom AVPlayerView that provides a native context menu with Reveal in Finder,
+/// since SwiftUI `.contextMenu` does not receive right-click events from NSViewRepresentable.
+private final class JinAVPlayerView: AVPlayerView {
+    var mediaURL: URL?
+
+    override func menu(for event: NSEvent) -> NSMenu? {
+        guard let url = mediaURL else { return nil }
+
+        let menu = NSMenu()
+
+        let openItem = NSMenuItem(title: "Open", action: #selector(openMedia), keyEquivalent: "")
+        openItem.target = self
+        openItem.image = NSImage(systemSymbolName: "arrow.up.right.square", accessibilityDescription: nil)
+        menu.addItem(openItem)
+
+        let revealItem = NSMenuItem(title: "Reveal in Finder", action: #selector(revealInFinder), keyEquivalent: "")
+        revealItem.target = self
+        revealItem.image = NSImage(systemSymbolName: "folder", accessibilityDescription: nil)
+        menu.addItem(revealItem)
+
+        menu.addItem(.separator())
+
+        if url.isFileURL {
+            let copyItem = NSMenuItem(title: "Copy Path", action: #selector(copyPathOrURL), keyEquivalent: "")
+            copyItem.target = self
+            copyItem.image = NSImage(systemSymbolName: "doc.on.doc", accessibilityDescription: nil)
+            menu.addItem(copyItem)
+        } else {
+            let copyItem = NSMenuItem(title: "Copy URL", action: #selector(copyPathOrURL), keyEquivalent: "")
+            copyItem.target = self
+            copyItem.image = NSImage(systemSymbolName: "doc.on.doc", accessibilityDescription: nil)
+            menu.addItem(copyItem)
+        }
+
+        return menu
+    }
+
+    @objc private func openMedia() {
+        guard let url = mediaURL else { return }
+        NSWorkspace.shared.open(url)
+    }
+
+    @objc private func revealInFinder() {
+        guard let url = mediaURL else { return }
+        if url.isFileURL {
+            NSWorkspace.shared.activateFileViewerSelecting([url])
+        } else {
+            Task {
+                if let localURL = await persistVideoToDisk(from: url) {
+                    await MainActor.run {
+                        NSWorkspace.shared.activateFileViewerSelecting([localURL])
+                    }
+                }
+            }
+        }
+    }
+
+    @objc private func copyPathOrURL() {
+        guard let url = mediaURL else { return }
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(url.isFileURL ? url.path : url.absoluteString, forType: .string)
+    }
+}
+
 // MARK: - VideoPlayerView (NSViewRepresentable)
 
-/// Wraps AppKit's AVPlayerView to avoid the _AVKit_SwiftUI metadata crash on macOS 26.
+/// Wraps JinAVPlayerView to provide video playback with a native context menu.
 private struct VideoPlayerView: NSViewRepresentable {
     let url: URL
 
-    func makeNSView(context: Context) -> AVPlayerView {
-        let view = AVPlayerView()
+    func makeNSView(context: Context) -> JinAVPlayerView {
+        let view = JinAVPlayerView()
         view.player = AVPlayer(url: url)
         view.controlsStyle = .inline
         view.showsFullScreenToggleButton = true
+        view.mediaURL = url
         return view
     }
 
-    func updateNSView(_ nsView: AVPlayerView, context: Context) {
-        // Only replace the player if the URL actually changed
+    func updateNSView(_ nsView: JinAVPlayerView, context: Context) {
         if (nsView.player?.currentItem?.asset as? AVURLAsset)?.url != url {
             nsView.player = AVPlayer(url: url)
+            nsView.mediaURL = url
         }
     }
 }
@@ -492,60 +608,10 @@ struct ContentPartView: View {
             VideoPlayerView(url: fileURL)
                 .frame(maxWidth: 560, minHeight: 220, maxHeight: 360)
                 .clipShape(RoundedRectangle(cornerRadius: JinRadius.small, style: .continuous))
-                .contextMenu {
-                    Button {
-                        NSWorkspace.shared.open(fileURL)
-                    } label: {
-                        Label("Open", systemImage: "arrow.up.right.square")
-                    }
-
-                    Button {
-                        NSWorkspace.shared.activateFileViewerSelecting([fileURL])
-                    } label: {
-                        Label("Reveal in Finder", systemImage: "folder")
-                    }
-
-                    Divider()
-
-                    Button {
-                        let pasteboard = NSPasteboard.general
-                        pasteboard.clearContents()
-                        pasteboard.setString(fileURL.path, forType: .string)
-                    } label: {
-                        Label("Copy Path", systemImage: "doc.on.doc")
-                    }
-                }
         } else if let url = video.url {
             VideoPlayerView(url: url)
                 .frame(maxWidth: 560, minHeight: 220, maxHeight: 360)
                 .clipShape(RoundedRectangle(cornerRadius: JinRadius.small, style: .continuous))
-                .contextMenu {
-                    Button {
-                        NSWorkspace.shared.open(url)
-                    } label: {
-                        Label("Open", systemImage: "arrow.up.right.square")
-                    }
-
-                    Button {
-                        Task {
-                            if let localURL = await Self.persistVideoToDisk(from: url) {
-                                NSWorkspace.shared.activateFileViewerSelecting([localURL])
-                            }
-                        }
-                    } label: {
-                        Label("Reveal in Finder", systemImage: "folder")
-                    }
-
-                    Divider()
-
-                    Button {
-                        let pasteboard = NSPasteboard.general
-                        pasteboard.clearContents()
-                        pasteboard.setString(url.absoluteString, forType: .string)
-                    } label: {
-                        Label("Copy URL", systemImage: "doc.on.doc")
-                    }
-                }
         } else if let data = video.data {
             Label("Video data (\(data.count) bytes)", systemImage: "video")
                 .padding(JinSpacing.small)
@@ -555,53 +621,6 @@ struct ContentPartView: View {
                 .padding(JinSpacing.small)
                 .jinSurface(.neutral, cornerRadius: JinRadius.small)
         }
-    }
-
-    private static func persistVideoToDisk(from url: URL) async -> URL? {
-        guard let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else { return nil }
-        let dir = appSupport.appendingPathComponent("Jin/Attachments", isDirectory: true)
-        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-
-        do {
-            let (data, response) = try await URLSession.shared.data(from: url)
-
-            // Infer extension from Content-Type or URL path
-            let contentType = (response as? HTTPURLResponse)?
-                .value(forHTTPHeaderField: "Content-Type")?
-                .components(separatedBy: ";").first?
-                .trimmingCharacters(in: .whitespaces)
-                .lowercased()
-
-            let ext = Self.videoFileExtension(contentType: contentType, url: url)
-
-            let filename = "\(UUID().uuidString).\(ext)"
-            let destination = dir.appendingPathComponent(filename)
-            try data.write(to: destination, options: .atomic)
-            return destination
-        } catch {
-            return nil
-        }
-    }
-
-    private static func videoFileExtension(contentType: String?, url: URL) -> String {
-        let mimeToExt: [String: String] = [
-            "video/mp4": "mp4",
-            "video/quicktime": "mov",
-            "video/webm": "webm",
-            "video/x-msvideo": "avi",
-            "video/x-matroska": "mkv",
-        ]
-
-        if let ct = contentType, let ext = mimeToExt[ct] {
-            return ext
-        }
-
-        let urlExt = url.pathExtension.lowercased()
-        if !urlExt.isEmpty {
-            return urlExt
-        }
-
-        return "mp4"
     }
 
     @ViewBuilder
