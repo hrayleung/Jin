@@ -65,6 +65,18 @@ actor NetworkManager {
         return (data, httpResponse)
     }
 
+    /// Non-streaming request that returns the response regardless of HTTP status code.
+    /// Use this for polling endpoints where non-2xx responses carry meaningful status information.
+    func sendRawRequest(_ request: URLRequest) async throws -> (Data, HTTPURLResponse) {
+        let (data, response) = try await urlSession.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw LLMError.networkError(underlying: URLError(.badServerResponse))
+        }
+
+        return (data, httpResponse)
+    }
+
     /// Parse HTTP error into LLMError
     private func parseHTTPError(statusCode: Int, data: Data, headers: [AnyHashable: Any]) throws -> LLMError {
         switch statusCode {

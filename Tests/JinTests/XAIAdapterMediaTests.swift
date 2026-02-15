@@ -856,6 +856,126 @@ final class XAIAdapterMediaTests: XCTestCase {
         XCTAssertFalse(video.capabilities.contains(.toolCalling))
         XCTAssertFalse(video.capabilities.contains(.imageGeneration))
     }
+
+    func testXAIVideoGenerationHandlesNon2xxPollAsFailure() async throws {
+        let (session, protocolType) = makeMockedURLSession()
+        let networkManager = NetworkManager(urlSession: session)
+
+        let providerConfig = ProviderConfig(
+            id: "x",
+            name: "xAI",
+            type: .xai,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        var requestCount = 0
+        protocolType.requestHandler = { request in
+            requestCount += 1
+
+            if requestCount == 1 {
+                let response: [String: Any] = ["request_id": "vid_500_1"]
+                let data = try JSONSerialization.data(withJSONObject: response)
+                return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+            } else {
+                // Poll returns HTTP 500 with no parseable status field
+                let body: [String: Any] = ["message": "Internal server error"]
+                let data = try JSONSerialization.data(withJSONObject: body)
+                return (HTTPURLResponse(url: request.url!, statusCode: 500, httpVersion: nil, headerFields: nil)!, data)
+            }
+        }
+
+        let adapter = XAIAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("generate video")])],
+            modelID: "grok-imagine-video",
+            controls: GenerationControls(),
+            tools: [],
+            streaming: false
+        )
+
+        var caughtError: Error?
+        do {
+            for try await _ in stream {}
+        } catch {
+            caughtError = error
+        }
+
+        let llmError = try XCTUnwrap(caughtError as? LLMError)
+        guard case .providerError(let code, _) = llmError else {
+            return XCTFail("Expected LLMError.providerError, got \(llmError)")
+        }
+        XCTAssertEqual(code, "video_generation_failed")
+    }
+
+    func testXAIVideoDownloadInfersMimeTypeFromContentType() async throws {
+        let (session, protocolType) = makeMockedURLSession()
+        let networkManager = NetworkManager(urlSession: session)
+
+        let providerConfig = ProviderConfig(
+            id: "x",
+            name: "xAI",
+            type: .xai,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        let fakeVideoBytes = Data([0x00, 0x00, 0x00, 0x1C, 0x66, 0x74, 0x79, 0x70])
+
+        var requestCount = 0
+        protocolType.requestHandler = { request in
+            requestCount += 1
+
+            if requestCount == 1 {
+                let response: [String: Any] = ["request_id": "vid_mov_1"]
+                let data = try JSONSerialization.data(withJSONObject: response)
+                return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+            } else if requestCount == 2 {
+                let response: [String: Any] = [
+                    "status": "done",
+                    "video": ["url": "https://vidgen.example.com/output", "duration": 3]
+                ]
+                let data = try JSONSerialization.data(withJSONObject: response)
+                return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+            } else {
+                // Video download returns Content-Type: video/quicktime
+                return (HTTPURLResponse(
+                    url: request.url!,
+                    statusCode: 200,
+                    httpVersion: nil,
+                    headerFields: ["Content-Type": "video/quicktime; charset=binary"]
+                )!, fakeVideoBytes)
+            }
+        }
+
+        let adapter = XAIAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("Make a short clip")])],
+            modelID: "grok-imagine-video",
+            controls: GenerationControls(),
+            tools: [],
+            streaming: false
+        )
+
+        var videoContent: VideoContent?
+        for try await event in stream {
+            if case .contentDelta(.video(let video)) = event {
+                videoContent = video
+            }
+        }
+
+        let video = try XCTUnwrap(videoContent)
+        XCTAssertEqual(video.mimeType, "video/quicktime")
+        XCTAssertTrue(video.url?.isFileURL == true)
+        XCTAssertTrue(video.url?.pathExtension == "mov")
+
+        // Clean up
+        if let url = video.url {
+            try? FileManager.default.removeItem(at: url)
+        }
+    }
 }
 
 // MARK: - URLProtocol stubbing

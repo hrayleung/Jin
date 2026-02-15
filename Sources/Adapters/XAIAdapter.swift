@@ -322,9 +322,6 @@ actor XAIAdapter: LLMProviderAdapter {
 
                     continuation.yield(.messageStart(id: requestID))
 
-                    // Show visible progress in the streaming view while polling
-                    continuation.yield(.contentDelta(.text("Generating video")))
-
                     // 2. Poll until done or expired
                     let pollIntervalNanoseconds: UInt64 = 3_000_000_000 // 3 seconds
                     let maxAttempts = 200 // ~10 minutes at 3s intervals
@@ -338,16 +335,13 @@ actor XAIAdapter: LLMProviderAdapter {
                             try await Task.sleep(nanoseconds: pollIntervalNanoseconds)
                         }
 
-                        // Emit progress dots so the user sees the generation is still running
-                        if attempt > 0, attempt % 2 == 0 {
-                            continuation.yield(.contentDelta(.text(".")))
-                        }
-
                         var pollRequest = URLRequest(url: URL(string: "\(baseURL)/videos/\(requestID)")!)
                         pollRequest.httpMethod = "GET"
                         pollRequest.addValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
 
-                        let (pollData, pollHTTPResponse) = try await networkManager.sendRequest(pollRequest)
+                        // Use sendRawRequest so non-2xx responses (e.g. 404 expired, 500 failed)
+                        // are handled by resolveVideoStatus instead of throwing.
+                        let (pollData, pollHTTPResponse) = try await networkManager.sendRawRequest(pollRequest)
                         let rawBody = String(data: pollData, encoding: .utf8) ?? "(non-UTF-8)"
                         let snapshot = "HTTP \(pollHTTPResponse.statusCode): \(String(rawBody.prefix(800)))"
                         lastPollSnapshot = snapshot
@@ -383,11 +377,9 @@ actor XAIAdapter: LLMProviderAdapter {
                                 )
                             }
 
-                            continuation.yield(.contentDelta(.text("\n")))
-
                             // Download to local storage (temporary URLs expire)
-                            let localURL = try await downloadVideoToLocal(from: videoURL)
-                            let video = VideoContent(mimeType: "video/mp4", data: nil, url: localURL)
+                            let (localURL, mimeType) = try await downloadVideoToLocal(from: videoURL)
+                            let video = VideoContent(mimeType: mimeType, data: nil, url: localURL)
                             continuation.yield(.contentDelta(.video(video)))
                             continuation.yield(.messageEnd(usage: nil))
                             continuation.finish()
@@ -471,7 +463,19 @@ actor XAIAdapter: LLMProviderAdapter {
             }
         }
 
-        // 4. Default to pending
+        // 4. Use HTTP status code as a signal for non-2xx responses
+        if httpStatus == 404 || httpStatus == 410 {
+            return .expired
+        }
+        if httpStatus >= 500 {
+            return .failed("Server error (HTTP \(httpStatus))")
+        }
+        if httpStatus >= 400 {
+            let message = rawJSON?["message"] as? String ?? rawJSON?["error"] as? String
+            return .failed(message ?? "HTTP \(httpStatus)")
+        }
+
+        // 5. Default to pending
         return .pending
     }
 
@@ -572,7 +576,7 @@ actor XAIAdapter: LLMProviderAdapter {
         return request
     }
 
-    private func downloadVideoToLocal(from url: URL) async throws -> URL {
+    private func downloadVideoToLocal(from url: URL) async throws -> (URL, String) {
         guard let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
             throw LLMError.decodingError(message: "Could not locate application support directory for video storage.")
         }
@@ -582,12 +586,56 @@ actor XAIAdapter: LLMProviderAdapter {
         // Download video data via the app's network manager (consistent with other requests)
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
-        let (videoData, _) = try await networkManager.sendRequest(request)
+        let (videoData, response) = try await networkManager.sendRequest(request)
 
-        let filename = "\(UUID().uuidString).mp4"
+        // Infer MIME type from Content-Type header, then URL extension, then default to mp4
+        let contentType = response.value(forHTTPHeaderField: "Content-Type")?
+            .components(separatedBy: ";").first?
+            .trimmingCharacters(in: .whitespaces)
+            .lowercased()
+
+        let (mimeType, ext) = Self.resolveVideoFormat(contentType: contentType, url: url)
+
+        let filename = "\(UUID().uuidString).\(ext)"
         let destination = dir.appendingPathComponent(filename)
         try videoData.write(to: destination, options: .atomic)
-        return destination
+        return (destination, mimeType)
+    }
+
+    private static func resolveVideoFormat(contentType: String?, url: URL) -> (mimeType: String, ext: String) {
+        // Known video MIME types to extension mapping
+        let mimeToExt: [String: String] = [
+            "video/mp4": "mp4",
+            "video/quicktime": "mov",
+            "video/webm": "webm",
+            "video/x-msvideo": "avi",
+            "video/x-matroska": "mkv",
+        ]
+
+        // 1. Try Content-Type header
+        if let ct = contentType, let ext = mimeToExt[ct] {
+            return (ct, ext)
+        }
+
+        // 2. Try URL path extension
+        let urlExt = url.pathExtension.lowercased()
+        if !urlExt.isEmpty {
+            let extToMime: [String: String] = [
+                "mp4": "video/mp4",
+                "mov": "video/quicktime",
+                "webm": "video/webm",
+                "avi": "video/x-msvideo",
+                "mkv": "video/x-matroska",
+            ]
+            if let mime = extToMime[urlExt] {
+                return (mime, urlExt)
+            }
+            // Unknown extension but present — use it with generic MIME
+            return ("video/\(urlExt)", urlExt)
+        }
+
+        // 3. Default to MP4
+        return ("video/mp4", "mp4")
     }
 
     private func buildImageGenerationRequest(
