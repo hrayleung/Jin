@@ -846,6 +846,13 @@ struct ContentView: View {
                 capabilities: [.imageGeneration],
                 contextWindow: 32768,
                 reasoningConfig: nil
+            ),
+            ModelInfo(
+                id: "grok-imagine-video",
+                name: "Grok Imagine Video",
+                capabilities: [.videoGeneration],
+                contextWindow: 32768,
+                reasoningConfig: nil
             )
         ]
 

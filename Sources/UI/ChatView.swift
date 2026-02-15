@@ -314,6 +314,18 @@ struct ChatView: View {
                 .help(imageGenerationHelpText)
             }
 
+            if supportsVideoGenerationControl {
+                Menu { videoGenerationMenuContent } label: {
+                    controlIconLabel(
+                        systemName: "film",
+                        isActive: isVideoGenerationConfigured,
+                        badgeText: videoGenerationBadgeText
+                    )
+                }
+                .menuStyle(.borderlessButton)
+                .help(videoGenerationHelpText)
+            }
+
             Spacer(minLength: 0)
         }
         .padding(.bottom, 1)
@@ -1830,6 +1842,14 @@ struct ChatView: View {
         return false
     }
 
+    private var isVideoGenerationModelID: Bool {
+        guard providerType == .xai else { return false }
+        return lowerModelID.contains("imagine-video")
+            || lowerModelID.hasSuffix("-video")
+            || lowerModelID.contains("grok-video")
+            || lowerModelID.contains("video-generation")
+    }
+
     private var supportsNativePDF: Bool {
         guard !supportsMediaGenerationControl else { return false }
         if selectedModelInfo?.capabilities.contains(.nativePDF) == true {
@@ -1860,14 +1880,19 @@ struct ChatView: View {
     private var supportsVision: Bool {
         selectedModelInfo?.capabilities.contains(.vision) == true
             || supportsImageGenerationControl
+            || supportsVideoGenerationControl
     }
 
     private var supportsImageGenerationControl: Bool {
         selectedModelInfo?.capabilities.contains(.imageGeneration) == true || isImageGenerationModelID
     }
 
+    private var supportsVideoGenerationControl: Bool {
+        selectedModelInfo?.capabilities.contains(.videoGeneration) == true || isVideoGenerationModelID
+    }
+
     private var supportsMediaGenerationControl: Bool {
-        supportsImageGenerationControl
+        supportsImageGenerationControl || supportsVideoGenerationControl
     }
 
     private var supportsImageGenerationWebSearch: Bool {
@@ -1943,6 +1968,44 @@ struct ChatView: View {
             return "Image Generation: Image only"
         }
         return isImageGenerationConfigured ? "Image Generation: Customized" : "Image Generation: Default"
+    }
+
+    private var isVideoGenerationConfigured: Bool {
+        !(controls.xaiVideoGeneration?.isEmpty ?? true)
+    }
+
+    private var videoGenerationBadgeText: String? {
+        guard supportsVideoGenerationControl else { return nil }
+
+        if let duration = controls.xaiVideoGeneration?.duration {
+            return "\(duration)s"
+        }
+        if let ratio = controls.xaiVideoGeneration?.aspectRatio {
+            return ratio.displayName
+        }
+        if let resolution = controls.xaiVideoGeneration?.resolution {
+            return resolution.displayName
+        }
+        return isVideoGenerationConfigured ? "On" : nil
+    }
+
+    private var videoGenerationHelpText: String {
+        guard supportsVideoGenerationControl else { return "Video Generation: Not supported" }
+
+        var parts: [String] = []
+        if let duration = controls.xaiVideoGeneration?.duration {
+            parts.append("\(duration)s")
+        }
+        if let ratio = controls.xaiVideoGeneration?.aspectRatio {
+            parts.append(ratio.displayName)
+        }
+        if let resolution = controls.xaiVideoGeneration?.resolution {
+            parts.append(resolution.displayName)
+        }
+        if parts.isEmpty {
+            return isVideoGenerationConfigured ? "Video Generation: Customized" : "Video Generation: Default"
+        }
+        return "Video Generation: \(parts.joined(separator: ", "))"
     }
 
     private var resolvedPDFProcessingMode: PDFProcessingMode {
@@ -3121,7 +3184,8 @@ struct ChatView: View {
         let askedAt = Date()
 
         if supportsMediaGenerationControl && messageTextSnapshot.isEmpty {
-            errorMessage = "Image generation models require a text prompt."
+            let mediaType = supportsVideoGenerationControl ? "Video" : "Image"
+            errorMessage = "\(mediaType) generation models require a text prompt."
             showingError = true
             return
         }
@@ -4609,6 +4673,66 @@ struct ChatView: View {
         persistControlsToConversation()
     }
 
+    @ViewBuilder
+    private var videoGenerationMenuContent: some View {
+        Text("xAI Video")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+
+        Divider()
+
+        Menu("Duration") {
+            Button { updateXAIVideoGeneration { $0.duration = nil } } label: {
+                menuItemLabel("Default", isSelected: controls.xaiVideoGeneration?.duration == nil)
+            }
+            ForEach([3, 5, 8, 10, 15], id: \.self) { seconds in
+                Button { updateXAIVideoGeneration { $0.duration = seconds } } label: {
+                    menuItemLabel("\(seconds)s", isSelected: controls.xaiVideoGeneration?.duration == seconds)
+                }
+            }
+        }
+
+        Menu("Aspect ratio") {
+            Button { updateXAIVideoGeneration { $0.aspectRatio = nil } } label: {
+                menuItemLabel("Default (16:9)", isSelected: controls.xaiVideoGeneration?.aspectRatio == nil)
+            }
+            ForEach(
+                [XAIAspectRatio.ratio1x1, .ratio16x9, .ratio9x16, .ratio4x3, .ratio3x4, .ratio3x2, .ratio2x3],
+                id: \.self
+            ) { ratio in
+                Button { updateXAIVideoGeneration { $0.aspectRatio = ratio } } label: {
+                    menuItemLabel(ratio.displayName, isSelected: controls.xaiVideoGeneration?.aspectRatio == ratio)
+                }
+            }
+        }
+
+        Menu("Resolution") {
+            Button { updateXAIVideoGeneration { $0.resolution = nil } } label: {
+                menuItemLabel("Default (480p)", isSelected: controls.xaiVideoGeneration?.resolution == nil)
+            }
+            ForEach(XAIVideoResolution.allCases, id: \.self) { res in
+                Button { updateXAIVideoGeneration { $0.resolution = res } } label: {
+                    menuItemLabel(res.displayName, isSelected: controls.xaiVideoGeneration?.resolution == res)
+                }
+            }
+        }
+
+        if isVideoGenerationConfigured {
+            Divider()
+            Button("Reset", role: .destructive) {
+                controls.xaiVideoGeneration = nil
+                persistControlsToConversation()
+            }
+        }
+    }
+
+    private func updateXAIVideoGeneration(_ mutate: (inout XAIVideoGenerationControls) -> Void) {
+        var draft = controls.xaiVideoGeneration ?? XAIVideoGenerationControls()
+        mutate(&draft)
+        controls.xaiVideoGeneration = draft.isEmpty ? nil : draft
+        persistControlsToConversation()
+    }
+
     private func openImageGenerationEditor() {
         let current = controls.imageGeneration ?? ImageGenerationControls()
         imageGenerationDraft = current
@@ -5562,6 +5686,14 @@ struct ChatView: View {
         } else {
             controls.imageGeneration = nil
             controls.xaiImageGeneration = nil
+        }
+
+        if supportsVideoGenerationControl {
+            if controls.xaiVideoGeneration?.isEmpty == true {
+                controls.xaiVideoGeneration = nil
+            }
+        } else {
+            controls.xaiVideoGeneration = nil
         }
 
         let newData = (try? JSONEncoder().encode(controls)) ?? Data()
