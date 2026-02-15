@@ -156,7 +156,8 @@ final class GeminiAdapterTests: XCTestCase {
                 "usageMetadata": [
                     "promptTokenCount": 3,
                     "candidatesTokenCount": 4,
-                    "totalTokenCount": 7
+                    "totalTokenCount": 7,
+                    "cachedContentTokenCount": 2
                 ]
             ]
             let data = try JSONSerialization.data(withJSONObject: response)
@@ -204,6 +205,7 @@ final class GeminiAdapterTests: XCTestCase {
         guard case .messageEnd(let usage) = events[5] else { return XCTFail("Expected messageEnd") }
         XCTAssertEqual(usage?.inputTokens, 3)
         XCTAssertEqual(usage?.outputTokens, 4)
+        XCTAssertEqual(usage?.cachedTokens, 2)
     }
 
     func testGeminiAdapterFallsBackToTextWhenModeNotNative() async throws {
@@ -322,6 +324,52 @@ final class GeminiAdapterTests: XCTestCase {
         guard case .messageEnd(let usage) = events[2] else { return XCTFail("Expected messageEnd") }
         XCTAssertEqual(usage?.inputTokens, 1)
         XCTAssertEqual(usage?.outputTokens, 2)
+    }
+
+    func testGeminiAdapterSendsExplicitCachedContentWhenConfigured() async throws {
+        let (session, protocolType) = makeMockedURLSession()
+        let networkManager = NetworkManager(urlSession: session)
+
+        let providerConfig = ProviderConfig(
+            id: "g",
+            name: "Gemini",
+            type: .gemini,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://example.com/models/gemini-3-pro:generateContent")
+
+            let body = try XCTUnwrap(requestBodyData(request))
+            let json = try XCTUnwrap(try JSONSerialization.jsonObject(with: body) as? [String: Any])
+            XCTAssertEqual(json["cachedContent"] as? String, "cachedContents/cache-123")
+
+            let response: [String: Any] = [
+                "candidates": [
+                    [
+                        "content": [
+                            "parts": [
+                                ["text": "ok"]
+                            ]
+                        ]
+                    ]
+                ]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = GeminiAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hi")])],
+            modelID: "gemini-3-pro",
+            controls: GenerationControls(contextCache: ContextCacheControls(mode: .explicit, cachedContentName: "cachedContents/cache-123")),
+            tools: [],
+            streaming: false
+        )
+
+        for try await _ in stream {}
     }
 
     func testGeminiAdapterAddsResponseModalitiesForImageModels() async throws {

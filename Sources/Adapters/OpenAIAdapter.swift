@@ -3,7 +3,7 @@ import Foundation
 /// OpenAI provider adapter (Responses API)
 actor OpenAIAdapter: LLMProviderAdapter {
     let providerConfig: ProviderConfig
-    let capabilities: ModelCapability = [.streaming, .toolCalling, .vision, .audio, .reasoning]
+    let capabilities: ModelCapability = [.streaming, .toolCalling, .vision, .audio, .reasoning, .promptCaching]
 
     private let networkManager: NetworkManager
     private let apiKey: String
@@ -31,7 +31,9 @@ actor OpenAIAdapter: LLMProviderAdapter {
 
         if !streaming {
             let (data, _) = try await networkManager.sendRequest(request)
-            let response = try JSONDecoder().decode(ResponsesAPIResponse.self, from: data)
+            let decoder = JSONDecoder()
+            decoder.keyDecodingStrategy = .convertFromSnakeCase
+            let response = try decoder.decode(ResponsesAPIResponse.self, from: data)
 
             return AsyncThrowingStream { continuation in
                 continuation.yield(.messageStart(id: response.id))
@@ -97,7 +99,7 @@ actor OpenAIAdapter: LLMProviderAdapter {
         let response = try JSONDecoder().decode(ModelsResponse.self, from: data)
 
         return response.data.map { model in
-            var caps: ModelCapability = [.streaming, .toolCalling]
+            var caps: ModelCapability = [.streaming, .toolCalling, .promptCaching]
             var reasoningConfig: ModelReasoningConfig?
 
             if model.id.contains("gpt-5") || model.id.contains("o1") || model.id.contains("o3") || model.id.contains("o4") {
@@ -160,6 +162,18 @@ actor OpenAIAdapter: LLMProviderAdapter {
             "input": translateInput(messages, supportsNativePDF: nativePDFEnabled),
             "stream": streaming
         ]
+
+        if controls.contextCache?.mode != .off {
+            if let cacheKey = normalizedContextCacheString(controls.contextCache?.cacheKey) {
+                body["prompt_cache_key"] = cacheKey
+            }
+            if let retention = controls.contextCache?.ttl?.providerTTLString {
+                body["prompt_cache_retention"] = retention
+            }
+            if let minTokens = controls.contextCache?.minTokensThreshold, minTokens > 0 {
+                body["prompt_cache_min_tokens"] = minTokens
+            }
+        }
 
         let reasoningEffort = (controls.reasoning?.enabled == true) ? controls.reasoning?.effort : nil
         let reasoningEnabled = (reasoningEffort ?? .none) != .none
@@ -235,6 +249,12 @@ actor OpenAIAdapter: LLMProviderAdapter {
     private func supportsNativePDF(_ modelID: String) -> Bool {
         // GPT-5.2+, o3+, o4+ support native PDF
         return modelID.contains("gpt-5.2") || modelID.contains("o3") || modelID.contains("o4")
+    }
+
+    private func normalizedContextCacheString(_ value: String?) -> String? {
+        guard let value else { return nil }
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
     }
 
     private func translateInput(_ messages: [Message], supportsNativePDF: Bool) -> [[String: Any]] {
@@ -451,7 +471,8 @@ actor OpenAIAdapter: LLMProviderAdapter {
             let usage = Usage(
                 inputTokens: event.response.usage.inputTokens,
                 outputTokens: event.response.usage.outputTokens,
-                thinkingTokens: event.response.usage.outputTokensDetails?.reasoningTokens
+                thinkingTokens: event.response.usage.outputTokensDetails?.reasoningTokens,
+                cachedTokens: event.response.usage.promptTokensDetails?.cachedTokens
             )
             return .messageEnd(usage: usage)
 
@@ -555,9 +576,14 @@ private struct ResponseCompletedEvent: Codable {
             let inputTokens: Int
             let outputTokens: Int
             let outputTokensDetails: OutputTokensDetails?
+            let promptTokensDetails: PromptTokensDetails?
 
             struct OutputTokensDetails: Codable {
                 let reasoningTokens: Int?
+            }
+
+            struct PromptTokensDetails: Codable {
+                let cachedTokens: Int?
             }
         }
     }
@@ -598,9 +624,14 @@ private struct ResponsesAPIResponse: Codable {
         let inputTokens: Int
         let outputTokens: Int
         let outputTokensDetails: OutputTokensDetails?
+        let promptTokensDetails: PromptTokensDetails?
 
         struct OutputTokensDetails: Codable {
             let reasoningTokens: Int?
+        }
+
+        struct PromptTokensDetails: Codable {
+            let cachedTokens: Int?
         }
     }
 
@@ -622,7 +653,8 @@ private struct ResponsesAPIResponse: Codable {
         return Usage(
             inputTokens: usage.inputTokens,
             outputTokens: usage.outputTokens,
-            thinkingTokens: usage.outputTokensDetails?.reasoningTokens
+            thinkingTokens: usage.outputTokensDetails?.reasoningTokens,
+            cachedTokens: usage.promptTokensDetails?.cachedTokens
         )
     }
 }

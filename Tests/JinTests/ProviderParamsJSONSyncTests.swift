@@ -97,6 +97,43 @@ final class ProviderParamsJSONSyncTests: XCTestCase {
         XCTAssertNil(remainder["tools"])
     }
 
+    func testOpenAIContextCacheDraftAndApply() {
+        var controls = GenerationControls()
+        controls.contextCache = ContextCacheControls(
+            mode: .implicit,
+            ttl: .hour1,
+            cacheKey: "stable-key",
+            minTokensThreshold: 2048
+        )
+
+        let draft = ProviderParamsJSONSync.makeDraft(providerType: .openai, modelID: "gpt-5.2", controls: controls)
+
+        XCTAssertEqual(draft["prompt_cache_key"]?.value as? String, "stable-key")
+        XCTAssertEqual(draft["prompt_cache_retention"]?.value as? String, "1h")
+        XCTAssertEqual(draft["prompt_cache_min_tokens"]?.value as? Int, 2048)
+
+        let contextCache = draft["context_cache"]?.value as? [String: Any]
+        XCTAssertEqual(contextCache?["mode"] as? String, "implicit")
+
+        var applied = GenerationControls()
+        let remainder = ProviderParamsJSONSync.applyDraft(
+            providerType: .openai,
+            modelID: "gpt-5.2",
+            draft: draft,
+            controls: &applied
+        )
+        applied.providerSpecific = remainder
+
+        XCTAssertEqual(applied.contextCache?.mode, .implicit)
+        XCTAssertEqual(applied.contextCache?.ttl, .hour1)
+        XCTAssertEqual(applied.contextCache?.cacheKey, "stable-key")
+        XCTAssertEqual(applied.contextCache?.minTokensThreshold, 2048)
+        XCTAssertNil(applied.providerSpecific["prompt_cache_key"])
+        XCTAssertNil(applied.providerSpecific["prompt_cache_retention"])
+        XCTAssertNil(applied.providerSpecific["prompt_cache_min_tokens"])
+        XCTAssertNil(applied.providerSpecific["context_cache"])
+    }
+
     func testAnthropicClaude45BudgetThinkingDraftAndApply() {
         var controls = GenerationControls()
         controls.maxTokens = 8192
@@ -233,6 +270,27 @@ final class ProviderParamsJSONSyncTests: XCTestCase {
         XCTAssertEqual(applied.reasoning?.effort, .medium)
         XCTAssertEqual(applied.webSearch?.enabled, true)
         XCTAssertNil(applied.providerSpecific["tools"])
+    }
+
+    func testGeminiExplicitCachedContentDraftAndApply() {
+        var controls = GenerationControls()
+        controls.contextCache = ContextCacheControls(mode: .explicit, cachedContentName: "cachedContents/session-1")
+
+        let draft = ProviderParamsJSONSync.makeDraft(providerType: .gemini, modelID: "gemini-3-pro", controls: controls)
+        XCTAssertEqual(draft["cachedContent"]?.value as? String, "cachedContents/session-1")
+
+        var applied = GenerationControls()
+        let remainder = ProviderParamsJSONSync.applyDraft(
+            providerType: .gemini,
+            modelID: "gemini-3-pro",
+            draft: draft,
+            controls: &applied
+        )
+        applied.providerSpecific = remainder
+
+        XCTAssertEqual(applied.contextCache?.mode, .explicit)
+        XCTAssertEqual(applied.contextCache?.cachedContentName, "cachedContents/session-1")
+        XCTAssertNil(applied.providerSpecific["cachedContent"])
     }
 
     func testCerebrasReasoningToggleDraftAndApply() {

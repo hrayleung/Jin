@@ -13,6 +13,8 @@ enum ProviderParamsJSONSync {
             base = makeOpenAIDraft(controls: controls)
         case .anthropic:
             base = makeAnthropicDraft(controls: controls, modelID: modelID)
+        case .xai:
+            base = makeXAIDraft(controls: controls)
         case .gemini:
             base = makeGeminiDraft(controls: controls, modelID: modelID)
         case .vertexai:
@@ -23,11 +25,14 @@ enum ProviderParamsJSONSync {
             base = makeFireworksDraft(controls: controls, modelID: modelID)
         case .perplexity:
             base = makePerplexityDraft(controls: controls)
-        case .openaiCompatible, .openrouter, .groq, .cohere, .mistral, .deepinfra, .xai, .deepseek, .none:
+        case .openaiCompatible, .openrouter, .groq, .cohere, .mistral, .deepinfra, .deepseek, .none:
             base = [:]
         }
 
         var merged = base
+        if let contextCacheDraft = makeContextCacheDraft(providerType: providerType, controls: controls) {
+            merged["context_cache"] = contextCacheDraft
+        }
         mergeProviderSpecific(
             into: &merged,
             providerType: providerType,
@@ -46,12 +51,20 @@ enum ProviderParamsJSONSync {
     ) -> [String: AnyCodable] {
         let normalizedDraft = pruneNulls(in: draft)
         var providerSpecific = normalizedDraft
+        applyContextCache(
+            draft: normalizedDraft,
+            providerType: providerType,
+            controls: &controls,
+            providerSpecific: &providerSpecific
+        )
 
         switch providerType {
         case .openai:
             applyOpenAI(draft: normalizedDraft, controls: &controls, providerSpecific: &providerSpecific)
         case .anthropic:
             applyAnthropic(draft: normalizedDraft, modelID: modelID, controls: &controls, providerSpecific: &providerSpecific)
+        case .xai:
+            applyXAI(draft: normalizedDraft, controls: &controls, providerSpecific: &providerSpecific)
         case .gemini:
             applyGemini(draft: normalizedDraft, modelID: modelID, controls: &controls, providerSpecific: &providerSpecific)
         case .vertexai:
@@ -62,7 +75,7 @@ enum ProviderParamsJSONSync {
             applyFireworks(draft: normalizedDraft, modelID: modelID, controls: &controls, providerSpecific: &providerSpecific)
         case .perplexity:
             applyPerplexity(draft: normalizedDraft, controls: &controls, providerSpecific: &providerSpecific)
-        case .openaiCompatible, .openrouter, .groq, .cohere, .mistral, .deepinfra, .xai, .deepseek, .none:
+        case .openaiCompatible, .openrouter, .groq, .cohere, .mistral, .deepinfra, .deepseek, .none:
             break
         }
 
@@ -154,6 +167,18 @@ enum ProviderParamsJSONSync {
             out["tools"] = [webSearchTool]
         }
 
+        if let contextCache = controls.contextCache, contextCache.mode != .off {
+            if let cacheKey = trimmedString(contextCache.cacheKey) {
+                out["prompt_cache_key"] = cacheKey
+            }
+            if let retention = contextCache.ttl?.providerTTLString {
+                out["prompt_cache_retention"] = retention
+            }
+            if let minTokens = contextCache.minTokensThreshold, minTokens > 0 {
+                out["prompt_cache_min_tokens"] = minTokens
+            }
+        }
+
         return out
     }
 
@@ -204,6 +229,29 @@ enum ProviderParamsJSONSync {
         return out
     }
 
+    private static func makeXAIDraft(controls: GenerationControls) -> [String: Any] {
+        var out: [String: Any] = [:]
+
+        guard let contextCache = controls.contextCache, contextCache.mode != .off else {
+            return out
+        }
+
+        if let conversationID = trimmedString(contextCache.conversationID) {
+            out["x-grok-conv-id"] = conversationID
+        }
+        if let cacheKey = trimmedString(contextCache.cacheKey) {
+            out["prompt_cache_key"] = cacheKey
+        }
+        if let retention = contextCache.ttl?.providerTTLString {
+            out["prompt_cache_retention"] = retention
+        }
+        if let minTokens = contextCache.minTokensThreshold, minTokens > 0 {
+            out["prompt_cache_min_tokens"] = minTokens
+        }
+
+        return out
+    }
+
     private static func makeGeminiDraft(controls: GenerationControls, modelID: String) -> [String: Any] {
         var out: [String: Any] = [:]
 
@@ -216,6 +264,11 @@ enum ProviderParamsJSONSync {
             out["tools"] = [
                 ["google_search": [:]]
             ]
+        }
+
+        if controls.contextCache?.mode == .explicit,
+           let cachedContent = trimmedString(controls.contextCache?.cachedContentName) {
+            out["cachedContent"] = cachedContent
         }
 
         return out
@@ -233,6 +286,11 @@ enum ProviderParamsJSONSync {
             out["tools"] = [
                 ["googleSearch": [:]]
             ]
+        }
+
+        if controls.contextCache?.mode == .explicit,
+           let cachedContent = trimmedString(controls.contextCache?.cachedContentName) {
+            out["cachedContent"] = cachedContent
         }
 
         return out
@@ -381,6 +439,34 @@ enum ProviderParamsJSONSync {
                 controls.webSearch = nil
             }
         }
+
+        var contextCache = controls.contextCache ?? ContextCacheControls(mode: .implicit)
+        var touchedContextCache = false
+
+        if let raw = draft["prompt_cache_key"]?.value as? String {
+            contextCache.cacheKey = trimmedString(raw)
+            touchedContextCache = true
+            providerSpecific.removeValue(forKey: "prompt_cache_key")
+        }
+
+        if let raw = draft["prompt_cache_retention"]?.value as? String {
+            contextCache.ttl = parseContextCacheTTL(raw)
+            touchedContextCache = true
+            providerSpecific.removeValue(forKey: "prompt_cache_retention")
+        }
+
+        if let raw = draft["prompt_cache_min_tokens"]?.value, let value = intValue(from: raw), value > 0 {
+            contextCache.minTokensThreshold = value
+            touchedContextCache = true
+            providerSpecific.removeValue(forKey: "prompt_cache_min_tokens")
+        } else if draft["prompt_cache_min_tokens"] != nil {
+            providerSpecific.removeValue(forKey: "prompt_cache_min_tokens")
+        }
+
+        if touchedContextCache {
+            contextCache.mode = .implicit
+            controls.contextCache = contextCache
+        }
     }
 
     private static func applyAnthropic(
@@ -443,6 +529,46 @@ enum ProviderParamsJSONSync {
         }
     }
 
+    private static func applyXAI(
+        draft: [String: AnyCodable],
+        controls: inout GenerationControls,
+        providerSpecific: inout [String: AnyCodable]
+    ) {
+        var contextCache = controls.contextCache ?? ContextCacheControls(mode: .implicit)
+        var touchedContextCache = false
+
+        if let raw = draft["x-grok-conv-id"]?.value as? String {
+            contextCache.conversationID = trimmedString(raw)
+            touchedContextCache = true
+            providerSpecific.removeValue(forKey: "x-grok-conv-id")
+        }
+
+        if let raw = draft["prompt_cache_key"]?.value as? String {
+            contextCache.cacheKey = trimmedString(raw)
+            touchedContextCache = true
+            providerSpecific.removeValue(forKey: "prompt_cache_key")
+        }
+
+        if let raw = draft["prompt_cache_retention"]?.value as? String {
+            contextCache.ttl = parseContextCacheTTL(raw)
+            touchedContextCache = true
+            providerSpecific.removeValue(forKey: "prompt_cache_retention")
+        }
+
+        if let raw = draft["prompt_cache_min_tokens"]?.value, let value = intValue(from: raw), value > 0 {
+            contextCache.minTokensThreshold = value
+            touchedContextCache = true
+            providerSpecific.removeValue(forKey: "prompt_cache_min_tokens")
+        } else if draft["prompt_cache_min_tokens"] != nil {
+            providerSpecific.removeValue(forKey: "prompt_cache_min_tokens")
+        }
+
+        if touchedContextCache {
+            contextCache.mode = .implicit
+            controls.contextCache = contextCache
+        }
+    }
+
     private static func applyGemini(
         draft: [String: AnyCodable],
         modelID: String,
@@ -468,6 +594,18 @@ enum ProviderParamsJSONSync {
             }
         } else {
             controls.webSearch = nil
+        }
+
+        if let raw = draft["cachedContent"]?.value as? String {
+            let normalized = trimmedString(raw)
+            var contextCache = controls.contextCache ?? ContextCacheControls(mode: .explicit)
+            contextCache.mode = .explicit
+            contextCache.cachedContentName = normalized
+            controls.contextCache = contextCache
+            providerSpecific.removeValue(forKey: "cachedContent")
+        } else if draft["cachedContent"] == nil,
+                  controls.contextCache?.mode == .explicit {
+            controls.contextCache?.cachedContentName = nil
         }
     }
 
@@ -496,6 +634,18 @@ enum ProviderParamsJSONSync {
             }
         } else {
             controls.webSearch = nil
+        }
+
+        if let raw = draft["cachedContent"]?.value as? String {
+            let normalized = trimmedString(raw)
+            var contextCache = controls.contextCache ?? ContextCacheControls(mode: .explicit)
+            contextCache.mode = .explicit
+            contextCache.cachedContentName = normalized
+            controls.contextCache = contextCache
+            providerSpecific.removeValue(forKey: "cachedContent")
+        } else if draft["cachedContent"] == nil,
+                  controls.contextCache?.mode == .explicit {
+            controls.contextCache?.cachedContentName = nil
         }
     }
 
@@ -1449,6 +1599,165 @@ enum ProviderParamsJSONSync {
         return found && nonSearchToolCount == 0 && canPromoteToUI
     }
 
+    // MARK: - Context cache helpers
+
+    private static func supportsContextCache(providerType: ProviderType?) -> Bool {
+        switch providerType {
+        case .openai, .anthropic, .gemini, .vertexai, .xai:
+            return true
+        case .openaiCompatible, .openrouter, .perplexity, .groq, .cohere, .mistral, .deepinfra, .deepseek, .fireworks, .cerebras, .none:
+            return false
+        }
+    }
+
+    private static func makeContextCacheDraft(
+        providerType: ProviderType?,
+        controls: GenerationControls
+    ) -> [String: Any]? {
+        guard supportsContextCache(providerType: providerType),
+              let contextCache = controls.contextCache else {
+            return nil
+        }
+
+        var out: [String: Any] = [
+            "mode": contextCache.mode.rawValue
+        ]
+
+        if let strategy = contextCache.strategy {
+            out["strategy"] = strategy.rawValue
+        }
+        if let ttl = contextCache.ttl {
+            switch ttl {
+            case .providerDefault:
+                out["ttl"] = "default"
+            case .minutes5:
+                out["ttl"] = "5m"
+            case .hour1:
+                out["ttl"] = "1h"
+            case .customSeconds(let seconds):
+                out["ttl"] = "custom:\(max(1, seconds))"
+            }
+        }
+        if let cacheKey = trimmedString(contextCache.cacheKey) {
+            out["cache_key"] = cacheKey
+        }
+        if let conversationID = trimmedString(contextCache.conversationID) {
+            out["conversation_id"] = conversationID
+        }
+        if let cachedContent = trimmedString(contextCache.cachedContentName) {
+            out["cached_content_name"] = cachedContent
+        }
+        if let minTokens = contextCache.minTokensThreshold, minTokens > 0 {
+            out["min_tokens_threshold"] = minTokens
+        }
+
+        return out
+    }
+
+    private static func applyContextCache(
+        draft: [String: AnyCodable],
+        providerType: ProviderType?,
+        controls: inout GenerationControls,
+        providerSpecific: inout [String: AnyCodable]
+    ) {
+        guard supportsContextCache(providerType: providerType) else {
+            controls.contextCache = nil
+            providerSpecific.removeValue(forKey: "context_cache")
+            return
+        }
+
+        guard let raw = draft["context_cache"]?.value else {
+            controls.contextCache = nil
+            return
+        }
+
+        guard let dict = raw as? [String: Any] else {
+            return
+        }
+
+        var contextCache = controls.contextCache ?? ContextCacheControls(mode: .implicit)
+        var remaining = dict
+
+        if let rawMode = dict["mode"] as? String {
+            contextCache.mode = ContextCacheMode(rawValue: rawMode.lowercased()) ?? .implicit
+            remaining.removeValue(forKey: "mode")
+        }
+
+        if let rawStrategy = dict["strategy"] as? String {
+            contextCache.strategy = ContextCacheStrategy(rawValue: rawStrategy)
+            remaining.removeValue(forKey: "strategy")
+        }
+
+        if let rawTTL = dict["ttl"] {
+            contextCache.ttl = parseContextCacheTTL(rawTTL)
+            remaining.removeValue(forKey: "ttl")
+        }
+
+        if let rawCacheKey = dict["cache_key"] as? String {
+            contextCache.cacheKey = trimmedString(rawCacheKey)
+            remaining.removeValue(forKey: "cache_key")
+        }
+
+        if let rawConversationID = dict["conversation_id"] as? String {
+            contextCache.conversationID = trimmedString(rawConversationID)
+            remaining.removeValue(forKey: "conversation_id")
+        }
+
+        if let rawCachedContent = dict["cached_content_name"] as? String {
+            contextCache.cachedContentName = trimmedString(rawCachedContent)
+            remaining.removeValue(forKey: "cached_content_name")
+        }
+
+        if let rawMinTokens = dict["min_tokens_threshold"],
+           let minTokens = intValue(from: rawMinTokens),
+           minTokens > 0 {
+            contextCache.minTokensThreshold = minTokens
+            remaining.removeValue(forKey: "min_tokens_threshold")
+        } else if dict["min_tokens_threshold"] != nil {
+            remaining.removeValue(forKey: "min_tokens_threshold")
+        }
+
+        controls.contextCache = contextCache
+
+        if remaining.isEmpty {
+            providerSpecific.removeValue(forKey: "context_cache")
+        } else {
+            providerSpecific["context_cache"] = AnyCodable(remaining)
+        }
+    }
+
+    private static func parseContextCacheTTL(_ raw: Any) -> ContextCacheTTL {
+        if let value = intValue(from: raw), value > 0 {
+            return .customSeconds(value)
+        }
+
+        guard let rawString = raw as? String else {
+            return .providerDefault
+        }
+
+        let normalized = rawString.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        switch normalized {
+        case "", "default", "provider_default", "providerdefault":
+            return .providerDefault
+        case "5m", "5min", "5mins", "minutes5":
+            return .minutes5
+        case "1h", "60m", "hour1":
+            return .hour1
+        default:
+            if normalized.hasPrefix("custom:"),
+               let value = Int(normalized.dropFirst("custom:".count)),
+               value > 0 {
+                return .customSeconds(value)
+            }
+            if normalized.hasSuffix("s"),
+               let value = Int(normalized.dropLast()),
+               value > 0 {
+                return .customSeconds(value)
+            }
+            return .providerDefault
+        }
+    }
+
     private static func mergeProviderSpecific(
         into base: inout [String: Any],
         providerType: ProviderType?,
@@ -1610,5 +1919,11 @@ enum ProviderParamsJSONSync {
             return Int(value.trimmingCharacters(in: .whitespacesAndNewlines))
         }
         return nil
+    }
+
+    private static func trimmedString(_ raw: String?) -> String? {
+        guard let raw else { return nil }
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
     }
 }

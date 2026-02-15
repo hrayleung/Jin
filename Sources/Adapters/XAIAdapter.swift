@@ -6,7 +6,7 @@ import Foundation
 /// - Image models use `/images/generations` + `/images/edits`.
 actor XAIAdapter: LLMProviderAdapter {
     let providerConfig: ProviderConfig
-    let capabilities: ModelCapability = [.streaming, .toolCalling, .vision, .reasoning, .imageGeneration]
+    let capabilities: ModelCapability = [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .imageGeneration]
 
     private let networkManager: NetworkManager
     private let apiKey: String
@@ -104,7 +104,9 @@ actor XAIAdapter: LLMProviderAdapter {
 
         if !streaming {
             let (data, _) = try await networkManager.sendRequest(request)
-            let response = try JSONDecoder().decode(ResponsesAPIResponse.self, from: data)
+            let decoder = JSONDecoder()
+            decoder.keyDecodingStrategy = .convertFromSnakeCase
+            let response = try decoder.decode(ResponsesAPIResponse.self, from: data)
 
             return AsyncThrowingStream { continuation in
                 continuation.yield(.messageStart(id: response.id))
@@ -173,6 +175,21 @@ actor XAIAdapter: LLMProviderAdapter {
             "input": translateInput(messages, supportsNativePDF: nativePDFEnabled),
             "stream": streaming
         ]
+
+        if controls.contextCache?.mode != .off {
+            if let conversationID = normalizedContextCacheString(controls.contextCache?.conversationID) {
+                request.setValue(conversationID, forHTTPHeaderField: "x-grok-conv-id")
+            }
+            if let cacheKey = normalizedContextCacheString(controls.contextCache?.cacheKey) {
+                body["prompt_cache_key"] = cacheKey
+            }
+            if let retention = controls.contextCache?.ttl?.providerTTLString {
+                body["prompt_cache_retention"] = retention
+            }
+            if let minTokens = controls.contextCache?.minTokensThreshold, minTokens > 0 {
+                body["prompt_cache_min_tokens"] = minTokens
+            }
+        }
 
         if let temperature = controls.temperature {
             body["temperature"] = temperature
@@ -349,7 +366,7 @@ actor XAIAdapter: LLMProviderAdapter {
             return [.imageGeneration]
         }
 
-        var caps: ModelCapability = [.streaming, .toolCalling]
+        var caps: ModelCapability = [.streaming, .toolCalling, .promptCaching]
 
         if inputModalities.contains(where: { $0.contains("image") }) || outputModalities.contains(where: { $0.contains("image") }) {
             caps.insert(.vision)
@@ -411,6 +428,12 @@ actor XAIAdapter: LLMProviderAdapter {
             || lower.contains("grok-4-2")
             || lower.contains("grok-5")
             || lower.contains("grok-6")
+    }
+
+    private func normalizedContextCacheString(_ value: String?) -> String? {
+        guard let value else { return nil }
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
     }
 
     private func mediaPrompt(from messages: [Message], isImageEdit: Bool) throws -> String {
@@ -822,7 +845,8 @@ actor XAIAdapter: LLMProviderAdapter {
             let usage = Usage(
                 inputTokens: event.response.usage.inputTokens,
                 outputTokens: event.response.usage.outputTokens,
-                thinkingTokens: event.response.usage.outputTokensDetails?.reasoningTokens
+                thinkingTokens: event.response.usage.outputTokensDetails?.reasoningTokens,
+                cachedTokens: event.response.usage.promptTokensDetails?.cachedTokens
             )
             return .messageEnd(usage: usage)
 
@@ -930,9 +954,14 @@ private struct ResponseCompletedEvent: Codable {
             let inputTokens: Int
             let outputTokens: Int
             let outputTokensDetails: OutputTokensDetails?
+            let promptTokensDetails: PromptTokensDetails?
 
             struct OutputTokensDetails: Codable {
                 let reasoningTokens: Int?
+            }
+
+            struct PromptTokensDetails: Codable {
+                let cachedTokens: Int?
             }
         }
     }
@@ -1046,9 +1075,14 @@ private struct ResponsesAPIResponse: Codable {
         let inputTokens: Int
         let outputTokens: Int
         let outputTokensDetails: OutputTokensDetails?
+        let promptTokensDetails: PromptTokensDetails?
 
         struct OutputTokensDetails: Codable {
             let reasoningTokens: Int?
+        }
+
+        struct PromptTokensDetails: Codable {
+            let cachedTokens: Int?
         }
     }
 
@@ -1070,7 +1104,8 @@ private struct ResponsesAPIResponse: Codable {
         return Usage(
             inputTokens: usage.inputTokens,
             outputTokens: usage.outputTokens,
-            thinkingTokens: usage.outputTokensDetails?.reasoningTokens
+            thinkingTokens: usage.outputTokensDetails?.reasoningTokens,
+            cachedTokens: usage.promptTokensDetails?.cachedTokens
         )
     }
 }
