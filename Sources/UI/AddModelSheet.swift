@@ -156,7 +156,13 @@ struct AddModelSheet: View {
             }
 
         case .xai?:
-            if lower.contains("imagine-image")
+            if lower.contains("imagine-video")
+                || lower.hasSuffix("-video")
+                || lower.contains("grok-video")
+                || lower.contains("video-generation") {
+                caps = [.videoGeneration]
+                reasoningConfig = nil
+            } else if lower.contains("imagine-image")
                 || lower.contains("grok-2-image")
                 || lower.hasSuffix("-image") {
                 caps = [.imageGeneration]

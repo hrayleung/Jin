@@ -15,6 +15,8 @@ struct GenerationControls: Codable {
     var imageGeneration: ImageGenerationControls?
     /// xAI image-generation controls (`/images/generations`).
     var xaiImageGeneration: XAIImageGenerationControls?
+    /// xAI video-generation controls (`/v1/videos/generations`).
+    var xaiVideoGeneration: XAIVideoGenerationControls?
     var providerSpecific: [String: AnyCodable] = [:] // Escape hatch for provider-specific params
 
     init(
@@ -27,6 +29,7 @@ struct GenerationControls: Codable {
         pdfProcessingMode: PDFProcessingMode? = nil,
         imageGeneration: ImageGenerationControls? = nil,
         xaiImageGeneration: XAIImageGenerationControls? = nil,
+        xaiVideoGeneration: XAIVideoGenerationControls? = nil,
         providerSpecific: [String: AnyCodable] = [:]
     ) {
         self.temperature = temperature
@@ -38,6 +41,7 @@ struct GenerationControls: Codable {
         self.pdfProcessingMode = pdfProcessingMode
         self.imageGeneration = imageGeneration
         self.xaiImageGeneration = xaiImageGeneration
+        self.xaiVideoGeneration = xaiVideoGeneration
         self.providerSpecific = providerSpecific
     }
 }
@@ -137,6 +141,37 @@ enum XAIImageStyle: String, Codable, CaseIterable {
     var displayName: String {
         rawValue.capitalized
     }
+}
+
+/// xAI video-generation controls (`/v1/videos/generations`).
+struct XAIVideoGenerationControls: Codable {
+    /// Duration of generated video in seconds (1-15).
+    var duration: Int?
+    /// Output aspect ratio.
+    var aspectRatio: XAIAspectRatio?
+    /// Output resolution.
+    var resolution: XAIVideoResolution?
+
+    init(
+        duration: Int? = nil,
+        aspectRatio: XAIAspectRatio? = nil,
+        resolution: XAIVideoResolution? = nil
+    ) {
+        self.duration = duration
+        self.aspectRatio = aspectRatio
+        self.resolution = resolution
+    }
+
+    var isEmpty: Bool {
+        duration == nil && aspectRatio == nil && resolution == nil
+    }
+}
+
+enum XAIVideoResolution: String, Codable, CaseIterable {
+    case res480p = "480p"
+    case res720p = "720p"
+
+    var displayName: String { rawValue }
 }
 
 /// Image-generation controls shared by Gemini (AI Studio) and Vertex AI.

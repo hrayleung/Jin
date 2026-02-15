@@ -4,9 +4,10 @@ import Foundation
 ///
 /// - Chat models use the Responses API (`/responses`).
 /// - Image models use `/images/generations` + `/images/edits`.
+/// - Video models use `/videos/generations` (async polling).
 actor XAIAdapter: LLMProviderAdapter {
     let providerConfig: ProviderConfig
-    let capabilities: ModelCapability = [.streaming, .toolCalling, .vision, .reasoning, .imageGeneration]
+    let capabilities: ModelCapability = [.streaming, .toolCalling, .vision, .reasoning, .imageGeneration, .videoGeneration]
 
     private let networkManager: NetworkManager
     private let apiKey: String
@@ -24,6 +25,10 @@ actor XAIAdapter: LLMProviderAdapter {
         tools: [ToolDefinition],
         streaming: Bool
     ) async throws -> AsyncThrowingStream<StreamEvent, Error> {
+        if isVideoGenerationModel(modelID) {
+            return try makeVideoGenerationStream(messages: messages, modelID: modelID, controls: controls)
+        }
+
         if isImageGenerationModel(modelID) {
             return try makeImageGenerationStream(messages: messages, modelID: modelID, controls: controls)
         }
@@ -62,7 +67,6 @@ actor XAIAdapter: LLMProviderAdapter {
         let response = try decoder.decode(ModelsResponse.self, from: data)
 
         return response.data
-            .filter { !isUnsupportedVideoGenerationModel($0) }
             .map { model in
                 let caps = inferCapabilities(for: model)
                 return ModelInfo(
@@ -276,6 +280,316 @@ actor XAIAdapter: LLMProviderAdapter {
         }
     }
 
+    // MARK: - Video generation
+
+    private func makeVideoGenerationStream(
+        messages: [Message],
+        modelID: String,
+        controls: GenerationControls
+    ) throws -> AsyncThrowingStream<StreamEvent, Error> {
+        let imageURL = imageURLForImageGeneration(from: messages)
+        let isImageToVideo = imageURL?.isEmpty == false
+        let prompt = try mediaPrompt(from: messages, isImageEdit: isImageToVideo)
+
+        return AsyncThrowingStream { continuation in
+            let task = Task {
+                do {
+                    // 1. Submit generation request
+                    let startRequest = try buildVideoGenerationRequest(
+                        modelID: modelID,
+                        prompt: prompt,
+                        imageURL: isImageToVideo ? imageURL : nil,
+                        controls: controls
+                    )
+                    let (startData, _) = try await networkManager.sendRequest(startRequest)
+                    let decoder = JSONDecoder()
+                    decoder.keyDecodingStrategy = .convertFromSnakeCase
+                    let startResponse = try decoder.decode(XAIVideoStartResponse.self, from: startData)
+
+                    if let apiError = startResponse.error {
+                        throw LLMError.providerError(
+                            code: apiError.code ?? "video_generation_error",
+                            message: apiError.message
+                        )
+                    }
+
+                    guard let requestID = startResponse.resolvedID, !requestID.isEmpty else {
+                        let raw = String(data: startData, encoding: .utf8) ?? "(non-UTF-8 data)"
+                        throw LLMError.decodingError(
+                            message: "xAI video generation did not return a request ID. Response: \(String(raw.prefix(500)))"
+                        )
+                    }
+
+                    continuation.yield(.messageStart(id: requestID))
+
+                    // Show visible progress in the streaming view while polling
+                    continuation.yield(.contentDelta(.text("Generating video")))
+
+                    // 2. Poll until done or expired
+                    let pollIntervalNanoseconds: UInt64 = 3_000_000_000 // 3 seconds
+                    let maxAttempts = 200 // ~10 minutes at 3s intervals
+                    var firstPollSnapshot: String?
+                    var lastPollSnapshot: String?
+
+                    for attempt in 0..<maxAttempts {
+                        try Task.checkCancellation()
+
+                        if attempt > 0 {
+                            try await Task.sleep(nanoseconds: pollIntervalNanoseconds)
+                        }
+
+                        // Emit progress dots so the user sees the generation is still running
+                        if attempt > 0, attempt % 2 == 0 {
+                            continuation.yield(.contentDelta(.text(".")))
+                        }
+
+                        var pollRequest = URLRequest(url: URL(string: "\(baseURL)/videos/\(requestID)")!)
+                        pollRequest.httpMethod = "GET"
+                        pollRequest.addValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+
+                        let (pollData, pollHTTPResponse) = try await networkManager.sendRequest(pollRequest)
+                        let rawBody = String(data: pollData, encoding: .utf8) ?? "(non-UTF-8)"
+                        let snapshot = "HTTP \(pollHTTPResponse.statusCode): \(String(rawBody.prefix(800)))"
+                        lastPollSnapshot = snapshot
+                        if firstPollSnapshot == nil { firstPollSnapshot = snapshot }
+
+                        // Try Codable decoding first
+                        let statusResponse = try? decoder.decode(XAIVideoStatusResponse.self, from: pollData)
+
+                        // Check for API errors
+                        if let apiError = statusResponse?.error {
+                            throw LLMError.providerError(
+                                code: apiError.code ?? "video_poll_error",
+                                message: apiError.message
+                            )
+                        }
+
+                        // Also parse raw JSON for fallback field inspection
+                        let rawJSON = try? JSONSerialization.jsonObject(with: pollData) as? [String: Any]
+
+                        // Resolve status from multiple sources
+                        let status = resolveVideoStatus(
+                            codable: statusResponse,
+                            rawJSON: rawJSON,
+                            httpStatus: pollHTTPResponse.statusCode
+                        )
+
+                        switch status {
+                        case .done:
+                            // Try to extract video URL from multiple locations
+                            guard let videoURL = extractVideoURL(codable: statusResponse, rawJSON: rawJSON) else {
+                                throw LLMError.decodingError(
+                                    message: "xAI video generation completed but no video URL found. Response: \(String(rawBody.prefix(500)))"
+                                )
+                            }
+
+                            continuation.yield(.contentDelta(.text("\n")))
+
+                            // Download to local storage (temporary URLs expire)
+                            let localURL = try await downloadVideoToLocal(from: videoURL)
+                            let video = VideoContent(mimeType: "video/mp4", data: nil, url: localURL)
+                            continuation.yield(.contentDelta(.video(video)))
+                            continuation.yield(.messageEnd(usage: nil))
+                            continuation.finish()
+                            return
+
+                        case .expired:
+                            throw LLMError.providerError(
+                                code: "video_generation_expired",
+                                message: "Video generation request expired before completing."
+                            )
+
+                        case .failed(let message):
+                            throw LLMError.providerError(
+                                code: "video_generation_failed",
+                                message: message ?? "Video generation failed on the server."
+                            )
+
+                        case .pending:
+                            continue
+                        }
+                    }
+
+                    throw LLMError.providerError(
+                        code: "video_generation_timeout",
+                        message: "Video generation timed out after polling for ~10 minutes.\n\nFirst poll: \(firstPollSnapshot ?? "nil")\n\nLast poll: \(lastPollSnapshot ?? "nil")"
+                    )
+                } catch {
+                    continuation.finish(throwing: error)
+                }
+            }
+
+            continuation.onTermination = { @Sendable _ in
+                task.cancel()
+            }
+        }
+    }
+
+    // MARK: - Video Poll Response Helpers
+
+    private enum VideoPollStatus {
+        case pending
+        case done
+        case expired
+        case failed(String?)
+    }
+
+    /// Resolve poll status from Codable model, raw JSON, and HTTP status code.
+    private func resolveVideoStatus(
+        codable: XAIVideoStatusResponse?,
+        rawJSON: [String: Any]?,
+        httpStatus: Int
+    ) -> VideoPollStatus {
+        // 1. Check Codable status field
+        if let status = codable?.status?.lowercased() {
+            switch status {
+            case "done", "complete", "completed", "success": return .done
+            case "expired": return .expired
+            case "failed", "error": return .failed(nil)
+            case "pending", "in_progress", "processing", "queued": return .pending
+            default: break
+            }
+        }
+
+        // 2. Check raw JSON for status/state fields
+        if let json = rawJSON {
+            for key in ["status", "state"] {
+                if let val = json[key] as? String {
+                    switch val.lowercased() {
+                    case "done", "complete", "completed", "success": return .done
+                    case "expired": return .expired
+                    case "failed", "error": return .failed(json["message"] as? String)
+                    case "pending", "in_progress", "processing", "queued": return .pending
+                    default: break
+                    }
+                }
+            }
+
+            // 3. If a video URL exists anywhere in the response, treat as done
+            if extractVideoURL(codable: codable, rawJSON: rawJSON) != nil {
+                return .done
+            }
+        }
+
+        // 4. Default to pending
+        return .pending
+    }
+
+    /// Extract video URL from multiple possible locations in the response.
+    private func extractVideoURL(codable: XAIVideoStatusResponse?, rawJSON: [String: Any]?) -> URL? {
+        // Codable path: video.url or result.url
+        if let urlString = codable?.resolvedVideo?.url, let url = URL(string: urlString) {
+            return url
+        }
+
+        guard let json = rawJSON else { return nil }
+
+        // {"video": {"url": "..."}}
+        if let video = json["video"] as? [String: Any],
+           let urlString = video["url"] as? String,
+           let url = URL(string: urlString) {
+            return url
+        }
+
+        // {"response": {"video": {"url": "..."}}} (SDK-style nested response)
+        if let response = json["response"] as? [String: Any],
+           let video = response["video"] as? [String: Any],
+           let urlString = video["url"] as? String,
+           let url = URL(string: urlString) {
+            return url
+        }
+
+        // {"result": {"video": {"url": "..."}}}
+        if let result = json["result"] as? [String: Any] {
+            if let video = result["video"] as? [String: Any],
+               let urlString = video["url"] as? String,
+               let url = URL(string: urlString) {
+                return url
+            }
+            if let urlString = result["url"] as? String, let url = URL(string: urlString) {
+                return url
+            }
+        }
+
+        // {"data": {"video": {"url": "..."}}}
+        if let data = json["data"] as? [String: Any],
+           let video = data["video"] as? [String: Any],
+           let urlString = video["url"] as? String,
+           let url = URL(string: urlString) {
+            return url
+        }
+
+        // {"url": "..."} at top level (only if it looks like a video URL)
+        if let urlString = json["url"] as? String,
+           let url = URL(string: urlString),
+           urlString.contains("video") || urlString.contains(".mp4") || urlString.contains("vidgen") {
+            return url
+        }
+
+        return nil
+    }
+
+    private func buildVideoGenerationRequest(
+        modelID: String,
+        prompt: String,
+        imageURL: String?,
+        controls: GenerationControls
+    ) throws -> URLRequest {
+        var request = URLRequest(url: URL(string: "\(baseURL)/videos/generations")!)
+        request.httpMethod = "POST"
+        request.addValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        let videoControls = controls.xaiVideoGeneration
+
+        var body: [String: Any] = [
+            "model": modelID,
+            "prompt": prompt
+        ]
+
+        if let duration = videoControls?.duration {
+            body["duration"] = min(max(duration, 1), 15)
+        }
+        if let aspectRatio = videoControls?.aspectRatio {
+            let supportedVideoRatios: Set<XAIAspectRatio> = [
+                .ratio1x1, .ratio16x9, .ratio9x16, .ratio4x3, .ratio3x4, .ratio3x2, .ratio2x3
+            ]
+            if supportedVideoRatios.contains(aspectRatio) {
+                body["aspect_ratio"] = aspectRatio.rawValue
+            }
+        }
+        if let resolution = videoControls?.resolution {
+            body["resolution"] = resolution.rawValue
+        }
+
+        if let imageURL, !imageURL.isEmpty {
+            body["image"] = ["url": imageURL]
+        }
+
+        applyProviderSpecificOverrides(controls: controls, body: &body)
+
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        return request
+    }
+
+    private func downloadVideoToLocal(from url: URL) async throws -> URL {
+        guard let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
+            throw LLMError.decodingError(message: "Could not locate application support directory for video storage.")
+        }
+        let dir = appSupport.appendingPathComponent("Jin/Attachments", isDirectory: true)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+
+        // Download video data via the app's network manager (consistent with other requests)
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        let (videoData, _) = try await networkManager.sendRequest(request)
+
+        let filename = "\(UUID().uuidString).mp4"
+        let destination = dir.appendingPathComponent(filename)
+        try videoData.write(to: destination, options: .atomic)
+        return destination
+    }
+
     private func buildImageGenerationRequest(
         modelID: String,
         prompt: String,
@@ -321,25 +635,20 @@ actor XAIAdapter: LLMProviderAdapter {
 
     // MARK: - Capability/model inference
 
-    private func isUnsupportedVideoGenerationModel(_ model: ModelData) -> Bool {
-        let lowerID = model.id.lowercased()
-        if lowerID.contains("imagine-video")
-            || lowerID.contains("grok-video")
-            || lowerID.contains("video-generation")
-            || lowerID.hasSuffix("-video") {
-            return true
-        }
-
-        let outputModalities = (model.outputModalities ?? []) + (model.modalities ?? [])
-        return outputModalities.contains(where: { $0.lowercased().contains("video") })
-    }
-
     private func inferCapabilities(for model: ModelData) -> ModelCapability {
         let lowerID = model.id.lowercased()
 
         let inputModalities = Set((model.inputModalities ?? []).map { $0.lowercased() })
         let outputModalities = Set((model.outputModalities ?? []).map { $0.lowercased() })
         let allModalities = Set((model.modalities ?? []).map { $0.lowercased() })
+
+        let hasVideoOutput = outputModalities.contains(where: { $0.contains("video") })
+            || allModalities.contains(where: { $0.contains("video") })
+        let videoModel = hasVideoOutput || isVideoGenerationModelID(lowerID)
+
+        if videoModel {
+            return [.videoGeneration]
+        }
 
         let hasImageOutput = outputModalities.contains(where: { $0.contains("image") })
             || allModalities.contains(where: { $0.contains("image") })
@@ -378,6 +687,20 @@ actor XAIAdapter: LLMProviderAdapter {
         lowerModelID.contains("imagine-image")
             || lowerModelID.hasSuffix("-image")
             || lowerModelID.contains("grok-2-image")
+    }
+
+    private func isVideoGenerationModel(_ modelID: String) -> Bool {
+        if providerConfig.models.first(where: { $0.id == modelID })?.capabilities.contains(.videoGeneration) == true {
+            return true
+        }
+        return isVideoGenerationModelID(modelID.lowercased())
+    }
+
+    private func isVideoGenerationModelID(_ lowerModelID: String) -> Bool {
+        lowerModelID.contains("imagine-video")
+            || lowerModelID.hasSuffix("-video")
+            || lowerModelID.contains("grok-video")
+            || lowerModelID.contains("video-generation")
     }
 
     // MARK: - Shared helpers
@@ -1022,6 +1345,44 @@ private struct XAIImageGenerationResponse: Codable {
             mimeType: mimeType
         )
     }
+}
+
+// MARK: - Video Generation Response Types
+
+/// Flexible start response – the xAI API may return the identifier under
+/// `request_id`, `response_id`, or `id` depending on the endpoint version.
+private struct XAIVideoStartResponse: Codable {
+    let requestId: String?
+    let responseId: String?
+    let id: String?
+    let error: XAIAPIError?
+
+    var resolvedID: String? {
+        requestId ?? responseId ?? id
+    }
+}
+
+private struct XAIVideoStatusResponse: Codable {
+    let status: String?
+    let video: XAIVideoResult?
+    let model: String?
+    let result: XAIVideoResult?
+    let error: XAIAPIError?
+
+    /// The video result may live under `video` or `result`.
+    var resolvedVideo: XAIVideoResult? {
+        video ?? result
+    }
+
+    /// Normalised status string; defaults to "pending" if absent.
+    var resolvedStatus: String {
+        (status ?? "pending").lowercased()
+    }
+}
+
+private struct XAIVideoResult: Codable {
+    let url: String?
+    let duration: Int?
 }
 
 // MARK: - Non-streaming Responses API Types

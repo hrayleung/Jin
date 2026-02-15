@@ -459,7 +459,7 @@ final class XAIAdapterMediaTests: XCTestCase {
         XCTAssertEqual(imageData, expected)
     }
 
-    func testXAIVideoModelIDFallsBackToResponsesAPI() async throws {
+    func testXAIVideoGenerationSubmitsToVideosEndpoint() async throws {
         let (session, protocolType) = makeMockedURLSession()
         let networkManager = NetworkManager(urlSession: session)
 
@@ -471,45 +471,193 @@ final class XAIAdapterMediaTests: XCTestCase {
             baseURL: "https://example.com"
         )
 
+        var capturedPostBody: [String: Any]?
+        var requestCount = 0
         protocolType.requestHandler = { request in
-            XCTAssertEqual(request.url?.absoluteString, "https://example.com/responses")
+            requestCount += 1
 
-            let response: [String: Any] = [
-                "id": "resp_1",
-                "output": [
-                    [
-                        "type": "message",
-                        "content": [
-                            [
-                                "type": "output_text",
-                                "text": "Video generation is unavailable for xAI in Jin."
-                            ]
-                        ]
-                    ]
-                ]
-            ]
-            let data = try JSONSerialization.data(withJSONObject: response)
-            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+            if requestCount == 1 {
+                // POST to start generation
+                XCTAssertEqual(request.url?.absoluteString, "https://example.com/videos/generations")
+                XCTAssertEqual(request.httpMethod, "POST")
+
+                let body = try XCTUnwrap(requestBodyData(request))
+                capturedPostBody = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+
+                let response: [String: Any] = ["request_id": "vid_req_123"]
+                let data = try JSONSerialization.data(withJSONObject: response)
+                return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+            } else {
+                // GET to poll - return expired to stop the loop
+                let response: [String: Any] = ["status": "expired"]
+                let data = try JSONSerialization.data(withJSONObject: response)
+                return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+            }
         }
 
         let adapter = XAIAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
 
         let stream = try await adapter.sendMessage(
-            messages: [Message(role: .user, content: [.text("make a short video")])],
+            messages: [Message(role: .user, content: [.text("A cat playing piano")])],
+            modelID: "grok-imagine-video",
+            controls: GenerationControls(
+                xaiVideoGeneration: XAIVideoGenerationControls(
+                    duration: 5,
+                    aspectRatio: .ratio16x9,
+                    resolution: .res720p
+                )
+            ),
+            tools: [],
+            streaming: false
+        )
+
+        var messageID: String?
+        do {
+            for try await event in stream {
+                if case .messageStart(let id) = event {
+                    messageID = id
+                }
+            }
+        } catch {
+            // Expected: expired status throws
+        }
+
+        XCTAssertEqual(messageID, "vid_req_123")
+
+        let root = try XCTUnwrap(capturedPostBody)
+        XCTAssertEqual(root["model"] as? String, "grok-imagine-video")
+        XCTAssertEqual(root["prompt"] as? String, "A cat playing piano")
+        XCTAssertEqual(root["duration"] as? Int, 5)
+        XCTAssertEqual(root["aspect_ratio"] as? String, "16:9")
+        XCTAssertEqual(root["resolution"] as? String, "720p")
+    }
+
+    func testXAIVideoGenerationHandlesExpiredStatus() async throws {
+        let (session, protocolType) = makeMockedURLSession()
+        let networkManager = NetworkManager(urlSession: session)
+
+        let providerConfig = ProviderConfig(
+            id: "x",
+            name: "xAI",
+            type: .xai,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        var requestCount = 0
+        protocolType.requestHandler = { request in
+            requestCount += 1
+
+            if requestCount == 1 {
+                // POST to start
+                XCTAssertEqual(request.url?.absoluteString, "https://example.com/videos/generations")
+                let response: [String: Any] = ["request_id": "vid_expired_1"]
+                let data = try JSONSerialization.data(withJSONObject: response)
+                return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+            } else {
+                // GET to poll - return expired
+                XCTAssertTrue(request.url?.absoluteString.contains("videos/vid_expired_1") == true)
+                let response: [String: Any] = ["status": "expired"]
+                let data = try JSONSerialization.data(withJSONObject: response)
+                return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+            }
+        }
+
+        let adapter = XAIAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("generate video")])],
             modelID: "grok-imagine-video",
             controls: GenerationControls(),
             tools: [],
             streaming: false
         )
 
-        var collectedText = ""
-        for try await event in stream {
-            if case .contentDelta(.text(let delta)) = event {
-                collectedText.append(delta)
+        var caughtError: Error?
+        do {
+            for try await _ in stream {}
+        } catch {
+            caughtError = error
+        }
+
+        XCTAssertNotNil(caughtError)
+        if let llmError = caughtError as? LLMError,
+           case .providerError(let code, _) = llmError {
+            XCTAssertEqual(code, "video_generation_expired")
+        } else {
+            XCTFail("Expected LLMError.providerError with code video_generation_expired")
+        }
+    }
+
+    func testXAIImageToVideoIncludesImageParameter() async throws {
+        let (session, protocolType) = makeMockedURLSession()
+        let networkManager = NetworkManager(urlSession: session)
+
+        let providerConfig = ProviderConfig(
+            id: "x",
+            name: "xAI",
+            type: .xai,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        var capturedImageParam: [String: Any]?
+        var requestCount = 0
+        protocolType.requestHandler = { request in
+            requestCount += 1
+
+            if requestCount == 1 {
+                // POST to start
+                XCTAssertEqual(request.url?.absoluteString, "https://example.com/videos/generations")
+
+                let body = try XCTUnwrap(requestBodyData(request))
+                let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+                let root = try XCTUnwrap(json)
+
+                XCTAssertEqual(root["model"] as? String, "grok-imagine-video")
+                capturedImageParam = root["image"] as? [String: Any]
+
+                let response: [String: Any] = ["request_id": "vid_img2vid_1"]
+                let data = try JSONSerialization.data(withJSONObject: response)
+                return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+            } else {
+                // GET to poll - return expired
+                let response: [String: Any] = ["status": "expired"]
+                let data = try JSONSerialization.data(withJSONObject: response)
+                return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
             }
         }
 
-        XCTAssertTrue(collectedText.contains("unavailable"))
+        let adapter = XAIAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+
+        let stream = try await adapter.sendMessage(
+            messages: [
+                Message(role: .user, content: [
+                    .text("Animate this image"),
+                    .image(ImageContent(mimeType: "image/png", data: Data([0x89, 0x50, 0x4e, 0x47]), url: nil))
+                ])
+            ],
+            modelID: "grok-imagine-video",
+            controls: GenerationControls(),
+            tools: [],
+            streaming: false
+        )
+
+        var messageID: String?
+        do {
+            for try await event in stream {
+                if case .messageStart(let id) = event {
+                    messageID = id
+                }
+            }
+        } catch {
+            // Expected: expired status
+        }
+
+        XCTAssertEqual(messageID, "vid_img2vid_1")
+        let imageParam = try XCTUnwrap(capturedImageParam)
+        let imageURL = try XCTUnwrap(imageParam["url"] as? String)
+        XCTAssertTrue(imageURL.hasPrefix("data:image/png;base64,"))
     }
 
     func testXAIModelFetchMapsImageCapabilities() async throws {
@@ -569,7 +717,10 @@ final class XAIAdapterMediaTests: XCTestCase {
         XCTAssertTrue(image.capabilities.contains(.imageGeneration))
         XCTAssertFalse(image.capabilities.contains(.toolCalling))
 
-        XCTAssertNil(byID["grok-imagine-video"])
+        let video = try XCTUnwrap(byID["grok-imagine-video"])
+        XCTAssertTrue(video.capabilities.contains(.videoGeneration))
+        XCTAssertFalse(video.capabilities.contains(.toolCalling))
+        XCTAssertFalse(video.capabilities.contains(.imageGeneration))
     }
 }
 

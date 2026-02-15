@@ -4,6 +4,28 @@ import AVFoundation
 import AVKit
 import CryptoKit
 
+// MARK: - VideoPlayerView (NSViewRepresentable)
+
+/// Wraps AppKit's AVPlayerView to avoid the _AVKit_SwiftUI metadata crash on macOS 26.
+private struct VideoPlayerView: NSViewRepresentable {
+    let url: URL
+
+    func makeNSView(context: Context) -> AVPlayerView {
+        let view = AVPlayerView()
+        view.player = AVPlayer(url: url)
+        view.controlsStyle = .inline
+        view.showsFullScreenToggleButton = true
+        return view
+    }
+
+    func updateNSView(_ nsView: AVPlayerView, context: Context) {
+        // Only replace the player if the URL actually changed
+        if (nsView.player?.currentItem?.asset as? AVURLAsset)?.url != url {
+            nsView.player = AVPlayer(url: url)
+        }
+    }
+}
+
 // MARK: - Render Models
 
 struct MessageRenderItem: Identifiable {
@@ -467,7 +489,7 @@ struct ContentPartView: View {
     @ViewBuilder
     private func renderedVideo(_ video: VideoContent) -> some View {
         if let fileURL = video.url, fileURL.isFileURL {
-            VideoPlayer(player: AVPlayer(url: fileURL))
+            VideoPlayerView(url: fileURL)
                 .frame(maxWidth: 560, minHeight: 220, maxHeight: 360)
                 .clipShape(RoundedRectangle(cornerRadius: JinRadius.small, style: .continuous))
                 .contextMenu {
@@ -494,7 +516,7 @@ struct ContentPartView: View {
                     }
                 }
         } else if let url = video.url {
-            VideoPlayer(player: AVPlayer(url: url))
+            VideoPlayerView(url: url)
                 .frame(maxWidth: 560, minHeight: 220, maxHeight: 360)
                 .clipShape(RoundedRectangle(cornerRadius: JinRadius.small, style: .continuous))
                 .contextMenu {
