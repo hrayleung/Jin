@@ -76,12 +76,6 @@ struct ChatView: View {
     @State private var thinkingBudgetDraft = ""
     @State private var maxTokensDraft = ""
 
-    @State private var showingProviderSpecificParamsSheet = false
-    @State private var providerSpecificParamsDraft = ""
-    @State private var providerSpecificParamsError: String?
-    @State private var providerSpecificParamsBaselineControls: GenerationControls?
-    @State private var providerSpecificParamsEditorID = UUID()
-
     @State private var showingContextCacheSheet = false
     @State private var contextCacheDraft = ContextCacheControls(mode: .implicit)
     @State private var contextCacheTTLPreset = ContextCacheTTLPreset.providerDefault
@@ -319,16 +313,6 @@ struct ChatView: View {
                 .menuStyle(.borderlessButton)
                 .help(imageGenerationHelpText)
             }
-
-            Menu { providerSpecificParamsMenuContent } label: {
-                controlIconLabel(
-                    systemName: "slider.horizontal.3",
-                    isActive: !controls.providerSpecific.isEmpty,
-                    badgeText: providerSpecificParamsBadgeText
-                )
-            }
-            .menuStyle(.borderlessButton)
-            .help(providerSpecificParamsHelpText)
 
             Spacer(minLength: 0)
         }
@@ -895,6 +879,7 @@ struct ChatView: View {
             pendingRestoreScrollMessageID = nil
             isPinnedToBottom = true
             isExpandedComposerPresented = false
+            loadControlsFromConversation()
             rebuildMessageCaches()
         }
         .onChange(of: conversationEntity.messages.count) { _, _ in
@@ -1017,73 +1002,6 @@ struct ChatView: View {
                 }
             }
             .frame(minWidth: 640, idealWidth: 700)
-        }
-        .sheet(isPresented: $showingProviderSpecificParamsSheet) {
-            NavigationStack {
-                Form {
-                    Section("Request parameters (JSON)") {
-                        TextEditor(text: $providerSpecificParamsDraft)
-                            .id(providerSpecificParamsEditorID)
-                            .font(.system(.body, design: .monospaced))
-                            .frame(minHeight: 220)
-                            .padding(JinSpacing.small)
-                            .lineSpacing(3)
-                            .jinSurface(.raised, cornerRadius: JinRadius.small)
-                            .onChange(of: providerSpecificParamsDraft) { _, _ in
-                                providerSpecificParamsError = nil
-                            }
-
-                        if let providerSpecificParamsError {
-                            Text(providerSpecificParamsError)
-                                .foregroundStyle(.red)
-                                .font(.caption)
-                                .padding(JinSpacing.small)
-                                .jinSurface(.subtleStrong, cornerRadius: JinRadius.small)
-                        } else {
-                            Text("Edits sync with the UI when a matching control exists. Unrecognized fields are stored as provider-specific overrides.")
-                                .jinInfoCallout()
-                        }
-                    }
-
-                    Section("Examples") {
-                        VStack(alignment: .leading, spacing: JinSpacing.small) {
-                            Text("Perplexity disable search: {\"disable_search\": true}")
-                            Text("Perplexity academic search: {\"search_mode\": \"academic\"}")
-                            Text("Fireworks GLM/Kimi thinking history: {\"reasoning_history\": \"preserved\"} (or \"interleaved\" / \"disabled\")")
-                            Text("Fireworks MiniMax thinking history: {\"reasoning_history\": \"interleaved\"} (or \"disabled\")")
-                            Text("Cerebras GLM preserved thinking: {\"clear_thinking\": false}")
-                            Text("Cerebras GLM disable thinking: {\"disable_reasoning\": true}")
-                            Text("Cerebras reasoning output: {\"reasoning_format\": \"parsed\"} (or \"raw\" / \"hidden\" / \"none\")")
-                            Text("Gemini image generation: {\"generationConfig\": {\"responseModalities\": [\"TEXT\", \"IMAGE\"], \"imageConfig\": {\"aspectRatio\": \"16:9\", \"imageSize\": \"2K\"}}}")
-                            Text("Vertex image extras: {\"generationConfig\": {\"imageConfig\": {\"personGeneration\": \"ALLOW_ADULT\", \"imageOutputOptions\": {\"mimeType\": \"image/jpeg\", \"compressionQuality\": 90}}}}")
-                        }
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .padding(JinSpacing.small)
-                        .jinSurface(.raised, cornerRadius: JinRadius.small)
-                    }
-                }
-                .scrollContentBackground(.hidden)
-                .background(JinSemanticColor.detailSurface)
-                .navigationTitle("Provider Params")
-                .toolbar {
-                    ToolbarItem(placement: .cancellationAction) {
-                        Button("Cancel") {
-                            providerSpecificParamsBaselineControls = nil
-                            showingProviderSpecificParamsSheet = false
-                        }
-                    }
-                    ToolbarItem(placement: .confirmationAction) {
-                        Button("Save") {
-                            if applyProviderSpecificParamsDraft() {
-                                showingProviderSpecificParamsSheet = false
-                            }
-                        }
-                        .disabled(!isProviderSpecificParamsDraftValid)
-                    }
-                }
-            }
-            .frame(width: 560, height: 520)
         }
         .sheet(isPresented: $showingContextCacheSheet) {
             contextCacheSheet
@@ -4919,129 +4837,6 @@ struct ChatView: View {
             return .custom
         case .providerDefault, .none:
             return .providerDefault
-        }
-    }
-
-    private var providerSpecificParamsBadgeText: String? {
-        let count = controls.providerSpecific.count
-        guard count > 0 else { return nil }
-        return count > 99 ? "99+" : "\(count)"
-    }
-
-    private var providerSpecificParamsHelpText: String {
-        let count = controls.providerSpecific.count
-        if count == 0 { return "Provider Params: Default" }
-        return "Provider Params: \(count) overridden"
-    }
-
-    @ViewBuilder
-    private var providerSpecificParamsMenuContent: some View {
-        Button("Edit JSON…") {
-            openProviderSpecificParamsEditor()
-        }
-
-        if !controls.providerSpecific.isEmpty {
-            Divider()
-            Button("Clear", role: .destructive) {
-                controls.providerSpecific = [:]
-                persistControlsToConversation()
-            }
-        }
-    }
-
-    private func openProviderSpecificParamsEditor() {
-        providerSpecificParamsError = nil
-        providerSpecificParamsBaselineControls = controls
-
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-
-        let assistant = conversationEntity.assistant
-        let controlsForDraft = GenerationControlsResolver.resolvedForRequest(
-            base: controls,
-            assistantTemperature: assistant?.temperature,
-            assistantMaxOutputTokens: assistant?.maxOutputTokens
-        )
-
-        let draft = ProviderParamsJSONSync.makeDraft(
-            providerType: providerType,
-            modelID: conversationEntity.modelID,
-            controls: controlsForDraft
-        )
-
-        if let data = try? encoder.encode(draft),
-           let json = String(data: data, encoding: .utf8) {
-            providerSpecificParamsDraft = json
-        } else {
-            providerSpecificParamsDraft = "{}"
-        }
-
-        // Force the editor to reset when reopening, but keep a stable ID while presenting.
-        providerSpecificParamsEditorID = UUID()
-
-        // Present on the next runloop tick so the TextEditor reliably picks up the draft text.
-        DispatchQueue.main.async {
-            showingProviderSpecificParamsSheet = true
-        }
-    }
-
-    private var isProviderSpecificParamsDraftValid: Bool {
-        let trimmed = providerSpecificParamsDraft.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return true }
-
-        guard let data = trimmed.data(using: .utf8) else { return false }
-        return (try? JSONDecoder().decode([String: AnyCodable].self, from: data)) != nil
-    }
-
-    private func stripAssistantDefaultsFromControlsIfNeeded() {
-        guard let baseline = providerSpecificParamsBaselineControls else { return }
-        defer { providerSpecificParamsBaselineControls = nil }
-
-        guard let assistant = conversationEntity.assistant else { return }
-
-        if baseline.temperature == nil,
-           let temperature = controls.temperature,
-           abs(temperature - assistant.temperature) < 0.000_001 {
-            controls.temperature = nil
-        }
-
-        if baseline.maxTokens == nil,
-           let assistantMaxTokens = assistant.maxOutputTokens,
-           controls.maxTokens == assistantMaxTokens {
-            controls.maxTokens = nil
-        }
-    }
-
-    @discardableResult
-    private func applyProviderSpecificParamsDraft() -> Bool {
-        let trimmed = providerSpecificParamsDraft.trimmingCharacters(in: .whitespacesAndNewlines)
-
-        do {
-            let decoded: [String: AnyCodable]
-            if trimmed.isEmpty {
-                decoded = [:]
-            } else {
-                guard let data = trimmed.data(using: .utf8) else {
-                    throw NSError(domain: "ProviderParams", code: 1, userInfo: [NSLocalizedDescriptionKey: "Invalid UTF-8 JSON."])
-                }
-                decoded = try JSONDecoder().decode([String: AnyCodable].self, from: data)
-            }
-
-            let remainder = ProviderParamsJSONSync.applyDraft(
-                providerType: providerType,
-                modelID: conversationEntity.modelID,
-                draft: decoded,
-                controls: &controls
-            )
-            controls.providerSpecific = remainder
-            stripAssistantDefaultsFromControlsIfNeeded()
-            normalizeControlsForCurrentSelection()
-            persistControlsToConversation()
-            providerSpecificParamsError = nil
-            return true
-        } catch {
-            providerSpecificParamsError = error.localizedDescription
-            return false
         }
     }
 
