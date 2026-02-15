@@ -39,7 +39,13 @@ A native macOS app for chatting with 15+ LLM providers.
 
 OpenAI, OpenAI Compatible, OpenRouter, Anthropic, Perplexity, Groq, Cohere, Mistral, DeepInfra, xAI, DeepSeek, Fireworks, Cerebras, Gemini (AI Studio), Vertex AI.
 
-## Model Support (`✦`)
+### How Jin gets model IDs
+
+- Jin pulls model IDs from provider APIs for OpenAI, OpenAI Compatible (including Groq/Mistral/DeepInfra endpoints), OpenRouter, Anthropic, Cohere, xAI, DeepSeek, Fireworks, Cerebras, Gemini (AI Studio), and Vertex AI.
+- Perplexity currently uses a built-in fallback list when no custom list is configured: `sonar`, `sonar-pro`, `sonar-reasoning-pro`, `sonar-deep-research`.
+- On first launch, Jin seeds starter model IDs so you can chat immediately. Use provider model refresh in Settings to sync with current provider lists.
+
+## `✦` Full-Support Badge Rules
 
 `✦` means "Jin full support" in the model list UI. The matching rules come directly from `Sources/Domain/JinModelSupport.swift`.
 
@@ -56,6 +62,34 @@ OpenAI, OpenAI Compatible, OpenRouter, Anthropic, Perplexity, Groq, Cohere, Mist
 | Vertex AI | Contains: `gemini-3`, `gemini-2.5` |
 
 For `OpenAI Compatible`, `OpenRouter`, `Groq`, `Cohere`, `Mistral`, and `DeepInfra`, `✦` is intentionally not auto-assigned in code to avoid over-promising on generic/aggregated routing.
+
+## Latest Provider Models (Official Docs, verified 2026-02-15)
+
+These are the latest model IDs/families published by provider docs at verification time. They are not the same as Jin `✦` rules.
+
+| Provider | Latest official model IDs/families (examples) |
+|----------|-----------------------------------------------|
+| OpenAI | `gpt-5.2`, `gpt-5.2-2025-08-07`, `gpt-5`, `gpt-5-mini` |
+| Anthropic | `claude-opus-4-6`, `claude-opus-4-6-20260106`, `claude-opus-4-1`, `claude-sonnet-4` |
+| Perplexity | `sonar`, `sonar-pro`, `sonar-reasoning-pro`, `sonar-deep-research` |
+| xAI | `grok-4-1`, `grok-4-1-fast-reasoning`, `grok-4-fast-reasoning`, `grok-4-fast-non-reasoning` |
+| DeepSeek | `deepseek-chat`, `deepseek-reasoner`, `deepseek-v3.2-exp` |
+| Fireworks | `fireworks/glm-5`, `fireworks/kimi-k2p5`, `fireworks/minimax-m2p5` |
+| Cerebras | `zai-glm-4.7`, `gpt-oss-120b`, `qwen-3-32b`, `qwen-3-235b-2507`, `llama3.1-8b` |
+| Gemini (AI Studio) | `gemini-3.0-pro`, `gemini-3.0-flash`, `gemini-2.5-flash-image` |
+| Vertex AI | Gemini 3.0 Pro/Flash and Gemini 2.5 family (model IDs exposed under `publishers/google/models/*`) |
+
+Reference links:
+
+- OpenAI: https://platform.openai.com/docs/models/latest-model and https://platform.openai.com/docs/models/gpt-5.2
+- Anthropic: https://docs.anthropic.com/en/docs/about-claude/models/overview and https://www.anthropic.com/news/claude-opus-4-6
+- Perplexity: https://docs.perplexity.ai/guides/model-cards and https://docs.perplexity.ai/changelog/changelog
+- xAI: https://docs.x.ai/docs/changelog and https://docs.x.ai/docs/tutorial
+- DeepSeek: https://api-docs.deepseek.com/quick_start/pricing and https://api-docs.deepseek.com/news/news250926
+- Fireworks: https://fireworks.ai/models/fireworks/glm-5 and https://fireworks.ai/models/fireworks/kimi-k2p5
+- Cerebras: https://inference-docs.cerebras.ai/api-reference/models/public-models and https://inference-docs.cerebras.ai/models/zai-glm-47
+- Gemini (AI Studio): https://ai.google.dev/gemini-api/docs/models/gemini and https://ai.google.dev/gemini-api/docs/models/experimental-models
+- Vertex AI: https://cloud.google.com/vertex-ai/generative-ai/docs/learn/models
 
 ## Requirements
 
