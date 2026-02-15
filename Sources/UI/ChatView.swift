@@ -1286,6 +1286,34 @@ struct ChatView: View {
         }
     }
 
+    /// Persist in-memory images to disk so they have stable file URLs.
+    private static func persistImagesToDisk(_ parts: [ContentPart]) async -> [ContentPart] {
+        guard let storage = try? AttachmentStorageManager() else { return parts }
+
+        var result: [ContentPart] = []
+        result.reserveCapacity(parts.count)
+
+        for part in parts {
+            guard case .image(let image) = part,
+                  image.url?.isFileURL != true,
+                  let data = image.data
+            else {
+                result.append(part)
+                continue
+            }
+
+            let ext = AttachmentStorageManager.fileExtension(for: image.mimeType) ?? "png"
+            let filename = "generated-image.\(ext)"
+            if let stored = try? await storage.saveAttachment(data: data, filename: filename, mimeType: image.mimeType) {
+                result.append(.image(ImageContent(mimeType: image.mimeType, data: nil, url: stored.fileURL)))
+            } else {
+                result.append(part)
+            }
+        }
+
+        return result
+    }
+
     static func parseDroppedString(_ text: String) -> (fileURLs: [URL], textChunks: [String]) {
         let lines = text
             .split(whereSeparator: \.isNewline)
@@ -3228,9 +3256,10 @@ struct ChatView: View {
                     let toolCalls = Array(toolCallsByID.values)
                     let assistantParts = buildAssistantParts()
                     if !assistantParts.isEmpty || !toolCalls.isEmpty {
+                        let persistedParts = await Self.persistImagesToDisk(assistantParts)
                         let assistantMessage = Message(
                             role: .assistant,
-                            content: assistantParts,
+                            content: persistedParts,
                             toolCalls: toolCalls.isEmpty ? nil : toolCalls
                         )
 

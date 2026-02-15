@@ -32,8 +32,8 @@ actor AttachmentStorageManager {
     /// Save attachment and return file URL
     func saveAttachment(data: Data, filename: String, mimeType: String) throws -> StoredAttachment {
         let id = UUID()
-        let fileExtension = fileExtension(for: mimeType) ?? (filename as NSString).pathExtension
-        let fileURL = baseURL.appendingPathComponent("\(id.uuidString).\(fileExtension)")
+        let ext = Self.fileExtension(for: mimeType) ?? (filename as NSString).pathExtension
+        let fileURL = Self.storedFileURL(baseURL: baseURL, id: id, ext: ext)
 
         try data.write(to: fileURL)
 
@@ -43,8 +43,8 @@ actor AttachmentStorageManager {
     /// Save attachment by copying a file URL (preferred for larger files)
     func saveAttachment(from sourceURL: URL, filename: String, mimeType: String) throws -> StoredAttachment {
         let id = UUID()
-        let fileExtension = fileExtension(for: mimeType) ?? sourceURL.pathExtension
-        let fileURL = baseURL.appendingPathComponent("\(id.uuidString).\(fileExtension)")
+        let ext = Self.fileExtension(for: mimeType) ?? sourceURL.pathExtension
+        let fileURL = Self.storedFileURL(baseURL: baseURL, id: id, ext: ext)
 
         try fileManager.copyItem(at: sourceURL, to: fileURL)
 
@@ -71,14 +71,24 @@ actor AttachmentStorageManager {
         }
     }
 
-    // MARK: - Private
+    // MARK: - Helpers
 
-    private func fileExtension(for mimeType: String) -> String? {
+    private static func storedFileURL(baseURL: URL, id: UUID, ext: String) -> URL {
+        let trimmed = ext.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !trimmed.isEmpty else {
+            return baseURL.appendingPathComponent(id.uuidString)
+        }
+        return baseURL.appendingPathComponent("\(id.uuidString).\(trimmed)")
+    }
+
+    static func fileExtension(for mimeType: String) -> String? {
         switch mimeType {
         case "image/jpeg", "image/jpg":
             return "jpg"
         case "image/png":
             return "png"
+        case "image/gif":
+            return "gif"
         case "image/webp":
             return "webp"
         case "application/pdf":

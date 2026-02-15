@@ -2,6 +2,7 @@ import SwiftUI
 import AppKit
 import AVFoundation
 import AVKit
+import CryptoKit
 
 // MARK: - Render Models
 
@@ -348,9 +349,9 @@ struct ContentPartView: View {
             let fileURL = (image.url?.isFileURL == true) ? image.url : nil
 
             if let data = image.data, let nsImage = NSImage(data: data) {
-                renderedImage(nsImage, fileURL: fileURL)
+                renderedImage(nsImage, fileURL: fileURL, imageData: data, mimeType: image.mimeType)
             } else if let fileURL, let nsImage = NSImage(contentsOf: fileURL) {
-                renderedImage(nsImage, fileURL: fileURL)
+                renderedImage(nsImage, fileURL: fileURL, imageData: nil, mimeType: image.mimeType)
             } else if let url = image.url {
                 Link(url.absoluteString, destination: url)
                     .font(.caption)
@@ -525,7 +526,7 @@ struct ContentPartView: View {
     }
 
     @ViewBuilder
-    private func renderedImage(_ image: NSImage, fileURL: URL?) -> some View {
+    private func renderedImage(_ image: NSImage, fileURL: URL?, imageData: Data?, mimeType: String) -> some View {
         Image(nsImage: image)
             .resizable()
             .scaledToFit()
@@ -544,15 +545,19 @@ struct ContentPartView: View {
                     } label: {
                         Label("Open", systemImage: "arrow.up.right.square")
                     }
-
-                    Button {
-                        NSWorkspace.shared.activateFileViewerSelecting([fileURL])
-                    } label: {
-                        Label("Reveal in Finder", systemImage: "folder")
-                    }
-
-                    Divider()
                 }
+
+                Button {
+                    if let fileURL {
+                        NSWorkspace.shared.activateFileViewerSelecting([fileURL])
+                    } else if let savedURL = Self.persistImageToDisk(data: imageData, image: image, mimeType: mimeType) {
+                        NSWorkspace.shared.activateFileViewerSelecting([savedURL])
+                    }
+                } label: {
+                    Label("Reveal in Finder", systemImage: "folder")
+                }
+
+                Divider()
 
                 Button {
                     let pasteboard = NSPasteboard.general
@@ -572,6 +577,39 @@ struct ContentPartView: View {
                     }
                 }
             }
+    }
+
+    private static func persistImageToDisk(data: Data?, image: NSImage, mimeType: String) -> URL? {
+        let imageData: Data
+        if let data {
+            imageData = data
+        } else if let tiff = image.tiffRepresentation,
+                  let rep = NSBitmapImageRep(data: tiff),
+                  let png = rep.representation(using: .png, properties: [:]) {
+            imageData = png
+        } else {
+            return nil
+        }
+
+        let ext = AttachmentStorageManager.fileExtension(for: mimeType) ?? "png"
+        let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+        guard let dir = appSupport?.appendingPathComponent("Jin/Attachments", isDirectory: true) else { return nil }
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+
+        let hash = SHA256.hash(data: imageData)
+        let hashString = hash.compactMap { String(format: "%02x", $0) }.joined()
+        let url = dir.appendingPathComponent("\(hashString).\(ext)")
+
+        if FileManager.default.fileExists(atPath: url.path) {
+            return url
+        }
+
+        do {
+            try imageData.write(to: url, options: [.atomic])
+            return url
+        } catch {
+            return nil
+        }
     }
 }
 
