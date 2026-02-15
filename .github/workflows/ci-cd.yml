@@ -1,0 +1,65 @@
+name: CI/CD
+
+on:
+  pull_request:
+  push:
+    branches:
+      - master
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-cd-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Test
+    runs-on: macos-14
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Print Swift version
+        run: swift --version
+
+      - name: Run unit tests
+        run: swift test
+
+  package:
+    name: Build app and DMG
+    runs-on: macos-14
+    needs: test
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Package app and DMG
+        run: bash Packaging/package.sh dmg
+
+      - name: Upload app bundle artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Jin-app-${{ github.run_number }}
+          path: dist/Jin.app
+          if-no-files-found: error
+
+      - name: Upload DMG artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Jin-dmg-${{ github.run_number }}
+          path: dist/Jin.dmg
+          if-no-files-found: error
+
+      - name: Publish release on version tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/Jin.dmg
+          generate_release_notes: true
