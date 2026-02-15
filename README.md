@@ -68,6 +68,27 @@ For `OpenAI Compatible`, `OpenRouter`, `Groq`, `Cohere`, `Mistral`, and `DeepInf
 
 Download the latest `.dmg` from the [Releases](../../releases) page.
 
+### If macOS Blocks the App
+
+If macOS shows a warning like "is damaged and can't be opened", Gatekeeper is blocking an unsigned or unnotarized build.
+
+1. Open the DMG and drag `Jin.app` to `/Applications`.
+2. In Finder, Control-click `Jin.app` and choose **Open**.
+3. Click **Open** again in the confirmation dialog.
+4. If it is still blocked, remove quarantine attributes:
+
+```bash
+xattr -dr com.apple.quarantine /Applications/Jin.app
+```
+
+If the DMG itself is blocked, run:
+
+```bash
+xattr -dr com.apple.quarantine ~/Downloads/Jin.dmg
+```
+
+Only run these commands for builds from a source you trust.
+
 ### Build from Source
 
 ```bash
