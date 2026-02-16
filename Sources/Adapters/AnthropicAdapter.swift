@@ -535,6 +535,13 @@ actor AnthropicAdapter: LLMProviderAdapter {
                     ]
                     applyCacheControlIfNeeded(to: &block, isCacheableBlock: true)
                     content.append(block)
+                case .video(let video):
+                    var block: [String: Any] = [
+                        "type": "text",
+                        "text": unsupportedVideoInputNotice(video, providerName: "Anthropic")
+                    ]
+                    applyCacheControlIfNeeded(to: &block, isCacheableBlock: true)
+                    content.append(block)
                 default:
                     break
                 }
@@ -559,6 +566,18 @@ actor AnthropicAdapter: LLMProviderAdapter {
             "role": message.role == .assistant ? "assistant" : "user",
             "content": content
         ]
+    }
+
+    private func unsupportedVideoInputNotice(_ video: VideoContent, providerName: String) -> String {
+        let detail: String
+        if let url = video.url {
+            detail = url.isFileURL ? url.lastPathComponent : url.absoluteString
+        } else if let data = video.data {
+            detail = "\(data.count) bytes"
+        } else {
+            detail = "no media payload"
+        }
+        return "Video attachment omitted (\(video.mimeType), \(detail)): \(providerName) Messages API does not support native video input in Jin yet."
     }
 
     private func anthropicCacheControl(from contextCache: ContextCacheControls?) -> [String: Any]? {

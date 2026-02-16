@@ -275,6 +275,69 @@ final class GeminiAdapterTests: XCTestCase {
         for try await _ in stream {}
     }
 
+    func testGeminiAdapterBuildsInlineDataForVideoInput() async throws {
+        let (session, protocolType) = makeMockedURLSession()
+        let networkManager = NetworkManager(urlSession: session)
+
+        let providerConfig = ProviderConfig(
+            id: "g",
+            name: "Gemini",
+            type: .gemini,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://example.com/models/gemini-3-flash-preview:generateContent")
+            XCTAssertEqual(request.httpMethod, "POST")
+
+            let body = try XCTUnwrap(requestBodyData(request))
+            let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+            let root = try XCTUnwrap(json)
+
+            let contents = try XCTUnwrap(root["contents"] as? [[String: Any]])
+            let first = try XCTUnwrap(contents.first)
+            XCTAssertEqual(first["role"] as? String, "user")
+
+            let parts = try XCTUnwrap(first["parts"] as? [[String: Any]])
+            XCTAssertEqual(parts.count, 1)
+            let inlineData = try XCTUnwrap(parts.first?["inlineData"] as? [String: Any])
+            XCTAssertEqual(inlineData["mimeType"] as? String, "video/mp4")
+            XCTAssertNotNil(inlineData["data"] as? String)
+
+            let response: [String: Any] = [
+                "candidates": [
+                    [
+                        "content": [
+                            "parts": [
+                                ["text": "OK"]
+                            ]
+                        ]
+                    ]
+                ],
+                "usageMetadata": [
+                    "promptTokenCount": 1,
+                    "candidatesTokenCount": 2
+                ]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = GeminiAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let video = VideoContent(mimeType: "video/mp4", data: Data([0x00, 0x01, 0x02]), url: nil)
+
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.video(video)])],
+            modelID: "gemini-3-flash-preview",
+            controls: GenerationControls(),
+            tools: [],
+            streaming: false
+        )
+
+        for try await _ in stream {}
+    }
+
     func testGeminiAdapterStreamingParsesSSEChunksAndEmitsUsage() async throws {
         let (session, protocolType) = makeMockedURLSession()
         let networkManager = NetworkManager(urlSession: session)

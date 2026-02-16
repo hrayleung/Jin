@@ -139,6 +139,67 @@ final class XAIAdapterMediaTests: XCTestCase {
         XCTAssertEqual(images[0].data, expected)
     }
 
+    func testXAIChatFallsBackToTextForVideoInput() async throws {
+        let (session, protocolType) = makeMockedURLSession()
+        let networkManager = NetworkManager(urlSession: session)
+
+        let providerConfig = ProviderConfig(
+            id: "x",
+            name: "xAI",
+            type: .xai,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://example.com/responses")
+            XCTAssertEqual(request.httpMethod, "POST")
+
+            let body = try XCTUnwrap(requestBodyData(request))
+            let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+            let root = try XCTUnwrap(json)
+
+            let input = try XCTUnwrap(root["input"] as? [[String: Any]])
+            let first = try XCTUnwrap(input.first)
+            let content = try XCTUnwrap(first["content"] as? [[String: Any]])
+
+            let textParts = content.compactMap { item -> String? in
+                guard (item["type"] as? String) == "input_text" else { return nil }
+                return item["text"] as? String
+            }
+            XCTAssertEqual(textParts.count, 1)
+            XCTAssertTrue(textParts[0].contains("Video attachment omitted"))
+            XCTAssertTrue(textParts[0].contains("video/mp4"))
+
+            let response: [String: Any] = [
+                "id": "resp_1",
+                "output": [
+                    [
+                        "type": "message",
+                        "content": [
+                            ["type": "output_text", "text": "OK"]
+                        ]
+                    ]
+                ]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = XAIAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let video = VideoContent(mimeType: "video/mp4", data: Data([0x00, 0x01, 0x02]), url: nil)
+
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.video(video)])],
+            modelID: "grok-4",
+            controls: GenerationControls(),
+            tools: [],
+            streaming: false
+        )
+
+        for try await _ in stream {}
+    }
+
     func testXAIImageEditUsesEditsEndpointWhenInputImageProvided() async throws {
         let (session, protocolType) = makeMockedURLSession()
         let networkManager = NetworkManager(urlSession: session)
@@ -732,7 +793,7 @@ final class XAIAdapterMediaTests: XCTestCase {
         XCTAssertEqual(code, "video_generation_failed")
     }
 
-    func testXAIImageToVideoIncludesImageParameter() async throws {
+    func testXAIImageToVideoIncludesImageObjectParameter() async throws {
         let (session, protocolType) = makeMockedURLSession()
         let networkManager = NetworkManager(urlSession: session)
 
@@ -756,8 +817,8 @@ final class XAIAdapterMediaTests: XCTestCase {
                 let root = try XCTUnwrap(json)
 
                 XCTAssertEqual(root["model"] as? String, "grok-imagine-video")
-                let imageParam = try XCTUnwrap(root["image"] as? [String: Any])
-                let imageURL = try XCTUnwrap(imageParam["url"] as? String)
+                let image = try XCTUnwrap(root["image"] as? [String: Any])
+                let imageURL = try XCTUnwrap(image["url"] as? String)
                 XCTAssertTrue(imageURL.hasPrefix("data:image/png;base64,"))
 
                 let response: [String: Any] = ["request_id": "vid_img2vid_1"]
@@ -792,6 +853,200 @@ final class XAIAdapterMediaTests: XCTestCase {
 
         guard case .messageStart(let id) = events[0] else { return XCTFail("Expected messageStart") }
         XCTAssertEqual(id, "vid_img2vid_1")
+    }
+
+    func testXAIVideoToVideoIncludesVideoURLAndSkipsUnsupportedControls() async throws {
+        let (session, protocolType) = makeMockedURLSession()
+        let networkManager = NetworkManager(urlSession: session)
+        let (defaults, defaultsSuiteName) = makeIsolatedUserDefaults()
+        defer { defaults.removePersistentDomain(forName: defaultsSuiteName) }
+        seedCloudflareR2Defaults(defaults)
+
+        let providerConfig = ProviderConfig(
+            id: "x",
+            name: "xAI",
+            type: .xai,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent("xai-video-input-\(UUID().uuidString).mp4")
+        let fakeVideo = Data([0x00, 0x00, 0x00, 0x18, 0x66, 0x74, 0x79, 0x70, 0x69, 0x73, 0x6f, 0x6d])
+        try fakeVideo.write(to: tempURL, options: .atomic)
+        defer { try? FileManager.default.removeItem(at: tempURL) }
+
+        var requestCount = 0
+        var uploadedObjectKey: String?
+        protocolType.requestHandler = { request in
+            requestCount += 1
+
+            if requestCount == 1 {
+                XCTAssertEqual(request.httpMethod, "PUT")
+                XCTAssertEqual(request.url?.host, "test-account.r2.cloudflarestorage.com")
+                XCTAssertTrue(request.url?.path.hasPrefix("/test-bucket/") == true)
+
+                let objectKey = String((request.url?.path ?? "").dropFirst("/test-bucket/".count))
+                uploadedObjectKey = objectKey
+
+                let uploadBody = try XCTUnwrap(requestBodyData(request))
+                XCTAssertEqual(uploadBody, fakeVideo)
+                XCTAssertEqual(request.value(forHTTPHeaderField: "content-type"), "video/mp4")
+
+                return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, Data())
+            } else if requestCount == 2 {
+                XCTAssertEqual(request.url?.host, "pub.example.com")
+                XCTAssertEqual(request.httpMethod, "GET")
+                XCTAssertEqual(request.value(forHTTPHeaderField: "Range"), "bytes=0-0")
+
+                return (HTTPURLResponse(
+                    url: request.url!,
+                    statusCode: 206,
+                    httpVersion: nil,
+                    headerFields: ["Content-Type": "video/mp4"]
+                )!, Data([0x00]))
+            } else if requestCount == 3 {
+                XCTAssertEqual(request.url?.absoluteString, "https://example.com/videos/edits")
+                XCTAssertEqual(request.httpMethod, "POST")
+
+                let body = try XCTUnwrap(requestBodyData(request))
+                let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+                let root = try XCTUnwrap(json)
+
+                XCTAssertEqual(root["model"] as? String, "grok-imagine-video")
+                let prompt = try XCTUnwrap(root["prompt"] as? String)
+                XCTAssertTrue(prompt.contains("Edit the provided input video."))
+                XCTAssertTrue(prompt.contains("Keep the main subject, composition, camera motion, and timing continuity unless explicitly changed."))
+                XCTAssertTrue(prompt.contains("Original request:"))
+                XCTAssertTrue(prompt.contains("Apply this new edit now:"))
+                XCTAssertTrue(prompt.contains("Stylize this video"))
+                let video = try XCTUnwrap(root["video"] as? [String: Any])
+                let videoURL = try XCTUnwrap(video["url"] as? String)
+                let expectedObjectKey = try XCTUnwrap(uploadedObjectKey)
+                XCTAssertEqual(videoURL, "https://pub.example.com/\(expectedObjectKey)")
+                XCTAssertNil(root["image"])
+
+                // xAI docs: these are unsupported for video editing inputs.
+                XCTAssertNil(root["duration"])
+                XCTAssertNil(root["aspect_ratio"])
+                XCTAssertNil(root["resolution"])
+
+                let response: [String: Any] = ["request_id": "vid_vid2vid_1"]
+                let data = try JSONSerialization.data(withJSONObject: response)
+                return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+            } else {
+                let response: [String: Any] = ["status": "expired"]
+                let data = try JSONSerialization.data(withJSONObject: response)
+                return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+            }
+        }
+
+        let r2Uploader = CloudflareR2Uploader(networkManager: networkManager, defaults: defaults)
+        let adapter = XAIAdapter(
+            providerConfig: providerConfig,
+            apiKey: "test-key",
+            networkManager: networkManager,
+            r2Uploader: r2Uploader
+        )
+
+        let stream = try await adapter.sendMessage(
+            messages: [
+                Message(role: .user, content: [
+                    .text("Stylize this video"),
+                    .video(VideoContent(mimeType: "video/mp4", data: nil, url: tempURL))
+                ])
+            ],
+            modelID: "grok-imagine-video",
+            controls: GenerationControls(
+                xaiVideoGeneration: XAIVideoGenerationControls(
+                    duration: 5,
+                    aspectRatio: .ratio16x9,
+                    resolution: .res720p
+                )
+            ),
+            tools: [],
+            streaming: false
+        )
+
+        var events: [StreamEvent] = []
+        var caughtError: Error?
+        do {
+            for try await event in stream { events.append(event) }
+        } catch {
+            caughtError = error
+        }
+
+        if let caughtError {
+            let llmError = try XCTUnwrap(caughtError as? LLMError)
+            guard case .providerError(let code, _) = llmError else {
+                return XCTFail("Expected LLMError.providerError, got \(llmError)")
+            }
+            XCTAssertEqual(code, "video_generation_expired")
+        }
+
+        guard case .messageStart(let id) = events.first else { return XCTFail("Expected messageStart") }
+        XCTAssertEqual(id, "vid_vid2vid_1")
+    }
+
+    func testXAIVideoToVideoLocalInputFailsWhenR2ConfigMissing() async throws {
+        let (session, protocolType) = makeMockedURLSession()
+        let networkManager = NetworkManager(urlSession: session)
+        let (defaults, defaultsSuiteName) = makeIsolatedUserDefaults()
+        defer { defaults.removePersistentDomain(forName: defaultsSuiteName) }
+
+        AppPreferences.setPluginEnabled(true, for: "cloudflare_r2_upload", defaults: defaults)
+
+        let providerConfig = ProviderConfig(
+            id: "x",
+            name: "xAI",
+            type: .xai,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        protocolType.requestHandler = { request in
+            XCTFail("Unexpected network call: \(request)")
+            return (HTTPURLResponse(url: request.url!, statusCode: 500, httpVersion: nil, headerFields: nil)!, Data())
+        }
+
+        let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent("xai-video-missing-r2-\(UUID().uuidString).mp4")
+        try Data([0x00, 0x01, 0x02, 0x03]).write(to: tempURL, options: .atomic)
+        defer { try? FileManager.default.removeItem(at: tempURL) }
+
+        let r2Uploader = CloudflareR2Uploader(networkManager: networkManager, defaults: defaults)
+        let adapter = XAIAdapter(
+            providerConfig: providerConfig,
+            apiKey: "test-key",
+            networkManager: networkManager,
+            r2Uploader: r2Uploader
+        )
+
+        let stream = try await adapter.sendMessage(
+            messages: [
+                Message(role: .user, content: [
+                    .text("Stylize this video"),
+                    .video(VideoContent(mimeType: "video/mp4", data: nil, url: tempURL))
+                ])
+            ],
+            modelID: "grok-imagine-video",
+            controls: GenerationControls(),
+            tools: [],
+            streaming: false
+        )
+
+        var caughtError: Error?
+        do {
+            for try await _ in stream {}
+        } catch {
+            caughtError = error
+        }
+
+        let llmError = try XCTUnwrap(caughtError as? LLMError)
+        guard case .invalidRequest(let message) = llmError else {
+            return XCTFail("Expected LLMError.invalidRequest, got \(llmError)")
+        }
+
+        XCTAssertTrue(message.contains("Missing Cloudflare R2 settings"))
+        XCTAssertTrue(message.contains("Cloudflare R2 Upload"))
     }
 
     func testXAIResponsesContextCacheAndUsageCachedTokens() async throws {
@@ -984,6 +1239,63 @@ final class XAIAdapterMediaTests: XCTestCase {
         XCTAssertEqual(code, "video_generation_failed")
     }
 
+    func testXAIVideoGenerationSurfacesNestedFailureMessage() async throws {
+        let (session, protocolType) = makeMockedURLSession()
+        let networkManager = NetworkManager(urlSession: session)
+
+        let providerConfig = ProviderConfig(
+            id: "x",
+            name: "xAI",
+            type: .xai,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        var requestCount = 0
+        protocolType.requestHandler = { request in
+            requestCount += 1
+
+            if requestCount == 1 {
+                let response: [String: Any] = ["request_id": "vid_nested_fail_1"]
+                let data = try JSONSerialization.data(withJSONObject: response)
+                return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+            } else {
+                let response: [String: Any] = [
+                    "status": "failed",
+                    "error": [
+                        "message": "Unable to fetch video_url from remote host."
+                    ]
+                ]
+                let data = try JSONSerialization.data(withJSONObject: response)
+                return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+            }
+        }
+
+        let adapter = XAIAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("generate video")])],
+            modelID: "grok-imagine-video",
+            controls: GenerationControls(),
+            tools: [],
+            streaming: false
+        )
+
+        var caughtError: Error?
+        do {
+            for try await _ in stream {}
+        } catch {
+            caughtError = error
+        }
+
+        let llmError = try XCTUnwrap(caughtError as? LLMError)
+        guard case .providerError(let code, let message) = llmError else {
+            return XCTFail("Expected LLMError.providerError, got \(llmError)")
+        }
+        XCTAssertEqual(code, "video_poll_error")
+        XCTAssertTrue(message.contains("Unable to fetch video_url"))
+    }
+
     func testXAIVideoDownloadInfersMimeTypeFromContentType() async throws {
         let (session, protocolType) = makeMockedURLSession()
         let networkManager = NetworkManager(urlSession: session)
@@ -1117,4 +1429,21 @@ private func requestBodyData(_ request: URLRequest) -> Data? {
     }
 
     return data
+}
+
+private func makeIsolatedUserDefaults() -> (UserDefaults, String) {
+    let suiteName = "jin.tests.r2.\(UUID().uuidString)"
+    let defaults = UserDefaults(suiteName: suiteName)!
+    defaults.removePersistentDomain(forName: suiteName)
+    return (defaults, suiteName)
+}
+
+private func seedCloudflareR2Defaults(_ defaults: UserDefaults) {
+    AppPreferences.setPluginEnabled(true, for: "cloudflare_r2_upload", defaults: defaults)
+    defaults.set("test-account", forKey: AppPreferenceKeys.cloudflareR2AccountID)
+    defaults.set("test-access-key", forKey: AppPreferenceKeys.cloudflareR2AccessKeyID)
+    defaults.set("test-secret-key", forKey: AppPreferenceKeys.cloudflareR2SecretAccessKey)
+    defaults.set("test-bucket", forKey: AppPreferenceKeys.cloudflareR2Bucket)
+    defaults.set("https://pub.example.com", forKey: AppPreferenceKeys.cloudflareR2PublicBaseURL)
+    defaults.set("jin-tests", forKey: AppPreferenceKeys.cloudflareR2KeyPrefix)
 }
