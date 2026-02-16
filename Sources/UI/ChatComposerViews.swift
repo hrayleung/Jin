@@ -29,6 +29,7 @@ struct DraftAttachment: Identifiable, Hashable, Sendable {
     let extractedText: String?
 
     var isImage: Bool { mimeType.hasPrefix("image/") }
+    var isVideo: Bool { mimeType.hasPrefix("video/") }
     var isPDF: Bool { mimeType == "application/pdf" }
 }
 
@@ -73,6 +74,9 @@ struct DraftAttachmentChip: View {
                 .scaledToFill()
                 .frame(width: 26, height: 26)
                 .clipShape(RoundedRectangle(cornerRadius: JinRadius.small, style: .continuous))
+        } else if attachment.isVideo {
+            Image(systemName: "video")
+                .foregroundStyle(.secondary)
         } else if attachment.isPDF {
             Image(systemName: "doc.richtext")
                 .foregroundStyle(.secondary)

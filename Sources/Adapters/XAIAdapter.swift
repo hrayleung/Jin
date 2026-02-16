@@ -4,18 +4,25 @@ import Foundation
 ///
 /// - Chat models use the Responses API (`/responses`).
 /// - Image models use `/images/generations` + `/images/edits`.
-/// - Video models use `/videos/generations` (async polling).
+/// - Video models use `/videos/generations` (text/image) and `/videos/edits` (video edit), both async.
 actor XAIAdapter: LLMProviderAdapter {
     let providerConfig: ProviderConfig
     let capabilities: ModelCapability = [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .imageGeneration, .videoGeneration]
 
     private let networkManager: NetworkManager
+    private let r2Uploader: CloudflareR2Uploader
     private let apiKey: String
 
-    init(providerConfig: ProviderConfig, apiKey: String, networkManager: NetworkManager = NetworkManager()) {
+    init(
+        providerConfig: ProviderConfig,
+        apiKey: String,
+        networkManager: NetworkManager = NetworkManager(),
+        r2Uploader: CloudflareR2Uploader? = nil
+    ) {
         self.providerConfig = providerConfig
         self.apiKey = apiKey
         self.networkManager = networkManager
+        self.r2Uploader = r2Uploader ?? CloudflareR2Uploader(networkManager: networkManager)
     }
 
     func sendMessage(
@@ -254,7 +261,10 @@ actor XAIAdapter: LLMProviderAdapter {
         controls: GenerationControls
     ) throws -> AsyncThrowingStream<StreamEvent, Error> {
         let imageURL = imageURLForImageGeneration(from: messages)
-        let prompt = try mediaPrompt(from: messages, isImageEdit: imageURL?.isEmpty == false)
+        let prompt = try mediaPrompt(
+            from: messages,
+            mode: imageURL?.isEmpty == false ? .image : .none
+        )
 
         return AsyncThrowingStream { continuation in
             let task = Task {
@@ -304,18 +314,26 @@ actor XAIAdapter: LLMProviderAdapter {
         modelID: String,
         controls: GenerationControls
     ) throws -> AsyncThrowingStream<StreamEvent, Error> {
+        let videoInput = videoInputForVideoGeneration(from: messages)
         let imageURL = imageURLForImageGeneration(from: messages)
-        let isImageToVideo = imageURL?.isEmpty == false
-        let prompt = try mediaPrompt(from: messages, isImageEdit: isImageToVideo)
+        let isVideoToVideo = videoInput != nil
+        let isImageToVideo = !isVideoToVideo && imageURL?.isEmpty == false
+        let prompt = try mediaPrompt(
+            from: messages,
+            mode: isVideoToVideo ? .video : (isImageToVideo ? .image : .none)
+        )
 
         return AsyncThrowingStream { continuation in
             let task = Task {
                 do {
+                    let resolvedVideoURL = try await resolvedVideoURL(for: videoInput)
+
                     // 1. Submit generation request
                     let startRequest = try buildVideoGenerationRequest(
                         modelID: modelID,
                         prompt: prompt,
                         imageURL: isImageToVideo ? imageURL : nil,
+                        videoURL: isVideoToVideo ? resolvedVideoURL : nil,
                         controls: controls
                     )
                     let (startData, _) = try await networkManager.sendRequest(startRequest)
@@ -467,7 +485,7 @@ actor XAIAdapter: LLMProviderAdapter {
                     switch val.lowercased() {
                     case "done", "complete", "completed", "success": return .done
                     case "expired": return .expired
-                    case "failed", "error": return .failed(json["message"] as? String)
+                    case "failed", "error": return .failed(extractFailureMessage(from: json))
                     case "pending", "in_progress", "processing", "queued": return .pending
                     default: break
                     }
@@ -485,15 +503,61 @@ actor XAIAdapter: LLMProviderAdapter {
             return .expired
         }
         if httpStatus >= 500 {
-            return .failed("Server error (HTTP \(httpStatus))")
+            let message = extractFailureMessage(from: rawJSON)
+            return .failed(message ?? "Server error (HTTP \(httpStatus))")
         }
         if httpStatus >= 400 {
-            let message = rawJSON?["message"] as? String ?? rawJSON?["error"] as? String
+            let message = extractFailureMessage(from: rawJSON)
             return .failed(message ?? "HTTP \(httpStatus)")
         }
 
         // 5. Default to pending
         return .pending
+    }
+
+    private func extractFailureMessage(from json: [String: Any]?) -> String? {
+        guard let json else { return nil }
+
+        if let message = nonEmptyMessage(json["message"]) {
+            return message
+        }
+        if let errorText = nonEmptyMessage(json["error"]) {
+            return errorText
+        }
+
+        if let errorObject = json["error"] as? [String: Any] {
+            if let message = nonEmptyMessage(errorObject["message"]) {
+                return message
+            }
+            if let detail = nonEmptyMessage(errorObject["detail"]) {
+                return detail
+            }
+            if let reason = nonEmptyMessage(errorObject["reason"]) {
+                return reason
+            }
+        }
+
+        if let errors = json["errors"] as? [[String: Any]] {
+            for item in errors {
+                if let nested = extractFailureMessage(from: item) {
+                    return nested
+                }
+            }
+        }
+
+        for nestedKey in ["response", "data", "result"] {
+            if let nested = extractFailureMessage(from: json[nestedKey] as? [String: Any]) {
+                return nested
+            }
+        }
+
+        return nil
+    }
+
+    private func nonEmptyMessage(_ value: Any?) -> String? {
+        guard let text = value as? String else { return nil }
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
     }
 
     /// Extract video URL from multiple possible locations in the response.
@@ -554,9 +618,13 @@ actor XAIAdapter: LLMProviderAdapter {
         modelID: String,
         prompt: String,
         imageURL: String?,
+        videoURL: String?,
         controls: GenerationControls
     ) throws -> URLRequest {
-        var request = URLRequest(url: URL(string: "\(baseURL)/videos/generations")!)
+        let isVideoEdit = videoURL?.isEmpty == false
+        let endpoint = isVideoEdit ? "videos/edits" : "videos/generations"
+
+        var request = URLRequest(url: URL(string: "\(baseURL)/\(endpoint)")!)
         request.httpMethod = "POST"
         request.addValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
         request.addValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -568,22 +636,27 @@ actor XAIAdapter: LLMProviderAdapter {
             "prompt": prompt
         ]
 
-        if let duration = videoControls?.duration {
-            body["duration"] = min(max(duration, 1), 15)
-        }
-        if let aspectRatio = videoControls?.aspectRatio {
-            let supportedVideoRatios: Set<XAIAspectRatio> = [
-                .ratio1x1, .ratio16x9, .ratio9x16, .ratio4x3, .ratio3x4, .ratio3x2, .ratio2x3
-            ]
-            if supportedVideoRatios.contains(aspectRatio) {
-                body["aspect_ratio"] = aspectRatio.rawValue
+        // xAI docs: duration/aspect_ratio/resolution are unsupported for video editing.
+        if !isVideoEdit {
+            if let duration = videoControls?.duration {
+                body["duration"] = min(max(duration, 1), 15)
+            }
+            if let aspectRatio = videoControls?.aspectRatio {
+                let supportedVideoRatios: Set<XAIAspectRatio> = [
+                    .ratio1x1, .ratio16x9, .ratio9x16, .ratio4x3, .ratio3x4, .ratio3x2, .ratio2x3
+                ]
+                if supportedVideoRatios.contains(aspectRatio) {
+                    body["aspect_ratio"] = aspectRatio.rawValue
+                }
+            }
+            if let resolution = videoControls?.resolution {
+                body["resolution"] = resolution.rawValue
             }
         }
-        if let resolution = videoControls?.resolution {
-            body["resolution"] = resolution.rawValue
-        }
 
-        if let imageURL, !imageURL.isEmpty {
+        if let videoURL, !videoURL.isEmpty {
+            body["video"] = ["url": videoURL]
+        } else if let imageURL, !imageURL.isEmpty {
             body["image"] = ["url": imageURL]
         }
 
@@ -807,17 +880,19 @@ actor XAIAdapter: LLMProviderAdapter {
         return trimmed.isEmpty ? nil : trimmed
     }
 
-    private func mediaPrompt(from messages: [Message], isImageEdit: Bool) throws -> String {
+    private enum MediaEditMode {
+        case none
+        case image
+        case video
+    }
+
+    private func mediaPrompt(from messages: [Message], mode: MediaEditMode) throws -> String {
         let userPrompts = userTextPrompts(from: messages)
         guard let latest = userPrompts.last else {
-            throw LLMError.invalidRequest(message: "xAI image generation requires a text prompt.")
+            throw LLMError.invalidRequest(message: "xAI media generation requires a text prompt.")
         }
 
-        guard isImageEdit else {
-            return latest
-        }
-
-        guard userPrompts.count >= 2 else {
+        guard mode != .none else {
             return latest
         }
 
@@ -826,13 +901,34 @@ actor XAIAdapter: LLMProviderAdapter {
         let latestPrompt = recentPrompts.last ?? latest
         let priorEdits = Array(recentPrompts.dropFirst().dropLast())
 
-        if priorEdits.isEmpty, originalPrompt.caseInsensitiveCompare(latestPrompt) == .orderedSame {
+        if mode == .image, userPrompts.count < 2 {
             return latest
         }
 
+        if mode == .image,
+           priorEdits.isEmpty,
+           originalPrompt.caseInsensitiveCompare(latestPrompt) == .orderedSame {
+            return latest
+        }
+
+        let continuityInstruction: String = switch mode {
+        case .image:
+            "Keep the main subject, composition, and scene continuity unless explicitly changed."
+        case .video:
+            "Keep the main subject, composition, camera motion, and timing continuity unless explicitly changed."
+        case .none:
+            ""
+        }
+
+        let mediaLabel: String = switch mode {
+        case .image: "image"
+        case .video: "video"
+        case .none: "media"
+        }
+
         var lines: [String] = [
-            "Edit the provided input image.",
-            "Keep the main subject, composition, and scene continuity unless explicitly changed.",
+            "Edit the provided input \(mediaLabel).",
+            continuityInstruction,
             "",
             "Original request:",
             originalPrompt
@@ -910,6 +1006,84 @@ actor XAIAdapter: LLMProviderAdapter {
             }
         }
         return nil
+    }
+
+    private func videoInputForVideoGeneration(from messages: [Message]) -> VideoContent? {
+        // If the latest user turn includes a video, prefer that explicit input.
+        if let latestUserVideo = latestUserVideoInput(from: messages) {
+            return latestUserVideo
+        }
+
+        // Otherwise, continue editing from the latest assistant-generated video.
+        if let assistantVideo = firstVideoInput(from: messages, roles: [.assistant]) {
+            return assistantVideo
+        }
+
+        // Finally, fall back to any older user-provided video in history.
+        return firstVideoInput(from: messages, roles: [.user])
+    }
+
+    private func latestUserVideoInput(from messages: [Message]) -> VideoContent? {
+        guard let latestUserMessage = messages.reversed().first(where: { $0.role == .user }) else {
+            return nil
+        }
+        return firstVideoInput(in: latestUserMessage)
+    }
+
+    private func firstVideoInput(in message: Message) -> VideoContent? {
+        for part in message.content {
+            if case .video(let video) = part {
+                return video
+            }
+        }
+        return nil
+    }
+
+    private func firstVideoInput(from messages: [Message], roles: [MessageRole]) -> VideoContent? {
+        let roleSet = Set(roles)
+
+        for message in messages.reversed() where roleSet.contains(message.role) {
+            if let video = firstVideoInput(in: message) {
+                return video
+            }
+        }
+        return nil
+    }
+
+    private func resolvedVideoURL(for video: VideoContent?) async throws -> String? {
+        guard let video else { return nil }
+
+        if let remote = remoteVideoURLString(video) {
+            return remote
+        }
+
+        let r2PluginEnabled = await r2Uploader.isPluginEnabled()
+        guard r2PluginEnabled else {
+            throw LLMError.invalidRequest(
+                message: "xAI local video input requires Cloudflare R2 Upload. Enable Settings → Plugins → Cloudflare R2 Upload and configure it, or attach a public HTTPS video URL."
+            )
+        }
+
+        do {
+            let uploadedURL = try await r2Uploader.uploadVideo(video)
+            return uploadedURL.absoluteString
+        } catch let error as CloudflareR2UploaderError {
+            throw LLMError.invalidRequest(
+                message: "\(error.localizedDescription)\n\nOpen Settings → Plugins → Cloudflare R2 Upload to complete the configuration."
+            )
+        } catch {
+            throw error
+        }
+    }
+
+    private func remoteVideoURLString(_ video: VideoContent) -> String? {
+        guard let url = video.url,
+              !url.isFileURL,
+              let scheme = url.scheme?.lowercased(),
+              scheme == "http" || scheme == "https" else {
+            return nil
+        }
+        return url.absoluteString
     }
 
     private func imageURLString(_ image: ImageContent) -> String? {
@@ -1137,9 +1311,27 @@ actor XAIAdapter: LLMProviderAdapter {
                 "text": text
             ]
 
-        case .thinking, .redactedThinking, .audio, .video:
+        case .video(let video):
+            return [
+                "type": "input_text",
+                "text": unsupportedVideoInputNotice(video, providerName: "xAI")
+            ]
+
+        case .thinking, .redactedThinking, .audio:
             return nil
         }
+    }
+
+    private func unsupportedVideoInputNotice(_ video: VideoContent, providerName: String) -> String {
+        let detail: String
+        if let url = video.url {
+            detail = url.isFileURL ? url.lastPathComponent : url.absoluteString
+        } else if let data = video.data {
+            detail = "\(data.count) bytes"
+        } else {
+            detail = "no media payload"
+        }
+        return "Video attachment omitted (\(video.mimeType), \(detail)): \(providerName) chat API does not support native video input in Jin yet."
     }
 
     private func translateSingleTool(_ tool: ToolDefinition) -> [String: Any] {

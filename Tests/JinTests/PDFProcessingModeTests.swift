@@ -145,6 +145,70 @@ final class PDFProcessingModeTests: XCTestCase {
         for try await _ in stream {}
     }
 
+    func testOpenAIAdapterFallsBackToTextForVideoInput() async throws {
+        let (session, protocolType) = makeMockedURLSession()
+        let networkManager = NetworkManager(urlSession: session)
+
+        let providerConfig = ProviderConfig(
+            id: "o",
+            name: "OpenAI",
+            type: .openai,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://example.com/responses")
+
+            let body = try XCTUnwrap(requestBodyData(request))
+            let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+            let root = try XCTUnwrap(json)
+            let input = try XCTUnwrap(root["input"] as? [[String: Any]])
+            let first = try XCTUnwrap(input.first)
+            let content = try XCTUnwrap(first["content"] as? [[String: Any]])
+
+            let textParts = content.compactMap { item -> String? in
+                guard (item["type"] as? String) == "input_text" else { return nil }
+                return item["text"] as? String
+            }
+            XCTAssertEqual(textParts.count, 1)
+            XCTAssertTrue(textParts[0].contains("Video attachment omitted"))
+            XCTAssertTrue(textParts[0].contains("video/mp4"))
+
+            let response: [String: Any] = [
+                "id": "resp_1",
+                "output": [
+                    [
+                        "type": "message",
+                        "content": [
+                            ["type": "output_text", "text": "OK"]
+                        ]
+                    ]
+                ]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (
+                HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                data
+            )
+        }
+
+        let adapter = OpenAIAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let video = VideoContent(mimeType: "video/mp4", data: Data([0x00, 0x01, 0x02]), url: nil)
+
+        let stream = try await adapter.sendMessage(
+            messages: [
+                Message(role: .user, content: [.video(video)])
+            ],
+            modelID: "gpt-5.2",
+            controls: GenerationControls(),
+            tools: [],
+            streaming: false
+        )
+
+        for try await _ in stream {}
+    }
+
     func testAnthropicAdapterDisablesNativePDFWhenModeNotNative() async throws {
         let (session, protocolType) = makeMockedURLSession()
         let networkManager = NetworkManager(urlSession: session)
@@ -206,6 +270,60 @@ final class PDFProcessingModeTests: XCTestCase {
             ],
             modelID: "claude-sonnet-4-5-20250929",
             controls: GenerationControls(pdfProcessingMode: .macOSExtract),
+            tools: [],
+            streaming: true
+        )
+
+        for try await _ in stream {}
+    }
+
+    func testAnthropicAdapterFallsBackToTextForVideoInput() async throws {
+        let (session, protocolType) = makeMockedURLSession()
+        let networkManager = NetworkManager(urlSession: session)
+
+        let providerConfig = ProviderConfig(
+            id: "a",
+            name: "Anthropic",
+            type: .anthropic,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://example.com/messages")
+
+            let body = try XCTUnwrap(requestBodyData(request))
+            let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+            let root = try XCTUnwrap(json)
+
+            let messages = try XCTUnwrap(root["messages"] as? [[String: Any]])
+            let first = try XCTUnwrap(messages.first)
+            let content = try XCTUnwrap(first["content"] as? [[String: Any]])
+
+            let textBlocks = content.compactMap { item -> String? in
+                guard (item["type"] as? String) == "text" else { return nil }
+                return item["text"] as? String
+            }
+            XCTAssertEqual(textBlocks.count, 1)
+            XCTAssertTrue(textBlocks[0].contains("Video attachment omitted"))
+            XCTAssertTrue(textBlocks[0].contains("video/mp4"))
+
+            let data = Data("data: [DONE]\n\n".utf8)
+            return (
+                HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                data
+            )
+        }
+
+        let adapter = AnthropicAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let video = VideoContent(mimeType: "video/mp4", data: Data([0x00, 0x01, 0x02]), url: nil)
+
+        let stream = try await adapter.sendMessage(
+            messages: [
+                Message(role: .user, content: [.video(video)])
+            ],
+            modelID: "claude-sonnet-4-5-20250929",
+            controls: GenerationControls(),
             tools: [],
             streaming: true
         )

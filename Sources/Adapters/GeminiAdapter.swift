@@ -583,6 +583,11 @@ actor GeminiAdapter: LLMProviderAdapter {
                     parts.append(inline)
                 }
 
+            case .video(let video):
+                if let inline = inlineDataPart(mimeType: video.mimeType, data: video.data, url: video.url) {
+                    parts.append(inline)
+                }
+
             case .file(let file):
                 // Native PDF support for Gemini 3 series.
                 if supportsNativePDF, file.mimeType == "application/pdf" {
@@ -610,7 +615,7 @@ actor GeminiAdapter: LLMProviderAdapter {
                 let text = AttachmentPromptRenderer.fallbackText(for: file)
                 parts.append(["text": text])
 
-            case .thinking, .redactedThinking, .audio, .video:
+            case .thinking, .redactedThinking, .audio:
                 continue
             }
         }

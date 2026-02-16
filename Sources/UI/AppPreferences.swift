@@ -36,9 +36,18 @@ enum AppPreferenceKeys {
     static let pluginMistralOCREnabled = "pluginMistralOCREnabled"
     static let pluginDeepSeekOCREnabled = "pluginDeepSeekOCREnabled"
     static let pluginChatNamingEnabled = "pluginChatNamingEnabled"
+    static let pluginCloudflareR2UploadEnabled = "pluginCloudflareR2UploadEnabled"
 
     static let pluginMistralOCRAPIKey = "pluginMistralOCRAPIKey"
     static let pluginDeepSeekOCRAPIKey = "pluginDeepSeekOCRAPIKey"
+
+    // Cloudflare R2 Upload
+    static let cloudflareR2AccountID = "cloudflareR2AccountID"
+    static let cloudflareR2AccessKeyID = "cloudflareR2AccessKeyID"
+    static let cloudflareR2SecretAccessKey = "cloudflareR2SecretAccessKey"
+    static let cloudflareR2Bucket = "cloudflareR2Bucket"
+    static let cloudflareR2PublicBaseURL = "cloudflareR2PublicBaseURL"
+    static let cloudflareR2KeyPrefix = "cloudflareR2KeyPrefix"
 
     // Chat naming
     static let chatNamingMode = "chatNamingMode"
@@ -215,6 +224,8 @@ enum AppPreferences {
             return AppPreferenceKeys.pluginDeepSeekOCREnabled
         case "chat_naming":
             return AppPreferenceKeys.pluginChatNamingEnabled
+        case "cloudflare_r2_upload":
+            return AppPreferenceKeys.pluginCloudflareR2UploadEnabled
         default:
             return nil
         }
@@ -225,7 +236,7 @@ enum AppPreferences {
         if let value = defaults.object(forKey: key) as? Bool {
             return value
         }
-        if pluginID == "chat_naming" {
+        if pluginID == "chat_naming" || pluginID == "cloudflare_r2_upload" {
             return false
         }
         return true

@@ -392,9 +392,28 @@ actor OpenAIAdapter: LLMProviderAdapter {
                 "text": text
             ]
 
-        case .thinking, .redactedThinking, .audio, .video:
+        case .video(let video):
+            let textType = (role == .assistant) ? "output_text" : "input_text"
+            return [
+                "type": textType,
+                "text": unsupportedVideoInputNotice(video, providerName: "OpenAI")
+            ]
+
+        case .thinking, .redactedThinking, .audio:
             return nil
         }
+    }
+
+    private func unsupportedVideoInputNotice(_ video: VideoContent, providerName: String) -> String {
+        let detail: String
+        if let url = video.url {
+            detail = url.isFileURL ? url.lastPathComponent : url.absoluteString
+        } else if let data = video.data {
+            detail = "\(data.count) bytes"
+        } else {
+            detail = "no media payload"
+        }
+        return "Video attachment omitted (\(video.mimeType), \(detail)): \(providerName) chat API does not support native video input in Jin yet."
     }
 
     private func translateSingleTool(_ tool: ToolDefinition) -> [String: Any] {

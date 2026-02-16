@@ -239,7 +239,7 @@ struct ChatView: View {
                 )
             }
             .buttonStyle(.plain)
-            .help(supportsNativePDF ? "Attach images / PDFs (Native PDF support ✓)" : "Attach images / PDFs")
+            .help(supportsNativePDF ? "Attach images / videos / PDFs (Native PDF support ✓)" : "Attach images / videos / PDFs")
             .disabled(isBusy)
 
             if supportsPDFProcessingControl {
@@ -907,7 +907,7 @@ struct ChatView: View {
         }
         .fileImporter(
             isPresented: $isFileImporterPresented,
-            allowedContentTypes: [.image, .pdf],
+            allowedContentTypes: [.image, .movie, .pdf],
             allowsMultipleSelection: true
         ) { result in
             switch result {
@@ -1564,7 +1564,8 @@ struct ChatView: View {
     private static func isPotentialAttachmentFile(_ url: URL) -> Bool {
         let ext = url.pathExtension.lowercased()
         if ext == "pdf" { return true }
-        return ext == "png" || ext == "jpg" || ext == "jpeg" || ext == "webp"
+        if ext == "png" || ext == "jpg" || ext == "jpeg" || ext == "webp" { return true }
+        return ["mp4", "m4v", "mov", "webm", "avi", "mkv", "mpeg", "mpg", "wmv", "flv", "3gp", "3gpp"].contains(ext)
     }
 
     private func importAttachments(from urls: [URL]) async {
@@ -1675,6 +1676,27 @@ struct ChatView: View {
             }
         }
 
+        if type.conforms(to: .movie) {
+            guard let mimeType = normalizedVideoMIMEType(for: type, sourceURL: sourceURL) else {
+                return .failure(AttachmentImportError(message: "\(filename): unsupported video format. Use MP4/MOV/WebM/AVI/MKV/MPEG/WMV/FLV/3GP."))
+            }
+
+            do {
+                let entity = try await storage.saveAttachment(from: sourceURL, filename: filename, mimeType: mimeType)
+                return .success(
+                    DraftAttachment(
+                        id: entity.id,
+                        filename: entity.filename,
+                        mimeType: entity.mimeType,
+                        fileURL: entity.fileURL,
+                        extractedText: nil
+                    )
+                )
+            } catch {
+                return .failure(AttachmentImportError(message: "\(filename): failed to import (\(error.localizedDescription))."))
+            }
+        }
+
         if type.conforms(to: .image) {
             let supported: Set<String> = ["image/png", "image/jpeg", "image/webp"]
 
@@ -1718,6 +1740,35 @@ struct ChatView: View {
     private static func convertImageFileToTemporaryPNG(at url: URL) -> URL? {
         guard let image = NSImage(contentsOf: url) else { return nil }
         return writeTemporaryPNG(from: image)
+    }
+
+    private static func normalizedVideoMIMEType(for type: UTType, sourceURL: URL) -> String? {
+        if let raw = type.preferredMIMEType?.lowercased(), raw.hasPrefix("video/") {
+            return raw
+        }
+
+        switch sourceURL.pathExtension.lowercased() {
+        case "mp4", "m4v":
+            return "video/mp4"
+        case "mov":
+            return "video/quicktime"
+        case "webm":
+            return "video/webm"
+        case "avi":
+            return "video/x-msvideo"
+        case "mkv":
+            return "video/x-matroska"
+        case "mpeg", "mpg":
+            return "video/mpeg"
+        case "wmv":
+            return "video/x-ms-wmv"
+        case "flv":
+            return "video/x-flv"
+        case "3gp", "3gpp":
+            return "video/3gpp"
+        default:
+            return nil
+        }
     }
 
     private static func saveConvertedPNG(
@@ -3303,6 +3354,11 @@ struct ChatView: View {
 
             if attachment.isImage {
                 parts.append(.image(ImageContent(mimeType: attachment.mimeType, data: nil, url: attachment.fileURL)))
+                continue
+            }
+
+            if attachment.isVideo {
+                parts.append(.video(VideoContent(mimeType: attachment.mimeType, data: nil, url: attachment.fileURL)))
                 continue
             }
 

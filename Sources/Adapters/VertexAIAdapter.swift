@@ -658,6 +658,22 @@ actor VertexAIAdapter: LLMProviderAdapter {
                             ]
                         ])
                     }
+                case .video(let video):
+                    if let data = video.data {
+                        parts.append([
+                            "inlineData": [
+                                "mimeType": video.mimeType,
+                                "data": data.base64EncodedString()
+                            ]
+                        ])
+                    } else if let url = video.url, url.isFileURL, let data = try? Data(contentsOf: url) {
+                        parts.append([
+                            "inlineData": [
+                                "mimeType": video.mimeType,
+                                "data": data.base64EncodedString()
+                            ]
+                        ])
+                    }
                 case .file(let file):
                     // Native PDF support for Gemini 3+ with free text extraction
                     if supportsNativePDF && file.mimeType == "application/pdf" {
@@ -686,7 +702,7 @@ actor VertexAIAdapter: LLMProviderAdapter {
                     // Fallback to text extraction for non-Gemini-3 or non-PDF files
                     let text = AttachmentPromptRenderer.fallbackText(for: file)
                     parts.append(["text": text])
-                case .thinking, .redactedThinking, .audio, .video:
+                case .thinking, .redactedThinking, .audio:
                     break
                 }
             }

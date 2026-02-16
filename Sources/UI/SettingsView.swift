@@ -64,6 +64,12 @@ struct SettingsView: View {
             name: "Chat Naming",
             systemImage: "text.bubble",
             summary: "Name chats automatically via a selected model."
+        ),
+        PluginDescriptor(
+            id: "cloudflare_r2_upload",
+            name: "Cloudflare R2 Upload",
+            systemImage: "externaldrive.badge.icloud",
+            summary: "Upload local videos to R2 and send public URLs to providers."
         )
     ]
 
@@ -211,6 +217,9 @@ struct SettingsView: View {
                     case "chat_naming":
                         ChatNamingPluginSettingsView()
                             .id("chat_naming")
+                    case "cloudflare_r2_upload":
+                        CloudflareR2UploadPluginSettingsView()
+                            .id("cloudflare_r2_upload")
                     default:
                         ContentUnavailableView("Select a Plugin", systemImage: "puzzlepiece.extension")
                     }

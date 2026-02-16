@@ -30,6 +30,20 @@ final class ChatDropParsingTests: XCTestCase {
         XCTAssertTrue(result.textChunks.isEmpty)
     }
 
+    func testParseDroppedStringExtractsAbsolutePathsForVideoExtensions() throws {
+        let fileManager = FileManager.default
+        let tempDir = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try fileManager.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: tempDir) }
+
+        let mp4URL = tempDir.appendingPathComponent("clip.mp4")
+        try Data().write(to: mp4URL, options: [.atomic])
+
+        let result = ChatView.parseDroppedString(mp4URL.path)
+        XCTAssertEqual(result.fileURLs.map(\.path), [mp4URL.path])
+        XCTAssertTrue(result.textChunks.isEmpty)
+    }
+
     func testParseDroppedStringKeepsRemoteURLsAsText() {
         let input = "https://example.com/image.png"
         let result = ChatView.parseDroppedString(input)
@@ -37,4 +51,3 @@ final class ChatDropParsingTests: XCTestCase {
         XCTAssertEqual(result.textChunks, [input])
     }
 }
-
