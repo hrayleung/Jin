@@ -22,6 +22,14 @@ struct SpeechToTextPluginSettingsView: View {
     @AppStorage(AppPreferenceKeys.sttGroqTemperature) private var groqTemperature = 0.0
     @AppStorage(AppPreferenceKeys.sttGroqTimestampGranularitiesJSON) private var groqTimestampGranularitiesJSON = "[]"
 
+    @AppStorage(AppPreferenceKeys.sttMistralBaseURL) private var mistralBaseURL = ProviderType.mistral.defaultBaseURL ?? "https://api.mistral.ai/v1"
+    @AppStorage(AppPreferenceKeys.sttMistralModel) private var mistralModel = "voxtral-mini-latest"
+    @AppStorage(AppPreferenceKeys.sttMistralLanguage) private var mistralLanguage = ""
+    @AppStorage(AppPreferenceKeys.sttMistralPrompt) private var mistralPrompt = ""
+    @AppStorage(AppPreferenceKeys.sttMistralResponseFormat) private var mistralResponseFormat = "json"
+    @AppStorage(AppPreferenceKeys.sttMistralTemperature) private var mistralTemperature = 0.0
+    @AppStorage(AppPreferenceKeys.sttMistralTimestampGranularitiesJSON) private var mistralTimestampGranularitiesJSON = "[]"
+
     @State private var apiKey = ""
     @State private var isKeyVisible = false
     @State private var isSaving = false
@@ -39,6 +47,8 @@ struct SpeechToTextPluginSettingsView: View {
             return AppPreferenceKeys.sttOpenAIAPIKey
         case .groq:
             return AppPreferenceKeys.sttGroqAPIKey
+        case .mistral:
+            return AppPreferenceKeys.sttMistralAPIKey
         }
     }
 
@@ -70,10 +80,9 @@ struct SpeechToTextPluginSettingsView: View {
                 }
 
                 Toggle("Add recording as file", isOn: $addRecordingAsFile)
-                    .help("Add recording as audio files for chat models that support audio input instead of transcribing.")
-                    .disabled(true)
+                    .help("Attach microphone recordings as audio files for models that support audio input instead of transcribing.")
 
-                Text("Audio attachment input isn’t supported in Jin yet. This option will be enabled in a future update.")
+                Text("If the selected chat model does not support audio input, recordings will use transcription instead.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -224,17 +233,55 @@ struct SpeechToTextPluginSettingsView: View {
                     Toggle("Word timestamps", isOn: timestampBinding(provider: .groq, granularity: "word"))
                 }
             }
+
+        case .mistral:
+            Section("Mistral") {
+                TextField("API Base URL", text: $mistralBaseURL)
+                    .font(.system(.body, design: .monospaced))
+                    .textFieldStyle(.roundedBorder)
+
+                TextField("Model", text: $mistralModel)
+                    .font(.system(.body, design: .monospaced))
+                    .textFieldStyle(.roundedBorder)
+                    .help("Recommended: voxtral-mini-latest (transcription endpoint)")
+
+                TextField("Language (optional)", text: $mistralLanguage)
+                    .font(.system(.body, design: .monospaced))
+
+                TextField("Prompt (optional)", text: $mistralPrompt)
+
+                Picker("Response Format", selection: $mistralResponseFormat) {
+                    ForEach(Self.sttResponseFormats, id: \.self) { format in
+                        Text(format).tag(format)
+                    }
+                }
+                .pickerStyle(.menu)
+
+                HStack {
+                    Text("Temperature")
+                    Slider(value: $mistralTemperature, in: 0.0...1.0, step: 0.05)
+                    Text(mistralTemperature.formatted(.number.precision(.fractionLength(2))))
+                        .font(.system(.body, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 52, alignment: .trailing)
+                }
+
+                DisclosureGroup("Timestamps (verbose_json only)") {
+                    Toggle("Segment timestamps", isOn: timestampBinding(provider: .mistral, granularity: "segment"))
+                    Toggle("Word timestamps", isOn: timestampBinding(provider: .mistral, granularity: "word"))
+                }
+            }
         }
     }
 
     private func timestampBinding(provider: SpeechToTextProvider, granularity: String) -> Binding<Bool> {
         Binding(
             get: {
-                let raw = provider == .openai ? openAITimestampGranularitiesJSON : groqTimestampGranularitiesJSON
+                let raw = timestampGranularitiesJSON(for: provider)
                 return Set(AppPreferences.decodeStringArrayJSON(raw)).contains(granularity)
             },
             set: { isOn in
-                let raw = provider == .openai ? openAITimestampGranularitiesJSON : groqTimestampGranularitiesJSON
+                let raw = timestampGranularitiesJSON(for: provider)
                 var set = Set(AppPreferences.decodeStringArrayJSON(raw))
                 if isOn {
                     set.insert(granularity)
@@ -242,13 +289,31 @@ struct SpeechToTextPluginSettingsView: View {
                     set.remove(granularity)
                 }
                 let updated = AppPreferences.encodeStringArrayJSON(Array(set).sorted())
-                if provider == .openai {
-                    openAITimestampGranularitiesJSON = updated
-                } else {
-                    groqTimestampGranularitiesJSON = updated
-                }
+                setTimestampGranularitiesJSON(updated, for: provider)
             }
         )
+    }
+
+    private func timestampGranularitiesJSON(for provider: SpeechToTextProvider) -> String {
+        switch provider {
+        case .openai:
+            return openAITimestampGranularitiesJSON
+        case .groq:
+            return groqTimestampGranularitiesJSON
+        case .mistral:
+            return mistralTimestampGranularitiesJSON
+        }
+    }
+
+    private func setTimestampGranularitiesJSON(_ value: String, for provider: SpeechToTextProvider) {
+        switch provider {
+        case .openai:
+            openAITimestampGranularitiesJSON = value
+        case .groq:
+            groqTimestampGranularitiesJSON = value
+        case .mistral:
+            mistralTimestampGranularitiesJSON = value
+        }
     }
 
     private func loadExistingKey() async {
@@ -302,6 +367,11 @@ struct SpeechToTextPluginSettingsView: View {
                 case .groq:
                     let base = URL(string: groqBaseURL.trimmingCharacters(in: .whitespacesAndNewlines)) ?? GroqAudioClient.Constants.defaultBaseURL
                     let client = GroqAudioClient(apiKey: trimmedAPIKey, baseURL: base)
+                    try await client.validateAPIKey()
+                case .mistral:
+                    let defaultBase = URL(string: ProviderType.mistral.defaultBaseURL ?? "https://api.mistral.ai/v1")!
+                    let base = URL(string: mistralBaseURL.trimmingCharacters(in: .whitespacesAndNewlines)) ?? defaultBase
+                    let client = OpenAIAudioClient(apiKey: trimmedAPIKey, baseURL: base)
                     try await client.validateAPIKey()
                 }
 

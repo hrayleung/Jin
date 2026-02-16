@@ -116,6 +116,9 @@ struct AddModelSheet: View {
                 reasoningConfig = ModelReasoningConfig(type: .effort, defaultEffort: .medium)
                 contextWindow = 202_800
             }
+            if lower.contains("qwen3-omni") {
+                caps.insert(.vision)
+            }
 
         case .cerebras?:
             if lower == "zai-glm-4.7" {
@@ -184,6 +187,10 @@ struct AddModelSheet: View {
             break
         }
 
+        if supportsAudioInputModelID(lowerModelID: lower, providerType: providerType) {
+            caps.insert(.audio)
+        }
+
         return ModelInfo(
             id: id,
             name: name,
@@ -191,5 +198,51 @@ struct AddModelSheet: View {
             contextWindow: contextWindow,
             reasoningConfig: reasoningConfig
         )
+    }
+
+    private func supportsAudioInputModelID(lowerModelID: String, providerType: ProviderType?) -> Bool {
+        switch providerType {
+        case .openai?:
+            return lowerModelID.contains("gpt-audio")
+                || lowerModelID.contains("audio-preview")
+                || lowerModelID.contains("realtime")
+
+        case .mistral?:
+            return lowerModelID.contains("voxtral")
+                && lowerModelID != "voxtral-mini-2602"
+                && !lowerModelID.contains("transcribe")
+
+        case .gemini?, .vertexai?:
+            return lowerModelID.contains("gemini-")
+                && !lowerModelID.contains("-image")
+                && !lowerModelID.contains("imagen")
+
+        case .openaiCompatible?, .openrouter?, .deepinfra?:
+            if lowerModelID.contains("gpt-audio")
+                || lowerModelID.contains("audio-preview")
+                || lowerModelID.contains("realtime")
+                || lowerModelID.contains("voxtral")
+                || lowerModelID.contains("qwen3-asr")
+                || lowerModelID.contains("qwen3-omni") {
+                return true
+            }
+
+            if (lowerModelID.contains("gemini-2.0")
+                || lowerModelID.contains("gemini-2.5")
+                || lowerModelID.contains("gemini-3"))
+                && !lowerModelID.contains("-image")
+                && !lowerModelID.contains("imagen") {
+                return true
+            }
+
+            return false
+
+        case .fireworks?:
+            return lowerModelID.contains("qwen3-asr")
+                || lowerModelID.contains("qwen3-omni")
+
+        case .anthropic?, .perplexity?, .groq?, .cohere?, .xai?, .deepseek?, .cerebras?, .none:
+            return false
+        }
     }
 }

@@ -33,9 +33,27 @@ final class SpeechToTextManager: NSObject, ObservableObject {
         let timestampGranularities: [String]?
     }
 
+    struct MistralConfig: Sendable {
+        let apiKey: String
+        let baseURL: URL
+        let model: String
+        let language: String?
+        let prompt: String?
+        let responseFormat: String?
+        let temperature: Double?
+        let timestampGranularities: [String]?
+    }
+
     enum TranscriptionConfig: Sendable {
         case openai(OpenAIConfig)
         case groq(GroqConfig)
+        case mistral(MistralConfig)
+    }
+
+    struct RecordedClip: Sendable {
+        let data: Data
+        let filename: String
+        let mimeType: String
     }
 
     @Published private(set) var state: State = .idle
@@ -118,6 +136,42 @@ final class SpeechToTextManager: NSObject, ObservableObject {
         }
     }
 
+    func stopAndCollectRecording() async throws -> RecordedClip {
+        guard case .recording = state else {
+            throw SpeechExtensionError.speechRecordingFailed
+        }
+        guard let recorder, let recordingURL else {
+            throw SpeechExtensionError.speechRecordingFailed
+        }
+
+        state = .transcribing
+        stopElapsedTimer()
+
+        recorder.stop()
+        self.recorder = nil
+
+        let fileData: Data
+        do {
+            fileData = try Data(contentsOf: recordingURL)
+        } catch {
+            cancelAndCleanup()
+            throw SpeechExtensionError.speechRecordingFailed
+        }
+
+        cleanupRecordingFile()
+        state = .idle
+
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let stamp = formatter.string(from: Date()).replacingOccurrences(of: ":", with: "-")
+
+        return RecordedClip(
+            data: fileData,
+            filename: "recording-\(stamp).wav",
+            mimeType: "audio/wav"
+        )
+    }
+
     func cancelAndCleanup() {
         stopElapsedTimer()
         recorder?.stop()
@@ -180,6 +234,20 @@ final class SpeechToTextManager: NSObject, ObservableObject {
                 responseFormat: groq.responseFormat,
                 temperature: groq.temperature,
                 timestampGranularities: groq.timestampGranularities
+            )
+
+        case .mistral(let mistral):
+            let client = OpenAIAudioClient(apiKey: mistral.apiKey, baseURL: mistral.baseURL)
+            return try await client.createTranscription(
+                fileData: data,
+                filename: "recording.wav",
+                mimeType: "audio/wav",
+                model: mistral.model,
+                language: mistral.language,
+                prompt: mistral.prompt,
+                responseFormat: mistral.responseFormat,
+                temperature: mistral.temperature,
+                timestampGranularities: mistral.timestampGranularities
             )
         }
     }

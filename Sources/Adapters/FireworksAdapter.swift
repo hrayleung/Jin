@@ -8,7 +8,7 @@ import Foundation
 /// - Models: `fireworks/kimi-k2p5`, `fireworks/glm-4p7`, `fireworks/glm-5`, `fireworks/minimax-m2p5`, ...
 actor FireworksAdapter: LLMProviderAdapter {
     let providerConfig: ProviderConfig
-    let capabilities: ModelCapability = [.streaming, .toolCalling, .vision, .reasoning]
+    let capabilities: ModelCapability = [.streaming, .toolCalling, .vision, .audio, .reasoning]
 
     private let networkManager: NetworkManager
     private let apiKey: String
@@ -188,7 +188,7 @@ actor FireworksAdapter: LLMProviderAdapter {
     }
 
     private func translateNonToolMessage(_ message: Message) -> [String: Any] {
-        let (visibleContent, thinkingContent, hasImage) = splitContent(message.content)
+        let (visibleContent, thinkingContent, hasRichUserContent) = splitContent(message.content)
 
         var dict: [String: Any] = [
             "role": message.role.rawValue
@@ -199,7 +199,7 @@ actor FireworksAdapter: LLMProviderAdapter {
             dict["content"] = visibleContent
 
         case .user:
-            if hasImage {
+            if hasRichUserContent {
                 dict["content"] = translateUserContentParts(message.content)
             } else {
                 dict["content"] = visibleContent
@@ -260,8 +260,12 @@ actor FireworksAdapter: LLMProviderAdapter {
                     "text": text
                 ])
 
-            case .thinking, .redactedThinking, .audio, .video:
-                // Do not send provider reasoning blocks or audio via Chat Completions.
+            case .audio(let audio):
+                if let inputAudio = inputAudioPart(audio) {
+                    out.append(inputAudio)
+                }
+
+            case .thinking, .redactedThinking, .video:
                 continue
             }
         }
@@ -282,12 +286,51 @@ actor FireworksAdapter: LLMProviderAdapter {
         return nil
     }
 
-    private func splitContent(_ parts: [ContentPart]) -> (visible: String, thinking: String, hasImage: Bool) {
+    private func inputAudioPart(_ audio: AudioContent) -> [String: Any]? {
+        let payloadData: Data?
+        if let data = audio.data {
+            payloadData = data
+        } else if let url = audio.url, url.isFileURL {
+            payloadData = try? Data(contentsOf: url)
+        } else {
+            payloadData = nil
+        }
+
+        guard let payloadData else {
+            return nil
+        }
+
+        let mimeType = normalizedAudioMIMEType(audio.mimeType)
+        let dataURL = "data:\(mimeType);base64,\(payloadData.base64EncodedString())"
+
+        return [
+            "type": "audio_url",
+            "audio_url": [
+                "url": dataURL
+            ]
+        ]
+    }
+
+    private func normalizedAudioMIMEType(_ mimeType: String) -> String {
+        let lower = mimeType.lowercased()
+        if lower == "audio/x-wav" {
+            return "audio/wav"
+        }
+        if lower == "audio/x-m4a" {
+            return "audio/m4a"
+        }
+        if lower.hasPrefix("audio/") {
+            return lower
+        }
+        return "audio/wav"
+    }
+
+    private func splitContent(_ parts: [ContentPart]) -> (visible: String, thinking: String, hasRichUserContent: Bool) {
         var visibleParts: [String] = []
         visibleParts.reserveCapacity(parts.count)
 
         var thinkingParts: [String] = []
-        var hasImage = false
+        var hasRichUserContent = false
 
         for part in parts {
             switch part {
@@ -296,15 +339,17 @@ actor FireworksAdapter: LLMProviderAdapter {
             case .file(let file):
                 visibleParts.append(AttachmentPromptRenderer.fallbackText(for: file))
             case .image:
-                hasImage = true
+                hasRichUserContent = true
+            case .audio:
+                hasRichUserContent = true
             case .thinking(let thinking):
                 thinkingParts.append(thinking.text)
-            case .redactedThinking, .audio, .video:
+            case .redactedThinking, .video:
                 break
             }
         }
 
-        return (visibleParts.joined(), thinkingParts.joined(), hasImage)
+        return (visibleParts.joined(), thinkingParts.joined(), hasRichUserContent)
     }
 
     private func translateToolCalls(_ calls: [ToolCall]) -> [[String: Any]] {
@@ -401,6 +446,10 @@ actor FireworksAdapter: LLMProviderAdapter {
         let isMiniMaxM2 = isFireworksModelID(id, canonicalID: "minimax-m2")
         let isMiniMaxM2p1 = isFireworksModelID(id, canonicalID: "minimax-m2p1")
         let isMiniMaxM2p5 = isFireworksModelID(id, canonicalID: "minimax-m2p5")
+        let isQwen3OmniInstruct = isFireworksModelID(id, canonicalID: "qwen3-omni-30b-a3b-instruct")
+        let isQwen3OmniThinking = isFireworksModelID(id, canonicalID: "qwen3-omni-30b-a3b-thinking")
+        let isQwen3ASR4B = isFireworksModelID(id, canonicalID: "qwen3-asr-4b")
+        let isQwen3ASR06B = isFireworksModelID(id, canonicalID: "qwen3-asr-0.6b")
 
         var caps: ModelCapability = [.streaming, .toolCalling]
         var reasoningConfig: ModelReasoningConfig?
@@ -408,7 +457,12 @@ actor FireworksAdapter: LLMProviderAdapter {
         var name = id
 
         // Known models we explicitly support well.
-        if isKimiK2p5 {
+        if isQwen3OmniInstruct || isQwen3OmniThinking {
+            caps.insert(.vision)
+            caps.insert(.audio)
+        } else if isQwen3ASR4B || isQwen3ASR06B {
+            caps.insert(.audio)
+        } else if isKimiK2p5 {
             caps.insert(.vision)
             caps.insert(.reasoning)
             reasoningConfig = ModelReasoningConfig(type: .effort, defaultEffort: .medium)

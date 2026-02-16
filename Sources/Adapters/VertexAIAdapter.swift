@@ -3,7 +3,7 @@ import Security
 
 actor VertexAIAdapter: LLMProviderAdapter {
     let providerConfig: ProviderConfig
-    let capabilities: ModelCapability = [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .nativePDF, .imageGeneration]
+    let capabilities: ModelCapability = [.streaming, .toolCalling, .vision, .audio, .reasoning, .promptCaching, .nativePDF, .imageGeneration]
 
     private let networkManager: NetworkManager
     private let serviceAccountJSON: ServiceAccountCredentials
@@ -478,6 +478,10 @@ actor VertexAIAdapter: LLMProviderAdapter {
             caps.insert(.vision)
         }
 
+        if supportsGenerateContent && geminiModel && !imageModel {
+            caps.insert(.audio)
+        }
+
         var reasoningConfig: ModelReasoningConfig?
         if supportsThinking(id) && (geminiModel || lower.contains("reason") || lower.contains("thinking")) {
             caps.insert(.reasoning)
@@ -674,6 +678,22 @@ actor VertexAIAdapter: LLMProviderAdapter {
                             ]
                         ])
                     }
+                case .audio(let audio):
+                    if let data = audio.data {
+                        parts.append([
+                            "inlineData": [
+                                "mimeType": audio.mimeType,
+                                "data": data.base64EncodedString()
+                            ]
+                        ])
+                    } else if let url = audio.url, url.isFileURL, let data = try? Data(contentsOf: url) {
+                        parts.append([
+                            "inlineData": [
+                                "mimeType": audio.mimeType,
+                                "data": data.base64EncodedString()
+                            ]
+                        ])
+                    }
                 case .file(let file):
                     // Native PDF support for Gemini 3+ with free text extraction
                     if supportsNativePDF && file.mimeType == "application/pdf" {
@@ -702,7 +722,7 @@ actor VertexAIAdapter: LLMProviderAdapter {
                     // Fallback to text extraction for non-Gemini-3 or non-PDF files
                     let text = AttachmentPromptRenderer.fallbackText(for: file)
                     parts.append(["text": text])
-                case .thinking, .redactedThinking, .audio:
+                case .thinking, .redactedThinking:
                     break
                 }
             }

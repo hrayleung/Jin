@@ -8,7 +8,7 @@ import Foundation
 /// - Models: GET /models
 actor OpenRouterAdapter: LLMProviderAdapter {
     let providerConfig: ProviderConfig
-    let capabilities: ModelCapability = [.streaming, .toolCalling, .vision, .reasoning]
+    let capabilities: ModelCapability = [.streaming, .toolCalling, .vision, .audio, .reasoning]
 
     private let networkManager: NetworkManager
     private let apiKey: String
@@ -76,8 +76,10 @@ actor OpenRouterAdapter: LLMProviderAdapter {
         request.addValue("Jin", forHTTPHeaderField: "X-Title")
 
         let (data, _) = try await networkManager.sendRequest(request)
-        let response = try JSONDecoder().decode(OpenAIModelsResponse.self, from: data)
-        return response.data.map { makeModelInfo(id: $0.id) }
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        let response = try decoder.decode(OpenRouterModelsResponse.self, from: data)
+        return response.data.map(makeModelInfo(from:))
     }
 
     func translateTools(_ tools: [ToolDefinition]) -> Any {
@@ -202,7 +204,7 @@ actor OpenRouterAdapter: LLMProviderAdapter {
     }
 
     private func translateNonToolMessage(_ message: Message) -> [String: Any] {
-        let (visibleContent, thinkingContent, hasImage) = splitContent(message.content)
+        let (visibleContent, thinkingContent, hasRichUserContent) = splitContent(message.content)
 
         var dict: [String: Any] = [
             "role": message.role.rawValue
@@ -213,7 +215,7 @@ actor OpenRouterAdapter: LLMProviderAdapter {
             dict["content"] = visibleContent
 
         case .user:
-            if hasImage {
+            if hasRichUserContent {
                 dict["content"] = translateUserContentParts(message.content)
             } else {
                 dict["content"] = visibleContent
@@ -271,7 +273,12 @@ actor OpenRouterAdapter: LLMProviderAdapter {
                     "text": text
                 ])
 
-            case .thinking, .redactedThinking, .audio, .video:
+            case .audio(let audio):
+                if let inputAudio = inputAudioPart(audio) {
+                    out.append(inputAudio)
+                }
+
+            case .thinking, .redactedThinking, .video:
                 continue
             }
         }
@@ -292,12 +299,46 @@ actor OpenRouterAdapter: LLMProviderAdapter {
         return nil
     }
 
-    private func splitContent(_ parts: [ContentPart]) -> (visible: String, thinking: String, hasImage: Bool) {
+    private func inputAudioPart(_ audio: AudioContent) -> [String: Any]? {
+        let payloadData: Data?
+        if let data = audio.data {
+            payloadData = data
+        } else if let url = audio.url, url.isFileURL {
+            payloadData = try? Data(contentsOf: url)
+        } else {
+            payloadData = nil
+        }
+
+        guard let payloadData, let format = openAIInputAudioFormat(mimeType: audio.mimeType) else {
+            return nil
+        }
+
+        return [
+            "type": "input_audio",
+            "input_audio": [
+                "data": payloadData.base64EncodedString(),
+                "format": format
+            ]
+        ]
+    }
+
+    private func openAIInputAudioFormat(mimeType: String) -> String? {
+        let lower = mimeType.lowercased()
+        if lower == "audio/wav" || lower == "audio/x-wav" {
+            return "wav"
+        }
+        if lower == "audio/mpeg" || lower == "audio/mp3" {
+            return "mp3"
+        }
+        return nil
+    }
+
+    private func splitContent(_ parts: [ContentPart]) -> (visible: String, thinking: String, hasRichUserContent: Bool) {
         var visibleParts: [String] = []
         visibleParts.reserveCapacity(parts.count)
 
         var thinkingParts: [String] = []
-        var hasImage = false
+        var hasRichUserContent = false
 
         for part in parts {
             switch part {
@@ -306,15 +347,17 @@ actor OpenRouterAdapter: LLMProviderAdapter {
             case .file(let file):
                 visibleParts.append(AttachmentPromptRenderer.fallbackText(for: file))
             case .image:
-                hasImage = true
+                hasRichUserContent = true
+            case .audio:
+                hasRichUserContent = true
             case .thinking(let thinking):
                 thinkingParts.append(thinking.text)
-            case .redactedThinking, .audio, .video:
+            case .redactedThinking, .video:
                 break
             }
         }
 
-        return (visibleParts.joined(), thinkingParts.joined(), hasImage)
+        return (visibleParts.joined(), thinkingParts.joined(), hasRichUserContent)
     }
 
     private func translateToolCalls(_ calls: [ToolCall]) -> [[String: Any]] {
@@ -368,8 +411,10 @@ actor OpenRouterAdapter: LLMProviderAdapter {
         }
     }
 
-    private func makeModelInfo(id: String) -> ModelInfo {
+    private func makeModelInfo(from model: OpenRouterModelsResponse.Model) -> ModelInfo {
+        let id = model.id
         let lower = id.lowercased()
+        let inputModalities = Set((model.architecture?.inputModalities ?? []).map { $0.lowercased() })
 
         var caps: ModelCapability = [.streaming, .toolCalling]
         var reasoningConfig: ModelReasoningConfig?
@@ -380,8 +425,21 @@ actor OpenRouterAdapter: LLMProviderAdapter {
             reasoningConfig = ModelReasoningConfig(type: .effort, defaultEffort: .medium)
         }
 
-        if lower.contains("vision") || lower.contains("image") || lower.contains("/gpt-4o") || lower.contains("/gpt-5") || lower.contains("/gemini") || lower.contains("/claude") {
+        if inputModalities.contains(where: { $0.contains("image") || $0.contains("video") })
+            || lower.contains("vision")
+            || lower.contains("image")
+            || lower.contains("/gpt-4o")
+            || lower.contains("/gpt-5")
+            || lower.contains("/gemini")
+            || lower.contains("/claude") {
             caps.insert(.vision)
+        }
+
+        if inputModalities.contains(where: { $0.contains("audio") }) {
+            caps.insert(.audio)
+        }
+        if supportsAudioInputModelID(lower) {
+            caps.insert(.audio)
         }
 
         if lower.contains("image") {
@@ -395,5 +453,37 @@ actor OpenRouterAdapter: LLMProviderAdapter {
             contextWindow: contextWindow,
             reasoningConfig: reasoningConfig
         )
+    }
+
+    private func supportsAudioInputModelID(_ lowerModelID: String) -> Bool {
+        if lowerModelID.contains("gpt-audio")
+            || lowerModelID.contains("audio-preview")
+            || lowerModelID.contains("realtime")
+            || lowerModelID.contains("voxtral")
+            || lowerModelID.contains("qwen3-asr")
+            || lowerModelID.contains("qwen3-omni") {
+            return true
+        }
+
+        if (lowerModelID.contains("gemini-2.5") || lowerModelID.contains("gemini-3") || lowerModelID.contains("gemini-2.0"))
+            && !lowerModelID.contains("-image")
+            && !lowerModelID.contains("imagen") {
+            return true
+        }
+
+        return false
+    }
+}
+
+private struct OpenRouterModelsResponse: Decodable {
+    let data: [Model]
+
+    struct Model: Decodable {
+        let id: String
+        let architecture: Architecture?
+    }
+
+    struct Architecture: Decodable {
+        let inputModalities: [String]?
     }
 }

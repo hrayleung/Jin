@@ -21,6 +21,23 @@ actor OpenAIAdapter: LLMProviderAdapter {
         tools: [ToolDefinition],
         streaming: Bool
     ) async throws -> AsyncThrowingStream<StreamEvent, Error> {
+        // OpenAI currently documents audio input support primarily on Chat Completions.
+        // Route audio-bearing requests through the OpenAI-compatible Chat Completions path.
+        if shouldRouteToChatCompletionsForAudio(messages: messages, modelID: modelID) {
+            let chatCompletionsAdapter = OpenAICompatibleAdapter(
+                providerConfig: providerConfig,
+                apiKey: apiKey,
+                networkManager: networkManager
+            )
+            return try await chatCompletionsAdapter.sendMessage(
+                messages: messages,
+                modelID: modelID,
+                controls: controls,
+                tools: tools,
+                streaming: streaming
+            )
+        }
+
         let request = try buildRequest(
             messages: messages,
             modelID: modelID,
@@ -99,24 +116,28 @@ actor OpenAIAdapter: LLMProviderAdapter {
         let response = try JSONDecoder().decode(ModelsResponse.self, from: data)
 
         return response.data.map { model in
+            let lower = model.id.lowercased()
             var caps: ModelCapability = [.streaming, .toolCalling, .promptCaching]
             var reasoningConfig: ModelReasoningConfig?
 
-            if model.id.contains("gpt-5") || model.id.contains("o1") || model.id.contains("o3") || model.id.contains("o4") {
+            if lower.contains("gpt-5") || lower.contains("o1") || lower.contains("o3") || lower.contains("o4") {
                 caps.insert(.reasoning)
                 reasoningConfig = ModelReasoningConfig(type: .effort, defaultEffort: .medium)
             }
-            if model.id.contains("gpt-4o") || model.id.contains("gpt-5") || model.id.contains("o3") || model.id.contains("o4") {
+            if lower.contains("gpt-4o") || lower.contains("gpt-5") || lower.contains("o3") || lower.contains("o4") {
                 caps.insert(.vision)
+            }
+            if supportsAudioInputModelID(lower) {
+                caps.insert(.audio)
             }
 
             // Native PDF support for GPT-5.2+, o3+, o4+ (all have vision)
-            if (model.id.contains("gpt-5.2") || model.id.contains("o3") || model.id.contains("o4")) && caps.contains(.vision) {
+            if (lower.contains("gpt-5.2") || lower.contains("o3") || lower.contains("o4")) && caps.contains(.vision) {
                 caps.insert(.nativePDF)
             }
 
             let contextWindow: Int
-            if model.id.contains("gpt-5.2") {
+            if lower.contains("gpt-5.2") {
                 contextWindow = 400000
             } else {
                 contextWindow = 128000
@@ -248,7 +269,31 @@ actor OpenAIAdapter: LLMProviderAdapter {
 
     private func supportsNativePDF(_ modelID: String) -> Bool {
         // GPT-5.2+, o3+, o4+ support native PDF
-        return modelID.contains("gpt-5.2") || modelID.contains("o3") || modelID.contains("o4")
+        let lower = modelID.lowercased()
+        return lower.contains("gpt-5.2") || lower.contains("o3") || lower.contains("o4")
+    }
+
+    private func supportsAudioInputModelID(_ lowerModelID: String) -> Bool {
+        lowerModelID.contains("gpt-audio")
+            || lowerModelID.contains("audio-preview")
+            || lowerModelID.contains("realtime")
+    }
+
+    private func shouldRouteToChatCompletionsForAudio(messages: [Message], modelID: String) -> Bool {
+        guard supportsAudioInputModelID(modelID.lowercased()) else {
+            return false
+        }
+
+        for message in messages where message.role != .tool {
+            if message.content.contains(where: { part in
+                if case .audio = part { return true }
+                return false
+            }) {
+                return true
+            }
+        }
+
+        return false
     }
 
     private func normalizedContextCacheString(_ value: String?) -> String? {
@@ -399,9 +444,47 @@ actor OpenAIAdapter: LLMProviderAdapter {
                 "text": unsupportedVideoInputNotice(video, providerName: "OpenAI")
             ]
 
-        case .thinking, .redactedThinking, .audio:
+        case .audio(let audio):
+            guard role == .user else { return nil }
+            return openAIInputAudioPart(audio)
+
+        case .thinking, .redactedThinking:
             return nil
         }
+    }
+
+    private func openAIInputAudioPart(_ audio: AudioContent) -> [String: Any]? {
+        let payloadData: Data?
+        if let data = audio.data {
+            payloadData = data
+        } else if let url = audio.url, url.isFileURL {
+            payloadData = try? Data(contentsOf: url)
+        } else {
+            payloadData = nil
+        }
+
+        guard let payloadData, let format = openAIInputAudioFormat(mimeType: audio.mimeType) else {
+            return nil
+        }
+
+        return [
+            "type": "input_audio",
+            "input_audio": [
+                "data": payloadData.base64EncodedString(),
+                "format": format
+            ]
+        ]
+    }
+
+    private func openAIInputAudioFormat(mimeType: String) -> String? {
+        let lower = mimeType.lowercased()
+        if lower == "audio/wav" || lower == "audio/x-wav" {
+            return "wav"
+        }
+        if lower == "audio/mpeg" || lower == "audio/mp3" {
+            return "mp3"
+        }
+        return nil
     }
 
     private func unsupportedVideoInputNotice(_ video: VideoContent, providerName: String) -> String {

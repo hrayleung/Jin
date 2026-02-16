@@ -97,6 +97,16 @@ actor AttachmentStorageManager {
             return "mp3"
         case "audio/wav":
             return "wav"
+        case "audio/x-wav":
+            return "wav"
+        case "audio/mp4", "audio/m4a", "audio/x-m4a":
+            return "m4a"
+        case "audio/flac":
+            return "flac"
+        case "audio/ogg":
+            return "ogg"
+        case "audio/webm":
+            return "webm"
         case "video/mp4":
             return "mp4"
         case "video/webm":

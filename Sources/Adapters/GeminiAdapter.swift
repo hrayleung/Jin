@@ -11,7 +11,7 @@ import Foundation
 /// - Grounding with Google Search (`google_search` tool)
 actor GeminiAdapter: LLMProviderAdapter {
     let providerConfig: ProviderConfig
-    let capabilities: ModelCapability = [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .nativePDF, .imageGeneration]
+    let capabilities: ModelCapability = [.streaming, .toolCalling, .vision, .audio, .reasoning, .promptCaching, .nativePDF, .imageGeneration]
 
     private let networkManager: NetworkManager
     private let apiKey: String
@@ -588,6 +588,11 @@ actor GeminiAdapter: LLMProviderAdapter {
                     parts.append(inline)
                 }
 
+            case .audio(let audio):
+                if let inline = inlineDataPart(mimeType: audio.mimeType, data: audio.data, url: audio.url) {
+                    parts.append(inline)
+                }
+
             case .file(let file):
                 // Native PDF support for Gemini 3 series.
                 if supportsNativePDF, file.mimeType == "application/pdf" {
@@ -615,7 +620,7 @@ actor GeminiAdapter: LLMProviderAdapter {
                 let text = AttachmentPromptRenderer.fallbackText(for: file)
                 parts.append(["text": text])
 
-            case .thinking, .redactedThinking, .audio:
+            case .thinking, .redactedThinking:
                 continue
             }
         }
@@ -783,6 +788,10 @@ actor GeminiAdapter: LLMProviderAdapter {
 
         if isGeminiModel || isImageModel || lower.contains("vision") || lower.contains("multimodal") {
             caps.insert(.vision)
+        }
+
+        if supportsGenerateContent && isGeminiModel && !isImageModel {
+            caps.insert(.audio)
         }
 
         var reasoningConfig: ModelReasoningConfig?
