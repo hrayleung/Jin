@@ -98,6 +98,7 @@ private struct MarkdownWebRendererRepresentable: NSViewRepresentable {
         context.coordinator.webView = webView
         context.coordinator.heightBinding = $contentHeight
         context.coordinator.pendingMarkdown = markdownText
+        context.coordinator.currentMarkdown = markdownText
         context.coordinator.startObservingFontPreferences()
 
         loadTemplate(into: webView)
@@ -109,12 +110,12 @@ private struct MarkdownWebRendererRepresentable: NSViewRepresentable {
         context.coordinator.currentMarkdown = markdownText
 
         if context.coordinator.isReady {
-            context.coordinator.applyFontUpdateIfNeeded(
+            let didUpdateFonts = context.coordinator.applyFontUpdateIfNeeded(
                 appFontFamily: appFontFamily,
                 codeFontFamily: codeFontFamily,
                 webView: webView
             )
-            MarkdownWebRenderer.sendMarkdown(to: webView, markdown: markdownText)
+            context.coordinator.renderMarkdownIfNeeded(markdownText, in: webView, force: didUpdateFonts)
         } else {
             context.coordinator.pendingMarkdown = markdownText
         }
@@ -137,15 +138,20 @@ private struct MarkdownWebRendererRepresentable: NSViewRepresentable {
     }
 
     final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
+        private let maxAllowedContentHeight: CGFloat = 200_000
+
         weak var webView: MarkdownWKWebView?
         var heightBinding: Binding<CGFloat>?
         var isReady = false
         var pendingMarkdown: String?
         var currentMarkdown: String?
+        private var lastRenderedMarkdown: String?
         var lastBodyFont: String = ""
         var lastCodeFont: String = ""
         var lastFontSize: CGFloat = 0
         private var isObservingDefaults = false
+        private var pendingHeightUpdate: CGFloat?
+        private var isHeightUpdateEnqueued = false
 
         func startObservingFontPreferences() {
             guard !isObservingDefaults else { return }
@@ -187,8 +193,14 @@ private struct MarkdownWebRendererRepresentable: NSViewRepresentable {
             )
 
             if didUpdate, let md = currentMarkdown {
-                MarkdownWebRenderer.sendMarkdown(to: webView, markdown: md)
+                renderMarkdownIfNeeded(md, in: webView, force: true)
             }
+        }
+
+        func renderMarkdownIfNeeded(_ markdown: String, in webView: WKWebView, force: Bool = false) {
+            guard force || markdown != lastRenderedMarkdown else { return }
+            lastRenderedMarkdown = markdown
+            MarkdownWebRenderer.sendMarkdown(to: webView, markdown: markdown)
         }
 
         /// Compares resolved CSS values against cached state. If changed, evaluates
@@ -217,7 +229,8 @@ private struct MarkdownWebRendererRepresentable: NSViewRepresentable {
             isReady = true
             if let pending = pendingMarkdown {
                 pendingMarkdown = nil
-                MarkdownWebRenderer.sendMarkdown(to: webView, markdown: pending)
+                currentMarkdown = pending
+                renderMarkdownIfNeeded(pending, in: webView, force: true)
             }
         }
 
@@ -238,16 +251,37 @@ private struct MarkdownWebRendererRepresentable: NSViewRepresentable {
             }
             guard message.name == "heightChanged",
                   let height = message.body as? CGFloat,
-                  let webView = webView else { return }
+                  height.isFinite else { return }
 
-            let clamped = max(height, 1)
-            if webView.contentHeight != clamped {
-                webView.contentHeight = clamped
+            // Avoid mutating SwiftUI state synchronously during AppKit layout.
+            let clamped = min(max(height, 1), maxAllowedContentHeight)
+            enqueueHeightUpdate(clamped)
+        }
+
+        private func enqueueHeightUpdate(_ height: CGFloat) {
+            pendingHeightUpdate = height
+            guard !isHeightUpdateEnqueued else { return }
+            isHeightUpdateEnqueued = true
+
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                self.isHeightUpdateEnqueued = false
+                guard let nextHeight = self.pendingHeightUpdate else { return }
+                self.pendingHeightUpdate = nil
+                self.applyHeightUpdate(nextHeight)
+            }
+        }
+
+        private func applyHeightUpdate(_ height: CGFloat) {
+            guard let webView else { return }
+
+            if abs(webView.contentHeight - height) > 0.5 {
+                webView.contentHeight = height
                 webView.invalidateIntrinsicContentSize()
             }
-            // Update the SwiftUI-observed height so LazyVStack re-layouts
-            if heightBinding?.wrappedValue != clamped {
-                heightBinding?.wrappedValue = clamped
+
+            if let binding = heightBinding, abs(binding.wrappedValue - height) > 0.5 {
+                binding.wrappedValue = height
             }
         }
     }
