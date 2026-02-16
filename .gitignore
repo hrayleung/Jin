@@ -42,7 +42,7 @@ response.json
 *.swp
 *.swo
 *~
-
+.superset/
 # Temporary files
 *.tmp
 *.temp
