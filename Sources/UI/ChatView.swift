@@ -41,6 +41,7 @@ struct ChatView: View {
     @Query private var mcpServers: [MCPServerConfigEntity]
 
     @AppStorage(AppPreferenceKeys.sendWithCommandEnter) private var sendWithCommandEnter = false
+    @AppStorage(AppPreferenceKeys.sttAddRecordingAsFile) private var sttAddRecordingAsFile = false
 
     @State private var controls: GenerationControls = GenerationControls()
     @State private var messageText = ""
@@ -228,7 +229,7 @@ struct ChatView: View {
                 }
                 .buttonStyle(.plain)
                 .help(speechToTextHelpText)
-                .disabled(isBusy || speechToTextManager.isTranscribing || (!speechToTextConfigured && !speechToTextManager.isRecording))
+                .disabled(isBusy || speechToTextManager.isTranscribing || (!speechToTextReadyForCurrentMode && !speechToTextManager.isRecording))
             }
 
             Button { isFileImporterPresented = true } label: {
@@ -239,7 +240,7 @@ struct ChatView: View {
                 )
             }
             .buttonStyle(.plain)
-            .help(supportsNativePDF ? "Attach images / videos / PDFs (Native PDF support ✓)" : "Attach images / videos / PDFs")
+            .help(fileAttachmentHelpText)
             .disabled(isBusy)
 
             if supportsPDFProcessingControl {
@@ -363,7 +364,7 @@ struct ChatView: View {
             HStack(spacing: 8) {
                 ProgressView()
                     .controlSize(.small)
-                Text("Transcribing…")
+                Text(speechToTextUsesAudioAttachment ? "Attaching audio…" : "Transcribing…")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Spacer(minLength: 0)
@@ -907,7 +908,7 @@ struct ChatView: View {
         }
         .fileImporter(
             isPresented: $isFileImporterPresented,
-            allowedContentTypes: [.image, .movie, .pdf],
+            allowedContentTypes: [.image, .movie, .audio, .pdf],
             allowsMultipleSelection: true
         ) { result in
             switch result {
@@ -1161,12 +1162,40 @@ struct ChatView: View {
         speechToTextManager.isTranscribing ? "…" : nil
     }
 
+    private var speechToTextUsesAudioAttachment: Bool {
+        sttAddRecordingAsFile && supportsAudioInput
+    }
+
+    private var speechToTextReadyForCurrentMode: Bool {
+        speechToTextUsesAudioAttachment || speechToTextConfigured
+    }
+
     private var speechToTextHelpText: String {
-        if speechToTextManager.isTranscribing { return "Transcribing…" }
-        if speechToTextManager.isRecording { return "Stop recording" }
+        if speechToTextManager.isTranscribing {
+            return speechToTextUsesAudioAttachment ? "Attaching audio…" : "Transcribing…"
+        }
+        if speechToTextManager.isRecording {
+            return speechToTextUsesAudioAttachment ? "Stop recording and attach audio" : "Stop recording"
+        }
         if !speechToTextPluginEnabled { return "Speech to Text is turned off in Settings → Plugins" }
+        if speechToTextUsesAudioAttachment {
+            return "Record audio and attach it to the draft message"
+        }
+        if sttAddRecordingAsFile && !supportsAudioInput {
+            if speechToTextConfigured {
+                return "Current model doesn't support audio input; using transcription fallback."
+            }
+            return "Current model doesn't support audio input. Configure Speech to Text for transcription fallback."
+        }
         if !speechToTextConfigured { return "Configure Speech to Text in Settings → Plugins → Speech to Text" }
         return "Start recording"
+    }
+
+    private var fileAttachmentHelpText: String {
+        let base = supportsAudioInput
+            ? "Attach images / videos / audio / PDFs"
+            : "Attach images / videos / PDFs"
+        return supportsNativePDF ? "\(base) (Native PDF support ✓)" : base
     }
 
     private var formattedRecordingDuration: String {
@@ -1180,6 +1209,18 @@ struct ChatView: View {
         Task { @MainActor in
             do {
                 if speechToTextManager.isRecording {
+                    if speechToTextUsesAudioAttachment {
+                        guard draftAttachments.count < AttachmentConstants.maxDraftAttachments else {
+                            throw AttachmentImportError(message: "You can attach up to \(AttachmentConstants.maxDraftAttachments) files per message.")
+                        }
+
+                        let clip = try await speechToTextManager.stopAndCollectRecording()
+                        let attachment = try await Self.importRecordedAudioClipInBackground(clip)
+                        draftAttachments.append(attachment)
+                        isComposerFocused = true
+                        return
+                    }
+
                     let config = try await currentSpeechToTextTranscriptionConfig()
                     let text = try await speechToTextManager.stopAndTranscribe(config: config)
                     let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -1196,6 +1237,13 @@ struct ChatView: View {
                 }
 
                 guard speechToTextPluginEnabled else { return }
+                if speechToTextUsesAudioAttachment {
+                    guard draftAttachments.count < AttachmentConstants.maxDraftAttachments else {
+                        throw AttachmentImportError(message: "You can attach up to \(AttachmentConstants.maxDraftAttachments) files per message.")
+                    }
+                    try await speechToTextManager.startRecording()
+                    return
+                }
 
                 _ = try await currentSpeechToTextTranscriptionConfig() // Validate configured
                 try await speechToTextManager.startRecording()
@@ -1205,6 +1253,22 @@ struct ChatView: View {
                 showingError = true
             }
         }
+    }
+
+    private static func importRecordedAudioClipInBackground(_ clip: SpeechToTextManager.RecordedClip) async throws -> DraftAttachment {
+        guard clip.data.count <= AttachmentConstants.maxAttachmentBytes else {
+            throw AttachmentImportError(message: "\(clip.filename): exceeds \(AttachmentConstants.maxAttachmentBytes / (1024 * 1024))MB limit.")
+        }
+
+        let storage = try AttachmentStorageManager()
+        let stored = try await storage.saveAttachment(data: clip.data, filename: clip.filename, mimeType: clip.mimeType)
+        return DraftAttachment(
+            id: stored.id,
+            filename: stored.filename,
+            mimeType: stored.mimeType,
+            fileURL: stored.fileURL,
+            extractedText: nil
+        )
     }
 
     private func removeDraftAttachment(_ attachment: DraftAttachment) {
@@ -1565,6 +1629,7 @@ struct ChatView: View {
         let ext = url.pathExtension.lowercased()
         if ext == "pdf" { return true }
         if ext == "png" || ext == "jpg" || ext == "jpeg" || ext == "webp" { return true }
+        if ["wav", "mp3", "m4a", "aac", "flac", "ogg", "oga", "webm"].contains(ext) { return true }
         return ["mp4", "m4v", "mov", "webm", "avi", "mkv", "mpeg", "mpg", "wmv", "flv", "3gp", "3gpp"].contains(ext)
     }
 
@@ -1697,6 +1762,27 @@ struct ChatView: View {
             }
         }
 
+        if type.conforms(to: .audio) {
+            guard let mimeType = normalizedAudioMIMEType(for: type, sourceURL: sourceURL) else {
+                return .failure(AttachmentImportError(message: "\(filename): unsupported audio format. Use WAV/MP3/M4A/AAC/FLAC/OGG/WebM."))
+            }
+
+            do {
+                let entity = try await storage.saveAttachment(from: sourceURL, filename: filename, mimeType: mimeType)
+                return .success(
+                    DraftAttachment(
+                        id: entity.id,
+                        filename: entity.filename,
+                        mimeType: entity.mimeType,
+                        fileURL: entity.fileURL,
+                        extractedText: nil
+                    )
+                )
+            } catch {
+                return .failure(AttachmentImportError(message: "\(filename): failed to import (\(error.localizedDescription))."))
+            }
+        }
+
         if type.conforms(to: .image) {
             let supported: Set<String> = ["image/png", "image/jpeg", "image/webp"]
 
@@ -1771,6 +1857,38 @@ struct ChatView: View {
         }
     }
 
+    private static func normalizedAudioMIMEType(for type: UTType, sourceURL: URL) -> String? {
+        if let raw = type.preferredMIMEType?.lowercased(), raw.hasPrefix("audio/") {
+            switch raw {
+            case "audio/x-wav":
+                return "audio/wav"
+            case "audio/mp4", "audio/x-m4a":
+                return "audio/m4a"
+            default:
+                return raw
+            }
+        }
+
+        switch sourceURL.pathExtension.lowercased() {
+        case "wav":
+            return "audio/wav"
+        case "mp3":
+            return "audio/mpeg"
+        case "m4a":
+            return "audio/m4a"
+        case "aac":
+            return "audio/aac"
+        case "flac":
+            return "audio/flac"
+        case "ogg", "oga":
+            return "audio/ogg"
+        case "webm":
+            return "audio/webm"
+        default:
+            return nil
+        }
+    }
+
     private static func saveConvertedPNG(
         _ pngURL: URL,
         storage: AttachmentStorageManager,
@@ -1836,6 +1954,11 @@ struct ChatView: View {
             contextWindow = 262_100
             reasoningConfig = defaultReasoningConfig
             if name == model.id { name = "Kimi K2.5" }
+        case "qwen3-omni-30b-a3b-instruct", "qwen3-omni-30b-a3b-thinking":
+            caps.insert(.vision)
+            caps.insert(.audio)
+        case "qwen3-asr-4b", "qwen3-asr-0.6b":
+            caps.insert(.audio)
         case "glm-5":
             caps.insert(.reasoning)
             contextWindow = 202_800
@@ -1932,6 +2055,54 @@ struct ChatView: View {
         selectedModelInfo?.capabilities.contains(.vision) == true
             || supportsImageGenerationControl
             || supportsVideoGenerationControl
+    }
+
+    private var supportsAudioInput: Bool {
+        if isMistralTranscriptionOnlyModelID {
+            return false
+        }
+
+        if selectedModelInfo?.capabilities.contains(.audio) == true {
+            return true
+        }
+
+        if supportsMediaGenerationControl {
+            return false
+        }
+
+        switch providerType {
+        case .openai:
+            return lowerModelID.contains("gpt-audio")
+                || lowerModelID.contains("audio-preview")
+                || lowerModelID.contains("realtime")
+        case .mistral:
+            return lowerModelID.contains("voxtral")
+        case .gemini, .vertexai:
+            return lowerModelID.contains("gemini-")
+                && !lowerModelID.contains("-image")
+                && !lowerModelID.contains("imagen")
+        case .openrouter, .openaiCompatible, .deepinfra:
+            return lowerModelID.contains("gpt-audio")
+                || lowerModelID.contains("audio-preview")
+                || lowerModelID.contains("realtime")
+                || lowerModelID.contains("voxtral")
+                || lowerModelID.contains("qwen3-asr")
+                || lowerModelID.contains("qwen3-omni")
+                || ((lowerModelID.contains("gemini-2.5")
+                    || lowerModelID.contains("gemini-3")
+                    || lowerModelID.contains("gemini-2.0"))
+                    && !lowerModelID.contains("-image")
+                    && !lowerModelID.contains("imagen"))
+        case .fireworks:
+            return lowerModelID.contains("qwen3-asr") || lowerModelID.contains("qwen3-omni")
+        case .anthropic, .perplexity, .groq, .cohere, .xai, .deepseek, .cerebras, .none:
+            return false
+        }
+    }
+
+    private var isMistralTranscriptionOnlyModelID: Bool {
+        providerType == .mistral
+            && (lowerModelID == "voxtral-mini-2602" || lowerModelID.contains("transcribe"))
     }
 
     private var supportsImageGenerationControl: Bool {
@@ -3359,6 +3530,11 @@ struct ChatView: View {
 
             if attachment.isVideo {
                 parts.append(.video(VideoContent(mimeType: attachment.mimeType, data: nil, url: attachment.fileURL)))
+                continue
+            }
+
+            if attachment.isAudio {
+                parts.append(.audio(AudioContent(mimeType: attachment.mimeType, data: nil, url: attachment.fileURL)))
                 continue
             }
 
@@ -5121,6 +5297,8 @@ struct ChatView: View {
                 return AppPreferenceKeys.sttOpenAIAPIKey
             case .groq:
                 return AppPreferenceKeys.sttGroqAPIKey
+            case .mistral:
+                return AppPreferenceKeys.sttMistralAPIKey
             }
         }()
 

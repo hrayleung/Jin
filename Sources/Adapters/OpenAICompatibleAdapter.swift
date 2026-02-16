@@ -7,7 +7,7 @@ import Foundation
 /// - POST /chat/completions
 actor OpenAICompatibleAdapter: LLMProviderAdapter {
     let providerConfig: ProviderConfig
-    let capabilities: ModelCapability = [.streaming, .toolCalling, .vision, .reasoning]
+    let capabilities: ModelCapability = [.streaming, .toolCalling, .vision, .audio, .reasoning]
 
     private let networkManager: NetworkManager
     private let apiKey: String
@@ -25,6 +25,12 @@ actor OpenAICompatibleAdapter: LLMProviderAdapter {
         tools: [ToolDefinition],
         streaming: Bool
     ) async throws -> AsyncThrowingStream<StreamEvent, Error> {
+        if providerConfig.type == .mistral, isMistralTranscriptionOnlyModelID(modelID.lowercased()) {
+            throw LLMError.invalidRequest(
+                message: "Model \(modelID) is transcription-only on Mistral /v1/audio/transcriptions. Use voxtral-mini-latest or voxtral-small-latest for chat."
+            )
+        }
+
         let request = try buildRequest(
             messages: messages,
             modelID: modelID,
@@ -187,7 +193,7 @@ actor OpenAICompatibleAdapter: LLMProviderAdapter {
     }
 
     private func translateNonToolMessage(_ message: Message) -> [String: Any] {
-        let (visibleContent, thinkingContent, hasImage) = splitContent(message.content)
+        let (visibleContent, thinkingContent, hasRichUserContent) = splitContent(message.content)
 
         var dict: [String: Any] = [
             "role": message.role.rawValue
@@ -217,7 +223,7 @@ actor OpenAICompatibleAdapter: LLMProviderAdapter {
             }
 
         case .user:
-            if hasImage {
+            if hasRichUserContent {
                 dict["content"] = translateUserContentParts(message.content)
             } else {
                 dict["content"] = visibleContent
@@ -230,10 +236,10 @@ actor OpenAICompatibleAdapter: LLMProviderAdapter {
         return dict
     }
 
-    private func splitContent(_ parts: [ContentPart]) -> (visible: String, thinking: String?, hasImage: Bool) {
+    private func splitContent(_ parts: [ContentPart]) -> (visible: String, thinking: String?, hasRichUserContent: Bool) {
         var visibleSegments: [String] = []
         var thinkingSegments: [String] = []
-        var hasImage = false
+        var hasRichUserContent = false
 
         for part in parts {
             switch part {
@@ -246,16 +252,18 @@ actor OpenAICompatibleAdapter: LLMProviderAdapter {
                 if !text.isEmpty {
                     thinkingSegments.append(text)
                 }
-            case .redactedThinking, .audio, .video:
+            case .redactedThinking, .video:
                 continue
             case .image:
-                hasImage = true
+                hasRichUserContent = true
+            case .audio:
+                hasRichUserContent = true
             }
         }
 
         let visible = visibleSegments.joined(separator: "\n")
         let thinking = thinkingSegments.isEmpty ? nil : thinkingSegments.joined(separator: "\n")
-        return (visible, thinking, hasImage)
+        return (visible, thinking, hasRichUserContent)
     }
 
     private func translateUserContentParts(_ parts: [ContentPart]) -> [[String: Any]] {
@@ -286,7 +294,12 @@ actor OpenAICompatibleAdapter: LLMProviderAdapter {
                     "text": AttachmentPromptRenderer.fallbackText(for: file)
                 ])
 
-            case .thinking, .redactedThinking, .audio, .video:
+            case .audio(let audio):
+                if let inputAudio = inputAudioPart(audio) {
+                    out.append(inputAudio)
+                }
+
+            case .thinking, .redactedThinking, .video:
                 continue
             }
         }
@@ -303,6 +316,52 @@ actor OpenAICompatibleAdapter: LLMProviderAdapter {
                 return "data:\(image.mimeType);base64,\(data.base64EncodedString())"
             }
             return url.absoluteString
+        }
+        return nil
+    }
+
+    private func inputAudioPart(_ audio: AudioContent) -> [String: Any]? {
+        let payloadData: Data?
+        if let data = audio.data {
+            payloadData = data
+        } else if let url = audio.url, url.isFileURL {
+            payloadData = try? Data(contentsOf: url)
+        } else {
+            payloadData = nil
+        }
+
+        guard let payloadData else {
+            return nil
+        }
+
+        // Mistral Voxtral expects a raw base64 string for `input_audio`.
+        if providerConfig.type == .mistral {
+            return [
+                "type": "input_audio",
+                "input_audio": payloadData.base64EncodedString()
+            ]
+        }
+
+        guard let format = openAIInputAudioFormat(mimeType: audio.mimeType) else {
+            return nil
+        }
+
+        return [
+            "type": "input_audio",
+            "input_audio": [
+                "data": payloadData.base64EncodedString(),
+                "format": format
+            ]
+        ]
+    }
+
+    private func openAIInputAudioFormat(mimeType: String) -> String? {
+        let lower = mimeType.lowercased()
+        if lower == "audio/wav" || lower == "audio/x-wav" {
+            return "wav"
+        }
+        if lower == "audio/mpeg" || lower == "audio/mp3" {
+            return "mp3"
         }
         return nil
     }
@@ -365,6 +424,10 @@ actor OpenAICompatibleAdapter: LLMProviderAdapter {
             caps.insert(.imageGeneration)
         }
 
+        if supportsAudioInputModelID(lower) {
+            caps.insert(.audio)
+        }
+
         return ModelInfo(
             id: id,
             name: id,
@@ -373,5 +436,31 @@ actor OpenAICompatibleAdapter: LLMProviderAdapter {
             reasoningConfig: reasoningConfig,
             isEnabled: true
         )
+    }
+
+    private func supportsAudioInputModelID(_ lowerModelID: String) -> Bool {
+        if lowerModelID.contains("gpt-audio")
+            || lowerModelID.contains("audio-preview")
+            || lowerModelID.contains("realtime")
+            || lowerModelID.contains("qwen3-asr")
+            || lowerModelID.contains("qwen3-omni") {
+            return true
+        }
+
+        if lowerModelID.contains("voxtral") && !isMistralTranscriptionOnlyModelID(lowerModelID) {
+            return true
+        }
+
+        if (lowerModelID.contains("gemini-2.5") || lowerModelID.contains("gemini-3") || lowerModelID.contains("gemini-2.0"))
+            && !lowerModelID.contains("-image")
+            && !lowerModelID.contains("imagen") {
+            return true
+        }
+
+        return false
+    }
+
+    private func isMistralTranscriptionOnlyModelID(_ lowerModelID: String) -> Bool {
+        lowerModelID == "voxtral-mini-2602" || lowerModelID.contains("transcribe")
     }
 }

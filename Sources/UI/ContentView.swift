@@ -915,7 +915,7 @@ struct ContentView: View {
             ModelInfo(
                 id: "gemini-3-pro-preview",
                 name: "Gemini 3 Pro (Preview)",
-                capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .nativePDF],
+                capabilities: [.streaming, .toolCalling, .vision, .audio, .reasoning, .promptCaching, .nativePDF],
                 contextWindow: 1_048_576,
                 reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium)
             ),
@@ -929,14 +929,14 @@ struct ContentView: View {
             ModelInfo(
                 id: "gemini-3-flash-preview",
                 name: "Gemini 3 Flash (Preview)",
-                capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .nativePDF],
+                capabilities: [.streaming, .toolCalling, .vision, .audio, .reasoning, .promptCaching, .nativePDF],
                 contextWindow: 1_048_576,
                 reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium)
             ),
             ModelInfo(
                 id: "gemini-2.5-pro",
                 name: "Gemini 2.5 Pro",
-                capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+                capabilities: [.streaming, .toolCalling, .vision, .audio, .reasoning, .promptCaching],
                 contextWindow: 1_048_576,
                 reasoningConfig: ModelReasoningConfig(type: .budget, defaultBudget: 2048)
             ),
@@ -953,7 +953,7 @@ struct ContentView: View {
             ModelInfo(
                 id: "gemini-3-pro-preview",
                 name: "Gemini 3 Pro (Preview)",
-                capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .nativePDF],
+                capabilities: [.streaming, .toolCalling, .vision, .audio, .reasoning, .promptCaching, .nativePDF],
                 contextWindow: 1_048_576,
                 reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high)
             ),
@@ -967,7 +967,7 @@ struct ContentView: View {
             ModelInfo(
                 id: "gemini-3-flash-preview",
                 name: "Gemini 3 Flash (Preview)",
-                capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .nativePDF],
+                capabilities: [.streaming, .toolCalling, .vision, .audio, .reasoning, .promptCaching, .nativePDF],
                 contextWindow: 1_048_576,
                 reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high)
             ),

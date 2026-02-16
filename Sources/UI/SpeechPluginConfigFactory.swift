@@ -15,6 +15,7 @@ enum SpeechPluginConfigFactory {
             switch provider {
             case .openai: return AppPreferenceKeys.sttOpenAIAPIKey
             case .groq:   return AppPreferenceKeys.sttGroqAPIKey
+            case .mistral: return AppPreferenceKeys.sttMistralAPIKey
             }
         }()
 
@@ -72,6 +73,33 @@ enum SpeechPluginConfigFactory {
                     baseURL: baseURL,
                     model: model,
                     translateToEnglish: translateToEnglish,
+                    language: language,
+                    prompt: prompt,
+                    responseFormat: responseFormat,
+                    temperature: temperature,
+                    timestampGranularities: timestampGranularities
+                )
+            )
+
+        case .mistral:
+            let baseURL = try resolvedBaseURL(
+                defaults.string(forKey: AppPreferenceKeys.sttMistralBaseURL),
+                fallback: ProviderType.mistral.defaultBaseURL ?? "https://api.mistral.ai/v1"
+            )
+            let model = defaults.string(forKey: AppPreferenceKeys.sttMistralModel) ?? "voxtral-mini-latest"
+            let language = normalized(defaults.string(forKey: AppPreferenceKeys.sttMistralLanguage))
+            let prompt = normalized(defaults.string(forKey: AppPreferenceKeys.sttMistralPrompt))
+            let responseFormat = normalized(defaults.string(forKey: AppPreferenceKeys.sttMistralResponseFormat))
+            let temperature = defaults.object(forKey: AppPreferenceKeys.sttMistralTemperature) as? Double
+            let timestampGranularities = resolvedTimestampGranularities(
+                defaults.string(forKey: AppPreferenceKeys.sttMistralTimestampGranularitiesJSON)
+            )
+
+            return .mistral(
+                SpeechToTextManager.MistralConfig(
+                    apiKey: apiKey,
+                    baseURL: baseURL,
+                    model: model,
                     language: language,
                     prompt: prompt,
                     responseFormat: responseFormat,

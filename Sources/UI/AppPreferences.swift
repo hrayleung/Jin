@@ -106,6 +106,15 @@ enum AppPreferenceKeys {
     static let sttGroqResponseFormat = "sttGroqResponseFormat"
     static let sttGroqTemperature = "sttGroqTemperature"
     static let sttGroqTimestampGranularitiesJSON = "sttGroqTimestampGranularitiesJSON"
+
+    static let sttMistralAPIKey = "sttMistralAPIKey"
+    static let sttMistralBaseURL = "sttMistralBaseURL"
+    static let sttMistralModel = "sttMistralModel"
+    static let sttMistralLanguage = "sttMistralLanguage"
+    static let sttMistralPrompt = "sttMistralPrompt"
+    static let sttMistralResponseFormat = "sttMistralResponseFormat"
+    static let sttMistralTemperature = "sttMistralTemperature"
+    static let sttMistralTimestampGranularitiesJSON = "sttMistralTimestampGranularitiesJSON"
 }
 
 enum NewChatModelMode: String, CaseIterable, Identifiable {

@@ -30,6 +30,7 @@ struct DraftAttachment: Identifiable, Hashable, Sendable {
 
     var isImage: Bool { mimeType.hasPrefix("image/") }
     var isVideo: Bool { mimeType.hasPrefix("video/") }
+    var isAudio: Bool { mimeType.hasPrefix("audio/") }
     var isPDF: Bool { mimeType == "application/pdf" }
 }
 
@@ -74,6 +75,9 @@ struct DraftAttachmentChip: View {
                 .scaledToFill()
                 .frame(width: 26, height: 26)
                 .clipShape(RoundedRectangle(cornerRadius: JinRadius.small, style: .continuous))
+        } else if attachment.isAudio {
+            Image(systemName: "waveform")
+                .foregroundStyle(.secondary)
         } else if attachment.isVideo {
             Image(systemName: "video")
                 .foregroundStyle(.secondary)

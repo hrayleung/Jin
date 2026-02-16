@@ -19,6 +19,7 @@ enum TextToSpeechProvider: String, CaseIterable, Identifiable {
 enum SpeechToTextProvider: String, CaseIterable, Identifiable {
     case groq
     case openai
+    case mistral
 
     var id: String { rawValue }
 
@@ -26,7 +27,7 @@ enum SpeechToTextProvider: String, CaseIterable, Identifiable {
         switch self {
         case .groq: return "Groq"
         case .openai: return "OpenAI"
+        case .mistral: return "Mistral"
         }
     }
 }
-
