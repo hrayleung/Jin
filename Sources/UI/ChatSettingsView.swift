@@ -32,6 +32,15 @@ struct ChatSettingsView: View {
                 Text(notificationDescription)
                     .jinInfoCallout()
 
+                Button("Send Test Notification") {
+                    responseCompletionNotifier.sendTestNotification()
+                }
+                .disabled(!notifyOnBackgroundResponseCompletion)
+
+                Text(responseCompletionNotifier.diagnosticsSummary)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
                 if responseCompletionNotifier.authorizationStatus == .denied {
                     Text("Notifications are disabled for Jin in System Settings > Notifications.")
                         .font(.caption)

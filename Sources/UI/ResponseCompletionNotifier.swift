@@ -8,6 +8,7 @@ import AppKit
 final class ResponseCompletionNotifier: ObservableObject {
     @Published private(set) var authorizationStatus: UNAuthorizationStatus = .notDetermined
     @Published private(set) var lastDeliveryErrorMessage: String?
+    @Published private(set) var diagnosticsSummary: String = "Notifications status unavailable."
 
     private let center: UNUserNotificationCenter
     private let defaults: UserDefaults
@@ -25,13 +26,13 @@ final class ResponseCompletionNotifier: ObservableObject {
 
     func refreshAuthorizationStatus() async {
         let settings = await notificationSettings()
-        authorizationStatus = settings.authorizationStatus
+        apply(settings: settings)
     }
 
     @discardableResult
     func requestAuthorizationIfNeeded() async -> Bool {
         let settings = await notificationSettings()
-        authorizationStatus = settings.authorizationStatus
+        apply(settings: settings)
 
         switch settings.authorizationStatus {
         case .authorized, .provisional:
@@ -67,6 +68,46 @@ final class ResponseCompletionNotifier: ObservableObject {
         }
     }
 
+    func sendTestNotification() {
+        Task {
+            guard await requestAuthorizationIfNeeded() else { return }
+
+            let settings = await notificationSettings()
+            apply(settings: settings)
+            guard settings.authorizationStatus == .authorized || settings.authorizationStatus == .provisional else {
+                return
+            }
+            guard notificationsPresentationAllowed(settings) else {
+                lastDeliveryErrorMessage = "Notifications are authorized but disabled for banners and Notification Center."
+                return
+            }
+
+            let content = UNMutableNotificationContent()
+            content.title = "Jin Notification Test"
+            content.subtitle = "Diagnostics"
+            content.body = "If you can see this, local notifications are working."
+            content.sound = .default
+            content.threadIdentifier = "jin.diagnostics"
+
+            let request = UNNotificationRequest(
+                identifier: "jin.test.\(UUID().uuidString)",
+                content: content,
+                trigger: nil
+            )
+
+            do {
+                try await addNotificationRequest(request)
+                await MainActor.run {
+                    lastDeliveryErrorMessage = nil
+                }
+            } catch {
+                await MainActor.run {
+                    lastDeliveryErrorMessage = "Notification delivery failed: \(error.localizedDescription)"
+                }
+            }
+        }
+    }
+
     func notifyCompletionIfNeeded(
         conversationID: UUID,
         conversationTitle: String,
@@ -81,7 +122,7 @@ final class ResponseCompletionNotifier: ObservableObject {
             #endif
 
             let settings = await notificationSettings()
-            authorizationStatus = settings.authorizationStatus
+            apply(settings: settings)
             guard settings.authorizationStatus == .authorized || settings.authorizationStatus == .provisional else {
                 if settings.authorizationStatus == .notDetermined {
                     lastDeliveryErrorMessage = "Open Jin and allow notifications first."
@@ -91,7 +132,7 @@ final class ResponseCompletionNotifier: ObservableObject {
                 return
             }
 
-            guard settings.alertSetting == .enabled || settings.notificationCenterSetting == .enabled else {
+            guard notificationsPresentationAllowed(settings) else {
                 lastDeliveryErrorMessage = "Notifications are authorized but disabled for banners and Notification Center."
                 return
             }
@@ -134,6 +175,15 @@ final class ResponseCompletionNotifier: ObservableObject {
         }
     }
 
+    private func apply(settings: UNNotificationSettings) {
+        authorizationStatus = settings.authorizationStatus
+        diagnosticsSummary =
+            "Authorization: \(settings.authorizationStatus.diagnosticsLabel), " +
+            "Alert: \(settings.alertSetting.diagnosticsLabel), " +
+            "Notification Center: \(settings.notificationCenterSetting.diagnosticsLabel), " +
+            "Sound: \(settings.soundSetting.diagnosticsLabel)"
+    }
+
     private func addNotificationRequest(_ request: UNNotificationRequest) async throws {
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
             center.add(request) { error in
@@ -143,6 +193,36 @@ final class ResponseCompletionNotifier: ObservableObject {
                     continuation.resume()
                 }
             }
+        }
+    }
+
+    private func notificationsPresentationAllowed(_ settings: UNNotificationSettings) -> Bool {
+        let alertAllowed = settings.alertSetting == .enabled || settings.alertSetting == .notSupported
+        let centerAllowed = settings.notificationCenterSetting == .enabled || settings.notificationCenterSetting == .notSupported
+        return alertAllowed || centerAllowed
+    }
+}
+
+private extension UNAuthorizationStatus {
+    var diagnosticsLabel: String {
+        switch self {
+        case .notDetermined: return "notDetermined"
+        case .denied: return "denied"
+        case .authorized: return "authorized"
+        case .provisional: return "provisional"
+        case .ephemeral: return "ephemeral"
+        @unknown default: return "unknown"
+        }
+    }
+}
+
+private extension UNNotificationSetting {
+    var diagnosticsLabel: String {
+        switch self {
+        case .notSupported: return "notSupported"
+        case .disabled: return "disabled"
+        case .enabled: return "enabled"
+        @unknown default: return "unknown"
         }
     }
 }
