@@ -53,27 +53,6 @@ struct ThinkingBlockView: View {
     }
 }
 
-/// Redacted thinking block view (encrypted content)
-struct RedactedThinkingBlockView: View {
-    let redactedThinking: RedactedThinkingBlock
-
-    var body: some View {
-        HStack(spacing: JinSpacing.small) {
-            Image(systemName: "lock.fill")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-
-            Text("Encrypted reasoning")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .italic()
-        }
-        .padding(.horizontal, JinSpacing.medium)
-        .padding(.vertical, JinSpacing.xSmall)
-        .jinSurface(.subtleStrong, cornerRadius: JinRadius.small)
-    }
-}
-
 // MARK: - Preview
 
 #Preview("Thinking Block - Collapsed") {
@@ -94,13 +73,4 @@ struct RedactedThinkingBlockView: View {
     )
     .padding()
     .frame(maxWidth: 600)
-}
-
-#Preview("Redacted Thinking") {
-    RedactedThinkingBlockView(
-        redactedThinking: RedactedThinkingBlock(
-            data: "gAAAAABotI9-FK1PbhZhaZk4yMrZw3XDI1AWFaKb9T0NQq7LndK6zaRB..."
-        )
-    )
-    .padding()
 }

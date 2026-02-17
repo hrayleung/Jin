@@ -3189,8 +3189,11 @@ struct ChatView: View {
     }
 
     private func renderedContentParts(content: [ContentPart]) -> [RenderedMessageContentPart] {
-        content.map { part in
-            RenderedMessageContentPart(part: part)
+        content.compactMap { part in
+            if case .redactedThinking = part {
+                return nil
+            }
+            return RenderedMessageContentPart(part: part)
         }
     }
 
@@ -4154,8 +4157,6 @@ struct ChatView: View {
                     var lastUIFlushUptime: TimeInterval = 0
                     var pendingTextDelta = ""
                     var pendingThinkingDelta = ""
-                    var didAppendAnyThinkingText = false
-                    var didShowRedactedThinkingPlaceholder = false
                     var streamedCharacterCount = 0
 
                     func uiFlushInterval() -> TimeInterval {
@@ -4206,15 +4207,11 @@ struct ChatView: View {
 	                            switch delta {
 	                            case .thinking(let textDelta, _):
                                 if !textDelta.isEmpty {
-                                    didAppendAnyThinkingText = true
                                     pendingThinkingDelta.append(textDelta)
                                     streamedCharacterCount += textDelta.count
                                 }
                             case .redacted:
-                                if !didAppendAnyThinkingText && !didShowRedactedThinkingPlaceholder {
-                                    didShowRedactedThinkingPlaceholder = true
-                                    pendingThinkingDelta = "Thinking (redacted)"
-                                }
+                                break
                             }
                         case .toolCallStart(let call):
                             toolCallsByID[call.id] = call

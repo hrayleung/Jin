@@ -480,8 +480,8 @@ struct ContentPartView: View {
         case .thinking(let thinking):
             ThinkingBlockView(thinking: thinking)
 
-        case .redactedThinking(let redacted):
-            RedactedThinkingBlockView(redactedThinking: redacted)
+        case .redactedThinking:
+            EmptyView()
 
         case .image(let image):
             let fileURL = (image.url?.isFileURL == true) ? image.url : nil
