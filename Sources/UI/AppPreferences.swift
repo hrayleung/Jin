@@ -16,6 +16,7 @@ enum AppPreferenceKeys {
     // MARK: - Appearance
 
     static let appAppearanceMode = "appAppearanceMode"
+    static let appIconVariant = "appIconVariant"
     static let appFontFamily = "appFontFamily"
     static let codeFontFamily = "codeFontFamily"
 
@@ -146,6 +147,27 @@ enum NewChatMCPMode: String, CaseIterable, Identifiable {
     }
 }
 
+enum AppIconVariant: String, CaseIterable, Identifiable {
+    case a = "A"
+    case b = "B"
+    case c = "C"
+    case d = "D"
+
+    var id: String { rawValue }
+
+    var label: String {
+        "Variant \(rawValue)"
+    }
+
+    var icnsName: String {
+        "AppIcon\(rawValue)"
+    }
+
+    var thumbnailResourceName: String {
+        "Icon\(rawValue)"
+    }
+}
+
 enum AppAppearanceMode: String, CaseIterable, Identifiable {
     case system
     case light
@@ -212,7 +234,7 @@ enum GeneralSettingsCategory: String, CaseIterable, Identifiable {
 
     var subtitle: String {
         switch self {
-        case .appearance: return "Theme, font family, and code font."
+        case .appearance: return "App icon, theme, and fonts."
         case .chat: return "Send behavior and background-completion notifications."
         case .defaults: return "Model and MCP defaults for new chats."
         case .network: return "Control automatic network requests."

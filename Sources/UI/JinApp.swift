@@ -9,6 +9,7 @@ struct JinApp: App {
 
     @AppStorage(AppPreferenceKeys.appAppearanceMode) private var appAppearanceMode: AppAppearanceMode = .system
     @AppStorage(AppPreferenceKeys.appFontFamily) private var appFontFamily = JinTypography.systemFontPreferenceValue
+    @AppStorage(AppPreferenceKeys.appIconVariant) private var appIconVariant: AppIconVariant = .a
 
     private let mcpSchemaVersionPreferenceKey = "mcpTransportSchemaVersion"
     private let mcpSchemaVersion = 2
@@ -40,6 +41,9 @@ struct JinApp: App {
                 .environmentObject(responseCompletionNotifier)
                 .font(JinTypography.appFont(familyPreference: appFontFamily))
                 .preferredColorScheme(preferredColorScheme)
+                .onAppear {
+                    AppIconManager.apply(appIconVariant)
+                }
         }
         .modelContainer(modelContainer)
         .commands {
