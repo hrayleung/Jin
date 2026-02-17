@@ -78,32 +78,3 @@ protocol LLMProviderAdapter: Actor {
     /// Translate tools to provider-specific format
     func translateTools(_ tools: [ToolDefinition]) -> Any
 }
-
-/// Conversation model
-struct Conversation: Identifiable, Codable {
-    let id: UUID
-    var title: String
-    var systemPrompt: String?
-    var messages: [Message]
-    var modelConfig: ModelConfig
-    let createdAt: Date
-    var updatedAt: Date
-
-    init(
-        id: UUID = UUID(),
-        title: String,
-        systemPrompt: String? = nil,
-        messages: [Message] = [],
-        modelConfig: ModelConfig,
-        createdAt: Date = Date(),
-        updatedAt: Date = Date()
-    ) {
-        self.id = id
-        self.title = title
-        self.systemPrompt = systemPrompt
-        self.messages = messages
-        self.modelConfig = modelConfig
-        self.createdAt = createdAt
-        self.updatedAt = updatedAt
-    }
-}
