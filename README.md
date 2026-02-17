@@ -1,6 +1,6 @@
 # Jin
 
-A native macOS app for chatting with 15+ LLM providers.
+A native macOS app for chatting with 15 LLM provider types.
 
 ![macOS 14+](https://img.shields.io/badge/macOS-14%2B-000000?logo=apple&logoColor=white)
 ![Swift 5.9+](https://img.shields.io/badge/Swift-5.9%2B-F05138?logo=swift&logoColor=white)
@@ -13,13 +13,14 @@ A native macOS app for chatting with 15+ LLM providers.
 
 ## Features
 
-- **Multi-Provider Support** -- Connect to 15+ LLM providers through a single app: OpenAI, Anthropic, Google Gemini, Vertex AI, Perplexity, Groq, OpenRouter, xAI (Grok), DeepSeek, Mistral, Cohere, DeepInfra, Cerebras, Fireworks, and any OpenAI-compatible API
+- **Multi-Provider Support** -- Connect to 15 provider types through a single app: OpenAI, OpenAI Compatible, OpenRouter, Anthropic, Perplexity, Groq, Cohere, Mistral, DeepInfra, xAI, DeepSeek, Fireworks, Cerebras, Gemini (AI Studio), and Vertex AI
 - **Multimodal Conversations** -- Send text, images, and files in a single conversation
 - **Reasoning Models** -- Collapsible thinking blocks for supported reasoning models
 - **Tool Calling (MCP)** -- Connect AI to external tools and data sources via the Model Context Protocol
-- **Image Generation** -- Generate images with Gemini and xAI (Grok) models
-- **PDF Processing** -- Extract text from PDFs via Mistral OCR, DeepInfra, or local PDFKit
-- **Voice Plugins** -- Speech-to-Text (OpenAI, Groq) and Text-to-Speech (ElevenLabs, OpenAI, Groq)
+- **Image Generation** -- Generate images with Gemini, Vertex AI, and xAI (Grok) models
+- **Video Generation** -- Generate videos with Gemini/Vertex Veo models and xAI video models
+- **PDF Processing** -- Extract text from PDFs via Mistral OCR, DeepSeek OCR (DeepInfra), or local PDFKit
+- **Voice Plugins** -- Speech-to-Text (OpenAI, Groq, Mistral) and Text-to-Speech (ElevenLabs, OpenAI, Groq)
 - **Assistants** -- Create named assistants with custom system instructions, model preferences, and temperature settings
 - **Native macOS** -- Built with SwiftUI. Keyboard shortcuts, drag-and-drop, proper window management. No Electron.
 
@@ -37,13 +38,13 @@ A native macOS app for chatting with 15+ LLM providers.
 
 ## Supported Providers
 
-Jin currently supports 15 provider types (from `Sources/Domain/GenerationControls.swift`):
+Jin currently supports 15 provider types (from `Sources/Domain/ProviderTypes.swift`):
 
 OpenAI, OpenAI Compatible, OpenRouter, Anthropic, Perplexity, Groq, Cohere, Mistral, DeepInfra, xAI, DeepSeek, Fireworks, Cerebras, Gemini (AI Studio), Vertex AI.
 
 ### Built-in providers on first launch
 
-Jin pre-creates these providers (from `Sources/UI/ContentView.swift`):
+Jin pre-creates these providers (from `Sources/Domain/DefaultProviderSeeds.swift`):
 
 OpenAI, Groq, OpenRouter, Anthropic, Cohere, Mistral, Perplexity, DeepInfra, xAI, DeepSeek, Fireworks, Gemini (AI Studio), Vertex AI.
 
@@ -51,7 +52,7 @@ OpenAI, Groq, OpenRouter, Anthropic, Cohere, Mistral, Perplexity, DeepInfra, xAI
 
 ### Starter model IDs seeded at first launch
 
-These are the starter model IDs hardcoded in `Sources/UI/ContentView.swift`:
+These are the starter model IDs seeded in `Sources/Domain/DefaultProviderSeeds.swift`:
 
 | Provider | Seeded model IDs |
 |----------|------------------|
@@ -73,8 +74,17 @@ These are the starter model IDs hardcoded in `Sources/UI/ContentView.swift`:
 
 ### How model refresh works
 
-- API-fetched model lists: OpenAI, OpenAI Compatible (including Groq/Mistral/DeepInfra), OpenRouter, Anthropic, Cohere, xAI, DeepSeek, Fireworks, Cerebras, Gemini (AI Studio), Vertex AI.
+- `Fetch Models` in provider settings calls `adapter.fetchAvailableModels()` for that provider.
+- API-fetched model lists: OpenAI, OpenAI Compatible (including Groq/Mistral/DeepInfra), OpenRouter, Anthropic, Cohere, xAI, DeepSeek, Fireworks, Cerebras, Gemini (AI Studio).
+- Vertex AI does not call a model-list API in this codebase; it returns a curated static list from `Sources/Adapters/VertexAIAdapter.swift` (`knownModels`).
 - Perplexity does not call a model-list API in the adapter. It uses saved provider models, with a built-in fallback list: `sonar`, `sonar-pro`, `sonar-reasoning-pro`, `sonar-deep-research`.
+- If **Allow automatic network requests** is enabled, Jin also refreshes provider models on launch (max once every 24 hours per provider) in `Sources/UI/JinApp.swift`.
+
+### How model capabilities are assigned
+
+- Capabilities (`streaming`, `toolCalling`, `vision`, `audio`, `reasoning`, `promptCaching`, `nativePDF`, `imageGeneration`, `videoGeneration`) are stored per model as `ModelInfo.capabilities`.
+- For API-fetched lists, each adapter maps provider responses to `ModelInfo` using provider-specific rules (for example, OpenAI/OpenAI-compatible/OpenRouter infer some capabilities from model IDs, while Gemini/xAI also use modality metadata when available).
+- Manual model entries use provider-specific ID heuristics in `Sources/UI/AddModelSheet.swift`.
 
 ## `✦` Full-Support Badge Rules
 
@@ -89,8 +99,8 @@ These are the starter model IDs hardcoded in `Sources/UI/ContentView.swift`:
 | DeepSeek | Exact: `deepseek-chat`, `deepseek-reasoner`; or contains `deepseek-v3.2-exp` |
 | Fireworks | Exact: `fireworks/kimi-k2p5`, `accounts/fireworks/models/kimi-k2p5`, `fireworks/glm-4p7`, `accounts/fireworks/models/glm-4p7`, `fireworks/glm-5`, `accounts/fireworks/models/glm-5`, `fireworks/minimax-m2p5`, `accounts/fireworks/models/minimax-m2p5` |
 | Cerebras | Exact: `zai-glm-4.7` |
-| Gemini (AI Studio) | Contains: `gemini-3`, `gemini-2.5-flash-image` |
-| Vertex AI | Contains: `gemini-3`, `gemini-2.5` |
+| Gemini (AI Studio) | Contains: `gemini-3`, `gemini-2.5-flash-image`, `veo-` |
+| Vertex AI | Contains: `gemini-3`, `gemini-2.5`, `veo-` |
 
 For `OpenAI Compatible`, `OpenRouter`, `Groq`, `Cohere`, `Mistral`, and `DeepInfra`, `✦` is intentionally not auto-assigned in code to avoid over-promising on generic/aggregated routing.
 
@@ -178,9 +188,9 @@ Key design choices:
 
 | Plugin | Services | Setup |
 |--------|----------|-------|
-| PDF OCR | Mistral, DeepInfra, Local (PDFKit) | Settings > Plugins |
+| PDF OCR | Mistral OCR, DeepSeek OCR (DeepInfra), Local (PDFKit) | Settings > Plugins |
 | Text-to-Speech | ElevenLabs, OpenAI, Groq | Settings > Plugins |
-| Speech-to-Text | OpenAI, Groq | Settings > Plugins |
+| Speech-to-Text | OpenAI, Groq, Mistral | Settings > Plugins |
 
 ## MCP (Model Context Protocol)
 
