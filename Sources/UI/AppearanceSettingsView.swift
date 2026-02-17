@@ -145,6 +145,10 @@ enum AppIconManager {
         if let url = Bundle.main.url(forResource: variant.icnsName, withExtension: "icns"),
            let icon = NSImage(contentsOf: url) {
             NSApplication.shared.applicationIconImage = icon
+            // Persist at Finder level so the icon survives app restarts
+            if let bundlePath = Bundle.main.bundlePath as String? {
+                NSWorkspace.shared.setIcon(icon, forFile: bundlePath)
+            }
         }
     }
 }
