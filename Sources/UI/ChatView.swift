@@ -2326,7 +2326,10 @@ struct ChatView: View {
     }
 
     private var selectedReasoningConfig: ModelReasoningConfig? {
-        selectedModelInfo?.reasoningConfig
+        if providerType == .vertexai, lowerModelID.contains("gemini-3-pro-image") {
+            return nil
+        }
+        return selectedModelInfo?.reasoningConfig
     }
 
     private var isReasoningEnabled: Bool {
@@ -5975,6 +5978,37 @@ struct ChatView: View {
                     break
                 case .xhigh:
                     controls.reasoning?.effort = .high
+                }
+            }
+        }
+
+        if providerType == .vertexai,
+           var generationConfig = controls.providerSpecific["generationConfig"]?.value as? [String: Any] {
+            var mutated = false
+
+            if lowerModelID.contains("gemini-3-pro-image") {
+                if generationConfig["thinkingConfig"] != nil {
+                    generationConfig.removeValue(forKey: "thinkingConfig")
+                    mutated = true
+                }
+            } else if lowerModelID.contains("gemini-2.5"),
+                      var thinkingConfig = generationConfig["thinkingConfig"] as? [String: Any],
+                      thinkingConfig["thinkingLevel"] != nil {
+                // Vertex Gemini 2.5 accepts thinkingBudget, not thinkingLevel.
+                thinkingConfig.removeValue(forKey: "thinkingLevel")
+                if thinkingConfig.isEmpty {
+                    generationConfig.removeValue(forKey: "thinkingConfig")
+                } else {
+                    generationConfig["thinkingConfig"] = thinkingConfig
+                }
+                mutated = true
+            }
+
+            if mutated {
+                if generationConfig.isEmpty {
+                    controls.providerSpecific.removeValue(forKey: "generationConfig")
+                } else {
+                    controls.providerSpecific["generationConfig"] = AnyCodable(generationConfig)
                 }
             }
         }

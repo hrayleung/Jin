@@ -937,7 +937,7 @@ struct ContentView: View {
                 name: "Gemini 3 Pro Image (Preview)",
                 capabilities: [.streaming, .vision, .reasoning, .imageGeneration],
                 contextWindow: 1_048_576,
-                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium)
+                reasoningConfig: nil
             ),
             ModelInfo(
                 id: "gemini-3-flash-preview",

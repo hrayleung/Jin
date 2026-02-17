@@ -463,6 +463,16 @@ actor VertexAIAdapter: LLMProviderAdapter {
         !modelID.lowercased().contains("gemini-2.5-flash-image")
     }
 
+    private func supportsThinkingConfig(_ modelID: String) -> Bool {
+        // Gemini 3 Pro Image supports thinking capability but doesn't accept
+        // public thinkingConfig controls in generateContent.
+        supportsThinking(modelID) && !modelID.lowercased().contains("gemini-3-pro-image")
+    }
+
+    private func supportsThinkingLevel(_ modelID: String) -> Bool {
+        supportsThinkingConfig(modelID)
+    }
+
     private func makeModelInfo(from model: VertexListModelsResponse.PublisherModel) -> ModelInfo {
         let id = normalizedVertexModelID(from: model.name)
         let lower = id.lowercased()
@@ -497,8 +507,10 @@ actor VertexAIAdapter: LLMProviderAdapter {
             caps.insert(.reasoning)
             if lower.contains("gemini-2.5") {
                 reasoningConfig = ModelReasoningConfig(type: .budget, defaultBudget: 2048)
-            } else {
+            } else if supportsThinkingConfig(id) {
                 reasoningConfig = ModelReasoningConfig(type: .effort, defaultEffort: .medium)
+            } else {
+                reasoningConfig = nil
             }
         }
 
@@ -550,12 +562,12 @@ actor VertexAIAdapter: LLMProviderAdapter {
             config["topP"] = topP
         }
 
-        if supportsThinking(modelID), let reasoning = controls.reasoning, reasoning.enabled {
+        if supportsThinkingConfig(modelID), let reasoning = controls.reasoning, reasoning.enabled {
             var thinkingConfig: [String: Any] = [
                 "includeThoughts": true
             ]
 
-            if let effort = reasoning.effort {
+            if let effort = reasoning.effort, supportsThinkingLevel(modelID) {
                 thinkingConfig["thinkingLevel"] = mapEffortToVertexLevel(effort)
             } else if let budget = reasoning.budgetTokens {
                 thinkingConfig["thinkingBudget"] = budget

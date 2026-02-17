@@ -1374,7 +1374,7 @@ enum ProviderParamsJSONSync {
             config["topP"] = topP
         }
 
-        if vertexSupportsThinking(modelID), let reasoning = controls.reasoning, reasoning.enabled {
+        if vertexSupportsThinkingConfig(modelID), let reasoning = controls.reasoning, reasoning.enabled {
             var thinkingConfig: [String: Any] = [
                 "includeThoughts": true
             ]
@@ -1486,6 +1486,10 @@ enum ProviderParamsJSONSync {
 
     private static func vertexSupportsThinking(_ modelID: String) -> Bool {
         !modelID.lowercased().contains("gemini-2.5-flash-image")
+    }
+
+    private static func vertexSupportsThinkingConfig(_ modelID: String) -> Bool {
+        vertexSupportsThinking(modelID) && !isVertexGemini3ProImageModel(modelID)
     }
 
     private static func isVertexImageModel(_ modelID: String) -> Bool {
