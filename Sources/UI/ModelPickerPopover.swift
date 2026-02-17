@@ -34,6 +34,14 @@ struct ModelPickerPopover: View {
         }
         .padding(12)
         .frame(width: 360, height: 520)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(.ultraThinMaterial)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(Color(nsColor: .separatorColor).opacity(0.45), lineWidth: 0.5)
+        )
     }
 
     private var searchField: some View {
@@ -48,11 +56,11 @@ struct ModelPickerPopover: View {
         .padding(.vertical, 8)
         .background(
             RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(Color(nsColor: .textBackgroundColor).opacity(0.35))
+                .fill(.regularMaterial)
         )
         .overlay(
             RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .stroke(Color(nsColor: .separatorColor).opacity(0.6), lineWidth: 0.5)
+                .stroke(Color(nsColor: .separatorColor).opacity(0.45), lineWidth: 0.5)
         )
     }
 
@@ -67,6 +75,14 @@ struct ModelPickerPopover: View {
                     description: Text(scope == .favorites ? "Star a model to pin it here." : "Try a different search.")
                 )
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .fill(.thinMaterial)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .stroke(Color(nsColor: .separatorColor).opacity(0.35), lineWidth: 0.5)
+                )
             } else {
                 List {
                     ForEach(sections) { section in
@@ -87,15 +103,23 @@ struct ModelPickerPopover: View {
                                 )
                                 .listRowInsets(EdgeInsets(top: 2, leading: 8, bottom: 2, trailing: 8))
                                 .listRowSeparator(.hidden)
+                                .listRowBackground(Color.clear)
                             }
                         } header: {
                             ProviderSectionHeader(provider: section.provider)
                         }
                     }
                 }
-                .listStyle(.inset)
+                .listStyle(.plain)
                 .scrollContentBackground(.hidden)
-                .background(Color(nsColor: .windowBackgroundColor))
+                .background(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .fill(.thinMaterial)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .stroke(Color(nsColor: .separatorColor).opacity(0.35), lineWidth: 0.5)
+                )
             }
         }
     }
