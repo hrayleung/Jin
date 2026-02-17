@@ -11,7 +11,7 @@ import Foundation
 /// - Grounding with Google Search (`google_search` tool)
 actor GeminiAdapter: LLMProviderAdapter {
     let providerConfig: ProviderConfig
-    let capabilities: ModelCapability = [.streaming, .toolCalling, .vision, .audio, .reasoning, .promptCaching, .nativePDF, .imageGeneration]
+    let capabilities: ModelCapability = [.streaming, .toolCalling, .vision, .audio, .reasoning, .promptCaching, .nativePDF, .imageGeneration, .videoGeneration]
 
     private let networkManager: NetworkManager
     private let apiKey: String
@@ -118,6 +118,14 @@ actor GeminiAdapter: LLMProviderAdapter {
         tools: [ToolDefinition],
         streaming: Bool
     ) async throws -> AsyncThrowingStream<StreamEvent, Error> {
+        if isVideoGenerationModel(modelID) {
+            return try makeVideoGenerationStream(
+                messages: messages,
+                modelID: modelID,
+                controls: controls
+            )
+        }
+
         let request = try buildRequest(
             messages: messages,
             modelID: modelID,
@@ -412,6 +420,156 @@ actor GeminiAdapter: LLMProviderAdapter {
         let lower = modelID.lowercased()
         // Gemini image-generation models include `-image` (e.g. gemini-2.5-flash-image, gemini-3-pro-image-preview).
         return lower.contains("-image")
+    }
+
+    private func isVideoGenerationModel(_ modelID: String) -> Bool {
+        GoogleVideoGenerationCore.isVideoGenerationModel(modelID)
+    }
+
+    // MARK: - Video Generation (Veo)
+
+    private func makeVideoGenerationStream(
+        messages: [Message],
+        modelID: String,
+        controls: GenerationControls
+    ) throws -> AsyncThrowingStream<StreamEvent, Error> {
+        guard let prompt = GoogleVideoGenerationCore.extractPrompt(from: messages) else {
+            throw LLMError.invalidRequest(message: "Video generation requires a text prompt.")
+        }
+
+        let imageInput = GoogleVideoGenerationCore.extractImageInput(from: messages)
+        let videoControls = controls.googleVideoGeneration
+
+        return AsyncThrowingStream { continuation in
+            let task = Task {
+                do {
+                    // 1. Build and submit the generation request
+                    let modelPath = modelIDForPath(modelID)
+                    let endpoint = "\(baseURL)/models/\(modelPath):predictLongRunning"
+                    var request = URLRequest(url: URL(string: endpoint)!)
+                    request.httpMethod = "POST"
+                    request.addValue(apiKey, forHTTPHeaderField: "x-goog-api-key")
+                    request.addValue("application/json", forHTTPHeaderField: "Content-Type")
+
+                    var instance: [String: Any] = ["prompt": prompt]
+
+                    if let image = imageInput,
+                       let base64 = GoogleVideoGenerationCore.imageToBase64(image) {
+                        instance["image"] = [
+                            "inlineData": [
+                                "mimeType": image.mimeType,
+                                "data": base64
+                            ]
+                        ]
+                    }
+
+                    let parameters = GoogleVideoGenerationCore.buildGeminiParameters(
+                        controls: videoControls,
+                        modelID: modelID
+                    )
+
+                    let body: [String: Any] = [
+                        "instances": [instance],
+                        "parameters": parameters
+                    ]
+                    request.httpBody = try JSONSerialization.data(withJSONObject: body)
+
+                    let (startData, _) = try await networkManager.sendRequest(request)
+                    let rawStart = try? JSONSerialization.jsonObject(with: startData) as? [String: Any]
+                    guard let operationName = rawStart?["name"] as? String, !operationName.isEmpty else {
+                        let raw = String(data: startData, encoding: .utf8) ?? "(non-UTF-8)"
+                        throw LLMError.decodingError(
+                            message: "Gemini video generation did not return an operation name. Response: \(String(raw.prefix(500)))"
+                        )
+                    }
+
+                    continuation.yield(.messageStart(id: operationName))
+
+                    // 2. Poll until done
+                    let pollIntervalNanoseconds: UInt64 = 10_000_000_000 // 10 seconds
+                    let maxAttempts = 60 // ~10 minutes at 10s intervals
+
+                    for attempt in 0..<maxAttempts {
+                        try Task.checkCancellation()
+
+                        if attempt > 0 {
+                            try await Task.sleep(nanoseconds: pollIntervalNanoseconds)
+                        }
+
+                        var pollRequest = URLRequest(url: URL(string: "\(baseURL)/\(operationName)")!)
+                        pollRequest.httpMethod = "GET"
+                        pollRequest.addValue(apiKey, forHTTPHeaderField: "x-goog-api-key")
+
+                        let (pollData, pollResponse) = try await networkManager.sendRawRequest(pollRequest)
+                        let pollJSON = try? JSONSerialization.jsonObject(with: pollData) as? [String: Any]
+
+                        // Check for error in operation
+                        if let error = pollJSON?["error"] as? [String: Any] {
+                            let message = error["message"] as? String ?? "Video generation failed."
+                            throw LLMError.providerError(code: "video_generation_failed", message: message)
+                        }
+
+                        // Non-2xx HTTP means something went wrong
+                        if pollResponse.statusCode >= 400 {
+                            let raw = String(data: pollData, encoding: .utf8) ?? "(non-UTF-8)"
+                            throw LLMError.providerError(
+                                code: "video_poll_error",
+                                message: "Polling returned HTTP \(pollResponse.statusCode): \(String(raw.prefix(500)))"
+                            )
+                        }
+
+                        let done = pollJSON?["done"] as? Bool ?? false
+                        guard done else { continue }
+
+                        // 3. Extract video URI from response
+                        guard let response = pollJSON?["response"] as? [String: Any],
+                              let generateVideoResponse = response["generateVideoResponse"] as? [String: Any],
+                              let generatedSamples = generateVideoResponse["generatedSamples"] as? [[String: Any]],
+                              let firstSample = generatedSamples.first,
+                              let video = firstSample["video"] as? [String: Any],
+                              let uriString = video["uri"] as? String,
+                              !uriString.isEmpty else {
+                            let raw = String(data: pollData, encoding: .utf8) ?? "(non-UTF-8)"
+                            throw LLMError.decodingError(
+                                message: "Gemini video generation completed but no video URI found. Response: \(String(raw.prefix(500)))"
+                            )
+                        }
+
+                        // 4. Download the video (append API key for authentication)
+                        var downloadComponents = URLComponents(string: uriString)
+                        var queryItems = downloadComponents?.queryItems ?? []
+                        queryItems.append(URLQueryItem(name: "key", value: apiKey))
+                        downloadComponents?.queryItems = queryItems
+
+                        guard let downloadURL = downloadComponents?.url else {
+                            throw LLMError.decodingError(message: "Invalid video download URI: \(uriString)")
+                        }
+
+                        let (localURL, mimeType) = try await GoogleVideoGenerationCore.downloadVideoToLocal(
+                            from: downloadURL,
+                            networkManager: networkManager
+                        )
+
+                        let videoContent = VideoContent(mimeType: mimeType, data: nil, url: localURL)
+                        continuation.yield(.contentDelta(.video(videoContent)))
+                        continuation.yield(.messageEnd(usage: nil))
+                        continuation.finish()
+                        return
+                    }
+
+                    throw LLMError.providerError(
+                        code: "video_generation_timeout",
+                        message: "Gemini video generation timed out after polling for ~10 minutes."
+                    )
+                } catch {
+                    continuation.finish(throwing: error)
+                }
+            }
+
+            continuation.onTermination = { @Sendable _ in
+                task.cancel()
+            }
+        }
     }
 
     private func supportsFunctionCalling(_ modelID: String) -> Bool {
@@ -810,6 +968,10 @@ actor GeminiAdapter: LLMProviderAdapter {
 
         if isImageModel {
             caps.insert(.imageGeneration)
+        }
+
+        if isVideoGenerationModel(id) {
+            caps.insert(.videoGeneration)
         }
 
         let contextWindow = model.inputTokenLimit ?? 1_048_576

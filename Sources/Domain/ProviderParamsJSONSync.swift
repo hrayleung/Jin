@@ -255,6 +255,13 @@ enum ProviderParamsJSONSync {
     private static func makeGeminiDraft(controls: GenerationControls, modelID: String) -> [String: Any] {
         var out: [String: Any] = [:]
 
+        if isGoogleVideoModel(modelID) {
+            if let videoControls = controls.googleVideoGeneration {
+                out["videoGeneration"] = makeGoogleVideoGenerationDraft(videoControls)
+            }
+            return out
+        }
+
         let generationConfig = makeGeminiGenerationConfig(controls: controls, modelID: modelID)
         if !generationConfig.isEmpty {
             out["generationConfig"] = generationConfig
@@ -276,6 +283,13 @@ enum ProviderParamsJSONSync {
 
     private static func makeVertexAIDraft(controls: GenerationControls, modelID: String) -> [String: Any] {
         var out: [String: Any] = [:]
+
+        if isGoogleVideoModel(modelID) {
+            if let videoControls = controls.googleVideoGeneration {
+                out["videoGeneration"] = makeGoogleVideoGenerationDraft(videoControls)
+            }
+            return out
+        }
 
         let generationConfig = makeVertexAIGenerationConfig(controls: controls, modelID: modelID)
         if !generationConfig.isEmpty {
@@ -575,6 +589,16 @@ enum ProviderParamsJSONSync {
         controls: inout GenerationControls,
         providerSpecific: inout [String: AnyCodable]
     ) {
+        if isGoogleVideoModel(modelID) {
+            if let raw = draft["videoGeneration"]?.value as? [String: Any] {
+                applyGoogleVideoGeneration(raw, controls: &controls)
+                providerSpecific.removeValue(forKey: "videoGeneration")
+            } else {
+                controls.googleVideoGeneration = nil
+            }
+            return
+        }
+
         if let raw = draft["generationConfig"]?.value {
             if let dict = raw as? [String: Any] {
                 applyGeminiGenerationConfig(dict, modelID: modelID, controls: &controls, providerSpecific: &providerSpecific)
@@ -615,6 +639,16 @@ enum ProviderParamsJSONSync {
         controls: inout GenerationControls,
         providerSpecific: inout [String: AnyCodable]
     ) {
+        if isGoogleVideoModel(modelID) {
+            if let raw = draft["videoGeneration"]?.value as? [String: Any] {
+                applyGoogleVideoGeneration(raw, controls: &controls)
+                providerSpecific.removeValue(forKey: "videoGeneration")
+            } else {
+                controls.googleVideoGeneration = nil
+            }
+            return
+        }
+
         if let raw = draft["generationConfig"]?.value {
             if let dict = raw as? [String: Any] {
                 applyVertexAIGenerationConfig(dict, modelID: modelID, controls: &controls, providerSpecific: &providerSpecific)
@@ -1248,6 +1282,56 @@ enum ProviderParamsJSONSync {
 
     private static func isGemini3ProImageModel(_ modelID: String) -> Bool {
         modelID.lowercased().contains("gemini-3-pro-image")
+    }
+
+    private static func isGoogleVideoModel(_ modelID: String) -> Bool {
+        modelID.lowercased().contains("veo-")
+    }
+
+    private static func makeGoogleVideoGenerationDraft(_ controls: GoogleVideoGenerationControls) -> [String: Any] {
+        var out: [String: Any] = [:]
+        if let duration = controls.durationSeconds { out["durationSeconds"] = duration }
+        if let aspectRatio = controls.aspectRatio { out["aspectRatio"] = aspectRatio.rawValue }
+        if let resolution = controls.resolution { out["resolution"] = resolution.rawValue }
+        if let negativePrompt = controls.negativePrompt?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !negativePrompt.isEmpty {
+            out["negativePrompt"] = negativePrompt
+        }
+        if let generateAudio = controls.generateAudio { out["generateAudio"] = generateAudio }
+        if let personGeneration = controls.personGeneration { out["personGeneration"] = personGeneration.rawValue }
+        if let seed = controls.seed { out["seed"] = seed }
+        return out
+    }
+
+    private static func applyGoogleVideoGeneration(_ dict: [String: Any], controls: inout GenerationControls) {
+        var video = controls.googleVideoGeneration ?? GoogleVideoGenerationControls()
+
+        if let duration = dict["durationSeconds"] as? Int {
+            video.durationSeconds = duration
+        }
+        if let aspectRatioString = dict["aspectRatio"] as? String,
+           let ratio = GoogleVideoAspectRatio(rawValue: aspectRatioString) {
+            video.aspectRatio = ratio
+        }
+        if let resolutionString = dict["resolution"] as? String,
+           let resolution = GoogleVideoResolution(rawValue: resolutionString) {
+            video.resolution = resolution
+        }
+        if let negativePrompt = dict["negativePrompt"] as? String {
+            video.negativePrompt = negativePrompt
+        }
+        if let generateAudio = dict["generateAudio"] as? Bool {
+            video.generateAudio = generateAudio
+        }
+        if let personString = dict["personGeneration"] as? String,
+           let person = GoogleVideoPersonGeneration(rawValue: personString) {
+            video.personGeneration = person
+        }
+        if let seed = dict["seed"] as? Int {
+            video.seed = seed
+        }
+
+        controls.googleVideoGeneration = video.isEmpty ? nil : video
     }
 
     private static func defaultGeminiThinkingLevelWhenOff(modelID: String) -> String {

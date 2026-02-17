@@ -3,6 +3,17 @@
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 When searching for code, use the augment MCP tool (`mcp__augment-context-engine__codebase-retrieval`) as the first choice instead of grep/search.
 
+## Critical Rule: Verify External APIs Before Writing Code
+
+**NEVER guess API request/response formats.** Before writing any code that calls an external API (LLM providers, video generation, etc.):
+
+1. **Read the official API documentation first** — use WebFetch/WebSearch to look up the actual endpoint, parameters, types, and model-specific constraints.
+2. **Cross-verify** — don't blindly trust a single doc page or plan. If a plan says "send `numberOfVideos`", verify that parameter actually exists in the API.
+3. **Check per-model differences** — different model versions (e.g., Veo 2 vs Veo 3 vs Veo 3.1) often support different parameter sets. Map out the compatibility matrix before writing code.
+4. **Check per-provider differences** — the same model family may have different API shapes across providers (e.g., Gemini API vs Vertex AI use different parameter names and types for the same Veo models).
+5. **Use common sense on types** — if a parameter is called `durationSeconds`, it's a number, not a string. Don't blindly copy formats from scraped docs without thinking.
+6. **Never make the user your test runner** — get the API details right the first time instead of shipping untested guesses that fail one by one.
+
 ## Project Overview
 
 **Jin** is a native macOS application (SwiftUI + SwiftData) for interacting with multiple LLM providers. It supports multimodal conversations (text, images, files, audio, video), reasoning models with thinking blocks, tool calling, image/video generation, cross-provider context caching, and Model Context Protocol (MCP) integration.
@@ -62,6 +73,7 @@ All providers implement the `LLMProviderAdapter` protocol (`sendMessage`, `valid
 - `GenerationControls` - Temperature, max tokens, reasoning, web search, MCP tools, image/video generation, PDF processing mode, context cache controls, provider-specific params
 - `ContextCacheControls` - Unified cross-provider cache configuration: mode (off/implicit/explicit), strategy (systemOnly/systemAndTools/prefixWindow), TTL, and provider-specific fields (`cacheKey` for OpenAI, `conversationID` for xAI, `cachedContentName` for Google)
 - `XAIImageGenerationControls` / `XAIVideoGenerationControls` - xAI-specific generation params (aspect ratio, duration, resolution)
+- `GoogleVideoGenerationControls` - Google Veo-specific video generation params (duration, aspect ratio, resolution, negative prompt, audio, person generation, seed)
 - `GenerationControlsResolver` - Resolves effective controls from assistant defaults + conversation overrides
 - `ProviderConfig` - Provider metadata, API key references, models
 - `JinModelSupport` - Model capability detection (`.videoGeneration`, `.imageGeneration`, `.promptCaching`, `.reasoning`, etc.)
@@ -99,6 +111,26 @@ xAI adapter supports async video generation via polling:
 8. Yielded as `.contentDelta(.video(VideoContent))`
 
 Supports both text-to-video and image-to-video inputs.
+
+### Video Generation (Google Veo)
+
+Both Gemini (AI Studio) and Vertex AI adapters support Veo video generation models (Veo 2, 3, 3.1) via async polling:
+
+1. `sendMessage()` detects Veo models via `GoogleVideoGenerationCore.isVideoGenerationModel()` (checks for `veo-` in model ID)
+2. **Gemini**: POST to `{baseURL}/models/{modelID}:predictLongRunning` with API key header
+3. **Vertex**: POST to `{baseURL}/projects/{pid}/locations/{loc}/publishers/google/models/{modelID}:predictLongRunning` with Bearer token
+4. Request body: `{ "instances": [{ "prompt": "...", "image": {...} }], "parameters": { aspectRatio, resolution, durationSeconds, negativePrompt, generateAudio, personGeneration, seed } }`
+5. Response returns `{ "name": "operations/..." }` (LRO operation name)
+6. **Gemini polling**: GET `{baseURL}/{operationName}` every 10s, max 60 attempts (~10 min)
+7. **Vertex polling**: POST `{baseURL}/.../models/{modelID}:fetchPredictOperation` with `{ "operationName": "..." }` every 10s
+8. On `done: true`: extract video from response
+9. **Gemini**: video URI in `response.generateVideoResponse.generatedSamples[0].video.uri`, downloaded with API key query param
+10. **Vertex**: video as `videos[0].bytesBase64Encoded` (inline) or `videos[0].gcsUri` (GCS URI → authenticated download)
+11. Shared utilities in `GoogleVideoGenerationCore.swift`: model detection, prompt/image extraction, video download/save, format resolution
+12. Video saved to `~/Library/Application Support/Jin/Attachments/{UUID}.{ext}`
+13. Yielded as `.contentDelta(.video(VideoContent))`
+
+Supports text-to-video and image-to-video inputs. Controls configured via `GoogleVideoGenerationControls` in `GenerationControls.swift`.
 
 ### Context Caching
 

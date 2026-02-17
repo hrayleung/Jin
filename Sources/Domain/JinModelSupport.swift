@@ -55,10 +55,12 @@ enum JinModelSupport {
         case .gemini:
             return lower.contains("gemini-3")
                 || lower.contains("gemini-2.5-flash-image")
+                || lower.contains("veo-")
 
         case .vertexai:
             return lower.contains("gemini-3")
                 || lower.contains("gemini-2.5")
+                || lower.contains("veo-")
         }
     }
 }

@@ -19,6 +19,8 @@ struct GenerationControls: Codable {
     var xaiImageGeneration: XAIImageGenerationControls?
     /// xAI video-generation controls (`/v1/videos/generations`).
     var xaiVideoGeneration: XAIVideoGenerationControls?
+    /// Google Veo video-generation controls (`:predictLongRunning` polling).
+    var googleVideoGeneration: GoogleVideoGenerationControls?
     var providerSpecific: [String: AnyCodable] = [:] // Escape hatch for provider-specific params
 
     init(
@@ -33,6 +35,7 @@ struct GenerationControls: Codable {
         imageGeneration: ImageGenerationControls? = nil,
         xaiImageGeneration: XAIImageGenerationControls? = nil,
         xaiVideoGeneration: XAIVideoGenerationControls? = nil,
+        googleVideoGeneration: GoogleVideoGenerationControls? = nil,
         providerSpecific: [String: AnyCodable] = [:]
     ) {
         self.temperature = temperature
@@ -46,6 +49,7 @@ struct GenerationControls: Codable {
         self.imageGeneration = imageGeneration
         self.xaiImageGeneration = xaiImageGeneration
         self.xaiVideoGeneration = xaiVideoGeneration
+        self.googleVideoGeneration = googleVideoGeneration
         self.providerSpecific = providerSpecific
     }
 }
@@ -320,6 +324,84 @@ enum XAIVideoResolution: String, Codable, CaseIterable {
     case res720p = "720p"
 
     var displayName: String { rawValue }
+}
+
+/// Google Veo video-generation controls (`:predictLongRunning` polling).
+struct GoogleVideoGenerationControls: Codable {
+    /// Duration of generated video in seconds (typically 4, 6, or 8).
+    var durationSeconds: Int?
+    /// Output aspect ratio.
+    var aspectRatio: GoogleVideoAspectRatio?
+    /// Output resolution.
+    var resolution: GoogleVideoResolution?
+    /// Negative prompt to exclude unwanted content.
+    var negativePrompt: String?
+    /// Enable native audio generation (Veo 3+).
+    var generateAudio: Bool?
+    /// Person generation safety setting.
+    var personGeneration: GoogleVideoPersonGeneration?
+    /// Seed for reproducible generation.
+    var seed: Int?
+
+    init(
+        durationSeconds: Int? = nil,
+        aspectRatio: GoogleVideoAspectRatio? = nil,
+        resolution: GoogleVideoResolution? = nil,
+        negativePrompt: String? = nil,
+        generateAudio: Bool? = nil,
+        personGeneration: GoogleVideoPersonGeneration? = nil,
+        seed: Int? = nil
+    ) {
+        self.durationSeconds = durationSeconds
+        self.aspectRatio = aspectRatio
+        self.resolution = resolution
+        self.negativePrompt = negativePrompt
+        self.generateAudio = generateAudio
+        self.personGeneration = personGeneration
+        self.seed = seed
+    }
+
+    var isEmpty: Bool {
+        durationSeconds == nil
+            && aspectRatio == nil
+            && resolution == nil
+            && (negativePrompt?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true)
+            && generateAudio == nil
+            && personGeneration == nil
+            && seed == nil
+    }
+}
+
+enum GoogleVideoAspectRatio: String, Codable, CaseIterable {
+    case ratio16x9 = "16:9"
+    case ratio9x16 = "9:16"
+    case ratio1x1 = "1:1"
+
+    var displayName: String { rawValue }
+}
+
+enum GoogleVideoResolution: String, Codable, CaseIterable {
+    case res720p = "720p"
+    case res1080p = "1080p"
+
+    var displayName: String { rawValue }
+}
+
+enum GoogleVideoPersonGeneration: String, Codable, CaseIterable {
+    case dontAllow = "dont_allow"
+    case allowAdult = "allow_adult"
+    case allowAll = "allow_all"
+
+    var displayName: String {
+        switch self {
+        case .dontAllow:
+            return "Don't allow"
+        case .allowAdult:
+            return "Allow adults"
+        case .allowAll:
+            return "Allow all"
+        }
+    }
 }
 
 /// Image-generation controls shared by Gemini (AI Studio) and Vertex AI.
