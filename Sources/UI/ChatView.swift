@@ -2018,11 +2018,17 @@ struct ChatView: View {
     }
 
     private var isVideoGenerationModelID: Bool {
-        guard providerType == .xai else { return false }
-        return lowerModelID.contains("imagine-video")
-            || lowerModelID.hasSuffix("-video")
-            || lowerModelID.contains("grok-video")
-            || lowerModelID.contains("video-generation")
+        switch providerType {
+        case .xai:
+            return lowerModelID.contains("imagine-video")
+                || lowerModelID.hasSuffix("-video")
+                || lowerModelID.contains("grok-video")
+                || lowerModelID.contains("video-generation")
+        case .gemini, .vertexai:
+            return lowerModelID.contains("veo-")
+        default:
+            return false
+        }
     }
 
     private var supportsNativePDF: Bool {
@@ -2194,41 +2200,63 @@ struct ChatView: View {
     }
 
     private var isVideoGenerationConfigured: Bool {
-        !(controls.xaiVideoGeneration?.isEmpty ?? true)
+        switch providerType {
+        case .gemini, .vertexai:
+            return !(controls.googleVideoGeneration?.isEmpty ?? true)
+        case .xai:
+            return !(controls.xaiVideoGeneration?.isEmpty ?? true)
+        default:
+            return false
+        }
     }
 
     private var videoGenerationBadgeText: String? {
         guard supportsVideoGenerationControl else { return nil }
 
-        if let duration = controls.xaiVideoGeneration?.duration {
-            return "\(duration)s"
+        switch providerType {
+        case .gemini, .vertexai:
+            let gc = controls.googleVideoGeneration
+            if let duration = gc?.durationSeconds { return "\(duration)s" }
+            if let ratio = gc?.aspectRatio { return ratio.displayName }
+            if let resolution = gc?.resolution { return resolution.displayName }
+            return isVideoGenerationConfigured ? "On" : nil
+        case .xai:
+            if let duration = controls.xaiVideoGeneration?.duration { return "\(duration)s" }
+            if let ratio = controls.xaiVideoGeneration?.aspectRatio { return ratio.displayName }
+            if let resolution = controls.xaiVideoGeneration?.resolution { return resolution.displayName }
+            return isVideoGenerationConfigured ? "On" : nil
+        default:
+            return nil
         }
-        if let ratio = controls.xaiVideoGeneration?.aspectRatio {
-            return ratio.displayName
-        }
-        if let resolution = controls.xaiVideoGeneration?.resolution {
-            return resolution.displayName
-        }
-        return isVideoGenerationConfigured ? "On" : nil
     }
 
     private var videoGenerationHelpText: String {
         guard supportsVideoGenerationControl else { return "Video Generation: Not supported" }
 
-        var parts: [String] = []
-        if let duration = controls.xaiVideoGeneration?.duration {
-            parts.append("\(duration)s")
+        switch providerType {
+        case .gemini, .vertexai:
+            let gc = controls.googleVideoGeneration
+            var parts: [String] = []
+            if let duration = gc?.durationSeconds { parts.append("\(duration)s") }
+            if let ratio = gc?.aspectRatio { parts.append(ratio.displayName) }
+            if let resolution = gc?.resolution { parts.append(resolution.displayName) }
+            if let audio = gc?.generateAudio, audio { parts.append("Audio") }
+            if parts.isEmpty {
+                return isVideoGenerationConfigured ? "Video Generation: Customized" : "Video Generation: Default"
+            }
+            return "Video Generation: \(parts.joined(separator: ", "))"
+        case .xai:
+            var parts: [String] = []
+            if let duration = controls.xaiVideoGeneration?.duration { parts.append("\(duration)s") }
+            if let ratio = controls.xaiVideoGeneration?.aspectRatio { parts.append(ratio.displayName) }
+            if let resolution = controls.xaiVideoGeneration?.resolution { parts.append(resolution.displayName) }
+            if parts.isEmpty {
+                return isVideoGenerationConfigured ? "Video Generation: Customized" : "Video Generation: Default"
+            }
+            return "Video Generation: \(parts.joined(separator: ", "))"
+        default:
+            return "Video Generation: Not supported"
         }
-        if let ratio = controls.xaiVideoGeneration?.aspectRatio {
-            parts.append(ratio.displayName)
-        }
-        if let resolution = controls.xaiVideoGeneration?.resolution {
-            parts.append(resolution.displayName)
-        }
-        if parts.isEmpty {
-            return isVideoGenerationConfigured ? "Video Generation: Customized" : "Video Generation: Default"
-        }
-        return "Video Generation: \(parts.joined(separator: ", "))"
     }
 
     private var resolvedPDFProcessingMode: PDFProcessingMode {
@@ -4944,6 +4972,98 @@ struct ChatView: View {
 
     @ViewBuilder
     private var videoGenerationMenuContent: some View {
+        switch providerType {
+        case .gemini, .vertexai:
+            googleVideoGenerationMenuContent
+        case .xai:
+            xaiVideoGenerationMenuContent
+        default:
+            EmptyView()
+        }
+    }
+
+    @ViewBuilder
+    private var googleVideoGenerationMenuContent: some View {
+        let isVeo3 = GoogleVideoGenerationCore.isVeo3OrLater(conversationEntity.modelID)
+        let isVertexProvider = providerType == .vertexai
+
+        Text("Google Veo")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+
+        Divider()
+
+        Menu("Duration") {
+            Button { updateGoogleVideoGeneration { $0.durationSeconds = nil } } label: {
+                menuItemLabel("Default", isSelected: controls.googleVideoGeneration?.durationSeconds == nil)
+            }
+            ForEach([4, 6, 8], id: \.self) { seconds in
+                Button { updateGoogleVideoGeneration { $0.durationSeconds = seconds } } label: {
+                    menuItemLabel("\(seconds)s", isSelected: controls.googleVideoGeneration?.durationSeconds == seconds)
+                }
+            }
+        }
+
+        Menu("Aspect ratio") {
+            Button { updateGoogleVideoGeneration { $0.aspectRatio = nil } } label: {
+                menuItemLabel("Default (16:9)", isSelected: controls.googleVideoGeneration?.aspectRatio == nil)
+            }
+            ForEach(GoogleVideoAspectRatio.allCases, id: \.self) { ratio in
+                Button { updateGoogleVideoGeneration { $0.aspectRatio = ratio } } label: {
+                    menuItemLabel(ratio.displayName, isSelected: controls.googleVideoGeneration?.aspectRatio == ratio)
+                }
+            }
+        }
+
+        if isVeo3 {
+            Menu("Resolution") {
+                Button { updateGoogleVideoGeneration { $0.resolution = nil } } label: {
+                    menuItemLabel("Default (720p)", isSelected: controls.googleVideoGeneration?.resolution == nil)
+                }
+                ForEach(GoogleVideoResolution.allCases, id: \.self) { res in
+                    Button { updateGoogleVideoGeneration { $0.resolution = res } } label: {
+                        menuItemLabel(res.displayName, isSelected: controls.googleVideoGeneration?.resolution == res)
+                    }
+                }
+            }
+        }
+
+        Menu("Person generation") {
+            Button { updateGoogleVideoGeneration { $0.personGeneration = nil } } label: {
+                menuItemLabel("Default", isSelected: controls.googleVideoGeneration?.personGeneration == nil)
+            }
+            ForEach(GoogleVideoPersonGeneration.allCases, id: \.self) { person in
+                Button { updateGoogleVideoGeneration { $0.personGeneration = person } } label: {
+                    menuItemLabel(person.displayName, isSelected: controls.googleVideoGeneration?.personGeneration == person)
+                }
+            }
+        }
+
+        // generateAudio is only a valid parameter for Vertex AI Veo 3 models.
+        // Gemini API Veo 3+ models generate audio natively by default.
+        if isVertexProvider, isVeo3 {
+            Toggle(
+                "Generate audio",
+                isOn: Binding(
+                    get: { controls.googleVideoGeneration?.generateAudio ?? false },
+                    set: { newValue in
+                        updateGoogleVideoGeneration { $0.generateAudio = newValue ? true : nil }
+                    }
+                )
+            )
+        }
+
+        if isVideoGenerationConfigured {
+            Divider()
+            Button("Reset", role: .destructive) {
+                controls.googleVideoGeneration = nil
+                persistControlsToConversation()
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var xaiVideoGenerationMenuContent: some View {
         Text("xAI Video")
             .font(.caption)
             .foregroundStyle(.secondary)
@@ -4999,6 +5119,13 @@ struct ChatView: View {
         var draft = controls.xaiVideoGeneration ?? XAIVideoGenerationControls()
         mutate(&draft)
         controls.xaiVideoGeneration = draft.isEmpty ? nil : draft
+        persistControlsToConversation()
+    }
+
+    private func updateGoogleVideoGeneration(_ mutate: (inout GoogleVideoGenerationControls) -> Void) {
+        var draft = controls.googleVideoGeneration ?? GoogleVideoGenerationControls()
+        mutate(&draft)
+        controls.googleVideoGeneration = draft.isEmpty ? nil : draft
         persistControlsToConversation()
     }
 

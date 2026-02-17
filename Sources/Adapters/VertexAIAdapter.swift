@@ -3,10 +3,10 @@ import Security
 
 actor VertexAIAdapter: LLMProviderAdapter {
     let providerConfig: ProviderConfig
-    let capabilities: ModelCapability = [.streaming, .toolCalling, .vision, .audio, .reasoning, .promptCaching, .nativePDF, .imageGeneration]
+    let capabilities: ModelCapability = [.streaming, .toolCalling, .vision, .audio, .reasoning, .promptCaching, .nativePDF, .imageGeneration, .videoGeneration]
 
-    private let networkManager: NetworkManager
-    private let serviceAccountJSON: ServiceAccountCredentials
+    let networkManager: NetworkManager
+    let serviceAccountJSON: ServiceAccountCredentials
     private var cachedToken: (token: String, expiresAt: Date)?
 
     init(
@@ -115,6 +115,16 @@ actor VertexAIAdapter: LLMProviderAdapter {
         streaming: Bool
     ) async throws -> AsyncThrowingStream<StreamEvent, Error> {
         let token = try await getAccessToken()
+
+        if GoogleVideoGenerationCore.isVideoGenerationModel(modelID) {
+            return try makeVideoGenerationStream(
+                messages: messages,
+                modelID: modelID,
+                controls: controls,
+                accessToken: token
+            )
+        }
+
         let request = try buildRequest(
             messages: messages,
             modelID: modelID,
@@ -263,7 +273,7 @@ actor VertexAIAdapter: LLMProviderAdapter {
 
     // MARK: - Private
 
-    private func getAccessToken() async throws -> String {
+    func getAccessToken() async throws -> String {
         if let cached = cachedToken, cached.expiresAt > Date().addingTimeInterval(60) {
             return cached.token
         }
@@ -502,6 +512,10 @@ actor VertexAIAdapter: LLMProviderAdapter {
 
         if imageModel {
             caps.insert(.imageGeneration)
+        }
+
+        if GoogleVideoGenerationCore.isVideoGenerationModel(id) {
+            caps.insert(.videoGeneration)
         }
 
         return ModelInfo(
@@ -945,7 +959,7 @@ actor VertexAIAdapter: LLMProviderAdapter {
         }
     }
 
-    private var baseURL: String {
+    var baseURL: String {
         if location == "global" {
             return "https://aiplatform.googleapis.com/v1"
         }
@@ -964,7 +978,7 @@ actor VertexAIAdapter: LLMProviderAdapter {
         return "\(cachedContentsCollectionEndpoint)/\(trimmed)"
     }
 
-    private var location: String {
+    var location: String {
         serviceAccountJSON.location ?? "global"
     }
 }
