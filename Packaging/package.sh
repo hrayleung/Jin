@@ -46,6 +46,11 @@ chmod +x "$APP_BUNDLE/Contents/MacOS/$APP_NAME"
 cp "$ROOT/Packaging/Info.plist" "$APP_BUNDLE/Contents/Info.plist"
 cp "$ROOT/Packaging/AppIcon.icns" "$APP_BUNDLE/Contents/Resources/AppIcon.icns"
 
+echo "Copying app icon variants…"
+for VARIANT in A B C D; do
+  cp "$ROOT/Packaging/AppIcon${VARIANT}.icns" "$APP_BUNDLE/Contents/Resources/AppIcon${VARIANT}.icns"
+done
+
 echo "Copying SwiftPM resource bundles…"
 shopt -s nullglob
 copied_bundle_count=0
