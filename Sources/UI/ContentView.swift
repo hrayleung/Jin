@@ -754,14 +754,27 @@ struct ContentView: View {
         guard !didBootstrapDefaults else { return }
         didBootstrapDefaults = true
 
-        let existingIDs = Set(providers.map(\.id))
+        let descriptor = FetchDescriptor<ProviderConfigEntity>()
+        guard let persistedProviders = try? modelContext.fetch(descriptor) else {
+            return
+        }
 
-        for provider in providers {
+        var didUpdateProviderIcon = false
+
+        for provider in persistedProviders {
             let current = provider.iconID?.trimmingCharacters(in: .whitespacesAndNewlines)
             guard current == nil || current?.isEmpty == true else { continue }
             guard let providerType = ProviderType(rawValue: provider.typeRaw) else { continue }
             provider.iconID = LobeProviderIconCatalog.defaultIconID(for: providerType)
+            didUpdateProviderIcon = true
         }
+
+        if didUpdateProviderIcon {
+            try? modelContext.save()
+        }
+
+        // Seed defaults only for a fresh install.
+        guard persistedProviders.isEmpty else { return }
 
         let openAIModels: [ModelInfo] = [
             ModelInfo(
@@ -1118,11 +1131,12 @@ struct ContentView: View {
         ]
 
         for config in defaults {
-            guard !existingIDs.contains(config.id) else { continue }
             if let entity = try? ProviderConfigEntity.fromDomain(config) {
                 modelContext.insert(entity)
             }
         }
+
+        try? modelContext.save()
     }
 
     @MainActor
