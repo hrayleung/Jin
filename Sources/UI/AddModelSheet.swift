@@ -143,7 +143,7 @@ struct AddModelSheet: View {
         case .vertexai?:
             if lower.contains("gemini-3-pro-image") {
                 caps = [.streaming, .vision, .reasoning, .imageGeneration]
-                reasoningConfig = ModelReasoningConfig(type: .effort, defaultEffort: .medium)
+                reasoningConfig = nil
             } else if lower.contains("-image") {
                 caps = [.streaming, .vision, .imageGeneration]
                 reasoningConfig = nil
