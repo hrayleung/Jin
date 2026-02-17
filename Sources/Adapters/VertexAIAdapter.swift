@@ -202,58 +202,29 @@ actor VertexAIAdapter: LLMProviderAdapter {
     }
 
     func fetchAvailableModels() async throws -> [ModelInfo] {
-        let token = try await getAccessToken()
-
-        var pageToken: String?
-        var models: [ModelInfo] = []
-        var seenIDs: Set<String> = []
-
-        while true {
-            var components = URLComponents(string: "\(baseURL)/publishers/google/models")
-            var queryItems: [URLQueryItem] = [
-                URLQueryItem(name: "pageSize", value: "1000"),
-                URLQueryItem(name: "listAllVersions", value: "true")
-            ]
-            if let pageToken {
-                queryItems.append(URLQueryItem(name: "pageToken", value: pageToken))
-            }
-            components?.queryItems = queryItems
-
-            guard let url = components?.url else {
-                throw LLMError.invalidRequest(message: "Invalid Vertex models URL")
-            }
-
-            var request = URLRequest(url: url)
-            request.httpMethod = "GET"
-            request.addValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-            request.addValue("application/json", forHTTPHeaderField: "Accept")
-
-            let (data, _) = try await networkManager.sendRequest(request)
-
-            let decoder = JSONDecoder()
-            decoder.keyDecodingStrategy = .convertFromSnakeCase
-            let response = try decoder.decode(VertexListModelsResponse.self, from: data)
-
-            for model in response.items {
-                let info = makeModelInfo(from: model)
-                guard !seenIDs.contains(info.id) else { continue }
-                seenIDs.insert(info.id)
-                models.append(info)
-            }
-
-            guard let next = response.nextPageToken,
-                  !next.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-                  next != pageToken else {
-                break
-            }
-
-            pageToken = next
-        }
-
-        return models.sorted { lhs, rhs in
-            lhs.name.localizedStandardCompare(rhs.name) == .orderedAscending
-        }
+        Self.knownModels.map { makeModelInfo(id: $0.id, displayName: $0.name, contextWindow: $0.contextWindow) }
     }
+
+    private static let knownModels: [(id: String, name: String, contextWindow: Int)] = [
+        // Gemini 3
+        ("gemini-3-pro-preview", "Gemini 3 Pro Preview", 1_048_576),
+        ("gemini-3-flash-preview", "Gemini 3 Flash Preview", 1_048_576),
+        ("gemini-3-pro-image-preview", "Gemini 3 Pro Image Preview", 1_048_576),
+        // Gemini 2.5
+        ("gemini-2.5-pro", "Gemini 2.5 Pro", 1_048_576),
+        ("gemini-2.5-flash", "Gemini 2.5 Flash", 1_048_576),
+        ("gemini-2.5-flash-lite", "Gemini 2.5 Flash Lite", 1_048_576),
+        ("gemini-2.5-flash-image", "Gemini 2.5 Flash Image", 1_048_576),
+        // Gemini 2.0
+        ("gemini-2.0-flash", "Gemini 2.0 Flash", 1_048_576),
+        ("gemini-2.0-flash-lite", "Gemini 2.0 Flash Lite", 1_048_576),
+        // Gemini 1.5
+        ("gemini-1.5-pro", "Gemini 1.5 Pro", 2_097_152),
+        ("gemini-1.5-flash", "Gemini 1.5 Flash", 1_048_576),
+        // Image generation
+        ("imagen-4.0-generate-preview-06-06", "Imagen 4.0", 0),
+        ("imagen-3.0-generate-002", "Imagen 3.0", 0),
+    ]
 
     func translateTools(_ tools: [ToolDefinition]) -> Any {
         return tools.map(translateSingleTool)
@@ -463,51 +434,40 @@ actor VertexAIAdapter: LLMProviderAdapter {
         !modelID.lowercased().contains("gemini-2.5-flash-image")
     }
 
-    private func makeModelInfo(from model: VertexListModelsResponse.PublisherModel) -> ModelInfo {
-        let id = normalizedVertexModelID(from: model.name)
+    private func makeModelInfo(id: String, displayName: String, contextWindow: Int) -> ModelInfo {
         let lower = id.lowercased()
 
-        let methods = Set((model.supportedGenerationMethods ?? model.supportedActions ?? []).map { $0.lowercased() })
-        let supportsGenerateContent = methods.contains("generatecontent") || methods.contains("streamgeneratecontent") || methods.isEmpty
-        let supportsStream = methods.contains("streamgeneratecontent") || methods.isEmpty
-
         var caps: ModelCapability = []
-
-        if supportsStream {
-            caps.insert(.streaming)
-        }
 
         let imageModel = isImageGenerationModel(id) || lower.contains("imagen")
         let geminiModel = lower.contains("gemini")
 
-        if supportsGenerateContent && !imageModel {
+        if !imageModel {
+            caps.insert(.streaming)
             caps.insert(.toolCalling)
+            caps.insert(.promptCaching)
         }
 
-        if geminiModel || imageModel || lower.contains("vision") || lower.contains("multimodal") {
+        if geminiModel || imageModel {
             caps.insert(.vision)
         }
 
-        if supportsGenerateContent && geminiModel && !imageModel {
+        if geminiModel && !imageModel {
             caps.insert(.audio)
         }
 
         var reasoningConfig: ModelReasoningConfig?
-        if supportsThinking(id) && (geminiModel || lower.contains("reason") || lower.contains("thinking")) {
+        if supportsThinking(id) && geminiModel {
             caps.insert(.reasoning)
             if lower.contains("gemini-2.5") {
                 reasoningConfig = ModelReasoningConfig(type: .budget, defaultBudget: 2048)
             } else {
-                reasoningConfig = ModelReasoningConfig(type: .effort, defaultEffort: .medium)
+                reasoningConfig = ModelReasoningConfig(type: .effort, defaultEffort: .high)
             }
         }
 
         if supportsNativePDF(id) {
             caps.insert(.nativePDF)
-        }
-
-        if !imageModel {
-            caps.insert(.promptCaching)
         }
 
         if imageModel {
@@ -520,20 +480,12 @@ actor VertexAIAdapter: LLMProviderAdapter {
 
         return ModelInfo(
             id: id,
-            name: model.displayName ?? id,
+            name: displayName,
             capabilities: caps,
-            contextWindow: model.inputTokenLimit ?? 1_048_576,
+            contextWindow: contextWindow,
             reasoningConfig: reasoningConfig,
             isEnabled: true
         )
-    }
-
-    private func normalizedVertexModelID(from name: String) -> String {
-        let lower = name.lowercased()
-        if let range = lower.range(of: "/models/") {
-            return String(name[range.upperBound...])
-        }
-        return name
     }
 
     private func buildGenerationConfig(_ controls: GenerationControls, modelID: String) -> [String: Any] {
@@ -980,30 +932,6 @@ actor VertexAIAdapter: LLMProviderAdapter {
 
     var location: String {
         serviceAccountJSON.location ?? "global"
-    }
-}
-
-private struct VertexListModelsResponse: Codable {
-    let publisherModels: [PublisherModel]?
-    let models: [PublisherModel]?
-    let nextPageToken: String?
-
-    var items: [PublisherModel] {
-        if let publisherModels {
-            return publisherModels
-        }
-        return models ?? []
-    }
-
-    struct PublisherModel: Codable {
-        let name: String
-        let displayName: String?
-        let supportedActions: [String]?
-        let supportedGenerationMethods: [String]?
-        let inputTokenLimit: Int?
-        let outputTokenLimit: Int?
-        let versionID: String?
-        let description: String?
     }
 }
 
