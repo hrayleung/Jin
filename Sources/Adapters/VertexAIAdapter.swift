@@ -139,7 +139,7 @@ actor VertexAIAdapter: LLMProviderAdapter {
         let lineStream = await networkManager.streamRequest(request, parser: parser)
 
         return AsyncThrowingStream { continuation in
-            Task {
+            let task = Task {
                 do {
                     var didStart = false
                     var pendingJSON = ""
@@ -188,6 +188,10 @@ actor VertexAIAdapter: LLMProviderAdapter {
                 } catch {
                     continuation.finish(throwing: error)
                 }
+            }
+
+            continuation.onTermination = { @Sendable _ in
+                task.cancel()
             }
         }
     }
@@ -354,6 +358,9 @@ actor VertexAIAdapter: LLMProviderAdapter {
         request.httpMethod = "POST"
         request.addValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
         request.addValue("application/json", forHTTPHeaderField: "Content-Type")
+        if let timeout = requestTimeoutInterval(for: modelID, controls: controls) {
+            request.timeoutInterval = timeout
+        }
 
         let systemText: String? = messages
             .first(where: { $0.role == .system })?
@@ -427,6 +434,28 @@ actor VertexAIAdapter: LLMProviderAdapter {
 
     private func supportsImageSize(_ modelID: String) -> Bool {
         modelID.lowercased().contains("gemini-3-pro-image")
+    }
+
+    private func requestTimeoutInterval(for modelID: String, controls: GenerationControls) -> TimeInterval? {
+        guard isAnyImageGenerationModel(modelID) else {
+            return nil
+        }
+
+        switch controls.imageGeneration?.imageSize {
+        case .size4K:
+            return VertexImageRequestTimeout.size4KSeconds
+        case .size2K:
+            return VertexImageRequestTimeout.size2KSeconds
+        case .size1K:
+            return VertexImageRequestTimeout.size1KSeconds
+        case .none:
+            return VertexImageRequestTimeout.defaultSeconds
+        }
+    }
+
+    private func isAnyImageGenerationModel(_ modelID: String) -> Bool {
+        let lower = modelID.lowercased()
+        return lower.contains("-image") || lower.contains("imagen")
     }
 
     private func supportsThinking(_ modelID: String) -> Bool {
@@ -945,6 +974,13 @@ actor VertexAIAdapter: LLMProviderAdapter {
     var location: String {
         serviceAccountJSON.location ?? "global"
     }
+}
+
+private enum VertexImageRequestTimeout {
+    static let defaultSeconds: TimeInterval = 600
+    static let size1KSeconds: TimeInterval = 360
+    static let size2KSeconds: TimeInterval = 720
+    static let size4KSeconds: TimeInterval = 1_200
 }
 
 private struct VertexCachedContentsListResponse: Codable {
