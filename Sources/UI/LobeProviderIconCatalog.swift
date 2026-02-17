@@ -31,7 +31,7 @@ struct LobeProviderIcon: Identifiable, Hashable {
         let resourceName = "\(appearance)_\(pngResourceName)"
 
         return LobeProviderIconCatalog.cachedImage(forKey: cacheKey) {
-            guard let resourceURL = Bundle.module.url(
+            guard let resourceURL = JinResourceBundle.url(
                 forResource: resourceName,
                 withExtension: "png"
             ) else {

@@ -1,5 +1,8 @@
 import SwiftUI
 import UserNotifications
+#if os(macOS)
+import AppKit
+#endif
 
 struct ChatSettingsView: View {
     @EnvironmentObject private var responseCompletionNotifier: ResponseCompletionNotifier
@@ -37,9 +40,20 @@ struct ChatSettingsView: View {
                 }
                 .disabled(!notifyOnBackgroundResponseCompletion)
 
+                #if os(macOS)
+                Button("Open Notification Settings") {
+                    openNotificationSettings()
+                }
+                #endif
+
                 Text(responseCompletionNotifier.diagnosticsSummary)
                     .font(.caption)
                     .foregroundStyle(.secondary)
+
+                Text(runtimeIdentitySummary)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .textSelection(.enabled)
 
                 if responseCompletionNotifier.authorizationStatus == .denied {
                     Text("Notifications are disabled for Jin in System Settings > Notifications.")
@@ -76,4 +90,18 @@ struct ChatSettingsView: View {
         }
         return "Turn on to receive a system notification after a reply completes in the background."
     }
+
+    private var runtimeIdentitySummary: String {
+        let bundleID = Bundle.main.bundleIdentifier ?? "unknown"
+        return "App ID: \(bundleID)\nBundle: \(Bundle.main.bundlePath)"
+    }
+
+    #if os(macOS)
+    private func openNotificationSettings() {
+        guard let url = URL(string: "x-apple.systempreferences:com.apple.Notifications-Settings.extension") else {
+            return
+        }
+        NSWorkspace.shared.open(url)
+    }
+    #endif
 }

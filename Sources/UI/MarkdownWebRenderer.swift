@@ -2,7 +2,7 @@ import SwiftUI
 import WebKit
 
 private let cachedTemplateHTML: String? = {
-    guard let url = Bundle.module.url(forResource: "markdown-template", withExtension: "html") else { return nil }
+    guard let url = JinResourceBundle.url(forResource: "markdown-template", withExtension: "html") else { return nil }
     return try? String(contentsOf: url, encoding: .utf8)
 }()
 
