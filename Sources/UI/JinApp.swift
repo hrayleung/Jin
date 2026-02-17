@@ -5,6 +5,7 @@ import SwiftData
 struct JinApp: App {
     private let modelContainer: ModelContainer
     @StateObject private var streamingStore = ConversationStreamingStore()
+    @StateObject private var responseCompletionNotifier = ResponseCompletionNotifier()
 
     @AppStorage(AppPreferenceKeys.appAppearanceMode) private var appAppearanceMode: AppAppearanceMode = .system
     @AppStorage(AppPreferenceKeys.appFontFamily) private var appFontFamily = JinTypography.systemFontPreferenceValue
@@ -13,6 +14,9 @@ struct JinApp: App {
     private let mcpSchemaVersion = 2
 
     init() {
+        UserDefaults.standard.register(defaults: [
+            AppPreferenceKeys.notifyOnBackgroundResponseCompletion: true
+        ])
         do {
             modelContainer = try ModelContainer(
                 for: ConversationEntity.self,
@@ -33,6 +37,7 @@ struct JinApp: App {
         WindowGroup {
             ContentView()
                 .environmentObject(streamingStore)
+                .environmentObject(responseCompletionNotifier)
                 .font(JinTypography.appFont(familyPreference: appFontFamily))
                 .preferredColorScheme(preferredColorScheme)
         }
@@ -43,6 +48,7 @@ struct JinApp: App {
 
         Settings {
             SettingsView()
+                .environmentObject(responseCompletionNotifier)
                 .font(JinTypography.appFont(familyPreference: appFontFamily))
                 .preferredColorScheme(preferredColorScheme)
         }

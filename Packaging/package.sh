@@ -48,9 +48,41 @@ cp "$ROOT/Packaging/AppIcon.icns" "$APP_BUNDLE/Contents/Resources/AppIcon.icns"
 
 echo "Copying SwiftPM resource bundles…"
 shopt -s nullglob
-for bundle in "$ROOT/.build/release"/*.bundle; do
-  cp -R "$bundle" "$APP_BUNDLE/"
+copied_bundle_count=0
+for bundle_dir in "$ROOT/.build/release" "$ROOT/.build/$(uname -m)-apple-macosx/release"; do
+  for bundle in "$bundle_dir"/*.bundle; do
+    bundle_name="$(basename "$bundle")"
+    target_bundle="$APP_BUNDLE/Contents/Resources/$bundle_name"
+    if [[ -e "$target_bundle" ]]; then
+      continue
+    fi
+    cp -R "$bundle" "$target_bundle"
+    copied_bundle_count=$((copied_bundle_count + 1))
+  done
 done
+shopt -u nullglob
+
+if [[ "$copied_bundle_count" -eq 0 ]]; then
+  echo "Warning: no SwiftPM resource bundles found in release build outputs."
+fi
+
+echo "Preparing for ad-hoc code signing…"
+chmod -R u+w "$APP_BUNDLE"
+xattr -cr "$APP_BUNDLE"
+find "$APP_BUNDLE" -name '._*' -delete
+
+BUNDLE_ID="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP_BUNDLE/Contents/Info.plist")"
+if [[ -z "${BUNDLE_ID:-}" ]]; then
+  echo "Failed to resolve CFBundleIdentifier from Info.plist." >&2
+  exit 1
+fi
+
+codesign --remove-signature "$APP_BUNDLE/Contents/MacOS/$APP_NAME" >/dev/null 2>&1 || true
+codesign --remove-signature "$APP_BUNDLE" >/dev/null 2>&1 || true
+
+echo "Code signing app bundle (identifier: $BUNDLE_ID)…"
+codesign --force --deep --sign - --identifier "$BUNDLE_ID" "$APP_BUNDLE"
+codesign --verify --deep --strict --verbose=2 "$APP_BUNDLE"
 
 if [[ "${1-}" == "dmg" ]]; then
   echo "Creating .dmg…"

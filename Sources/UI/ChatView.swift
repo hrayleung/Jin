@@ -33,6 +33,7 @@ private actor AutomaticExplicitCacheRegistry {
 struct ChatView: View {
     @Environment(\.modelContext) private var modelContext
     @EnvironmentObject private var streamingStore: ConversationStreamingStore
+    @EnvironmentObject private var responseCompletionNotifier: ResponseCompletionNotifier
     @Bindable var conversationEntity: ConversationEntity
     let onRequestDeleteConversation: () -> Void
     @Binding var isAssistantInspectorPresented: Bool
@@ -3907,6 +3908,22 @@ struct ChatView: View {
         return String(trimmed.prefix(48))
     }
 
+    nonisolated private static func completionNotificationPreview(from parts: [ContentPart]) -> String? {
+        let text = parts.compactMap { part -> String? in
+            if case .text(let value) = part {
+                return value
+            }
+            return nil
+        }
+        .joined(separator: " ")
+
+        let normalized = text
+            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty else { return nil }
+        return String(normalized.prefix(180))
+    }
+
     @MainActor
     private func startStreamingResponse(triggeredByUserSend: Bool = false) {
         let conversationID = conversationEntity.id
@@ -3948,7 +3965,12 @@ struct ChatView: View {
         let mcpServerConfigs = resolvedMCPServerConfigs(for: controlsToUse)
         let chatNamingTarget = resolvedChatNamingTarget()
 
+        responseCompletionNotifier.prepareAuthorizationIfNeededWhileActive()
+
         let task = Task.detached(priority: .userInitiated) {
+            var shouldNotifyCompletion = false
+            var completionPreview: String?
+
             do {
                 guard let providerConfig else {
                     throw LLMError.invalidRequest(message: "Provider not found. Configure it in Settings.")
@@ -4189,6 +4211,9 @@ struct ChatView: View {
                             content: persistedParts,
                             toolCalls: toolCalls.isEmpty ? nil : toolCalls
                         )
+                        if let preview = Self.completionNotificationPreview(from: persistedParts) {
+                            completionPreview = preview
+                        }
 
                         await MainActor.run {
                             do {
@@ -4219,7 +4244,10 @@ struct ChatView: View {
                         }
                     }
 
-                    guard !toolCalls.isEmpty else { break }
+                    guard !toolCalls.isEmpty else {
+                        shouldNotifyCompletion = !assistantParts.isEmpty
+                        break
+                    }
 
                     await MainActor.run {
                         streamingState.reset()
@@ -4299,7 +4327,16 @@ struct ChatView: View {
                     showingError = true
                 }
             }
+            let shouldNotifyNow = shouldNotifyCompletion
+            let previewForNotification = completionPreview
             await MainActor.run {
+                if shouldNotifyNow {
+                    responseCompletionNotifier.notifyCompletionIfNeeded(
+                        conversationID: conversationID,
+                        conversationTitle: conversationEntity.title,
+                        replyPreview: previewForNotification
+                    )
+                }
                 streamingStore.endSession(conversationID: conversationID)
             }
         }

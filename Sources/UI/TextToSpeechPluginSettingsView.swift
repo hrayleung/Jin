@@ -30,10 +30,12 @@ struct TextToSpeechPluginSettingsView: View {
 
     @State private var apiKey = ""
     @State private var isKeyVisible = false
-    @State private var isSaving = false
     @State private var isTesting = false
     @State private var statusMessage: String?
     @State private var statusIsError = false
+    @State private var hasLoadedKey = false
+    @State private var lastPersistedAPIKey = ""
+    @State private var autoSaveTask: Task<Void, Never>?
 
     @State private var elevenLabsVoices: [ElevenLabsTTSClient.Voice] = []
     @State private var isLoadingVoices = false
@@ -59,10 +61,6 @@ struct TextToSpeechPluginSettingsView: View {
         apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    private var canSave: Bool {
-        !trimmedAPIKey.isEmpty && !isSaving && !isTesting
-    }
-
     var body: some View {
         Form {
             Section("Text to Speech") {
@@ -77,7 +75,9 @@ struct TextToSpeechPluginSettingsView: View {
                     }
                 }
                 .pickerStyle(.menu)
-                .onChange(of: providerRaw) { _, _ in
+                .onChange(of: providerRaw) { oldProviderRaw, _ in
+                    autoSaveTask?.cancel()
+                    persistAPIKeyIfNeeded(forProviderRaw: oldProviderRaw, showSavedStatus: false)
                     Task { await loadExistingKeyAndMaybeVoices() }
                     NotificationCenter.default.post(name: .pluginCredentialsDidChange, object: nil)
                 }
@@ -107,23 +107,20 @@ struct TextToSpeechPluginSettingsView: View {
                     .disabled(apiKey.isEmpty)
                 }
 
-                Text("Stored locally on this device.")
+                Text("Stored locally on this device and saved automatically while you type.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
                 HStack(spacing: 12) {
-                    Button("Save") { saveKey() }
-                        .disabled(!canSave)
-
                     Button("Test Connection") { testConnection() }
-                        .disabled(trimmedAPIKey.isEmpty || isSaving || isTesting)
+                        .disabled(trimmedAPIKey.isEmpty || isTesting)
 
                     Button("Clear", role: .destructive) { clearKey() }
-                        .disabled(isSaving || isTesting)
+                        .disabled(isTesting)
 
                     Spacer()
 
-                    if isSaving || isTesting || isLoadingVoices {
+                    if isTesting || isLoadingVoices {
                         ProgressView()
                             .controlSize(.small)
                     }
@@ -144,6 +141,14 @@ struct TextToSpeechPluginSettingsView: View {
         .navigationTitle("Text to Speech")
         .task {
             await loadExistingKeyAndMaybeVoices()
+            hasLoadedKey = true
+        }
+        .onChange(of: apiKey) { _, _ in
+            guard hasLoadedKey else { return }
+            scheduleAutoSave()
+        }
+        .onDisappear {
+            autoSaveTask?.cancel()
         }
     }
 
@@ -257,7 +262,7 @@ struct TextToSpeechPluginSettingsView: View {
                         .disabled(selectedElevenLabsVoicePreviewURL == nil)
                     }
                 } else {
-                    Text("No voices loaded. Save your API key and click “Test Connection” to fetch voices.")
+                    Text("No voices loaded. Enter your API key and click “Test Connection” to fetch voices.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -324,36 +329,86 @@ struct TextToSpeechPluginSettingsView: View {
         let existing = UserDefaults.standard.string(forKey: currentAPIKeyPreferenceKey) ?? ""
         await MainActor.run {
             apiKey = existing
+            lastPersistedAPIKey = existing.trimmingCharacters(in: .whitespacesAndNewlines)
         }
     }
 
-    private func saveKey() {
-        guard !trimmedAPIKey.isEmpty else { return }
-
-        statusMessage = nil
-        statusIsError = false
-        isSaving = true
-
-        UserDefaults.standard.set(trimmedAPIKey, forKey: currentAPIKeyPreferenceKey)
-        isSaving = false
-        statusMessage = "Saved."
-        statusIsError = false
-        NotificationCenter.default.post(name: .pluginCredentialsDidChange, object: nil)
-        Task { await loadExistingKeyAndMaybeVoices() }
-    }
-
     private func clearKey() {
+        autoSaveTask?.cancel()
         statusMessage = nil
         statusIsError = false
-        isSaving = true
 
         UserDefaults.standard.removeObject(forKey: currentAPIKeyPreferenceKey)
+        lastPersistedAPIKey = ""
         apiKey = ""
-        isSaving = false
         statusMessage = "Cleared."
         statusIsError = false
         elevenLabsVoices = []
         NotificationCenter.default.post(name: .pluginCredentialsDidChange, object: nil)
+    }
+
+    private func scheduleAutoSave() {
+        autoSaveTask?.cancel()
+
+        let key = trimmedAPIKey
+        let preferenceKey = currentAPIKeyPreferenceKey
+        guard key != lastPersistedAPIKey else { return }
+
+        autoSaveTask = Task {
+            try? await Task.sleep(nanoseconds: 450_000_000)
+            guard !Task.isCancelled else { return }
+            await MainActor.run {
+                persistAPIKey(key, forPreferenceKey: preferenceKey, showSavedStatus: true)
+            }
+        }
+    }
+
+    private func persistAPIKeyIfNeeded(forProviderRaw rawValue: String, showSavedStatus: Bool) {
+        let preferenceKey = apiKeyPreferenceKey(for: rawValue)
+        let key = trimmedAPIKey
+        persistAPIKey(key, forPreferenceKey: preferenceKey, showSavedStatus: showSavedStatus)
+    }
+
+    private func persistAPIKey(_ key: String, forPreferenceKey preferenceKey: String, showSavedStatus: Bool) {
+        let isCurrentProvider = preferenceKey == currentAPIKeyPreferenceKey
+        if isCurrentProvider, key == lastPersistedAPIKey {
+            return
+        }
+        if !isCurrentProvider {
+            let existing = (UserDefaults.standard.string(forKey: preferenceKey) ?? "")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            if existing == key {
+                return
+            }
+        }
+
+        if key.isEmpty {
+            UserDefaults.standard.removeObject(forKey: preferenceKey)
+        } else {
+            UserDefaults.standard.set(key, forKey: preferenceKey)
+        }
+
+        if isCurrentProvider {
+            lastPersistedAPIKey = key
+            if showSavedStatus {
+                statusMessage = key.isEmpty ? "Cleared." : "Saved automatically."
+                statusIsError = false
+            }
+        }
+
+        NotificationCenter.default.post(name: .pluginCredentialsDidChange, object: nil)
+    }
+
+    private func apiKeyPreferenceKey(for rawValue: String) -> String {
+        let resolved = TextToSpeechProvider(rawValue: rawValue) ?? .openai
+        switch resolved {
+        case .elevenlabs:
+            return AppPreferenceKeys.ttsElevenLabsAPIKey
+        case .openai:
+            return AppPreferenceKeys.ttsOpenAIAPIKey
+        case .groq:
+            return AppPreferenceKeys.ttsGroqAPIKey
+        }
     }
 
     private func testConnection() {

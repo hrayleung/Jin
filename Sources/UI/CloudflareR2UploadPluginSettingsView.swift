@@ -9,10 +9,19 @@ struct CloudflareR2UploadPluginSettingsView: View {
     @State private var keyPrefix = ""
 
     @State private var isSecretVisible = false
-    @State private var isSaving = false
     @State private var isTesting = false
     @State private var statusMessage: String?
     @State private var statusIsError = false
+    @State private var hasLoadedSettings = false
+    @State private var lastPersistedConfiguration = CloudflareR2Configuration(
+        accountID: "",
+        accessKeyID: "",
+        secretAccessKey: "",
+        bucket: "",
+        publicBaseURL: "",
+        keyPrefix: ""
+    )
+    @State private var autoSaveTask: Task<Void, Never>?
 
     private var draftConfiguration: CloudflareR2Configuration {
         CloudflareR2Configuration(
@@ -25,12 +34,8 @@ struct CloudflareR2UploadPluginSettingsView: View {
         )
     }
 
-    private var canSave: Bool {
-        !isSaving && !isTesting
-    }
-
     private var canTest: Bool {
-        draftConfiguration.missingRequiredFields.isEmpty && !isSaving && !isTesting
+        draftConfiguration.missingRequiredFields.isEmpty && !isTesting
     }
 
     var body: some View {
@@ -72,7 +77,7 @@ struct CloudflareR2UploadPluginSettingsView: View {
                     .disabled(secretAccessKey.isEmpty)
                 }
 
-                Text("Credentials are stored locally on this device.")
+                Text("Credentials are stored locally on this device and saved automatically while you type.")
                     .jinInfoCallout()
             }
 
@@ -92,11 +97,6 @@ struct CloudflareR2UploadPluginSettingsView: View {
 
             Section("Actions") {
                 HStack(spacing: 12) {
-                    Button("Save") {
-                        saveSettings()
-                    }
-                    .disabled(!canSave)
-
                     Button("Test Connection") {
                         testConnection()
                     }
@@ -105,11 +105,11 @@ struct CloudflareR2UploadPluginSettingsView: View {
                     Button("Clear", role: .destructive) {
                         clearSettings()
                     }
-                    .disabled(isSaving || isTesting)
+                    .disabled(isTesting)
 
                     Spacer()
 
-                    if isSaving || isTesting {
+                    if isTesting {
                         ProgressView()
                             .controlSize(.small)
                     }
@@ -129,63 +129,46 @@ struct CloudflareR2UploadPluginSettingsView: View {
         .task {
             await loadExistingSettings()
         }
-    }
-
-    private func loadExistingSettings() async {
-        let defaults = UserDefaults.standard
-        await MainActor.run {
-            accountID = defaults.string(forKey: AppPreferenceKeys.cloudflareR2AccountID) ?? ""
-            accessKeyID = defaults.string(forKey: AppPreferenceKeys.cloudflareR2AccessKeyID) ?? ""
-            secretAccessKey = defaults.string(forKey: AppPreferenceKeys.cloudflareR2SecretAccessKey) ?? ""
-            bucket = defaults.string(forKey: AppPreferenceKeys.cloudflareR2Bucket) ?? ""
-            publicBaseURL = defaults.string(forKey: AppPreferenceKeys.cloudflareR2PublicBaseURL) ?? ""
-            keyPrefix = defaults.string(forKey: AppPreferenceKeys.cloudflareR2KeyPrefix) ?? ""
+        .onChange(of: accountID) { _, _ in scheduleAutoSaveIfNeeded() }
+        .onChange(of: accessKeyID) { _, _ in scheduleAutoSaveIfNeeded() }
+        .onChange(of: secretAccessKey) { _, _ in scheduleAutoSaveIfNeeded() }
+        .onChange(of: bucket) { _, _ in scheduleAutoSaveIfNeeded() }
+        .onChange(of: publicBaseURL) { _, _ in scheduleAutoSaveIfNeeded() }
+        .onChange(of: keyPrefix) { _, _ in scheduleAutoSaveIfNeeded() }
+        .onDisappear {
+            autoSaveTask?.cancel()
         }
     }
 
-    private func saveSettings() {
-        statusMessage = nil
-        statusIsError = false
-        isSaving = true
-
-        let defaults = UserDefaults.standard
-        persist(accountID, for: AppPreferenceKeys.cloudflareR2AccountID, defaults: defaults)
-        persist(accessKeyID, for: AppPreferenceKeys.cloudflareR2AccessKeyID, defaults: defaults)
-        persist(secretAccessKey, for: AppPreferenceKeys.cloudflareR2SecretAccessKey, defaults: defaults)
-        persist(bucket, for: AppPreferenceKeys.cloudflareR2Bucket, defaults: defaults)
-        persist(publicBaseURL, for: AppPreferenceKeys.cloudflareR2PublicBaseURL, defaults: defaults)
-        persist(keyPrefix, for: AppPreferenceKeys.cloudflareR2KeyPrefix, defaults: defaults)
-
-        isSaving = false
-        statusMessage = "Saved."
-        statusIsError = false
-        NotificationCenter.default.post(name: .pluginCredentialsDidChange, object: nil)
+    private func loadExistingSettings() async {
+        let loaded = CloudflareR2Configuration.load(from: .standard)
+        await MainActor.run {
+            hasLoadedSettings = false
+            applyConfigurationToState(loaded)
+            lastPersistedConfiguration = loaded
+            hasLoadedSettings = true
+        }
     }
 
     private func clearSettings() {
+        autoSaveTask?.cancel()
         statusMessage = nil
         statusIsError = false
-        isSaving = true
 
-        let defaults = UserDefaults.standard
-        defaults.removeObject(forKey: AppPreferenceKeys.cloudflareR2AccountID)
-        defaults.removeObject(forKey: AppPreferenceKeys.cloudflareR2AccessKeyID)
-        defaults.removeObject(forKey: AppPreferenceKeys.cloudflareR2SecretAccessKey)
-        defaults.removeObject(forKey: AppPreferenceKeys.cloudflareR2Bucket)
-        defaults.removeObject(forKey: AppPreferenceKeys.cloudflareR2PublicBaseURL)
-        defaults.removeObject(forKey: AppPreferenceKeys.cloudflareR2KeyPrefix)
-
-        accountID = ""
-        accessKeyID = ""
-        secretAccessKey = ""
-        bucket = ""
-        publicBaseURL = ""
-        keyPrefix = ""
-
-        isSaving = false
+        let empty = CloudflareR2Configuration(
+            accountID: "",
+            accessKeyID: "",
+            secretAccessKey: "",
+            bucket: "",
+            publicBaseURL: "",
+            keyPrefix: ""
+        )
+        persistConfiguration(empty, showSavedStatus: false)
+        hasLoadedSettings = false
+        applyConfigurationToState(empty)
+        hasLoadedSettings = true
         statusMessage = "Cleared."
         statusIsError = false
-        NotificationCenter.default.post(name: .pluginCredentialsDidChange, object: nil)
     }
 
     private func testConnection() {
@@ -229,5 +212,58 @@ struct CloudflareR2UploadPluginSettingsView: View {
         } else {
             defaults.set(value, forKey: key)
         }
+    }
+
+    private func scheduleAutoSaveIfNeeded() {
+        guard hasLoadedSettings else { return }
+
+        autoSaveTask?.cancel()
+        let configuration = draftConfiguration
+        guard configuration != lastPersistedConfiguration else { return }
+
+        autoSaveTask = Task {
+            try? await Task.sleep(nanoseconds: 450_000_000)
+            guard !Task.isCancelled else { return }
+            await MainActor.run {
+                persistConfiguration(configuration, showSavedStatus: true)
+            }
+        }
+    }
+
+    private func persistConfiguration(_ configuration: CloudflareR2Configuration, showSavedStatus: Bool) {
+        guard configuration != lastPersistedConfiguration else { return }
+
+        let defaults = UserDefaults.standard
+        persist(configuration.accountID, for: AppPreferenceKeys.cloudflareR2AccountID, defaults: defaults)
+        persist(configuration.accessKeyID, for: AppPreferenceKeys.cloudflareR2AccessKeyID, defaults: defaults)
+        persist(configuration.secretAccessKey, for: AppPreferenceKeys.cloudflareR2SecretAccessKey, defaults: defaults)
+        persist(configuration.bucket, for: AppPreferenceKeys.cloudflareR2Bucket, defaults: defaults)
+        persist(configuration.publicBaseURL, for: AppPreferenceKeys.cloudflareR2PublicBaseURL, defaults: defaults)
+        persist(configuration.keyPrefix, for: AppPreferenceKeys.cloudflareR2KeyPrefix, defaults: defaults)
+
+        lastPersistedConfiguration = configuration
+        if showSavedStatus {
+            statusMessage = configurationIsEmpty(configuration) ? "Cleared." : "Saved automatically."
+            statusIsError = false
+        }
+        NotificationCenter.default.post(name: .pluginCredentialsDidChange, object: nil)
+    }
+
+    private func applyConfigurationToState(_ configuration: CloudflareR2Configuration) {
+        accountID = configuration.accountID
+        accessKeyID = configuration.accessKeyID
+        secretAccessKey = configuration.secretAccessKey
+        bucket = configuration.bucket
+        publicBaseURL = configuration.publicBaseURL
+        keyPrefix = configuration.keyPrefix
+    }
+
+    private func configurationIsEmpty(_ configuration: CloudflareR2Configuration) -> Bool {
+        configuration.accountID.isEmpty
+            && configuration.accessKeyID.isEmpty
+            && configuration.secretAccessKey.isEmpty
+            && configuration.bucket.isEmpty
+            && configuration.publicBaseURL.isEmpty
+            && configuration.keyPrefix.isEmpty
     }
 }

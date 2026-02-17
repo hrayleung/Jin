@@ -1,7 +1,9 @@
 import SwiftUI
 
 struct ChatSettingsView: View {
+    @EnvironmentObject private var responseCompletionNotifier: ResponseCompletionNotifier
     @AppStorage(AppPreferenceKeys.sendWithCommandEnter) private var sendWithCommandEnter = false
+    @AppStorage(AppPreferenceKeys.notifyOnBackgroundResponseCompletion) private var notifyOnBackgroundResponseCompletion = false
 
     var body: some View {
         Form {
@@ -11,10 +13,45 @@ struct ChatSettingsView: View {
                 Text(sendBehaviorDescription)
                     .jinInfoCallout()
             }
+
+            Section("Notifications") {
+                Toggle("Notify when replies finish in background", isOn: $notifyOnBackgroundResponseCompletion)
+                    .onChange(of: notifyOnBackgroundResponseCompletion) { _, enabled in
+                        guard enabled else { return }
+                        Task {
+                            let granted = await responseCompletionNotifier.requestAuthorizationIfNeeded()
+                            if !granted {
+                                await MainActor.run {
+                                    notifyOnBackgroundResponseCompletion = false
+                                }
+                            }
+                        }
+                    }
+
+                Text(notificationDescription)
+                    .jinInfoCallout()
+
+                if responseCompletionNotifier.authorizationStatus == .denied {
+                    Text("Notifications are disabled for Jin in System Settings > Notifications.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
         }
         .formStyle(.grouped)
         .scrollContentBackground(.hidden)
         .background(JinSemanticColor.detailSurface)
+        .task {
+            await responseCompletionNotifier.refreshAuthorizationStatus()
+            guard notifyOnBackgroundResponseCompletion,
+                  responseCompletionNotifier.authorizationStatus == .notDetermined else {
+                return
+            }
+            let granted = await responseCompletionNotifier.requestAuthorizationIfNeeded()
+            if !granted {
+                notifyOnBackgroundResponseCompletion = false
+            }
+        }
     }
 
     private var sendBehaviorDescription: String {
@@ -22,5 +59,12 @@ struct ChatSettingsView: View {
             return "Press Return to insert a new line. Press \u{2318}\u{21A9} to send."
         }
         return "Press Return to send. Press Shift+Return to insert a new line."
+    }
+
+    private var notificationDescription: String {
+        if notifyOnBackgroundResponseCompletion {
+            return "Jin sends a system notification when the current reply finishes while Jin is not the active app."
+        }
+        return "Turn on to receive a system notification after a reply completes in the background."
     }
 }

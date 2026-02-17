@@ -2,17 +2,15 @@ import SwiftUI
 
 struct MistralOCRPluginSettingsView: View {
     @State private var apiKey = ""
-    @State private var isSaving = false
     @State private var isTesting = false
     @State private var statusMessage: String?
     @State private var statusIsError = false
+    @State private var hasLoadedKey = false
+    @State private var lastPersistedAPIKey = ""
+    @State private var autoSaveTask: Task<Void, Never>?
 
     private var trimmedAPIKey: String {
         apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
-    private var canSave: Bool {
-        !trimmedAPIKey.isEmpty && !isSaving && !isTesting
     }
 
     var body: some View {
@@ -26,28 +24,23 @@ struct MistralOCRPluginSettingsView: View {
                 SecureField("API Key", text: $apiKey)
                     .textContentType(.password)
 
-                Text("Stored locally on this device.")
+                Text("Stored locally on this device and saved automatically while you type.")
                     .jinInfoCallout()
 
                 HStack(spacing: 12) {
-                    Button("Save") {
-                        saveKey()
-                    }
-                    .disabled(!canSave)
-
                     Button("Test Connection") {
                         testConnection()
                     }
-                    .disabled(trimmedAPIKey.isEmpty || isSaving || isTesting)
+                    .disabled(trimmedAPIKey.isEmpty || isTesting)
 
                     Button("Clear", role: .destructive) {
                         clearKey()
                     }
-                    .disabled(isSaving || isTesting)
+                    .disabled(isTesting)
 
                     Spacer()
 
-                    if isSaving || isTesting {
+                    if isTesting {
                         ProgressView()
                             .controlSize(.small)
                     }
@@ -66,6 +59,14 @@ struct MistralOCRPluginSettingsView: View {
         .navigationTitle("Mistral OCR")
         .task {
             await loadExistingKey()
+            hasLoadedKey = true
+        }
+        .onChange(of: apiKey) { _, _ in
+            guard hasLoadedKey else { return }
+            scheduleAutoSave()
+        }
+        .onDisappear {
+            autoSaveTask?.cancel()
         }
     }
 
@@ -73,32 +74,47 @@ struct MistralOCRPluginSettingsView: View {
         let existing = UserDefaults.standard.string(forKey: AppPreferenceKeys.pluginMistralOCRAPIKey) ?? ""
         await MainActor.run {
             apiKey = existing
+            lastPersistedAPIKey = existing.trimmingCharacters(in: .whitespacesAndNewlines)
         }
     }
 
-    private func saveKey() {
-        guard !trimmedAPIKey.isEmpty else { return }
-
+    private func clearKey() {
+        autoSaveTask?.cancel()
         statusMessage = nil
         statusIsError = false
-        isSaving = true
 
-        UserDefaults.standard.set(trimmedAPIKey, forKey: AppPreferenceKeys.pluginMistralOCRAPIKey)
-        isSaving = false
-        statusMessage = "Saved."
+        lastPersistedAPIKey = ""
+        apiKey = ""
+        UserDefaults.standard.removeObject(forKey: AppPreferenceKeys.pluginMistralOCRAPIKey)
+        statusMessage = "Cleared."
         statusIsError = false
         NotificationCenter.default.post(name: .pluginCredentialsDidChange, object: nil)
     }
 
-    private func clearKey() {
-        statusMessage = nil
-        statusIsError = false
-        isSaving = true
+    private func scheduleAutoSave() {
+        autoSaveTask?.cancel()
+        let key = trimmedAPIKey
+        guard key != lastPersistedAPIKey else { return }
 
-        UserDefaults.standard.removeObject(forKey: AppPreferenceKeys.pluginMistralOCRAPIKey)
-        apiKey = ""
-        isSaving = false
-        statusMessage = "Cleared."
+        autoSaveTask = Task {
+            try? await Task.sleep(nanoseconds: 450_000_000)
+            guard !Task.isCancelled else { return }
+            await MainActor.run {
+                persistAPIKey(key)
+            }
+        }
+    }
+
+    private func persistAPIKey(_ key: String) {
+        guard key != lastPersistedAPIKey else { return }
+
+        if key.isEmpty {
+            UserDefaults.standard.removeObject(forKey: AppPreferenceKeys.pluginMistralOCRAPIKey)
+        } else {
+            UserDefaults.standard.set(key, forKey: AppPreferenceKeys.pluginMistralOCRAPIKey)
+        }
+        lastPersistedAPIKey = key
+        statusMessage = key.isEmpty ? "Cleared." : "Saved automatically."
         statusIsError = false
         NotificationCenter.default.post(name: .pluginCredentialsDidChange, object: nil)
     }

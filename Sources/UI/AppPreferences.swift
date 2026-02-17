@@ -22,6 +22,7 @@ enum AppPreferenceKeys {
     // MARK: - Chat
 
     static let sendWithCommandEnter = "sendWithCommandEnter"
+    static let notifyOnBackgroundResponseCompletion = "notifyOnBackgroundResponseCompletion"
 
     // MARK: - Network
 
@@ -212,7 +213,7 @@ enum GeneralSettingsCategory: String, CaseIterable, Identifiable {
     var subtitle: String {
         switch self {
         case .appearance: return "Theme, font family, and code font."
-        case .chat: return "Send behavior and input preferences."
+        case .chat: return "Send behavior and background-completion notifications."
         case .defaults: return "Model and MCP defaults for new chats."
         case .network: return "Control automatic network requests."
         case .data: return "Inspect and manage local chat data."
