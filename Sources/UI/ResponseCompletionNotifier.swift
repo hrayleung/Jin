@@ -9,9 +9,13 @@ final class ResponseCompletionNotifier: ObservableObject {
     @Published private(set) var authorizationStatus: UNAuthorizationStatus = .notDetermined
     @Published private(set) var lastDeliveryErrorMessage: String?
     @Published private(set) var diagnosticsSummary: String = "Notifications status unavailable."
+    @Published private(set) var pendingRequestCount: Int = 0
+    @Published private(set) var deliveredNotificationCount: Int = 0
+    @Published private(set) var lastScheduledNotificationID: String?
 
     private let center: UNUserNotificationCenter
     private let defaults: UserDefaults
+    private let delegateProxy = NotificationDelegateProxy()
 
     init(
         center: UNUserNotificationCenter = .current(),
@@ -19,14 +23,17 @@ final class ResponseCompletionNotifier: ObservableObject {
     ) {
         self.center = center
         self.defaults = defaults
+        self.center.delegate = delegateProxy
         Task {
             await refreshAuthorizationStatus()
+            await refreshQueueDiagnostics()
         }
     }
 
     func refreshAuthorizationStatus() async {
         let settings = await notificationSettings()
         apply(settings: settings)
+        await refreshQueueDiagnostics()
     }
 
     @discardableResult
@@ -37,6 +44,7 @@ final class ResponseCompletionNotifier: ObservableObject {
         switch settings.authorizationStatus {
         case .authorized, .provisional:
             lastDeliveryErrorMessage = nil
+            await refreshQueueDiagnostics()
             return true
         case .notDetermined:
             let granted = (try? await center.requestAuthorization(options: [.alert, .sound])) ?? false
@@ -45,6 +53,7 @@ final class ResponseCompletionNotifier: ObservableObject {
                 lastDeliveryErrorMessage = "Notification permission was not granted."
             } else {
                 lastDeliveryErrorMessage = nil
+                await refreshQueueDiagnostics()
             }
             return granted
         case .denied:
@@ -88,22 +97,21 @@ final class ResponseCompletionNotifier: ObservableObject {
             content.body = "If you can see this, local notifications are working."
             content.sound = .default
             content.threadIdentifier = "jin.diagnostics"
+            if #available(macOS 12.0, *) {
+                content.interruptionLevel = .active
+            }
 
             let request = UNNotificationRequest(
                 identifier: "jin.test.\(UUID().uuidString)",
                 content: content,
-                trigger: nil
+                trigger: UNTimeIntervalNotificationTrigger(timeInterval: 1, repeats: false)
             )
 
             do {
                 try await addNotificationRequest(request)
-                await MainActor.run {
-                    lastDeliveryErrorMessage = nil
-                }
+                lastDeliveryErrorMessage = nil
             } catch {
-                await MainActor.run {
-                    lastDeliveryErrorMessage = "Notification delivery failed: \(error.localizedDescription)"
-                }
+                lastDeliveryErrorMessage = "Notification delivery failed: \(error.localizedDescription)"
             }
         }
     }
@@ -147,22 +155,21 @@ final class ResponseCompletionNotifier: ObservableObject {
             content.sound = .default
             content.threadIdentifier = "jin.conversation.\(conversationID.uuidString)"
             content.userInfo = ["conversationID": conversationID.uuidString]
+            if #available(macOS 12.0, *) {
+                content.interruptionLevel = .active
+            }
 
             let request = UNNotificationRequest(
                 identifier: "jin.reply.\(conversationID.uuidString).\(UUID().uuidString)",
                 content: content,
-                trigger: nil
+                trigger: UNTimeIntervalNotificationTrigger(timeInterval: 1, repeats: false)
             )
 
             do {
                 try await addNotificationRequest(request)
-                await MainActor.run {
-                    lastDeliveryErrorMessage = nil
-                }
+                lastDeliveryErrorMessage = nil
             } catch {
-                await MainActor.run {
-                    lastDeliveryErrorMessage = "Notification delivery failed: \(error.localizedDescription)"
-                }
+                lastDeliveryErrorMessage = "Notification delivery failed: \(error.localizedDescription)"
             }
         }
     }
@@ -181,7 +188,10 @@ final class ResponseCompletionNotifier: ObservableObject {
             "Authorization: \(settings.authorizationStatus.diagnosticsLabel), " +
             "Alert: \(settings.alertSetting.diagnosticsLabel), " +
             "Notification Center: \(settings.notificationCenterSetting.diagnosticsLabel), " +
-            "Sound: \(settings.soundSetting.diagnosticsLabel)"
+            "Sound: \(settings.soundSetting.diagnosticsLabel), " +
+            "Pending: \(pendingRequestCount), " +
+            "Delivered: \(deliveredNotificationCount), " +
+            "Last ID: \(lastScheduledNotificationID ?? "none")"
     }
 
     private func addNotificationRequest(_ request: UNNotificationRequest) async throws {
@@ -194,12 +204,55 @@ final class ResponseCompletionNotifier: ObservableObject {
                 }
             }
         }
+        lastScheduledNotificationID = request.identifier
+        await refreshQueueDiagnostics()
     }
 
     private func notificationsPresentationAllowed(_ settings: UNNotificationSettings) -> Bool {
         let alertAllowed = settings.alertSetting == .enabled || settings.alertSetting == .notSupported
         let centerAllowed = settings.notificationCenterSetting == .enabled || settings.notificationCenterSetting == .notSupported
         return alertAllowed || centerAllowed
+    }
+
+    private func refreshQueueDiagnostics() async {
+        async let pending = pendingNotificationRequests()
+        async let delivered = deliveredNotifications()
+        let pendingList = await pending
+        let deliveredList = await delivered
+        pendingRequestCount = pendingList.count
+        deliveredNotificationCount = deliveredList.count
+        let settings = await notificationSettings()
+        apply(settings: settings)
+    }
+
+    private func pendingNotificationRequests() async -> [UNNotificationRequest] {
+        await withCheckedContinuation { continuation in
+            center.getPendingNotificationRequests { requests in
+                continuation.resume(returning: requests)
+            }
+        }
+    }
+
+    private func deliveredNotifications() async -> [UNNotification] {
+        await withCheckedContinuation { continuation in
+            center.getDeliveredNotifications { notifications in
+                continuation.resume(returning: notifications)
+            }
+        }
+    }
+}
+
+private final class NotificationDelegateProxy: NSObject, UNUserNotificationCenterDelegate {
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        willPresent notification: UNNotification,
+        withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
+    ) {
+        if #available(macOS 11.0, *) {
+            completionHandler([.banner, .list, .sound])
+        } else {
+            completionHandler([.alert, .sound])
+        }
     }
 }
 

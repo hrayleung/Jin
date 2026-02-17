@@ -74,6 +74,14 @@ struct ChatSettingsView: View {
         .background(JinSemanticColor.detailSurface)
         .task {
             await responseCompletionNotifier.refreshAuthorizationStatus()
+            guard notifyOnBackgroundResponseCompletion,
+                  responseCompletionNotifier.authorizationStatus == .notDetermined else {
+                return
+            }
+            let granted = await responseCompletionNotifier.requestAuthorizationIfNeeded()
+            if !granted {
+                notifyOnBackgroundResponseCompletion = false
+            }
         }
     }
 
