@@ -1070,6 +1070,7 @@ final class XAIAdapterMediaTests: XCTestCase {
             XCTAssertEqual(root["prompt_cache_key"] as? String, "stable-prefix")
             XCTAssertEqual(root["prompt_cache_retention"] as? String, "1h")
             XCTAssertEqual(root["prompt_cache_min_tokens"] as? Int, 1024)
+            XCTAssertNil(root["include"])
 
             let response: [String: Any] = [
                 "id": "resp_cached_1",

@@ -142,11 +142,6 @@ actor XAIAdapter: LLMProviderAdapter {
                     for try await event in sseStream {
                         switch event {
                         case .event(let type, let data):
-                            if type == "response.completed",
-                               let encrypted = extractEncryptedReasoningEncryptedContent(from: data) {
-                                continuation.yield(.thinkingDelta(.redacted(data: encrypted)))
-                            }
-
                             if let streamEvent = try parseSSEEvent(
                                 type: type,
                                 data: data,
@@ -217,12 +212,6 @@ actor XAIAdapter: LLMProviderAdapter {
            reasoning.enabled,
            let effort = reasoning.effort {
             body["reasoning_effort"] = mapReasoningEffort(effort)
-        }
-
-        if supportsEncryptedReasoning(modelID: modelID) {
-            var include = Set((body["include"] as? [String]) ?? [])
-            include.insert("reasoning.encrypted_content")
-            body["include"] = Array(include).sorted()
         }
 
         var toolObjects: [[String: Any]] = []
@@ -858,12 +847,6 @@ actor XAIAdapter: LLMProviderAdapter {
         modelID.lowercased().contains("grok-3-mini")
     }
 
-    private func supportsEncryptedReasoning(modelID: String) -> Bool {
-        let lower = modelID.lowercased()
-        guard lower.contains("grok-4") else { return false }
-        return !lower.contains("non-reasoning")
-    }
-
     private func supportsNativePDF(_ modelID: String) -> Bool {
         let lower = modelID.lowercased()
         return lower.contains("grok-4.1")
@@ -1141,47 +1124,6 @@ actor XAIAdapter: LLMProviderAdapter {
         for (key, value) in controls.providerSpecific {
             body[key] = value.value
         }
-    }
-
-    private func extractEncryptedReasoningEncryptedContent(from jsonString: String) -> String? {
-        guard let data = jsonString.data(using: .utf8),
-              let object = try? JSONSerialization.jsonObject(with: data) else {
-            return nil
-        }
-
-        return findEncryptedContent(in: object)
-    }
-
-    private func findEncryptedContent(in object: Any) -> String? {
-        if let dict = object as? [String: Any] {
-            if let type = dict["type"] as? String,
-               type == "reasoning",
-               let encrypted = dict["encrypted_content"] as? String {
-                return encrypted
-            }
-
-            if let encrypted = dict["encrypted_content"] as? String {
-                return encrypted
-            }
-
-            for value in dict.values {
-                if let found = findEncryptedContent(in: value) {
-                    return found
-                }
-            }
-            return nil
-        }
-
-        if let array = object as? [Any] {
-            for element in array {
-                if let found = findEncryptedContent(in: element) {
-                    return found
-                }
-            }
-            return nil
-        }
-
-        return nil
     }
 
     private func translateInput(_ messages: [Message], supportsNativePDF: Bool) -> [[String: Any]] {
