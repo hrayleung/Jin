@@ -3,32 +3,6 @@ import SwiftData
 import AppKit
 import UniformTypeIdentifiers
 import Combine
-import AVFoundation
-import AVKit
-import CryptoKit
-
-private actor AutomaticExplicitCacheRegistry {
-    static let shared = AutomaticExplicitCacheRegistry()
-
-    private struct Entry: Sendable {
-        let name: String
-        let expiresAt: Date
-    }
-
-    private var entries: [String: Entry] = [:]
-
-    func cachedName(for key: String, now: Date = Date()) -> String? {
-        if let entry = entries[key], entry.expiresAt > now {
-            return entry.name
-        }
-        entries.removeValue(forKey: key)
-        return nil
-    }
-
-    func save(name: String, for key: String, ttlSeconds: TimeInterval, now: Date = Date()) {
-        entries[key] = Entry(name: name, expiresAt: now.addingTimeInterval(max(60, ttlSeconds)))
-    }
-}
 
 struct ChatView: View {
     @Environment(\.modelContext) private var modelContext
@@ -1233,7 +1207,7 @@ struct ChatView: View {
                         }
 
                         let clip = try await speechToTextManager.stopAndCollectRecording()
-                        let attachment = try await Self.importRecordedAudioClipInBackground(clip)
+                        let attachment = try await AttachmentImportPipeline.importRecordedAudioClip(clip)
                         draftAttachments.append(attachment)
                         isComposerFocused = true
                         return
@@ -1273,22 +1247,6 @@ struct ChatView: View {
         }
     }
 
-    private static func importRecordedAudioClipInBackground(_ clip: SpeechToTextManager.RecordedClip) async throws -> DraftAttachment {
-        guard clip.data.count <= AttachmentConstants.maxAttachmentBytes else {
-            throw AttachmentImportError(message: "\(clip.filename): exceeds \(AttachmentConstants.maxAttachmentBytes / (1024 * 1024))MB limit.")
-        }
-
-        let storage = try AttachmentStorageManager()
-        let stored = try await storage.saveAttachment(data: clip.data, filename: clip.filename, mimeType: clip.mimeType)
-        return DraftAttachment(
-            id: stored.id,
-            filename: stored.filename,
-            mimeType: stored.mimeType,
-            fileURL: stored.fileURL,
-            extractedText: nil
-        )
-    }
-
     private func removeDraftAttachment(_ attachment: DraftAttachment) {
         draftAttachments.removeAll { $0.id == attachment.id }
         try? FileManager.default.removeItem(at: attachment.fileURL)
@@ -1322,7 +1280,7 @@ struct ChatView: View {
         var errors: [String] = []
 
         for image in images {
-            guard let url = Self.writeTemporaryPNG(from: image) else {
+            guard let url = AttachmentImportPipeline.writeTemporaryPNG(from: image) else {
                 errors.append("Failed to read dropped image.")
                 continue
             }
@@ -1376,7 +1334,7 @@ struct ChatView: View {
                 provider.loadItem(forTypeIdentifier: UTType.fileURL.identifier, options: nil) { item, error in
                     defer { group.leave() }
 
-                    if let url = Self.urlFromItemProviderItem(item) {
+                    if let url = AttachmentImportPipeline.urlFromItemProviderItem(item) {
                         lock.lock()
                         if url.isFileURL {
                             droppedFileURLs.append(url)
@@ -1411,7 +1369,7 @@ struct ChatView: View {
                         return
                     }
 
-                    guard let tempURL = Self.writeTemporaryPNG(from: image) else {
+                    guard let tempURL = AttachmentImportPipeline.writeTemporaryPNG(from: image) else {
                         lock.lock()
                         errors.append("Failed to read dropped image.")
                         lock.unlock()
@@ -1458,7 +1416,7 @@ struct ChatView: View {
                     defer { group.leave() }
 
                     if let text = object as? String {
-                        let parsed = Self.parseDroppedString(text)
+                        let parsed = AttachmentImportPipeline.parseDroppedString(text)
                         lock.lock()
                         droppedFileURLs.append(contentsOf: parsed.fileURLs)
                         droppedTextChunks.append(contentsOf: parsed.textChunks)
@@ -1550,107 +1508,6 @@ struct ChatView: View {
         return true
     }
 
-    private static func urlFromItemProviderItem(_ item: NSSecureCoding?) -> URL? {
-        if let url = item as? URL { return url }
-        if let url = item as? NSURL { return url as URL }
-        if let data = item as? Data { return URL(dataRepresentation: data, relativeTo: nil) }
-        if let string = item as? String { return URL(string: string) }
-        if let string = item as? NSString { return URL(string: string as String) }
-        return nil
-    }
-
-    private static func writeTemporaryPNG(from image: NSImage) -> URL? {
-        guard let tiff = image.tiffRepresentation,
-              let rep = NSBitmapImageRep(data: tiff),
-              let data = rep.representation(using: .png, properties: [:]) else {
-            return nil
-        }
-
-        if data.count > AttachmentConstants.maxAttachmentBytes {
-            return nil
-        }
-
-        let dir = FileManager.default.temporaryDirectory
-            .appendingPathComponent("JinDroppedImages", isDirectory: true)
-        if !FileManager.default.fileExists(atPath: dir.path) {
-            try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        }
-
-        let url = dir.appendingPathComponent(UUID().uuidString).appendingPathExtension("png")
-        do {
-            try data.write(to: url, options: [.atomic])
-            return url
-        } catch {
-            return nil
-        }
-    }
-
-    /// Persist in-memory images to disk so they have stable file URLs.
-    private static func persistImagesToDisk(_ parts: [ContentPart]) async -> [ContentPart] {
-        guard let storage = try? AttachmentStorageManager() else { return parts }
-
-        var result: [ContentPart] = []
-        result.reserveCapacity(parts.count)
-
-        for part in parts {
-            guard case .image(let image) = part,
-                  image.url?.isFileURL != true,
-                  let data = image.data
-            else {
-                result.append(part)
-                continue
-            }
-
-            let ext = AttachmentStorageManager.fileExtension(for: image.mimeType) ?? "png"
-            let filename = "generated-image.\(ext)"
-            if let stored = try? await storage.saveAttachment(data: data, filename: filename, mimeType: image.mimeType) {
-                result.append(.image(ImageContent(mimeType: image.mimeType, data: nil, url: stored.fileURL)))
-            } else {
-                result.append(part)
-            }
-        }
-
-        return result
-    }
-
-    static func parseDroppedString(_ text: String) -> (fileURLs: [URL], textChunks: [String]) {
-        let lines = text
-            .split(whereSeparator: \.isNewline)
-            .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-
-        var fileURLs: [URL] = []
-        var textChunks: [String] = []
-
-        for line in lines {
-            if line.hasPrefix("file://"), let url = URL(string: line), url.isFileURL {
-                fileURLs.append(url)
-                continue
-            }
-
-            let expanded = (line as NSString).expandingTildeInPath
-            if expanded.hasPrefix("/") {
-                let url = URL(fileURLWithPath: expanded)
-                if isPotentialAttachmentFile(url) {
-                    fileURLs.append(url)
-                    continue
-                }
-            }
-
-            textChunks.append(line)
-        }
-
-        return (fileURLs: fileURLs, textChunks: textChunks)
-    }
-
-    private static func isPotentialAttachmentFile(_ url: URL) -> Bool {
-        let ext = url.pathExtension.lowercased()
-        if ext == "pdf" { return true }
-        if ext == "png" || ext == "jpg" || ext == "jpeg" || ext == "webp" { return true }
-        if ["wav", "mp3", "m4a", "aac", "flac", "ogg", "oga", "webm"].contains(ext) { return true }
-        return ["mp4", "m4v", "mov", "webm", "avi", "mkv", "mpeg", "mpg", "wmv", "flv", "3gp", "3gpp"].contains(ext)
-    }
-
     private func importAttachments(from urls: [URL]) async {
         guard !urls.isEmpty else { return }
         guard !isStreaming else { return }
@@ -1667,7 +1524,7 @@ struct ChatView: View {
         let urlsToImport = Array(urls.prefix(remainingSlots))
 
         let (newAttachments, errors) = await Task.detached(priority: .userInitiated) {
-            await Self.importAttachmentsInBackground(from: urlsToImport)
+            await AttachmentImportPipeline.importInBackground(from: urlsToImport)
         }.value
 
         await MainActor.run {
@@ -1678,254 +1535,6 @@ struct ChatView: View {
                 errorMessage = errors.joined(separator: "\n")
                 showingError = true
             }
-        }
-    }
-
-    private static func importAttachmentsInBackground(from urls: [URL]) async -> ([DraftAttachment], [String]) {
-        var newAttachments: [DraftAttachment] = []
-        var errors: [String] = []
-
-        let storage: AttachmentStorageManager
-        do {
-            storage = try AttachmentStorageManager()
-        } catch {
-            return ([], ["Failed to initialize attachment storage: \(error.localizedDescription)"])
-        }
-
-        for sourceURL in urls {
-            let result = await importSingleAttachment(from: sourceURL, storage: storage)
-            switch result {
-            case .success(let attachment):
-                newAttachments.append(attachment)
-            case .failure(let error):
-                errors.append(error.localizedDescription)
-            }
-        }
-
-        return (newAttachments, errors)
-    }
-
-    private static func importSingleAttachment(from sourceURL: URL, storage: AttachmentStorageManager) async -> Result<DraftAttachment, AttachmentImportError> {
-        let didStartAccessing = sourceURL.startAccessingSecurityScopedResource()
-        defer {
-            if didStartAccessing {
-                sourceURL.stopAccessingSecurityScopedResource()
-            }
-        }
-
-        guard sourceURL.isFileURL else {
-            return .failure(AttachmentImportError(message: "Unsupported item: \(sourceURL.lastPathComponent)"))
-        }
-
-        let filename = sourceURL.lastPathComponent.isEmpty ? "Attachment" : sourceURL.lastPathComponent
-        let resourceValues = try? sourceURL.resourceValues(forKeys: [.isDirectoryKey, .fileSizeKey])
-        if resourceValues?.isDirectory == true {
-            return .failure(AttachmentImportError(message: "\(filename): folders are not supported."))
-        }
-
-        let fileSize = resourceValues?.fileSize ?? 0
-        if fileSize > AttachmentConstants.maxAttachmentBytes {
-            return .failure(AttachmentImportError(message: "\(filename): exceeds \(AttachmentConstants.maxAttachmentBytes / (1024 * 1024))MB limit."))
-        }
-
-        guard let type = UTType(filenameExtension: sourceURL.pathExtension.lowercased()) else {
-            if let convertedURL = convertImageFileToTemporaryPNG(at: sourceURL) {
-                let base = (filename as NSString).deletingPathExtension
-                let outputName = base.isEmpty ? "Image.png" : "\(base).png"
-                return await saveConvertedPNG(
-                    convertedURL,
-                    storage: storage,
-                    filename: outputName
-                )
-            }
-            return .failure(AttachmentImportError(message: "\(filename): unsupported file type."))
-        }
-
-        if type.conforms(to: .pdf) {
-            let mimeType = "application/pdf"
-            do {
-                let entity = try await storage.saveAttachment(from: sourceURL, filename: filename, mimeType: mimeType)
-                return .success(
-                    DraftAttachment(
-                        id: entity.id,
-                        filename: entity.filename,
-                        mimeType: entity.mimeType,
-                        fileURL: entity.fileURL,
-                        extractedText: nil
-                    )
-                )
-            } catch {
-                return .failure(AttachmentImportError(message: "\(filename): failed to import (\(error.localizedDescription))."))
-            }
-        }
-
-        if type.conforms(to: .movie) {
-            guard let mimeType = normalizedVideoMIMEType(for: type, sourceURL: sourceURL) else {
-                return .failure(AttachmentImportError(message: "\(filename): unsupported video format. Use MP4/MOV/WebM/AVI/MKV/MPEG/WMV/FLV/3GP."))
-            }
-
-            do {
-                let entity = try await storage.saveAttachment(from: sourceURL, filename: filename, mimeType: mimeType)
-                return .success(
-                    DraftAttachment(
-                        id: entity.id,
-                        filename: entity.filename,
-                        mimeType: entity.mimeType,
-                        fileURL: entity.fileURL,
-                        extractedText: nil
-                    )
-                )
-            } catch {
-                return .failure(AttachmentImportError(message: "\(filename): failed to import (\(error.localizedDescription))."))
-            }
-        }
-
-        if type.conforms(to: .audio) {
-            guard let mimeType = normalizedAudioMIMEType(for: type, sourceURL: sourceURL) else {
-                return .failure(AttachmentImportError(message: "\(filename): unsupported audio format. Use WAV/MP3/M4A/AAC/FLAC/OGG/WebM."))
-            }
-
-            do {
-                let entity = try await storage.saveAttachment(from: sourceURL, filename: filename, mimeType: mimeType)
-                return .success(
-                    DraftAttachment(
-                        id: entity.id,
-                        filename: entity.filename,
-                        mimeType: entity.mimeType,
-                        fileURL: entity.fileURL,
-                        extractedText: nil
-                    )
-                )
-            } catch {
-                return .failure(AttachmentImportError(message: "\(filename): failed to import (\(error.localizedDescription))."))
-            }
-        }
-
-        if type.conforms(to: .image) {
-            let supported: Set<String> = ["image/png", "image/jpeg", "image/webp"]
-
-            if let rawMimeType = type.preferredMIMEType {
-                let mimeType = (rawMimeType == "image/jpg") ? "image/jpeg" : rawMimeType
-                if supported.contains(mimeType) {
-                    do {
-                        let entity = try await storage.saveAttachment(from: sourceURL, filename: filename, mimeType: mimeType)
-                        return .success(
-                            DraftAttachment(
-                                id: entity.id,
-                                filename: entity.filename,
-                                mimeType: entity.mimeType,
-                                fileURL: entity.fileURL,
-                                extractedText: nil
-                            )
-                        )
-                    } catch {
-                        return .failure(AttachmentImportError(message: "\(filename): failed to import (\(error.localizedDescription))."))
-                    }
-                }
-            }
-
-            guard let convertedURL = convertImageFileToTemporaryPNG(at: sourceURL) else {
-                let rawMimeType = type.preferredMIMEType ?? "unknown"
-                return .failure(AttachmentImportError(message: "\(filename): unsupported image format (\(rawMimeType)). Use PNG/JPEG/WebP."))
-            }
-
-            let base = (filename as NSString).deletingPathExtension
-            let outputName = base.isEmpty ? "Image.png" : "\(base).png"
-            return await saveConvertedPNG(
-                convertedURL,
-                storage: storage,
-                filename: outputName
-            )
-        }
-
-        return .failure(AttachmentImportError(message: "\(filename): unsupported file type."))
-    }
-
-    private static func convertImageFileToTemporaryPNG(at url: URL) -> URL? {
-        guard let image = NSImage(contentsOf: url) else { return nil }
-        return writeTemporaryPNG(from: image)
-    }
-
-    private static func normalizedVideoMIMEType(for type: UTType, sourceURL: URL) -> String? {
-        if let raw = type.preferredMIMEType?.lowercased(), raw.hasPrefix("video/") {
-            return raw
-        }
-
-        switch sourceURL.pathExtension.lowercased() {
-        case "mp4", "m4v":
-            return "video/mp4"
-        case "mov":
-            return "video/quicktime"
-        case "webm":
-            return "video/webm"
-        case "avi":
-            return "video/x-msvideo"
-        case "mkv":
-            return "video/x-matroska"
-        case "mpeg", "mpg":
-            return "video/mpeg"
-        case "wmv":
-            return "video/x-ms-wmv"
-        case "flv":
-            return "video/x-flv"
-        case "3gp", "3gpp":
-            return "video/3gpp"
-        default:
-            return nil
-        }
-    }
-
-    private static func normalizedAudioMIMEType(for type: UTType, sourceURL: URL) -> String? {
-        if let raw = type.preferredMIMEType?.lowercased(), raw.hasPrefix("audio/") {
-            switch raw {
-            case "audio/x-wav":
-                return "audio/wav"
-            case "audio/mp4", "audio/x-m4a":
-                return "audio/m4a"
-            default:
-                return raw
-            }
-        }
-
-        switch sourceURL.pathExtension.lowercased() {
-        case "wav":
-            return "audio/wav"
-        case "mp3":
-            return "audio/mpeg"
-        case "m4a":
-            return "audio/m4a"
-        case "aac":
-            return "audio/aac"
-        case "flac":
-            return "audio/flac"
-        case "ogg", "oga":
-            return "audio/ogg"
-        case "webm":
-            return "audio/webm"
-        default:
-            return nil
-        }
-    }
-
-    private static func saveConvertedPNG(
-        _ pngURL: URL,
-        storage: AttachmentStorageManager,
-        filename: String
-    ) async -> Result<DraftAttachment, AttachmentImportError> {
-        do {
-            let entity = try await storage.saveAttachment(from: pngURL, filename: filename, mimeType: "image/png")
-            try? FileManager.default.removeItem(at: pngURL)
-            return .success(
-                DraftAttachment(
-                    id: entity.id,
-                    filename: entity.filename,
-                    mimeType: entity.mimeType,
-                    fileURL: entity.fileURL,
-                    extractedText: nil
-                )
-            )
-        } catch {
-            return .failure(AttachmentImportError(message: "\(filename): failed to import (\(error.localizedDescription))."))
         }
     }
 
@@ -2472,10 +2081,6 @@ struct ChatView: View {
         }
     }
 
-    private static let automaticOpenAIMinTokensThreshold = 1024
-    private static let automaticGoogleExplicitCacheTTLSeconds: TimeInterval = 3600
-    private static let automaticGoogleExplicitCacheMinTokenEstimate = 2048
-
     private func automaticContextCacheControls(
         providerType: ProviderType?,
         modelID: String,
@@ -2494,7 +2099,7 @@ struct ChatView: View {
         case .openai:
             return ContextCacheControls(
                 mode: .implicit,
-                minTokensThreshold: Self.automaticOpenAIMinTokensThreshold
+                minTokensThreshold: ContextCacheUtilities.automaticOpenAIMinTokensThreshold
             )
         case .xai:
             return ContextCacheControls(
@@ -2543,237 +2148,6 @@ struct ChatView: View {
 
         let trimmed = output.trimmingCharacters(in: CharacterSet(charactersIn: "-_"))
         return trimmed.isEmpty ? "model" : trimmed
-    }
-
-    private static func applyAutomaticContextCacheOptimizations(
-        adapter: any LLMProviderAdapter,
-        providerType: ProviderType,
-        modelID: String,
-        messages: [Message],
-        controls: GenerationControls,
-        tools: [ToolDefinition]
-    ) async -> (messages: [Message], controls: GenerationControls) {
-        var adjustedMessages = messages
-        var adjustedControls = controls
-
-        guard adjustedControls.contextCache?.mode != .off else {
-            return (adjustedMessages, adjustedControls)
-        }
-
-        switch providerType {
-        case .openai:
-            adjustedControls.contextCache?.cacheKey = automaticOpenAICacheKey(
-                modelID: modelID,
-                messages: messages,
-                tools: tools
-            )
-        case .anthropic:
-            let systemTokenEstimate = approximateTokenEstimate(for: normalizedSystemPrompt(in: messages) ?? "")
-            adjustedControls.contextCache?.strategy = (systemTokenEstimate >= 1024) ? .prefixWindow : .systemOnly
-        case .gemini:
-            if let geminiAdapter = adapter as? GeminiAdapter,
-               let prepared = await prepareGeminiExplicitContextCache(
-                    adapter: geminiAdapter,
-                    modelID: modelID,
-                    messages: messages,
-                    controls: adjustedControls
-               ) {
-                adjustedMessages = prepared.messages
-                adjustedControls = prepared.controls
-            }
-        case .vertexai:
-            if let vertexAdapter = adapter as? VertexAIAdapter,
-               let prepared = await prepareVertexExplicitContextCache(
-                    adapter: vertexAdapter,
-                    modelID: modelID,
-                    messages: messages,
-                    controls: adjustedControls
-               ) {
-                adjustedMessages = prepared.messages
-                adjustedControls = prepared.controls
-            }
-        case .xai, .openaiCompatible, .openrouter, .perplexity, .groq, .cohere, .mistral, .deepinfra, .deepseek, .fireworks, .cerebras:
-            break
-        }
-
-        return (adjustedMessages, adjustedControls)
-    }
-
-    private static func prepareGeminiExplicitContextCache(
-        adapter: GeminiAdapter,
-        modelID: String,
-        messages: [Message],
-        controls: GenerationControls
-    ) async -> (messages: [Message], controls: GenerationControls)? {
-        guard let systemText = normalizedSystemPrompt(in: messages),
-              approximateTokenEstimate(for: systemText) >= automaticGoogleExplicitCacheMinTokenEstimate else {
-            return nil
-        }
-
-        let fingerprint = sha256Hex("gemini|\(modelID)|\(systemText)")
-        let displayName = "jin-auto-\(fingerprint.prefix(24))"
-        let registryKey = "gemini|\(modelID)|\(fingerprint)"
-
-        let cachedName: String
-        if let name = await AutomaticExplicitCacheRegistry.shared.cachedName(for: registryKey) {
-            cachedName = name
-        } else {
-            let payload: [String: Any] = [
-                "model": normalizedGeminiCachedContentModel(modelID),
-                "displayName": displayName,
-                "ttl": "\(Int(automaticGoogleExplicitCacheTTLSeconds))s",
-                "systemInstruction": [
-                    "parts": [
-                        ["text": systemText]
-                    ]
-                ]
-            ]
-
-            do {
-                let created = try await adapter.createCachedContent(payload: payload)
-                cachedName = created.name
-                await AutomaticExplicitCacheRegistry.shared.save(
-                    name: cachedName,
-                    for: registryKey,
-                    ttlSeconds: automaticGoogleExplicitCacheTTLSeconds * 0.9
-                )
-            } catch {
-                return nil
-            }
-        }
-
-        return applyExplicitGoogleCache(named: cachedName, messages: messages, controls: controls)
-    }
-
-    private static func prepareVertexExplicitContextCache(
-        adapter: VertexAIAdapter,
-        modelID: String,
-        messages: [Message],
-        controls: GenerationControls
-    ) async -> (messages: [Message], controls: GenerationControls)? {
-        guard let systemText = normalizedSystemPrompt(in: messages),
-              approximateTokenEstimate(for: systemText) >= automaticGoogleExplicitCacheMinTokenEstimate else {
-            return nil
-        }
-
-        let fingerprint = sha256Hex("vertex|\(modelID)|\(systemText)")
-        let displayName = "jin-auto-\(fingerprint.prefix(24))"
-        let registryKey = "vertex|\(modelID)|\(fingerprint)"
-
-        let cachedName: String
-        if let name = await AutomaticExplicitCacheRegistry.shared.cachedName(for: registryKey) {
-            cachedName = name
-        } else {
-            let payload: [String: Any] = [
-                "model": normalizedVertexCachedContentModel(modelID),
-                "displayName": displayName,
-                "ttl": "\(Int(automaticGoogleExplicitCacheTTLSeconds))s",
-                "systemInstruction": [
-                    "parts": [
-                        ["text": systemText]
-                    ]
-                ]
-            ]
-
-            do {
-                let created = try await adapter.createCachedContent(payload: payload)
-                cachedName = created.name
-                await AutomaticExplicitCacheRegistry.shared.save(
-                    name: cachedName,
-                    for: registryKey,
-                    ttlSeconds: automaticGoogleExplicitCacheTTLSeconds * 0.9
-                )
-            } catch {
-                return nil
-            }
-        }
-
-        return applyExplicitGoogleCache(named: cachedName, messages: messages, controls: controls)
-    }
-
-    private static func applyExplicitGoogleCache(
-        named cachedContentName: String,
-        messages: [Message],
-        controls: GenerationControls
-    ) -> (messages: [Message], controls: GenerationControls)? {
-        guard let systemIndex = messages.firstIndex(where: { $0.role == .system }) else {
-            return nil
-        }
-
-        var adjustedMessages = messages
-        adjustedMessages.remove(at: systemIndex)
-
-        var adjustedControls = controls
-        var contextCache = adjustedControls.contextCache ?? ContextCacheControls(mode: .explicit)
-        contextCache.mode = .explicit
-        contextCache.cachedContentName = cachedContentName
-        contextCache.strategy = nil
-        contextCache.ttl = nil
-        contextCache.cacheKey = nil
-        contextCache.conversationID = nil
-        contextCache.minTokensThreshold = nil
-        adjustedControls.contextCache = contextCache
-
-        return (adjustedMessages, adjustedControls)
-    }
-
-    private static func automaticOpenAICacheKey(
-        modelID: String,
-        messages: [Message],
-        tools: [ToolDefinition]
-    ) -> String {
-        let systemText = normalizedSystemPrompt(in: messages) ?? ""
-        let toolSignature = tools
-            .map { tool in
-                "\(tool.name)|\(tool.description)|\((tool.parameters.required).joined(separator: ","))"
-            }
-            .sorted()
-            .joined(separator: "\n")
-        let digest = sha256Hex("openai|\(modelID)|\(systemText)|\(toolSignature)")
-        return "jin-prefix-\(digest.prefix(24))"
-    }
-
-    private static func normalizedSystemPrompt(in messages: [Message]) -> String? {
-        guard let systemMessage = messages.first(where: { $0.role == .system }) else {
-            return nil
-        }
-        let text = systemMessage.content.compactMap { part -> String? in
-            if case .text(let value) = part {
-                return value
-            }
-            return nil
-        }.joined(separator: "\n")
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? nil : trimmed
-    }
-
-    private static func approximateTokenEstimate(for text: String) -> Int {
-        guard !text.isEmpty else { return 0 }
-        return max(1, text.count / 4)
-    }
-
-    private static func normalizedGeminiCachedContentModel(_ modelID: String) -> String {
-        let trimmed = modelID.trimmingCharacters(in: .whitespacesAndNewlines)
-        if trimmed.hasPrefix("models/") {
-            return trimmed
-        }
-        return "models/\(trimmed)"
-    }
-
-    private static func normalizedVertexCachedContentModel(_ modelID: String) -> String {
-        let trimmed = modelID.trimmingCharacters(in: .whitespacesAndNewlines)
-        if trimmed.hasPrefix("publishers/") {
-            return trimmed
-        }
-        if trimmed.hasPrefix("models/") {
-            return "publishers/google/\(trimmed)"
-        }
-        return "publishers/google/models/\(trimmed)"
-    }
-
-    private static func sha256Hex(_ text: String) -> String {
-        let digest = SHA256.hash(data: Data(text.utf8))
-        return digest.map { String(format: "%02x", $0) }.joined()
     }
 
     private var supportsMCPToolsControl: Bool {
@@ -3764,7 +3138,7 @@ struct ChatView: View {
                 for id in orderedIDs {
                     guard imageParts.count < AttachmentConstants.maxMistralOCRImagesToAttach else { break }
                     guard let base64 = base64ByID[id] else { continue }
-                    guard let decoded = decodeMistralOCRImageBase64(base64, imageID: id) else { continue }
+                    guard let decoded = PDFProcessingUtilities.decodeMistralOCRImageBase64(base64, imageID: id) else { continue }
                     guard let decodedData = decoded.data else { continue }
 
                     let nextTotal = totalAttachedImageBytes + decodedData.count
@@ -3842,7 +3216,7 @@ struct ChatView: View {
                     timeoutSeconds: 120
                 )
 
-                let normalized = normalizedDeepSeekOCRMarkdown(raw)
+                let normalized = PDFProcessingUtilities.normalizedDeepSeekOCRMarkdown(raw)
                     .trimmingCharacters(in: .whitespacesAndNewlines)
                 if !normalized.isEmpty {
                     pageMarkdown.append(normalized)
@@ -3889,91 +3263,11 @@ struct ChatView: View {
         }
     }
 
-    private func normalizedDeepSeekOCRMarkdown(_ raw: String) -> String {
-        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard trimmed.hasPrefix("```") else { return trimmed }
-
-        let fenceCount = trimmed.components(separatedBy: "```").count - 1
-        guard fenceCount == 2 else { return trimmed }
-
-        guard let firstNewline = trimmed.firstIndex(of: "\n"),
-              let closingRange = trimmed.range(of: "```", options: [.backwards]) else {
-            return trimmed
-        }
-
-        let openingLine = String(trimmed[..<firstNewline]).trimmingCharacters(in: .whitespacesAndNewlines)
-        let allowedOpening = openingLine == "```" || openingLine == "```markdown" || openingLine == "```md"
-        guard allowedOpening else { return trimmed }
-
-        let contentStart = trimmed.index(after: firstNewline)
-        guard closingRange.lowerBound > contentStart else { return trimmed }
-
-        let content = trimmed[contentStart..<closingRange.lowerBound]
-        return String(content).trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
-    private func decodeMistralOCRImageBase64(_ raw: String, imageID: String) -> ImageContent? {
-        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-
-        if trimmed.hasPrefix("data:"),
-           let commaIndex = trimmed.range(of: ","),
-           let headerRange = trimmed.range(of: "data:") {
-            let header = String(trimmed[headerRange.upperBound..<commaIndex.lowerBound])
-            let base64 = String(trimmed[commaIndex.upperBound...])
-            let mimeType = header.split(separator: ";").first.map(String.init)
-                ?? mimeTypeForMistralImageID(imageID)
-                ?? "image/png"
-            guard let data = Data(base64Encoded: base64, options: [.ignoreUnknownCharacters]) else { return nil }
-            return ImageContent(mimeType: mimeType, data: data, url: nil)
-        }
-
-        guard let data = Data(base64Encoded: trimmed, options: [.ignoreUnknownCharacters]) else { return nil }
-        let mimeType = mimeTypeForMistralImageID(imageID) ?? sniffImageMimeType(from: data) ?? "image/png"
-        return ImageContent(mimeType: mimeType, data: data, url: nil)
-    }
-
-    private func mimeTypeForMistralImageID(_ imageID: String) -> String? {
-        let lower = imageID.lowercased()
-        if lower.hasSuffix(".png") { return "image/png" }
-        if lower.hasSuffix(".jpg") || lower.hasSuffix(".jpeg") { return "image/jpeg" }
-        if lower.hasSuffix(".webp") { return "image/webp" }
-        return nil
-    }
-
-    private func sniffImageMimeType(from data: Data) -> String? {
-        if data.count >= 3, data.starts(with: [0xFF, 0xD8, 0xFF]) { return "image/jpeg" }
-        if data.count >= 8, data.starts(with: [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]) { return "image/png" }
-        if data.count >= 12 {
-            let riff = data.prefix(4)
-            let webp = data.dropFirst(8).prefix(4)
-            if riff == Data([0x52, 0x49, 0x46, 0x46]) && webp == Data([0x57, 0x45, 0x42, 0x50]) {
-                return "image/webp"
-            }
-        }
-        return nil
-    }
-
     private func makeConversationTitle(from userText: String) -> String {
         let firstLine = userText.split(whereSeparator: \.isNewline).first.map(String.init) ?? ""
         let trimmed = firstLine.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return "New Chat" }
         return String(trimmed.prefix(48))
-    }
-
-    nonisolated private static func completionNotificationPreview(from parts: [ContentPart]) -> String? {
-        let text = parts.compactMap { part -> String? in
-            if case .text(let value) = part {
-                return value
-            }
-            return nil
-        }
-        .joined(separator: " ")
-
-        let normalized = text
-            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !normalized.isEmpty else { return nil }
-        return String(normalized.prefix(180))
     }
 
     @MainActor
@@ -4057,7 +3351,7 @@ struct ChatView: View {
                 let providerType = providerConfig.type
 
                 var requestControls = controlsToUse
-                let optimizedContextCache = await Self.applyAutomaticContextCacheOptimizations(
+                let optimizedContextCache = await ContextCacheUtilities.applyAutomaticContextCacheOptimizations(
                     adapter: adapter,
                     providerType: providerType,
                     modelID: modelID,
@@ -4251,13 +3545,13 @@ struct ChatView: View {
                     let toolCalls = Array(toolCallsByID.values)
                     let assistantParts = buildAssistantParts()
                     if !assistantParts.isEmpty || !toolCalls.isEmpty {
-                        let persistedParts = await Self.persistImagesToDisk(assistantParts)
+                        let persistedParts = await AttachmentImportPipeline.persistImagesToDisk(assistantParts)
                         let assistantMessage = Message(
                             role: .assistant,
                             content: persistedParts,
                             toolCalls: toolCalls.isEmpty ? nil : toolCalls
                         )
-                        if let preview = Self.completionNotificationPreview(from: persistedParts) {
+                        if let preview = AttachmentImportPipeline.completionNotificationPreview(from: persistedParts) {
                             completionPreview = preview
                         }
 
@@ -6166,25 +5460,5 @@ struct ChatView: View {
                 persistControlsToConversation()
             }
         )
-    }
-}
-
-// MARK: - Scroll Pin Detection
-
-private extension View {
-    @ViewBuilder
-    func onScrollPinChange(isPinned: Binding<Bool>) -> some View {
-        if #available(macOS 15.0, *) {
-            self.onScrollGeometryChange(for: Bool.self) { geo in
-                let distFromBottom = geo.contentSize.height - geo.contentOffset.y - geo.containerSize.height
-                return distFromBottom <= 80
-            } action: { _, pinned in
-                if pinned != isPinned.wrappedValue {
-                    isPinned.wrappedValue = pinned
-                }
-            }
-        } else {
-            self
-        }
     }
 }

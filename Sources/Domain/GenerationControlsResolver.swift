@@ -1,6 +1,6 @@
 import Foundation
 
-struct GenerationControlsResolver {
+enum GenerationControlsResolver {
     static func resolvedForRequest(
         base: GenerationControls,
         assistantTemperature: Double?,

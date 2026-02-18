@@ -11,7 +11,7 @@ final class ChatDropParsingTests: XCTestCase {
         let imageURL = tempDir.appendingPathComponent("dropped.png")
         try Data().write(to: imageURL, options: [.atomic])
 
-        let result = ChatView.parseDroppedString(imageURL.absoluteString)
+        let result = AttachmentImportPipeline.parseDroppedString(imageURL.absoluteString)
         XCTAssertEqual(result.fileURLs.map(\.path), [imageURL.path])
         XCTAssertTrue(result.textChunks.isEmpty)
     }
@@ -25,7 +25,7 @@ final class ChatDropParsingTests: XCTestCase {
         let pdfURL = tempDir.appendingPathComponent("doc.pdf")
         try Data().write(to: pdfURL, options: [.atomic])
 
-        let result = ChatView.parseDroppedString(pdfURL.path)
+        let result = AttachmentImportPipeline.parseDroppedString(pdfURL.path)
         XCTAssertEqual(result.fileURLs.map(\.path), [pdfURL.path])
         XCTAssertTrue(result.textChunks.isEmpty)
     }
@@ -39,14 +39,14 @@ final class ChatDropParsingTests: XCTestCase {
         let mp4URL = tempDir.appendingPathComponent("clip.mp4")
         try Data().write(to: mp4URL, options: [.atomic])
 
-        let result = ChatView.parseDroppedString(mp4URL.path)
+        let result = AttachmentImportPipeline.parseDroppedString(mp4URL.path)
         XCTAssertEqual(result.fileURLs.map(\.path), [mp4URL.path])
         XCTAssertTrue(result.textChunks.isEmpty)
     }
 
     func testParseDroppedStringKeepsRemoteURLsAsText() {
         let input = "https://example.com/image.png"
-        let result = ChatView.parseDroppedString(input)
+        let result = AttachmentImportPipeline.parseDroppedString(input)
         XCTAssertTrue(result.fileURLs.isEmpty)
         XCTAssertEqual(result.textChunks, [input])
     }

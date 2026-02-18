@@ -6,7 +6,7 @@ enum OpenAIChatCompletionsReasoningField {
     case reasoningOrReasoningContent
 }
 
-struct OpenAIChatCompletionsCore {
+enum OpenAIChatCompletionsCore {
     static func decodeResponse(_ data: Data) throws -> OpenAIChatCompletionsResponse {
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
