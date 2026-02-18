@@ -43,6 +43,7 @@ response.json
 *.swo
 *~
 .superset/
+*.pen
 # Temporary files
 *.tmp
 *.temp
