@@ -426,13 +426,13 @@ struct ContentView: View {
             }
         }
 
-        var controls = GenerationControls()
+        let inheritedControls = lastConversation.flatMap { conversation in
+            try? JSONDecoder().decode(GenerationControls.self, from: conversation.modelConfigData)
+        }
+        var controls = inheritedControls ?? GenerationControls()
         switch newChatMCPMode {
         case .lastUsed:
-            if let lastConversation,
-               let lastControls = try? JSONDecoder().decode(GenerationControls.self, from: lastConversation.modelConfigData) {
-                controls.mcpTools = lastControls.mcpTools
-            }
+            break
 
         case .fixed:
             guard newChatFixedMCPEnabled else {
