@@ -3103,6 +3103,7 @@ struct ChatView: View {
             return models.first(where: { $0.id == "gpt-5.2" })?.id
         case .anthropic:
             return models.first(where: { $0.id == "claude-opus-4-6" })?.id
+                ?? models.first(where: { $0.id == "claude-sonnet-4-6" })?.id
                 ?? models.first(where: { $0.id == "claude-sonnet-4-5-20250929" })?.id
         case .perplexity:
             return models.first(where: { $0.id == "sonar-pro" })?.id
@@ -5644,9 +5645,9 @@ struct ChatView: View {
 
     private var anthropicThinkingSummaryText: String {
         if anthropicUsesEffortMode {
-            return "Opus 4.6 uses adaptive thinking. Choose an effort level, then set a max output limit."
+            return "Claude 4.6 uses adaptive thinking. Choose an effort level, then set a max output limit."
         }
-        return "Claude 4.5 uses budget-based thinking. Set budget tokens and max output tokens together."
+        return "Claude 4.5 and earlier use budget-based thinking. Set budget tokens and max output tokens together."
     }
 
     private var anthropicThinkingFootnote: String {
