@@ -197,6 +197,14 @@ actor AnthropicAdapter: LLMProviderAdapter {
         }
     }
 
+    private func defaultAnthropicEffort(for modelID: String) -> ReasoningEffort {
+        let lower = modelID.lowercased()
+        if lower == "claude-sonnet-4-6" || lower.contains("claude-sonnet-4-6-") {
+            return .medium
+        }
+        return .high
+    }
+
     private func providerSpecificJSONDictionary(_ value: Any) -> [String: Any]? {
         if let dictionary = value as? [String: Any] {
             return dictionary
@@ -708,7 +716,7 @@ actor AnthropicAdapter: LLMProviderAdapter {
         if id.contains("claude-") {
             caps.insert(.reasoning)
             if supportsEffort(id) {
-                reasoningConfig = ModelReasoningConfig(type: .effort, defaultEffort: .high)
+                reasoningConfig = ModelReasoningConfig(type: .effort, defaultEffort: defaultAnthropicEffort(for: id))
             } else {
                 reasoningConfig = ModelReasoningConfig(type: .budget, defaultBudget: 2048)
             }

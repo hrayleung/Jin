@@ -491,6 +491,9 @@ struct ContentView: View {
         if providerID == "anthropic", let opus46 = models.first(where: { $0.id == "claude-opus-4-6" }) {
             return opus46.id
         }
+        if providerID == "anthropic", let sonnet46 = models.first(where: { $0.id == "claude-sonnet-4-6" }) {
+            return sonnet46.id
+        }
         if providerID == "anthropic", let sonnet45 = models.first(where: { $0.id == "claude-sonnet-4-5-20250929" }) {
             return sonnet45.id
         }

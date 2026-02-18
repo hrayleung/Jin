@@ -98,6 +98,13 @@ enum DefaultProviderSeeds {
                     reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high)
                 ),
                 ModelInfo(
+                    id: "claude-sonnet-4-6",
+                    name: "Claude Sonnet 4.6",
+                    capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .nativePDF],
+                    contextWindow: 200000,
+                    reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium)
+                ),
+                ModelInfo(
                     id: "claude-opus-4-5-20251101",
                     name: "Claude Opus 4.5",
                     capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .nativePDF],
