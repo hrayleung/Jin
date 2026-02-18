@@ -20,6 +20,7 @@ struct ChatView: View {
 
     @State private var controls: GenerationControls = GenerationControls()
     @State private var messageText = ""
+    @State private var remoteVideoInputURLText = ""
     @State private var draftAttachments: [DraftAttachment] = []
     @State private var isFileImporterPresented = false
     @State private var isComposerDropTargeted = false
@@ -134,6 +135,7 @@ struct ChatView: View {
     private var composerLeftColumn: some View {
         VStack(alignment: .leading, spacing: JinSpacing.small) {
             composerAttachmentChipsRow
+            composerRemoteVideoInputRow
             composerTextEditor
             composerControlsRow
             composerPrepareToSendRow
@@ -155,6 +157,36 @@ struct ChatView: View {
                 }
                 .padding(.horizontal, JinSpacing.xSmall)
             }
+        }
+    }
+
+    @ViewBuilder
+    private var composerRemoteVideoInputRow: some View {
+        if supportsExplicitRemoteVideoURLInput {
+            HStack(spacing: JinSpacing.small) {
+                Image(systemName: "link")
+                    .foregroundStyle(.secondary)
+
+                TextField("Public video URL (optional, for video edit)", text: $remoteVideoInputURLText)
+                    .textFieldStyle(.plain)
+                    .font(.callout)
+                    .disabled(isBusy)
+
+                if !trimmedRemoteVideoInputURLText.isEmpty {
+                    Button {
+                        remoteVideoInputURLText = ""
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Clear video URL")
+                    .disabled(isBusy)
+                }
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
+            .jinSurface(.subtle, cornerRadius: JinRadius.medium)
         }
     }
 
@@ -806,11 +838,13 @@ struct ChatView: View {
             if isExpandedComposerPresented {
                 ExpandedComposerOverlay(
                     messageText: $messageText,
+                    remoteVideoURLText: $remoteVideoInputURLText,
                     draftAttachments: $draftAttachments,
                     isPresented: $isExpandedComposerPresented,
                     isComposerDropTargeted: $isComposerDropTargeted,
                     isBusy: isBusy,
                     canSendDraft: canSendDraft,
+                    showsRemoteVideoURLField: supportsExplicitRemoteVideoURLInput,
                     onSend: {
                         isExpandedComposerPresented = false
                         sendMessage()
@@ -884,6 +918,7 @@ struct ChatView: View {
             pendingRestoreScrollMessageID = nil
             isPinnedToBottom = true
             isExpandedComposerPresented = false
+            remoteVideoInputURLText = ""
             loadControlsFromConversation()
             rebuildMessageCaches()
         }
@@ -1130,6 +1165,14 @@ struct ChatView: View {
 
     private var trimmedMessageText: String {
         messageText.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var trimmedRemoteVideoInputURLText: String {
+        remoteVideoInputURLText.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var supportsExplicitRemoteVideoURLInput: Bool {
+        supportsVideoGenerationControl && providerType == .xai
     }
 
     private var canSendDraft: Bool {
@@ -2829,8 +2872,18 @@ struct ChatView: View {
         cancelEditingUserMessage()
 
         let messageTextSnapshot = trimmedMessageText
+        let remoteVideoURLTextSnapshot = trimmedRemoteVideoInputURLText
         let attachmentsSnapshot = draftAttachments
         let askedAt = Date()
+
+        let remoteVideoURLSnapshot: URL?
+        do {
+            remoteVideoURLSnapshot = try resolvedRemoteVideoInputURL(from: remoteVideoURLTextSnapshot)
+        } catch {
+            errorMessage = error.localizedDescription
+            showingError = true
+            return
+        }
 
         if supportsMediaGenerationControl && messageTextSnapshot.isEmpty {
             let mediaType = supportsVideoGenerationControl ? "Video" : "Image"
@@ -2840,6 +2893,7 @@ struct ChatView: View {
         }
 
         messageText = ""
+        remoteVideoInputURLText = ""
         composerTextContentHeight = 36
         draftAttachments = []
 
@@ -2850,7 +2904,8 @@ struct ChatView: View {
             do {
                 let parts = try await buildUserMessageParts(
                     messageText: messageTextSnapshot,
-                    attachments: attachmentsSnapshot
+                    attachments: attachmentsSnapshot,
+                    remoteVideoURL: remoteVideoURLSnapshot
                 )
 
                 let message = Message(role: .user, content: parts, timestamp: askedAt)
@@ -2886,6 +2941,7 @@ struct ChatView: View {
                     prepareToSendStatus = nil
                     prepareToSendTask = nil
                     messageText = messageTextSnapshot
+                    remoteVideoInputURLText = remoteVideoURLTextSnapshot
                     draftAttachments = attachmentsSnapshot
                 }
             } catch {
@@ -2894,6 +2950,7 @@ struct ChatView: View {
                     prepareToSendStatus = nil
                     prepareToSendTask = nil
                     messageText = messageTextSnapshot
+                    remoteVideoInputURLText = remoteVideoURLTextSnapshot
                     draftAttachments = attachmentsSnapshot
                     errorMessage = error.localizedDescription
                     showingError = true
@@ -2906,10 +2963,15 @@ struct ChatView: View {
 
     private func buildUserMessageParts(
         messageText: String,
-        attachments: [DraftAttachment]
+        attachments: [DraftAttachment],
+        remoteVideoURL: URL?
     ) async throws -> [ContentPart] {
         var parts: [ContentPart] = []
-        parts.reserveCapacity(attachments.count + (messageText.isEmpty ? 0 : 1))
+        parts.reserveCapacity(attachments.count + (messageText.isEmpty ? 0 : 1) + (remoteVideoURL == nil ? 0 : 1))
+
+        if let remoteVideoURL {
+            parts.append(.video(VideoContent(mimeType: inferredVideoMIMEType(from: remoteVideoURL), data: nil, url: remoteVideoURL)))
+        }
 
         let pdfCount = attachments.filter(\.isPDF).count
 
@@ -3009,6 +3071,35 @@ struct ChatView: View {
         }
 
         return parts
+    }
+
+    private func resolvedRemoteVideoInputURL(from raw: String) throws -> URL? {
+        guard supportsExplicitRemoteVideoURLInput else { return nil }
+        guard !raw.isEmpty else { return nil }
+
+        guard let url = URL(string: raw),
+              !url.isFileURL,
+              let scheme = url.scheme?.lowercased(),
+              scheme == "http" || scheme == "https" else {
+            throw LLMError.invalidRequest(message: "Video URL must be a valid http(s) link.")
+        }
+
+        return url
+    }
+
+    private func inferredVideoMIMEType(from url: URL) -> String {
+        switch url.pathExtension.lowercased() {
+        case "mp4", "m4v": return "video/mp4"
+        case "mov": return "video/quicktime"
+        case "webm": return "video/webm"
+        case "avi": return "video/x-msvideo"
+        case "mkv": return "video/x-matroska"
+        case "mpeg", "mpg": return "video/mpeg"
+        case "wmv": return "video/x-ms-wmv"
+        case "flv": return "video/x-flv"
+        case "3gp", "3gpp": return "video/3gpp"
+        default: return "video/mp4"
+        }
     }
 
     private struct PreparedPDFContent {
