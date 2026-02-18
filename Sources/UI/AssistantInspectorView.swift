@@ -11,8 +11,7 @@ struct AssistantInspectorView: View {
             AssistantSettingsEditorView(
                 assistant: assistant
             )
-            .navigationTitle(assistant.displayName)
-            .navigationSubtitle("Assistant Settings")
+            .navigationTitle("Assistant Settings")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Done") {
@@ -22,7 +21,7 @@ struct AssistantInspectorView: View {
                 }
             }
         }
-        .frame(minWidth: 760, idealWidth: 980, minHeight: 740, idealHeight: 880)
+        .frame(minWidth: 600, idealWidth: 700, minHeight: 700, idealHeight: 800)
     }
 }
 
@@ -112,11 +111,11 @@ private struct IconPickerSheet: View {
         ),
         IconCategory(
             name: "Science",
-            icons: ["graduationcap.fill", "atom", "flask.fill", "testtube.2", "leaf.fill", "globe", "pawprint.fill", "🧬", "fossil.shell.fill", "mountain.2.fill"]
+            icons: ["graduationcap.fill", "atom", "flask.fill", "testtube.2", "leaf.fill", "globe", "pawprint.fill", "dna", "fossil.shell.fill", "mountain.2.fill"]
         ),
         IconCategory(
             name: "Emoji & Custom",
-            icons: ["🤖", "🎨", "💡", "🚀", "⚡️", "🎯", "🔥", "✨", "🌟", "💫", "🧠", "🧩", "🛠️", "🧪", "📚", "📝", "🔍", "💬", "🎭", "📈", "🏆", "🛰️", "🌈", "🦾", "🧭", "🌱", "🧘", "🎵", "📷", "🗺️"]
+            icons: ["🤖", "🎨", "💡", "🚀", "⚡️", "🎯", "🔥", "✨", "🌟", "💫"]
         )
     ]
 
@@ -216,256 +215,325 @@ private struct AssistantSettingsEditorView: View {
     @Environment(\.modelContext) private var modelContext
 
     @State private var customReplyLanguageDraft = ""
-    @State private var isAdvancedExpanded = false
+    @State private var replyLanguageSelectionDraft: ReplyLanguageOption = .default
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: JinSpacing.xLarge + 4) {
-                assistantSummaryCard
+            VStack(alignment: .leading, spacing: JinSpacing.large) {
+                VStack(alignment: .leading, spacing: JinSpacing.medium) {
+                    HStack(alignment: .center, spacing: JinSpacing.medium) {
+                        assistantIcon
+                            .frame(width: 56, height: 56)
 
-                ViewThatFits(in: .horizontal) {
-                    HStack(alignment: .top, spacing: JinSpacing.large) {
-                        leadingColumn
-                            .frame(maxWidth: .infinity, alignment: .topLeading)
-                        trailingColumn
-                            .frame(maxWidth: .infinity, alignment: .topLeading)
-                    }
-
-                    VStack(alignment: .leading, spacing: JinSpacing.large) {
-                        leadingColumn
-                        trailingColumn
-                    }
-                }
-            }
-            .padding(.horizontal, 24)
-            .padding(.vertical, 20)
-            .frame(maxWidth: .infinity, alignment: .topLeading)
-        }
-        .background(JinSemanticColor.detailSurface)
-        .onAppear {
-            syncCustomReplyLanguageDraft()
-            if hasCustomAdvancedSettings {
-                isAdvancedExpanded = true
-            }
-        }
-        .onChange(of: assistant.replyLanguage) { _, _ in
-            syncCustomReplyLanguageDraft()
-        }
-    }
-
-    private var leadingColumn: some View {
-        VStack(alignment: .leading, spacing: JinSpacing.large) {
-            basicsCard
-            responseStyleCard
-        }
-    }
-
-    private var trailingColumn: some View {
-        VStack(alignment: .leading, spacing: JinSpacing.large) {
-            systemPromptCard
-            advancedCard
-        }
-    }
-
-    private var basicsCard: some View {
-        settingsCard(
-            title: "Basics",
-            subtitle: "How this assistant appears across the app."
-        ) {
-            formField(
-                title: "Name",
-                helper: "Shown in the sidebar and chat headers."
-            ) {
-                TextField("e.g., Code Assistant", text: nameBinding)
-                    .textFieldStyle(.roundedBorder)
-            }
-
-            formField(
-                title: "Icon",
-                helper: "Pick a symbol or emoji for quick recognition."
-            ) {
-                IconPickerButton(selectedIcon: iconBinding)
-            }
-
-            formField(
-                title: "Description",
-                helper: "Optional summary used for context."
-            ) {
-                TextField("e.g., Helps with coding", text: descriptionBinding, axis: .vertical)
-                    .lineLimit(2...4)
-                    .textFieldStyle(.roundedBorder)
-            }
-        }
-    }
-
-    private var responseStyleCard: some View {
-        settingsCard(
-            title: "Response Style",
-            subtitle: "Tune default behavior for new chats."
-        ) {
-            VStack(alignment: .leading, spacing: 10) {
-                Text("Temperature")
-                    .font(.headline)
-
-                HStack {
-                    Slider(value: temperatureBinding, in: 0...2, step: 0.05)
-                    Text(assistant.temperature, format: .number.precision(.fractionLength(2)))
-                        .font(.system(.body, design: .monospaced))
-                        .foregroundStyle(.secondary)
-                        .monospacedDigit()
-                        .frame(width: 62, alignment: .trailing)
-                }
-
-                HStack {
-                    Text("Focused")
-                    Spacer()
-                    Text("Balanced")
-                    Spacer()
-                    Text("Creative")
-                }
-                .font(.caption)
-                .foregroundStyle(.tertiary)
-            }
-
-            Divider()
-
-            formField(
-                title: "Reply Language",
-                helper: "Set a default language for replies."
-            ) {
-                Picker("Reply Language", selection: replyLanguageSelectionBinding) {
-                    ForEach(ReplyLanguageOption.allCases) { option in
-                        Text(option.label).tag(option)
-                    }
-                }
-                .labelsHidden()
-
-                if replyLanguageSelectionBinding.wrappedValue == .custom {
-                    TextField("e.g. English, 中文, 日本語", text: $customReplyLanguageDraft)
-                        .textFieldStyle(.roundedBorder)
-                        .onChange(of: customReplyLanguageDraft) { _, newValue in
-                            let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
-                            assistant.replyLanguage = trimmed.isEmpty ? nil : trimmed
-                            assistant.updatedAt = Date()
-                            try? modelContext.save()
-                        }
-                }
-
-                Text(currentReplyLanguageSummary)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-        }
-    }
-
-    private var systemPromptCard: some View {
-        settingsCard(
-            title: "System Prompt",
-            subtitle: "Persistent instructions for tone, boundaries, and behavior."
-        ) {
-            systemInstructionEditor
-        }
-    }
-
-    private var advancedCard: some View {
-        settingsCard(
-            title: "Advanced",
-            subtitle: "Low-frequency controls. Defaults are usually best."
-        ) {
-            DisclosureGroup(isExpanded: $isAdvancedExpanded) {
-                VStack(alignment: .leading, spacing: JinSpacing.large) {
-                    formField(
-                        title: "Max Output Tokens",
-                        helper: "Leave empty to follow provider/model defaults."
-                    ) {
-                        HStack(spacing: JinSpacing.small) {
-                            TextField("e.g., 4096", text: maxOutputTokensBinding)
-                                .font(.system(.body, design: .monospaced))
-                                .textFieldStyle(.roundedBorder)
-                                .frame(width: 160)
-
-                            if assistant.maxOutputTokens != nil {
-                                Button("Clear") {
-                                    assistant.maxOutputTokens = nil
-                                    assistant.updatedAt = Date()
-                                    try? modelContext.save()
-                                }
-                                .buttonStyle(.bordered)
-                                .controlSize(.small)
-                            }
-
-                            Text(maxOutputTokensSummary)
-                                .font(.caption)
+                        VStack(alignment: .leading, spacing: JinSpacing.xSmall) {
+                            Text(assistant.displayName)
+                                .font(.title2)
+                                .fontWeight(.semibold)
+                            Text("Tune this assistant’s behavior defaults for every new chat.")
+                                .font(.subheadline)
                                 .foregroundStyle(.secondary)
-                                .lineLimit(1)
                         }
+
+                        Spacer(minLength: 0)
                     }
 
-                    VStack(alignment: .leading, spacing: 10) {
-                        HStack {
+                    LazyVGrid(
+                        columns: [GridItem(.adaptive(minimum: 140), spacing: JinSpacing.small)],
+                        alignment: .leading,
+                        spacing: JinSpacing.small
+                    ) {
+                        overviewPill(title: "Temperature", value: temperatureSummaryText)
+                        overviewPill(title: "Max Tokens", value: maxTokensSummaryText)
+                        overviewPill(title: "History", value: historySummaryText)
+                        overviewPill(title: "Reply Language", value: replyLanguageSummaryText)
+                    }
+                }
+                .padding(JinSpacing.medium + 2)
+                .jinSurface(.raised, cornerRadius: JinRadius.large)
+
+                sectionCard(
+                    title: "Identity",
+                    subtitle: "How this assistant appears in your workspace.",
+                    systemImage: "person.crop.circle"
+                ) {
+                    VStack(alignment: .leading, spacing: JinSpacing.medium) {
+                        fieldBlock(title: "Name") {
+                            TextField("e.g., Code Assistant", text: nameBinding)
+                                .textFieldStyle(.roundedBorder)
+                        }
+
+                        fieldBlock(title: "Icon") {
+                            IconPickerButton(selectedIcon: iconBinding)
+                        }
+
+                        fieldBlock(title: "Description", footer: "Shown in assistant picker and sidebar hints.") {
+                            TextField("e.g., Helps with coding", text: descriptionBinding, axis: .vertical)
+                                .lineLimit(2...4)
+                                .textFieldStyle(.roundedBorder)
+                        }
+                    }
+                }
+
+                sectionCard(
+                    title: "System Prompt",
+                    subtitle: "Base instruction prepended to every request.",
+                    systemImage: "text.quote"
+                ) {
+                    systemInstructionEditor
+                }
+
+                sectionCard(
+                    title: "Generation Defaults",
+                    subtitle: "Model parameter defaults. Can still be overridden per chat.",
+                    systemImage: "dial.high"
+                ) {
+                    VStack(alignment: .leading, spacing: JinSpacing.medium) {
+                        VStack(alignment: .leading, spacing: JinSpacing.small) {
+                            HStack {
+                                Text("Temperature")
+                                Spacer()
+                                Text(assistant.temperature, format: .number.precision(.fractionLength(2)))
+                                    .font(.system(.body, design: .monospaced))
+                                    .foregroundStyle(.secondary)
+                                    .monospacedDigit()
+                            }
+                            Slider(value: temperatureBinding, in: 0...2, step: 0.05)
+                        }
+
+                        fieldBlock(title: "Max Output Tokens", footer: "Leave empty to follow model default limit.") {
+                            HStack(spacing: JinSpacing.small) {
+                                TextField("e.g., 4096", text: maxOutputTokensBinding)
+                                    .font(.system(.body, design: .monospaced))
+                                    .textFieldStyle(.roundedBorder)
+                                    .frame(width: 140)
+
+                                if assistant.maxOutputTokens != nil {
+                                    Button("Clear") {
+                                        assistant.maxOutputTokens = nil
+                                        assistant.updatedAt = Date()
+                                        try? modelContext.save()
+                                    }
+                                    .buttonStyle(.bordered)
+                                    .controlSize(.small)
+                                }
+
+                                if let tokens = assistant.maxOutputTokens {
+                                    Text("\(tokens)")
+                                        .font(.system(.caption, design: .monospaced))
+                                        .foregroundStyle(.secondary)
+                                } else {
+                                    Text("No limit")
+                                        .font(.caption)
+                                        .foregroundStyle(.tertiary)
+                                }
+                            }
+                        }
+                    }
+                }
+
+                sectionCard(
+                    title: "Conversation Limits",
+                    subtitle: "Keep long chats manageable and context-efficient.",
+                    systemImage: "clock.arrow.circlepath"
+                ) {
+                    VStack(alignment: .leading, spacing: JinSpacing.medium) {
+                        VStack(alignment: .leading, spacing: JinSpacing.small) {
                             Text("Truncate History")
-                                .font(.headline)
-                            Spacer()
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+
                             Picker("Truncate History", selection: truncateMessagesSettingBinding) {
                                 ForEach(TriStateSetting.allCases) { item in
                                     Text(item.label).tag(item)
                                 }
                             }
                             .labelsHidden()
-                            .pickerStyle(.menu)
-                            .frame(width: 120)
+                            .pickerStyle(.segmented)
                         }
 
                         if truncateMessagesSettingBinding.wrappedValue == .on {
-                            HStack(spacing: JinSpacing.small) {
-                                TextField("50", text: maxHistoryMessagesBinding)
-                                    .font(.system(.body, design: .monospaced))
-                                    .textFieldStyle(.roundedBorder)
-                                    .frame(width: 90)
-
-                                Text("messages kept")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
+                            fieldBlock(title: "Keep Last Messages") {
+                                HStack(spacing: JinSpacing.small) {
+                                    TextField("50", text: maxHistoryMessagesBinding)
+                                        .font(.system(.body, design: .monospaced))
+                                        .textFieldStyle(.roundedBorder)
+                                        .frame(width: 90)
+                                    Text("messages")
+                                        .foregroundStyle(.secondary)
+                                }
                             }
                         }
 
-                        Text("When enabled, oldest messages are dropped as history grows to stay within context limits.")
+                        Text("When enabled, oldest messages are dropped as history grows.")
                             .jinInfoCallout()
                     }
+                }
 
-                    formField(title: "Assistant ID") {
-                        Text(assistant.id)
-                            .font(.system(.body, design: .monospaced))
-                            .foregroundStyle(.secondary)
-                            .textSelection(.enabled)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.horizontal, JinSpacing.medium)
-                            .padding(.vertical, JinSpacing.small)
-                            .jinSurface(.subtle, cornerRadius: JinRadius.small)
+                sectionCard(
+                    title: "Response Language",
+                    subtitle: "Set a preferred language for assistant replies.",
+                    systemImage: "globe"
+                ) {
+                    VStack(alignment: .leading, spacing: JinSpacing.medium) {
+                        HStack {
+                            Text("Preset")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                            Spacer()
+                            Picker("", selection: $replyLanguageSelectionDraft) {
+                                ForEach(ReplyLanguageOption.allCases) { option in
+                                    Text(option.label).tag(option)
+                                }
+                            }
+                            .labelsHidden()
+                            .pickerStyle(.menu)
+                            .onChange(of: replyLanguageSelectionDraft) { _, newValue in
+                                switch newValue {
+                                case .custom:
+                                    break
+                                default:
+                                    assistant.replyLanguage = newValue.value
+                                    assistant.updatedAt = Date()
+                                    try? modelContext.save()
+                                }
+                            }
+                        }
+
+                        if replyLanguageSelectionDraft == .custom {
+                            fieldBlock(title: "Custom Language") {
+                                TextField("e.g. English, 中文, 日本語", text: $customReplyLanguageDraft)
+                                    .textFieldStyle(.roundedBorder)
+                                    .onChange(of: customReplyLanguageDraft) { _, newValue in
+                                        let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
+                                        assistant.replyLanguage = trimmed.isEmpty ? nil : trimmed
+                                        assistant.updatedAt = Date()
+                                        try? modelContext.save()
+                                    }
+                            }
+                        }
                     }
                 }
-                .padding(.top, JinSpacing.medium)
-            } label: {
-                Label("Show advanced controls", systemImage: "slider.horizontal.3")
-                    .font(.subheadline.weight(.semibold))
+
+            }
+            .padding(.horizontal, JinSpacing.large)
+            .padding(.vertical, JinSpacing.medium)
+            .frame(maxWidth: 760, alignment: .leading)
+        }
+        .background(JinSemanticColor.detailSurface)
+        .onAppear {
+            syncCustomReplyLanguageDraft()
+        }
+        .onChange(of: assistant.replyLanguage) { _, _ in
+            syncCustomReplyLanguageDraft()
+        }
+    }
+
+    private func sectionCard<Content: View>(
+        title: String,
+        subtitle: String,
+        systemImage: String,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        VStack(alignment: .leading, spacing: JinSpacing.medium) {
+            HStack(alignment: .top, spacing: JinSpacing.small) {
+                Image(systemName: systemImage)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(Color.accentColor)
+                    .frame(width: 20, height: 20)
+                    .padding(.top, 1)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(.headline)
+                    Text(subtitle)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            content()
+        }
+        .padding(JinSpacing.medium)
+        .jinSurface(.raised, cornerRadius: JinRadius.medium)
+    }
+
+    private func fieldBlock<Content: View>(
+        title: String,
+        footer: String? = nil,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        VStack(alignment: .leading, spacing: JinSpacing.xSmall) {
+            Text(title)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+
+            content()
+
+            if let footer, !footer.isEmpty {
+                Text(footer)
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
             }
         }
+    }
+
+    private func overviewPill(title: String, value: String) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(title)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Text(value)
+                .font(.system(.body, design: .monospaced))
+                .fontWeight(.medium)
+                .lineLimit(1)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, JinSpacing.small + 2)
+        .padding(.vertical, JinSpacing.small)
+        .jinSurface(.neutral, cornerRadius: JinRadius.small)
+    }
+
+    private var temperatureSummaryText: String {
+        assistant.temperature.formatted(.number.precision(.fractionLength(2)))
+    }
+
+    private var maxTokensSummaryText: String {
+        assistant.maxOutputTokens.map(String.init) ?? "No limit"
+    }
+
+    private var historySummaryText: String {
+        switch assistant.truncateMessages {
+        case nil:
+            return "Default"
+        case false:
+            return "Unlimited"
+        case true:
+            if let value = assistant.maxHistoryMessages, value > 0 {
+                return "Keep \(value)"
+            }
+            return "On"
+        }
+    }
+
+    private var replyLanguageSummaryText: String {
+        let trimmed = (assistant.replyLanguage ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? "Default" : trimmed
     }
 
     private var systemInstructionEditor: some View {
         ZStack(alignment: .topLeading) {
             TextEditor(text: systemInstructionBinding)
                 .font(.body)
-                .frame(minHeight: 240)
+                .frame(minHeight: 160)
                 .scrollContentBackground(.hidden)
-                .padding(JinSpacing.large)
-                .jinSurface(.neutral, cornerRadius: JinRadius.medium)
+                .padding(JinSpacing.medium)
+                .jinSurface(.neutral, cornerRadius: JinRadius.small)
 
             if assistant.systemInstruction.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 Text("Act as a helpful assistant. Be concise and clear...")
                     .foregroundStyle(.tertiary)
-                    .padding(.top, 22)
-                    .padding(.leading, 20)
+                    .padding(.top, 18)
+                    .padding(.leading, 16)
                     .allowsHitTesting(false)
             }
         }
@@ -492,106 +560,11 @@ private struct AssistantSettingsEditorView: View {
         .jinSurface(.selected, cornerRadius: JinRadius.large)
     }
 
-    private var assistantSummaryCard: some View {
-        HStack(alignment: .center, spacing: 16) {
-            assistantIcon
-                .frame(width: 56, height: 56)
-
-            VStack(alignment: .leading, spacing: 6) {
-                Text(assistant.displayName)
-                    .font(.title3)
-                    .fontWeight(.semibold)
-
-                Text(assistantSummaryText)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-            }
-
-            Spacer(minLength: 0)
-        }
-        .padding(20)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .jinSurface(.raised, cornerRadius: JinRadius.large)
-    }
-
-    private var assistantSummaryText: String {
-        let trimmed = (assistant.assistantDescription ?? "")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        if !trimmed.isEmpty {
-            return trimmed
-        }
-        return "Defaults used when starting a new chat with this assistant."
-    }
-
-    private var currentReplyLanguageSummary: String {
-        let trimmed = (assistant.replyLanguage ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-        if trimmed.isEmpty {
-            return "Current setting: Default (follow system/chat language)."
-        }
-        return "Current setting: \(trimmed)"
-    }
-
-    private var maxOutputTokensSummary: String {
-        if let tokens = assistant.maxOutputTokens {
-            return "Current: \(tokens)"
-        }
-        return "No explicit limit"
-    }
-
-    private var hasCustomAdvancedSettings: Bool {
-        assistant.maxOutputTokens != nil
-            || assistant.truncateMessages != nil
-            || assistant.maxHistoryMessages != nil
-    }
-
-    @ViewBuilder
-    private func formField<Content: View>(
-        title: String,
-        helper: String? = nil,
-        @ViewBuilder content: () -> Content
-    ) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(title)
-                .font(.headline)
-
-            if let helper, !helper.isEmpty {
-                Text(helper)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-            }
-
-            content()
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    @ViewBuilder
-    private func settingsCard<Content: View>(
-        title: String,
-        subtitle: String? = nil,
-        @ViewBuilder content: () -> Content
-    ) -> some View {
-        VStack(alignment: .leading, spacing: JinSpacing.large) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(title)
-                    .font(.title3.weight(.semibold))
-
-                if let subtitle, !subtitle.isEmpty {
-                    Text(subtitle)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                }
-            }
-
-            content()
-        }
-        .padding(20)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .jinSurface(.raised, cornerRadius: JinRadius.large)
-    }
-
     private func syncCustomReplyLanguageDraft() {
-        guard replyLanguageSelectionBinding.wrappedValue == .custom else {
+        let resolved = resolvedReplyLanguageOption(from: assistant.replyLanguage)
+        replyLanguageSelectionDraft = resolved
+
+        guard resolved == .custom else {
             customReplyLanguageDraft = ""
             return
         }
@@ -775,28 +748,13 @@ private extension AssistantSettingsEditorView {
         }
     }
 
-    private var replyLanguageSelectionBinding: Binding<ReplyLanguageOption> {
-        Binding(
-            get: {
-                let trimmed = (assistant.replyLanguage ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-                guard !trimmed.isEmpty else { return .default }
+    private func resolvedReplyLanguageOption(from language: String?) -> ReplyLanguageOption {
+        let trimmed = (language ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return .default }
 
-                if let match = ReplyLanguageOption.allCases.first(where: { $0.value == trimmed }) {
-                    return match
-                }
-                return .custom
-            },
-            set: { newValue in
-                switch newValue {
-                case .custom:
-                    break
-                default:
-                    assistant.replyLanguage = newValue.value
-                    assistant.updatedAt = Date()
-                    try? modelContext.save()
-                }
-                syncCustomReplyLanguageDraft()
-            }
-        )
+        if let match = ReplyLanguageOption.allCases.first(where: { $0.value == trimmed }) {
+            return match
+        }
+        return .custom
     }
 }
