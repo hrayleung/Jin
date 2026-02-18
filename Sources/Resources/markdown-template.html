@@ -1452,6 +1452,38 @@ if (contentEl) {
 resizeObserver.observe(document.body);
 
 window.updateWithBase64 = updateContent;
+
+// Lightweight streaming renderer — same plugins, no syntax highlighting.
+// Avoids code block flickering during streaming; full highlighting applied
+// on the final (non-streaming) render via updateWithBase64.
+var streamMd = window.markdownit({
+    html: false,
+    linkify: true,
+    typographer: false,
+    highlight: function (str, lang) {
+        var id = ++_codeBlockId;
+        _codeBlockSrc[id] = str;
+        var escaped = streamMd.utils.escapeHtml(str);
+        var label = lang ? lang : 'code';
+        return '<pre><div class="code-header"><span class="lang-label">' + streamMd.utils.escapeHtml(label) + '</span><span class="copy-btn" id="copy-' + id + '" onclick="copyCode(' + id + ')"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="5.5" y="5.5" width="8" height="8" rx="1.5"/><path d="M3.5 10.5h-1a1 1 0 0 1-1-1v-7a1 1 0 0 1 1-1h7a1 1 0 0 1 1 1v1"/></svg></span></div><code class="hljs">' + escaped + '</code></pre>';
+    }
+});
+streamMd.use(window.texmath, {
+    engine: katex,
+    delimiters: ['dollars', 'brackets', 'beg_end'],
+    katexOptions: { throwOnError: false, strict: false, trust: true }
+});
+
+function updateStreamingContent(base64) {
+    _codeBlockId = 0;
+    _codeBlockSrc = {};
+    var bytes = Uint8Array.from(atob(base64), function(c) { return c.charCodeAt(0); });
+    var text = new TextDecoder('utf-8').decode(bytes);
+    document.getElementById('content').innerHTML = streamMd.render(text);
+    reportHeight();
+}
+
+window.updateStreamingWithBase64 = updateStreamingContent;
 </script>
 </body>
 </html>
