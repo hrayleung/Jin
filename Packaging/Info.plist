@@ -15,7 +15,7 @@
 	<key>CFBundleName</key>
 	<string>Jin</string>
 	<key>CFBundleIconFile</key>
-	<string>AppIcon</string>
+	<string>AppIconA</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
