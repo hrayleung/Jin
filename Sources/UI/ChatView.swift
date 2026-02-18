@@ -635,141 +635,158 @@ struct ChatView: View {
         .padding(.bottom, 2)
     }
 
+    @ViewBuilder
+    private func chatScrollView(geometry: GeometryProxy, proxy: ScrollViewProxy) -> some View {
+        ScrollView {
+            let bubbleMaxWidth = maxBubbleWidth(for: geometry.size.width)
+            let assistantDisplayName = conversationEntity.assistant?.displayName ?? "Assistant"
+            let providerIconID = currentProviderIconID
+            let toolResultsByCallID = cachedToolResultsByCallID
+            let messageEntitiesByID = cachedMessageEntitiesByID
+
+            let allMessages = cachedVisibleMessages
+            let visibleMessages = allMessages.suffix(messageRenderLimit)
+            let hiddenCount = allMessages.count - visibleMessages.count
+
+            LazyVStack(alignment: .leading, spacing: 16) {
+                if hiddenCount > 0 {
+                    LoadEarlierMessagesRow(
+                        hiddenCount: hiddenCount,
+                        pageSize: 120,
+                        onLoad: {
+                            guard let firstVisible = visibleMessages.first else { return }
+                            pendingRestoreScrollMessageID = firstVisible.id
+                            messageRenderLimit = min(allMessages.count, messageRenderLimit + 120)
+                        }
+                    )
+                    .id("loadEarlier")
+                }
+
+                ForEach(visibleMessages) { message in
+                    MessageRow(
+                        item: message,
+                        maxBubbleWidth: bubbleMaxWidth,
+                        assistantDisplayName: assistantDisplayName,
+                        providerIconID: providerIconID,
+                        toolResultsByCallID: toolResultsByCallID,
+                        actionsEnabled: !isStreaming,
+                        textToSpeechEnabled: textToSpeechPluginEnabled,
+                        textToSpeechConfigured: textToSpeechConfigured,
+                        textToSpeechIsGenerating: ttsPlaybackManager.isGenerating(messageID: message.id),
+                        textToSpeechIsPlaying: ttsPlaybackManager.isPlaying(messageID: message.id),
+                        textToSpeechIsPaused: ttsPlaybackManager.isPaused(messageID: message.id),
+                        onToggleSpeakAssistantMessage: { messageID, text in
+                            guard let entity = messageEntitiesByID[messageID] else { return }
+                            toggleSpeakAssistantMessage(entity, text: text)
+                        },
+                        onStopSpeakAssistantMessage: { messageID in
+                            guard let entity = messageEntitiesByID[messageID] else { return }
+                            stopSpeakAssistantMessage(entity)
+                        },
+                        onRegenerate: { messageID in
+                            guard let entity = messageEntitiesByID[messageID] else { return }
+                            regenerateMessage(entity)
+                        },
+                        onEditUserMessage: { messageID in
+                            guard let entity = messageEntitiesByID[messageID] else { return }
+                            beginEditingUserMessage(entity)
+                        },
+                        editingUserMessageID: editingUserMessageID,
+                        editingUserMessageText: $editingUserMessageText,
+                        editingUserMessageFocused: $isEditingUserMessageFocused,
+                        onSubmitUserEdit: { messageID in
+                            guard let entity = messageEntitiesByID[messageID] else { return }
+                            submitEditingUserMessage(entity)
+                        },
+                        onCancelUserEdit: {
+                            cancelEditingUserMessage()
+                        }
+                    )
+                    .id(message.id)
+                }
+
+                // Streaming message
+                if let streaming = streamingMessage {
+                    StreamingMessageView(
+                        state: streaming,
+                        maxBubbleWidth: bubbleMaxWidth,
+                        assistantDisplayName: assistantDisplayName,
+                        modelLabel: streamingModelLabel,
+                        providerIconID: providerIconID,
+                        onContentUpdate: { }
+                    )
+                    .id("streaming")
+                }
+
+                Color.clear
+                    .frame(height: composerHeight + 24)
+                    .id("bottom")
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 20)
+            .padding(.top, 24)
+            .frame(minHeight: geometry.size.height, alignment: .bottom)
+        }
+        .defaultScrollAnchor(.bottom)
+        .overlay(alignment: .bottomTrailing) {
+            if !isPinnedToBottom {
+                Button {
+                    withAnimation(.easeOut(duration: 0.2)) {
+                        proxy.scrollTo("bottom", anchor: .bottom)
+                    }
+                } label: {
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 32, height: 32)
+                        .background(.regularMaterial, in: Circle())
+                        .shadow(color: .black.opacity(0.1), radius: 4, y: 2)
+                }
+                .buttonStyle(.plain)
+                .padding(.trailing, 20)
+                .padding(.bottom, 34)
+                .transition(.opacity.combined(with: .scale(scale: 0.8)))
+            }
+        }
+        .animation(.easeInOut(duration: 0.2), value: isPinnedToBottom)
+        .onScrollPinChange(isPinned: $isPinnedToBottom)
+        .onChange(of: messageRenderLimit) { _, _ in
+            guard let restoreID = pendingRestoreScrollMessageID else { return }
+            DispatchQueue.main.async {
+                proxy.scrollTo(restoreID, anchor: .top)
+                pendingRestoreScrollMessageID = nil
+            }
+        }
+        .onChange(of: conversationEntity.messages.count) { _, _ in
+            guard isPinnedToBottom else { return }
+            DispatchQueue.main.async {
+                withAnimation(.easeOut(duration: 0.15)) {
+                    proxy.scrollTo("bottom", anchor: .bottom)
+                }
+            }
+        }
+        .onChange(of: isStreaming) { wasStreaming, nowStreaming in
+            if wasStreaming && !nowStreaming && isPinnedToBottom {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                    withAnimation(.easeOut(duration: 0.15)) {
+                        proxy.scrollTo("bottom", anchor: .bottom)
+                    }
+                }
+            }
+        }
+        .onChange(of: conversationEntity.id) { _, _ in
+            DispatchQueue.main.async {
+                proxy.scrollTo("bottom", anchor: .bottom)
+            }
+        }
+    }
+
     var body: some View {
         ZStack(alignment: .bottom) {
             // Message list
             GeometryReader { geometry in
                 ScrollViewReader { proxy in
-                    ScrollView {
-                        let bubbleMaxWidth = maxBubbleWidth(for: geometry.size.width)
-                        let assistantDisplayName = conversationEntity.assistant?.displayName ?? "Assistant"
-                        let providerIconID = currentProviderIconID
-                        let toolResultsByCallID = cachedToolResultsByCallID
-                        let messageEntitiesByID = cachedMessageEntitiesByID
-
-                        let allMessages = cachedVisibleMessages
-                        let visibleMessages = allMessages.suffix(messageRenderLimit)
-                        let hiddenCount = allMessages.count - visibleMessages.count
-
-                        LazyVStack(alignment: .leading, spacing: 16) { // Improved spacing between messages
-                            if hiddenCount > 0 {
-                                LoadEarlierMessagesRow(
-                                    hiddenCount: hiddenCount,
-                                    pageSize: 120,
-                                    onLoad: {
-                                        guard let firstVisible = visibleMessages.first else { return }
-                                        pendingRestoreScrollMessageID = firstVisible.id
-                                        messageRenderLimit = min(allMessages.count, messageRenderLimit + 120)
-                                    }
-                                )
-                                .id("loadEarlier")
-                            }
-
-                            ForEach(visibleMessages) { message in
-                                MessageRow(
-                                    item: message,
-                                    maxBubbleWidth: bubbleMaxWidth,
-                                    assistantDisplayName: assistantDisplayName,
-                                    providerIconID: providerIconID,
-                                    toolResultsByCallID: toolResultsByCallID,
-                                    actionsEnabled: !isStreaming,
-                                    textToSpeechEnabled: textToSpeechPluginEnabled,
-                                    textToSpeechConfigured: textToSpeechConfigured,
-                                    textToSpeechIsGenerating: ttsPlaybackManager.isGenerating(messageID: message.id),
-                                    textToSpeechIsPlaying: ttsPlaybackManager.isPlaying(messageID: message.id),
-                                    textToSpeechIsPaused: ttsPlaybackManager.isPaused(messageID: message.id),
-                                    onToggleSpeakAssistantMessage: { messageID, text in
-                                        guard let entity = messageEntitiesByID[messageID] else { return }
-                                        toggleSpeakAssistantMessage(entity, text: text)
-                                    },
-                                    onStopSpeakAssistantMessage: { messageID in
-                                        guard let entity = messageEntitiesByID[messageID] else { return }
-                                        stopSpeakAssistantMessage(entity)
-                                    },
-                                    onRegenerate: { messageID in
-                                        guard let entity = messageEntitiesByID[messageID] else { return }
-                                        regenerateMessage(entity)
-                                    },
-                                    onEditUserMessage: { messageID in
-                                        guard let entity = messageEntitiesByID[messageID] else { return }
-                                        beginEditingUserMessage(entity)
-                                    },
-                                    editingUserMessageID: editingUserMessageID,
-                                    editingUserMessageText: $editingUserMessageText,
-                                    editingUserMessageFocused: $isEditingUserMessageFocused,
-                                    onSubmitUserEdit: { messageID in
-                                        guard let entity = messageEntitiesByID[messageID] else { return }
-                                        submitEditingUserMessage(entity)
-                                    },
-                                    onCancelUserEdit: {
-                                        cancelEditingUserMessage()
-                                    }
-                                )
-                                .id(message.id)
-                            }
-
-                            // Streaming message
-                            if let streaming = streamingMessage {
-                                StreamingMessageView(
-                                    state: streaming,
-                                    maxBubbleWidth: bubbleMaxWidth,
-                                    assistantDisplayName: assistantDisplayName,
-                                    modelLabel: streamingModelLabel,
-                                    providerIconID: providerIconID,
-                                    onContentUpdate: { }
-                                )
-                                .id("streaming")
-                            }
-
-                            Color.clear
-                                .frame(height: composerHeight + 24)
-                                .id("bottom")
-                                .background {
-                                    GeometryReader { bottomGeo in
-                                        Color.clear.preference(
-                                            key: BottomSentinelMaxYPreferenceKey.self,
-                                            value: bottomGeo.frame(in: .named("chatScroll")).maxY
-                                        )
-                                    }
-                                }
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.horizontal, 20)
-                        .padding(.top, 24)
-                    }
-                    .defaultScrollAnchor(.bottom)
-                    .coordinateSpace(name: "chatScroll")
-                    .onPreferenceChange(BottomSentinelMaxYPreferenceKey.self) { sentinelMaxY in
-                        let threshold: CGFloat = 80
-                        let pinned = sentinelMaxY <= geometry.size.height + threshold
-                        if pinned != isPinnedToBottom {
-                            isPinnedToBottom = pinned
-                        }
-                    }
-                    .onChange(of: messageRenderLimit) { _, _ in
-                        guard let restoreID = pendingRestoreScrollMessageID else { return }
-                        DispatchQueue.main.async {
-                            proxy.scrollTo(restoreID, anchor: .top)
-                            pendingRestoreScrollMessageID = nil
-                        }
-                    }
-                    .onChange(of: conversationEntity.messages.count) { _, _ in
-                        guard isPinnedToBottom else { return }
-                        DispatchQueue.main.async {
-                            withAnimation(.easeOut(duration: 0.15)) {
-                                proxy.scrollTo("bottom", anchor: .bottom)
-                            }
-                        }
-                    }
-                    .onChange(of: isStreaming) { wasStreaming, nowStreaming in
-                        if wasStreaming && !nowStreaming && isPinnedToBottom {
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-                                withAnimation(.easeOut(duration: 0.15)) {
-                                    proxy.scrollTo("bottom", anchor: .bottom)
-                                }
-                            }
-                        }
-                    }
+                    chatScrollView(geometry: geometry, proxy: proxy)
                 }
             }
 
@@ -6149,5 +6166,25 @@ struct ChatView: View {
                 persistControlsToConversation()
             }
         )
+    }
+}
+
+// MARK: - Scroll Pin Detection
+
+private extension View {
+    @ViewBuilder
+    func onScrollPinChange(isPinned: Binding<Bool>) -> some View {
+        if #available(macOS 15.0, *) {
+            self.onScrollGeometryChange(for: Bool.self) { geo in
+                let distFromBottom = geo.contentSize.height - geo.contentOffset.y - geo.containerSize.height
+                return distFromBottom <= 80
+            } action: { _, pinned in
+                if pinned != isPinned.wrappedValue {
+                    isPinned.wrappedValue = pinned
+                }
+            }
+        } else {
+            self
+        }
     }
 }
