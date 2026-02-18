@@ -1588,6 +1588,11 @@ struct ChatView: View {
         return fallbackSelectedModelInfo()
     }
 
+    private var resolvedModelSettings: ResolvedModelSettings? {
+        guard let model = selectedModelInfo else { return nil }
+        return ModelSettingsResolver.resolve(model: model, providerType: providerType)
+    }
+
     private var lowerModelID: String {
         conversationEntity.modelID.lowercased()
     }
@@ -1673,6 +1678,7 @@ struct ChatView: View {
             capabilities: caps,
             contextWindow: contextWindow,
             reasoningConfig: reasoningConfig,
+            overrides: model.overrides,
             isEnabled: model.isEnabled
         )
     }
@@ -1702,7 +1708,7 @@ struct ChatView: View {
 
     private var supportsNativePDF: Bool {
         guard !supportsMediaGenerationControl else { return false }
-        if selectedModelInfo?.capabilities.contains(.nativePDF) == true {
+        if resolvedModelSettings?.capabilities.contains(.nativePDF) == true {
             return true
         }
 
@@ -1728,7 +1734,7 @@ struct ChatView: View {
     }
 
     private var supportsVision: Bool {
-        selectedModelInfo?.capabilities.contains(.vision) == true
+        resolvedModelSettings?.capabilities.contains(.vision) == true
             || supportsImageGenerationControl
             || supportsVideoGenerationControl
     }
@@ -1738,7 +1744,7 @@ struct ChatView: View {
             return false
         }
 
-        if selectedModelInfo?.capabilities.contains(.audio) == true {
+        if resolvedModelSettings?.capabilities.contains(.audio) == true {
             return true
         }
 
@@ -1782,11 +1788,11 @@ struct ChatView: View {
     }
 
     private var supportsImageGenerationControl: Bool {
-        selectedModelInfo?.capabilities.contains(.imageGeneration) == true || isImageGenerationModelID
+        resolvedModelSettings?.capabilities.contains(.imageGeneration) == true || isImageGenerationModelID
     }
 
     private var supportsVideoGenerationControl: Bool {
-        selectedModelInfo?.capabilities.contains(.videoGeneration) == true || isVideoGenerationModelID
+        resolvedModelSettings?.capabilities.contains(.videoGeneration) == true || isVideoGenerationModelID
     }
 
     private var supportsMediaGenerationControl: Bool {
@@ -1998,7 +2004,7 @@ struct ChatView: View {
         if providerType == .vertexai, lowerModelID.contains("gemini-3-pro-image") {
             return nil
         }
-        return selectedModelInfo?.reasoningConfig
+        return resolvedModelSettings?.reasoningConfig
     }
 
     private var isReasoningEnabled: Bool {
@@ -2009,6 +2015,7 @@ struct ChatView: View {
     }
 
     private var isWebSearchEnabled: Bool {
+        guard supportsWebSearchControl else { return false }
         switch providerType {
         case .perplexity:
             return controls.webSearch?.enabled ?? true
@@ -2042,7 +2049,7 @@ struct ChatView: View {
 
     private var supportsReasoningDisableToggle: Bool {
         guard supportsReasoningControl else { return false }
-        if providerType == .fireworks, isFireworksMiniMaxM2FamilyModel(conversationEntity.modelID) {
+        if resolvedModelSettings?.reasoningCanDisable == false {
             return false
         }
         return true
@@ -2056,13 +2063,14 @@ struct ChatView: View {
             return false
         }
 
-        // Provider-native web search, not MCP. Today: OpenAI, OpenRouter, Anthropic, xAI, Gemini API, Vertex AI.
-        switch providerType {
-        case .openai, .openrouter, .anthropic, .perplexity, .xai, .gemini, .vertexai:
-            return true
-        case .openaiCompatible, .groq, .cohere, .mistral, .deepinfra, .deepseek, .fireworks, .cerebras, .none:
-            return false
+        if let resolvedModelSettings {
+            return resolvedModelSettings.supportsWebSearch
         }
+
+        return ModelCapabilityRegistry.supportsWebSearch(
+            for: providerType,
+            modelID: conversationEntity.modelID
+        )
     }
 
     private var supportsContextCacheControl: Bool {
@@ -2195,7 +2203,7 @@ struct ChatView: View {
 
     private var supportsMCPToolsControl: Bool {
         guard !supportsMediaGenerationControl else { return false }
-        return selectedModelInfo?.capabilities.contains(.toolCalling) == true
+        return resolvedModelSettings?.capabilities.contains(.toolCalling) == true
     }
 
     private var reasoningHelpText: String {
@@ -3369,6 +3377,7 @@ struct ChatView: View {
         let providerID = conversationEntity.providerID
         let modelID = conversationEntity.modelID
         let modelInfoSnapshot = selectedModelInfo
+        let resolvedModelSettingsSnapshot = resolvedModelSettings
         let modelNameSnapshot = modelInfoSnapshot?.name ?? modelID
         let streamingState = streamingStore.beginSession(conversationID: conversationID, modelLabel: modelNameSnapshot)
         streamingState.reset()
@@ -3392,12 +3401,12 @@ struct ChatView: View {
         controlsToUse.contextCache = automaticContextCacheControls(
             providerType: providerType,
             modelID: modelID,
-            modelCapabilities: modelInfoSnapshot?.capabilities
+            modelCapabilities: resolvedModelSettingsSnapshot?.capabilities
         )
 
         let shouldTruncateMessages = assistant?.truncateMessages ?? false
         let maxHistoryMessages = assistant?.maxHistoryMessages
-        let modelContextWindow = modelInfoSnapshot?.contextWindow ?? 128000
+        let modelContextWindow = resolvedModelSettingsSnapshot?.contextWindow ?? 128000
         let reservedOutputTokens = max(0, controlsToUse.maxTokens ?? 2048)
         let mcpServerConfigs = resolvedMCPServerConfigs(for: controlsToUse)
         let chatNamingTarget = resolvedChatNamingTarget()
@@ -4101,9 +4110,9 @@ struct ChatView: View {
                 return [.low, .high]
             }
             return [.minimal, .low, .medium, .high]
-        case .openai:
+        case .openai, .openaiCompatible, .openrouter, .groq, .mistral, .deepinfra:
             var levels: [ReasoningEffort] = [.low, .medium, .high]
-            if isOpenAIGPT52SeriesModel {
+            if supportsOpenAIStyleExtremeReasoningEffort {
                 levels.append(.xhigh)
             }
             return levels
@@ -5234,9 +5243,24 @@ struct ChatView: View {
         controls.reasoning = reasoning
     }
 
-    private var isOpenAIGPT52SeriesModel: Bool {
-        guard providerType == .openai else { return false }
-        return conversationEntity.modelID.hasPrefix("gpt-5.2")
+    private var usesOpenAIStyleReasoningEffort: Bool {
+        if let resolved = resolvedModelSettings {
+            return resolved.supportsOpenAIStyleReasoningEffort
+        }
+        return ModelCapabilityRegistry.supportsOpenAIStyleReasoningEffort(
+            for: providerType,
+            modelID: conversationEntity.modelID
+        )
+    }
+
+    private var supportsOpenAIStyleExtremeReasoningEffort: Bool {
+        if let resolved = resolvedModelSettings {
+            return resolved.supportsOpenAIStyleExtremeEffort
+        }
+        return ModelCapabilityRegistry.supportsOpenAIStyleExtremeEffort(
+            for: providerType,
+            modelID: conversationEntity.modelID
+        )
     }
 
     private func defaultWebSearchControls(enabled: Bool) -> WebSearchControls {
@@ -5281,6 +5305,12 @@ struct ChatView: View {
     private func normalizeControlsForCurrentSelection() {
         // Ensure the stored controls remain valid when switching provider/model.
         let originalData = (try? JSONEncoder().encode(controls)) ?? Data()
+
+        if let modelMaxOutput = resolvedModelSettings?.maxOutputTokens,
+           let requested = controls.maxTokens,
+           requested > modelMaxOutput {
+            controls.maxTokens = modelMaxOutput
+        }
 
         if supportsMediaGenerationControl {
             if !supportsReasoningControl {
@@ -5352,8 +5382,10 @@ struct ChatView: View {
         }
 
         if supportsReasoningControl {
-            // OpenAI: only GPT-5.2 supports xhigh.
-            if providerType == .openai, controls.reasoning?.effort == .xhigh, !isOpenAIGPT52SeriesModel {
+            // OpenAI-style reasoning effort: only GPT-5.2 supports xhigh.
+            if usesOpenAIStyleReasoningEffort,
+               controls.reasoning?.effort == .xhigh,
+               !supportsOpenAIStyleExtremeReasoningEffort {
                 controls.reasoning?.effort = .high
             }
 

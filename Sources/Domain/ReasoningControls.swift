@@ -1,7 +1,7 @@
 import Foundation
 
 /// Reasoning controls (unified for OpenAI effort and Anthropic budget).
-struct ReasoningControls: Codable {
+struct ReasoningControls: Codable, Equatable {
     var enabled: Bool
     var effort: ReasoningEffort?
     var budgetTokens: Int?
@@ -53,7 +53,7 @@ enum ReasoningSummary: String, Codable, CaseIterable {
 }
 
 /// Model reasoning configuration.
-struct ModelReasoningConfig: Codable {
+struct ModelReasoningConfig: Codable, Equatable {
     let type: ReasoningConfigType
     let defaultEffort: ReasoningEffort?
     let defaultBudget: Int?

@@ -228,7 +228,7 @@ actor OpenAIAdapter: LLMProviderAdapter {
 
         var toolObjects: [[String: Any]] = []
 
-        if controls.webSearch?.enabled == true {
+        if controls.webSearch?.enabled == true, supportsWebSearch(modelID) {
             var webSearchTool: [String: Any] = ["type": "web_search"]
             if let contextSize = controls.webSearch?.contextSize {
                 webSearchTool["search_context_size"] = contextSize.rawValue
@@ -271,6 +271,26 @@ actor OpenAIAdapter: LLMProviderAdapter {
         // GPT-5.2+, o3+, o4+ support native PDF
         let lower = modelID.lowercased()
         return lower.contains("gpt-5.2") || lower.contains("o3") || lower.contains("o4")
+    }
+
+    private func supportsWebSearch(_ modelID: String) -> Bool {
+        if let model = configuredModel(for: modelID) {
+            let resolved = ModelSettingsResolver.resolve(model: model, providerType: providerConfig.type)
+            return resolved.supportsWebSearch
+        }
+
+        return ModelCapabilityRegistry.supportsWebSearch(
+            for: providerConfig.type,
+            modelID: modelID
+        )
+    }
+
+    private func configuredModel(for modelID: String) -> ModelInfo? {
+        if let exact = providerConfig.models.first(where: { $0.id == modelID }) {
+            return exact
+        }
+        let target = modelID.lowercased()
+        return providerConfig.models.first(where: { $0.id.lowercased() == target })
     }
 
     private func supportsAudioInputModelID(_ lowerModelID: String) -> Bool {

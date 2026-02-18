@@ -127,22 +127,25 @@ actor OpenAICompatibleAdapter: LLMProviderAdapter {
             "stream": streaming
         ]
 
-        if let temperature = controls.temperature {
-            body["temperature"] = temperature
-        }
-        if let maxTokens = controls.maxTokens {
-            body["max_tokens"] = maxTokens
-        }
-        if let topP = controls.topP {
-            body["top_p"] = topP
+        let requestShape = resolvedRequestShape(for: modelID)
+        let shouldOmitSamplingControls = applyReasoning(
+            to: &body,
+            controls: controls,
+            modelID: modelID,
+            requestShape: requestShape
+        )
+
+        if !shouldOmitSamplingControls {
+            if let temperature = controls.temperature {
+                body["temperature"] = temperature
+            }
+            if let topP = controls.topP {
+                body["top_p"] = topP
+            }
         }
 
-        if let reasoning = controls.reasoning {
-            if reasoning.enabled == false || (reasoning.effort ?? ReasoningEffort.none) == .none {
-                body["reasoning"] = ["effort": "none"]
-            } else if let effort = reasoning.effort {
-                body["reasoning"] = ["effort": mapReasoningEffort(effort)]
-            }
+        if let maxTokens = controls.maxTokens {
+            body["max_tokens"] = maxTokens
         }
 
         if !tools.isEmpty, let functionTools = translateTools(tools) as? [[String: Any]] {
@@ -391,7 +394,11 @@ actor OpenAICompatibleAdapter: LLMProviderAdapter {
         return str
     }
 
-    private func mapReasoningEffort(_ effort: ReasoningEffort) -> String {
+    private func mapReasoningEffort(
+        _ effort: ReasoningEffort,
+        modelID: String,
+        requestShape: ModelRequestShape
+    ) -> String {
         switch effort {
         case .none:
             return "none"
@@ -399,21 +406,161 @@ actor OpenAICompatibleAdapter: LLMProviderAdapter {
             return "low"
         case .medium:
             return "medium"
-        case .high, .xhigh:
+        case .high:
+            return "high"
+        case .xhigh:
+            if (requestShape == .openAIResponses || requestShape == .openAICompatible),
+               ModelCapabilityRegistry.supportsOpenAIStyleExtremeEffort(
+                for: providerConfig.type,
+                modelID: modelID
+               ) {
+                return "xhigh"
+            }
             return "high"
         }
+    }
+
+    private func resolvedRequestShape(for modelID: String) -> ModelRequestShape {
+        ModelCapabilityRegistry.requestShape(for: providerConfig.type, modelID: modelID)
+    }
+
+    private func configuredModel(for modelID: String) -> ModelInfo? {
+        if let exact = providerConfig.models.first(where: { $0.id == modelID }) {
+            return exact
+        }
+        let target = modelID.lowercased()
+        return providerConfig.models.first(where: { $0.id.lowercased() == target })
+    }
+
+    private func modelSupportsReasoning(for modelID: String) -> Bool {
+        guard let model = configuredModel(for: modelID) else {
+            // Conservative fallback: only enable reasoning when model-name rules identify it.
+            return ModelCapabilityRegistry.defaultReasoningConfig(
+                for: providerConfig.type,
+                modelID: modelID
+            ) != nil
+        }
+
+        let resolved = ModelSettingsResolver.resolve(model: model, providerType: providerConfig.type)
+        guard resolved.capabilities.contains(.reasoning) else { return false }
+        guard let reasoningConfig = resolved.reasoningConfig else { return false }
+        return reasoningConfig.type != .none
+    }
+
+    /// Returns true when temperature/top_p should be omitted for compatibility.
+    private func applyReasoning(
+        to body: inout [String: Any],
+        controls: GenerationControls,
+        modelID: String,
+        requestShape: ModelRequestShape
+    ) -> Bool {
+        guard modelSupportsReasoning(for: modelID) else { return false }
+        guard let reasoning = controls.reasoning else { return false }
+
+        switch requestShape {
+        case .openAIResponses, .openAICompatible:
+            if reasoning.enabled == false || (reasoning.effort ?? ReasoningEffort.none) == ReasoningEffort.none {
+                body["reasoning"] = ["effort": "none"]
+                return false
+            }
+
+            let effort = reasoning.effort ?? .medium
+            body["reasoning"] = [
+                "effort": mapReasoningEffort(
+                    effort,
+                    modelID: modelID,
+                    requestShape: requestShape
+                )
+            ]
+            return requestShape == .openAIResponses
+
+        case .anthropic:
+            guard reasoning.enabled else { return false }
+
+            if let budget = reasoning.budgetTokens {
+                body["thinking"] = [
+                    "type": "enabled",
+                    "budget_tokens": budget
+                ]
+            } else {
+                body["thinking"] = ["type": "adaptive"]
+                if let effort = reasoning.effort {
+                    mergeOutputConfig(
+                        into: &body,
+                        additional: ["effort": mapAnthropicEffort(effort)]
+                    )
+                }
+            }
+
+            return true
+
+        case .gemini:
+            var thinkingConfig: [String: Any] = [:]
+            if reasoning.enabled {
+                thinkingConfig["includeThoughts"] = true
+                if let effort = reasoning.effort {
+                    thinkingConfig["thinkingLevel"] = mapGeminiThinkingLevel(effort)
+                } else if let budget = reasoning.budgetTokens {
+                    thinkingConfig["thinkingBudget"] = budget
+                }
+            } else {
+                thinkingConfig["thinkingLevel"] = "MINIMAL"
+            }
+
+            if !thinkingConfig.isEmpty {
+                var generationConfig = body["generationConfig"] as? [String: Any] ?? [:]
+                generationConfig["thinkingConfig"] = thinkingConfig
+                body["generationConfig"] = generationConfig
+            }
+
+            return false
+
+        }
+    }
+
+    private func mapAnthropicEffort(_ effort: ReasoningEffort) -> String {
+        switch effort {
+        case .none, .minimal, .low:
+            return "low"
+        case .medium:
+            return "medium"
+        case .high:
+            return "high"
+        case .xhigh:
+            return "max"
+        }
+    }
+
+    private func mapGeminiThinkingLevel(_ effort: ReasoningEffort) -> String {
+        switch effort {
+        case .none, .minimal:
+            return "MINIMAL"
+        case .low:
+            return "LOW"
+        case .medium:
+            return "MEDIUM"
+        case .high, .xhigh:
+            return "HIGH"
+        }
+    }
+
+    private func mergeOutputConfig(into body: inout [String: Any], additional: [String: Any]) {
+        var merged = (body["output_config"] as? [String: Any]) ?? [:]
+        for (key, value) in additional {
+            merged[key] = value
+        }
+        body["output_config"] = merged
     }
 
     private func makeModelInfo(id: String) -> ModelInfo {
         let lower = id.lowercased()
 
         var caps: ModelCapability = [.streaming, .toolCalling]
-        var reasoningConfig: ModelReasoningConfig?
+        let reasoningConfig = ModelCapabilityRegistry.defaultReasoningConfig(for: providerConfig.type, modelID: id)
         let contextWindow = 128000
 
-        if lower.contains("gpt") || lower.contains("o1") || lower.contains("o3") || lower.contains("o4") || lower.contains("reason") || lower.contains("thinking") {
+        if reasoningConfig != nil {
             caps.insert(.reasoning)
-            reasoningConfig = ModelReasoningConfig(type: .effort, defaultEffort: .medium)
         }
 
         if lower.contains("vision") || lower.contains("image") || lower.contains("gpt-4o") || lower.contains("gpt-5") || lower.contains("gemini") || lower.contains("claude") {

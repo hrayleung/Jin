@@ -28,6 +28,7 @@ enum OpenAIChatCompletionsCore {
 
             for choice in response.choices {
                 let explicitReasoning = messageReasoning(choice.message, field: reasoningField)
+                    ?? responseChoiceReasoning(choice, field: reasoningField)
                 if let reasoning = explicitReasoning {
                     continuation.yield(.thinkingDelta(.thinking(textDelta: reasoning, signature: nil)))
                 }
@@ -76,6 +77,7 @@ enum OpenAIChatCompletionsCore {
                     var pendingSearchResults: [OpenAIChatCompletionsSearchResult]?
                     var toolCallsByIndex: [Int: OpenAIChatCompletionsToolCallState] = [:]
                     var thinkSplitter = ThinkTagStreamSplitter()
+                    var streamedChoiceReasoningSnapshot = ""
 
                     for try await event in sseStream {
                         switch event {
@@ -104,6 +106,15 @@ enum OpenAIChatCompletionsCore {
 
                             if let delta = deltaReasoning(choice.delta, field: reasoningField) {
                                 continuation.yield(.thinkingDelta(.thinking(textDelta: delta, signature: nil)))
+                            } else if let choiceReasoning = chunkChoiceReasoning(choice, field: reasoningField) {
+                                let incremental = incrementalReasoningDelta(
+                                    candidate: choiceReasoning,
+                                    previousSnapshot: streamedChoiceReasoningSnapshot
+                                )
+                                if !incremental.isEmpty {
+                                    continuation.yield(.thinkingDelta(.thinking(textDelta: incremental, signature: nil)))
+                                }
+                                streamedChoiceReasoningSnapshot = choiceReasoning
                             }
 
                             if let delta = normalized(choice.delta.content) {
@@ -189,10 +200,32 @@ enum OpenAIChatCompletionsCore {
         switch field {
         case .reasoning:
             return normalized(message.reasoning)
+                ?? reasoningDetailsText(message.reasoningDetails)
         case .reasoningContent:
             return normalized(message.reasoningContent)
+                ?? reasoningDetailsText(message.reasoningDetails)
         case .reasoningOrReasoningContent:
-            return normalized(message.reasoning) ?? normalized(message.reasoningContent)
+            return normalized(message.reasoning)
+                ?? normalized(message.reasoningContent)
+                ?? reasoningDetailsText(message.reasoningDetails)
+        }
+    }
+
+    private static func responseChoiceReasoning(
+        _ choice: OpenAIChatCompletionsResponse.Choice,
+        field: OpenAIChatCompletionsReasoningField
+    ) -> String? {
+        switch field {
+        case .reasoning:
+            return normalized(choice.reasoning)
+                ?? reasoningDetailsText(choice.reasoningDetails)
+        case .reasoningContent:
+            return normalized(choice.reasoningContent)
+                ?? reasoningDetailsText(choice.reasoningDetails)
+        case .reasoningOrReasoningContent:
+            return normalized(choice.reasoning)
+                ?? normalized(choice.reasoningContent)
+                ?? reasoningDetailsText(choice.reasoningDetails)
         }
     }
 
@@ -203,11 +236,90 @@ enum OpenAIChatCompletionsCore {
         switch field {
         case .reasoning:
             return normalized(delta.reasoning)
+                ?? reasoningDetailsText(delta.reasoningDetails)
         case .reasoningContent:
             return normalized(delta.reasoningContent)
+                ?? reasoningDetailsText(delta.reasoningDetails)
         case .reasoningOrReasoningContent:
-            return normalized(delta.reasoning) ?? normalized(delta.reasoningContent)
+            return normalized(delta.reasoning)
+                ?? normalized(delta.reasoningContent)
+                ?? reasoningDetailsText(delta.reasoningDetails)
         }
+    }
+
+    private static func chunkChoiceReasoning(
+        _ choice: OpenAIChatCompletionsChunk.Choice,
+        field: OpenAIChatCompletionsReasoningField
+    ) -> String? {
+        switch field {
+        case .reasoning:
+            return normalized(choice.reasoning)
+                ?? reasoningDetailsText(choice.reasoningDetails)
+        case .reasoningContent:
+            return normalized(choice.reasoningContent)
+                ?? reasoningDetailsText(choice.reasoningDetails)
+        case .reasoningOrReasoningContent:
+            return normalized(choice.reasoning)
+                ?? normalized(choice.reasoningContent)
+                ?? reasoningDetailsText(choice.reasoningDetails)
+        }
+    }
+
+    private static func incrementalReasoningDelta(candidate: String, previousSnapshot: String) -> String {
+        guard !candidate.isEmpty else { return "" }
+        guard !previousSnapshot.isEmpty else { return candidate }
+
+        if candidate == previousSnapshot {
+            return ""
+        }
+
+        if candidate.hasPrefix(previousSnapshot) {
+            return String(candidate.dropFirst(previousSnapshot.count))
+        }
+
+        return candidate
+    }
+
+    private static func reasoningDetailsText(_ details: [[String: AnyCodable]]?) -> String? {
+        guard let details, !details.isEmpty else { return nil }
+
+        var parts: [String] = []
+        parts.reserveCapacity(details.count)
+
+        func appendCandidate(_ value: Any?) {
+            guard let value else { return }
+
+            if let str = value as? String {
+                if normalized(str) != nil {
+                    parts.append(str)
+                }
+                return
+            }
+
+            if let dict = value as? [String: Any] {
+                appendCandidate(dict["text"])
+                appendCandidate(dict["content"])
+                appendCandidate(dict["reasoning"])
+                appendCandidate(dict["summary"])
+                return
+            }
+
+            if let array = value as? [Any] {
+                for item in array {
+                    appendCandidate(item)
+                }
+            }
+        }
+
+        for detail in details {
+            appendCandidate(detail["text"]?.value)
+            appendCandidate(detail["content"]?.value)
+            appendCandidate(detail["reasoning"]?.value)
+            appendCandidate(detail["summary"]?.value)
+        }
+
+        guard !parts.isEmpty else { return nil }
+        return parts.joined(separator: "\n")
     }
 
     private static func normalized(_ value: String?) -> String? {
@@ -437,6 +549,9 @@ struct OpenAIChatCompletionsResponse: Codable {
     struct Choice: Codable {
         let message: AssistantMessage
         let finishReason: String?
+        let reasoning: String?
+        let reasoningContent: String?
+        let reasoningDetails: [[String: AnyCodable]]?
     }
 
     struct AssistantMessage: Codable {
@@ -444,6 +559,7 @@ struct OpenAIChatCompletionsResponse: Codable {
         let content: String?
         let reasoning: String?
         let reasoningContent: String?
+        let reasoningDetails: [[String: AnyCodable]]?
         let toolCalls: [ToolCall]?
     }
 
@@ -482,6 +598,9 @@ struct OpenAIChatCompletionsChunk: Codable {
         let index: Int?
         let delta: Delta
         let finishReason: String?
+        let reasoning: String?
+        let reasoningContent: String?
+        let reasoningDetails: [[String: AnyCodable]]?
     }
 
     struct Delta: Codable {
@@ -489,6 +608,7 @@ struct OpenAIChatCompletionsChunk: Codable {
         let content: String?
         let reasoning: String?
         let reasoningContent: String?
+        let reasoningDetails: [[String: AnyCodable]]?
         let toolCalls: [ToolCallDelta]?
     }
 

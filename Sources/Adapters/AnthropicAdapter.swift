@@ -182,6 +182,26 @@ actor AnthropicAdapter: LLMProviderAdapter {
         AnthropicModelLimits.supportsMaxEffort(for: modelID)
     }
 
+    private func supportsWebSearch(_ modelID: String) -> Bool {
+        if let model = configuredModel(for: modelID) {
+            let resolved = ModelSettingsResolver.resolve(model: model, providerType: providerConfig.type)
+            return resolved.supportsWebSearch
+        }
+
+        return ModelCapabilityRegistry.supportsWebSearch(
+            for: providerConfig.type,
+            modelID: modelID
+        )
+    }
+
+    private func configuredModel(for modelID: String) -> ModelInfo? {
+        if let exact = providerConfig.models.first(where: { $0.id == modelID }) {
+            return exact
+        }
+        let target = modelID.lowercased()
+        return providerConfig.models.first(where: { $0.id.lowercased() == target })
+    }
+
     private func mapAnthropicEffort(_ effort: ReasoningEffort, modelID: String) -> String {
         switch effort {
         case .none:
@@ -368,7 +388,7 @@ actor AnthropicAdapter: LLMProviderAdapter {
 
         var toolSpecs: [[String: Any]] = []
 
-        if controls.webSearch?.enabled == true {
+        if controls.webSearch?.enabled == true, supportsWebSearch(modelID) {
             // Anthropic server-side web search tool
             toolSpecs.append([
                 "type": "web_search_20250305",

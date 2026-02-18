@@ -107,4 +107,73 @@ final class OpenAIChatCompletionsThinkTagTests: XCTestCase {
 
         guard case .messageEnd = events[4] else { return XCTFail("Expected messageEnd") }
     }
+
+    func testStreamingParsesChoiceLevelReasoningDetailsIncrementally() async throws {
+        let sseStream = AsyncThrowingStream<SSEEvent, Error> { continuation in
+            let chunk1: [String: Any] = [
+                "id": "cmpl_3",
+                "choices": [
+                    [
+                        "index": 0,
+                        "delta": [:],
+                        "reasoning_details": [
+                            [
+                                "type": "reasoning.summary",
+                                "summary": "Rea"
+                            ]
+                        ]
+                    ]
+                ]
+            ]
+            let chunk2: [String: Any] = [
+                "id": "cmpl_3",
+                "choices": [
+                    [
+                        "index": 0,
+                        "delta": [:],
+                        "reasoning_details": [
+                            [
+                                "type": "reasoning.summary",
+                                "summary": "Reason"
+                            ]
+                        ]
+                    ]
+                ]
+            ]
+
+            do {
+                let data1 = try JSONSerialization.data(withJSONObject: chunk1)
+                let data2 = try JSONSerialization.data(withJSONObject: chunk2)
+                continuation.yield(.event(type: "message", data: String(decoding: data1, as: UTF8.self)))
+                continuation.yield(.event(type: "message", data: String(decoding: data2, as: UTF8.self)))
+                continuation.yield(.done)
+                continuation.finish()
+            } catch {
+                continuation.finish(throwing: error)
+            }
+        }
+
+        let stream = OpenAIChatCompletionsCore.makeStreamingStream(
+            sseStream: sseStream,
+            reasoningField: .reasoningOrReasoningContent
+        )
+
+        var events: [StreamEvent] = []
+        for try await event in stream {
+            events.append(event)
+        }
+
+        XCTAssertEqual(events.count, 4)
+
+        guard case .messageStart(let id) = events[0] else { return XCTFail("Expected messageStart") }
+        XCTAssertEqual(id, "cmpl_3")
+
+        guard case .thinkingDelta(.thinking(let t1, _)) = events[1] else { return XCTFail("Expected thinkingDelta") }
+        XCTAssertEqual(t1, "Rea")
+
+        guard case .thinkingDelta(.thinking(let t2, _)) = events[2] else { return XCTFail("Expected thinkingDelta") }
+        XCTAssertEqual(t2, "son")
+
+        guard case .messageEnd = events[3] else { return XCTFail("Expected messageEnd") }
+    }
 }
