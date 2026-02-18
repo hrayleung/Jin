@@ -24,6 +24,7 @@ enum AppPreferenceKeys {
 
     static let sendWithCommandEnter = "sendWithCommandEnter"
     static let notifyOnBackgroundResponseCompletion = "notifyOnBackgroundResponseCompletion"
+    static let keyboardShortcuts = "keyboardShortcuts.v1"
 
     // MARK: - Network
 
@@ -206,6 +207,7 @@ enum ChatNamingMode: String, CaseIterable, Identifiable {
 enum GeneralSettingsCategory: String, CaseIterable, Identifiable {
     case appearance
     case chat
+    case shortcuts
     case defaults
     case network
     case data
@@ -216,6 +218,7 @@ enum GeneralSettingsCategory: String, CaseIterable, Identifiable {
         switch self {
         case .appearance: return "Appearance"
         case .chat: return "Chat"
+        case .shortcuts: return "Keyboard Shortcuts"
         case .defaults: return "Defaults"
         case .network: return "Network"
         case .data: return "Data"
@@ -226,6 +229,7 @@ enum GeneralSettingsCategory: String, CaseIterable, Identifiable {
         switch self {
         case .appearance: return "textformat"
         case .chat: return "bubble.left.and.bubble.right"
+        case .shortcuts: return "command"
         case .defaults: return "sparkles"
         case .network: return "network"
         case .data: return "externaldrive"
@@ -236,6 +240,7 @@ enum GeneralSettingsCategory: String, CaseIterable, Identifiable {
         switch self {
         case .appearance: return "App icon, theme, and fonts."
         case .chat: return "Send behavior and background-completion notifications."
+        case .shortcuts: return "Show and customize keyboard shortcuts."
         case .defaults: return "Model and MCP defaults for new chats."
         case .network: return "Control automatic network requests."
         case .data: return "Inspect and manage local chat data."
