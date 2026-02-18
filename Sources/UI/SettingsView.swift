@@ -231,6 +231,9 @@ struct SettingsView: View {
                     case .chat:
                         ChatSettingsView()
                             .id("chat")
+                    case .shortcuts:
+                        KeyboardShortcutsSettingsView()
+                            .id("shortcuts")
                     case .defaults:
                         DefaultsSettingsView()
                             .id("defaults")

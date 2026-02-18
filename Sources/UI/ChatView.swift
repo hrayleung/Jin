@@ -890,7 +890,6 @@ struct ChatView: View {
                         .frame(width: 28, height: 28)
                 }
                 .help("Assistant Settings")
-                .keyboardShortcut("i", modifiers: [.command])
             }
             .jinHideSharedBackgroundIfAvailable()
 
@@ -903,7 +902,6 @@ struct ChatView: View {
                         .frame(width: 28, height: 28)
                 }
                 .help("Delete chat")
-                .keyboardShortcut(.delete, modifiers: [.command])
             }
             .jinHideSharedBackgroundIfAvailable()
         }
@@ -1149,6 +1147,7 @@ struct ChatView: View {
                 canAttach: !isBusy,
                 canStopStreaming: isBusy,
                 focusComposer: { isComposerFocused = true },
+                openModelPicker: { isModelPickerPresented.toggle() },
                 attach: { isFileImporterPresented = true },
                 stopStreaming: {
                     guard isBusy else { return }

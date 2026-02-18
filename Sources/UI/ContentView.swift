@@ -24,6 +24,7 @@ enum AssistantSidebarSort: String, CaseIterable {
 struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
     @EnvironmentObject private var streamingStore: ConversationStreamingStore
+    @EnvironmentObject private var shortcutsStore: AppShortcutsStore
     @Query(sort: \AssistantEntity.sortOrder, order: .forward) private var assistants: [AssistantEntity]
     @Query(sort: \ConversationEntity.updatedAt, order: .reverse) private var conversations: [ConversationEntity]
     @Query private var providers: [ProviderConfigEntity]
@@ -32,9 +33,11 @@ struct ContentView: View {
 
     @State private var selectedAssistant: AssistantEntity?
     @State private var selectedConversation: ConversationEntity?
+    @State private var columnVisibility: NavigationSplitViewVisibility = .all
     @State private var didBootstrapDefaults = false
     @State private var didBootstrapAssistants = false
     @State private var searchText = ""
+    @State private var isSidebarSearchPresented = false
     @State private var isAssistantInspectorPresented = false
     @State private var assistantContextMenuTargetID: String?
     @State private var assistantPendingDeletion: AssistantEntity?
@@ -63,13 +66,13 @@ struct ContentView: View {
     private let conversationTitleGenerator = ConversationTitleGenerator()
 
     var body: some View {
-        NavigationSplitView {
+        NavigationSplitView(columnVisibility: $columnVisibility) {
             List(selection: $selectedConversation) {
                 assistantsSection
                 chatsSection
             }
             .listStyle(.sidebar)
-            .searchable(text: $searchText, placement: .sidebar, prompt: "Search chats")
+            .searchable(text: $searchText, isPresented: $isSidebarSearchPresented, placement: .sidebar, prompt: "Search chats")
             .navigationSplitViewColumnWidth(min: 240, ideal: 280, max: 340)
             .navigationTitle("Chats")
             .navigationSubtitle(selectedAssistant?.displayName ?? "Default")
@@ -78,7 +81,7 @@ struct ContentView: View {
                     Button(action: createNewConversation) {
                         Label("New Chat", systemImage: "square.and.pencil")
                     }
-                    .keyboardShortcut("n", modifiers: [.command])
+                    .keyboardShortcut(shortcutsStore.keyboardShortcut(for: .newChat))
 
                     SettingsLink {
                         Label("Settings", systemImage: "gearshape")
@@ -128,12 +131,12 @@ struct ContentView: View {
                     .toolbar {
                         ToolbarItem(placement: .primaryAction) {
                             Button {
-                                isAssistantInspectorPresented = true
+                                openAssistantSettings()
                             } label: {
                                 Label("Assistant Settings", systemImage: "slider.horizontal.3")
                             }
                             .help("Assistant Settings")
-                            .keyboardShortcut("i", modifiers: [.command])
+                            .keyboardShortcut(shortcutsStore.keyboardShortcut(for: .openAssistantSettings))
                         }
                     }
                     .background(JinSemanticColor.detailSurface)
@@ -191,6 +194,24 @@ struct ContentView: View {
         } message: {
             Text(titleRegenerationErrorMessage)
         }
+        .focusedSceneValue(
+            \.workspaceActions,
+            WorkspaceFocusedActions(
+                isSidebarVisible: isSidebarVisible,
+                canRenameSelectedChat: selectedConversation != nil,
+                canToggleSelectedChatStar: selectedConversation != nil,
+                canDeleteSelectedChat: selectedConversation != nil,
+                selectedChatIsStarred: selectedConversation?.isStarred == true,
+                toggleSidebar: toggleSidebarVisibility,
+                focusChatSearch: focusChatSearch,
+                createNewChat: createNewConversation,
+                createAssistant: createAssistant,
+                openAssistantSettings: openAssistantSettings,
+                renameSelectedChat: requestRenameSelectedConversation,
+                toggleSelectedChatStar: toggleSelectedConversationStar,
+                deleteSelectedChat: requestDeleteSelectedConversation
+            )
+        )
     }
 
     private var noConversationSelectedView: some View {
@@ -221,6 +242,42 @@ struct ContentView: View {
     }
 
     // MARK: - Helpers
+
+    private var isSidebarVisible: Bool {
+        columnVisibility != .detailOnly
+    }
+
+    private func toggleSidebarVisibility() {
+        withAnimation(.easeInOut(duration: 0.16)) {
+            columnVisibility = isSidebarVisible ? .detailOnly : .all
+        }
+    }
+
+    private func focusChatSearch() {
+        if !isSidebarVisible {
+            columnVisibility = .all
+        }
+        isSidebarSearchPresented = true
+    }
+
+    private func openAssistantSettings() {
+        isAssistantInspectorPresented = true
+    }
+
+    private func requestRenameSelectedConversation() {
+        guard let selectedConversation else { return }
+        requestRenameConversation(selectedConversation)
+    }
+
+    private func toggleSelectedConversationStar() {
+        guard let selectedConversation else { return }
+        toggleConversationStar(selectedConversation)
+    }
+
+    private func requestDeleteSelectedConversation() {
+        guard let selectedConversation else { return }
+        requestDeleteConversation(selectedConversation)
+    }
 
     private var assistantSidebarLayout: AssistantSidebarLayout {
         AssistantSidebarLayout(rawValue: assistantSidebarLayoutRaw) ?? .grid
@@ -927,7 +984,7 @@ extension ContentView {
             .buttonStyle(.plain)
             .foregroundStyle(.secondary)
             .help("New Assistant")
-            .keyboardShortcut("n", modifiers: [.command, .shift])
+            .keyboardShortcut(shortcutsStore.keyboardShortcut(for: .newAssistant))
         } header: {
             HStack {
                 Text("Assistants")
