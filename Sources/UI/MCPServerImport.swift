@@ -32,7 +32,7 @@ enum MCPServerImportError: Error, LocalizedError {
     }
 }
 
-struct MCPServerImportParser {
+enum MCPServerImportParser {
     static func parse(json: String) throws -> MCPImportedServer {
         let data = Data(json.utf8)
         let decoder = JSONDecoder()

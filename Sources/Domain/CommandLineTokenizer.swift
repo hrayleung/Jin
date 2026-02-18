@@ -1,6 +1,6 @@
 import Foundation
 
-struct CommandLineTokenizer {
+enum CommandLineTokenizer {
     static func tokenize(_ commandLine: String) throws -> [String] {
         var tokens: [String] = []
         var current = ""
