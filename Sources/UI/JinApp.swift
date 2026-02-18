@@ -126,8 +126,8 @@ struct JinApp: App {
                     MCPHTTPTransportConfig(
                         endpoint: exaEndpoint,
                         streaming: true,
-                        headers: [MCPHeader(name: "X-Client", value: "jin")],
-                        bearerToken: nil
+                        authentication: .none,
+                        additionalHeaders: [MCPHeader(name: "X-Client", value: "jin")]
                     )
                 )
             )

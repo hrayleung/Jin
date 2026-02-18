@@ -92,20 +92,8 @@ struct MCPServerImportParser {
                 throw MCPServerImportError.invalidHTTPURL(rawURL)
             }
 
-            var headers = server.headersList()
-            var bearerToken = server.trimmedBearerToken
-
-            if bearerToken == nil,
-               let authIndex = headers.firstIndex(where: { $0.name.caseInsensitiveCompare("Authorization") == .orderedSame }) {
-                let authValue = headers[authIndex].value.trimmingCharacters(in: .whitespacesAndNewlines)
-                if authValue.lowercased().hasPrefix("bearer ") {
-                    let token = String(authValue.dropFirst("bearer ".count)).trimmingCharacters(in: .whitespacesAndNewlines)
-                    if !token.isEmpty {
-                        bearerToken = token
-                        headers.remove(at: authIndex)
-                    }
-                }
-            }
+            let headers = server.headersList()
+            let authentication = server.authentication(using: headers)
 
             return MCPImportedServer(
                 id: id,
@@ -114,8 +102,8 @@ struct MCPServerImportParser {
                     MCPHTTPTransportConfig(
                         endpoint: endpoint,
                         streaming: server.streaming ?? true,
-                        headers: headers,
-                        bearerToken: bearerToken
+                        authentication: authentication,
+                        additionalHeaders: headers
                     )
                 )
             )
@@ -196,16 +184,33 @@ private struct ImportServer: Decodable {
         return headers
             .compactMapValues { $0.stringValue }
             .map { key, value in
-                MCPHeader(name: key, value: value, isSensitive: Self.isSensitiveHeaderName(key))
+                MCPHeader(name: key, value: value, isSensitive: MCPHTTPTransportConfig.isSensitiveHeaderName(key))
             }
             .sorted { lhs, rhs in
                 lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
             }
     }
 
-    private static func isSensitiveHeaderName(_ name: String) -> Bool {
-        let normalized = name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        return ["authorization", "proxy-authorization", "x-api-key", "api-key"].contains(normalized)
+    func authentication(using headers: [MCPHeader]) -> MCPHTTPAuthentication {
+        if let token = trimmedBearerToken {
+            return .bearerToken(token)
+        }
+
+        guard let authHeader = headers.first(where: {
+            $0.name.caseInsensitiveCompare("Authorization") == .orderedSame
+        }) else {
+            return .none
+        }
+
+        let authValue = authHeader.value.trimmingCharacters(in: .whitespacesAndNewlines)
+        if authValue.lowercased().hasPrefix("bearer ") {
+            let token = String(authValue.dropFirst("bearer ".count)).trimmingCharacters(in: .whitespacesAndNewlines)
+            if !token.isEmpty {
+                return .bearerToken(token)
+            }
+        }
+
+        return .header(authHeader)
     }
 }
 

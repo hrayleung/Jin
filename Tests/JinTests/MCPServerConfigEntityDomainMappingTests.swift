@@ -7,8 +7,8 @@ final class MCPServerConfigEntityDomainMappingTests: XCTestCase {
             MCPHTTPTransportConfig(
                 endpoint: URL(string: "https://mcp.example.com")!,
                 streaming: true,
-                headers: [MCPHeader(name: "X-Test", value: "1")],
-                bearerToken: "token"
+                authentication: .bearerToken("token"),
+                additionalHeaders: [MCPHeader(name: "X-Test", value: "1")]
             )
         )
 

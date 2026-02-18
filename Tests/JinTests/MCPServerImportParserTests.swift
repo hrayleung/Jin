@@ -54,9 +54,9 @@ final class MCPServerImportParserTests: XCTestCase {
         }
 
         XCTAssertEqual(http.endpoint.absoluteString, "https://mcp.exa.ai/mcp")
-        XCTAssertEqual(http.bearerToken, "token")
-        XCTAssertEqual(http.headers.first?.name, "X-Client")
-        XCTAssertEqual(http.headers.first?.value, "jin")
+        XCTAssertEqual(http.authentication, .bearerToken("token"))
+        XCTAssertEqual(http.additionalHeaders.first?.name, "X-Client")
+        XCTAssertEqual(http.additionalHeaders.first?.value, "jin")
     }
 
     func testParseHTTPAuthorizationBearerHeaderExtractsToken() throws {
@@ -79,9 +79,37 @@ final class MCPServerImportParserTests: XCTestCase {
             return XCTFail("Expected HTTP transport")
         }
 
-        XCTAssertEqual(http.bearerToken, "abc123")
-        XCTAssertEqual(http.headers.count, 1)
-        XCTAssertEqual(http.headers.first?.name, "X-Foo")
+        XCTAssertEqual(http.authentication, .bearerToken("abc123"))
+        XCTAssertEqual(http.additionalHeaders.count, 1)
+        XCTAssertEqual(http.additionalHeaders.first?.name, "X-Foo")
+    }
+
+    func testParseHTTPAuthorizationBasicHeaderMapsToCustomAuthenticationHeader() throws {
+        let json = """
+        {
+          "id": "remote",
+          "name": "Remote",
+          "type": "http",
+          "url": "https://example.com/mcp",
+          "headers": {
+            "Authorization": "Basic YWJjOnh5eg==",
+            "X-Foo": "bar"
+          }
+        }
+        """
+
+        let imported = try MCPServerImportParser.parse(json: json)
+
+        guard case .http(let http) = imported.transport else {
+            return XCTFail("Expected HTTP transport")
+        }
+
+        XCTAssertEqual(
+            http.authentication,
+            .header(MCPHeader(name: "Authorization", value: "Basic YWJjOnh5eg==", isSensitive: true))
+        )
+        XCTAssertEqual(http.additionalHeaders.count, 1)
+        XCTAssertEqual(http.additionalHeaders.first?.name, "X-Foo")
     }
 
     func testParseHTTPMissingURLThrows() throws {
