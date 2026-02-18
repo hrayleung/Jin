@@ -16,6 +16,7 @@ struct ProviderConfigFormView: View {
     @State private var showingAddModel = false
     @State private var showingDeleteAllModelsConfirmation = false
     @State private var modelSearchText = ""
+    @State private var editingModel: ModelInfo?
     @State private var openRouterUsageStatus: OpenRouterUsageStatus = .idle
     @State private var openRouterUsage: OpenRouterKeyUsage?
     @State private var openRouterUsageTask: Task<Void, Never>?
@@ -144,6 +145,12 @@ struct ProviderConfigFormView: View {
                                             .jinTagStyle(foreground: .green)
                                             .help("Jin full support")
                                     }
+
+                                    if model.overrides != nil {
+                                        Text("Custom")
+                                            .jinTagStyle(foreground: .orange)
+                                            .help("This model has manual capability overrides.")
+                                    }
                                 }
 
                                 Text(model.id)
@@ -153,8 +160,21 @@ struct ProviderConfigFormView: View {
 
                             Spacer(minLength: 8)
 
+                            Button {
+                                editingModel = model
+                            } label: {
+                                Image(systemName: "slider.horizontal.3")
+                                    .foregroundStyle(.secondary)
+                            }
+                            .buttonStyle(.plain)
+                            .help("Model Settings")
+
                             Toggle("", isOn: modelEnabledBinding(modelID: model.id))
                                 .labelsHidden()
+                        }
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            editingModel = model
                         }
                     }
                     .frame(minHeight: 180)
@@ -227,6 +247,15 @@ struct ProviderConfigFormView: View {
                     models.append(model)
                     models.sort { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
                     setModels(models)
+                }
+            )
+        }
+        .sheet(item: $editingModel) { model in
+            ModelSettingsSheet(
+                model: model,
+                providerType: providerType,
+                onSave: { updated in
+                    updateModel(updated)
                 }
             )
         }
@@ -435,6 +464,13 @@ struct ProviderConfigFormView: View {
         }
     }
 
+    private func updateModel(_ updated: ModelInfo) {
+        var models = decodedModels
+        guard let index = models.firstIndex(where: { $0.id == updated.id }) else { return }
+        models[index] = updated
+        setModels(models)
+    }
+
     private func modelEnabledBinding(modelID: String) -> Binding<Bool> {
         Binding(
             get: {
@@ -458,6 +494,7 @@ struct ProviderConfigFormView: View {
                 capabilities: model.capabilities,
                 contextWindow: model.contextWindow,
                 reasoningConfig: model.reasoningConfig,
+                overrides: model.overrides,
                 isEnabled: enabled
             )
         }
@@ -711,6 +748,7 @@ struct ProviderConfigFormView: View {
             seenIDs.insert(model.id)
 
             let isEnabled = previousByID[model.id]?.isEnabled ?? true
+            let overrides = previousByID[model.id]?.overrides
             merged.append(
                 ModelInfo(
                     id: model.id,
@@ -718,6 +756,7 @@ struct ProviderConfigFormView: View {
                     capabilities: model.capabilities,
                     contextWindow: model.contextWindow,
                     reasoningConfig: model.reasoningConfig,
+                    overrides: overrides,
                     isEnabled: isEnabled
                 )
             )

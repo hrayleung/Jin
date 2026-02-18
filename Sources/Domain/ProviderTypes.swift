@@ -1,5 +1,57 @@
 import Foundation
 
+enum ModelType: String, Codable, CaseIterable {
+    case chat
+    case image
+    case video
+
+    var displayName: String {
+        switch self {
+        case .chat: return "Chat"
+        case .image: return "Image"
+        case .video: return "Video"
+        }
+    }
+}
+
+struct ModelOverrides: Codable, Equatable {
+    var modelType: ModelType?
+    var contextWindow: Int?
+    var maxOutputTokens: Int?
+    var capabilities: ModelCapability?
+    var reasoningConfig: ModelReasoningConfig?
+    var reasoningCanDisable: Bool?
+    var webSearchSupported: Bool?
+
+    init(
+        modelType: ModelType? = nil,
+        contextWindow: Int? = nil,
+        maxOutputTokens: Int? = nil,
+        capabilities: ModelCapability? = nil,
+        reasoningConfig: ModelReasoningConfig? = nil,
+        reasoningCanDisable: Bool? = nil,
+        webSearchSupported: Bool? = nil
+    ) {
+        self.modelType = modelType
+        self.contextWindow = contextWindow
+        self.maxOutputTokens = maxOutputTokens
+        self.capabilities = capabilities
+        self.reasoningConfig = reasoningConfig
+        self.reasoningCanDisable = reasoningCanDisable
+        self.webSearchSupported = webSearchSupported
+    }
+
+    var isEmpty: Bool {
+        modelType == nil
+            && contextWindow == nil
+            && maxOutputTokens == nil
+            && capabilities == nil
+            && reasoningConfig == nil
+            && reasoningCanDisable == nil
+            && webSearchSupported == nil
+    }
+}
+
 /// Provider type.
 enum ProviderType: String, Codable, CaseIterable {
     case openai
@@ -98,10 +150,11 @@ struct ModelInfo: Identifiable, Codable {
     let capabilities: ModelCapability
     let contextWindow: Int
     let reasoningConfig: ModelReasoningConfig?
+    var overrides: ModelOverrides?
     var isEnabled: Bool
 
     enum CodingKeys: String, CodingKey {
-        case id, name, capabilities, contextWindow, reasoningConfig, isEnabled
+        case id, name, capabilities, contextWindow, reasoningConfig, overrides, isEnabled
     }
 
     init(
@@ -110,6 +163,7 @@ struct ModelInfo: Identifiable, Codable {
         capabilities: ModelCapability = [],
         contextWindow: Int,
         reasoningConfig: ModelReasoningConfig? = nil,
+        overrides: ModelOverrides? = nil,
         isEnabled: Bool = true
     ) {
         self.id = id
@@ -117,6 +171,7 @@ struct ModelInfo: Identifiable, Codable {
         self.capabilities = capabilities
         self.contextWindow = contextWindow
         self.reasoningConfig = reasoningConfig
+        self.overrides = overrides
         self.isEnabled = isEnabled
     }
 
@@ -127,6 +182,7 @@ struct ModelInfo: Identifiable, Codable {
         capabilities = try container.decode(ModelCapability.self, forKey: .capabilities)
         contextWindow = try container.decode(Int.self, forKey: .contextWindow)
         reasoningConfig = try container.decodeIfPresent(ModelReasoningConfig.self, forKey: .reasoningConfig)
+        overrides = try container.decodeIfPresent(ModelOverrides.self, forKey: .overrides)
         isEnabled = try container.decodeIfPresent(Bool.self, forKey: .isEnabled) ?? true
     }
 
@@ -137,12 +193,13 @@ struct ModelInfo: Identifiable, Codable {
         try container.encode(capabilities, forKey: .capabilities)
         try container.encode(contextWindow, forKey: .contextWindow)
         try container.encode(reasoningConfig, forKey: .reasoningConfig)
+        try container.encodeIfPresent(overrides, forKey: .overrides)
         try container.encode(isEnabled, forKey: .isEnabled)
     }
 }
 
 /// Model capabilities (option set).
-struct ModelCapability: OptionSet, Codable {
+struct ModelCapability: OptionSet, Codable, Equatable {
     let rawValue: Int
 
     static let streaming = ModelCapability(rawValue: 1 << 0)

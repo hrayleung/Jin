@@ -397,7 +397,7 @@ actor VertexAIAdapter: LLMProviderAdapter {
 
         var toolArray: [[String: Any]] = []
 
-        if controls.webSearch?.enabled == true, supportsGoogleSearch(modelID) {
+        if controls.webSearch?.enabled == true, supportsWebSearch(modelID) {
             toolArray.append(["googleSearch": [:]])
         }
 
@@ -430,6 +430,28 @@ actor VertexAIAdapter: LLMProviderAdapter {
     private func supportsGoogleSearch(_ modelID: String) -> Bool {
         // Gemini 2.5 Flash Image does not support grounding with Google Search.
         !modelID.lowercased().contains("gemini-2.5-flash-image")
+    }
+
+    private func supportsWebSearch(_ modelID: String) -> Bool {
+        guard supportsGoogleSearch(modelID) else { return false }
+
+        if let model = configuredModel(for: modelID) {
+            let resolved = ModelSettingsResolver.resolve(model: model, providerType: providerConfig.type)
+            return resolved.supportsWebSearch
+        }
+
+        return ModelCapabilityRegistry.supportsWebSearch(
+            for: providerConfig.type,
+            modelID: modelID
+        )
+    }
+
+    private func configuredModel(for modelID: String) -> ModelInfo? {
+        if let exact = providerConfig.models.first(where: { $0.id == modelID }) {
+            return exact
+        }
+        let target = modelID.lowercased()
+        return providerConfig.models.first(where: { $0.id.lowercased() == target })
     }
 
     private func supportsImageSize(_ modelID: String) -> Bool {

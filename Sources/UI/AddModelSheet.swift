@@ -48,6 +48,8 @@ struct AddModelSheet: View {
 
     @State private var nickname = ""
     @State private var modelID = ""
+    @State private var customOverrides: ModelOverrides?
+    @State private var editingModel: ModelInfo?
 
     var body: some View {
         NavigationStack {
@@ -55,6 +57,18 @@ struct AddModelSheet: View {
                 TextField("Nickname", text: $nickname)
                 TextField("Model ID", text: $modelID)
                     .font(.system(.body, design: .monospaced))
+
+                Button("Model Settings…") {
+                    let trimmedID = modelID.trimmingCharacters(in: .whitespacesAndNewlines)
+                    guard !trimmedID.isEmpty else { return }
+                    let trimmedName = nickname.trimmingCharacters(in: .whitespacesAndNewlines)
+                    let nameToUse = trimmedName.isEmpty ? trimmedID : trimmedName
+
+                    var draft = makeModelInfo(id: trimmedID, name: nameToUse)
+                    draft.overrides = customOverrides
+                    editingModel = draft
+                }
+                .disabled(modelID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
             .navigationTitle("Add Model")
             .toolbar {
@@ -67,12 +81,23 @@ struct AddModelSheet: View {
                         let trimmedName = nickname.trimmingCharacters(in: .whitespacesAndNewlines)
                         let nameToUse = trimmedName.isEmpty ? trimmedID : trimmedName
 
-                        onAdd(makeModelInfo(id: trimmedID, name: nameToUse))
+                        var model = makeModelInfo(id: trimmedID, name: nameToUse)
+                        model.overrides = customOverrides
+                        onAdd(model)
                         dismiss()
                     }
                     .disabled(modelID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
             }
+        }
+        .sheet(item: $editingModel) { model in
+            ModelSettingsSheet(
+                model: model,
+                providerType: providerType,
+                onSave: { updated in
+                    customOverrides = updated.overrides
+                }
+            )
         }
         .frame(minWidth: 400, minHeight: 200)
     }
@@ -189,6 +214,15 @@ struct AddModelSheet: View {
 
         if supportsAudioInputModelID(lowerModelID: lower, providerType: providerType) {
             caps.insert(.audio)
+        }
+
+        if reasoningConfig == nil,
+           let inferredReasoning = ModelCapabilityRegistry.defaultReasoningConfig(
+            for: providerType,
+            modelID: id
+           ) {
+            caps.insert(.reasoning)
+            reasoningConfig = inferredReasoning
         }
 
         return ModelInfo(

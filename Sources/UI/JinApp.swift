@@ -177,12 +177,14 @@ struct JinApp: App {
                     let existingByID = Dictionary(uniqueKeysWithValues: providerEntity.allModels.map { ($0.id, $0) })
                     let merged = latestModels.map { model in
                         let isEnabled = existingByID[model.id]?.isEnabled ?? true
+                        let overrides = existingByID[model.id]?.overrides
                         return ModelInfo(
                             id: model.id,
                             name: model.name,
                             capabilities: model.capabilities,
                             contextWindow: model.contextWindow,
                             reasoningConfig: model.reasoningConfig,
+                            overrides: overrides,
                             isEnabled: isEnabled
                         )
                     }

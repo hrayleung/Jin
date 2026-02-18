@@ -1,0 +1,228 @@
+import XCTest
+@testable import Jin
+
+final class ModelSettingsResolverTests: XCTestCase {
+    func testModelInfoBackwardCompatibleDecodingWithoutOverrides() throws {
+        let json = """
+        {
+          "id": "example/model",
+          "name": "Example",
+          "capabilities": 3,
+          "contextWindow": 128000,
+          "reasoningConfig": null,
+          "isEnabled": true
+        }
+        """
+
+        let decoded = try JSONDecoder().decode(ModelInfo.self, from: Data(json.utf8))
+        XCTAssertEqual(decoded.id, "example/model")
+        XCTAssertNil(decoded.overrides)
+    }
+
+    func testResolverAppliesManualOverrides() {
+        let model = ModelInfo(
+            id: "openai/gpt-oss",
+            name: "GPT OSS",
+            capabilities: [.streaming, .toolCalling],
+            contextWindow: 128_000,
+            reasoningConfig: nil,
+            overrides: ModelOverrides(
+                modelType: .chat,
+                contextWindow: 256_000,
+                maxOutputTokens: 12_000,
+                capabilities: [.streaming, .toolCalling, .reasoning],
+                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
+                reasoningCanDisable: false,
+                webSearchSupported: false
+            ),
+            isEnabled: true
+        )
+
+        let resolved = ModelSettingsResolver.resolve(model: model, providerType: .openrouter)
+        XCTAssertEqual(resolved.contextWindow, 256_000)
+        XCTAssertEqual(resolved.maxOutputTokens, 12_000)
+        XCTAssertEqual(resolved.reasoningConfig?.type, .effort)
+        XCTAssertEqual(resolved.reasoningConfig?.defaultEffort, .high)
+        XCTAssertFalse(resolved.reasoningCanDisable)
+        XCTAssertFalse(resolved.supportsWebSearch)
+        XCTAssertEqual(resolved.requestShape, .openAICompatible)
+        XCTAssertTrue(resolved.capabilities.contains(.reasoning))
+    }
+
+    func testOpenRouterUsesUnifiedRequestShapeAcrossModelFamilies() {
+        let claudeModel = ModelInfo(
+            id: "anthropic/claude-sonnet-4.6",
+            name: "Claude Sonnet 4.6",
+            capabilities: [.streaming],
+            contextWindow: 128_000,
+            reasoningConfig: nil,
+            isEnabled: true
+        )
+        let geminiModel = ModelInfo(
+            id: "google/gemini-2.5-pro",
+            name: "Gemini 2.5 Pro",
+            capabilities: [.streaming],
+            contextWindow: 128_000,
+            reasoningConfig: nil,
+            isEnabled: true
+        )
+        let gptModel = ModelInfo(
+            id: "openai/gpt-5",
+            name: "GPT-5",
+            capabilities: [.streaming],
+            contextWindow: 128_000,
+            reasoningConfig: nil,
+            isEnabled: true
+        )
+
+        XCTAssertEqual(
+            ModelSettingsResolver.resolve(model: claudeModel, providerType: .openrouter).requestShape,
+            .openAICompatible
+        )
+        XCTAssertEqual(
+            ModelSettingsResolver.resolve(model: geminiModel, providerType: .openrouter).requestShape,
+            .openAICompatible
+        )
+        XCTAssertEqual(
+            ModelSettingsResolver.resolve(model: gptModel, providerType: .openrouter).requestShape,
+            .openAICompatible
+        )
+    }
+
+    func testOpenAICompatibleUsesSelectedTypeWithoutModelNameShapeInference() {
+        let claudeModel = ModelInfo(
+            id: "anthropic/claude-sonnet-4.6",
+            name: "Claude Sonnet 4.6",
+            capabilities: [.streaming],
+            contextWindow: 128_000,
+            reasoningConfig: nil,
+            isEnabled: true
+        )
+        let geminiModel = ModelInfo(
+            id: "google/gemini-2.5-pro",
+            name: "Gemini 2.5 Pro",
+            capabilities: [.streaming],
+            contextWindow: 128_000,
+            reasoningConfig: nil,
+            isEnabled: true
+        )
+
+        XCTAssertEqual(
+            ModelSettingsResolver.resolve(model: claudeModel, providerType: .openaiCompatible).requestShape,
+            .openAICompatible
+        )
+        XCTAssertEqual(
+            ModelSettingsResolver.resolve(model: geminiModel, providerType: .openaiCompatible).requestShape,
+            .openAICompatible
+        )
+    }
+
+    func testOpenRouterDefaultReasoningConfigRecognizesGeminiAndClaudeModelIDs() {
+        let gemini = ModelCapabilityRegistry.defaultReasoningConfig(
+            for: .openrouter,
+            modelID: "google/gemini-3-pro-preview"
+        )
+        let claude = ModelCapabilityRegistry.defaultReasoningConfig(
+            for: .openrouter,
+            modelID: "anthropic/claude-sonnet-4.6"
+        )
+
+        XCTAssertEqual(gemini?.type, .effort)
+        XCTAssertEqual(claude?.type, .effort)
+    }
+
+    func testOpenAIStyleExtremeEffortSupportFollowsModelID() {
+        let gpt52 = ModelInfo(
+            id: "openai/gpt-5.2",
+            name: "GPT-5.2",
+            capabilities: [.streaming, .reasoning],
+            contextWindow: 128_000,
+            reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+            isEnabled: true
+        )
+
+        let gpt5 = ModelInfo(
+            id: "openai/gpt-5",
+            name: "GPT-5",
+            capabilities: [.streaming, .reasoning],
+            contextWindow: 128_000,
+            reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+            isEnabled: true
+        )
+
+        XCTAssertTrue(ModelSettingsResolver.resolve(model: gpt52, providerType: .openrouter).supportsOpenAIStyleExtremeEffort)
+        XCTAssertFalse(ModelSettingsResolver.resolve(model: gpt5, providerType: .openrouter).supportsOpenAIStyleExtremeEffort)
+    }
+
+    func testResolverSupportsExplicitReasoningDisableOverride() {
+        let model = ModelInfo(
+            id: "groq/openai/gpt-oss-120b",
+            name: "GPT OSS 120B",
+            capabilities: [.streaming, .toolCalling, .reasoning],
+            contextWindow: 128_000,
+            reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+            overrides: ModelOverrides(
+                reasoningConfig: ModelReasoningConfig(type: .none)
+            ),
+            isEnabled: true
+        )
+
+        let resolved = ModelSettingsResolver.resolve(model: model, providerType: .groq)
+        XCTAssertEqual(resolved.reasoningConfig?.type, ReasoningConfigType.none)
+        XCTAssertTrue(resolved.capabilities.contains(.reasoning))
+    }
+
+    func testResolverDropsReasoningConfigWhenCapabilityDisabled() {
+        let model = ModelInfo(
+            id: "groq/openai/gpt-oss-120b",
+            name: "GPT OSS 120B",
+            capabilities: [.streaming, .toolCalling, .reasoning],
+            contextWindow: 128_000,
+            reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+            overrides: ModelOverrides(
+                capabilities: [.streaming, .toolCalling]
+            ),
+            isEnabled: true
+        )
+
+        let resolved = ModelSettingsResolver.resolve(model: model, providerType: .groq)
+        XCTAssertNil(resolved.reasoningConfig)
+        XCTAssertFalse(resolved.capabilities.contains(.reasoning))
+    }
+
+    func testFireworksMiniMaxReasoningCannotDisableByDefault() {
+        let model = ModelInfo(
+            id: "fireworks/minimax-m2p5",
+            name: "MiniMax",
+            capabilities: [.streaming, .reasoning],
+            contextWindow: 204_800,
+            reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+            isEnabled: true
+        )
+
+        let resolved = ModelSettingsResolver.resolve(model: model, providerType: .fireworks)
+        XCTAssertFalse(resolved.reasoningCanDisable)
+    }
+
+    func testOpenRouterWebSearchDefaultsByModelFamily() {
+        let gpt = ModelInfo(
+            id: "openai/gpt-5",
+            name: "GPT-5",
+            capabilities: [.streaming],
+            contextWindow: 128_000,
+            reasoningConfig: nil,
+            isEnabled: true
+        )
+        let unknown = ModelInfo(
+            id: "qwen/qwen3-32b",
+            name: "Qwen 3",
+            capabilities: [.streaming],
+            contextWindow: 128_000,
+            reasoningConfig: nil,
+            isEnabled: true
+        )
+
+        XCTAssertTrue(ModelSettingsResolver.resolve(model: gpt, providerType: .openrouter).supportsWebSearch)
+        XCTAssertFalse(ModelSettingsResolver.resolve(model: unknown, providerType: .openrouter).supportsWebSearch)
+    }
+}
