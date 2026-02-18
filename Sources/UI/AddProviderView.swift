@@ -174,7 +174,10 @@ struct AddMCPServerView: View {
     @State private var envPairs: [EnvironmentVariablePair] = []
 
     @State private var endpoint = ""
+    @State private var httpAuthKind: MCPHTTPAuthentication.FormKind = .none
     @State private var bearerToken = ""
+    @State private var authHeaderName = "Authorization"
+    @State private var authHeaderValue = ""
     @State private var headerPairs: [EnvironmentVariablePair] = []
     @State private var httpStreaming = true
 
@@ -276,13 +279,37 @@ struct AddMCPServerView: View {
                         TextField("Endpoint", text: $endpoint)
                             .font(.system(.body, design: .monospaced))
 
-                        SecureField("Bearer token", text: $bearerToken)
-                            .font(.system(.body, design: .monospaced))
-
                         Toggle("Enable streaming (SSE)", isOn: $httpStreaming)
                     }
 
-                    Section("Headers") {
+                    Section("Authentication") {
+                        Picker("Type", selection: $httpAuthKind) {
+                            Text("None").tag(MCPHTTPAuthentication.FormKind.none)
+                            Text("Bearer token").tag(MCPHTTPAuthentication.FormKind.bearerToken)
+                            Text("Custom header").tag(MCPHTTPAuthentication.FormKind.customHeader)
+                        }
+
+                        switch httpAuthKind {
+                        case .none:
+                            EmptyView()
+                        case .bearerToken:
+                            SecureField("Bearer token", text: $bearerToken)
+                                .font(.system(.body, design: .monospaced))
+                        case .customHeader:
+                            TextField("Header name", text: $authHeaderName)
+                                .font(.system(.body, design: .monospaced))
+                            SecureField("Header value", text: $authHeaderValue)
+                                .font(.system(.body, design: .monospaced))
+                        }
+
+                        if let authError = httpAuthenticationValidationError {
+                            Text(authError)
+                                .foregroundStyle(.red)
+                                .font(.caption)
+                        }
+                    }
+
+                    Section("Additional headers") {
                         EnvironmentVariablesEditor(pairs: $headerPairs)
                     }
                 }
@@ -338,7 +365,7 @@ struct AddMCPServerView: View {
         case .stdio:
             return command.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         case .http:
-            return parsedEndpoint == nil
+            return parsedEndpoint == nil || parsedHTTPAuthentication == nil
         }
     }
 
@@ -368,7 +395,7 @@ struct AddMCPServerView: View {
             if name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { name = "Exa" }
             transportKind = .http
             endpoint = "https://mcp.exa.ai/mcp"
-            bearerToken = ""
+            applyHTTPAuthentication(.none)
             if !headerPairs.contains(where: { $0.key.caseInsensitiveCompare("X-Client") == .orderedSame }) {
                 headerPairs.append(EnvironmentVariablePair(key: "X-Client", value: "jin"))
             }
@@ -419,8 +446,8 @@ struct AddMCPServerView: View {
         case .http(let http):
             transportKind = .http
             endpoint = http.endpoint.absoluteString
-            bearerToken = http.bearerToken ?? ""
-            headerPairs = http.headers.map { EnvironmentVariablePair(key: $0.name, value: $0.value) }
+            applyHTTPAuthentication(http.authentication)
+            headerPairs = http.additionalHeaders.map { EnvironmentVariablePair(key: $0.name, value: $0.value) }
             httpStreaming = http.streaming
         }
     }
@@ -457,6 +484,10 @@ struct AddMCPServerView: View {
                 importError = "Invalid endpoint URL."
                 return
             }
+            guard let authentication = parsedHTTPAuthentication else {
+                importError = httpAuthenticationValidationError ?? "Invalid authentication."
+                return
+            }
 
             let headers: [MCPHeader] = headerPairs.compactMap { pair in
                 let key = pair.key.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -464,17 +495,16 @@ struct AddMCPServerView: View {
                 return MCPHeader(
                     name: key,
                     value: pair.value,
-                    isSensitive: Self.isSensitiveHeaderName(key)
+                    isSensitive: MCPHTTPTransportConfig.isSensitiveHeaderName(key)
                 )
             }
 
-            let token = bearerToken.trimmingCharacters(in: .whitespacesAndNewlines)
             transport = .http(
                 MCPHTTPTransportConfig(
                     endpoint: endpointURL,
                     streaming: httpStreaming,
-                    headers: headers,
-                    bearerToken: token.isEmpty ? nil : token
+                    authentication: authentication,
+                    additionalHeaders: headers
                 )
             )
         }
@@ -502,9 +532,30 @@ struct AddMCPServerView: View {
         dismiss()
     }
 
-    private static func isSensitiveHeaderName(_ name: String) -> Bool {
-        let normalized = name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        return ["authorization", "proxy-authorization", "x-api-key", "api-key"].contains(normalized)
+    private var httpAuthenticationValidationError: String? {
+        MCPHTTPAuthentication.formValidationError(
+            kind: httpAuthKind,
+            bearerToken: bearerToken,
+            headerName: authHeaderName,
+            headerValue: authHeaderValue
+        )
+    }
+
+    private var parsedHTTPAuthentication: MCPHTTPAuthentication? {
+        MCPHTTPAuthentication.fromFormFields(
+            kind: httpAuthKind,
+            bearerToken: bearerToken,
+            headerName: authHeaderName,
+            headerValue: authHeaderValue
+        )
+    }
+
+    private func applyHTTPAuthentication(_ authentication: MCPHTTPAuthentication) {
+        let fields = authentication.formFields
+        httpAuthKind = fields.kind
+        bearerToken = fields.bearerToken
+        authHeaderName = fields.headerName
+        authHeaderValue = fields.headerValue
     }
 
     private func formatJSONImportError(_ error: Error) -> String {
@@ -560,4 +611,3 @@ private final class MovableWindowNSView: NSView {
     }
 }
 #endif
-
