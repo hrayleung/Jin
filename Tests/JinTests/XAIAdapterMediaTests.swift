@@ -855,6 +855,83 @@ final class XAIAdapterMediaTests: XCTestCase {
         XCTAssertEqual(id, "vid_img2vid_1")
     }
 
+    func testXAIVideoToVideoUsesRemoteVideoURLMentionedInPromptText() async throws {
+        let (session, protocolType) = makeMockedURLSession()
+        let networkManager = NetworkManager(urlSession: session)
+
+        let providerConfig = ProviderConfig(
+            id: "x",
+            name: "xAI",
+            type: .xai,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        let remoteVideoURL = "https://cdn.example.com/source/input.mp4?token=abc123"
+        var requestCount = 0
+
+        protocolType.requestHandler = { request in
+            requestCount += 1
+
+            if requestCount == 1 {
+                XCTAssertEqual(request.url?.absoluteString, "https://example.com/videos/edits")
+                XCTAssertEqual(request.httpMethod, "POST")
+
+                let body = try XCTUnwrap(requestBodyData(request))
+                let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+                let root = try XCTUnwrap(json)
+
+                XCTAssertEqual(root["model"] as? String, "grok-imagine-video")
+                let prompt = try XCTUnwrap(root["prompt"] as? String)
+                XCTAssertTrue(prompt.contains("Edit the provided input video."))
+                XCTAssertTrue(prompt.contains("Make it anime style with stronger camera motion."))
+
+                let video = try XCTUnwrap(root["video"] as? [String: Any])
+                XCTAssertEqual(video["url"] as? String, remoteVideoURL)
+                XCTAssertNil(root["image"])
+
+                let response: [String: Any] = ["request_id": "vid_remote_url_1"]
+                let data = try JSONSerialization.data(withJSONObject: response)
+                return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+            } else {
+                XCTAssertTrue(request.url?.absoluteString.contains("videos/vid_remote_url_1") == true)
+
+                let response: [String: Any] = ["status": "expired"]
+                let data = try JSONSerialization.data(withJSONObject: response)
+                return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+            }
+        }
+
+        let adapter = XAIAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+
+        let stream = try await adapter.sendMessage(
+            messages: [
+                Message(
+                    role: .user,
+                    content: [
+                        .text("""
+                        Use this public video URL as source: \(remoteVideoURL)
+                        Make it anime style with stronger camera motion.
+                        """)
+                    ]
+                )
+            ],
+            modelID: "grok-imagine-video",
+            controls: GenerationControls(),
+            tools: [],
+            streaming: false
+        )
+
+        var events: [StreamEvent] = []
+        do {
+            for try await event in stream { events.append(event) }
+        } catch {}
+
+        XCTAssertEqual(requestCount, 2)
+        guard case .messageStart(let id) = events.first else { return XCTFail("Expected messageStart") }
+        XCTAssertEqual(id, "vid_remote_url_1")
+    }
+
     func testXAIVideoToVideoIncludesVideoURLAndSkipsUnsupportedControls() async throws {
         let (session, protocolType) = makeMockedURLSession()
         let networkManager = NetworkManager(urlSession: session)

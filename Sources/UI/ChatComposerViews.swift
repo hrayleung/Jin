@@ -138,12 +138,14 @@ struct DraftAttachmentChip: View {
 
 struct ExpandedComposerOverlay: View {
     @Binding var messageText: String
+    @Binding var remoteVideoURLText: String
     @Binding var draftAttachments: [DraftAttachment]
     @Binding var isPresented: Bool
     @Binding var isComposerDropTargeted: Bool
 
     let isBusy: Bool
     let canSendDraft: Bool
+    let showsRemoteVideoURLField: Bool
     let onSend: () -> Void
     let onDropFileURLs: ([URL]) -> Bool
     let onDropImages: ([NSImage]) -> Bool
@@ -161,6 +163,10 @@ struct ExpandedComposerOverlay: View {
 
     private var characterCount: Int {
         messageText.count
+    }
+
+    private var trimmedRemoteVideoURLText: String {
+        remoteVideoURLText.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     var body: some View {
@@ -191,6 +197,7 @@ struct ExpandedComposerOverlay: View {
             panelHeader
             Divider()
             panelAttachmentChips
+            panelRemoteVideoURLField
             panelEditor
             Divider()
             panelFooter
@@ -238,6 +245,37 @@ struct ExpandedComposerOverlay: View {
                 .padding(.horizontal, JinSpacing.large)
                 .padding(.vertical, JinSpacing.small)
             }
+        }
+    }
+
+    @ViewBuilder
+    private var panelRemoteVideoURLField: some View {
+        if showsRemoteVideoURLField {
+            HStack(spacing: JinSpacing.small) {
+                Image(systemName: "link")
+                    .foregroundStyle(.secondary)
+
+                TextField("Public video URL (optional, for video edit)", text: $remoteVideoURLText)
+                    .textFieldStyle(.plain)
+                    .font(.callout)
+                    .disabled(isBusy)
+
+                if !trimmedRemoteVideoURLText.isEmpty {
+                    Button {
+                        remoteVideoURLText = ""
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(isBusy)
+                }
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
+            .padding(.horizontal, JinSpacing.large)
+            .padding(.top, JinSpacing.small)
+            .jinSurface(.subtle, cornerRadius: JinRadius.medium)
         }
     }
 
