@@ -3658,6 +3658,11 @@ struct ChatView: View {
                                 errorMessage = error.localizedDescription
                                 showingError = true
                             }
+                            // End streaming atomically with message persistence
+                            // to prevent the brief duplicate message flash.
+                            if toolCalls.isEmpty {
+                                streamingStore.endSession(conversationID: conversationID)
+                            }
                         }
 
                         history.append(assistantMessage)

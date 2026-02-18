@@ -39,14 +39,16 @@ private func fontUpdateJavaScript(bodyCSS: String, codeCSS: String, fontSizeCSS:
 
 struct MarkdownWebRenderer: View {
     let markdownText: String
+    var isStreaming: Bool = false
 
     @AppStorage(AppPreferenceKeys.appFontFamily) private var appFontFamily = JinTypography.systemFontPreferenceValue
     @AppStorage(AppPreferenceKeys.codeFontFamily) private var codeFontFamily = JinTypography.systemFontPreferenceValue
 
     @State private var contentHeight: CGFloat
 
-    init(markdownText: String) {
+    init(markdownText: String, isStreaming: Bool = false) {
         self.markdownText = markdownText
+        self.isStreaming = isStreaming
         let estimated = Self.estimatedHeight(for: markdownText)
         self._contentHeight = State(initialValue: estimated)
     }
@@ -54,6 +56,7 @@ struct MarkdownWebRenderer: View {
     var body: some View {
         MarkdownWebRendererRepresentable(
             markdownText: markdownText,
+            isStreaming: isStreaming,
             contentHeight: $contentHeight,
             appFontFamily: appFontFamily,
             codeFontFamily: codeFontFamily
@@ -69,15 +72,17 @@ struct MarkdownWebRenderer: View {
         return max(24, min(lineEstimate * 22.0, 600))
     }
 
-    static func sendMarkdown(to webView: WKWebView, markdown: String) {
+    static func sendMarkdown(to webView: WKWebView, markdown: String, streaming: Bool = false) {
         guard let data = markdown.data(using: .utf8) else { return }
         let b64 = data.base64EncodedString()
-        webView.evaluateJavaScript("window.updateWithBase64('\(b64)')", completionHandler: nil)
+        let fn = streaming ? "updateStreamingWithBase64" : "updateWithBase64"
+        webView.evaluateJavaScript("window.\(fn)('\(b64)')", completionHandler: nil)
     }
 }
 
 private struct MarkdownWebRendererRepresentable: NSViewRepresentable {
     let markdownText: String
+    let isStreaming: Bool
     @Binding var contentHeight: CGFloat
     let appFontFamily: String
     let codeFontFamily: String
@@ -108,6 +113,7 @@ private struct MarkdownWebRendererRepresentable: NSViewRepresentable {
     func updateNSView(_ webView: MarkdownWKWebView, context: Context) {
         context.coordinator.heightBinding = $contentHeight
         context.coordinator.currentMarkdown = markdownText
+        context.coordinator.isStreaming = isStreaming
 
         if context.coordinator.isReady {
             let didUpdateFonts = context.coordinator.applyFontUpdateIfNeeded(
@@ -143,6 +149,7 @@ private struct MarkdownWebRendererRepresentable: NSViewRepresentable {
         weak var webView: MarkdownWKWebView?
         var heightBinding: Binding<CGFloat>?
         var isReady = false
+        var isStreaming = false
         var pendingMarkdown: String?
         var currentMarkdown: String?
         private var lastRenderedMarkdown: String?
@@ -200,7 +207,7 @@ private struct MarkdownWebRendererRepresentable: NSViewRepresentable {
         func renderMarkdownIfNeeded(_ markdown: String, in webView: WKWebView, force: Bool = false) {
             guard force || markdown != lastRenderedMarkdown else { return }
             lastRenderedMarkdown = markdown
-            MarkdownWebRenderer.sendMarkdown(to: webView, markdown: markdown)
+            MarkdownWebRenderer.sendMarkdown(to: webView, markdown: markdown, streaming: isStreaming)
         }
 
         /// Compares resolved CSS values against cached state. If changed, evaluates

@@ -74,7 +74,7 @@ struct StreamingMessageView: View {
                         }
 
                         if !state.textChunks.isEmpty {
-                            ChunkedTextView(chunks: state.textChunks, font: chatBodyFont, allowsTextSelection: false)
+                            MarkdownWebRenderer(markdownText: state.textContent, isStreaming: true)
                         } else if state.thinkingChunks.isEmpty {
                             HStack(spacing: 6) {
                                 ProgressView().scaleEffect(0.5)
