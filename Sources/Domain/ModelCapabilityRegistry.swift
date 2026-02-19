@@ -205,4 +205,11 @@ enum ModelCapabilityRegistry {
         }
         return false
     }
+
+    /// Models that support the `web_search_20260209` tool with dynamic filtering.
+    static func supportsWebSearchDynamicFiltering(for providerType: ProviderType?, modelID: String) -> Bool {
+        guard providerType == .anthropic else { return false }
+        let lower = modelID.lowercased()
+        return lower.contains("claude-opus-4-6") || lower.contains("claude-sonnet-4-6")
+    }
 }
