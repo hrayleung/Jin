@@ -103,58 +103,6 @@ protocol StreamParser {
     mutating func nextEvent() -> Event?
 }
 
-/// Retry manager with exponential backoff
-actor RetryManager {
-    private let maxAttempts: Int
-    private let baseDelay: TimeInterval
-
-    init(maxAttempts: Int = 3, baseDelay: TimeInterval = 1.0) {
-        self.maxAttempts = maxAttempts
-        self.baseDelay = baseDelay
-    }
-
-    func withRetry<T>(
-        operation: @Sendable () async throws -> T
-    ) async throws -> T {
-        var attempt = 0
-        var lastError: Error?
-
-        while attempt < maxAttempts {
-            do {
-                return try await operation()
-            } catch let error as LLMError {
-                lastError = error
-
-                // Don't retry certain errors
-                switch error {
-                case .authenticationFailed, .invalidRequest, .contentFiltered:
-                    throw error
-                case .rateLimitExceeded(let retryAfter):
-                    if let retryAfter {
-                        try await Task.sleep(nanoseconds: UInt64(retryAfter * 1_000_000_000))
-                        attempt += 1
-                        continue
-                    }
-                default:
-                    break
-                }
-
-                // Exponential backoff
-                let delay = min(baseDelay * pow(2.0, Double(attempt)), 60.0)
-                try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
-                attempt += 1
-            } catch {
-                lastError = error
-                let delay = min(baseDelay * pow(2.0, Double(attempt)), 60.0)
-                try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
-                attempt += 1
-            }
-        }
-
-        throw lastError ?? LLMError.networkError(underlying: URLError(.unknown))
-    }
-}
-
 /// Streaming task manager for cancellation
 actor StreamingTaskManager {
     private var activeTasks: [UUID: Task<Void, Never>] = [:]

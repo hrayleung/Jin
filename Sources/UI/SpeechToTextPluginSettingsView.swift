@@ -39,11 +39,12 @@ struct SpeechToTextPluginSettingsView: View {
     @State private var lastPersistedAPIKey = ""
     @State private var autoSaveTask: Task<Void, Never>?
 
-    private var provider: SpeechToTextProvider {
-        SpeechToTextProvider(rawValue: providerRaw) ?? .groq
+    private var provider: SpeechToTextProvider? {
+        SpeechToTextProvider(rawValue: providerRaw)
     }
 
-    private var currentAPIKeyPreferenceKey: String {
+    private var currentAPIKeyPreferenceKey: String? {
+        guard let provider else { return nil }
         switch provider {
         case .openai:
             return AppPreferenceKeys.sttOpenAIAPIKey
@@ -158,123 +159,131 @@ struct SpeechToTextPluginSettingsView: View {
 
     @ViewBuilder
     private var providerSpecificSettings: some View {
-        switch provider {
-        case .openai:
-            Section("OpenAI") {
-                TextField("API Base URL", text: $openAIBaseURL)
-                    .font(.system(.body, design: .monospaced))
-                    .textFieldStyle(.roundedBorder)
+        if let provider {
+            switch provider {
+            case .openai:
+                Section("OpenAI") {
+                    TextField("API Base URL", text: $openAIBaseURL)
+                        .font(.system(.body, design: .monospaced))
+                        .textFieldStyle(.roundedBorder)
 
-                TextField("Model", text: $openAIModel)
-                    .font(.system(.body, design: .monospaced))
-                    .textFieldStyle(.roundedBorder)
+                    TextField("Model", text: $openAIModel)
+                        .font(.system(.body, design: .monospaced))
+                        .textFieldStyle(.roundedBorder)
 
-                Toggle("Translate to English", isOn: $openAITranslateToEnglish)
+                    Toggle("Translate to English", isOn: $openAITranslateToEnglish)
 
-                TextField("Language (optional)", text: $openAILanguage)
-                    .font(.system(.body, design: .monospaced))
+                    TextField("Language (optional)", text: $openAILanguage)
+                        .font(.system(.body, design: .monospaced))
 
-                TextField("Prompt (optional)", text: $openAIPrompt)
+                    TextField("Prompt (optional)", text: $openAIPrompt)
 
-                Picker("Response Format", selection: $openAIResponseFormat) {
-                    ForEach(Self.sttResponseFormats, id: \.self) { format in
-                        Text(format).tag(format)
+                    Picker("Response Format", selection: $openAIResponseFormat) {
+                        ForEach(Self.sttResponseFormats, id: \.self) { format in
+                            Text(format).tag(format)
+                        }
+                    }
+                    .pickerStyle(.menu)
+
+                    HStack {
+                        Text("Temperature")
+                        Slider(value: $openAITemperature, in: 0.0...1.0, step: 0.05)
+                        Text(openAITemperature.formatted(.number.precision(.fractionLength(2))))
+                            .font(.system(.body, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                            .frame(width: 52, alignment: .trailing)
+                    }
+
+                    DisclosureGroup("Timestamps (verbose_json only)") {
+                        Toggle("Segment timestamps", isOn: timestampBinding(provider: .openai, granularity: "segment"))
+                        Toggle("Word timestamps", isOn: timestampBinding(provider: .openai, granularity: "word"))
                     }
                 }
-                .pickerStyle(.menu)
 
-                HStack {
-                    Text("Temperature")
-                    Slider(value: $openAITemperature, in: 0.0...1.0, step: 0.05)
-                    Text(openAITemperature.formatted(.number.precision(.fractionLength(2))))
+            case .groq:
+                Section("Groq") {
+                    TextField("API Base URL", text: $groqBaseURL)
                         .font(.system(.body, design: .monospaced))
-                        .foregroundStyle(.secondary)
-                        .frame(width: 52, alignment: .trailing)
+                        .textFieldStyle(.roundedBorder)
+
+                    TextField("Model", text: $groqModel)
+                        .font(.system(.body, design: .monospaced))
+                        .textFieldStyle(.roundedBorder)
+                        .help("Recommended: whisper-large-v3-turbo")
+
+                    Toggle("Translate to English", isOn: $groqTranslateToEnglish)
+
+                    TextField("Language (optional)", text: $groqLanguage)
+                        .font(.system(.body, design: .monospaced))
+                        .help("Only supported by whisper-large-v3.")
+
+                    TextField("Prompt (optional)", text: $groqPrompt)
+
+                    Picker("Response Format", selection: $groqResponseFormat) {
+                        ForEach(Self.sttResponseFormats, id: \.self) { format in
+                            Text(format).tag(format)
+                        }
+                    }
+                    .pickerStyle(.menu)
+
+                    HStack {
+                        Text("Temperature")
+                        Slider(value: $groqTemperature, in: 0.0...1.0, step: 0.05)
+                        Text(groqTemperature.formatted(.number.precision(.fractionLength(2))))
+                            .font(.system(.body, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                            .frame(width: 52, alignment: .trailing)
+                    }
+
+                    DisclosureGroup("Timestamps (verbose_json only)") {
+                        Toggle("Segment timestamps", isOn: timestampBinding(provider: .groq, granularity: "segment"))
+                        Toggle("Word timestamps", isOn: timestampBinding(provider: .groq, granularity: "word"))
+                    }
                 }
 
-                DisclosureGroup("Timestamps (verbose_json only)") {
-                    Toggle("Segment timestamps", isOn: timestampBinding(provider: .openai, granularity: "segment"))
-                    Toggle("Word timestamps", isOn: timestampBinding(provider: .openai, granularity: "word"))
+            case .mistral:
+                Section("Mistral") {
+                    TextField("API Base URL", text: $mistralBaseURL)
+                        .font(.system(.body, design: .monospaced))
+                        .textFieldStyle(.roundedBorder)
+
+                    TextField("Model", text: $mistralModel)
+                        .font(.system(.body, design: .monospaced))
+                        .textFieldStyle(.roundedBorder)
+                        .help("Recommended: voxtral-mini-latest (transcription endpoint)")
+
+                    TextField("Language (optional)", text: $mistralLanguage)
+                        .font(.system(.body, design: .monospaced))
+
+                    TextField("Prompt (optional)", text: $mistralPrompt)
+
+                    Picker("Response Format", selection: $mistralResponseFormat) {
+                        ForEach(Self.sttResponseFormats, id: \.self) { format in
+                            Text(format).tag(format)
+                        }
+                    }
+                    .pickerStyle(.menu)
+
+                    HStack {
+                        Text("Temperature")
+                        Slider(value: $mistralTemperature, in: 0.0...1.0, step: 0.05)
+                        Text(mistralTemperature.formatted(.number.precision(.fractionLength(2))))
+                            .font(.system(.body, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                            .frame(width: 52, alignment: .trailing)
+                    }
+
+                    DisclosureGroup("Timestamps (verbose_json only)") {
+                        Toggle("Segment timestamps", isOn: timestampBinding(provider: .mistral, granularity: "segment"))
+                        Toggle("Word timestamps", isOn: timestampBinding(provider: .mistral, granularity: "word"))
+                    }
                 }
             }
-
-        case .groq:
-            Section("Groq") {
-                TextField("API Base URL", text: $groqBaseURL)
-                    .font(.system(.body, design: .monospaced))
-                    .textFieldStyle(.roundedBorder)
-
-                TextField("Model", text: $groqModel)
-                    .font(.system(.body, design: .monospaced))
-                    .textFieldStyle(.roundedBorder)
-                    .help("Recommended: whisper-large-v3-turbo")
-
-                Toggle("Translate to English", isOn: $groqTranslateToEnglish)
-
-                TextField("Language (optional)", text: $groqLanguage)
-                    .font(.system(.body, design: .monospaced))
-                    .help("Only supported by whisper-large-v3.")
-
-                TextField("Prompt (optional)", text: $groqPrompt)
-
-                Picker("Response Format", selection: $groqResponseFormat) {
-                    ForEach(Self.sttResponseFormats, id: \.self) { format in
-                        Text(format).tag(format)
-                    }
-                }
-                .pickerStyle(.menu)
-
-                HStack {
-                    Text("Temperature")
-                    Slider(value: $groqTemperature, in: 0.0...1.0, step: 0.05)
-                    Text(groqTemperature.formatted(.number.precision(.fractionLength(2))))
-                        .font(.system(.body, design: .monospaced))
-                        .foregroundStyle(.secondary)
-                        .frame(width: 52, alignment: .trailing)
-                }
-
-                DisclosureGroup("Timestamps (verbose_json only)") {
-                    Toggle("Segment timestamps", isOn: timestampBinding(provider: .groq, granularity: "segment"))
-                    Toggle("Word timestamps", isOn: timestampBinding(provider: .groq, granularity: "word"))
-                }
-            }
-
-        case .mistral:
-            Section("Mistral") {
-                TextField("API Base URL", text: $mistralBaseURL)
-                    .font(.system(.body, design: .monospaced))
-                    .textFieldStyle(.roundedBorder)
-
-                TextField("Model", text: $mistralModel)
-                    .font(.system(.body, design: .monospaced))
-                    .textFieldStyle(.roundedBorder)
-                    .help("Recommended: voxtral-mini-latest (transcription endpoint)")
-
-                TextField("Language (optional)", text: $mistralLanguage)
-                    .font(.system(.body, design: .monospaced))
-
-                TextField("Prompt (optional)", text: $mistralPrompt)
-
-                Picker("Response Format", selection: $mistralResponseFormat) {
-                    ForEach(Self.sttResponseFormats, id: \.self) { format in
-                        Text(format).tag(format)
-                    }
-                }
-                .pickerStyle(.menu)
-
-                HStack {
-                    Text("Temperature")
-                    Slider(value: $mistralTemperature, in: 0.0...1.0, step: 0.05)
-                    Text(mistralTemperature.formatted(.number.precision(.fractionLength(2))))
-                        .font(.system(.body, design: .monospaced))
-                        .foregroundStyle(.secondary)
-                        .frame(width: 52, alignment: .trailing)
-                }
-
-                DisclosureGroup("Timestamps (verbose_json only)") {
-                    Toggle("Segment timestamps", isOn: timestampBinding(provider: .mistral, granularity: "segment"))
-                    Toggle("Word timestamps", isOn: timestampBinding(provider: .mistral, granularity: "word"))
-                }
+        } else {
+            Section("Provider Error") {
+                Text(providerErrorMessage(for: providerRaw))
+                    .font(.caption)
+                    .foregroundStyle(.red)
             }
         }
     }
@@ -322,7 +331,17 @@ struct SpeechToTextPluginSettingsView: View {
     }
 
     private func loadExistingKey() async {
-        let existing = UserDefaults.standard.string(forKey: currentAPIKeyPreferenceKey) ?? ""
+        guard let preferenceKey = currentAPIKeyPreferenceKey else {
+            await MainActor.run {
+                apiKey = ""
+                lastPersistedAPIKey = ""
+                statusMessage = providerErrorMessage(for: providerRaw)
+                statusIsError = true
+            }
+            return
+        }
+
+        let existing = UserDefaults.standard.string(forKey: preferenceKey) ?? ""
         await MainActor.run {
             apiKey = existing
             lastPersistedAPIKey = existing.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -334,7 +353,13 @@ struct SpeechToTextPluginSettingsView: View {
         statusMessage = nil
         statusIsError = false
 
-        UserDefaults.standard.removeObject(forKey: currentAPIKeyPreferenceKey)
+        guard let preferenceKey = currentAPIKeyPreferenceKey else {
+            statusMessage = providerErrorMessage(for: providerRaw)
+            statusIsError = true
+            return
+        }
+
+        UserDefaults.standard.removeObject(forKey: preferenceKey)
         lastPersistedAPIKey = ""
         apiKey = ""
         statusMessage = "Cleared."
@@ -346,7 +371,11 @@ struct SpeechToTextPluginSettingsView: View {
         autoSaveTask?.cancel()
 
         let key = trimmedAPIKey
-        let preferenceKey = currentAPIKeyPreferenceKey
+        guard let preferenceKey = currentAPIKeyPreferenceKey else {
+            statusMessage = providerErrorMessage(for: providerRaw)
+            statusIsError = true
+            return
+        }
         guard key != lastPersistedAPIKey else { return }
 
         autoSaveTask = Task {
@@ -359,7 +388,11 @@ struct SpeechToTextPluginSettingsView: View {
     }
 
     private func persistAPIKeyIfNeeded(forProviderRaw rawValue: String, showSavedStatus: Bool) {
-        let preferenceKey = apiKeyPreferenceKey(for: rawValue)
+        guard let preferenceKey = apiKeyPreferenceKey(for: rawValue) else {
+            statusMessage = providerErrorMessage(for: rawValue)
+            statusIsError = true
+            return
+        }
         let key = trimmedAPIKey
         persistAPIKey(key, forPreferenceKey: preferenceKey, showSavedStatus: showSavedStatus)
     }
@@ -394,8 +427,8 @@ struct SpeechToTextPluginSettingsView: View {
         NotificationCenter.default.post(name: .pluginCredentialsDidChange, object: nil)
     }
 
-    private func apiKeyPreferenceKey(for rawValue: String) -> String {
-        let resolved = SpeechToTextProvider(rawValue: rawValue) ?? .groq
+    private func apiKeyPreferenceKey(for rawValue: String) -> String? {
+        guard let resolved = SpeechToTextProvider(rawValue: rawValue) else { return nil }
         switch resolved {
         case .openai:
             return AppPreferenceKeys.sttOpenAIAPIKey
@@ -406,8 +439,21 @@ struct SpeechToTextPluginSettingsView: View {
         }
     }
 
+    private func providerErrorMessage(for rawValue: String) -> String {
+        let trimmed = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty {
+            return SpeechExtensionError.speechToTextProviderNotConfigured.localizedDescription
+        }
+        return SpeechExtensionError.invalidSpeechToTextProvider(trimmed).localizedDescription
+    }
+
     private func testConnection() {
         guard !trimmedAPIKey.isEmpty else { return }
+        guard let provider else {
+            statusMessage = providerErrorMessage(for: providerRaw)
+            statusIsError = true
+            return
+        }
 
         statusMessage = nil
         statusIsError = false

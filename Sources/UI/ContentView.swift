@@ -505,6 +505,10 @@ struct ContentView: View {
             }
         }
 
+        if controls.mcpTools == nil {
+            controls.mcpTools = MCPToolsControls(enabled: true, enabledServerIDs: nil)
+        }
+
         let controlsData = (try? JSONEncoder().encode(controls)) ?? Data()
         let conversation = ConversationEntity(
             title: "New Chat",

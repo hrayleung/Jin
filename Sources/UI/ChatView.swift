@@ -1584,7 +1584,7 @@ struct ChatView: View {
         if let model = availableModels.first(where: { $0.id == conversationEntity.modelID }) {
             return normalizedSelectedModelInfo(model)
         }
-        return fallbackSelectedModelInfo()
+        return nil
     }
 
     private var resolvedModelSettings: ResolvedModelSettings? {
@@ -1599,18 +1599,6 @@ struct ChatView: View {
     private func normalizedSelectedModelInfo(_ model: ModelInfo) -> ModelInfo {
         guard providerType == .fireworks else { return model }
         return normalizedFireworksModelInfo(model)
-    }
-
-    private func fallbackSelectedModelInfo() -> ModelInfo? {
-        guard providerType == .fireworks else { return nil }
-        let base = ModelInfo(
-            id: conversationEntity.modelID,
-            name: conversationEntity.modelID,
-            capabilities: [.streaming, .toolCalling],
-            contextWindow: 128_000,
-            reasoningConfig: nil
-        )
-        return normalizedFireworksModelInfo(base)
     }
 
     private func normalizedFireworksModelInfo(_ model: ModelInfo) -> ModelInfo {
@@ -1951,12 +1939,6 @@ struct ChatView: View {
         if deepSeekOCRPluginEnabled, deepSeekOCRConfigured {
             return .deepSeekOCR
         }
-        if mistralOCRPluginEnabled {
-            return .mistralOCR
-        }
-        if deepSeekOCRPluginEnabled {
-            return .deepSeekOCR
-        }
         return .macOSExtract
     }
 
@@ -2024,7 +2006,7 @@ struct ChatView: View {
     }
 
     private var isMCPToolsEnabled: Bool {
-        controls.mcpTools?.enabled ?? true
+        controls.mcpTools?.enabled == true
     }
 
     private var effectiveContextCacheMode: ContextCacheMode {
@@ -2358,6 +2340,7 @@ struct ChatView: View {
     }
 
     private var selectedMCPServerIDs: Set<String> {
+        guard controls.mcpTools?.enabled == true else { return [] }
         let eligibleIDs = Set(eligibleMCPServers.map(\.id))
         if let allowlist = controls.mcpTools?.enabledServerIDs {
             return Set(allowlist).intersection(eligibleIDs)
@@ -4261,7 +4244,7 @@ struct ChatView: View {
 
     private var mcpToolsEnabledBinding: Binding<Bool> {
         Binding(
-            get: { controls.mcpTools?.enabled ?? true },
+            get: { controls.mcpTools?.enabled == true },
             set: { enabled in
                 if controls.mcpTools == nil {
                     controls.mcpTools = MCPToolsControls(enabled: enabled)
@@ -4818,7 +4801,7 @@ struct ChatView: View {
 
     private func resolvedMCPServerConfigs(for controlsToUse: GenerationControls) -> [MCPServerConfig] {
         guard supportsMCPToolsControl else { return [] }
-        guard controlsToUse.mcpTools?.enabled ?? true else { return [] }
+        guard controlsToUse.mcpTools?.enabled == true else { return [] }
 
         let eligibleServers = mcpServers
             .filter { $0.isEnabled && $0.runToolsAutomatically }
@@ -4855,35 +4838,36 @@ struct ChatView: View {
         let mistralConfigured = hasStoredKey(AppPreferenceKeys.pluginMistralOCRAPIKey)
         let deepSeekConfigured = hasStoredKey(AppPreferenceKeys.pluginDeepSeekOCRAPIKey)
 
-        let ttsProvider = TextToSpeechProvider(rawValue: defaults.string(forKey: AppPreferenceKeys.ttsProvider) ?? TextToSpeechProvider.openai.rawValue)
-            ?? .openai
-        let sttProvider = SpeechToTextProvider(rawValue: defaults.string(forKey: AppPreferenceKeys.sttProvider) ?? SpeechToTextProvider.groq.rawValue)
-            ?? .groq
+        let ttsProvider = try? SpeechPluginConfigFactory.currentTTSProvider(defaults: defaults)
+        let sttProvider = try? SpeechPluginConfigFactory.currentSTTProvider(defaults: defaults)
 
-        let ttsAPIKeyPreferenceKey: String = {
+        let ttsKeyConfigured = {
+            guard let ttsProvider else { return false }
+            let key: String
             switch ttsProvider {
             case .elevenlabs:
-                return AppPreferenceKeys.ttsElevenLabsAPIKey
+                key = AppPreferenceKeys.ttsElevenLabsAPIKey
             case .openai:
-                return AppPreferenceKeys.ttsOpenAIAPIKey
+                key = AppPreferenceKeys.ttsOpenAIAPIKey
             case .groq:
-                return AppPreferenceKeys.ttsGroqAPIKey
+                key = AppPreferenceKeys.ttsGroqAPIKey
             }
+            return hasStoredKey(key)
         }()
 
-        let sttAPIKeyPreferenceKey: String = {
+        let sttKeyConfigured = {
+            guard let sttProvider else { return false }
+            let key: String
             switch sttProvider {
             case .openai:
-                return AppPreferenceKeys.sttOpenAIAPIKey
+                key = AppPreferenceKeys.sttOpenAIAPIKey
             case .groq:
-                return AppPreferenceKeys.sttGroqAPIKey
+                key = AppPreferenceKeys.sttGroqAPIKey
             case .mistral:
-                return AppPreferenceKeys.sttMistralAPIKey
+                key = AppPreferenceKeys.sttMistralAPIKey
             }
+            return hasStoredKey(key)
         }()
-
-        let ttsKeyConfigured = hasStoredKey(ttsAPIKeyPreferenceKey)
-        let sttKeyConfigured = hasStoredKey(sttAPIKeyPreferenceKey)
 
         let ttsConfigured: Bool
         if ttsProvider == .elevenlabs {
@@ -4927,7 +4911,7 @@ struct ChatView: View {
         Task { @MainActor in
             guard textToSpeechPluginEnabled else { return }
 
-            let provider = SpeechPluginConfigFactory.currentTTSProvider()
+            let provider = try? SpeechPluginConfigFactory.currentTTSProvider()
 
             do {
                 let config = try SpeechPluginConfigFactory.textToSpeechConfig()
@@ -5512,6 +5496,17 @@ struct ChatView: View {
             }
         } else {
             controls.contextCache = nil
+        }
+
+        // Keep MCP tools explicit to avoid silent "nil means enabled" behavior.
+        if supportsMCPToolsControl {
+            if controls.mcpTools == nil {
+                controls.mcpTools = MCPToolsControls(enabled: true, enabledServerIDs: nil)
+            } else if controls.mcpTools?.enabledServerIDs?.isEmpty == true {
+                controls.mcpTools?.enabledServerIDs = nil
+            }
+        } else {
+            controls.mcpTools = nil
         }
 
         if !supportsReasoningControl, providerType == .anthropic {
