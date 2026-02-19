@@ -1,8 +1,10 @@
 import SwiftUI
 import WebKit
 
+private let markdownTemplateURL = JinResourceBundle.url(forResource: "markdown-template", withExtension: "html")
+
 private let cachedTemplateHTML: String? = {
-    guard let url = JinResourceBundle.url(forResource: "markdown-template", withExtension: "html") else { return nil }
+    guard let url = markdownTemplateURL else { return nil }
     return try? String(contentsOf: url, encoding: .utf8)
 }()
 
@@ -136,7 +138,7 @@ private struct MarkdownWebRendererRepresentable: NSViewRepresentable {
             .replacingOccurrences(of: "BODY_FONT_FAMILY", with: bodyCSS)
             .replacingOccurrences(of: "BODY_FONT_SIZE", with: "\(cssPixelValue(fontSize))px")
             .replacingOccurrences(of: "CODE_FONT_FAMILY", with: codeCSS)
-        webView.loadHTMLString(html, baseURL: nil)
+        webView.loadHTMLString(html, baseURL: markdownTemplateURL?.deletingLastPathComponent())
     }
 
     private var currentBodyFontSize: CGFloat {
