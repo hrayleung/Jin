@@ -180,7 +180,7 @@ struct SearchActivityTimelineView: View {
 
     private var sourceCardsRow: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: JinSpacing.small) {
+            HStack(alignment: .top, spacing: JinSpacing.xSmall + 1) {
                 ForEach(presentation.sources) { source in
                     SearchSourceCardView(presentation: renderPresentation(for: source))
                 }
@@ -335,7 +335,7 @@ private struct SearchSourceCardView: View {
                 cardBody
             }
         }
-        .frame(width: 294, height: 184, alignment: .topLeading)
+        .frame(width: 220, height: 126, alignment: .topLeading)
         .jinSurface(.neutral, cornerRadius: JinRadius.medium)
         .overlay(
             RoundedRectangle(cornerRadius: JinRadius.medium, style: .continuous)
@@ -354,36 +354,36 @@ private struct SearchSourceCardView: View {
     }
 
     private var cardBody: some View {
-        VStack(alignment: .leading, spacing: JinSpacing.small) {
-            HStack(alignment: .top, spacing: JinSpacing.small) {
+        VStack(alignment: .leading, spacing: JinSpacing.xSmall) {
+            HStack(alignment: .top, spacing: JinSpacing.xSmall) {
                 Text(presentation.displayTitle)
-                    .font(.title3.weight(.semibold))
+                    .font(.subheadline.weight(.semibold))
                     .lineLimit(2)
                     .multilineTextAlignment(.leading)
 
                 Spacer(minLength: 0)
 
                 Image(systemName: "arrow.up.right.circle.fill")
-                    .font(.headline)
+                    .font(.footnote.weight(.semibold))
                     .foregroundStyle(.secondary)
             }
 
             Text(presentation.previewText)
-                .font(.subheadline)
+                .font(.footnote)
                 .foregroundStyle(.secondary)
-                .lineLimit(4)
+                .lineLimit(2)
                 .textSelection(.enabled)
 
             Spacer(minLength: 0)
 
-            HStack(spacing: JinSpacing.small) {
+            HStack(spacing: JinSpacing.xSmall) {
                 SearchSourceAvatarView(
                     host: presentation.host,
                     fallbackText: presentation.hostDisplayInitial,
-                    size: 22
+                    size: 16
                 )
                 Text(presentation.hostDisplay)
-                    .font(.subheadline.weight(.medium))
+                    .font(.caption.weight(.medium))
                     .lineLimit(1)
                     .foregroundStyle(.secondary)
 
@@ -394,7 +394,7 @@ private struct SearchSourceCardView: View {
                     .foregroundStyle(.secondary)
             }
         }
-        .padding(14)
+        .padding(8)
     }
 }
 
