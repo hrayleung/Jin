@@ -218,12 +218,45 @@ enum ProviderParamsJSONSync {
         }
 
         if controls.webSearch?.enabled == true {
-            out["tools"] = [
-                [
-                    "type": "web_search_20250305",
-                    "name": "web_search"
-                ]
+            let ws = controls.webSearch!
+            let supportsDynamicFiltering = ModelCapabilityRegistry.supportsWebSearchDynamicFiltering(
+                for: .anthropic,
+                modelID: modelID
+            )
+            let useDynamicFiltering = (ws.dynamicFiltering == true) && supportsDynamicFiltering
+
+            let allowedDomains = AnthropicWebSearchDomainUtils.normalizedDomains(ws.allowedDomains)
+            let blockedDomains = AnthropicWebSearchDomainUtils.normalizedDomains(ws.blockedDomains)
+
+            var spec: [String: Any] = [
+                "type": useDynamicFiltering ? "web_search_20260209" : "web_search_20250305",
+                "name": "web_search"
             ]
+            if let maxUses = ws.maxUses, maxUses > 0 {
+                spec["max_uses"] = maxUses
+            }
+            if !allowedDomains.isEmpty {
+                spec["allowed_domains"] = allowedDomains
+            } else if !blockedDomains.isEmpty {
+                spec["blocked_domains"] = blockedDomains
+            }
+            if let loc = ws.userLocation, !loc.isEmpty {
+                var locDict: [String: Any] = ["type": "approximate"]
+                if let city = loc.city?.trimmingCharacters(in: .whitespacesAndNewlines), !city.isEmpty {
+                    locDict["city"] = city
+                }
+                if let region = loc.region?.trimmingCharacters(in: .whitespacesAndNewlines), !region.isEmpty {
+                    locDict["region"] = region
+                }
+                if let country = loc.country?.trimmingCharacters(in: .whitespacesAndNewlines), !country.isEmpty {
+                    locDict["country"] = country
+                }
+                if let tz = loc.timezone?.trimmingCharacters(in: .whitespacesAndNewlines), !tz.isEmpty {
+                    locDict["timezone"] = tz
+                }
+                spec["user_location"] = locDict
+            }
+            out["tools"] = [spec]
         }
 
         return out
@@ -1102,10 +1135,20 @@ enum ProviderParamsJSONSync {
     ) -> Bool {
         guard let array = raw as? [Any] else { return false }
 
-        let webSearchTypes: Set<String> = ["web_search_20250305"]
+        let webSearchTypes: Set<String> = ["web_search_20250305", "web_search_20260209"]
         var found = false
         var nonSearchToolCount = 0
         var canPromoteToUI = (array.count == 1)
+
+        let knownKeys: Set<String> = [
+            "type", "name", "max_uses", "allowed_domains", "blocked_domains", "user_location"
+        ]
+
+        var parsedMaxUses: Int?
+        var parsedAllowed: [String]?
+        var parsedBlocked: [String]?
+        var parsedLocation: WebSearchUserLocation?
+        var parsedDynamicFiltering: Bool?
 
         for item in array {
             guard let dict = item as? [String: Any] else {
@@ -1117,7 +1160,10 @@ enum ProviderParamsJSONSync {
             if let type = dict["type"] as? String, webSearchTypes.contains(type) {
                 found = true
 
-                let knownKeys: Set<String> = ["type", "name"]
+                if type == "web_search_20260209" {
+                    parsedDynamicFiltering = true
+                }
+
                 if !Set(dict.keys).isSubset(of: knownKeys) {
                     canPromoteToUI = false
                 }
@@ -1125,13 +1171,53 @@ enum ProviderParamsJSONSync {
                 if let name = dict["name"] as? String, name != "web_search" {
                     canPromoteToUI = false
                 }
+
+                if let maxUses = dict["max_uses"] as? Int {
+                    parsedMaxUses = maxUses
+                }
+                if let allowed = dict["allowed_domains"] as? [String] {
+                    let normalizedAllowed = AnthropicWebSearchDomainUtils.normalizedDomains(allowed)
+                    if !normalizedAllowed.isEmpty {
+                        parsedAllowed = normalizedAllowed
+                    }
+                }
+                if let blocked = dict["blocked_domains"] as? [String] {
+                    let normalizedBlocked = AnthropicWebSearchDomainUtils.normalizedDomains(blocked)
+                    if !normalizedBlocked.isEmpty {
+                        parsedBlocked = normalizedBlocked
+                    }
+                }
+                if let locDict = dict["user_location"] as? [String: Any] {
+                    parsedLocation = WebSearchUserLocation(
+                        city: locDict["city"] as? String,
+                        region: locDict["region"] as? String,
+                        country: locDict["country"] as? String,
+                        timezone: locDict["timezone"] as? String
+                    )
+                }
             } else {
                 nonSearchToolCount += 1
                 canPromoteToUI = false
             }
         }
 
-        controls.webSearch = found ? WebSearchControls(enabled: true) : nil
+        if parsedAllowed != nil && parsedBlocked != nil {
+            // Keep provider-specific JSON as source of truth by avoiding promotion, while
+            // presenting a mutually exclusive state in typed controls.
+            canPromoteToUI = false
+            parsedBlocked = nil
+        }
+
+        controls.webSearch = found
+            ? WebSearchControls(
+                enabled: true,
+                maxUses: parsedMaxUses,
+                allowedDomains: parsedAllowed,
+                blockedDomains: parsedBlocked,
+                userLocation: parsedLocation,
+                dynamicFiltering: parsedDynamicFiltering
+            )
+            : nil
 
         return found && nonSearchToolCount == 0 && canPromoteToUI
     }

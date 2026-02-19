@@ -54,6 +54,12 @@ struct ChatView: View {
     @State private var maxTokensDraft = ""
 
     @State private var showingContextCacheSheet = false
+    @State private var showingAnthropicWebSearchSheet = false
+    @State private var anthropicWebSearchDomainMode: AnthropicDomainFilterMode = .none
+    @State private var anthropicWebSearchAllowedDomainsDraft = ""
+    @State private var anthropicWebSearchBlockedDomainsDraft = ""
+    @State private var anthropicWebSearchLocationDraft = WebSearchUserLocation()
+    @State private var anthropicWebSearchDraftError: String?
     @State private var contextCacheDraft = ContextCacheControls(mode: .implicit)
     @State private var contextCacheTTLPreset = ContextCacheTTLPreset.providerDefault
     @State private var contextCacheCustomTTLDraft = ""
@@ -1043,6 +1049,9 @@ struct ChatView: View {
         }
         .sheet(isPresented: $showingContextCacheSheet) {
             contextCacheSheet
+        }
+        .sheet(isPresented: $showingAnthropicWebSearchSheet) {
+            anthropicWebSearchSheet
         }
         .sheet(isPresented: $showingImageGenerationSheet) {
             NavigationStack {
@@ -2293,7 +2302,9 @@ struct ChatView: View {
             if sources == [.x] { return "X" }
             if sources.contains(.web), sources.contains(.x) { return "W+X" }
             return "On"
-        case .openaiCompatible, .openrouter, .anthropic, .groq, .cohere, .mistral, .deepinfra, .gemini, .vertexai, .deepseek, .fireworks, .cerebras, .none:
+        case .anthropic:
+            return "On"
+        case .openaiCompatible, .openrouter, .groq, .cohere, .mistral, .deepinfra, .gemini, .vertexai, .deepseek, .fireworks, .cerebras, .none:
             return "On"
         }
     }
@@ -4179,7 +4190,39 @@ struct ChatView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
-            case .openaiCompatible, .openrouter, .anthropic, .groq, .cohere, .mistral, .deepinfra, .gemini, .vertexai, .deepseek, .fireworks, .cerebras, .none:
+            case .anthropic:
+                Divider()
+                Menu("Max Uses") {
+                    let current = controls.webSearch?.maxUses
+                    Button {
+                        controls.webSearch?.maxUses = nil
+                        persistControlsToConversation()
+                    } label: {
+                        menuItemLabel("Default (10)", isSelected: current == nil)
+                    }
+                    ForEach([1, 3, 5, 10, 20], id: \.self) { value in
+                        Button {
+                            controls.webSearch?.maxUses = value
+                            persistControlsToConversation()
+                        } label: {
+                            menuItemLabel("\(value)", isSelected: current == value)
+                        }
+                    }
+                }
+                if supportsAnthropicDynamicFiltering {
+                    Toggle("Dynamic Filtering", isOn: Binding(
+                        get: { controls.webSearch?.dynamicFiltering ?? false },
+                        set: { newValue in
+                            controls.webSearch?.dynamicFiltering = newValue ? true : nil
+                            persistControlsToConversation()
+                        }
+                    ))
+                }
+                Divider()
+                Button("Configure\u{2026}") {
+                    openAnthropicWebSearchEditor()
+                }
+            case .openaiCompatible, .openrouter, .groq, .cohere, .mistral, .deepinfra, .gemini, .vertexai, .deepseek, .fireworks, .cerebras, .none:
                 EmptyView()
             }
         }
@@ -4613,6 +4656,276 @@ struct ChatView: View {
         showingContextCacheSheet = true
     }
 
+    // MARK: - Anthropic Web Search Helpers
+
+    private var supportsAnthropicDynamicFiltering: Bool {
+        ModelCapabilityRegistry.supportsWebSearchDynamicFiltering(
+            for: providerType,
+            modelID: conversationEntity.modelID
+        )
+    }
+
+    private func normalizeAnthropicDomainFilters() {
+        let allowed = AnthropicWebSearchDomainUtils.normalizedDomains(controls.webSearch?.allowedDomains)
+        let blocked = AnthropicWebSearchDomainUtils.normalizedDomains(controls.webSearch?.blockedDomains)
+
+        if !allowed.isEmpty {
+            controls.webSearch?.allowedDomains = allowed
+            controls.webSearch?.blockedDomains = nil
+        } else if !blocked.isEmpty {
+            controls.webSearch?.allowedDomains = nil
+            controls.webSearch?.blockedDomains = blocked
+        } else {
+            controls.webSearch?.allowedDomains = nil
+            controls.webSearch?.blockedDomains = nil
+        }
+    }
+
+    private var anthropicWebSearchCurrentDomainsDraft: Binding<String> {
+        Binding(
+            get: {
+                switch anthropicWebSearchDomainMode {
+                case .none:
+                    return ""
+                case .allowed:
+                    return anthropicWebSearchAllowedDomainsDraft
+                case .blocked:
+                    return anthropicWebSearchBlockedDomainsDraft
+                }
+            },
+            set: { value in
+                switch anthropicWebSearchDomainMode {
+                case .none:
+                    break
+                case .allowed:
+                    anthropicWebSearchAllowedDomainsDraft = value
+                case .blocked:
+                    anthropicWebSearchBlockedDomainsDraft = value
+                }
+            }
+        )
+    }
+
+    private func openAnthropicWebSearchEditor() {
+        let ws = controls.webSearch
+        let allowed = AnthropicWebSearchDomainUtils.normalizedDomains(ws?.allowedDomains)
+        let blocked = AnthropicWebSearchDomainUtils.normalizedDomains(ws?.blockedDomains)
+
+        anthropicWebSearchAllowedDomainsDraft = allowed.joined(separator: "\n")
+        anthropicWebSearchBlockedDomainsDraft = blocked.joined(separator: "\n")
+
+        if anthropicWebSearchDomainMode == .blocked, !blocked.isEmpty {
+            anthropicWebSearchDomainMode = .blocked
+        } else if !allowed.isEmpty {
+            anthropicWebSearchDomainMode = .allowed
+        } else if !blocked.isEmpty {
+            anthropicWebSearchDomainMode = .blocked
+        } else {
+            anthropicWebSearchDomainMode = .none
+        }
+        anthropicWebSearchLocationDraft = ws?.userLocation ?? WebSearchUserLocation()
+        anthropicWebSearchDraftError = nil
+        showingAnthropicWebSearchSheet = true
+    }
+
+    private func applyAnthropicWebSearchDraft() {
+        let allowedDomains = AnthropicWebSearchDomainUtils.normalizedDomains(
+            AnthropicWebSearchDomainUtils.splitInput(anthropicWebSearchAllowedDomainsDraft)
+        )
+        let blockedDomains = AnthropicWebSearchDomainUtils.normalizedDomains(
+            AnthropicWebSearchDomainUtils.splitInput(anthropicWebSearchBlockedDomainsDraft)
+        )
+
+        switch anthropicWebSearchDomainMode {
+        case .none:
+            anthropicWebSearchDraftError = nil
+            controls.webSearch?.allowedDomains = nil
+            controls.webSearch?.blockedDomains = nil
+        case .allowed:
+            if allowedDomains.isEmpty {
+                anthropicWebSearchDraftError = nil
+                controls.webSearch?.allowedDomains = nil
+                controls.webSearch?.blockedDomains = nil
+            } else {
+                if let validationError = AnthropicWebSearchDomainUtils.firstValidationError(in: allowedDomains) {
+                    anthropicWebSearchDraftError = validationError
+                    return
+                }
+                anthropicWebSearchDraftError = nil
+                controls.webSearch?.allowedDomains = allowedDomains
+                controls.webSearch?.blockedDomains = nil
+            }
+        case .blocked:
+            if blockedDomains.isEmpty {
+                anthropicWebSearchDraftError = nil
+                controls.webSearch?.allowedDomains = nil
+                controls.webSearch?.blockedDomains = nil
+            } else {
+                if let validationError = AnthropicWebSearchDomainUtils.firstValidationError(in: blockedDomains) {
+                    anthropicWebSearchDraftError = validationError
+                    return
+                }
+                anthropicWebSearchDraftError = nil
+                controls.webSearch?.allowedDomains = nil
+                controls.webSearch?.blockedDomains = blockedDomains
+            }
+        }
+        normalizeAnthropicDomainFilters()
+
+        let loc = anthropicWebSearchLocationDraft
+        controls.webSearch?.userLocation = loc.isEmpty ? nil : loc
+
+        persistControlsToConversation()
+        showingAnthropicWebSearchSheet = false
+    }
+
+    @ViewBuilder
+    private var anthropicWebSearchSheet: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: JinSpacing.large) {
+                    // Domain Filtering card
+                    VStack(alignment: .leading, spacing: JinSpacing.medium) {
+                        Text("Domain Filtering")
+                            .font(.headline)
+
+                        anthropicWebSearchField("Mode") {
+                            Picker("Mode", selection: $anthropicWebSearchDomainMode) {
+                                Text("None").tag(AnthropicDomainFilterMode.none)
+                                Text("Allowed only").tag(AnthropicDomainFilterMode.allowed)
+                                Text("Blocked").tag(AnthropicDomainFilterMode.blocked)
+                            }
+                            .labelsHidden()
+                            .pickerStyle(.segmented)
+                        }
+
+                        if anthropicWebSearchDomainMode != .none {
+                            anthropicWebSearchField(
+                                anthropicWebSearchDomainMode == .allowed ? "Allowed domains" : "Blocked domains",
+                                hint: "One domain per line. Subdomains are included automatically."
+                            ) {
+                                TextEditor(text: anthropicWebSearchCurrentDomainsDraft)
+                                    .font(.system(.body, design: .monospaced))
+                                    .frame(minHeight: 72)
+                                    .clipShape(RoundedRectangle(cornerRadius: JinRadius.small, style: .continuous))
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: JinRadius.small, style: .continuous)
+                                            .stroke(JinSemanticColor.separator, lineWidth: JinStrokeWidth.hairline)
+                                    )
+                            }
+                        }
+                    }
+                    .padding(JinSpacing.large)
+                    .jinSurface(.raised, cornerRadius: JinRadius.large)
+                    .onChange(of: anthropicWebSearchAllowedDomainsDraft) { _, _ in
+                        anthropicWebSearchDraftError = nil
+                    }
+                    .onChange(of: anthropicWebSearchBlockedDomainsDraft) { _, _ in
+                        anthropicWebSearchDraftError = nil
+                    }
+                    .onChange(of: anthropicWebSearchDomainMode) { _, _ in
+                        anthropicWebSearchDraftError = nil
+                    }
+                    VStack(alignment: .leading, spacing: JinSpacing.medium) {
+                        Text("User Location")
+                            .font(.headline)
+
+                        HStack(spacing: JinSpacing.medium) {
+                            anthropicWebSearchField("City") {
+                                TextField("San Francisco", text: Binding(
+                                    get: { anthropicWebSearchLocationDraft.city ?? "" },
+                                    set: { anthropicWebSearchLocationDraft.city = $0.isEmpty ? nil : $0 }
+                                ))
+                                .textFieldStyle(.roundedBorder)
+                            }
+
+                            anthropicWebSearchField("Region") {
+                                TextField("California", text: Binding(
+                                    get: { anthropicWebSearchLocationDraft.region ?? "" },
+                                    set: { anthropicWebSearchLocationDraft.region = $0.isEmpty ? nil : $0 }
+                                ))
+                                .textFieldStyle(.roundedBorder)
+                            }
+                        }
+
+                        HStack(spacing: JinSpacing.medium) {
+                            anthropicWebSearchField("Country (2-letter)") {
+                                TextField("US", text: Binding(
+                                    get: { anthropicWebSearchLocationDraft.country ?? "" },
+                                    set: { val in
+                                        let trimmed = String(val.prefix(2)).uppercased()
+                                        anthropicWebSearchLocationDraft.country = trimmed.isEmpty ? nil : trimmed
+                                    }
+                                ))
+                                .textFieldStyle(.roundedBorder)
+                                .frame(maxWidth: 120)
+                            }
+
+                            anthropicWebSearchField("Timezone") {
+                                TextField("America/Los_Angeles", text: Binding(
+                                    get: { anthropicWebSearchLocationDraft.timezone ?? "" },
+                                    set: { anthropicWebSearchLocationDraft.timezone = $0.isEmpty ? nil : $0 }
+                                ))
+                                .textFieldStyle(.roundedBorder)
+                            }
+                        }
+                    }
+                    .padding(JinSpacing.large)
+                    .jinSurface(.raised, cornerRadius: JinRadius.large)
+
+                    if let anthropicWebSearchDraftError {
+                        Text(anthropicWebSearchDraftError)
+                            .foregroundStyle(.red)
+                            .font(.caption)
+                            .padding(JinSpacing.small)
+                            .jinSurface(.subtleStrong, cornerRadius: JinRadius.small)
+                    } else {
+                        Text("User location biases search result ranking toward the specified area. It does not inject location context into the conversation.")
+                            .jinInfoCallout()
+                    }
+                }
+                .padding(JinSpacing.large)
+            }
+            .background {
+                JinSemanticColor.detailSurface
+                    .ignoresSafeArea()
+            }
+            .navigationTitle("Web Search")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        showingAnthropicWebSearchSheet = false
+                    }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Apply") {
+                        applyAnthropicWebSearchDraft()
+                    }
+                }
+            }
+        }
+        .frame(minWidth: 520, idealWidth: 580, minHeight: 400, idealHeight: 480)
+    }
+
+    private func anthropicWebSearchField<Control: View>(
+        _ title: String,
+        hint: String? = nil,
+        @ViewBuilder control: () -> Control
+    ) -> some View {
+        VStack(alignment: .leading, spacing: JinSpacing.xSmall) {
+            Text(title)
+                .font(.subheadline.weight(.semibold))
+            control()
+                .frame(maxWidth: .infinity, alignment: .leading)
+            if let hint, !hint.isEmpty {
+                Text(hint)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
     private func shouldExpandContextCacheAdvancedOptions(for draft: ContextCacheControls) -> Bool {
         guard draft.mode != .off else { return false }
 
@@ -4944,6 +5257,7 @@ struct ChatView: View {
     private func persistControlsToConversation() {
         do {
             conversationEntity.modelConfigData = try JSONEncoder().encode(controls)
+            try modelContext.save()
         } catch {
             errorMessage = error.localizedDescription
             showingError = true
@@ -5262,7 +5576,9 @@ struct ChatView: View {
             return WebSearchControls(enabled: true, contextSize: nil, sources: nil)
         case .xai:
             return WebSearchControls(enabled: true, contextSize: nil, sources: [.web])
-        case .openaiCompatible, .openrouter, .anthropic, .groq, .cohere, .mistral, .deepinfra, .gemini, .vertexai, .deepseek, .fireworks, .cerebras, .none:
+        case .anthropic:
+            return WebSearchControls(enabled: true)
+        case .openaiCompatible, .openrouter, .groq, .cohere, .mistral, .deepinfra, .gemini, .vertexai, .deepseek, .fireworks, .cerebras, .none:
             return WebSearchControls(enabled: true, contextSize: nil, sources: nil)
         }
     }
@@ -5284,7 +5600,11 @@ struct ChatView: View {
             if sources.isEmpty {
                 controls.webSearch?.sources = [.web]
             }
-        case .openaiCompatible, .openrouter, .anthropic, .groq, .cohere, .mistral, .deepinfra, .gemini, .vertexai, .deepseek, .fireworks, .cerebras, .none:
+        case .anthropic:
+            controls.webSearch?.contextSize = nil
+            controls.webSearch?.sources = nil
+            normalizeAnthropicDomainFilters()
+        case .openaiCompatible, .openrouter, .groq, .cohere, .mistral, .deepinfra, .gemini, .vertexai, .deepseek, .fireworks, .cerebras, .none:
             controls.webSearch?.contextSize = nil
             controls.webSearch?.sources = nil
         }

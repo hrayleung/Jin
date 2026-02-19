@@ -46,6 +46,37 @@ final class MessageContentMediaCodableTests: XCTestCase {
         XCTAssertEqual(decoded.xaiImageGeneration?.user, "tester")
     }
 
+    func testGenerationControlsRoundTripIncludesAnthropicWebSearchControls() throws {
+        let controls = GenerationControls(
+            webSearch: WebSearchControls(
+                enabled: true,
+                maxUses: 7,
+                allowedDomains: ["example.com", "docs.example.com"],
+                blockedDomains: nil,
+                userLocation: WebSearchUserLocation(
+                    city: "San Francisco",
+                    region: "California",
+                    country: "US",
+                    timezone: "America/Los_Angeles"
+                ),
+                dynamicFiltering: true
+            )
+        )
+
+        let encoded = try JSONEncoder().encode(controls)
+        let decoded = try JSONDecoder().decode(GenerationControls.self, from: encoded)
+
+        XCTAssertEqual(decoded.webSearch?.enabled, true)
+        XCTAssertEqual(decoded.webSearch?.maxUses, 7)
+        XCTAssertEqual(decoded.webSearch?.allowedDomains, ["example.com", "docs.example.com"])
+        XCTAssertNil(decoded.webSearch?.blockedDomains)
+        XCTAssertEqual(decoded.webSearch?.userLocation?.city, "San Francisco")
+        XCTAssertEqual(decoded.webSearch?.userLocation?.region, "California")
+        XCTAssertEqual(decoded.webSearch?.userLocation?.country, "US")
+        XCTAssertEqual(decoded.webSearch?.userLocation?.timezone, "America/Los_Angeles")
+        XCTAssertEqual(decoded.webSearch?.dynamicFiltering, true)
+    }
+
     func testLegacyXAIVideoControlFieldIsIgnored() throws {
         let legacyJSON = """
         {

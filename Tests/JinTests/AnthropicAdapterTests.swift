@@ -279,6 +279,154 @@ final class AnthropicAdapterTests: XCTestCase {
         for try await _ in stream {}
     }
 
+    func testAnthropicWebSearchDynamicFilteringRequires46Model() async throws {
+        let (session, protocolType) = makeMockedURLSession()
+        let networkManager = NetworkManager(urlSession: session)
+
+        let providerConfig = ProviderConfig(
+            id: "anthropic",
+            name: "Anthropic",
+            type: .anthropic,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        protocolType.requestHandler = { request in
+            let body = try XCTUnwrap(requestBodyData(request))
+            let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+            let root = try XCTUnwrap(json)
+            let tools = try XCTUnwrap(root["tools"] as? [[String: Any]])
+            let spec = try XCTUnwrap(tools.first)
+
+            XCTAssertEqual(root["model"] as? String, "claude-sonnet-4-5-20250929")
+            XCTAssertEqual(spec["type"] as? String, "web_search_20250305")
+
+            let response = Data("data: [DONE]\n\n".utf8)
+            return (
+                HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                response
+            )
+        }
+
+        let adapter = AnthropicAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let controls = GenerationControls(
+            webSearch: WebSearchControls(enabled: true, dynamicFiltering: true)
+        )
+
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hi")])],
+            modelID: "claude-sonnet-4-5-20250929",
+            controls: controls,
+            tools: [],
+            streaming: true
+        )
+
+        for try await _ in stream {}
+    }
+
+    func testAnthropicWebSearchPayloadKeepsDomainFiltersMutuallyExclusive() async throws {
+        let (session, protocolType) = makeMockedURLSession()
+        let networkManager = NetworkManager(urlSession: session)
+
+        let providerConfig = ProviderConfig(
+            id: "anthropic",
+            name: "Anthropic",
+            type: .anthropic,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        protocolType.requestHandler = { request in
+            let body = try XCTUnwrap(requestBodyData(request))
+            let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+            let root = try XCTUnwrap(json)
+            let tools = try XCTUnwrap(root["tools"] as? [[String: Any]])
+            let spec = try XCTUnwrap(tools.first)
+
+            XCTAssertEqual(spec["allowed_domains"] as? [String], ["example.com"])
+            XCTAssertNil(spec["blocked_domains"])
+
+            let response = Data("data: [DONE]\n\n".utf8)
+            return (
+                HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                response
+            )
+        }
+
+        let adapter = AnthropicAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let controls = GenerationControls(
+            webSearch: WebSearchControls(
+                enabled: true,
+                allowedDomains: [" example.com ", "Example.com"],
+                blockedDomains: ["blocked.example.com"]
+            )
+        )
+
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hi")])],
+            modelID: "claude-opus-4-6",
+            controls: controls,
+            tools: [],
+            streaming: true
+        )
+
+        for try await _ in stream {}
+    }
+
+    func testAnthropicProviderSpecificToolsAreSanitizedForWebSearchConstraints() async throws {
+        let (session, protocolType) = makeMockedURLSession()
+        let networkManager = NetworkManager(urlSession: session)
+
+        let providerConfig = ProviderConfig(
+            id: "anthropic",
+            name: "Anthropic",
+            type: .anthropic,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        protocolType.requestHandler = { request in
+            let body = try XCTUnwrap(requestBodyData(request))
+            let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+            let root = try XCTUnwrap(json)
+            let tools = try XCTUnwrap(root["tools"] as? [[String: Any]])
+            let webSearch = try XCTUnwrap(tools.first)
+
+            XCTAssertEqual(webSearch["type"] as? String, "web_search_20250305")
+            XCTAssertEqual(webSearch["allowed_domains"] as? [String], ["example.com"])
+            XCTAssertNil(webSearch["blocked_domains"])
+            XCTAssertNil(webSearch["max_uses"])
+
+            let response = Data("data: [DONE]\n\n".utf8)
+            return (
+                HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                response
+            )
+        }
+
+        let adapter = AnthropicAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        var controls = GenerationControls(webSearch: WebSearchControls(enabled: false))
+        controls.providerSpecific["tools"] = AnyCodable([
+            [
+                "type": "web_search_20260209",
+                "name": "web_search",
+                "max_uses": 0,
+                "allowed_domains": [" example.com ", "Example.com"],
+                "blocked_domains": ["blocked.example.com"]
+            ]
+        ])
+
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hi")])],
+            modelID: "claude-sonnet-4-5-20250929",
+            controls: controls,
+            tools: [],
+            streaming: true
+        )
+
+        for try await _ in stream {}
+    }
+
     func testAnthropicStreamingUsageParsingIncludesInputOutputAndCacheRead() async throws {
         let (session, protocolType) = makeMockedURLSession()
         let networkManager = NetworkManager(urlSession: session)

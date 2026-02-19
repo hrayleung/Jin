@@ -194,6 +194,13 @@ actor AnthropicAdapter: LLMProviderAdapter {
         )
     }
 
+    private func supportsWebSearchDynamicFiltering(_ modelID: String) -> Bool {
+        ModelCapabilityRegistry.supportsWebSearchDynamicFiltering(
+            for: providerConfig.type,
+            modelID: modelID
+        )
+    }
+
     private func configuredModel(for modelID: String) -> ModelInfo? {
         if let exact = providerConfig.models.first(where: { $0.id == modelID }) {
             return exact
@@ -243,6 +250,52 @@ actor AnthropicAdapter: LLMProviderAdapter {
             return array.compactMap { $0 as? String }
         }
         return nil
+    }
+
+    private func normalizeAnthropicProviderSpecificTools(_ value: Any, modelID: String) -> Any {
+        guard let tools = value as? [Any] else { return value }
+
+        var normalized: [Any] = []
+        normalized.reserveCapacity(tools.count)
+
+        for item in tools {
+            guard var dict = item as? [String: Any],
+                  let type = dict["type"] as? String else {
+                normalized.append(item)
+                continue
+            }
+
+            if type == "web_search_20250305" || type == "web_search_20260209" {
+                let useDynamicFiltering = (type == "web_search_20260209") && supportsWebSearchDynamicFiltering(modelID)
+                dict["type"] = useDynamicFiltering ? "web_search_20260209" : "web_search_20250305"
+
+                if let maxUses = dict["max_uses"] as? Int, maxUses <= 0 {
+                    dict.removeValue(forKey: "max_uses")
+                }
+
+                let allowed = AnthropicWebSearchDomainUtils.normalizedDomains(
+                    providerSpecificStringArray(dict["allowed_domains"] as Any)
+                )
+                let blocked = AnthropicWebSearchDomainUtils.normalizedDomains(
+                    providerSpecificStringArray(dict["blocked_domains"] as Any)
+                )
+
+                if !allowed.isEmpty {
+                    dict["allowed_domains"] = allowed
+                    dict.removeValue(forKey: "blocked_domains")
+                } else if !blocked.isEmpty {
+                    dict["blocked_domains"] = blocked
+                    dict.removeValue(forKey: "allowed_domains")
+                } else {
+                    dict.removeValue(forKey: "allowed_domains")
+                    dict.removeValue(forKey: "blocked_domains")
+                }
+            }
+
+            normalized.append(dict)
+        }
+
+        return normalized
     }
 
     private func extractAnthropicBetaHeader(from controls: GenerationControls) -> String? {
@@ -389,11 +442,41 @@ actor AnthropicAdapter: LLMProviderAdapter {
         var toolSpecs: [[String: Any]] = []
 
         if controls.webSearch?.enabled == true, supportsWebSearch(modelID) {
-            // Anthropic server-side web search tool
-            toolSpecs.append([
-                "type": "web_search_20250305",
+            let ws = controls.webSearch!
+            let useDynamicFiltering = (ws.dynamicFiltering == true) && supportsWebSearchDynamicFiltering(modelID)
+
+            let allowedDomains = AnthropicWebSearchDomainUtils.normalizedDomains(ws.allowedDomains)
+            let blockedDomains = AnthropicWebSearchDomainUtils.normalizedDomains(ws.blockedDomains)
+
+            var spec: [String: Any] = [
+                "type": useDynamicFiltering ? "web_search_20260209" : "web_search_20250305",
                 "name": "web_search"
-            ])
+            ]
+            if let maxUses = ws.maxUses, maxUses > 0 {
+                spec["max_uses"] = maxUses
+            }
+            if !allowedDomains.isEmpty {
+                spec["allowed_domains"] = allowedDomains
+            } else if !blockedDomains.isEmpty {
+                spec["blocked_domains"] = blockedDomains
+            }
+            if let loc = ws.userLocation, !loc.isEmpty {
+                var locDict: [String: Any] = ["type": "approximate"]
+                if let city = loc.city?.trimmingCharacters(in: .whitespacesAndNewlines), !city.isEmpty {
+                    locDict["city"] = city
+                }
+                if let region = loc.region?.trimmingCharacters(in: .whitespacesAndNewlines), !region.isEmpty {
+                    locDict["region"] = region
+                }
+                if let country = loc.country?.trimmingCharacters(in: .whitespacesAndNewlines), !country.isEmpty {
+                    locDict["country"] = country
+                }
+                if let tz = loc.timezone?.trimmingCharacters(in: .whitespacesAndNewlines), !tz.isEmpty {
+                    locDict["timezone"] = tz
+                }
+                spec["user_location"] = locDict
+            }
+            toolSpecs.append(spec)
         }
 
         if !tools.isEmpty, let customTools = translateTools(tools) as? [[String: Any]] {
@@ -406,6 +489,11 @@ actor AnthropicAdapter: LLMProviderAdapter {
 
         for (key, value) in controls.providerSpecific {
             if key == "anthropic_beta" || key == "anthropic-beta" {
+                continue
+            }
+
+            if key == "tools" {
+                body[key] = normalizeAnthropicProviderSpecificTools(value.value, modelID: modelID)
                 continue
             }
 
