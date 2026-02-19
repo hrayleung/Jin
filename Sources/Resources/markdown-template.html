@@ -83,7 +83,7 @@ pre code {
 }
 .code-block .code-content {
     display: block;
-    background: var(--shiki-light-bg, light-dark(#f8fafc, #0f172a));
+    background: light-dark(#f3f4f6, #2b3038);
 }
 .code-block .code-content[hidden] {
     display: none !important;
@@ -117,8 +117,8 @@ pre code {
 }
 .code-block .code-preview {
     padding: 0.95em 1em 1.05em;
-    background: light-dark(#f9fbff, #0f1727);
-    border-top: 1px solid light-dark(#e2e8f0, #2a3545);
+    background: light-dark(#f8fafc, #2d323a);
+    border-top: 1px solid light-dark(#d8dee6, #3a424c);
 }
 .code-block .code-preview svg {
     display: block;
@@ -142,7 +142,7 @@ pre code {
 }
 @media(prefers-color-scheme:dark){
     .code-block .code-content {
-        background: var(--shiki-dark-bg, #0f172a);
+        background: #2b3038;
     }
     .code-block .shiki {
         color: var(--shiki-dark, #dbe5f2) !important;
@@ -154,8 +154,8 @@ pre code {
         text-decoration: var(--shiki-dark-text-decoration, none);
     }
     .code-block .code-preview {
-        background: light-dark(#f9fbff, #0f1727);
-        border-top: 1px solid light-dark(#e2e8f0, #2a3545);
+        background: #2d323a;
+        border-top: 1px solid #3a424c;
     }
 }
 .code-block.is-collapsed {
@@ -170,8 +170,8 @@ pre code {
     align-items: center;
     gap: 8px;
     padding: 0.34em 0.68em 0.34em 0.82em;
-    background: linear-gradient(180deg, light-dark(#f8fafc, #1b2330), light-dark(#f2f6fb, #161d28));
-    border-bottom: 1px solid light-dark(#d8dee4, #2b3442);
+    background: linear-gradient(180deg, light-dark(#f8fafc, #3b424d), light-dark(#f2f5f8, #343a44));
+    border-bottom: 1px solid light-dark(#d8dee4, #4a525f);
     font-size: 0.75em;
     color: light-dark(#4d5b6a, #94a3b8);
     user-select: none;
