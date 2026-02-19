@@ -8,6 +8,7 @@ struct SearchActivityTimelineView: View {
     let modelLabel: String?
 
     @State private var isExpanded = false
+    @State private var resolvedRedirectURLByCanonicalSource: [String: String] = [:]
 
     init(
         activities: [SearchActivity],
@@ -36,6 +37,9 @@ struct SearchActivityTimelineView: View {
             .jinSurface(.subtleStrong, cornerRadius: JinRadius.medium)
             .clipped()
             .animation(.easeInOut(duration: 0.2), value: isExpanded)
+            .task(id: redirectResolutionTaskKey) {
+                await resolveRedirectTargetsIfNeeded()
+            }
         }
     }
 
@@ -80,7 +84,12 @@ struct SearchActivityTimelineView: View {
     private var sourceAvatarStrip: some View {
         HStack(spacing: -4) {
             ForEach(Array(presentation.sources.prefix(10).enumerated()), id: \.offset) { _, source in
-                SearchSourceAvatarView(source: source, size: 24)
+                let sourcePresentation = renderPresentation(for: source)
+                SearchSourceAvatarView(
+                    host: sourcePresentation.host,
+                    fallbackText: sourcePresentation.hostDisplayInitial,
+                    size: 24
+                )
             }
 
             if presentation.sources.count > 10 {
@@ -124,7 +133,7 @@ struct SearchActivityTimelineView: View {
                         .foregroundStyle(.secondary)
 
                     CopyToPasteboardButton(
-                        text: presentation.sources.map(\.canonicalURLString).joined(separator: "\n"),
+                        text: preferredURLStrings.joined(separator: "\n"),
                         helpText: "Copy links",
                         copiedHelpText: "Copied links",
                         useProminentStyle: false
@@ -173,7 +182,7 @@ struct SearchActivityTimelineView: View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: JinSpacing.small) {
                 ForEach(presentation.sources) { source in
-                    SearchSourceCardView(source: source)
+                    SearchSourceCardView(presentation: renderPresentation(for: source))
                 }
             }
             .padding(.vertical, 2)
@@ -221,6 +230,43 @@ struct SearchActivityTimelineView: View {
             return "\(provider) / \(model)"
         }
         return model
+    }
+
+    private var redirectResolutionTaskKey: String {
+        presentation.sources
+            .filter(\.usesGoogleGroundingRedirect)
+            .map { $0.canonicalURLString.lowercased() }
+            .sorted()
+            .joined(separator: "|")
+    }
+
+    private var preferredURLStrings: [String] {
+        presentation.sources.map { source in
+            renderPresentation(for: source).urlString
+        }
+    }
+
+    private func renderPresentation(for source: SearchSource) -> SearchSource.RenderPresentation {
+        source.renderPresentation(
+            resolvedURLString: resolvedRedirectURLByCanonicalSource[source.canonicalURLString]
+        )
+    }
+
+    private func resolveRedirectTargetsIfNeeded() async {
+        let targets = presentation.sources.filter(\.usesGoogleGroundingRedirect)
+        guard !targets.isEmpty else { return }
+
+        for source in targets {
+            if resolvedRedirectURLByCanonicalSource[source.canonicalURLString] != nil {
+                continue
+            }
+
+            guard let resolvedURL = await SearchRedirectURLResolver.shared.resolveIfNeeded(rawURL: source.canonicalURLString) else {
+                continue
+            }
+
+            resolvedRedirectURLByCanonicalSource[source.canonicalURLString] = resolvedURL
+        }
     }
 }
 
@@ -275,12 +321,12 @@ private struct SearchActivityPresentation {
 }
 
 private struct SearchSourceCardView: View {
-    let source: SearchSource
+    let presentation: SearchSource.RenderPresentation
     @State private var isHovered = false
 
     var body: some View {
         Group {
-            if let destination = source.openURL {
+            if let destination = presentation.openURL {
                 Link(destination: destination) {
                     cardBody
                 }
@@ -310,7 +356,7 @@ private struct SearchSourceCardView: View {
     private var cardBody: some View {
         VStack(alignment: .leading, spacing: JinSpacing.small) {
             HStack(alignment: .top, spacing: JinSpacing.small) {
-                Text(source.displayTitle)
+                Text(presentation.displayTitle)
                     .font(.title3.weight(.semibold))
                     .lineLimit(2)
                     .multilineTextAlignment(.leading)
@@ -322,7 +368,7 @@ private struct SearchSourceCardView: View {
                     .foregroundStyle(.secondary)
             }
 
-            Text(source.previewText)
+            Text(presentation.previewText)
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .lineLimit(4)
@@ -331,8 +377,12 @@ private struct SearchSourceCardView: View {
             Spacer(minLength: 0)
 
             HStack(spacing: JinSpacing.small) {
-                SearchSourceAvatarView(source: source, size: 22)
-                Text(source.hostDisplay)
+                SearchSourceAvatarView(
+                    host: presentation.host,
+                    fallbackText: presentation.hostDisplayInitial,
+                    size: 22
+                )
+                Text(presentation.hostDisplay)
                     .font(.subheadline.weight(.medium))
                     .lineLimit(1)
                     .foregroundStyle(.secondary)
@@ -349,7 +399,8 @@ private struct SearchSourceCardView: View {
 }
 
 private struct SearchSourceAvatarView: View {
-    let source: SearchSource
+    let host: String
+    let fallbackText: String
     var size: CGFloat = 22
 
     var body: some View {
@@ -358,8 +409,8 @@ private struct SearchSourceAvatarView: View {
                 .fill(JinSemanticColor.surface)
 
             WebsiteFaviconView(
-                host: source.host,
-                fallbackText: source.hostDisplayInitial,
+                host: host,
+                fallbackText: fallbackText,
                 iconSize: max(12, size - 8)
             )
         }
@@ -437,31 +488,56 @@ private struct SearchSource: Identifiable, Hashable {
     let hostDisplay: String
     let usesGoogleGroundingRedirect: Bool
 
-    var openURL: URL? {
-        URL(string: canonicalURLString)
+    struct RenderPresentation: Hashable {
+        let urlString: String
+        let openURL: URL?
+        let displayTitle: String
+        let previewText: String
+        let host: String
+        let hostDisplay: String
+        let hostDisplayInitial: String
     }
 
-    var displayTitle: String {
-        if let title = title?.trimmedNonEmpty {
-            return title
+    func renderPresentation(resolvedURLString: String?) -> RenderPresentation {
+        if let resolvedURLString,
+           let normalizedResolvedURL = SearchSource.normalizeURLString(resolvedURLString),
+           let resolvedURL = URL(string: normalizedResolvedURL),
+           let resolvedHost = resolvedURL.host?.trimmedNonEmpty {
+            let resolvedHostDisplay = resolvedHost.replacingOccurrences(of: "www.", with: "")
+            let resolvedTitle = title?.trimmedNonEmpty ?? resolvedHostDisplay
+            let resolvedPreview = SearchSource.pathPreview(for: resolvedURL) ?? normalizedResolvedURL
+
+            return RenderPresentation(
+                urlString: normalizedResolvedURL,
+                openURL: resolvedURL,
+                displayTitle: resolvedTitle,
+                previewText: resolvedPreview,
+                host: resolvedHost,
+                hostDisplay: resolvedHostDisplay,
+                hostDisplayInitial: resolvedHostDisplay.first.map { String($0).uppercased() } ?? "W"
+            )
         }
-        return hostDisplay
-    }
 
-    var hostDisplayInitial: String {
-        hostDisplay.first.map { String($0).uppercased() } ?? "W"
-    }
-
-    var previewText: String {
+        let defaultTitle = title?.trimmedNonEmpty ?? hostDisplay
+        let defaultPreview: String
         if usesGoogleGroundingRedirect {
-            return "Google grounded source"
+            defaultPreview = "Google grounded source"
+        } else if let canonicalURL = URL(string: canonicalURLString),
+                  let compactPath = SearchSource.pathPreview(for: canonicalURL) {
+            defaultPreview = compactPath
+        } else {
+            defaultPreview = canonicalURLString
         }
 
-        if let openURL,
-           let compact = SearchSource.pathPreview(for: openURL) {
-            return compact
-        }
-        return canonicalURLString
+        return RenderPresentation(
+            urlString: canonicalURLString,
+            openURL: URL(string: canonicalURLString),
+            displayTitle: defaultTitle,
+            previewText: defaultPreview,
+            host: host,
+            hostDisplay: hostDisplay,
+            hostDisplayInitial: hostDisplay.first.map { String($0).uppercased() } ?? "W"
+        )
     }
 
     init?(rawURL: String, title: String?) {
