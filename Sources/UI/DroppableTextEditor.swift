@@ -444,6 +444,13 @@ final class DroppableNSTextView: NSTextView {
         return false
     }
 
+    private func submitAfterCurrentEvent() {
+        // Let IME/text-system updates settle before sending so stale text does not reappear.
+        DispatchQueue.main.async { [weak self] in
+            self?.onSubmit?()
+        }
+    }
+
     override func keyDown(with event: NSEvent) {
         // Escape
         if event.keyCode == 53, onCancel?() == true {
@@ -460,7 +467,7 @@ final class DroppableNSTextView: NSTextView {
             if useCommandEnterToSubmit {
                 // In expanded mode: Cmd+Enter sends, plain Enter inserts newline
                 if event.modifierFlags.contains(.command) {
-                    onSubmit?()
+                    submitAfterCurrentEvent()
                     return
                 }
                 super.keyDown(with: event)
@@ -473,7 +480,7 @@ final class DroppableNSTextView: NSTextView {
                 return
             }
 
-            onSubmit?()
+            submitAfterCurrentEvent()
             return
         }
 
