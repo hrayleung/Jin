@@ -52,7 +52,14 @@ done
 UNIVERSAL_BIN="$DIST/$APP_NAME-universal"
 echo "Creating universal binary…"
 lipo -create "${ARCH_BINARIES[@]}" -output "$UNIVERSAL_BIN"
-echo "Universal binary architectures: $(lipo -archs "$UNIVERSAL_BIN")"
+universal_archs="$(lipo -archs "$UNIVERSAL_BIN")"
+for arch in "${ARCHS[@]}"; do
+  if [[ " $universal_archs " != *" $arch "* ]]; then
+    echo "Error: arch '$arch' missing from universal binary: $universal_archs" >&2
+    exit 1
+  fi
+done
+echo "Universal binary architectures: $universal_archs"
 BIN="$UNIVERSAL_BIN"
 
 echo "Creating .app bundle…"
