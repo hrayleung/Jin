@@ -189,6 +189,7 @@ struct Message: Identifiable, Codable {
     let content: [ContentPart]
     let toolCalls: [ToolCall]?
     let toolResults: [ToolResult]?
+    let searchActivities: [SearchActivity]?
     let timestamp: Date
 
     init(
@@ -197,6 +198,7 @@ struct Message: Identifiable, Codable {
         content: [ContentPart],
         toolCalls: [ToolCall]? = nil,
         toolResults: [ToolResult]? = nil,
+        searchActivities: [SearchActivity]? = nil,
         timestamp: Date = Date()
     ) {
         self.id = id
@@ -204,6 +206,7 @@ struct Message: Identifiable, Codable {
         self.content = content
         self.toolCalls = toolCalls
         self.toolResults = toolResults
+        self.searchActivities = searchActivities
         self.timestamp = timestamp
     }
 }
@@ -249,6 +252,98 @@ struct ToolResult: Codable, Identifiable {
         self.isError = isError
         self.signature = signature
         self.durationSeconds = durationSeconds
+    }
+}
+
+/// Normalized provider-native web-search activity.
+struct SearchActivity: Codable, Identifiable, Sendable {
+    let id: String
+    let type: String
+    let status: SearchActivityStatus
+    let arguments: [String: AnyCodable]
+    let outputIndex: Int?
+    let sequenceNumber: Int?
+
+    init(
+        id: String,
+        type: String,
+        status: SearchActivityStatus,
+        arguments: [String: AnyCodable] = [:],
+        outputIndex: Int? = nil,
+        sequenceNumber: Int? = nil
+    ) {
+        self.id = id
+        self.type = type
+        self.status = status
+        self.arguments = arguments
+        self.outputIndex = outputIndex
+        self.sequenceNumber = sequenceNumber
+    }
+
+    func merged(with newer: SearchActivity) -> SearchActivity {
+        var mergedArguments = arguments
+        for (key, value) in newer.arguments {
+            mergedArguments[key] = value
+        }
+
+        return SearchActivity(
+            id: id,
+            type: newer.type.isEmpty ? type : newer.type,
+            status: newer.status,
+            arguments: mergedArguments,
+            outputIndex: newer.outputIndex ?? outputIndex,
+            sequenceNumber: newer.sequenceNumber ?? sequenceNumber
+        )
+    }
+}
+
+/// Status for provider-native web-search activity.
+enum SearchActivityStatus: Codable, Sendable, Equatable {
+    case inProgress
+    case searching
+    case completed
+    case failed
+    case unknown(String)
+
+    init(rawValue: String) {
+        switch rawValue {
+        case "in_progress":
+            self = .inProgress
+        case "searching":
+            self = .searching
+        case "completed":
+            self = .completed
+        case "failed":
+            self = .failed
+        default:
+            self = .unknown(rawValue)
+        }
+    }
+
+    var rawValue: String {
+        switch self {
+        case .inProgress:
+            return "in_progress"
+        case .searching:
+            return "searching"
+        case .completed:
+            return "completed"
+        case .failed:
+            return "failed"
+        case .unknown(let value):
+            return value
+        }
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        let value = try container.decode(String.self)
+        self = SearchActivityStatus(rawValue: value)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(rawValue)
     }
 }
 

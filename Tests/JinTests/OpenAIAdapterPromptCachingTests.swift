@@ -79,6 +79,276 @@ final class OpenAIAdapterPromptCachingTests: XCTestCase {
         XCTAssertEqual(finalUsage?.thinkingTokens, 1)
         XCTAssertEqual(finalUsage?.cachedTokens, 8)
     }
+
+    func testOpenAIAdapterNonStreamingEmitsWebSearchActivityFromOutputItems() async throws {
+        let (session, protocolType) = makeOpenAIMockedURLSession()
+        let networkManager = NetworkManager(urlSession: session)
+
+        let providerConfig = ProviderConfig(
+            id: "openai",
+            name: "OpenAI",
+            type: .openai,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://example.com/responses")
+
+            let response: [String: Any] = [
+                "id": "resp_ws_1",
+                "output": [
+                    [
+                        "id": "ws_1",
+                        "type": "web_search_call",
+                        "status": "completed",
+                        "action": [
+                            "type": "search",
+                            "query": "swift 6.2 release date"
+                        ]
+                    ],
+                    [
+                        "type": "message",
+                        "content": [
+                            ["type": "output_text", "text": "Answer"]
+                        ]
+                    ]
+                ],
+                "usage": [
+                    "input_tokens": 8,
+                    "output_tokens": 4
+                ]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = OpenAIAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hi")])],
+            modelID: "gpt-5.2",
+            controls: GenerationControls(),
+            tools: [],
+            streaming: false
+        )
+
+        var events: [StreamEvent] = []
+        for try await event in stream {
+            events.append(event)
+        }
+
+        let searchEvent = try XCTUnwrap(events.compactMap { event -> SearchActivity? in
+            if case .searchActivity(let activity) = event { return activity }
+            return nil
+        }.first)
+        XCTAssertEqual(searchEvent.id, "ws_1")
+        XCTAssertEqual(searchEvent.type, "search")
+        XCTAssertEqual(searchEvent.status, .completed)
+        XCTAssertEqual(searchEvent.arguments["query"]?.value as? String, "swift 6.2 release date")
+    }
+
+    func testOpenAIAdapterNonStreamingEmitsCitationSearchActivityFromMessageAnnotations() async throws {
+        let (session, protocolType) = makeOpenAIMockedURLSession()
+        let networkManager = NetworkManager(urlSession: session)
+
+        let providerConfig = ProviderConfig(
+            id: "openai",
+            name: "OpenAI",
+            type: .openai,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://example.com/responses")
+
+            let response: [String: Any] = [
+                "id": "resp_citation_1",
+                "output": [
+                    [
+                        "id": "msg_1",
+                        "type": "message",
+                        "content": [
+                            [
+                                "type": "output_text",
+                                "text": "Sources included.",
+                                "annotations": [
+                                    [
+                                        "type": "url_citation",
+                                        "url": "https://platform.openai.com/docs/api-reference/responses/create",
+                                        "title": "Create response"
+                                    ],
+                                    [
+                                        "type": "url_citation",
+                                        "url": "https://www.anthropic.com/news",
+                                        "title": "Anthropic News"
+                                    ]
+                                ]
+                            ]
+                        ]
+                    ]
+                ],
+                "usage": [
+                    "input_tokens": 9,
+                    "output_tokens": 6
+                ]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = OpenAIAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hi")])],
+            modelID: "gpt-5.2",
+            controls: GenerationControls(),
+            tools: [],
+            streaming: false
+        )
+
+        var searchEvents: [SearchActivity] = []
+        for try await event in stream {
+            if case .searchActivity(let activity) = event {
+                searchEvents.append(activity)
+            }
+        }
+
+        let citation = try XCTUnwrap(searchEvents.first)
+        XCTAssertEqual(citation.id, "msg_1:citations")
+        XCTAssertEqual(citation.type, "url_citation")
+        XCTAssertEqual(citation.status, .completed)
+
+        let sources = citationSources(from: citation)
+        XCTAssertEqual(sources.count, 2)
+        XCTAssertTrue(sources.contains { $0.url == "https://platform.openai.com/docs/api-reference/responses/create" })
+        XCTAssertTrue(sources.contains { $0.url == "https://www.anthropic.com/news" })
+    }
+
+    func testOpenAIAdapterStreamingEmitsWebSearchLifecycleEvents() async throws {
+        let (session, protocolType) = makeOpenAIMockedURLSession()
+        let networkManager = NetworkManager(urlSession: session)
+
+        let providerConfig = ProviderConfig(
+            id: "openai",
+            name: "OpenAI",
+            type: .openai,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://example.com/responses")
+
+            let sse = """
+            event: response.created
+            data: {"type":"response.created","response":{"id":"resp_ws_stream"}}
+
+            event: response.output_item.added
+            data: {"type":"response.output_item.added","output_index":0,"sequence_number":1,"item":{"id":"ws_123","type":"web_search_call","status":"in_progress","action":{"type":"search","query":"swift asyncstream"}}}
+
+            event: response.web_search_call.searching
+            data: {"type":"response.web_search_call.searching","output_index":0,"item_id":"ws_123","sequence_number":2}
+
+            event: response.web_search_call.completed
+            data: {"type":"response.web_search_call.completed","output_index":0,"item_id":"ws_123","sequence_number":3}
+
+            event: response.output_text.delta
+            data: {"type":"response.output_text.delta","delta":"Answer"}
+
+            event: response.completed
+            data: {"type":"response.completed","response":{"usage":{"input_tokens":3,"output_tokens":2,"output_tokens_details":{"reasoning_tokens":0},"prompt_tokens_details":{"cached_tokens":0}}}}
+
+            data: [DONE]
+
+            """
+
+            return (
+                HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                Data(sse.utf8)
+            )
+        }
+
+        let adapter = OpenAIAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hi")])],
+            modelID: "gpt-5.2",
+            controls: GenerationControls(),
+            tools: [],
+            streaming: true
+        )
+
+        var searchEvents: [SearchActivity] = []
+        for try await event in stream {
+            if case .searchActivity(let activity) = event {
+                searchEvents.append(activity)
+            }
+        }
+
+        XCTAssertGreaterThanOrEqual(searchEvents.count, 3)
+        XCTAssertEqual(searchEvents.first?.id, "ws_123")
+        XCTAssertEqual(searchEvents.first?.type, "search")
+        XCTAssertEqual(searchEvents.first?.arguments["query"]?.value as? String, "swift asyncstream")
+        XCTAssertTrue(searchEvents.contains { $0.status == .searching })
+        XCTAssertTrue(searchEvents.contains { $0.status == .completed })
+    }
+
+    func testOpenAIAdapterStreamingEmitsCitationSearchActivityFromMessageItemDone() async throws {
+        let (session, protocolType) = makeOpenAIMockedURLSession()
+        let networkManager = NetworkManager(urlSession: session)
+
+        let providerConfig = ProviderConfig(
+            id: "openai",
+            name: "OpenAI",
+            type: .openai,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://example.com/responses")
+
+            let sse = """
+            event: response.created
+            data: {"type":"response.created","response":{"id":"resp_ws_stream"}}
+
+            event: response.output_item.done
+            data: {"type":"response.output_item.done","output_index":1,"sequence_number":4,"item":{"id":"msg_42","type":"message","status":"completed","content":[{"type":"output_text","text":"Answer with source.","annotations":[{"type":"url_citation","url":"https://aistudio.google.com","title":"Google AI Studio"}]}]}}
+
+            event: response.completed
+            data: {"type":"response.completed","response":{"usage":{"input_tokens":3,"output_tokens":2}}}
+
+            data: [DONE]
+
+            """
+
+            return (
+                HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                Data(sse.utf8)
+            )
+        }
+
+        let adapter = OpenAIAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hi")])],
+            modelID: "gpt-5.2",
+            controls: GenerationControls(),
+            tools: [],
+            streaming: true
+        )
+
+        var searchEvents: [SearchActivity] = []
+        for try await event in stream {
+            if case .searchActivity(let activity) = event {
+                searchEvents.append(activity)
+            }
+        }
+
+        let citation = try XCTUnwrap(searchEvents.first(where: { $0.id == "msg_42:citations" }))
+        let sources = citationSources(from: citation)
+        XCTAssertEqual(sources.count, 1)
+        XCTAssertEqual(sources.first?.url, "https://aistudio.google.com")
+        XCTAssertEqual(sources.first?.title, "Google AI Studio")
+    }
 }
 
 private final class OpenAIPromptCachingMockURLProtocol: URLProtocol {
@@ -139,4 +409,22 @@ private func openAIRequestBodyData(_ request: URLRequest) -> Data? {
     }
 
     return data
+}
+
+private func citationSources(from activity: SearchActivity) -> [(url: String, title: String?)] {
+    guard let raw = activity.arguments["sources"]?.value else { return [] }
+
+    let rows: [[String: Any]]
+    if let dicts = raw as? [[String: Any]] {
+        rows = dicts
+    } else if let array = raw as? [Any] {
+        rows = array.compactMap { $0 as? [String: Any] }
+    } else {
+        rows = []
+    }
+
+    return rows.compactMap { row in
+        guard let url = row["url"] as? String else { return nil }
+        return (url: url, title: row["title"] as? String)
+    }
 }

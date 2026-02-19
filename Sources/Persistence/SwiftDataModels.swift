@@ -146,6 +146,7 @@ final class MessageEntity {
     var contentData: Data // Codable [ContentPart]
     var toolCallsData: Data?
     var toolResultsData: Data?
+    var searchActivitiesData: Data?
     var thinkingVisible: Bool
     // Snapshot of the model used to generate this message (primarily for assistant replies).
     var generatedProviderID: String?
@@ -161,6 +162,7 @@ final class MessageEntity {
         contentData: Data,
         toolCallsData: Data? = nil,
         toolResultsData: Data? = nil,
+        searchActivitiesData: Data? = nil,
         generatedProviderID: String? = nil,
         generatedModelID: String? = nil,
         generatedModelName: String? = nil,
@@ -172,6 +174,7 @@ final class MessageEntity {
         self.contentData = contentData
         self.toolCallsData = toolCallsData
         self.toolResultsData = toolResultsData
+        self.searchActivitiesData = searchActivitiesData
         self.generatedProviderID = generatedProviderID
         self.generatedModelID = generatedModelID
         self.generatedModelName = generatedModelName
@@ -189,6 +192,7 @@ final class MessageEntity {
         let content = try decoder.decode([ContentPart].self, from: contentData)
         let toolCalls = try toolCallsData.flatMap { try decoder.decode([ToolCall].self, from: $0) }
         let toolResults = try toolResultsData.flatMap { try decoder.decode([ToolResult].self, from: $0) }
+        let searchActivities = try searchActivitiesData.flatMap { try decoder.decode([SearchActivity].self, from: $0) }
 
         return Message(
             id: id,
@@ -196,6 +200,7 @@ final class MessageEntity {
             content: content,
             toolCalls: toolCalls,
             toolResults: toolResults,
+            searchActivities: searchActivities,
             timestamp: timestamp
         )
     }
@@ -206,6 +211,7 @@ final class MessageEntity {
         let contentData = try encoder.encode(message.content)
         let toolCallsData = try message.toolCalls.map { try encoder.encode($0) }
         let toolResultsData = try message.toolResults.map { try encoder.encode($0) }
+        let searchActivitiesData = try message.searchActivities.map { try encoder.encode($0) }
 
         return MessageEntity(
             id: message.id,
@@ -213,7 +219,8 @@ final class MessageEntity {
             timestamp: message.timestamp,
             contentData: contentData,
             toolCallsData: toolCallsData,
-            toolResultsData: toolResultsData
+            toolResultsData: toolResultsData,
+            searchActivitiesData: searchActivitiesData
         )
     }
 }

@@ -55,6 +55,10 @@ actor OpenAIAdapter: LLMProviderAdapter {
             return AsyncThrowingStream { continuation in
                 continuation.yield(.messageStart(id: response.id))
 
+                for activity in response.searchActivities {
+                    continuation.yield(.searchActivity(activity))
+                }
+
                 for text in response.outputTextParts {
                     continuation.yield(.contentDelta(.text(text)))
                 }
@@ -248,8 +252,42 @@ actor OpenAIAdapter: LLMProviderAdapter {
             body[key] = value.value
         }
 
+        // Ask Responses API to include source URLs/titles for web_search_call actions when possible.
+        if controls.webSearch?.enabled == true, supportsWebSearch(modelID) {
+            body["include"] = mergedIncludeFields(body["include"], adding: "web_search_call.action.sources")
+        }
+
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
         return request
+    }
+
+    private func mergedIncludeFields(_ existing: Any?, adding field: String) -> [String] {
+        var out: [String] = []
+        var seen: Set<String> = []
+
+        if let existingStrings = existing as? [String] {
+            for item in existingStrings {
+                let trimmed = item.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !trimmed.isEmpty, !seen.contains(trimmed) else { continue }
+                seen.insert(trimmed)
+                out.append(trimmed)
+            }
+        } else if let existingAny = existing as? [Any] {
+            for item in existingAny {
+                guard let value = item as? String else { continue }
+                let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !trimmed.isEmpty, !seen.contains(trimmed) else { continue }
+                seen.insert(trimmed)
+                out.append(trimmed)
+            }
+        }
+
+        let target = field.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !target.isEmpty, !seen.contains(target) {
+            out.append(target)
+        }
+
+        return out
     }
 
     private func mapReasoningEffort(_ effort: ReasoningEffort) -> String {
@@ -563,15 +601,46 @@ actor OpenAIAdapter: LLMProviderAdapter {
 
         case "response.output_item.added":
             let event = try decoder.decode(OutputItemAddedEvent.self, from: jsonData)
-            guard event.item.type == "function_call",
-                  let itemID = event.item.id,
-                  let callID = event.item.callId,
-                  let name = event.item.name else {
-                return nil
+            if event.item.type == "function_call" {
+                guard let itemID = event.item.id,
+                      let callID = event.item.callId,
+                      let name = event.item.name else {
+                    return nil
+                }
+
+                functionCallsByItemID[itemID] = FunctionCallState(callID: callID, name: name)
+                return .toolCallStart(ToolCall(id: callID, name: name, arguments: [:]))
             }
 
-            functionCallsByItemID[itemID] = FunctionCallState(callID: callID, name: name)
-            return .toolCallStart(ToolCall(id: callID, name: name, arguments: [:]))
+            if event.item.type == "web_search_call",
+               let activity = searchActivityFromOutputItem(
+                event.item,
+                outputIndex: event.outputIndex,
+                sequenceNumber: event.sequenceNumber
+               ) {
+                return .searchActivity(activity)
+            }
+            return nil
+
+        case "response.output_item.done":
+            let event = try decoder.decode(OutputItemDoneEvent.self, from: jsonData)
+            if event.item.type == "web_search_call",
+               let activity = searchActivityFromOutputItem(
+                event.item,
+                outputIndex: event.outputIndex,
+                sequenceNumber: event.sequenceNumber
+               ) {
+                return .searchActivity(activity)
+            }
+            if event.item.type == "message",
+               let activity = citationSearchActivityFromMessageItem(
+                event.item,
+                outputIndex: event.outputIndex,
+                sequenceNumber: event.sequenceNumber
+               ) {
+                return .searchActivity(activity)
+            }
+            return nil
 
         case "response.function_call_arguments.delta":
             let event = try decoder.decode(FunctionCallArgumentsDeltaEvent.self, from: jsonData)
@@ -587,6 +656,22 @@ actor OpenAIAdapter: LLMProviderAdapter {
 
             let args = parseJSONObject(event.arguments)
             return .toolCallEnd(ToolCall(id: state.callID, name: state.name, arguments: args))
+
+        case "response.web_search_call.in_progress",
+             "response.web_search_call.searching",
+             "response.web_search_call.completed",
+             "response.web_search_call.failed":
+            let event = try decoder.decode(WebSearchCallStatusEvent.self, from: jsonData)
+            return .searchActivity(
+                SearchActivity(
+                    id: event.itemId,
+                    type: "web_search_call",
+                    status: searchStatus(fromEventType: type),
+                    arguments: [:],
+                    outputIndex: event.outputIndex,
+                    sequenceNumber: event.sequenceNumber
+                )
+            )
 
         case "response.completed":
             let event = try decoder.decode(ResponseCompletedEvent.self, from: jsonData)
@@ -608,6 +693,136 @@ actor OpenAIAdapter: LLMProviderAdapter {
         default:
             return nil
         }
+    }
+
+    private func searchActivityFromOutputItem(
+        _ item: OutputItemAddedEvent.Item,
+        outputIndex: Int?,
+        sequenceNumber: Int?
+    ) -> SearchActivity? {
+        guard let id = item.id else { return nil }
+        let actionType = item.action?.type ?? "web_search_call"
+        return SearchActivity(
+            id: id,
+            type: actionType,
+            status: searchStatus(from: item.status),
+            arguments: searchActivityArguments(from: item.action),
+            outputIndex: outputIndex,
+            sequenceNumber: sequenceNumber
+        )
+    }
+
+    private func searchActivityArguments(from action: OutputItemAddedEvent.WebSearchAction?) -> [String: AnyCodable] {
+        guard let action else { return [:] }
+        var out: [String: AnyCodable] = [:]
+
+        if let query = action.query, !query.isEmpty {
+            out["query"] = AnyCodable(query)
+        }
+        if let queries = action.queries, !queries.isEmpty {
+            out["queries"] = AnyCodable(queries)
+        }
+        if let url = action.url, !url.isEmpty {
+            out["url"] = AnyCodable(url)
+        }
+        if let pattern = action.pattern, !pattern.isEmpty {
+            out["pattern"] = AnyCodable(pattern)
+        }
+        if let sources = action.sources, !sources.isEmpty {
+            out["sources"] = AnyCodable(
+                sources.map { source in
+                    var payload: [String: Any] = [
+                        "type": source.type,
+                        "url": source.url
+                    ]
+                    if let title = source.title, !title.isEmpty {
+                        payload["title"] = title
+                    }
+                    return payload
+                }
+            )
+        }
+        return out
+    }
+
+    private func citationSearchActivityFromMessageItem(
+        _ item: OutputItemAddedEvent.Item,
+        outputIndex: Int?,
+        sequenceNumber: Int?
+    ) -> SearchActivity? {
+        let arguments = citationArguments(from: item.content)
+        guard !arguments.isEmpty else { return nil }
+
+        let baseID = item.id ?? "message_\(outputIndex ?? -1)"
+        return SearchActivity(
+            id: "\(baseID):citations",
+            type: "url_citation",
+            status: .completed,
+            arguments: arguments,
+            outputIndex: outputIndex,
+            sequenceNumber: sequenceNumber
+        )
+    }
+
+    private func citationArguments(from content: [ResponseOutputContent]?) -> [String: AnyCodable] {
+        guard let content else { return [:] }
+
+        var sourcePayloads: [[String: Any]] = []
+        var seenURLs: Set<String> = []
+
+        for part in content where part.type == "output_text" {
+            for annotation in part.annotations ?? [] {
+                guard annotation.type == "url_citation" else { continue }
+                guard let rawURL = annotation.url?.trimmingCharacters(in: .whitespacesAndNewlines), !rawURL.isEmpty else {
+                    continue
+                }
+
+                let dedupeKey = rawURL.lowercased()
+                guard !seenURLs.contains(dedupeKey) else { continue }
+                seenURLs.insert(dedupeKey)
+
+                var source: [String: Any] = [
+                    "type": annotation.type,
+                    "url": rawURL
+                ]
+                if let title = annotation.title?.trimmingCharacters(in: .whitespacesAndNewlines), !title.isEmpty {
+                    source["title"] = title
+                }
+                sourcePayloads.append(source)
+            }
+        }
+
+        guard !sourcePayloads.isEmpty else { return [:] }
+
+        var args: [String: AnyCodable] = [
+            "sources": AnyCodable(sourcePayloads)
+        ]
+        if let firstSource = sourcePayloads.first,
+           let firstURL = firstSource["url"] as? String {
+            args["url"] = AnyCodable(firstURL)
+            if let firstTitle = firstSource["title"] as? String, !firstTitle.isEmpty {
+                args["title"] = AnyCodable(firstTitle)
+            }
+        }
+        return args
+    }
+
+    private func searchStatus(from raw: String?) -> SearchActivityStatus {
+        guard let raw, !raw.isEmpty else { return .inProgress }
+        return SearchActivityStatus(rawValue: raw)
+    }
+
+    private func searchStatus(fromEventType eventType: String) -> SearchActivityStatus {
+        if eventType.hasSuffix(".completed") {
+            return .completed
+        }
+        if eventType.hasSuffix(".searching") {
+            return .searching
+        }
+        if eventType.hasSuffix(".failed") {
+            return .failed
+        }
+        return .inProgress
     }
 
     private func parseJSONObject(_ jsonString: String) -> [String: AnyCodable] {
@@ -667,7 +882,52 @@ private struct ReasoningSummaryTextDeltaEvent: Codable {
     let delta: String
 }
 
+private struct ResponseOutputContent: Codable {
+    let type: String
+    let text: String?
+    let annotations: [ResponseOutputAnnotation]?
+}
+
+private struct ResponseOutputAnnotation: Codable {
+    let type: String
+    let url: String?
+    let title: String?
+
+    private enum CodingKeys: String, CodingKey {
+        case type
+        case url
+        case title
+        case urlCitation
+    }
+
+    private struct URLCitationPayload: Codable {
+        let url: String?
+        let title: String?
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        type = try container.decodeIfPresent(String.self, forKey: .type) ?? ""
+
+        let directURL = try container.decodeIfPresent(String.self, forKey: .url)
+        let directTitle = try container.decodeIfPresent(String.self, forKey: .title)
+        let nestedCitation = try container.decodeIfPresent(URLCitationPayload.self, forKey: .urlCitation)
+
+        url = directURL ?? nestedCitation?.url
+        title = directTitle ?? nestedCitation?.title
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(type, forKey: .type)
+        try container.encodeIfPresent(url, forKey: .url)
+        try container.encodeIfPresent(title, forKey: .title)
+    }
+}
+
 private struct OutputItemAddedEvent: Codable {
+    let outputIndex: Int?
+    let sequenceNumber: Int?
     let item: Item
 
     struct Item: Codable {
@@ -675,6 +935,203 @@ private struct OutputItemAddedEvent: Codable {
         let type: String
         let callId: String?
         let name: String?
+        let status: String?
+        let action: WebSearchAction?
+        let content: [ResponseOutputContent]?
+    }
+
+    struct WebSearchAction: Codable {
+        let type: String
+        let query: String?
+        let queries: [String]?
+        let url: String?
+        let pattern: String?
+        let sources: [Source]?
+    }
+
+    struct Source: Codable {
+        let type: String
+        let url: String
+        let title: String?
+    }
+}
+
+private struct OutputItemDoneEvent: Codable {
+    let outputIndex: Int?
+    let sequenceNumber: Int?
+    let item: OutputItemAddedEvent.Item
+}
+
+private struct WebSearchCallStatusEvent: Codable {
+    let outputIndex: Int?
+    let itemId: String
+    let sequenceNumber: Int?
+}
+
+// MARK: - Non-streaming Response Types
+
+private struct ResponsesAPIResponse: Codable {
+    let id: String
+    let output: [OutputItem]
+    let usage: UsageInfo?
+
+    struct OutputItem: Codable {
+        let id: String?
+        let type: String
+        let status: String?
+        let action: OutputItemAddedEvent.WebSearchAction?
+        let content: [ResponseOutputContent]?
+        let summary: [ResponseOutputContent]?
+    }
+
+    struct UsageInfo: Codable {
+        let inputTokens: Int
+        let outputTokens: Int
+        let outputTokensDetails: OutputTokensDetails?
+        let promptTokensDetails: PromptTokensDetails?
+
+        struct OutputTokensDetails: Codable {
+            let reasoningTokens: Int?
+        }
+
+        struct PromptTokensDetails: Codable {
+            let cachedTokens: Int?
+        }
+    }
+
+    var outputTextParts: [String] {
+        output.flatMap { item in
+            switch item.type {
+            case "message":
+                return item.content?.compactMap { $0.type == "output_text" ? $0.text : nil } ?? []
+            case "reasoning":
+                return item.summary?.compactMap { $0.type == "summary_text" ? $0.text : nil } ?? []
+            default:
+                return []
+            }
+        }
+    }
+
+    var searchActivities: [SearchActivity] {
+        var out: [SearchActivity] = []
+
+        for (index, item) in output.enumerated() {
+            if item.type == "web_search_call",
+               let id = item.id {
+                out.append(
+                    SearchActivity(
+                        id: id,
+                        type: item.action?.type ?? "web_search_call",
+                        status: SearchActivityStatus(rawValue: item.status ?? "in_progress"),
+                        arguments: ResponsesAPIResponse.searchActivityArguments(from: item.action),
+                        outputIndex: index
+                    )
+                )
+            }
+
+            if item.type == "message" {
+                let arguments = ResponsesAPIResponse.citationArguments(from: item.content)
+                if !arguments.isEmpty {
+                    let baseID = item.id ?? "message_\(index)"
+                    out.append(
+                        SearchActivity(
+                            id: "\(baseID):citations",
+                            type: "url_citation",
+                            status: .completed,
+                            arguments: arguments,
+                            outputIndex: index
+                        )
+                    )
+                }
+            }
+        }
+
+        return out
+    }
+
+    private static func searchActivityArguments(from action: OutputItemAddedEvent.WebSearchAction?) -> [String: AnyCodable] {
+        guard let action else { return [:] }
+        var out: [String: AnyCodable] = [:]
+        if let query = action.query, !query.isEmpty {
+            out["query"] = AnyCodable(query)
+        }
+        if let queries = action.queries, !queries.isEmpty {
+            out["queries"] = AnyCodable(queries)
+        }
+        if let url = action.url, !url.isEmpty {
+            out["url"] = AnyCodable(url)
+        }
+        if let pattern = action.pattern, !pattern.isEmpty {
+            out["pattern"] = AnyCodable(pattern)
+        }
+        if let sources = action.sources, !sources.isEmpty {
+            out["sources"] = AnyCodable(
+                sources.map { source in
+                    var payload: [String: Any] = [
+                        "type": source.type,
+                        "url": source.url
+                    ]
+                    if let title = source.title, !title.isEmpty {
+                        payload["title"] = title
+                    }
+                    return payload
+                }
+            )
+        }
+        return out
+    }
+
+    private static func citationArguments(from content: [ResponseOutputContent]?) -> [String: AnyCodable] {
+        guard let content else { return [:] }
+
+        var sourcePayloads: [[String: Any]] = []
+        var seenURLs: Set<String> = []
+
+        for part in content where part.type == "output_text" {
+            for annotation in part.annotations ?? [] {
+                guard annotation.type == "url_citation" else { continue }
+                guard let rawURL = annotation.url?.trimmingCharacters(in: .whitespacesAndNewlines), !rawURL.isEmpty else {
+                    continue
+                }
+
+                let dedupeKey = rawURL.lowercased()
+                guard !seenURLs.contains(dedupeKey) else { continue }
+                seenURLs.insert(dedupeKey)
+
+                var source: [String: Any] = [
+                    "type": annotation.type,
+                    "url": rawURL
+                ]
+                if let title = annotation.title?.trimmingCharacters(in: .whitespacesAndNewlines), !title.isEmpty {
+                    source["title"] = title
+                }
+                sourcePayloads.append(source)
+            }
+        }
+
+        guard !sourcePayloads.isEmpty else { return [:] }
+
+        var args: [String: AnyCodable] = [
+            "sources": AnyCodable(sourcePayloads)
+        ]
+        if let firstSource = sourcePayloads.first,
+           let firstURL = firstSource["url"] as? String {
+            args["url"] = AnyCodable(firstURL)
+            if let firstTitle = firstSource["title"] as? String, !firstTitle.isEmpty {
+                args["title"] = AnyCodable(firstTitle)
+            }
+        }
+        return args
+    }
+
+    func toUsage() -> Usage? {
+        guard let usage else { return nil }
+        return Usage(
+            inputTokens: usage.inputTokens,
+            outputTokens: usage.outputTokens,
+            thinkingTokens: usage.outputTokensDetails?.reasoningTokens,
+            cachedTokens: usage.promptTokensDetails?.cachedTokens
+        )
     }
 }
 
@@ -721,62 +1178,5 @@ private struct ResponseFailedEvent: Codable {
             let code: String?
             let message: String
         }
-    }
-}
-
-// MARK: - Non-streaming Response Types
-
-private struct ResponsesAPIResponse: Codable {
-    let id: String
-    let output: [OutputItem]
-    let usage: UsageInfo?
-
-    struct OutputItem: Codable {
-        let type: String
-        let content: [Content]?
-        let summary: [Content]?
-
-        struct Content: Codable {
-            let type: String
-            let text: String?
-        }
-    }
-
-    struct UsageInfo: Codable {
-        let inputTokens: Int
-        let outputTokens: Int
-        let outputTokensDetails: OutputTokensDetails?
-        let promptTokensDetails: PromptTokensDetails?
-
-        struct OutputTokensDetails: Codable {
-            let reasoningTokens: Int?
-        }
-
-        struct PromptTokensDetails: Codable {
-            let cachedTokens: Int?
-        }
-    }
-
-    var outputTextParts: [String] {
-        output.flatMap { item in
-            switch item.type {
-            case "message":
-                return item.content?.compactMap { $0.type == "output_text" ? $0.text : nil } ?? []
-            case "reasoning":
-                return item.summary?.compactMap { $0.type == "summary_text" ? $0.text : nil } ?? []
-            default:
-                return []
-            }
-        }
-    }
-
-    func toUsage() -> Usage? {
-        guard let usage else { return nil }
-        return Usage(
-            inputTokens: usage.inputTokens,
-            outputTokens: usage.outputTokens,
-            thinkingTokens: usage.outputTokensDetails?.reasoningTokens,
-            cachedTokens: usage.promptTokensDetails?.cachedTokens
-        )
     }
 }

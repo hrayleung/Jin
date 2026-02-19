@@ -2592,6 +2592,7 @@ struct ChatView: View {
                     timestamp: entity.timestamp,
                     renderedContentParts: renderedParts,
                     toolCalls: message.toolCalls ?? [],
+                    searchActivities: message.searchActivities ?? [],
                     assistantModelLabel: entity.role == "assistant"
                         ? (entity.generatedModelName ?? entity.generatedModelID ?? currentModelName)
                         : nil,
@@ -3447,44 +3448,46 @@ struct ChatView: View {
                 var iteration = 0
                 let maxToolIterations = 8
 
-	                while iteration < maxToolIterations {
-	                    try Task.checkCancellation()
-	
-	                    var assistantPartRefs: [StreamedAssistantPartRef] = []
-	                    var assistantTextSegments: [String] = []
-	                    var assistantImageSegments: [ImageContent] = []
-	                    var assistantVideoSegments: [VideoContent] = []
-	                    var assistantThinkingSegments: [ThinkingBlockAccumulator] = []
-	                    var toolCallsByID: [String: ToolCall] = [:]
-	
-	                    func appendAssistantTextDelta(_ delta: String) {
-	                        guard !delta.isEmpty else { return }
+                while iteration < maxToolIterations {
+                    try Task.checkCancellation()
+
+                    var assistantPartRefs: [StreamedAssistantPartRef] = []
+                    var assistantTextSegments: [String] = []
+                    var assistantImageSegments: [ImageContent] = []
+                    var assistantVideoSegments: [VideoContent] = []
+                    var assistantThinkingSegments: [ThinkingBlockAccumulator] = []
+                    var toolCallsByID: [String: ToolCall] = [:]
+                    var searchActivitiesByID: [String: SearchActivity] = [:]
+                    var searchActivityOrder: [String] = []
+
+                    func appendAssistantTextDelta(_ delta: String) {
+                        guard !delta.isEmpty else { return }
                         if let last = assistantPartRefs.last, case .text(let idx) = last {
                             assistantTextSegments[idx].append(delta)
                         } else {
                             let idx = assistantTextSegments.count
                             assistantTextSegments.append(delta)
-	                            assistantPartRefs.append(.text(idx))
-	                        }
-	                    }
+                            assistantPartRefs.append(.text(idx))
+                        }
+                    }
 
-	                    func appendAssistantImage(_ image: ImageContent) {
-	                        let idx = assistantImageSegments.count
-	                        assistantImageSegments.append(image)
-	                        assistantPartRefs.append(.image(idx))
-	                    }
+                    func appendAssistantImage(_ image: ImageContent) {
+                        let idx = assistantImageSegments.count
+                        assistantImageSegments.append(image)
+                        assistantPartRefs.append(.image(idx))
+                    }
 
-	                    func appendAssistantVideo(_ video: VideoContent) {
-	                        let idx = assistantVideoSegments.count
-	                        assistantVideoSegments.append(video)
-	                        assistantPartRefs.append(.video(idx))
-	                    }
+                    func appendAssistantVideo(_ video: VideoContent) {
+                        let idx = assistantVideoSegments.count
+                        assistantVideoSegments.append(video)
+                        assistantPartRefs.append(.video(idx))
+                    }
 
-	                    func appendAssistantThinkingDelta(_ delta: ThinkingDelta) {
-	                        switch delta {
-	                        case .thinking(let textDelta, let signature):
-	                            if textDelta.isEmpty,
-	                               let signature,
+                    func appendAssistantThinkingDelta(_ delta: ThinkingDelta) {
+                        switch delta {
+                        case .thinking(let textDelta, let signature):
+                            if textDelta.isEmpty,
+                               let signature,
                                let last = assistantPartRefs.last,
                                case .thinking(let idx) = last {
                                 if assistantThinkingSegments[idx].signature != signature {
@@ -3503,7 +3506,9 @@ struct ChatView: View {
                             }
 
                             let idx = assistantThinkingSegments.count
-                            assistantThinkingSegments.append(ThinkingBlockAccumulator(text: textDelta, signature: signature))
+                            assistantThinkingSegments.append(
+                                ThinkingBlockAccumulator(text: textDelta, signature: signature)
+                            )
                             assistantPartRefs.append(.thinking(idx))
 
                         case .redacted(let data):
@@ -3511,27 +3516,40 @@ struct ChatView: View {
                         }
                     }
 
+                    func upsertSearchActivity(_ activity: SearchActivity) {
+                        if let existing = searchActivitiesByID[activity.id] {
+                            searchActivitiesByID[activity.id] = existing.merged(with: activity)
+                        } else {
+                            searchActivityOrder.append(activity.id)
+                            searchActivitiesByID[activity.id] = activity
+                        }
+                    }
+
                     func buildAssistantParts() -> [ContentPart] {
                         var parts: [ContentPart] = []
                         parts.reserveCapacity(assistantPartRefs.count)
 
-	                        for ref in assistantPartRefs {
-	                            switch ref {
-	                            case .text(let idx):
-	                                parts.append(.text(assistantTextSegments[idx]))
-	                            case .image(let idx):
-	                                parts.append(.image(assistantImageSegments[idx]))
-	                            case .video(let idx):
-	                                parts.append(.video(assistantVideoSegments[idx]))
-	                            case .thinking(let idx):
-	                                let thinking = assistantThinkingSegments[idx]
-	                                parts.append(.thinking(ThinkingBlock(text: thinking.text, signature: thinking.signature)))
-	                            case .redacted(let redacted):
+                        for ref in assistantPartRefs {
+                            switch ref {
+                            case .text(let idx):
+                                parts.append(.text(assistantTextSegments[idx]))
+                            case .image(let idx):
+                                parts.append(.image(assistantImageSegments[idx]))
+                            case .video(let idx):
+                                parts.append(.video(assistantVideoSegments[idx]))
+                            case .thinking(let idx):
+                                let thinking = assistantThinkingSegments[idx]
+                                parts.append(.thinking(ThinkingBlock(text: thinking.text, signature: thinking.signature)))
+                            case .redacted(let redacted):
                                 parts.append(.redactedThinking(redacted))
                             }
                         }
 
                         return parts
+                    }
+
+                    func buildSearchActivities() -> [SearchActivity] {
+                        searchActivityOrder.compactMap { searchActivitiesByID[$0] }
                     }
 
                     await MainActor.run {
@@ -3584,22 +3602,22 @@ struct ChatView: View {
                         try Task.checkCancellation()
 
                         switch event {
-	                        case .messageStart:
-	                            break
-	                        case .contentDelta(let part):
-	                            if case .text(let delta) = part {
-	                                appendAssistantTextDelta(delta)
-	                                pendingTextDelta.append(delta)
-	                                streamedCharacterCount += delta.count
-	                            } else if case .image(let image) = part {
-	                                appendAssistantImage(image)
-	                            } else if case .video(let video) = part {
-	                                appendAssistantVideo(video)
-	                            }
-	                        case .thinkingDelta(let delta):
-	                            appendAssistantThinkingDelta(delta)
-	                            switch delta {
-	                            case .thinking(let textDelta, _):
+                        case .messageStart:
+                            break
+                        case .contentDelta(let part):
+                            if case .text(let delta) = part {
+                                appendAssistantTextDelta(delta)
+                                pendingTextDelta.append(delta)
+                                streamedCharacterCount += delta.count
+                            } else if case .image(let image) = part {
+                                appendAssistantImage(image)
+                            } else if case .video(let video) = part {
+                                appendAssistantVideo(video)
+                            }
+                        case .thinkingDelta(let delta):
+                            appendAssistantThinkingDelta(delta)
+                            switch delta {
+                            case .thinking(let textDelta, _):
                                 if !textDelta.isEmpty {
                                     pendingThinkingDelta.append(textDelta)
                                     streamedCharacterCount += textDelta.count
@@ -3613,6 +3631,11 @@ struct ChatView: View {
                             break
                         case .toolCallEnd(let call):
                             toolCallsByID[call.id] = call
+                        case .searchActivity(let activity):
+                            upsertSearchActivity(activity)
+                            await MainActor.run {
+                                streamingState.upsertSearchActivity(activity)
+                            }
                         case .messageEnd:
                             break
                         case .error(let err):
@@ -3626,12 +3649,14 @@ struct ChatView: View {
 
                     let toolCalls = Array(toolCallsByID.values)
                     let assistantParts = buildAssistantParts()
-                    if !assistantParts.isEmpty || !toolCalls.isEmpty {
+                    let searchActivities = buildSearchActivities()
+                    if !assistantParts.isEmpty || !toolCalls.isEmpty || !searchActivities.isEmpty {
                         let persistedParts = await AttachmentImportPipeline.persistImagesToDisk(assistantParts)
                         let assistantMessage = Message(
                             role: .assistant,
                             content: persistedParts,
-                            toolCalls: toolCalls.isEmpty ? nil : toolCalls
+                            toolCalls: toolCalls.isEmpty ? nil : toolCalls,
+                            searchActivities: searchActivities.isEmpty ? nil : searchActivities
                         )
                         if let preview = AttachmentImportPipeline.completionNotificationPreview(from: persistedParts) {
                             completionPreview = preview

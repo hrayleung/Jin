@@ -38,5 +38,36 @@ final class StreamingMessageStateTests: XCTestCase {
         XCTAssertEqual(state.textContent, "")
         XCTAssertEqual(state.thinkingContent, "")
     }
-}
 
+    func testUpsertSearchActivityMergesByIDAndIncrementsRenderTick() {
+        let state = StreamingMessageState()
+
+        state.upsertSearchActivity(
+            SearchActivity(
+                id: "ws_1",
+                type: "search",
+                status: .inProgress,
+                arguments: ["query": AnyCodable("swift concurrency")]
+            )
+        )
+        XCTAssertEqual(state.renderTick, 1)
+        XCTAssertEqual(state.searchActivities.count, 1)
+        XCTAssertEqual(state.searchActivities[0].status, .inProgress)
+        XCTAssertEqual(state.searchActivities[0].arguments["query"]?.value as? String, "swift concurrency")
+
+        state.upsertSearchActivity(
+            SearchActivity(
+                id: "ws_1",
+                type: "search",
+                status: .completed,
+                arguments: ["url": AnyCodable("https://example.com")]
+            )
+        )
+
+        XCTAssertEqual(state.renderTick, 2)
+        XCTAssertEqual(state.searchActivities.count, 1)
+        XCTAssertEqual(state.searchActivities[0].status, .completed)
+        XCTAssertEqual(state.searchActivities[0].arguments["query"]?.value as? String, "swift concurrency")
+        XCTAssertEqual(state.searchActivities[0].arguments["url"]?.value as? String, "https://example.com")
+    }
+}

@@ -164,6 +164,11 @@ actor GeminiAdapter: LLMProviderAdapter {
                     }
                 }
 
+                let grounding = candidateGroundingMetadata(in: response.candidates) ?? response.groundingMetadata
+                for event in searchActivities(from: grounding) {
+                    continuation.yield(event)
+                }
+
                 continuation.yield(.messageEnd(usage: usage))
                 continuation.finish()
             }
@@ -215,6 +220,11 @@ actor GeminiAdapter: LLMProviderAdapter {
                                         continuation.yield(streamEvent)
                                     }
                                 }
+                            }
+
+                            let grounding = candidateGroundingMetadata(in: chunk.candidates) ?? chunk.groundingMetadata
+                            for streamEvent in searchActivities(from: grounding) {
+                                continuation.yield(streamEvent)
                             }
 
                         case .done:
@@ -936,6 +946,108 @@ actor GeminiAdapter: LLMProviderAdapter {
         return out
     }
 
+    private func searchActivities(from grounding: GenerateContentResponse.GroundingMetadata?) -> [StreamEvent] {
+        guard let grounding else { return [] }
+        var out: [StreamEvent] = []
+
+        let orderedQueries = mergedGroundingQueries(from: grounding)
+        for (index, query) in orderedQueries.enumerated() {
+            let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { continue }
+            out.append(
+                .searchActivity(
+                    SearchActivity(
+                        id: searchActivityID(prefix: "gemini-search", value: trimmed, index: index),
+                        type: "search",
+                        status: .completed,
+                        arguments: ["query": AnyCodable(trimmed)],
+                        outputIndex: nil,
+                        sequenceNumber: index
+                    )
+                )
+            )
+        }
+
+        var sourceEvents: [StreamEvent] = []
+        var seenSourceURLKeys: Set<String> = []
+        var sourceSequence = 0
+        let sourceSequenceBase = orderedQueries.count
+
+        func appendSourceActivity(url rawURL: String?, title rawTitle: String?, idPrefix: String) {
+            let url = rawURL?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            guard !url.isEmpty else { return }
+            let dedupeKey = url.lowercased()
+            guard seenSourceURLKeys.insert(dedupeKey).inserted else { return }
+
+            var args: [String: AnyCodable] = ["url": AnyCodable(url)]
+            if let title = rawTitle?.trimmingCharacters(in: .whitespacesAndNewlines), !title.isEmpty {
+                args["title"] = AnyCodable(title)
+            }
+
+            sourceEvents.append(
+                .searchActivity(
+                    SearchActivity(
+                        id: searchActivityID(prefix: idPrefix, value: url, index: sourceSequence),
+                        type: "open_page",
+                        status: .completed,
+                        arguments: args,
+                        outputIndex: nil,
+                        sequenceNumber: sourceSequenceBase + sourceSequence
+                    )
+                )
+            )
+            sourceSequence += 1
+        }
+
+        for chunk in (grounding.groundingChunks ?? []) {
+            appendSourceActivity(url: chunk.web?.uri, title: chunk.web?.title, idPrefix: "gemini-open")
+        }
+
+        // Official fallback for custom Search Suggestions UI when chunk URLs are absent.
+        if sourceEvents.isEmpty {
+            for suggestion in GoogleGroundingSearchSuggestionParser.parse(sdkBlob: grounding.searchEntryPoint?.sdkBlob) {
+                appendSourceActivity(url: suggestion.url, title: suggestion.query, idPrefix: "gemini-search-url")
+            }
+        }
+
+        out.append(contentsOf: sourceEvents)
+        return out
+    }
+
+    private func mergedGroundingQueries(from grounding: GenerateContentResponse.GroundingMetadata) -> [String] {
+        var seen: Set<String> = []
+        var out: [String] = []
+
+        for query in (grounding.webSearchQueries ?? []) + (grounding.retrievalQueries ?? []) {
+            let key = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            guard !key.isEmpty, !seen.contains(key) else { continue }
+            seen.insert(key)
+            out.append(query)
+        }
+
+        return out
+    }
+
+    private func candidateGroundingMetadata(in candidates: [GenerateContentResponse.Candidate]?) -> GenerateContentResponse.GroundingMetadata? {
+        guard let candidates else { return nil }
+        for candidate in candidates {
+            if let grounding = candidate.groundingMetadata {
+                return grounding
+            }
+        }
+        return nil
+    }
+
+    private func searchActivityID(prefix: String, value: String, index: Int) -> String {
+        let normalized = value
+            .lowercased()
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: " ", with: "_")
+            .replacingOccurrences(of: "/", with: "_")
+        let suffix = String(normalized.prefix(80))
+        return "\(prefix)_\(index)_\(suffix)"
+    }
+
     private func isCandidateContentFiltered(_ candidate: GenerateContentResponse.Candidate) -> Bool {
         // Gemini can signal blocks via finishReason. Treat safety/blocked as filtered.
         let reason = (candidate.finishReason ?? "").uppercased()
@@ -1053,10 +1165,12 @@ private struct GenerateContentResponse: Codable {
     let candidates: [Candidate]?
     let promptFeedback: PromptFeedback?
     let usageMetadata: UsageMetadata?
+    let groundingMetadata: GroundingMetadata?
 
     struct Candidate: Codable {
         let content: Content?
         let finishReason: String?
+        let groundingMetadata: GroundingMetadata?
     }
 
     struct Content: Codable {
@@ -1097,6 +1211,27 @@ private struct GenerateContentResponse: Codable {
         let candidatesTokenCount: Int?
         let totalTokenCount: Int?
         let cachedContentTokenCount: Int?
+    }
+
+    struct GroundingMetadata: Codable {
+        let webSearchQueries: [String]?
+        let retrievalQueries: [String]?
+        let groundingChunks: [GroundingChunk]?
+        let searchEntryPoint: SearchEntryPoint?
+
+        struct GroundingChunk: Codable {
+            let web: WebChunk?
+
+            struct WebChunk: Codable {
+                let uri: String?
+                let title: String?
+            }
+        }
+
+        struct SearchEntryPoint: Codable {
+            let renderedContent: String?
+            let sdkBlob: String?
+        }
     }
 
     func toUsage() -> Usage? {
