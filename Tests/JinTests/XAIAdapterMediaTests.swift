@@ -1201,6 +1201,156 @@ final class XAIAdapterMediaTests: XCTestCase {
         XCTAssertEqual(finalUsage?.cachedTokens, 6)
     }
 
+    func testXAIResponsesNonStreamingEmitsCitationSearchActivityFromCitations() async throws {
+        let (session, protocolType) = makeMockedURLSession()
+        let networkManager = NetworkManager(urlSession: session)
+
+        let providerConfig = ProviderConfig(
+            id: "x",
+            name: "xAI",
+            type: .xai,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://example.com/responses")
+
+            let response: [String: Any] = [
+                "id": "resp_citations_1",
+                "output": [
+                    [
+                        "type": "message",
+                        "content": [
+                            ["type": "output_text", "text": "Answer with citations."]
+                        ]
+                    ]
+                ],
+                "citations": [
+                    "https://docs.x.ai/docs/models",
+                    "https://x.ai/blog",
+                    "https://docs.x.ai/docs/models",
+                    "ftp://x.ai/ignore"
+                ],
+                "usage": [
+                    "input_tokens": 5,
+                    "output_tokens": 3
+                ]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = XAIAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hi")])],
+            modelID: "grok-4-1212",
+            controls: GenerationControls(),
+            tools: [],
+            streaming: false
+        )
+
+        var events: [StreamEvent] = []
+        for try await event in stream {
+            events.append(event)
+        }
+
+        let citation = try XCTUnwrap(events.compactMap { event -> SearchActivity? in
+            if case .searchActivity(let activity) = event {
+                return activity
+            }
+            return nil
+        }.first)
+
+        XCTAssertEqual(citation.id, "resp_citations_1:citations")
+        XCTAssertEqual(citation.type, "url_citation")
+        XCTAssertEqual(citation.status, .completed)
+        XCTAssertEqual(citationURLs(from: citation), ["https://docs.x.ai/docs/models", "https://x.ai/blog"])
+        XCTAssertEqual(citation.arguments["url"]?.value as? String, "https://docs.x.ai/docs/models")
+
+        let searchIndex = try XCTUnwrap(events.firstIndex { event in
+            if case .searchActivity = event { return true }
+            return false
+        })
+        let messageEndIndex = try XCTUnwrap(events.firstIndex { event in
+            if case .messageEnd = event { return true }
+            return false
+        })
+        XCTAssertLessThan(searchIndex, messageEndIndex)
+    }
+
+    func testXAIResponsesStreamingEmitsCitationSearchActivityOnResponseCompleted() async throws {
+        let (session, protocolType) = makeMockedURLSession()
+        let networkManager = NetworkManager(urlSession: session)
+
+        let providerConfig = ProviderConfig(
+            id: "x",
+            name: "xAI",
+            type: .xai,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://example.com/responses")
+
+            let sse = """
+            event: response.created
+            data: {"type":"response.created","response":{"id":"resp_stream_citations_1"}}
+
+            event: response.output_text.delta
+            data: {"type":"response.output_text.delta","delta":"Answer"}
+
+            event: response.completed
+            data: {"type":"response.completed","response":{"id":"resp_stream_citations_1","citations":["https://docs.x.ai/docs/models","https://x.ai/blog"],"usage":{"input_tokens":7,"output_tokens":4}}}
+
+            data: [DONE]
+
+            """
+
+            return (
+                HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                Data(sse.utf8)
+            )
+        }
+
+        let adapter = XAIAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hi")])],
+            modelID: "grok-4-1212",
+            controls: GenerationControls(),
+            tools: [],
+            streaming: true
+        )
+
+        var events: [StreamEvent] = []
+        for try await event in stream {
+            events.append(event)
+        }
+
+        let citation = try XCTUnwrap(events.compactMap { event -> SearchActivity? in
+            if case .searchActivity(let activity) = event {
+                return activity
+            }
+            return nil
+        }.first(where: { $0.id == "resp_stream_citations_1:citations" }))
+
+        XCTAssertEqual(citation.type, "url_citation")
+        XCTAssertEqual(citation.status, .completed)
+        XCTAssertEqual(citationURLs(from: citation), ["https://docs.x.ai/docs/models", "https://x.ai/blog"])
+        XCTAssertEqual(citation.arguments["url"]?.value as? String, "https://docs.x.ai/docs/models")
+
+        let searchIndex = try XCTUnwrap(events.firstIndex { event in
+            if case .searchActivity = event { return true }
+            return false
+        })
+        let messageEndWithUsageIndex = try XCTUnwrap(events.firstIndex { event in
+            guard case .messageEnd(let usage) = event else { return false }
+            return usage != nil
+        })
+        XCTAssertLessThan(searchIndex, messageEndWithUsageIndex)
+    }
+
     func testXAIModelFetchMapsImageCapabilities() async throws {
         let (session, protocolType) = makeMockedURLSession()
         let networkManager = NetworkManager(urlSession: session)
@@ -1507,6 +1657,21 @@ private func requestBodyData(_ request: URLRequest) -> Data? {
     }
 
     return data
+}
+
+private func citationURLs(from activity: SearchActivity) -> [String] {
+    guard let value = activity.arguments["sources"]?.value else { return [] }
+
+    let rows: [[String: Any]]
+    if let dicts = value as? [[String: Any]] {
+        rows = dicts
+    } else if let array = value as? [Any] {
+        rows = array.compactMap { $0 as? [String: Any] }
+    } else {
+        rows = []
+    }
+
+    return rows.compactMap { $0["url"] as? String }
 }
 
 private func makeIsolatedUserDefaults() -> (UserDefaults, String) {

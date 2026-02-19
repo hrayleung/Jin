@@ -126,6 +126,13 @@ actor XAIAdapter: LLMProviderAdapter {
                     continuation.yield(.contentDelta(.text(text)))
                 }
 
+                if let citationActivity = citationSearchActivity(
+                    citations: response.citations,
+                    responseID: response.id
+                ) {
+                    continuation.yield(.searchActivity(citationActivity))
+                }
+
                 continuation.yield(.messageEnd(usage: response.toUsage()))
                 continuation.finish()
             }
@@ -133,6 +140,8 @@ actor XAIAdapter: LLMProviderAdapter {
 
         let parser = SSEParser()
         let sseStream = await networkManager.streamRequest(request, parser: parser)
+        let streamDecoder = JSONDecoder()
+        streamDecoder.keyDecodingStrategy = .convertFromSnakeCase
 
         return AsyncThrowingStream { continuation in
             Task {
@@ -142,6 +151,16 @@ actor XAIAdapter: LLMProviderAdapter {
                     for try await event in sseStream {
                         switch event {
                         case .event(let type, let data):
+                            if type == "response.completed",
+                               let jsonData = data.data(using: .utf8),
+                               let completed = try? streamDecoder.decode(ResponseCompletedEvent.self, from: jsonData),
+                               let citationActivity = citationSearchActivity(
+                                   citations: completed.response.citations,
+                                   responseID: completed.response.id
+                               ) {
+                                continuation.yield(.searchActivity(citationActivity))
+                            }
+
                             if let streamEvent = try parseSSEEvent(
                                 type: type,
                                 data: data,
@@ -1491,6 +1510,53 @@ actor XAIAdapter: LLMProviderAdapter {
         }
         return str
     }
+
+    private func citationSearchActivity(citations: [String]?, responseID: String) -> SearchActivity? {
+        guard let citations else { return nil }
+        return citationSearchActivity(citations: citations, responseID: Optional(responseID))
+    }
+
+    private func citationSearchActivity(citations: [String]?, responseID: String?) -> SearchActivity? {
+        guard let citations, !citations.isEmpty else { return nil }
+
+        var seen: Set<String> = []
+        var sources: [[String: Any]] = []
+        sources.reserveCapacity(citations.count)
+
+        for raw in citations {
+            let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { continue }
+            guard let url = URL(string: trimmed),
+                  let scheme = url.scheme?.lowercased(),
+                  scheme == "http" || scheme == "https" else {
+                continue
+            }
+
+            let canonical = url.absoluteString
+            let dedupeKey = canonical.lowercased()
+            guard seen.insert(dedupeKey).inserted else { continue }
+            sources.append([
+                "type": "url_citation",
+                "url": canonical
+            ])
+        }
+
+        guard !sources.isEmpty else { return nil }
+
+        var arguments: [String: AnyCodable] = [
+            "sources": AnyCodable(sources)
+        ]
+        if let firstURL = sources.first?["url"] as? String {
+            arguments["url"] = AnyCodable(firstURL)
+        }
+
+        return SearchActivity(
+            id: "\(responseID ?? UUID().uuidString):citations",
+            type: "url_citation",
+            status: .completed,
+            arguments: arguments
+        )
+    }
 }
 
 private struct FunctionCallState {
@@ -1560,6 +1626,8 @@ private struct ResponseCompletedEvent: Codable {
     let response: Response
 
     struct Response: Codable {
+        let id: String?
+        let citations: [String]?
         let usage: UsageInfo
 
         struct UsageInfo: Codable {
@@ -1708,6 +1776,7 @@ private struct XAIVideoResult: Codable {
 private struct ResponsesAPIResponse: Codable {
     let id: String
     let output: [OutputItem]
+    let citations: [String]?
     let usage: UsageInfo?
 
     struct OutputItem: Codable {
