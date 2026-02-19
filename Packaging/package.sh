@@ -31,7 +31,7 @@ for bundle in "$ROOT/.build/release"/*.bundle "$ROOT/.build/"*-apple-macosx/rele
 done
 
 ARCHS=(arm64 x86_64)
-BUILD_OUTPUT_DIRS=("$ROOT/.build/release")
+BUILD_OUTPUT_DIRS=()
 ARCH_BINARIES=()
 
 echo "Building (Release) for Apple Silicon + Intel…"
@@ -73,6 +73,7 @@ for bundle_dir in "${BUILD_OUTPUT_DIRS[@]}"; do
   for bundle in "$bundle_dir"/*.bundle; do
     bundle_name="$(basename "$bundle")"
     target_bundle="$APP_BUNDLE/Contents/Resources/$bundle_name"
+    # SwiftPM resource bundles are architecture-independent; first copy wins.
     if [[ -e "$target_bundle" ]]; then
       continue
     fi
