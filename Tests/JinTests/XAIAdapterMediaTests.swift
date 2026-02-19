@@ -1351,6 +1351,126 @@ final class XAIAdapterMediaTests: XCTestCase {
         XCTAssertLessThan(searchIndex, messageEndWithUsageIndex)
     }
 
+    func testXAIResponsesNonStreamingFallsBackToMarkdownCitationLinksWhenCitationsMissing() async throws {
+        let (session, protocolType) = makeMockedURLSession()
+        let networkManager = NetworkManager(urlSession: session)
+
+        let providerConfig = ProviderConfig(
+            id: "x",
+            name: "xAI",
+            type: .xai,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://example.com/responses")
+
+            let response: [String: Any] = [
+                "id": "resp_markdown_citations_1",
+                "output": [
+                    [
+                        "type": "message",
+                        "content": [
+                            [
+                                "type": "output_text",
+                                "text": "总结：[[1]](https://docs.x.ai/docs/models) 和 [2](https://x.ai/blog) 有更新。"
+                            ]
+                        ]
+                    ]
+                ],
+                "usage": [
+                    "input_tokens": 4,
+                    "output_tokens": 2
+                ]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = XAIAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hi")])],
+            modelID: "grok-4-1212",
+            controls: GenerationControls(),
+            tools: [],
+            streaming: false
+        )
+
+        var searchEvents: [SearchActivity] = []
+        for try await event in stream {
+            if case .searchActivity(let activity) = event {
+                searchEvents.append(activity)
+            }
+        }
+
+        let citation = try XCTUnwrap(searchEvents.first)
+        XCTAssertEqual(citation.id, "resp_markdown_citations_1:citations")
+        XCTAssertEqual(citationURLs(from: citation), ["https://docs.x.ai/docs/models", "https://x.ai/blog"])
+    }
+
+    func testXAIResponsesStreamingFallsBackToMarkdownCitationLinksWhenCitationsMissing() async throws {
+        let (session, protocolType) = makeMockedURLSession()
+        let networkManager = NetworkManager(urlSession: session)
+
+        let providerConfig = ProviderConfig(
+            id: "x",
+            name: "xAI",
+            type: .xai,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://example.com/responses")
+
+            let sse = """
+            event: response.created
+            data: {"type":"response.created","response":{"id":"resp_stream_markdown_1"}}
+
+            event: response.output_text.delta
+            data: {"type":"response.output_text.delta","delta":"结果见 [[1]](https://docs.x.ai/docs/models) "}
+
+            event: response.output_text.delta
+            data: {"type":"response.output_text.delta","delta":"和 [2](https://x.ai/blog)"}
+
+            event: response.completed
+            data: {"type":"response.completed","response":{"id":"resp_stream_markdown_1","usage":{"input_tokens":6,"output_tokens":3}}}
+
+            data: [DONE]
+
+            """
+
+            return (
+                HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                Data(sse.utf8)
+            )
+        }
+
+        let adapter = XAIAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hi")])],
+            modelID: "grok-4-1212",
+            controls: GenerationControls(),
+            tools: [],
+            streaming: true
+        )
+
+        var events: [StreamEvent] = []
+        for try await event in stream {
+            events.append(event)
+        }
+
+        let citation = try XCTUnwrap(events.compactMap { event -> SearchActivity? in
+            if case .searchActivity(let activity) = event {
+                return activity
+            }
+            return nil
+        }.first(where: { $0.id == "resp_stream_markdown_1:citations" }))
+
+        XCTAssertEqual(citationURLs(from: citation), ["https://docs.x.ai/docs/models", "https://x.ai/blog"])
+    }
+
     func testXAIModelFetchMapsImageCapabilities() async throws {
         let (session, protocolType) = makeMockedURLSession()
         let networkManager = NetworkManager(urlSession: session)

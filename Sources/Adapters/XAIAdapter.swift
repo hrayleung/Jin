@@ -126,8 +126,9 @@ actor XAIAdapter: LLMProviderAdapter {
                     continuation.yield(.contentDelta(.text(text)))
                 }
 
+                let outputText = response.outputTextParts.joined(separator: "\n")
                 if let citationActivity = citationSearchActivity(
-                    citations: response.citations,
+                    citations: citationCandidates(citations: response.citations, fallbackText: outputText),
                     responseID: response.id
                 ) {
                     continuation.yield(.searchActivity(citationActivity))
@@ -147,6 +148,7 @@ actor XAIAdapter: LLMProviderAdapter {
             Task {
                 do {
                     var functionCallsByItemID: [String: FunctionCallState] = [:]
+                    var streamedOutputText = ""
 
                     for try await event in sseStream {
                         switch event {
@@ -155,7 +157,10 @@ actor XAIAdapter: LLMProviderAdapter {
                                let jsonData = data.data(using: .utf8),
                                let completed = try? streamDecoder.decode(ResponseCompletedEvent.self, from: jsonData),
                                let citationActivity = citationSearchActivity(
-                                   citations: completed.response.citations,
+                                   citations: citationCandidates(
+                                       citations: completed.response.citations,
+                                       fallbackText: streamedOutputText
+                                   ),
                                    responseID: completed.response.id
                                ) {
                                 continuation.yield(.searchActivity(citationActivity))
@@ -166,6 +171,9 @@ actor XAIAdapter: LLMProviderAdapter {
                                 data: data,
                                 functionCallsByItemID: &functionCallsByItemID
                             ) {
+                                if case .contentDelta(.text(let delta)) = streamEvent {
+                                    streamedOutputText.append(delta)
+                                }
                                 continuation.yield(streamEvent)
                             }
                         case .done:
@@ -1514,6 +1522,48 @@ actor XAIAdapter: LLMProviderAdapter {
     private func citationSearchActivity(citations: [String]?, responseID: String) -> SearchActivity? {
         guard let citations else { return nil }
         return citationSearchActivity(citations: citations, responseID: Optional(responseID))
+    }
+
+    private func citationCandidates(citations: [String]?, fallbackText: String?) -> [String]? {
+        if let citations, !citations.isEmpty {
+            return citations
+        }
+
+        guard let fallbackText, !fallbackText.isEmpty else {
+            return nil
+        }
+
+        let urls = markdownCitationURLs(from: fallbackText)
+        return urls.isEmpty ? nil : urls
+    }
+
+    private func markdownCitationURLs(from text: String) -> [String] {
+        guard !text.isEmpty else { return [] }
+
+        let pattern = #"\[\[\d+\]\]\((https?://[^)\s]+)\)|\[\d+\]\((https?://[^)\s]+)\)"#
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else {
+            return []
+        }
+
+        let range = NSRange(text.startIndex..<text.endIndex, in: text)
+        var urls: [String] = []
+        urls.reserveCapacity(4)
+
+        regex.enumerateMatches(in: text, options: [], range: range) { match, _, _ in
+            guard let match else { return }
+
+            for group in [1, 2] {
+                let groupRange = match.range(at: group)
+                guard groupRange.location != NSNotFound,
+                      let swiftRange = Range(groupRange, in: text) else {
+                    continue
+                }
+                urls.append(String(text[swiftRange]))
+                break
+            }
+        }
+
+        return urls
     }
 
     private func citationSearchActivity(citations: [String]?, responseID: String?) -> SearchActivity? {
