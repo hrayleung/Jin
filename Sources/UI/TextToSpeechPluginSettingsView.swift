@@ -42,11 +42,12 @@ struct TextToSpeechPluginSettingsView: View {
     @State private var voicePreviewPlayer: AVAudioPlayer?
     @State private var isPlayingVoicePreview = false
 
-    private var provider: TextToSpeechProvider {
-        TextToSpeechProvider(rawValue: providerRaw) ?? .openai
+    private var provider: TextToSpeechProvider? {
+        TextToSpeechProvider(rawValue: providerRaw)
     }
 
-    private var currentAPIKeyPreferenceKey: String {
+    private var currentAPIKeyPreferenceKey: String? {
+        guard let provider else { return nil }
         switch provider {
         case .elevenlabs:
             return AppPreferenceKeys.ttsElevenLabsAPIKey
@@ -154,140 +155,148 @@ struct TextToSpeechPluginSettingsView: View {
 
     @ViewBuilder
     private var providerSpecificSettings: some View {
-        switch provider {
-        case .openai:
-            Section("OpenAI") {
-                TextField("API Base URL", text: $openAIBaseURL)
-                    .font(.system(.body, design: .monospaced))
-                    .textFieldStyle(.roundedBorder)
-
-                TextField("Model", text: $openAIModel)
-                    .font(.system(.body, design: .monospaced))
-                    .textFieldStyle(.roundedBorder)
-
-                Picker("Voice", selection: $openAIVoice) {
-                    ForEach(Self.openAIVoices, id: \.self) { voice in
-                        Text(voice).tag(voice)
-                    }
-                }
-                .pickerStyle(.menu)
-
-                Picker("Format", selection: $openAIResponseFormat) {
-                    ForEach(Self.openAIResponseFormats, id: \.self) { format in
-                        Text(format).tag(format)
-                    }
-                }
-                .pickerStyle(.menu)
-
-                HStack {
-                    Text("Speed")
-                    Slider(value: $openAISpeed, in: 0.25...4.0, step: 0.05)
-                    Text(openAISpeed.formatted(.number.precision(.fractionLength(2))))
+        if let provider {
+            switch provider {
+            case .openai:
+                Section("OpenAI") {
+                    TextField("API Base URL", text: $openAIBaseURL)
                         .font(.system(.body, design: .monospaced))
-                        .foregroundStyle(.secondary)
-                        .frame(width: 64, alignment: .trailing)
+                        .textFieldStyle(.roundedBorder)
+
+                    TextField("Model", text: $openAIModel)
+                        .font(.system(.body, design: .monospaced))
+                        .textFieldStyle(.roundedBorder)
+
+                    Picker("Voice", selection: $openAIVoice) {
+                        ForEach(Self.openAIVoices, id: \.self) { voice in
+                            Text(voice).tag(voice)
+                        }
+                    }
+                    .pickerStyle(.menu)
+
+                    Picker("Format", selection: $openAIResponseFormat) {
+                        ForEach(Self.openAIResponseFormats, id: \.self) { format in
+                            Text(format).tag(format)
+                        }
+                    }
+                    .pickerStyle(.menu)
+
+                    HStack {
+                        Text("Speed")
+                        Slider(value: $openAISpeed, in: 0.25...4.0, step: 0.05)
+                        Text(openAISpeed.formatted(.number.precision(.fractionLength(2))))
+                            .font(.system(.body, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                            .frame(width: 64, alignment: .trailing)
+                    }
+
+                    TextField("Instructions (optional)", text: $openAIInstructions)
                 }
 
-                TextField("Instructions (optional)", text: $openAIInstructions)
-            }
+            case .groq:
+                Section("Groq") {
+                    TextField("API Base URL", text: $groqBaseURL)
+                        .font(.system(.body, design: .monospaced))
+                        .textFieldStyle(.roundedBorder)
 
-        case .groq:
-            Section("Groq") {
-                TextField("API Base URL", text: $groqBaseURL)
-                    .font(.system(.body, design: .monospaced))
-                    .textFieldStyle(.roundedBorder)
+                    TextField("Model", text: $groqModel)
+                        .font(.system(.body, design: .monospaced))
+                        .textFieldStyle(.roundedBorder)
+                        .help("Orpheus models: canopylabs/orpheus-v1-english, canopylabs/orpheus-arabic-saudi")
+                        .onChange(of: groqModel) { _, _ in
+                            normalizeGroqVoiceIfNeeded()
+                        }
 
-                TextField("Model", text: $groqModel)
-                    .font(.system(.body, design: .monospaced))
-                    .textFieldStyle(.roundedBorder)
-                    .help("Orpheus models: canopylabs/orpheus-v1-english, canopylabs/orpheus-arabic-saudi")
-                    .onChange(of: groqModel) { _, _ in
+                    Picker("Voice", selection: $groqVoice) {
+                        ForEach(groqVoiceChoices, id: \.self) { voice in
+                            Text(voice).tag(voice)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .onAppear {
                         normalizeGroqVoiceIfNeeded()
                     }
 
-                Picker("Voice", selection: $groqVoice) {
-                    ForEach(groqVoiceChoices, id: \.self) { voice in
-                        Text(voice).tag(voice)
+                    Picker("Format", selection: $groqResponseFormat) {
+                        Text("wav").tag("wav")
                     }
-                }
-                .pickerStyle(.menu)
-                .onAppear {
-                    normalizeGroqVoiceIfNeeded()
-                }
+                    .pickerStyle(.menu)
 
-                Picker("Format", selection: $groqResponseFormat) {
-                    Text("wav").tag("wav")
-                }
-                .pickerStyle(.menu)
+                    Text("Note: Orpheus limits each request to 200 characters. Jin will chunk long messages automatically.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
 
-                Text("Note: Orpheus limits each request to 200 characters. Jin will chunk long messages automatically.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-
-                Text("Tip: Orpheus supports vocal directions like `[cheerful]` or `[sighs]` inline in your text.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
-        case .elevenlabs:
-            Section("ElevenLabs") {
-                TextField("API Base URL", text: $elevenLabsBaseURL)
-                    .font(.system(.body, design: .monospaced))
-                    .textFieldStyle(.roundedBorder)
-
-                TextField("Model", text: $elevenLabsModelID)
-                    .font(.system(.body, design: .monospaced))
-                    .textFieldStyle(.roundedBorder)
-
-                if !elevenLabsVoices.isEmpty {
-                    HStack {
-                        Picker("Voice", selection: $elevenLabsVoiceID) {
-                            ForEach(elevenLabsVoices) { voice in
-                                Text(voice.name).tag(voice.voiceId)
-                            }
-                        }
-                        .pickerStyle(.menu)
-                        .onChange(of: elevenLabsVoiceID) { _, _ in
-                            NotificationCenter.default.post(name: .pluginCredentialsDidChange, object: nil)
-                        }
-
-                        Button {
-                            Task { await playSelectedVoicePreview() }
-                        } label: {
-                            Image(systemName: isPlayingVoicePreview ? "stop.circle" : "play.circle")
-                                .font(.system(size: 14, weight: .semibold))
-                        }
-                        .buttonStyle(.plain)
-                        .help("Play voice preview")
-                        .disabled(selectedElevenLabsVoicePreviewURL == nil)
-                    }
-                } else {
-                    Text("No voices loaded. Enter your API key and click “Test Connection” to fetch voices.")
+                    Text("Tip: Orpheus supports vocal directions like `[cheerful]` or `[sighs]` inline in your text.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
 
-                Picker("Output Format", selection: $elevenLabsOutputFormat) {
-                    ForEach(Self.elevenLabsOutputFormats, id: \.self) { format in
-                        Text(format).tag(format)
+            case .elevenlabs:
+                Section("ElevenLabs") {
+                    TextField("API Base URL", text: $elevenLabsBaseURL)
+                        .font(.system(.body, design: .monospaced))
+                        .textFieldStyle(.roundedBorder)
+
+                    TextField("Model", text: $elevenLabsModelID)
+                        .font(.system(.body, design: .monospaced))
+                        .textFieldStyle(.roundedBorder)
+
+                    if !elevenLabsVoices.isEmpty {
+                        HStack {
+                            Picker("Voice", selection: $elevenLabsVoiceID) {
+                                ForEach(elevenLabsVoices) { voice in
+                                    Text(voice.name).tag(voice.voiceId)
+                                }
+                            }
+                            .pickerStyle(.menu)
+                            .onChange(of: elevenLabsVoiceID) { _, _ in
+                                NotificationCenter.default.post(name: .pluginCredentialsDidChange, object: nil)
+                            }
+
+                            Button {
+                                Task { await playSelectedVoicePreview() }
+                            } label: {
+                                Image(systemName: isPlayingVoicePreview ? "stop.circle" : "play.circle")
+                                    .font(.system(size: 14, weight: .semibold))
+                            }
+                            .buttonStyle(.plain)
+                            .help("Play voice preview")
+                            .disabled(selectedElevenLabsVoicePreviewURL == nil)
+                        }
+                    } else {
+                        Text("No voices loaded. Enter your API key and click “Test Connection” to fetch voices.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Picker("Output Format", selection: $elevenLabsOutputFormat) {
+                        ForEach(Self.elevenLabsOutputFormats, id: \.self) { format in
+                            Text(format).tag(format)
+                        }
+                    }
+                    .pickerStyle(.menu)
+
+                    Stepper("Optimize latency: \(elevenLabsOptimizeStreamingLatency)", value: $elevenLabsOptimizeStreamingLatency, in: 0...4)
+                        .help("Higher values reduce latency but may lower audio quality.")
+
+                    Toggle("Enable logging", isOn: $elevenLabsEnableLogging)
+
+                    DisclosureGroup("Voice Settings") {
+                        VStack(alignment: .leading, spacing: 12) {
+                            sliderRow(title: "Stability", value: $elevenLabsStability)
+                            sliderRow(title: "Similarity", value: $elevenLabsSimilarityBoost)
+                            sliderRow(title: "Style", value: $elevenLabsStyle)
+                            Toggle("Use speaker boost", isOn: $elevenLabsUseSpeakerBoost)
+                        }
+                        .padding(.top, 6)
                     }
                 }
-                .pickerStyle(.menu)
-
-                Stepper("Optimize latency: \(elevenLabsOptimizeStreamingLatency)", value: $elevenLabsOptimizeStreamingLatency, in: 0...4)
-                    .help("Higher values reduce latency but may lower audio quality.")
-
-                Toggle("Enable logging", isOn: $elevenLabsEnableLogging)
-
-                DisclosureGroup("Voice Settings") {
-                    VStack(alignment: .leading, spacing: 12) {
-                        sliderRow(title: "Stability", value: $elevenLabsStability)
-                        sliderRow(title: "Similarity", value: $elevenLabsSimilarityBoost)
-                        sliderRow(title: "Style", value: $elevenLabsStyle)
-                        Toggle("Use speaker boost", isOn: $elevenLabsUseSpeakerBoost)
-                    }
-                    .padding(.top, 6)
-                }
+            }
+        } else {
+            Section("Provider Error") {
+                Text(providerErrorMessage(for: providerRaw))
+                    .font(.caption)
+                    .foregroundStyle(.red)
             }
         }
     }
@@ -326,7 +335,17 @@ struct TextToSpeechPluginSettingsView: View {
     }
 
     private func loadExistingKey() async {
-        let existing = UserDefaults.standard.string(forKey: currentAPIKeyPreferenceKey) ?? ""
+        guard let preferenceKey = currentAPIKeyPreferenceKey else {
+            await MainActor.run {
+                apiKey = ""
+                lastPersistedAPIKey = ""
+                statusMessage = providerErrorMessage(for: providerRaw)
+                statusIsError = true
+            }
+            return
+        }
+
+        let existing = UserDefaults.standard.string(forKey: preferenceKey) ?? ""
         await MainActor.run {
             apiKey = existing
             lastPersistedAPIKey = existing.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -338,7 +357,13 @@ struct TextToSpeechPluginSettingsView: View {
         statusMessage = nil
         statusIsError = false
 
-        UserDefaults.standard.removeObject(forKey: currentAPIKeyPreferenceKey)
+        guard let preferenceKey = currentAPIKeyPreferenceKey else {
+            statusMessage = providerErrorMessage(for: providerRaw)
+            statusIsError = true
+            return
+        }
+
+        UserDefaults.standard.removeObject(forKey: preferenceKey)
         lastPersistedAPIKey = ""
         apiKey = ""
         statusMessage = "Cleared."
@@ -351,7 +376,11 @@ struct TextToSpeechPluginSettingsView: View {
         autoSaveTask?.cancel()
 
         let key = trimmedAPIKey
-        let preferenceKey = currentAPIKeyPreferenceKey
+        guard let preferenceKey = currentAPIKeyPreferenceKey else {
+            statusMessage = providerErrorMessage(for: providerRaw)
+            statusIsError = true
+            return
+        }
         guard key != lastPersistedAPIKey else { return }
 
         autoSaveTask = Task {
@@ -364,7 +393,11 @@ struct TextToSpeechPluginSettingsView: View {
     }
 
     private func persistAPIKeyIfNeeded(forProviderRaw rawValue: String, showSavedStatus: Bool) {
-        let preferenceKey = apiKeyPreferenceKey(for: rawValue)
+        guard let preferenceKey = apiKeyPreferenceKey(for: rawValue) else {
+            statusMessage = providerErrorMessage(for: rawValue)
+            statusIsError = true
+            return
+        }
         let key = trimmedAPIKey
         persistAPIKey(key, forPreferenceKey: preferenceKey, showSavedStatus: showSavedStatus)
     }
@@ -399,8 +432,8 @@ struct TextToSpeechPluginSettingsView: View {
         NotificationCenter.default.post(name: .pluginCredentialsDidChange, object: nil)
     }
 
-    private func apiKeyPreferenceKey(for rawValue: String) -> String {
-        let resolved = TextToSpeechProvider(rawValue: rawValue) ?? .openai
+    private func apiKeyPreferenceKey(for rawValue: String) -> String? {
+        guard let resolved = TextToSpeechProvider(rawValue: rawValue) else { return nil }
         switch resolved {
         case .elevenlabs:
             return AppPreferenceKeys.ttsElevenLabsAPIKey
@@ -411,8 +444,21 @@ struct TextToSpeechPluginSettingsView: View {
         }
     }
 
+    private func providerErrorMessage(for rawValue: String) -> String {
+        let trimmed = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty {
+            return SpeechExtensionError.textToSpeechProviderNotConfigured.localizedDescription
+        }
+        return SpeechExtensionError.invalidTextToSpeechProvider(trimmed).localizedDescription
+    }
+
     private func testConnection() {
         guard !trimmedAPIKey.isEmpty else { return }
+        guard let provider else {
+            statusMessage = providerErrorMessage(for: providerRaw)
+            statusIsError = true
+            return
+        }
 
         statusMessage = nil
         statusIsError = false

@@ -7,17 +7,8 @@ enum SpeechPluginConfigFactory {
     // MARK: - Speech-to-Text
 
     static func speechToTextConfig(defaults: UserDefaults = .standard) throws -> SpeechToTextManager.TranscriptionConfig {
-        let provider = SpeechToTextProvider(
-            rawValue: defaults.string(forKey: AppPreferenceKeys.sttProvider) ?? SpeechToTextProvider.groq.rawValue
-        ) ?? .groq
-
-        let apiKeyPreferenceKey: String = {
-            switch provider {
-            case .openai: return AppPreferenceKeys.sttOpenAIAPIKey
-            case .groq:   return AppPreferenceKeys.sttGroqAPIKey
-            case .mistral: return AppPreferenceKeys.sttMistralAPIKey
-            }
-        }()
+        let provider = try resolvedSpeechToTextProvider(defaults: defaults)
+        let apiKeyPreferenceKey = speechToTextAPIKeyPreferenceKey(for: provider)
 
         let apiKey = trimmed(defaults.string(forKey: apiKeyPreferenceKey))
         guard !apiKey.isEmpty else { throw SpeechExtensionError.speechToTextNotConfigured }
@@ -113,17 +104,8 @@ enum SpeechPluginConfigFactory {
     // MARK: - Text-to-Speech
 
     static func textToSpeechConfig(defaults: UserDefaults = .standard) throws -> TextToSpeechPlaybackManager.SynthesisConfig {
-        let provider = TextToSpeechProvider(
-            rawValue: defaults.string(forKey: AppPreferenceKeys.ttsProvider) ?? TextToSpeechProvider.openai.rawValue
-        ) ?? .openai
-
-        let apiKeyPreferenceKey: String = {
-            switch provider {
-            case .elevenlabs: return AppPreferenceKeys.ttsElevenLabsAPIKey
-            case .openai:     return AppPreferenceKeys.ttsOpenAIAPIKey
-            case .groq:       return AppPreferenceKeys.ttsGroqAPIKey
-            }
-        }()
+        let provider = try resolvedTextToSpeechProvider(defaults: defaults)
+        let apiKeyPreferenceKey = textToSpeechAPIKeyPreferenceKey(for: provider)
 
         let apiKey = trimmed(defaults.string(forKey: apiKeyPreferenceKey))
         guard !apiKey.isEmpty else { throw SpeechExtensionError.textToSpeechNotConfigured }
@@ -195,13 +177,15 @@ enum SpeechPluginConfigFactory {
 
     // MARK: - Helpers
 
-    static func currentTTSProvider(defaults: UserDefaults = .standard) -> TextToSpeechProvider {
-        TextToSpeechProvider(
-            rawValue: defaults.string(forKey: AppPreferenceKeys.ttsProvider) ?? TextToSpeechProvider.openai.rawValue
-        ) ?? .openai
+    static func currentTTSProvider(defaults: UserDefaults = .standard) throws -> TextToSpeechProvider {
+        try resolvedTextToSpeechProvider(defaults: defaults)
     }
 
-    static func textToSpeechErrorMessage(_ error: Error, provider: TextToSpeechProvider) -> String {
+    static func currentSTTProvider(defaults: UserDefaults = .standard) throws -> SpeechToTextProvider {
+        try resolvedSpeechToTextProvider(defaults: defaults)
+    }
+
+    static func textToSpeechErrorMessage(_ error: Error, provider: TextToSpeechProvider?) -> String {
         if let llmError = error as? LLMError, case .authenticationFailed = llmError {
             if provider == .elevenlabs {
                 return "\(llmError.localizedDescription)\n\nIf your ElevenLabs key uses endpoint scopes, enable access to /v1/text-to-speech."
@@ -233,5 +217,43 @@ enum SpeechPluginConfigFactory {
     private static func resolvedTimestampGranularities(_ json: String?) -> [String]? {
         let timestamps = AppPreferences.decodeStringArrayJSON(json ?? "[]")
         return timestamps.isEmpty ? nil : timestamps
+    }
+
+    private static func resolvedSpeechToTextProvider(defaults: UserDefaults) throws -> SpeechToTextProvider {
+        let raw = trimmed(defaults.string(forKey: AppPreferenceKeys.sttProvider))
+        guard !raw.isEmpty else {
+            throw SpeechExtensionError.speechToTextProviderNotConfigured
+        }
+        guard let provider = SpeechToTextProvider(rawValue: raw) else {
+            throw SpeechExtensionError.invalidSpeechToTextProvider(raw)
+        }
+        return provider
+    }
+
+    private static func resolvedTextToSpeechProvider(defaults: UserDefaults) throws -> TextToSpeechProvider {
+        let raw = trimmed(defaults.string(forKey: AppPreferenceKeys.ttsProvider))
+        guard !raw.isEmpty else {
+            throw SpeechExtensionError.textToSpeechProviderNotConfigured
+        }
+        guard let provider = TextToSpeechProvider(rawValue: raw) else {
+            throw SpeechExtensionError.invalidTextToSpeechProvider(raw)
+        }
+        return provider
+    }
+
+    private static func speechToTextAPIKeyPreferenceKey(for provider: SpeechToTextProvider) -> String {
+        switch provider {
+        case .openai: return AppPreferenceKeys.sttOpenAIAPIKey
+        case .groq: return AppPreferenceKeys.sttGroqAPIKey
+        case .mistral: return AppPreferenceKeys.sttMistralAPIKey
+        }
+    }
+
+    private static func textToSpeechAPIKeyPreferenceKey(for provider: TextToSpeechProvider) -> String {
+        switch provider {
+        case .elevenlabs: return AppPreferenceKeys.ttsElevenLabsAPIKey
+        case .openai: return AppPreferenceKeys.ttsOpenAIAPIKey
+        case .groq: return AppPreferenceKeys.ttsGroqAPIKey
+        }
     }
 }
