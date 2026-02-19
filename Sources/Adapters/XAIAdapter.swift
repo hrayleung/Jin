@@ -126,6 +126,14 @@ actor XAIAdapter: LLMProviderAdapter {
                     continuation.yield(.contentDelta(.text(text)))
                 }
 
+                let outputText = response.outputTextParts.joined(separator: "\n")
+                if let citationActivity = citationSearchActivity(
+                    citations: citationCandidates(citations: response.citations, fallbackText: outputText),
+                    responseID: response.id
+                ) {
+                    continuation.yield(.searchActivity(citationActivity))
+                }
+
                 continuation.yield(.messageEnd(usage: response.toUsage()))
                 continuation.finish()
             }
@@ -133,20 +141,39 @@ actor XAIAdapter: LLMProviderAdapter {
 
         let parser = SSEParser()
         let sseStream = await networkManager.streamRequest(request, parser: parser)
+        let streamDecoder = JSONDecoder()
+        streamDecoder.keyDecodingStrategy = .convertFromSnakeCase
 
         return AsyncThrowingStream { continuation in
             Task {
                 do {
                     var functionCallsByItemID: [String: FunctionCallState] = [:]
+                    var streamedOutputText = ""
 
                     for try await event in sseStream {
                         switch event {
                         case .event(let type, let data):
+                            if type == "response.completed",
+                               let jsonData = data.data(using: .utf8),
+                               let completed = try? streamDecoder.decode(ResponseCompletedEvent.self, from: jsonData),
+                               let citationActivity = citationSearchActivity(
+                                   citations: citationCandidates(
+                                       citations: completed.response.citations,
+                                       fallbackText: streamedOutputText
+                                   ),
+                                   responseID: completed.response.id
+                               ) {
+                                continuation.yield(.searchActivity(citationActivity))
+                            }
+
                             if let streamEvent = try parseSSEEvent(
                                 type: type,
                                 data: data,
                                 functionCallsByItemID: &functionCallsByItemID
                             ) {
+                                if case .contentDelta(.text(let delta)) = streamEvent {
+                                    streamedOutputText.append(delta)
+                                }
                                 continuation.yield(streamEvent)
                             }
                         case .done:
@@ -1491,6 +1518,95 @@ actor XAIAdapter: LLMProviderAdapter {
         }
         return str
     }
+
+    private func citationSearchActivity(citations: [String]?, responseID: String) -> SearchActivity? {
+        guard let citations else { return nil }
+        return citationSearchActivity(citations: citations, responseID: Optional(responseID))
+    }
+
+    private func citationCandidates(citations: [String]?, fallbackText: String?) -> [String]? {
+        if let citations, !citations.isEmpty {
+            return citations
+        }
+
+        guard let fallbackText, !fallbackText.isEmpty else {
+            return nil
+        }
+
+        let urls = markdownCitationURLs(from: fallbackText)
+        return urls.isEmpty ? nil : urls
+    }
+
+    private func markdownCitationURLs(from text: String) -> [String] {
+        guard !text.isEmpty else { return [] }
+
+        let pattern = #"\[\[\d+\]\]\((https?://[^)\s]+)\)|\[\d+\]\((https?://[^)\s]+)\)"#
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else {
+            return []
+        }
+
+        let range = NSRange(text.startIndex..<text.endIndex, in: text)
+        var urls: [String] = []
+        urls.reserveCapacity(4)
+
+        regex.enumerateMatches(in: text, options: [], range: range) { match, _, _ in
+            guard let match else { return }
+
+            for group in [1, 2] {
+                let groupRange = match.range(at: group)
+                guard groupRange.location != NSNotFound,
+                      let swiftRange = Range(groupRange, in: text) else {
+                    continue
+                }
+                urls.append(String(text[swiftRange]))
+                break
+            }
+        }
+
+        return urls
+    }
+
+    private func citationSearchActivity(citations: [String]?, responseID: String?) -> SearchActivity? {
+        guard let citations, !citations.isEmpty else { return nil }
+
+        var seen: Set<String> = []
+        var sources: [[String: Any]] = []
+        sources.reserveCapacity(citations.count)
+
+        for raw in citations {
+            let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { continue }
+            guard let url = URL(string: trimmed),
+                  let scheme = url.scheme?.lowercased(),
+                  scheme == "http" || scheme == "https" else {
+                continue
+            }
+
+            let canonical = url.absoluteString
+            let dedupeKey = canonical.lowercased()
+            guard seen.insert(dedupeKey).inserted else { continue }
+            sources.append([
+                "type": "url_citation",
+                "url": canonical
+            ])
+        }
+
+        guard !sources.isEmpty else { return nil }
+
+        var arguments: [String: AnyCodable] = [
+            "sources": AnyCodable(sources)
+        ]
+        if let firstURL = sources.first?["url"] as? String {
+            arguments["url"] = AnyCodable(firstURL)
+        }
+
+        return SearchActivity(
+            id: "\(responseID ?? UUID().uuidString):citations",
+            type: "url_citation",
+            status: .completed,
+            arguments: arguments
+        )
+    }
 }
 
 private struct FunctionCallState {
@@ -1560,6 +1676,8 @@ private struct ResponseCompletedEvent: Codable {
     let response: Response
 
     struct Response: Codable {
+        let id: String?
+        let citations: [String]?
         let usage: UsageInfo
 
         struct UsageInfo: Codable {
@@ -1708,6 +1826,7 @@ private struct XAIVideoResult: Codable {
 private struct ResponsesAPIResponse: Codable {
     let id: String
     let output: [OutputItem]
+    let citations: [String]?
     let usage: UsageInfo?
 
     struct OutputItem: Codable {
