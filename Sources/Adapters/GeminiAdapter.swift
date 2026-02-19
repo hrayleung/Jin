@@ -968,30 +968,49 @@ actor GeminiAdapter: LLMProviderAdapter {
             )
         }
 
-        for (index, chunk) in (grounding.groundingChunks ?? []).enumerated() {
-            guard let web = chunk.web else { continue }
-            let url = web.uri?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-            guard !url.isEmpty else { continue }
+        var sourceEvents: [StreamEvent] = []
+        var seenSourceURLKeys: Set<String> = []
+        var sourceSequence = 0
+        let sourceSequenceBase = orderedQueries.count
+
+        func appendSourceActivity(url rawURL: String?, title rawTitle: String?, idPrefix: String) {
+            let url = rawURL?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            guard !url.isEmpty else { return }
+            let dedupeKey = url.lowercased()
+            guard seenSourceURLKeys.insert(dedupeKey).inserted else { return }
 
             var args: [String: AnyCodable] = ["url": AnyCodable(url)]
-            if let title = web.title?.trimmingCharacters(in: .whitespacesAndNewlines), !title.isEmpty {
+            if let title = rawTitle?.trimmingCharacters(in: .whitespacesAndNewlines), !title.isEmpty {
                 args["title"] = AnyCodable(title)
             }
 
-            out.append(
+            sourceEvents.append(
                 .searchActivity(
                     SearchActivity(
-                        id: searchActivityID(prefix: "gemini-open", value: url, index: index),
+                        id: searchActivityID(prefix: idPrefix, value: url, index: sourceSequence),
                         type: "open_page",
                         status: .completed,
                         arguments: args,
                         outputIndex: nil,
-                        sequenceNumber: index
+                        sequenceNumber: sourceSequenceBase + sourceSequence
                     )
                 )
             )
+            sourceSequence += 1
         }
 
+        for chunk in (grounding.groundingChunks ?? []) {
+            appendSourceActivity(url: chunk.web?.uri, title: chunk.web?.title, idPrefix: "gemini-open")
+        }
+
+        // Official fallback for custom Search Suggestions UI when chunk URLs are absent.
+        if sourceEvents.isEmpty {
+            for suggestion in GoogleGroundingSearchSuggestionParser.parse(sdkBlob: grounding.searchEntryPoint?.sdkBlob) {
+                appendSourceActivity(url: suggestion.url, title: suggestion.query, idPrefix: "gemini-search-url")
+            }
+        }
+
+        out.append(contentsOf: sourceEvents)
         return out
     }
 
@@ -1198,6 +1217,7 @@ private struct GenerateContentResponse: Codable {
         let webSearchQueries: [String]?
         let retrievalQueries: [String]?
         let groundingChunks: [GroundingChunk]?
+        let searchEntryPoint: SearchEntryPoint?
 
         struct GroundingChunk: Codable {
             let web: WebChunk?
@@ -1206,6 +1226,11 @@ private struct GenerateContentResponse: Codable {
                 let uri: String?
                 let title: String?
             }
+        }
+
+        struct SearchEntryPoint: Codable {
+            let renderedContent: String?
+            let sdkBlob: String?
         }
     }
 

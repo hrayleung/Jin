@@ -388,6 +388,72 @@ final class GeminiAdapterTests: XCTestCase {
         XCTAssertEqual(queries, ["Swift 6.2 release notes", "Swift actors"])
     }
 
+    func testGeminiAdapterFallsBackToSearchEntryPointSDKBlobWhenChunkURLsMissing() async throws {
+        let (session, protocolType) = makeMockedURLSession()
+        let networkManager = NetworkManager(urlSession: session)
+
+        let providerConfig = ProviderConfig(
+            id: "g",
+            name: "Gemini",
+            type: .gemini,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://example.com/models/gemini-3-flash-preview:generateContent")
+
+            let sdkBlobPayload = [
+                [
+                    "query": "swift actor isolation",
+                    "url": "https://www.google.com/search?q=swift+actor+isolation"
+                ]
+            ]
+            let sdkBlobData = try JSONSerialization.data(withJSONObject: sdkBlobPayload)
+            let sdkBlob = sdkBlobData.base64EncodedString()
+
+            let response: [String: Any] = [
+                "candidates": [
+                    [
+                        "content": [
+                            "parts": [
+                                ["text": "Answer"]
+                            ]
+                        ],
+                        "finishReason": "STOP",
+                        "groundingMetadata": [
+                            "webSearchQueries": ["swift actor isolation"],
+                            "searchEntryPoint": [
+                                "sdkBlob": sdkBlob
+                            ]
+                        ]
+                    ]
+                ]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = GeminiAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hi")])],
+            modelID: "gemini-3-flash-preview",
+            controls: GenerationControls(),
+            tools: [],
+            streaming: false
+        )
+
+        var openPageEvents: [SearchActivity] = []
+        for try await event in stream {
+            guard case .searchActivity(let activity) = event, activity.type == "open_page" else { continue }
+            openPageEvents.append(activity)
+        }
+
+        XCTAssertEqual(openPageEvents.count, 1)
+        XCTAssertEqual(openPageEvents[0].arguments["url"]?.value as? String, "https://www.google.com/search?q=swift+actor+isolation")
+        XCTAssertEqual(openPageEvents[0].arguments["title"]?.value as? String, "swift actor isolation")
+    }
+
     func testGeminiAdapterFallsBackToTextWhenModeNotNative() async throws {
         let (session, protocolType) = makeMockedURLSession()
         let networkManager = NetworkManager(urlSession: session)

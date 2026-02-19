@@ -435,6 +435,7 @@ private struct SearchSource: Identifiable, Hashable {
     let title: String?
     let host: String
     let hostDisplay: String
+    let usesGoogleGroundingRedirect: Bool
 
     var openURL: URL? {
         URL(string: canonicalURLString)
@@ -452,6 +453,10 @@ private struct SearchSource: Identifiable, Hashable {
     }
 
     var previewText: String {
+        if usesGoogleGroundingRedirect {
+            return "Google grounded source"
+        }
+
         if let openURL,
            let compact = SearchSource.pathPreview(for: openURL) {
             return compact
@@ -461,14 +466,23 @@ private struct SearchSource: Identifiable, Hashable {
 
     init?(rawURL: String, title: String?) {
         guard let normalizedURL = SearchSource.normalizeURLString(rawURL) else { return nil }
-        guard let host = URL(string: normalizedURL)?.host?.trimmedNonEmpty else { return nil }
+        guard let rawHost = URL(string: normalizedURL)?.host?.trimmedNonEmpty else { return nil }
 
-        let hostDisplay = host.replacingOccurrences(of: "www.", with: "")
+        let redirectHost = SearchSource.googleGroundingRedirectHost
+        let isGoogleGroundingRedirect = rawHost.lowercased() == redirectHost
+        let resolvedHost = if isGoogleGroundingRedirect {
+            SearchSource.domainCandidate(from: title) ?? rawHost
+        } else {
+            rawHost
+        }
+        let hostDisplay = resolvedHost.replacingOccurrences(of: "www.", with: "")
+
         self.id = normalizedURL.lowercased()
         self.canonicalURLString = normalizedURL
         self.title = title?.trimmedNonEmpty
-        self.host = host
+        self.host = resolvedHost
         self.hostDisplay = hostDisplay
+        self.usesGoogleGroundingRedirect = isGoogleGroundingRedirect
     }
 
     func merged(withTitle newerTitle: String?) -> SearchSource {
@@ -477,16 +491,25 @@ private struct SearchSource: Identifiable, Hashable {
             canonicalURLString: canonicalURLString,
             title: newerTitle?.trimmedNonEmpty ?? title,
             host: host,
-            hostDisplay: hostDisplay
+            hostDisplay: hostDisplay,
+            usesGoogleGroundingRedirect: usesGoogleGroundingRedirect
         )
     }
 
-    private init(id: String, canonicalURLString: String, title: String?, host: String, hostDisplay: String) {
+    private init(
+        id: String,
+        canonicalURLString: String,
+        title: String?,
+        host: String,
+        hostDisplay: String,
+        usesGoogleGroundingRedirect: Bool
+    ) {
         self.id = id
         self.canonicalURLString = canonicalURLString
         self.title = title
         self.host = host
         self.hostDisplay = hostDisplay
+        self.usesGoogleGroundingRedirect = usesGoogleGroundingRedirect
     }
 
     private static func normalizeURLString(_ rawURL: String) -> String? {
@@ -515,6 +538,19 @@ private struct SearchSource: Identifiable, Hashable {
             return "\(readable) · \(query)"
         }
         return readable
+    }
+
+    private static let googleGroundingRedirectHost = "vertexaisearch.cloud.google.com"
+
+    private static func domainCandidate(from title: String?) -> String? {
+        guard let title = title?.trimmedNonEmpty else { return nil }
+
+        if let url = URL(string: title), let host = url.host?.trimmedNonEmpty {
+            return host
+        }
+
+        guard !title.contains(" "), title.contains(".") else { return nil }
+        return URL(string: "https://\(title)")?.host?.trimmedNonEmpty
     }
 }
 
