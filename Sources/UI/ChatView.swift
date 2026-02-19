@@ -741,26 +741,28 @@ struct ChatView: View {
         }
         .defaultScrollAnchor(.bottom)
         .overlay(alignment: .bottomTrailing) {
-            if !isPinnedToBottom {
-                Button {
-                    withAnimation(.easeOut(duration: 0.2)) {
-                        proxy.scrollTo("bottom", anchor: .bottom)
+            Group {
+                if !isPinnedToBottom {
+                    Button {
+                        withAnimation(.easeOut(duration: 0.2)) {
+                            proxy.scrollTo("bottom", anchor: .bottom)
+                        }
+                    } label: {
+                        Image(systemName: "chevron.down")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(.secondary)
+                            .frame(width: 32, height: 32)
+                            .background(.regularMaterial, in: Circle())
+                            .shadow(color: .black.opacity(0.1), radius: 4, y: 2)
                     }
-                } label: {
-                    Image(systemName: "chevron.down")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(.secondary)
-                        .frame(width: 32, height: 32)
-                        .background(.regularMaterial, in: Circle())
-                        .shadow(color: .black.opacity(0.1), radius: 4, y: 2)
+                    .buttonStyle(.plain)
+                    .padding(.trailing, 20)
+                    .padding(.bottom, 34)
+                    .transition(.opacity.combined(with: .scale(scale: 0.8)))
                 }
-                .buttonStyle(.plain)
-                .padding(.trailing, 20)
-                .padding(.bottom, 34)
-                .transition(.opacity.combined(with: .scale(scale: 0.8)))
             }
+            .animation(.easeInOut(duration: 0.2), value: isPinnedToBottom)
         }
-        .animation(.easeInOut(duration: 0.2), value: isPinnedToBottom)
         .onScrollPinChange(isPinned: $isPinnedToBottom)
         .onChange(of: messageRenderLimit) { _, _ in
             guard let restoreID = pendingRestoreScrollMessageID else { return }
@@ -778,13 +780,8 @@ struct ChatView: View {
             }
         }
         .onChange(of: isStreaming) { wasStreaming, nowStreaming in
-            if wasStreaming && !nowStreaming && isPinnedToBottom {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-                    withAnimation(.easeOut(duration: 0.15)) {
-                        proxy.scrollTo("bottom", anchor: .bottom)
-                    }
-                }
-            }
+            guard wasStreaming, !nowStreaming else { return }
+            rebuildMessageCachesIfNeeded()
         }
         .onChange(of: conversationEntity.id) { _, _ in
             DispatchQueue.main.async {
@@ -2928,6 +2925,7 @@ struct ChatView: View {
                         }
                     }
                     conversationEntity.updatedAt = askedAt
+                    rebuildMessageCaches()
                     try? modelContext.save()
                 }
 
@@ -3681,6 +3679,8 @@ struct ChatView: View {
                                 entity.generatedModelName = modelNameSnapshot
                                 entity.conversation = conversationEntity
                                 conversationEntity.messages.append(entity)
+                                conversationEntity.updatedAt = Date()
+                                rebuildMessageCaches()
                                 try? modelContext.save()
                             } catch {
                                 errorMessage = error.localizedDescription
@@ -3774,6 +3774,8 @@ struct ChatView: View {
                             let entity = try MessageEntity.fromDomain(toolMessage)
                             entity.conversation = conversationEntity
                             conversationEntity.messages.append(entity)
+                            conversationEntity.updatedAt = Date()
+                            rebuildMessageCaches()
                             try? modelContext.save()
                         } catch {
                             errorMessage = error.localizedDescription
