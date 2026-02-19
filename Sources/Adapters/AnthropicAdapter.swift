@@ -37,6 +37,7 @@ actor AnthropicAdapter: LLMProviderAdapter {
                     var currentMessageID: String?
                     var currentBlockIndex: Int?
                     var currentToolUse: ToolCallBuilder?
+                    var currentServerToolUse: SearchActivityBuilder?
                     var currentContentBlockType: String?
                     var currentThinkingSignature: String?
                     var usageAccumulator = AnthropicUsageAccumulator()
@@ -49,6 +50,7 @@ actor AnthropicAdapter: LLMProviderAdapter {
                                 currentMessageID: &currentMessageID,
                                 currentBlockIndex: &currentBlockIndex,
                                 currentToolUse: &currentToolUse,
+                                currentServerToolUse: &currentServerToolUse,
                                 currentContentBlockType: &currentContentBlockType,
                                 currentThinkingSignature: &currentThinkingSignature,
                                 usageAccumulator: &usageAccumulator
@@ -624,6 +626,7 @@ actor AnthropicAdapter: LLMProviderAdapter {
         currentMessageID: inout String?,
         currentBlockIndex: inout Int?,
         currentToolUse: inout ToolCallBuilder?,
+        currentServerToolUse: inout SearchActivityBuilder?,
         currentContentBlockType: inout String?,
         currentThinkingSignature: inout String?,
         usageAccumulator: inout AnthropicUsageAccumulator
@@ -658,8 +661,35 @@ actor AnthropicAdapter: LLMProviderAdapter {
                     return .thinkingDelta(.redacted(data: data))
                 }
 
+                if contentBlock.type == "server_tool_use" {
+                    let id = contentBlock.id ?? UUID().uuidString
+                    let name = contentBlock.name ?? "server_tool_use"
+                    let arguments = contentBlock.input ?? [:]
+                    let builder = SearchActivityBuilder(id: id, type: name, arguments: arguments)
+                    currentServerToolUse = builder
+                    return .searchActivity(
+                        SearchActivity(
+                            id: id,
+                            type: name,
+                            status: .inProgress,
+                            arguments: arguments,
+                            outputIndex: index,
+                            sequenceNumber: index
+                        )
+                    )
+                }
+
+                if contentBlock.type == "web_search_tool_result",
+                   let activity = searchActivityFromWebSearchResult(contentBlock: contentBlock, outputIndex: index) {
+                    return .searchActivity(activity)
+                }
+
+                if contentBlock.type == "text",
+                   let activity = searchActivityFromTextCitations(contentBlock: contentBlock, outputIndex: index) {
+                    return .searchActivity(activity)
+                }
+
                 // Only client-side tool_use should be executed by the app.
-                // server_tool_use is executed by Anthropic and should not be surfaced as a ToolCall.
                 if contentBlock.type == "tool_use" {
                     let toolUse = ToolCallBuilder(
                         id: contentBlock.id ?? UUID().uuidString,
@@ -689,7 +719,14 @@ actor AnthropicAdapter: LLMProviderAdapter {
                     }
                     return .thinkingDelta(.thinking(textDelta: "", signature: currentThinkingSignature))
                 } else if delta.type == "input_json_delta", let partialJSON = delta.partialJson {
-                    if let currentToolUse {
+                    if currentContentBlockType == "server_tool_use",
+                       let currentServerToolUse {
+                        currentServerToolUse.appendArguments(partialJSON)
+                        if let updated = currentServerToolUse.build(status: .searching, outputIndex: currentBlockIndex) {
+                            return .searchActivity(updated)
+                        }
+                        return nil
+                    } else if let currentToolUse {
                         currentToolUse.appendArguments(partialJSON)
                         return .toolCallDelta(id: currentToolUse.id, argumentsDelta: partialJSON)
                     }
@@ -700,14 +737,23 @@ actor AnthropicAdapter: LLMProviderAdapter {
             if currentContentBlockType == "thinking" {
                 currentThinkingSignature = nil
             }
+
+            if currentContentBlockType == "server_tool_use",
+               let serverToolUse = currentServerToolUse,
+               let completed = serverToolUse.build(status: .completed, outputIndex: currentBlockIndex) {
+                currentContentBlockType = nil
+                currentBlockIndex = nil
+                self.currentToolCleanup(currentToolUse: &currentToolUse, currentServerToolUse: &currentServerToolUse)
+                return .searchActivity(completed)
+            }
             currentContentBlockType = nil
 
             if let toolUse = currentToolUse, let toolCall = toolUse.build() {
-                currentToolUse = nil
+                self.currentToolCleanup(currentToolUse: &currentToolUse, currentServerToolUse: &currentServerToolUse)
                 return .toolCallEnd(toolCall)
             }
 
-            currentToolUse = nil
+            self.currentToolCleanup(currentToolUse: &currentToolUse, currentServerToolUse: &currentServerToolUse)
 
         case "message_delta":
             if let usage = event.usage {
@@ -723,6 +769,127 @@ actor AnthropicAdapter: LLMProviderAdapter {
         }
 
         return nil
+    }
+
+    private func currentToolCleanup(
+        currentToolUse: inout ToolCallBuilder?,
+        currentServerToolUse: inout SearchActivityBuilder?
+    ) {
+        currentToolUse = nil
+        currentServerToolUse = nil
+    }
+
+    private func searchActivityFromWebSearchResult(
+        contentBlock: StreamEvent_Anthropic.ContentBlock,
+        outputIndex: Int
+    ) -> SearchActivity? {
+        guard let results = contentBlock.webSearchResults, !results.isEmpty else {
+            return nil
+        }
+
+        var sources: [[String: Any]] = []
+        var seenURLs: Set<String> = []
+
+        for result in results {
+            guard let rawURL = result.url?.trimmingCharacters(in: .whitespacesAndNewlines), !rawURL.isEmpty else {
+                continue
+            }
+
+            let dedupeKey = rawURL.lowercased()
+            guard !seenURLs.contains(dedupeKey) else { continue }
+            seenURLs.insert(dedupeKey)
+
+            var payload: [String: Any] = [
+                "type": result.type ?? "web_search_result",
+                "url": rawURL
+            ]
+            if let title = result.title?.trimmingCharacters(in: .whitespacesAndNewlines), !title.isEmpty {
+                payload["title"] = title
+            }
+            sources.append(payload)
+        }
+
+        guard !sources.isEmpty else { return nil }
+
+        let id = contentBlock.toolUseId ?? contentBlock.id ?? "anthropic_web_search_result_\(outputIndex)"
+        let arguments = searchActivityArguments(sources: sources)
+
+        return SearchActivity(
+            id: id,
+            type: "web_search",
+            status: .completed,
+            arguments: arguments,
+            outputIndex: outputIndex,
+            sequenceNumber: outputIndex
+        )
+    }
+
+    private func searchActivityFromTextCitations(
+        contentBlock: StreamEvent_Anthropic.ContentBlock,
+        outputIndex: Int
+    ) -> SearchActivity? {
+        guard let citations = contentBlock.citations, !citations.isEmpty else {
+            return nil
+        }
+
+        var sources: [[String: Any]] = []
+        var seenURLs: Set<String> = []
+
+        for citation in citations {
+            guard citation.type == "web_search_result_location" || citation.type == "search_result_location" else {
+                continue
+            }
+
+            let rawLocation = citation.url ?? citation.source
+            guard let rawURL = rawLocation?.trimmingCharacters(in: .whitespacesAndNewlines), !rawURL.isEmpty else {
+                continue
+            }
+
+            let dedupeKey = rawURL.lowercased()
+            guard !seenURLs.contains(dedupeKey) else { continue }
+            seenURLs.insert(dedupeKey)
+
+            var payload: [String: Any] = [
+                "type": citation.type,
+                "url": rawURL
+            ]
+            if let title = citation.title?.trimmingCharacters(in: .whitespacesAndNewlines), !title.isEmpty {
+                payload["title"] = title
+            }
+            sources.append(payload)
+        }
+
+        guard !sources.isEmpty else { return nil }
+
+        let id = "anthropic_citation_\(outputIndex)"
+        let arguments = searchActivityArguments(sources: sources)
+
+        return SearchActivity(
+            id: id,
+            type: "url_citation",
+            status: .completed,
+            arguments: arguments,
+            outputIndex: outputIndex,
+            sequenceNumber: outputIndex
+        )
+    }
+
+    private func searchActivityArguments(sources: [[String: Any]]) -> [String: AnyCodable] {
+        guard !sources.isEmpty else { return [:] }
+
+        var arguments: [String: AnyCodable] = [
+            "sources": AnyCodable(sources)
+        ]
+
+        if let first = sources.first,
+           let firstURL = first["url"] as? String {
+            arguments["url"] = AnyCodable(firstURL)
+            if let firstTitle = first["title"] as? String, !firstTitle.isEmpty {
+                arguments["title"] = AnyCodable(firstTitle)
+            }
+        }
+
+        return arguments
     }
 
     private func makeModelInfo(from model: ModelsListResponse.ModelInfo) -> ModelInfo {
@@ -760,7 +927,7 @@ actor AnthropicAdapter: LLMProviderAdapter {
 
 // MARK: - Response Types
 
-private struct StreamEvent_Anthropic: Codable {
+private struct StreamEvent_Anthropic: Decodable {
     let type: String
     let message: MessageInfo?
     let index: Int?
@@ -768,7 +935,7 @@ private struct StreamEvent_Anthropic: Codable {
     let delta: Delta?
     let usage: UsageInfo?
 
-    struct MessageInfo: Codable {
+    struct MessageInfo: Decodable {
         let id: String
         let type: String
         let role: String
@@ -776,15 +943,44 @@ private struct StreamEvent_Anthropic: Codable {
         let usage: UsageInfo?
     }
 
-    struct ContentBlock: Codable {
+    struct ContentBlock: Decodable {
         let type: String
         let id: String?
         let name: String?
         let signature: String?
         let data: String?
+        let input: [String: AnyCodable]?
+        let toolUseId: String?
+        let webSearchResults: [WebSearchResult]?
+        let citations: [TextCitation]?
+
+        private enum CodingKeys: String, CodingKey {
+            case type
+            case id
+            case name
+            case signature
+            case data
+            case input
+            case toolUseId
+            case content
+            case citations
+        }
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            type = try container.decode(String.self, forKey: .type)
+            id = try container.decodeIfPresent(String.self, forKey: .id)
+            name = try container.decodeIfPresent(String.self, forKey: .name)
+            signature = try container.decodeIfPresent(String.self, forKey: .signature)
+            data = try container.decodeIfPresent(String.self, forKey: .data)
+            input = try container.decodeIfPresent([String: AnyCodable].self, forKey: .input)
+            toolUseId = try container.decodeIfPresent(String.self, forKey: .toolUseId)
+            webSearchResults = try? container.decode([WebSearchResult].self, forKey: .content)
+            citations = try? container.decode([TextCitation].self, forKey: .citations)
+        }
     }
 
-    struct Delta: Codable {
+    struct Delta: Decodable {
         let type: String?
         let text: String?
         let thinking: String?
@@ -792,13 +988,26 @@ private struct StreamEvent_Anthropic: Codable {
         let partialJson: String?
     }
 
-    struct UsageInfo: Codable {
+    struct UsageInfo: Decodable {
         let inputTokens: Int?
         let outputTokens: Int?
         let cacheCreationInputTokens: Int?
         let cacheReadInputTokens: Int?
         let serviceTier: String?
         let inferenceGeo: String?
+    }
+
+    struct WebSearchResult: Decodable {
+        let type: String?
+        let title: String?
+        let url: String?
+    }
+
+    struct TextCitation: Decodable {
+        let type: String
+        let url: String?
+        let source: String?
+        let title: String?
     }
 }
 
@@ -886,5 +1095,38 @@ private class ToolCallBuilder {
 
         let arguments = json.mapValues { AnyCodable($0) }
         return ToolCall(id: id, name: name, arguments: arguments)
+    }
+}
+
+private final class SearchActivityBuilder {
+    let id: String
+    let type: String
+    private(set) var arguments: [String: AnyCodable]
+
+    init(id: String, type: String, arguments: [String: AnyCodable]) {
+        self.id = id
+        self.type = type
+        self.arguments = arguments
+    }
+
+    func appendArguments(_ delta: String) {
+        guard let data = delta.data(using: .utf8),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return
+        }
+        for (key, value) in json {
+            arguments[key] = AnyCodable(value)
+        }
+    }
+
+    func build(status: SearchActivityStatus, outputIndex: Int?) -> SearchActivity? {
+        SearchActivity(
+            id: id,
+            type: type,
+            status: status,
+            arguments: arguments,
+            outputIndex: outputIndex,
+            sequenceNumber: outputIndex
+        )
     }
 }

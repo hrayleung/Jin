@@ -52,6 +52,15 @@ struct StreamingMessageView: View {
                     .padding(.bottom, 2)
 
                     VStack(alignment: .leading, spacing: JinSpacing.small) {
+                        if !state.searchActivities.isEmpty {
+                            SearchActivityTimelineView(
+                                activities: state.searchActivities,
+                                isStreaming: true,
+                                providerLabel: assistantDisplayName == "Assistant" ? nil : assistantDisplayName,
+                                modelLabel: modelLabel
+                            )
+                        }
+
                         if !state.thinkingChunks.isEmpty {
                             DisclosureGroup(isExpanded: .constant(true)) {
                                 ChunkedTextView(
@@ -75,7 +84,7 @@ struct StreamingMessageView: View {
 
                         if !state.textChunks.isEmpty {
                             MarkdownWebRenderer(markdownText: state.textContent, isStreaming: true)
-                        } else if state.thinkingChunks.isEmpty {
+                        } else if state.thinkingChunks.isEmpty && state.searchActivities.isEmpty {
                             HStack(spacing: 6) {
                                 ProgressView().scaleEffect(0.5)
                                 Text("Generating...")
@@ -124,11 +133,14 @@ final class StreamingMessageState: ObservableObject {
 
     @Published private(set) var textChunks: [String] = []
     @Published private(set) var thinkingChunks: [String] = []
+    @Published private(set) var searchActivities: [SearchActivity] = []
     @Published private(set) var renderTick: Int = 0
     @Published private(set) var hasVisibleText: Bool = false
 
     private var textStorage = ""
     private var thinkingStorage = ""
+    private var searchActivitiesByID: [String: SearchActivity] = [:]
+    private var searchActivityOrder: [String] = []
 
     var textContent: String { textStorage }
     var thinkingContent: String { thinkingStorage }
@@ -138,6 +150,9 @@ final class StreamingMessageState: ObservableObject {
         thinkingStorage = ""
         textChunks = []
         thinkingChunks = []
+        searchActivities = []
+        searchActivitiesByID = [:]
+        searchActivityOrder = []
         hasVisibleText = false
         renderTick = 0
     }
@@ -174,6 +189,17 @@ final class StreamingMessageState: ObservableObject {
     func appendThinkingDelta(_ delta: String) {
         guard !delta.isEmpty else { return }
         appendDeltas(textDelta: "", thinkingDelta: delta)
+    }
+
+    func upsertSearchActivity(_ activity: SearchActivity) {
+        if let existing = searchActivitiesByID[activity.id] {
+            searchActivitiesByID[activity.id] = existing.merged(with: activity)
+        } else {
+            searchActivityOrder.append(activity.id)
+            searchActivitiesByID[activity.id] = activity
+        }
+        searchActivities = searchActivityOrder.compactMap { searchActivitiesByID[$0] }
+        renderTick &+= 1
     }
 
     private func appendDelta(_ delta: String, to chunks: inout [String], maxChunkSize: Int) {

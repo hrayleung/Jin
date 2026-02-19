@@ -944,7 +944,83 @@ actor VertexAIAdapter: LLMProviderAdapter {
             }
         }
 
+        let grounding = response.candidates?.first?.groundingMetadata ?? response.groundingMetadata
+        events.append(contentsOf: searchActivities(from: grounding))
+
         return events
+    }
+
+    private func searchActivities(from grounding: GenerateContentResponse.GroundingMetadata?) -> [StreamEvent] {
+        guard let grounding else { return [] }
+        var out: [StreamEvent] = []
+
+        let orderedQueries = mergedGroundingQueries(from: grounding)
+        for (index, query) in orderedQueries.enumerated() {
+            let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { continue }
+            out.append(
+                .searchActivity(
+                    SearchActivity(
+                        id: searchActivityID(prefix: "vertex-search", value: trimmed, index: index),
+                        type: "search",
+                        status: .completed,
+                        arguments: ["query": AnyCodable(trimmed)],
+                        outputIndex: nil,
+                        sequenceNumber: index
+                    )
+                )
+            )
+        }
+
+        for (index, chunk) in (grounding.groundingChunks ?? []).enumerated() {
+            guard let web = chunk.web else { continue }
+            let url = web.uri?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            guard !url.isEmpty else { continue }
+
+            var args: [String: AnyCodable] = ["url": AnyCodable(url)]
+            if let title = web.title?.trimmingCharacters(in: .whitespacesAndNewlines), !title.isEmpty {
+                args["title"] = AnyCodable(title)
+            }
+
+            out.append(
+                .searchActivity(
+                    SearchActivity(
+                        id: searchActivityID(prefix: "vertex-open", value: url, index: index),
+                        type: "open_page",
+                        status: .completed,
+                        arguments: args,
+                        outputIndex: nil,
+                        sequenceNumber: index
+                    )
+                )
+            )
+        }
+
+        return out
+    }
+
+    private func mergedGroundingQueries(from grounding: GenerateContentResponse.GroundingMetadata) -> [String] {
+        var seen: Set<String> = []
+        var out: [String] = []
+
+        for query in (grounding.webSearchQueries ?? []) + (grounding.retrievalQueries ?? []) {
+            let key = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            guard !key.isEmpty, !seen.contains(key) else { continue }
+            seen.insert(key)
+            out.append(query)
+        }
+
+        return out
+    }
+
+    private func searchActivityID(prefix: String, value: String, index: Int) -> String {
+        let normalized = value
+            .lowercased()
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: " ", with: "_")
+            .replacingOccurrences(of: "/", with: "_")
+        let suffix = String(normalized.prefix(80))
+        return "\(prefix)_\(index)_\(suffix)"
     }
 
     private func usageFromVertexResponse(_ response: GenerateContentResponse) -> Usage? {
@@ -1041,51 +1117,68 @@ private struct TokenResponse: Codable {
 
 // MARK: - Response Types
 
-    private struct GenerateContentResponse: Codable {
-        let candidates: [Candidate]?
-        let usageMetadata: UsageMetadata?
+private struct GenerateContentResponse: Codable {
+    let candidates: [Candidate]?
+    let usageMetadata: UsageMetadata?
+    let groundingMetadata: GroundingMetadata?
 
-        struct Candidate: Codable {
-            let content: Content?
-            let finishReason: String?
-        }
+    struct Candidate: Codable {
+        let content: Content?
+        let finishReason: String?
+        let groundingMetadata: GroundingMetadata?
+    }
 
-        struct Content: Codable {
-            let parts: [Part]?
-            let role: String?
-        }
+    struct Content: Codable {
+        let parts: [Part]?
+        let role: String?
+    }
 
-	    struct Part: Codable {
-	        let text: String?
-	        let thought: Bool?
-	        let thoughtSignature: String?
-	        let functionCall: FunctionCall?
-	        let functionResponse: FunctionResponse?
-	        let inlineData: InlineData?
-	    }
+    struct Part: Codable {
+        let text: String?
+        let thought: Bool?
+        let thoughtSignature: String?
+        let functionCall: FunctionCall?
+        let functionResponse: FunctionResponse?
+        let inlineData: InlineData?
+    }
 
-	    struct InlineData: Codable {
-	        let mimeType: String?
-	        let data: String?
-	    }
+    struct InlineData: Codable {
+        let mimeType: String?
+        let data: String?
+    }
 
-	    struct FunctionCall: Codable {
-	        let name: String
-	        let args: [String: AnyCodable]?
-	    }
+    struct FunctionCall: Codable {
+        let name: String
+        let args: [String: AnyCodable]?
+    }
 
     struct FunctionResponse: Codable {
         let name: String?
         let response: [String: AnyCodable]?
     }
 
-        struct UsageMetadata: Codable {
-            let promptTokenCount: Int?
-            let candidatesTokenCount: Int?
-            let totalTokenCount: Int?
-            let cachedContentTokenCount: Int?
+    struct UsageMetadata: Codable {
+        let promptTokenCount: Int?
+        let candidatesTokenCount: Int?
+        let totalTokenCount: Int?
+        let cachedContentTokenCount: Int?
+    }
+
+    struct GroundingMetadata: Codable {
+        let webSearchQueries: [String]?
+        let retrievalQueries: [String]?
+        let groundingChunks: [GroundingChunk]?
+
+        struct GroundingChunk: Codable {
+            let web: WebChunk?
+
+            struct WebChunk: Codable {
+                let uri: String?
+                let title: String?
+            }
         }
     }
+}
 
 // MARK: - Extensions
 

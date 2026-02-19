@@ -150,6 +150,7 @@ struct MessageRenderItem: Identifiable {
     let timestamp: Date
     let renderedContentParts: [RenderedMessageContentPart]
     let toolCalls: [ToolCall]
+    let searchActivities: [SearchActivity]
     let assistantModelLabel: String?
     let copyText: String
     let canEditUserMessage: Bool
@@ -223,6 +224,15 @@ struct MessageRow: View {
                             )
                             .frame(minHeight: 36, maxHeight: 400)
                         } else {
+                            if !item.searchActivities.isEmpty {
+                                SearchActivityTimelineView(
+                                    activities: item.searchActivities,
+                                    isStreaming: false,
+                                    providerLabel: assistantDisplayName == "Assistant" ? nil : assistantDisplayName,
+                                    modelLabel: assistantModelLabel
+                                )
+                            }
+
                             ForEach(Array(item.renderedContentParts.enumerated()), id: \.offset) { _, rendered in
                                 ContentPartView(part: rendered.part, isUser: isUser)
                             }

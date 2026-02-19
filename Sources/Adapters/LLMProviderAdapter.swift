@@ -14,6 +14,7 @@ enum StreamEvent: Sendable {
     case toolCallStart(ToolCall)
     case toolCallDelta(id: String, argumentsDelta: String)
     case toolCallEnd(ToolCall)
+    case searchActivity(SearchActivity)
     case messageEnd(usage: Usage?)
     case error(LLMError)
 }

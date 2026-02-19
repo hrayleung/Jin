@@ -364,6 +364,138 @@ final class AnthropicAdapterTests: XCTestCase {
         XCTAssertEqual(usageWithValues.cacheWriteTokens, 18)
     }
 
+    func testAnthropicStreamingEmitsServerToolUseAsSearchActivity() async throws {
+        let (session, protocolType) = makeMockedURLSession()
+        let networkManager = NetworkManager(urlSession: session)
+
+        let providerConfig = ProviderConfig(
+            id: "anthropic",
+            name: "Anthropic",
+            type: .anthropic,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://example.com/messages")
+
+            let sse = """
+            event: message_start
+            data: {"type":"message_start","message":{"id":"msg_server_tool","type":"message","role":"assistant","model":"claude-sonnet-4-6"}}
+
+            event: content_block_start
+            data: {"type":"content_block_start","index":0,"content_block":{"type":"server_tool_use","id":"srv_1","name":"web_search","input":{"query":"swift structured concurrency"}}}
+
+            event: content_block_delta
+            data: {"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"{\\"url\\":\\"https://example.com/swift\\"}"}}
+
+            event: content_block_stop
+            data: {"type":"content_block_stop","index":0}
+
+            event: message_stop
+            data: {"type":"message_stop"}
+
+            data: [DONE]
+
+            """
+
+            return (
+                HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                Data(sse.utf8)
+            )
+        }
+
+        let adapter = AnthropicAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hi")])],
+            modelID: "claude-sonnet-4-6",
+            controls: GenerationControls(),
+            tools: [],
+            streaming: true
+        )
+
+        var searchEvents: [SearchActivity] = []
+        for try await event in stream {
+            if case .searchActivity(let activity) = event {
+                searchEvents.append(activity)
+            }
+        }
+
+        XCTAssertGreaterThanOrEqual(searchEvents.count, 2)
+        XCTAssertEqual(searchEvents.first?.id, "srv_1")
+        XCTAssertEqual(searchEvents.first?.type, "web_search")
+        XCTAssertEqual(searchEvents.first?.arguments["query"]?.value as? String, "swift structured concurrency")
+        XCTAssertTrue(searchEvents.contains { $0.status == .completed })
+    }
+
+    func testAnthropicStreamingEmitsWebSearchToolResultURLs() async throws {
+        let (session, protocolType) = makeMockedURLSession()
+        let networkManager = NetworkManager(urlSession: session)
+
+        let providerConfig = ProviderConfig(
+            id: "anthropic",
+            name: "Anthropic",
+            type: .anthropic,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://example.com/messages")
+
+            let sse = """
+            event: message_start
+            data: {"type":"message_start","message":{"id":"msg_server_tool","type":"message","role":"assistant","model":"claude-sonnet-4-6"}}
+
+            event: content_block_start
+            data: {"type":"content_block_start","index":0,"content_block":{"type":"server_tool_use","id":"srv_1","name":"web_search","input":{"query":"swift structured concurrency"}}}
+
+            event: content_block_stop
+            data: {"type":"content_block_stop","index":0}
+
+            event: content_block_start
+            data: {"type":"content_block_start","index":1,"content_block":{"type":"web_search_tool_result","tool_use_id":"srv_1","content":[{"type":"web_search_result","title":"Swift Concurrency Guide","url":"https://example.com/swift"},{"type":"web_search_result","title":"Structured Concurrency","url":"https://swift.org/documentation/" }]}}
+
+            event: content_block_stop
+            data: {"type":"content_block_stop","index":1}
+
+            event: message_stop
+            data: {"type":"message_stop"}
+
+            data: [DONE]
+
+            """
+
+            return (
+                HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                Data(sse.utf8)
+            )
+        }
+
+        let adapter = AnthropicAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hi")])],
+            modelID: "claude-sonnet-4-6",
+            controls: GenerationControls(),
+            tools: [],
+            streaming: true
+        )
+
+        var searchEvents: [SearchActivity] = []
+        for try await event in stream {
+            if case .searchActivity(let activity) = event {
+                searchEvents.append(activity)
+            }
+        }
+
+        let sourceEvent = try XCTUnwrap(searchEvents.first(where: { !$0.sourceURLs.isEmpty }))
+        XCTAssertEqual(sourceEvent.id, "srv_1")
+        XCTAssertTrue(sourceEvent.sourceURLs.contains("https://example.com/swift"))
+        XCTAssertTrue(sourceEvent.sourceURLs.contains("https://swift.org/documentation/"))
+    }
+
     func testAnthropicModelLimitsKnownClaude45AndClaude46Series() {
         XCTAssertEqual(AnthropicModelLimits.maxOutputTokens(for: "claude-opus-4-6"), 128000)
         XCTAssertEqual(AnthropicModelLimits.maxOutputTokens(for: "claude-sonnet-4-6"), 64000)
@@ -452,4 +584,21 @@ private func requestBodyData(_ request: URLRequest) -> Data? {
     }
 
     return data
+}
+
+private extension SearchActivity {
+    var sourceURLs: [String] {
+        guard let value = arguments["sources"]?.value else { return [] }
+
+        let rows: [[String: Any]]
+        if let dicts = value as? [[String: Any]] {
+            rows = dicts
+        } else if let array = value as? [Any] {
+            rows = array.compactMap { $0 as? [String: Any] }
+        } else {
+            rows = []
+        }
+
+        return rows.compactMap { $0["url"] as? String }
+    }
 }
