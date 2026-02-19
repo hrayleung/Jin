@@ -26,18 +26,41 @@ mkdir -p "$CLANG_MODULE_CACHE_PATH"
 
 echo "Cleaning stale SwiftPM resource bundles…"
 shopt -s nullglob
-for bundle in "$ROOT/.build/release"/*.bundle; do
+for bundle in "$ROOT/.build/release"/*.bundle "$ROOT/.build/"*-apple-macosx/release/*.bundle; do
   rm -rf "$bundle"
 done
 
-echo "Building (Release)…"
-swift build -c release --disable-sandbox
+ARCHS=(arm64 x86_64)
+BUILD_OUTPUT_DIRS=()
+ARCH_BINARIES=()
 
-BIN="$ROOT/.build/release/$APP_NAME"
-if [[ ! -f "$BIN" ]]; then
-  echo "Expected binary not found: $BIN" >&2
-  exit 1
-fi
+echo "Building (Release) for Apple Silicon + Intel…"
+for arch in "${ARCHS[@]}"; do
+  echo "Building ($arch)…"
+  swift build -c release --disable-sandbox --arch "$arch"
+
+  arch_bin="$ROOT/.build/$arch-apple-macosx/release/$APP_NAME"
+  if [[ ! -f "$arch_bin" ]]; then
+    echo "Expected binary not found for $arch: $arch_bin" >&2
+    exit 1
+  fi
+
+  ARCH_BINARIES+=("$arch_bin")
+  BUILD_OUTPUT_DIRS+=("$ROOT/.build/$arch-apple-macosx/release")
+done
+
+UNIVERSAL_BIN="$DIST/$APP_NAME-universal"
+echo "Creating universal binary…"
+lipo -create "${ARCH_BINARIES[@]}" -output "$UNIVERSAL_BIN"
+universal_archs="$(lipo -archs "$UNIVERSAL_BIN")"
+for arch in "${ARCHS[@]}"; do
+  if [[ " $universal_archs " != *" $arch "* ]]; then
+    echo "Error: arch '$arch' missing from universal binary: $universal_archs" >&2
+    exit 1
+  fi
+done
+echo "Universal binary architectures: $universal_archs"
+BIN="$UNIVERSAL_BIN"
 
 echo "Creating .app bundle…"
 mkdir -p "$APP_BUNDLE/Contents/MacOS" "$APP_BUNDLE/Contents/Resources"
@@ -53,10 +76,11 @@ done
 echo "Copying SwiftPM resource bundles…"
 shopt -s nullglob
 copied_bundle_count=0
-for bundle_dir in "$ROOT/.build/release" "$ROOT/.build/$(uname -m)-apple-macosx/release"; do
+for bundle_dir in "${BUILD_OUTPUT_DIRS[@]}"; do
   for bundle in "$bundle_dir"/*.bundle; do
     bundle_name="$(basename "$bundle")"
     target_bundle="$APP_BUNDLE/Contents/Resources/$bundle_name"
+    # SwiftPM resource bundles are architecture-independent; first copy wins.
     if [[ -e "$target_bundle" ]]; then
       continue
     fi

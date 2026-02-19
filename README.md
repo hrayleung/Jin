@@ -157,7 +157,7 @@ open Package.swift   # or open in Xcode
 ```bash
 swift build                        # Debug build
 swift build -c release             # Release build
-./Packaging/package.sh             # Build .app bundle
+./Packaging/package.sh             # Build universal .app bundle (Apple Silicon + Intel)
 ./Packaging/package.sh dmg         # Build .dmg installer
 swift test                         # Run all tests
 swift test --filter FooTests       # Run a single test suite
