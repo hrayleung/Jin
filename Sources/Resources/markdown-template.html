@@ -314,6 +314,9 @@ var _codeBlockSrc = {};
 var _codeBlockState = {};
 var _latestStableBase64 = '';
 var _stableRenderTicket = 0;
+var _latestStreamBase64 = '';
+var _streamRenderTicket = 0;
+var _shikiReady = false;
 var _mermaidReadyPromise = null;
 
 function getMermaidRuntime() {
@@ -833,11 +836,17 @@ async function toggleCodeRender(id) {
 }
 
 function ensureShikiReady() {
+    if (_shikiReady) {
+        return Promise.resolve(true);
+    }
     if (!window.JinShiki || typeof window.JinShiki.prepareHighlighter !== 'function') {
         return Promise.resolve(false);
     }
     return window.JinShiki.prepareHighlighter()
-        .then(function(ok) { return !!ok; })
+        .then(function(ok) {
+            _shikiReady = !!ok;
+            return _shikiReady;
+        })
         .catch(function() { return false; });
 }
 
@@ -938,18 +947,29 @@ md.use(window.texmath, {
 async function updateContent(base64) {
     var ticket = ++_stableRenderTicket;
     _latestStableBase64 = base64;
+    var text = decodeBase64UTF8(base64);
+
     _codeBlockId = 0;
     _codeBlockSrc = {};
     _codeBlockState = {};
-    var text = decodeBase64UTF8(base64);
+    document.getElementById('content').innerHTML = md.render(text);
+    reportHeight();
 
-    await ensureShikiReady();
-    if (ticket !== _stableRenderTicket || base64 !== _latestStableBase64) {
+    if (_shikiReady) {
         return;
     }
 
-    document.getElementById('content').innerHTML = md.render(text);
-    reportHeight();
+    ensureShikiReady().then(function(ok) {
+        if (!ok) return;
+        if (ticket !== _stableRenderTicket || base64 !== _latestStableBase64) {
+            return;
+        }
+        _codeBlockId = 0;
+        _codeBlockSrc = {};
+        _codeBlockState = {};
+        document.getElementById('content').innerHTML = md.render(text);
+        reportHeight();
+    });
 }
 
 function measuredHeight() {
@@ -1000,13 +1020,31 @@ streamMd.use(window.texmath, {
 });
 
 async function updateStreamingContent(base64) {
+    var ticket = ++_streamRenderTicket;
+    _latestStreamBase64 = base64;
+    var text = decodeBase64UTF8(base64);
+
     _codeBlockId = 0;
     _codeBlockSrc = {};
     _codeBlockState = {};
-    var text = decodeBase64UTF8(base64);
-    await ensureShikiReady();
     document.getElementById('content').innerHTML = streamMd.render(text);
     reportHeight();
+
+    if (_shikiReady) {
+        return;
+    }
+
+    ensureShikiReady().then(function(ok) {
+        if (!ok) return;
+        if (ticket !== _streamRenderTicket || base64 !== _latestStreamBase64) {
+            return;
+        }
+        _codeBlockId = 0;
+        _codeBlockSrc = {};
+        _codeBlockState = {};
+        document.getElementById('content').innerHTML = streamMd.render(text);
+        reportHeight();
+    });
 }
 
 window.updateStreamingWithBase64 = updateStreamingContent;
