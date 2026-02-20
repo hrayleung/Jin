@@ -5,6 +5,11 @@ import UniformTypeIdentifiers
 import Combine
 
 struct ChatView: View {
+    private static let initialMessageRenderLimit = 24
+    private static let messageRenderPageSize = 40
+    private static let eagerCodeHighlightTailCount = 12
+    private static let pinnedBottomRefreshDelays: [TimeInterval] = [0, 0.04, 0.14]
+
     @Environment(\.modelContext) private var modelContext
     @EnvironmentObject private var streamingStore: ConversationStreamingStore
     @EnvironmentObject private var responseCompletionNotifier: ResponseCompletionNotifier
@@ -32,7 +37,7 @@ struct ChatView: View {
     @State private var composerHeight: CGFloat = 0
     @State private var composerTextContentHeight: CGFloat = 36
     @State private var isModelPickerPresented = false
-    @State private var messageRenderLimit: Int = 160
+    @State private var messageRenderLimit: Int = Self.initialMessageRenderLimit
     @State private var pendingRestoreScrollMessageID: UUID?
     @State private var isPinnedToBottom = true
     @State private var isExpandedComposerPresented = false
@@ -647,9 +652,18 @@ struct ChatView: View {
         .padding(.bottom, 2)
     }
 
-    @ViewBuilder
     private func chatScrollView(geometry: GeometryProxy, proxy: ScrollViewProxy) -> some View {
-        ScrollView {
+        func refreshPinnedBottomIfNeeded() {
+            guard isPinnedToBottom else { return }
+
+            for delay in Self.pinnedBottomRefreshDelays {
+                DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                    proxy.scrollTo("bottom", anchor: .bottom)
+                }
+            }
+        }
+
+        return ScrollView {
             let bubbleMaxWidth = maxBubbleWidth(for: geometry.size.width)
             let assistantDisplayName = conversationEntity.assistant?.displayName ?? "Assistant"
             let providerIconID = currentProviderIconID
@@ -657,29 +671,31 @@ struct ChatView: View {
             let messageEntitiesByID = cachedMessageEntitiesByID
 
             let allMessages = cachedVisibleMessages
-            let visibleMessages = allMessages.suffix(messageRenderLimit)
+            let visibleMessages = Array(allMessages.suffix(messageRenderLimit))
             let hiddenCount = allMessages.count - visibleMessages.count
+            let eagerCodeHighlightStartIndex = max(0, visibleMessages.count - Self.eagerCodeHighlightTailCount)
 
             LazyVStack(alignment: .leading, spacing: 16) {
                 if hiddenCount > 0 {
                     LoadEarlierMessagesRow(
                         hiddenCount: hiddenCount,
-                        pageSize: 120,
+                        pageSize: Self.messageRenderPageSize,
                         onLoad: {
                             guard let firstVisible = visibleMessages.first else { return }
                             pendingRestoreScrollMessageID = firstVisible.id
-                            messageRenderLimit = min(allMessages.count, messageRenderLimit + 120)
+                            messageRenderLimit = min(allMessages.count, messageRenderLimit + Self.messageRenderPageSize)
                         }
                     )
                     .id("loadEarlier")
                 }
 
-                ForEach(visibleMessages) { message in
+                ForEach(Array(visibleMessages.enumerated()), id: \.element.id) { index, message in
                     MessageRow(
                         item: message,
                         maxBubbleWidth: bubbleMaxWidth,
                         assistantDisplayName: assistantDisplayName,
                         providerIconID: providerIconID,
+                        deferCodeHighlightUpgrade: index < eagerCodeHighlightStartIndex,
                         toolResultsByCallID: toolResultsByCallID,
                         actionsEnabled: !isStreaming,
                         textToSpeechEnabled: textToSpeechPluginEnabled,
@@ -772,16 +788,12 @@ struct ChatView: View {
             }
         }
         .onChange(of: conversationEntity.messages.count) { _, _ in
-            guard isPinnedToBottom else { return }
-            DispatchQueue.main.async {
-                withAnimation(.easeOut(duration: 0.15)) {
-                    proxy.scrollTo("bottom", anchor: .bottom)
-                }
-            }
+            refreshPinnedBottomIfNeeded()
         }
         .onChange(of: isStreaming) { wasStreaming, nowStreaming in
             guard wasStreaming, !nowStreaming else { return }
             rebuildMessageCachesIfNeeded()
+            refreshPinnedBottomIfNeeded()
         }
         .onChange(of: conversationEntity.id) { _, _ in
             DispatchQueue.main.async {
@@ -915,7 +927,7 @@ struct ChatView: View {
         .onChange(of: conversationEntity.id) { _, _ in
             // Switching chats: reset transient per-chat state and rebuild caches.
             cancelEditingUserMessage()
-            messageRenderLimit = 160
+            messageRenderLimit = Self.initialMessageRenderLimit
             pendingRestoreScrollMessageID = nil
             isPinnedToBottom = true
             isExpandedComposerPresented = false

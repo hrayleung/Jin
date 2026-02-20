@@ -171,6 +171,7 @@ struct MessageRow: View {
     let maxBubbleWidth: CGFloat
     let assistantDisplayName: String
     let providerIconID: String?
+    let deferCodeHighlightUpgrade: Bool
     let toolResultsByCallID: [String: ToolResult]
     let actionsEnabled: Bool
     let textToSpeechEnabled: Bool
@@ -234,7 +235,11 @@ struct MessageRow: View {
                             }
 
                             ForEach(Array(item.renderedContentParts.enumerated()), id: \.offset) { _, rendered in
-                                ContentPartView(part: rendered.part, isUser: isUser)
+                                ContentPartView(
+                                    part: rendered.part,
+                                    isUser: isUser,
+                                    deferCodeHighlightUpgrade: deferCodeHighlightUpgrade
+                                )
                             }
 
                             if !item.toolCalls.isEmpty {
@@ -481,11 +486,16 @@ struct ProviderBadgeIcon: View {
 struct ContentPartView: View {
     let part: ContentPart
     var isUser: Bool = false
+    var deferCodeHighlightUpgrade: Bool = false
 
     var body: some View {
         switch part {
         case .text(let text):
-            MessageTextView(text: text, mode: isUser ? .plainText : .markdown)
+            MessageTextView(
+                text: text,
+                mode: isUser ? .plainText : .markdown,
+                deferCodeHighlightUpgrade: (!isUser && deferCodeHighlightUpgrade)
+            )
 
         case .thinking(let thinking):
             ThinkingBlockView(thinking: thinking)
