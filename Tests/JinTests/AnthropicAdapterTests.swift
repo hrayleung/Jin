@@ -644,6 +644,72 @@ final class AnthropicAdapterTests: XCTestCase {
         XCTAssertTrue(sourceEvent.sourceURLs.contains("https://swift.org/documentation/"))
     }
 
+    func testAnthropicStreamingEmitsCitationSnippetFromCitedText() async throws {
+        let (session, protocolType) = makeMockedURLSession()
+        let networkManager = NetworkManager(urlSession: session)
+
+        let providerConfig = ProviderConfig(
+            id: "anthropic",
+            name: "Anthropic",
+            type: .anthropic,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://example.com/messages")
+
+            let sse = """
+            event: message_start
+            data: {"type":"message_start","message":{"id":"msg_cited_text","type":"message","role":"assistant","model":"claude-sonnet-4-6"}}
+
+            event: content_block_start
+            data: {"type":"content_block_start","index":0,"content_block":{"type":"text","citations":[{"type":"web_search_result_location","url":"https://example.com/swift","title":"Swift 6.2","cited_text":"Swift 6.2 improves actor isolation diagnostics."}]}}
+
+            event: content_block_stop
+            data: {"type":"content_block_stop","index":0}
+
+            event: message_stop
+            data: {"type":"message_stop"}
+
+            data: [DONE]
+
+            """
+
+            return (
+                HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                Data(sse.utf8)
+            )
+        }
+
+        let adapter = AnthropicAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hi")])],
+            modelID: "claude-sonnet-4-6",
+            controls: GenerationControls(),
+            tools: [],
+            streaming: true
+        )
+
+        var citationEvent: SearchActivity?
+        for try await event in stream {
+            guard case .searchActivity(let activity) = event,
+                  activity.type == "url_citation" else {
+                continue
+            }
+            citationEvent = activity
+            break
+        }
+
+        let event = try XCTUnwrap(citationEvent)
+        guard let rawSources = event.arguments["sources"]?.value as? [[String: Any]] else {
+            return XCTFail("Expected sources payload")
+        }
+        let snippet = rawSources.first?["snippet"] as? String
+        XCTAssertTrue((snippet ?? "").contains("actor isolation diagnostics"))
+    }
+
     func testAnthropicModelLimitsKnownClaude45AndClaude46Series() {
         XCTAssertEqual(AnthropicModelLimits.maxOutputTokens(for: "claude-opus-4-6"), 128000)
         XCTAssertEqual(AnthropicModelLimits.maxOutputTokens(for: "claude-sonnet-4-6"), 64000)

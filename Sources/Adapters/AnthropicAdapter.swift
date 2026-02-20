@@ -894,6 +894,12 @@ actor AnthropicAdapter: LLMProviderAdapter {
             if let title = result.title?.trimmingCharacters(in: .whitespacesAndNewlines), !title.isEmpty {
                 payload["title"] = title
             }
+            if let snippet = (result.snippet ?? result.description)?
+                .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+                .trimmingCharacters(in: .whitespacesAndNewlines),
+               !snippet.isEmpty {
+                payload["snippet"] = snippet
+            }
             sources.append(payload)
         }
 
@@ -943,6 +949,12 @@ actor AnthropicAdapter: LLMProviderAdapter {
             ]
             if let title = citation.title?.trimmingCharacters(in: .whitespacesAndNewlines), !title.isEmpty {
                 payload["title"] = title
+            }
+            if let citedText = citation.citedText?
+                .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+                .trimmingCharacters(in: .whitespacesAndNewlines),
+               !citedText.isEmpty {
+                payload["snippet"] = citedText
             }
             sources.append(payload)
         }
@@ -1089,6 +1101,8 @@ private struct StreamEvent_Anthropic: Decodable {
         let type: String?
         let title: String?
         let url: String?
+        let snippet: String?
+        let description: String?
     }
 
     struct TextCitation: Decodable {
@@ -1096,6 +1110,7 @@ private struct StreamEvent_Anthropic: Decodable {
         let url: String?
         let source: String?
         let title: String?
+        let citedText: String?
     }
 }
 

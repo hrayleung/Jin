@@ -349,6 +349,147 @@ final class OpenAIAdapterPromptCachingTests: XCTestCase {
         XCTAssertEqual(sources.first?.url, "https://aistudio.google.com")
         XCTAssertEqual(sources.first?.title, "Google AI Studio")
     }
+
+    func testOpenAIAdapterCitationSearchActivityCarriesSnippetFromAnnotationOffsets() async throws {
+        let (session, protocolType) = makeOpenAIMockedURLSession()
+        let networkManager = NetworkManager(urlSession: session)
+
+        let providerConfig = ProviderConfig(
+            id: "openai",
+            name: "OpenAI",
+            type: .openai,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://example.com/responses")
+
+            let response: [String: Any] = [
+                "id": "resp_citation_snippet_1",
+                "output": [
+                    [
+                        "id": "msg_snippet_1",
+                        "type": "message",
+                        "content": [
+                            [
+                                "type": "output_text",
+                                "text": "Swift 6.2 improves compile-time diagnostics for actor isolation.",
+                                "annotations": [
+                                    [
+                                        "type": "url_citation",
+                                        "url": "https://swift.org/blog/",
+                                        "title": "Swift Blog",
+                                        "start_index": 11,
+                                        "end_index": 55
+                                    ]
+                                ]
+                            ]
+                        ]
+                    ]
+                ],
+                "usage": [
+                    "input_tokens": 8,
+                    "output_tokens": 5
+                ]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = OpenAIAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hi")])],
+            modelID: "gpt-5.2",
+            controls: GenerationControls(),
+            tools: [],
+            streaming: false
+        )
+
+        var searchEvents: [SearchActivity] = []
+        for try await event in stream {
+            if case .searchActivity(let activity) = event {
+                searchEvents.append(activity)
+            }
+        }
+
+        let citation = try XCTUnwrap(searchEvents.first(where: { $0.id == "msg_snippet_1:citations" }))
+        let sources = citationSources(from: citation)
+        XCTAssertEqual(sources.first?.url, "https://swift.org/blog/")
+        XCTAssertEqual(sources.first?.title, "Swift Blog")
+        XCTAssertTrue((sources.first?.snippet ?? "").contains("actor isolation"))
+    }
+
+    func testOpenAIAdapterCitationSearchActivityParsesNestedURLCitationWithoutExplicitType() async throws {
+        let (session, protocolType) = makeOpenAIMockedURLSession()
+        let networkManager = NetworkManager(urlSession: session)
+
+        let providerConfig = ProviderConfig(
+            id: "openai",
+            name: "OpenAI",
+            type: .openai,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://example.com/responses")
+
+            let response: [String: Any] = [
+                "id": "resp_citation_nested_1",
+                "output": [
+                    [
+                        "id": "msg_nested_1",
+                        "type": "message",
+                        "content": [
+                            [
+                                "type": "output_text",
+                                "text": "OpenAI released more structured web search source annotations.",
+                                "annotations": [
+                                    [
+                                        "url_citation": [
+                                            "url": "https://openai.com/index/introducing-web-search",
+                                            "title": "OpenAI Web Search",
+                                            "start_index": 0,
+                                            "end_index": 45
+                                        ]
+                                    ]
+                                ]
+                            ]
+                        ]
+                    ]
+                ],
+                "usage": [
+                    "input_tokens": 9,
+                    "output_tokens": 7
+                ]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = OpenAIAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hi")])],
+            modelID: "gpt-5.2",
+            controls: GenerationControls(),
+            tools: [],
+            streaming: false
+        )
+
+        var searchEvents: [SearchActivity] = []
+        for try await event in stream {
+            if case .searchActivity(let activity) = event {
+                searchEvents.append(activity)
+            }
+        }
+
+        let citation = try XCTUnwrap(searchEvents.first(where: { $0.id == "msg_nested_1:citations" }))
+        let sources = citationSources(from: citation)
+        XCTAssertEqual(sources.first?.url, "https://openai.com/index/introducing-web-search")
+        XCTAssertEqual(sources.first?.title, "OpenAI Web Search")
+        XCTAssertTrue((sources.first?.snippet ?? "").contains("structured web search"))
+    }
 }
 
 private final class OpenAIPromptCachingMockURLProtocol: URLProtocol {
@@ -411,7 +552,7 @@ private func openAIRequestBodyData(_ request: URLRequest) -> Data? {
     return data
 }
 
-private func citationSources(from activity: SearchActivity) -> [(url: String, title: String?)] {
+private func citationSources(from activity: SearchActivity) -> [(url: String, title: String?, snippet: String?)] {
     guard let raw = activity.arguments["sources"]?.value else { return [] }
 
     let rows: [[String: Any]]
@@ -425,6 +566,10 @@ private func citationSources(from activity: SearchActivity) -> [(url: String, ti
 
     return rows.compactMap { row in
         guard let url = row["url"] as? String else { return nil }
-        return (url: url, title: row["title"] as? String)
+        return (
+            url: url,
+            title: row["title"] as? String,
+            snippet: row["snippet"] as? String
+        )
     }
 }
