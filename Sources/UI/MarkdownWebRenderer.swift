@@ -37,15 +37,17 @@ private func fontUpdateJavaScript(bodyCSS: String, codeCSS: String, fontSizeCSS:
 struct MarkdownWebRenderer: View {
     let markdownText: String
     var isStreaming: Bool = false
+    var deferCodeHighlightUpgrade: Bool = false
 
     @AppStorage(AppPreferenceKeys.appFontFamily) private var appFontFamily = JinTypography.systemFontPreferenceValue
     @AppStorage(AppPreferenceKeys.codeFontFamily) private var codeFontFamily = JinTypography.systemFontPreferenceValue
 
     @State private var contentHeight: CGFloat
 
-    init(markdownText: String, isStreaming: Bool = false) {
+    init(markdownText: String, isStreaming: Bool = false, deferCodeHighlightUpgrade: Bool = false) {
         self.markdownText = markdownText
         self.isStreaming = isStreaming
+        self.deferCodeHighlightUpgrade = deferCodeHighlightUpgrade
         let estimated = Self.estimatedHeight(for: markdownText)
         self._contentHeight = State(initialValue: estimated)
     }
@@ -54,6 +56,7 @@ struct MarkdownWebRenderer: View {
         MarkdownWebRendererRepresentable(
             markdownText: markdownText,
             isStreaming: isStreaming,
+            deferCodeHighlightUpgrade: deferCodeHighlightUpgrade,
             contentHeight: $contentHeight,
             appFontFamily: appFontFamily,
             codeFontFamily: codeFontFamily
@@ -69,17 +72,26 @@ struct MarkdownWebRenderer: View {
         return max(56, min(lineEstimate * 22.0, 600))
     }
 
-    static func sendMarkdown(to webView: WKWebView, markdown: String, streaming: Bool = false) {
+    static func sendMarkdown(
+        to webView: WKWebView,
+        markdown: String,
+        streaming: Bool = false,
+        deferCodeHighlightUpgrade: Bool = false
+    ) {
         guard let data = markdown.data(using: .utf8) else { return }
         let b64 = data.base64EncodedString()
         let fn = streaming ? "updateStreamingWithBase64" : "updateWithBase64"
-        webView.evaluateJavaScript("window.\(fn)('\(b64)')", completionHandler: nil)
+        let optionsLiteral = deferCodeHighlightUpgrade
+            ? "{deferCodeHighlightUpgrade:true}"
+            : "{deferCodeHighlightUpgrade:false}"
+        webView.evaluateJavaScript("window.\(fn)('\(b64)', \(optionsLiteral))", completionHandler: nil)
     }
 }
 
 private struct MarkdownWebRendererRepresentable: NSViewRepresentable {
     let markdownText: String
     let isStreaming: Bool
+    let deferCodeHighlightUpgrade: Bool
     @Binding var contentHeight: CGFloat
     let appFontFamily: String
     let codeFontFamily: String
@@ -103,6 +115,7 @@ private struct MarkdownWebRendererRepresentable: NSViewRepresentable {
         context.coordinator.currentMarkdown = markdownText
         context.coordinator.appFontFamily = appFontFamily
         context.coordinator.codeFontFamily = codeFontFamily
+        context.coordinator.deferCodeHighlightUpgrade = deferCodeHighlightUpgrade
         context.coordinator.startObservingFontPreferences()
 
         loadTemplate(into: webView)
@@ -113,6 +126,7 @@ private struct MarkdownWebRendererRepresentable: NSViewRepresentable {
         context.coordinator.heightBinding = $contentHeight
         context.coordinator.currentMarkdown = markdownText
         context.coordinator.isStreaming = isStreaming
+        context.coordinator.deferCodeHighlightUpgrade = deferCodeHighlightUpgrade
         context.coordinator.appFontFamily = appFontFamily
         context.coordinator.codeFontFamily = codeFontFamily
 
@@ -122,7 +136,12 @@ private struct MarkdownWebRendererRepresentable: NSViewRepresentable {
                 codeFontFamily: codeFontFamily,
                 webView: webView
             )
-            context.coordinator.renderMarkdownIfNeeded(markdownText, in: webView, force: didUpdateFonts)
+            context.coordinator.renderMarkdownIfNeeded(
+                markdownText,
+                in: webView,
+                force: didUpdateFonts,
+                deferCodeHighlightUpgrade: deferCodeHighlightUpgrade
+            )
         } else {
             context.coordinator.pendingMarkdown = markdownText
         }
@@ -143,8 +162,10 @@ private struct MarkdownWebRendererRepresentable: NSViewRepresentable {
         var pendingMarkdown: String?
         var currentMarkdown: String?
         private var lastRenderedMarkdown: String?
+        private var lastRenderedDeferCodeHighlightUpgrade: Bool?
         var appFontFamily: String = JinTypography.systemFontPreferenceValue
         var codeFontFamily: String = JinTypography.systemFontPreferenceValue
+        var deferCodeHighlightUpgrade: Bool = false
         var lastBodyFont: String = ""
         var lastCodeFont: String = ""
         var lastFontSize: CGFloat = 0
@@ -192,14 +213,34 @@ private struct MarkdownWebRendererRepresentable: NSViewRepresentable {
             )
 
             if didUpdate, let md = currentMarkdown {
-                renderMarkdownIfNeeded(md, in: webView, force: true)
+                renderMarkdownIfNeeded(
+                    md,
+                    in: webView,
+                    force: true,
+                    deferCodeHighlightUpgrade: deferCodeHighlightUpgrade
+                )
             }
         }
 
-        func renderMarkdownIfNeeded(_ markdown: String, in webView: WKWebView, force: Bool = false) {
-            guard force || markdown != lastRenderedMarkdown else { return }
+        func renderMarkdownIfNeeded(
+            _ markdown: String,
+            in webView: WKWebView,
+            force: Bool = false,
+            deferCodeHighlightUpgrade: Bool = false
+        ) {
+            guard force
+                    || markdown != lastRenderedMarkdown
+                    || deferCodeHighlightUpgrade != lastRenderedDeferCodeHighlightUpgrade else {
+                return
+            }
             lastRenderedMarkdown = markdown
-            MarkdownWebRenderer.sendMarkdown(to: webView, markdown: markdown, streaming: isStreaming)
+            lastRenderedDeferCodeHighlightUpgrade = deferCodeHighlightUpgrade
+            MarkdownWebRenderer.sendMarkdown(
+                to: webView,
+                markdown: markdown,
+                streaming: isStreaming,
+                deferCodeHighlightUpgrade: deferCodeHighlightUpgrade
+            )
         }
 
         /// Compares resolved CSS values against cached state. If changed, evaluates
@@ -234,7 +275,12 @@ private struct MarkdownWebRendererRepresentable: NSViewRepresentable {
             if let pending = pendingMarkdown {
                 pendingMarkdown = nil
                 currentMarkdown = pending
-                renderMarkdownIfNeeded(pending, in: webView, force: true)
+                renderMarkdownIfNeeded(
+                    pending,
+                    in: webView,
+                    force: true,
+                    deferCodeHighlightUpgrade: deferCodeHighlightUpgrade
+                )
             }
         }
 

@@ -286,8 +286,14 @@ var _latestStreamBase64 = '';
 var _streamRenderTicket = 0;
 var _shikiReady = false;
 var _shikiRuntimeLoadPromise = null;
+var _mathRuntimeLoadPromise = null;
+var _mathStyleLoadPromise = null;
+var _mathReady = false;
+var _mathStyleReady = false;
 var _mermaidRuntimeLoadPromise = null;
 var _mermaidReadyPromise = null;
+var MAX_HIGHLIGHT_CODE_LENGTH = 24000;
+var MAX_HIGHLIGHT_CODE_LINES = 700;
 
 function escapeHTML(value) {
     return String(value)
@@ -323,6 +329,84 @@ function loadShikiRuntimeScript() {
         document.head.appendChild(script);
     });
     return _shikiRuntimeLoadPromise;
+}
+
+function loadScriptOnce(src, warningLabel) {
+    return new Promise(function(resolve) {
+        var script = document.createElement('script');
+        script.src = src;
+        script.async = true;
+        script.onload = function() { resolve(true); };
+        script.onerror = function(err) {
+            console.warn('[' + warningLabel + '] failed to load runtime script', err);
+            resolve(false);
+        };
+        document.head.appendChild(script);
+    });
+}
+
+function ensureMathStylesheet() {
+    if (_mathStyleReady) return Promise.resolve(true);
+    if (_mathStyleLoadPromise) return _mathStyleLoadPromise;
+
+    _mathStyleLoadPromise = new Promise(function(resolve) {
+        var existing = document.getElementById('jin-katex-style');
+        if (existing) {
+            _mathStyleReady = true;
+            resolve(true);
+            return;
+        }
+
+        var link = document.createElement('link');
+        link.id = 'jin-katex-style';
+        link.rel = 'stylesheet';
+        link.href = 'markdown-katex-runtime.css';
+        link.onload = function() {
+            _mathStyleReady = true;
+            scheduleHeightReport();
+            resolve(true);
+        };
+        link.onerror = function(err) {
+            console.warn('[JinMath] failed to load stylesheet', err);
+            resolve(false);
+        };
+        document.head.appendChild(link);
+    });
+    return _mathStyleLoadPromise;
+}
+
+function loadMathRuntimeScripts() {
+    if (window.katex && window.texmath) return Promise.resolve(true);
+    return loadScriptOnce('markdown-katex-runtime.js', 'JinMath')
+        .then(function(katexLoaded) {
+            if (!katexLoaded) return false;
+            return loadScriptOnce('markdown-texmath-runtime.js', 'JinMath');
+        })
+        .then(function(texmathLoaded) {
+            return !!(texmathLoaded && window.katex && window.texmath);
+        });
+}
+
+function ensureMathReady() {
+    if (_mathReady && window.katex && window.texmath) {
+        return Promise.resolve(true);
+    }
+    if (_mathRuntimeLoadPromise) {
+        return _mathRuntimeLoadPromise;
+    }
+
+    _mathRuntimeLoadPromise = Promise.all([
+        ensureMathStylesheet(),
+        loadMathRuntimeScripts()
+    ])
+        .then(function(results) {
+            var scriptReady = !!results[1];
+            _mathReady = scriptReady;
+            return scriptReady;
+        })
+        .catch(function() { return false; });
+
+    return _mathRuntimeLoadPromise;
 }
 
 function loadMermaidRuntimeScript() {
@@ -926,6 +1010,22 @@ function highlightCodeWithShiki(code, candidates) {
     return '';
 }
 
+function codeLineCount(text) {
+    if (!text) return 0;
+    var count = 1;
+    for (var i = 0; i < text.length; i += 1) {
+        if (text.charCodeAt(i) === 10) count += 1;
+    }
+    return count;
+}
+
+function shouldAttemptCodeHighlight(code) {
+    var text = String(code || '');
+    if (!text) return true;
+    if (text.length > MAX_HIGHLIGHT_CODE_LENGTH) return false;
+    return codeLineCount(text) <= MAX_HIGHLIGHT_CODE_LINES;
+}
+
 function highlightCodeBlock(str, lang) {
     var id = ++_codeBlockId;
     _codeBlockSrc[id] = str;
@@ -940,7 +1040,10 @@ function highlightCodeBlock(str, lang) {
     };
 
     var candidates = buildHighlightLanguageCandidates(lang, label, renderKind);
-    var shikiHTML = highlightCodeWithShiki(str, candidates);
+    var shikiHTML = '';
+    if (shouldAttemptCodeHighlight(str)) {
+        shikiHTML = highlightCodeWithShiki(str, candidates);
+    }
 
     if (!shikiHTML) {
         shikiHTML = '<pre class="shiki"><code>' + escapeHTML(str) + '</code></pre>';
@@ -967,40 +1070,129 @@ function installCodeBlockRenderer(instance) {
     };
 }
 
-var md = window.markdownit({
-    html: false,
-    linkify: true,
-    typographer: false
-});
-installCodeBlockRenderer(md);
+function createMarkdownParserState() {
+    var instance = window.markdownit({
+        html: false,
+        linkify: true,
+        typographer: false
+    });
+    installCodeBlockRenderer(instance);
+    return {
+        instance: instance,
+        mathInstalled: false
+    };
+}
 
+function installMathPluginIfPossible(parserState) {
+    if (!parserState || parserState.mathInstalled) return parserState && parserState.mathInstalled;
+    if (!window.texmath || !window.katex || typeof parserState.instance.use !== 'function') {
+        return false;
+    }
+    parserState.instance.use(window.texmath, {
+        engine: window.katex,
+        delimiters: ['dollars', 'brackets', 'beg_end'],
+        katexOptions: { throwOnError: false, strict: false, trust: true }
+    });
+    parserState.mathInstalled = true;
+    return true;
+}
 
-async function updateContent(base64) {
-    var ticket = ++_stableRenderTicket;
-    _latestStableBase64 = base64;
-    var text = decodeBase64UTF8(base64);
+function containsLikelyCodeBlocks(markdownText) {
+    var text = String(markdownText || '');
+    if (!text) return false;
+    if (/(^|\n)(?: {0,3}(?:```|~~~))/.test(text)) return true;
+    return /(^|\n)(?: {4}|\t)\S/.test(text);
+}
 
+function containsLikelyMath(markdownText) {
+    var text = String(markdownText || '');
+    if (!text) return false;
+    if (text.indexOf('\\') === -1 && text.indexOf('$') === -1) return false;
+    if (/\\begin\{[a-zA-Z*]+\}/.test(text)) return true;
+    if (/\\\((?:[\s\S]*?)\\\)/.test(text)) return true;
+    if (/\\\[(?:[\s\S]*?)\\\]/.test(text)) return true;
+    if (/\$\$[\s\S]+?\$\$/.test(text)) return true;
+    return /(^|[^\\])\$(?:[^$\n\\]|\\.)+?\$(?!\$)/.test(text);
+}
+
+function shouldDeferCodeHighlightUpgrade(options) {
+    if (!options || typeof options !== 'object') return false;
+    return options.deferCodeHighlightUpgrade === true;
+}
+
+function deferredHighlightDelayMs(markdownText) {
+    var text = String(markdownText || '');
+    if (!text) return 1200;
+    var step = Math.max(1, Math.floor(text.length / 64));
+    var hash = 0;
+    for (var i = 0; i < text.length; i += step) {
+        hash = ((hash << 5) - hash + text.charCodeAt(i)) | 0;
+    }
+    return 1200 + (Math.abs(hash) % 3200);
+}
+
+function renderMarkdownContent(parserState, text) {
     _codeBlockId = 0;
     _codeBlockSrc = {};
     _codeBlockState = {};
-    document.getElementById('content').innerHTML = md.render(text);
+    document.getElementById('content').innerHTML = parserState.instance.render(text);
     reportHeight();
+}
 
-    if (_shikiReady) {
-        return;
+var mdState = createMarkdownParserState();
+
+async function updateContent(base64, options) {
+    var ticket = ++_stableRenderTicket;
+    _latestStableBase64 = base64;
+    var text = decodeBase64UTF8(base64);
+    var needsCodeHighlight = containsLikelyCodeBlocks(text);
+    var needsMath = containsLikelyMath(text);
+    var deferCodeHighlightUpgrade = shouldDeferCodeHighlightUpgrade(options);
+
+    if (needsMath && _mathReady) {
+        installMathPluginIfPossible(mdState);
     }
 
-    ensureShikiReady().then(function(ok) {
-        if (!ok) return;
-        if (ticket !== _stableRenderTicket || base64 !== _latestStableBase64) {
-            return;
+    renderMarkdownContent(mdState, text);
+
+    var rerenderQueued = false;
+    function queueRerenderIfCurrent() {
+        if (rerenderQueued) return;
+        rerenderQueued = true;
+        setTimeout(function() {
+            rerenderQueued = false;
+            if (ticket !== _stableRenderTicket || base64 !== _latestStableBase64) {
+                return;
+            }
+            renderMarkdownContent(mdState, text);
+        }, 0);
+    }
+
+    if (needsMath && !mdState.mathInstalled) {
+        ensureMathReady().then(function(ok) {
+            if (!ok) return;
+            if (!installMathPluginIfPossible(mdState)) return;
+            queueRerenderIfCurrent();
+        });
+    }
+
+    if (needsCodeHighlight && !_shikiReady) {
+        var requestHighlightUpgrade = function() {
+            if (ticket !== _stableRenderTicket || base64 !== _latestStableBase64) {
+                return;
+            }
+            ensureShikiReady().then(function(ok) {
+                if (!ok) return;
+                queueRerenderIfCurrent();
+            });
+        };
+
+        if (deferCodeHighlightUpgrade) {
+            setTimeout(requestHighlightUpgrade, deferredHighlightDelayMs(text));
+        } else {
+            requestHighlightUpgrade();
         }
-        _codeBlockId = 0;
-        _codeBlockSrc = {};
-        _codeBlockState = {};
-        document.getElementById('content').innerHTML = md.render(text);
-        reportHeight();
-    });
+    }
 }
 
 function measuredHeight() {
@@ -1038,39 +1230,60 @@ resizeObserver.observe(document.body);
 window.updateWithBase64 = updateContent;
 
 // Streaming renderer uses the same Shiki code block rendering as stable mode.
-var streamMd = window.markdownit({
-    html: false,
-    linkify: true,
-    typographer: false
-});
-installCodeBlockRenderer(streamMd);
+var streamMdState = createMarkdownParserState();
 
-async function updateStreamingContent(base64) {
+async function updateStreamingContent(base64, options) {
     var ticket = ++_streamRenderTicket;
     _latestStreamBase64 = base64;
     var text = decodeBase64UTF8(base64);
+    var needsCodeHighlight = containsLikelyCodeBlocks(text);
+    var needsMath = containsLikelyMath(text);
+    var deferCodeHighlightUpgrade = shouldDeferCodeHighlightUpgrade(options);
 
-    _codeBlockId = 0;
-    _codeBlockSrc = {};
-    _codeBlockState = {};
-    document.getElementById('content').innerHTML = streamMd.render(text);
-    reportHeight();
-
-    if (_shikiReady) {
-        return;
+    if (needsMath && _mathReady) {
+        installMathPluginIfPossible(streamMdState);
     }
 
-    ensureShikiReady().then(function(ok) {
-        if (!ok) return;
-        if (ticket !== _streamRenderTicket || base64 !== _latestStreamBase64) {
-            return;
+    renderMarkdownContent(streamMdState, text);
+
+    var rerenderQueued = false;
+    function queueRerenderIfCurrent() {
+        if (rerenderQueued) return;
+        rerenderQueued = true;
+        setTimeout(function() {
+            rerenderQueued = false;
+            if (ticket !== _streamRenderTicket || base64 !== _latestStreamBase64) {
+                return;
+            }
+            renderMarkdownContent(streamMdState, text);
+        }, 0);
+    }
+
+    if (needsMath && !streamMdState.mathInstalled) {
+        ensureMathReady().then(function(ok) {
+            if (!ok) return;
+            if (!installMathPluginIfPossible(streamMdState)) return;
+            queueRerenderIfCurrent();
+        });
+    }
+
+    if (needsCodeHighlight && !_shikiReady) {
+        var requestHighlightUpgrade = function() {
+            if (ticket !== _streamRenderTicket || base64 !== _latestStreamBase64) {
+                return;
+            }
+            ensureShikiReady().then(function(ok) {
+                if (!ok) return;
+                queueRerenderIfCurrent();
+            });
+        };
+
+        if (deferCodeHighlightUpgrade) {
+            setTimeout(requestHighlightUpgrade, deferredHighlightDelayMs(text));
+        } else {
+            requestHighlightUpgrade();
         }
-        _codeBlockId = 0;
-        _codeBlockSrc = {};
-        _codeBlockState = {};
-        document.getElementById('content').innerHTML = streamMd.render(text);
-        reportHeight();
-    });
+    }
 }
 
 window.updateStreamingWithBase64 = updateStreamingContent;

@@ -5,6 +5,10 @@ import UniformTypeIdentifiers
 import Combine
 
 struct ChatView: View {
+    private static let initialMessageRenderLimit = 24
+    private static let messageRenderPageSize = 40
+    private static let eagerCodeHighlightTailCount = 12
+
     @Environment(\.modelContext) private var modelContext
     @EnvironmentObject private var streamingStore: ConversationStreamingStore
     @EnvironmentObject private var responseCompletionNotifier: ResponseCompletionNotifier
@@ -32,7 +36,7 @@ struct ChatView: View {
     @State private var composerHeight: CGFloat = 0
     @State private var composerTextContentHeight: CGFloat = 36
     @State private var isModelPickerPresented = false
-    @State private var messageRenderLimit: Int = 80
+    @State private var messageRenderLimit: Int = Self.initialMessageRenderLimit
     @State private var pendingRestoreScrollMessageID: UUID?
     @State private var isPinnedToBottom = true
     @State private var isExpandedComposerPresented = false
@@ -657,29 +661,31 @@ struct ChatView: View {
             let messageEntitiesByID = cachedMessageEntitiesByID
 
             let allMessages = cachedVisibleMessages
-            let visibleMessages = allMessages.suffix(messageRenderLimit)
+            let visibleMessages = Array(allMessages.suffix(messageRenderLimit))
             let hiddenCount = allMessages.count - visibleMessages.count
+            let eagerCodeHighlightStartIndex = max(0, visibleMessages.count - Self.eagerCodeHighlightTailCount)
 
             LazyVStack(alignment: .leading, spacing: 16) {
                 if hiddenCount > 0 {
                     LoadEarlierMessagesRow(
                         hiddenCount: hiddenCount,
-                        pageSize: 80,
+                        pageSize: Self.messageRenderPageSize,
                         onLoad: {
                             guard let firstVisible = visibleMessages.first else { return }
                             pendingRestoreScrollMessageID = firstVisible.id
-                            messageRenderLimit = min(allMessages.count, messageRenderLimit + 80)
+                            messageRenderLimit = min(allMessages.count, messageRenderLimit + Self.messageRenderPageSize)
                         }
                     )
                     .id("loadEarlier")
                 }
 
-                ForEach(visibleMessages) { message in
+                ForEach(Array(visibleMessages.enumerated()), id: \.element.id) { index, message in
                     MessageRow(
                         item: message,
                         maxBubbleWidth: bubbleMaxWidth,
                         assistantDisplayName: assistantDisplayName,
                         providerIconID: providerIconID,
+                        deferCodeHighlightUpgrade: index < eagerCodeHighlightStartIndex,
                         toolResultsByCallID: toolResultsByCallID,
                         actionsEnabled: !isStreaming,
                         textToSpeechEnabled: textToSpeechPluginEnabled,
@@ -915,7 +921,7 @@ struct ChatView: View {
         .onChange(of: conversationEntity.id) { _, _ in
             // Switching chats: reset transient per-chat state and rebuild caches.
             cancelEditingUserMessage()
-            messageRenderLimit = 80
+            messageRenderLimit = Self.initialMessageRenderLimit
             pendingRestoreScrollMessageID = nil
             isPinnedToBottom = true
             isExpandedComposerPresented = false
