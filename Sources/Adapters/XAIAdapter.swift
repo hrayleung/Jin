@@ -128,7 +128,11 @@ actor XAIAdapter: LLMProviderAdapter {
 
                 let outputText = response.outputTextParts.joined(separator: "\n")
                 if let citationActivity = citationSearchActivity(
-                    citations: citationCandidates(citations: response.citations, fallbackText: outputText),
+                    sources: citationCandidates(
+                        citations: response.citations,
+                        output: response.output,
+                        fallbackText: outputText
+                    ),
                     responseID: response.id
                 ) {
                     continuation.yield(.searchActivity(citationActivity))
@@ -157,8 +161,9 @@ actor XAIAdapter: LLMProviderAdapter {
                                let jsonData = data.data(using: .utf8),
                                let completed = try? streamDecoder.decode(ResponseCompletedEvent.self, from: jsonData),
                                let citationActivity = citationSearchActivity(
-                                   citations: citationCandidates(
+                                   sources: citationCandidates(
                                        citations: completed.response.citations,
+                                       output: completed.response.output,
                                        fallbackText: streamedOutputText
                                    ),
                                    responseID: completed.response.id
@@ -1519,14 +1524,31 @@ actor XAIAdapter: LLMProviderAdapter {
         return str
     }
 
-    private func citationSearchActivity(citations: [String]?, responseID: String) -> SearchActivity? {
-        guard let citations else { return nil }
-        return citationSearchActivity(citations: citations, responseID: Optional(responseID))
+    private struct CitationSourceCandidate {
+        let url: String
+        let title: String?
+        let snippet: String?
     }
 
-    private func citationCandidates(citations: [String]?, fallbackText: String?) -> [String]? {
+    private func citationSearchActivity(sources: [CitationSourceCandidate]?, responseID: String) -> SearchActivity? {
+        citationSearchActivity(sources: sources, responseID: Optional(responseID))
+    }
+
+    private func citationCandidates(
+        citations: [String]?,
+        output: [ResponsesAPIResponse.OutputItem]?,
+        fallbackText: String?
+    ) -> [CitationSourceCandidate]? {
+        let inlineCandidates = inlineCitationCandidates(from: output)
+        if !inlineCandidates.isEmpty {
+            return inlineCandidates
+        }
+
         if let citations, !citations.isEmpty {
-            return citations
+            let normalized = normalizedCitationCandidates(fromURLs: citations)
+            if !normalized.isEmpty {
+                return normalized
+            }
         }
 
         guard let fallbackText, !fallbackText.isEmpty else {
@@ -1534,7 +1556,90 @@ actor XAIAdapter: LLMProviderAdapter {
         }
 
         let urls = markdownCitationURLs(from: fallbackText)
-        return urls.isEmpty ? nil : urls
+        let normalized = normalizedCitationCandidates(fromURLs: urls)
+        return normalized.isEmpty ? nil : normalized
+    }
+
+    private func inlineCitationCandidates(from output: [ResponsesAPIResponse.OutputItem]?) -> [CitationSourceCandidate] {
+        guard let output else { return [] }
+
+        var ordered: [CitationSourceCandidate] = []
+        var indexByURLKey: [String: Int] = [:]
+
+        for item in output where item.type == "message" {
+            for content in item.content ?? [] where content.type == "output_text" {
+                for annotation in content.annotations ?? [] where annotation.type == "url_citation" {
+                    guard let rawURL = annotation.url?.trimmingCharacters(in: .whitespacesAndNewlines),
+                          !rawURL.isEmpty,
+                          let url = URL(string: rawURL),
+                          let scheme = url.scheme?.lowercased(),
+                          scheme == "http" || scheme == "https" else {
+                        continue
+                    }
+
+                    let canonical = url.absoluteString
+                    let key = canonical.lowercased()
+                    let title = normalizedCitationTitle(annotation.title)
+                    let snippet = citationSnippet(
+                        text: content.text,
+                        startIndex: annotation.startIndex,
+                        endIndex: annotation.endIndex
+                    )
+
+                    if let existingIndex = indexByURLKey[key] {
+                        let existing = ordered[existingIndex]
+                        ordered[existingIndex] = CitationSourceCandidate(
+                            url: existing.url,
+                            title: existing.title ?? title,
+                            snippet: preferredSnippet(existing: existing.snippet, candidate: snippet)
+                        )
+                        continue
+                    }
+
+                    indexByURLKey[key] = ordered.count
+                    ordered.append(
+                        CitationSourceCandidate(
+                            url: canonical,
+                            title: title,
+                            snippet: snippet
+                        )
+                    )
+                }
+            }
+        }
+
+        return ordered
+    }
+
+    private func normalizedCitationCandidates(fromURLs urls: [String]) -> [CitationSourceCandidate] {
+        guard !urls.isEmpty else { return [] }
+
+        var seen: Set<String> = []
+        var out: [CitationSourceCandidate] = []
+        out.reserveCapacity(urls.count)
+
+        for raw in urls {
+            let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { continue }
+            guard let url = URL(string: trimmed),
+                  let scheme = url.scheme?.lowercased(),
+                  scheme == "http" || scheme == "https" else {
+                continue
+            }
+
+            let canonical = url.absoluteString
+            let dedupeKey = canonical.lowercased()
+            guard seen.insert(dedupeKey).inserted else { continue }
+            out.append(
+                CitationSourceCandidate(
+                    url: canonical,
+                    title: nil,
+                    snippet: nil
+                )
+            )
+        }
+
+        return out
     }
 
     private func markdownCitationURLs(from text: String) -> [String] {
@@ -1566,38 +1671,31 @@ actor XAIAdapter: LLMProviderAdapter {
         return urls
     }
 
-    private func citationSearchActivity(citations: [String]?, responseID: String?) -> SearchActivity? {
-        guard let citations, !citations.isEmpty else { return nil }
+    private func citationSearchActivity(sources: [CitationSourceCandidate]?, responseID: String?) -> SearchActivity? {
+        guard let sources, !sources.isEmpty else { return nil }
 
-        var seen: Set<String> = []
-        var sources: [[String: Any]] = []
-        sources.reserveCapacity(citations.count)
-
-        for raw in citations {
-            let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !trimmed.isEmpty else { continue }
-            guard let url = URL(string: trimmed),
-                  let scheme = url.scheme?.lowercased(),
-                  scheme == "http" || scheme == "https" else {
-                continue
-            }
-
-            let canonical = url.absoluteString
-            let dedupeKey = canonical.lowercased()
-            guard seen.insert(dedupeKey).inserted else { continue }
-            sources.append([
+        let payloads: [[String: Any]] = sources.map { source in
+            var payload: [String: Any] = [
                 "type": "url_citation",
-                "url": canonical
-            ])
+                "url": source.url
+            ]
+            if let title = source.title {
+                payload["title"] = title
+            }
+            if let snippet = source.snippet {
+                payload["snippet"] = snippet
+            }
+            return payload
         }
 
-        guard !sources.isEmpty else { return nil }
-
         var arguments: [String: AnyCodable] = [
-            "sources": AnyCodable(sources)
+            "sources": AnyCodable(payloads)
         ]
-        if let firstURL = sources.first?["url"] as? String {
-            arguments["url"] = AnyCodable(firstURL)
+        if let first = sources.first {
+            arguments["url"] = AnyCodable(first.url)
+            if let title = first.title {
+                arguments["title"] = AnyCodable(title)
+            }
         }
 
         return SearchActivity(
@@ -1606,6 +1704,53 @@ actor XAIAdapter: LLMProviderAdapter {
             status: .completed,
             arguments: arguments
         )
+    }
+
+    private func normalizedCitationTitle(_ raw: String?) -> String? {
+        guard let raw else { return nil }
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        if trimmed.range(of: #"^\d+$"#, options: .regularExpression) != nil {
+            return nil
+        }
+        return trimmed
+    }
+
+    private func citationSnippet(text: String?, startIndex: Int?, endIndex: Int?) -> String? {
+        guard let text, !text.isEmpty else { return nil }
+        guard let startIndex, let endIndex,
+              startIndex >= 0, endIndex > startIndex else {
+            return nil
+        }
+
+        let nsText = text as NSString
+        let textLength = nsText.length
+        guard startIndex < textLength else { return nil }
+
+        let clampedEnd = min(endIndex, textLength)
+        guard clampedEnd > startIndex else { return nil }
+
+        let contextRadius = 80
+        let windowStart = max(0, startIndex - contextRadius)
+        let windowEnd = min(textLength, clampedEnd + contextRadius)
+        guard windowEnd > windowStart else { return nil }
+
+        let raw = nsText.substring(with: NSRange(location: windowStart, length: windowEnd - windowStart))
+        let collapsed = raw
+            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !collapsed.isEmpty else { return nil }
+        if collapsed.count <= 420 {
+            return collapsed
+        }
+        let end = collapsed.index(collapsed.startIndex, offsetBy: 420)
+        return String(collapsed[..<end]) + "…"
+    }
+
+    private func preferredSnippet(existing: String?, candidate: String?) -> String? {
+        guard let candidate else { return existing }
+        guard let existing else { return candidate }
+        return candidate.count > existing.count ? candidate : existing
     }
 }
 
@@ -1678,6 +1823,7 @@ private struct ResponseCompletedEvent: Codable {
     struct Response: Codable {
         let id: String?
         let citations: [String]?
+        let output: [ResponsesAPIResponse.OutputItem]?
         let usage: UsageInfo
 
         struct UsageInfo: Codable {
@@ -1823,6 +1969,55 @@ private struct XAIVideoResult: Codable {
 
 // MARK: - Non-streaming Responses API Types
 
+private struct XAIResponseOutputAnnotation: Codable {
+    let type: String
+    let url: String?
+    let title: String?
+    let startIndex: Int?
+    let endIndex: Int?
+
+    private enum CodingKeys: String, CodingKey {
+        case type
+        case url
+        case title
+        case startIndex
+        case endIndex
+        case urlCitation
+    }
+
+    private struct URLCitationPayload: Codable {
+        let url: String?
+        let title: String?
+        let startIndex: Int?
+        let endIndex: Int?
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        type = try container.decodeIfPresent(String.self, forKey: .type) ?? ""
+
+        let directURL = try container.decodeIfPresent(String.self, forKey: .url)
+        let directTitle = try container.decodeIfPresent(String.self, forKey: .title)
+        let directStartIndex = try container.decodeIfPresent(Int.self, forKey: .startIndex)
+        let directEndIndex = try container.decodeIfPresent(Int.self, forKey: .endIndex)
+        let nestedCitation = try container.decodeIfPresent(URLCitationPayload.self, forKey: .urlCitation)
+
+        url = directURL ?? nestedCitation?.url
+        title = directTitle ?? nestedCitation?.title
+        startIndex = directStartIndex ?? nestedCitation?.startIndex
+        endIndex = directEndIndex ?? nestedCitation?.endIndex
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(type, forKey: .type)
+        try container.encodeIfPresent(url, forKey: .url)
+        try container.encodeIfPresent(title, forKey: .title)
+        try container.encodeIfPresent(startIndex, forKey: .startIndex)
+        try container.encodeIfPresent(endIndex, forKey: .endIndex)
+    }
+}
+
 private struct ResponsesAPIResponse: Codable {
     let id: String
     let output: [OutputItem]
@@ -1837,6 +2032,7 @@ private struct ResponsesAPIResponse: Codable {
         struct Content: Codable {
             let type: String
             let text: String?
+            let annotations: [XAIResponseOutputAnnotation]?
         }
     }
 

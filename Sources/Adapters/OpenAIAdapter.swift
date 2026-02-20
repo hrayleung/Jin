@@ -1,5 +1,45 @@
 import Foundation
 
+private func normalizedSearchPreviewText(_ raw: String?) -> String? {
+    guard let raw else { return nil }
+    let collapsed = raw
+        .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !collapsed.isEmpty else { return nil }
+    if collapsed.count <= 420 {
+        return collapsed
+    }
+    let endIndex = collapsed.index(collapsed.startIndex, offsetBy: 420)
+    return String(collapsed[..<endIndex]) + "…"
+}
+
+private func citationPreviewSnippet(
+    text: String?,
+    startIndex: Int?,
+    endIndex: Int?
+) -> String? {
+    guard let text, !text.isEmpty else { return nil }
+    guard let startIndex, let endIndex,
+          startIndex >= 0, endIndex > startIndex else {
+        return nil
+    }
+
+    let nsText = text as NSString
+    let textLength = nsText.length
+    guard startIndex < textLength else { return nil }
+
+    let clampedEnd = min(endIndex, textLength)
+    guard clampedEnd > startIndex else { return nil }
+
+    let contextRadius = 80
+    let windowStart = max(0, startIndex - contextRadius)
+    let windowEnd = min(textLength, clampedEnd + contextRadius)
+    guard windowEnd > windowStart else { return nil }
+
+    let snippet = nsText.substring(with: NSRange(location: windowStart, length: windowEnd - windowStart))
+    return normalizedSearchPreviewText(snippet)
+}
+
 /// OpenAI provider adapter (Responses API)
 actor OpenAIAdapter: LLMProviderAdapter {
     let providerConfig: ProviderConfig
@@ -738,6 +778,9 @@ actor OpenAIAdapter: LLMProviderAdapter {
                     if let title = source.title, !title.isEmpty {
                         payload["title"] = title
                     }
+                    if let snippet = normalizedSearchPreviewText(source.snippet ?? source.description) {
+                        payload["snippet"] = snippet
+                    }
                     return payload
                 }
             )
@@ -787,6 +830,13 @@ actor OpenAIAdapter: LLMProviderAdapter {
                 ]
                 if let title = annotation.title?.trimmingCharacters(in: .whitespacesAndNewlines), !title.isEmpty {
                     source["title"] = title
+                }
+                if let snippet = citationPreviewSnippet(
+                    text: part.text,
+                    startIndex: annotation.startIndex,
+                    endIndex: annotation.endIndex
+                ) {
+                    source["snippet"] = snippet
                 }
                 sourcePayloads.append(source)
             }
@@ -892,29 +942,48 @@ private struct ResponseOutputAnnotation: Codable {
     let type: String
     let url: String?
     let title: String?
+    let startIndex: Int?
+    let endIndex: Int?
 
     private enum CodingKeys: String, CodingKey {
         case type
         case url
         case title
+        case startIndex
+        case endIndex
         case urlCitation
     }
 
     private struct URLCitationPayload: Codable {
         let url: String?
         let title: String?
+        let startIndex: Int?
+        let endIndex: Int?
     }
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        type = try container.decodeIfPresent(String.self, forKey: .type) ?? ""
+        let directType = try container.decodeIfPresent(String.self, forKey: .type)
 
         let directURL = try container.decodeIfPresent(String.self, forKey: .url)
         let directTitle = try container.decodeIfPresent(String.self, forKey: .title)
+        let directStartIndex = try container.decodeIfPresent(Int.self, forKey: .startIndex)
+        let directEndIndex = try container.decodeIfPresent(Int.self, forKey: .endIndex)
         let nestedCitation = try container.decodeIfPresent(URLCitationPayload.self, forKey: .urlCitation)
+
+        if let directType = directType?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !directType.isEmpty {
+            type = directType
+        } else if nestedCitation != nil {
+            type = "url_citation"
+        } else {
+            type = ""
+        }
 
         url = directURL ?? nestedCitation?.url
         title = directTitle ?? nestedCitation?.title
+        startIndex = directStartIndex ?? nestedCitation?.startIndex
+        endIndex = directEndIndex ?? nestedCitation?.endIndex
     }
 
     func encode(to encoder: Encoder) throws {
@@ -922,6 +991,8 @@ private struct ResponseOutputAnnotation: Codable {
         try container.encode(type, forKey: .type)
         try container.encodeIfPresent(url, forKey: .url)
         try container.encodeIfPresent(title, forKey: .title)
+        try container.encodeIfPresent(startIndex, forKey: .startIndex)
+        try container.encodeIfPresent(endIndex, forKey: .endIndex)
     }
 }
 
@@ -953,6 +1024,8 @@ private struct OutputItemAddedEvent: Codable {
         let type: String
         let url: String
         let title: String?
+        let snippet: String?
+        let description: String?
     }
 }
 
@@ -1074,6 +1147,9 @@ private struct ResponsesAPIResponse: Codable {
                     if let title = source.title, !title.isEmpty {
                         payload["title"] = title
                     }
+                    if let snippet = normalizedSearchPreviewText(source.snippet ?? source.description) {
+                        payload["snippet"] = snippet
+                    }
                     return payload
                 }
             )
@@ -1104,6 +1180,13 @@ private struct ResponsesAPIResponse: Codable {
                 ]
                 if let title = annotation.title?.trimmingCharacters(in: .whitespacesAndNewlines), !title.isEmpty {
                     source["title"] = title
+                }
+                if let snippet = citationPreviewSnippet(
+                    text: part.text,
+                    startIndex: annotation.startIndex,
+                    endIndex: annotation.endIndex
+                ) {
+                    source["snippet"] = snippet
                 }
                 sourcePayloads.append(source)
             }

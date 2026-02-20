@@ -1,6 +1,16 @@
 import SwiftUI
 import Foundation
 
+private enum SearchActivityTimelineConfig {
+    static let maxVisibleAvatars = 10
+    static let previewFetchLimit = 24
+}
+
+private struct SearchActivityViewContent {
+    let presentation: SearchActivityPresentation
+    let hasRunningActivity: Bool
+}
+
 struct SearchActivityTimelineView: View {
     let activities: [SearchActivity]
     let isStreaming: Bool
@@ -9,6 +19,7 @@ struct SearchActivityTimelineView: View {
 
     @State private var isExpanded = false
     @State private var resolvedRedirectURLByCanonicalSource: [String: String] = [:]
+    @State private var resolvedPreviewTextByCanonicalSource: [String: String] = [:]
 
     init(
         activities: [SearchActivity],
@@ -23,12 +34,14 @@ struct SearchActivityTimelineView: View {
     }
 
     var body: some View {
+        let content = buildContent()
+
         if !activities.isEmpty {
             VStack(alignment: .leading, spacing: isExpanded ? JinSpacing.small : 0) {
-                collapsedSummaryRow
+                collapsedSummaryRow(content: content)
 
                 if isExpanded {
-                    expandedPanel
+                    expandedPanel(content: content)
                         .padding(.top, 2)
                         .transition(.opacity)
                 }
@@ -37,13 +50,15 @@ struct SearchActivityTimelineView: View {
             .jinSurface(.subtleStrong, cornerRadius: JinRadius.medium)
             .clipped()
             .animation(.easeInOut(duration: 0.2), value: isExpanded)
-            .task(id: redirectResolutionTaskKey) {
-                await resolveRedirectTargetsIfNeeded()
+            .task(id: sourceEnrichmentTaskKey(for: content.presentation.sources)) {
+                await resolveSourceDetailsIfNeeded(for: content.presentation.sources)
             }
         }
     }
 
-    private var collapsedSummaryRow: some View {
+    // MARK: - Subviews
+
+    private func collapsedSummaryRow(content: SearchActivityViewContent) -> some View {
         Button {
             withAnimation(.easeInOut(duration: 0.18)) {
                 isExpanded.toggle()
@@ -54,18 +69,18 @@ struct SearchActivityTimelineView: View {
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(.secondary)
 
-                if presentation.sources.isEmpty {
+                if content.presentation.sources.isEmpty {
                     Text("Web search")
                         .font(.subheadline.weight(.medium))
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                 } else {
-                    sourceAvatarStrip
+                    sourceAvatarStrip(sources: content.presentation.sources)
                 }
 
                 Spacer(minLength: 0)
 
-                if isStreaming && hasRunningActivity {
+                if isStreaming && content.hasRunningActivity {
                     ProgressView()
                         .scaleEffect(0.5)
                 }
@@ -81,9 +96,9 @@ struct SearchActivityTimelineView: View {
         .buttonStyle(.plain)
     }
 
-    private var sourceAvatarStrip: some View {
+    private func sourceAvatarStrip(sources: [SearchSource]) -> some View {
         HStack(spacing: -4) {
-            ForEach(Array(presentation.sources.prefix(10).enumerated()), id: \.offset) { _, source in
+            ForEach(Array(sources.prefix(SearchActivityTimelineConfig.maxVisibleAvatars)), id: \.id) { source in
                 let sourcePresentation = renderPresentation(for: source)
                 SearchSourceAvatarView(
                     host: sourcePresentation.host,
@@ -92,8 +107,8 @@ struct SearchActivityTimelineView: View {
                 )
             }
 
-            if presentation.sources.count > 10 {
-                Text("+\(presentation.sources.count - 10)")
+            if sources.count > SearchActivityTimelineConfig.maxVisibleAvatars {
+                Text("+\(sources.count - SearchActivityTimelineConfig.maxVisibleAvatars)")
                     .font(.caption2.weight(.semibold))
                     .foregroundStyle(.secondary)
                     .frame(width: 24, height: 24)
@@ -106,7 +121,7 @@ struct SearchActivityTimelineView: View {
         }
     }
 
-    private var expandedPanel: some View {
+    private func expandedPanel(content: SearchActivityViewContent) -> some View {
         VStack(alignment: .leading, spacing: JinSpacing.small) {
             HStack(alignment: .firstTextBaseline, spacing: JinSpacing.small - 2) {
                 Text("Web Search")
@@ -122,18 +137,21 @@ struct SearchActivityTimelineView: View {
                 Spacer(minLength: 0)
             }
 
-            if !presentation.queries.isEmpty {
-                queryChipRow
+            if !content.presentation.queries.isEmpty {
+                queryChipRow(queries: content.presentation.queries)
             }
 
-            if !presentation.sources.isEmpty {
+            if !content.presentation.sources.isEmpty {
                 HStack(spacing: JinSpacing.small) {
-                    Text("Browsed \(presentation.sources.count) link\(presentation.sources.count == 1 ? "" : "s")")
+                    Text(
+                        "Browsed \(content.presentation.sources.count) link"
+                            + "\(content.presentation.sources.count == 1 ? "" : "s")"
+                    )
                         .font(.caption)
                         .foregroundStyle(.secondary)
 
                     CopyToPasteboardButton(
-                        text: preferredURLStrings.joined(separator: "\n"),
+                        text: preferredURLStrings(for: content.presentation.sources).joined(separator: "\n"),
                         helpText: "Copy links",
                         copiedHelpText: "Copied links",
                         useProminentStyle: false
@@ -141,7 +159,7 @@ struct SearchActivityTimelineView: View {
                     .frame(width: 16, height: 16)
                 }
 
-                sourceCardsRow
+                sourceCardsRow(sources: content.presentation.sources)
             } else {
                 Text("This response does not include source URLs.")
                     .font(.caption)
@@ -156,10 +174,10 @@ struct SearchActivityTimelineView: View {
         .padding(.bottom, JinSpacing.xSmall)
     }
 
-    private var queryChipRow: some View {
+    private func queryChipRow(queries: [String]) -> some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: JinSpacing.small - 2) {
-                ForEach(Array(presentation.queries.enumerated()), id: \.offset) { _, query in
+                ForEach(Array(queries.enumerated()), id: \.offset) { _, query in
                     HStack(spacing: JinSpacing.xSmall) {
                         Image(systemName: "magnifyingglass")
                             .font(.caption2)
@@ -178,10 +196,10 @@ struct SearchActivityTimelineView: View {
         }
     }
 
-    private var sourceCardsRow: some View {
+    private func sourceCardsRow(sources: [SearchSource]) -> some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(alignment: .top, spacing: JinSpacing.xSmall + 1) {
-                ForEach(presentation.sources) { source in
+                ForEach(sources) { source in
                     SearchSourceCardView(presentation: renderPresentation(for: source))
                 }
             }
@@ -189,8 +207,10 @@ struct SearchActivityTimelineView: View {
         }
     }
 
-    private var orderedActivities: [SearchActivity] {
-        activities
+    // MARK: - Derived Content
+
+    private func buildContent() -> SearchActivityViewContent {
+        let orderedActivities = activities
             .enumerated()
             .sorted { lhs, rhs in
                 let left = lhs.element
@@ -205,14 +225,8 @@ struct SearchActivityTimelineView: View {
                 return lhs.offset < rhs.offset
             }
             .map(\.element)
-    }
 
-    private var presentation: SearchActivityPresentation {
-        SearchActivityPresentation(activities: orderedActivities)
-    }
-
-    private var hasRunningActivity: Bool {
-        orderedActivities.contains { activity in
+        let hasRunningActivity = orderedActivities.contains { activity in
             switch activity.status {
             case .inProgress, .searching:
                 return true
@@ -220,6 +234,11 @@ struct SearchActivityTimelineView: View {
                 return false
             }
         }
+
+        return SearchActivityViewContent(
+            presentation: SearchActivityPresentation(activities: orderedActivities),
+            hasRunningActivity: hasRunningActivity
+        )
     }
 
     private var contextLabel: String? {
@@ -232,31 +251,45 @@ struct SearchActivityTimelineView: View {
         return model
     }
 
-    private var redirectResolutionTaskKey: String {
-        presentation.sources
-            .filter(\.usesGoogleGroundingRedirect)
-            .map { $0.canonicalURLString.lowercased() }
+    private func sourceEnrichmentTaskKey(for sources: [SearchSource]) -> String {
+        sources
+            .map { source in
+                let hasProviderSnippet = source.previewText == nil ? "0" : "1"
+                return "\(source.canonicalURLString.lowercased())|\(hasProviderSnippet)"
+            }
             .sorted()
             .joined(separator: "|")
     }
 
-    private var preferredURLStrings: [String] {
-        presentation.sources.map { source in
+    private func preferredURLStrings(for sources: [SearchSource]) -> [String] {
+        sources.map { source in
             renderPresentation(for: source).urlString
         }
     }
 
+    // MARK: - Source Enrichment
+
     private func renderPresentation(for source: SearchSource) -> SearchSource.RenderPresentation {
         source.renderPresentation(
-            resolvedURLString: resolvedRedirectURLByCanonicalSource[source.canonicalURLString]
+            resolvedURLString: resolvedRedirectURLByCanonicalSource[source.canonicalURLString],
+            resolvedPreviewText: resolvedPreviewTextByCanonicalSource[source.canonicalURLString]
         )
     }
 
-    private func resolveRedirectTargetsIfNeeded() async {
-        let targets = presentation.sources.filter(\.usesGoogleGroundingRedirect)
-        guard !targets.isEmpty else { return }
+    private func resolveSourceDetailsIfNeeded(for sources: [SearchSource]) async {
+        pruneStaleResolvedSourceData(for: sources)
+        await resolveRedirectTargetsIfNeeded(for: sources)
+        await resolveMissingPreviewTextIfNeeded(for: sources)
+    }
 
-        for source in targets {
+    private func pruneStaleResolvedSourceData(for sources: [SearchSource]) {
+        let activeCanonicalURLs = Set(sources.map(\.canonicalURLString))
+        resolvedRedirectURLByCanonicalSource = resolvedRedirectURLByCanonicalSource.filter { activeCanonicalURLs.contains($0.key) }
+        resolvedPreviewTextByCanonicalSource = resolvedPreviewTextByCanonicalSource.filter { activeCanonicalURLs.contains($0.key) }
+    }
+
+    private func resolveRedirectTargetsIfNeeded(for sources: [SearchSource]) async {
+        for source in sources where source.usesGoogleGroundingRedirect {
             if resolvedRedirectURLByCanonicalSource[source.canonicalURLString] != nil {
                 continue
             }
@@ -266,6 +299,25 @@ struct SearchActivityTimelineView: View {
             }
 
             resolvedRedirectURLByCanonicalSource[source.canonicalURLString] = resolvedURL
+        }
+    }
+
+    private func resolveMissingPreviewTextIfNeeded(for sources: [SearchSource]) async {
+        var fetchedPreviewCount = 0
+
+        for source in sources {
+            guard !Task.isCancelled else { break }
+            guard source.previewText == nil else { continue }
+            guard resolvedPreviewTextByCanonicalSource[source.canonicalURLString] == nil else { continue }
+            guard fetchedPreviewCount < SearchActivityTimelineConfig.previewFetchLimit else { break }
+
+            let previewURL = resolvedRedirectURLByCanonicalSource[source.canonicalURLString] ?? source.canonicalURLString
+            guard let preview = await SearchSourcePreviewResolver.shared.resolvePreviewIfNeeded(rawURL: previewURL) else {
+                continue
+            }
+
+            resolvedPreviewTextByCanonicalSource[source.canonicalURLString] = preview
+            fetchedPreviewCount += 1
         }
     }
 }
@@ -288,10 +340,10 @@ private struct SearchActivityPresentation {
             collectedQueries.append(normalized)
         }
 
-        func upsertSource(url: String, title: String?) {
-            guard let source = SearchSource(rawURL: url, title: title) else { return }
+        func upsertSource(url: String, title: String?, previewText: String?) {
+            guard let source = SearchSource(rawURL: url, title: title, previewText: previewText) else { return }
             if let existing = sourceByID[source.id] {
-                sourceByID[source.id] = existing.merged(withTitle: source.title)
+                sourceByID[source.id] = existing.merged(withTitle: source.title, previewText: source.previewText)
                 return
             }
             sourceByID[source.id] = source
@@ -307,11 +359,15 @@ private struct SearchActivityPresentation {
             }
 
             if let url = activity.stringArgument("url") {
-                upsertSource(url: url, title: activity.stringArgument("title"))
+                upsertSource(
+                    url: url,
+                    title: activity.stringArgument("title"),
+                    previewText: activity.sourcePreviewArgument
+                )
             }
 
             for sourceArg in activity.sourceArguments {
-                upsertSource(url: sourceArg.url, title: sourceArg.title)
+                upsertSource(url: sourceArg.url, title: sourceArg.title, previewText: sourceArg.previewText)
             }
         }
 
@@ -321,6 +377,12 @@ private struct SearchActivityPresentation {
 }
 
 private struct SearchSourceCardView: View {
+    private enum Layout {
+        static let cardWidth: CGFloat = 230
+        static let cardHeight: CGFloat = 138
+        static let previewLineLimit = 5
+    }
+
     let presentation: SearchSource.RenderPresentation
     @State private var isHovered = false
 
@@ -335,7 +397,7 @@ private struct SearchSourceCardView: View {
                 cardBody
             }
         }
-        .frame(width: 220, height: 126, alignment: .topLeading)
+        .frame(width: Layout.cardWidth, height: Layout.cardHeight, alignment: .topLeading)
         .jinSurface(.neutral, cornerRadius: JinRadius.medium)
         .overlay(
             RoundedRectangle(cornerRadius: JinRadius.medium, style: .continuous)
@@ -371,7 +433,8 @@ private struct SearchSourceCardView: View {
             Text(presentation.previewText)
                 .font(.footnote)
                 .foregroundStyle(.secondary)
-                .lineLimit(2)
+                .lineLimit(Layout.previewLineLimit)
+                .lineSpacing(1)
                 .textSelection(.enabled)
 
             Spacer(minLength: 0)
@@ -484,6 +547,7 @@ private struct SearchSource: Identifiable, Hashable {
     let id: String
     let canonicalURLString: String
     let title: String?
+    let previewText: String?
     let host: String
     let hostDisplay: String
     let usesGoogleGroundingRedirect: Bool
@@ -498,14 +562,22 @@ private struct SearchSource: Identifiable, Hashable {
         let hostDisplayInitial: String
     }
 
-    func renderPresentation(resolvedURLString: String?) -> RenderPresentation {
+    func renderPresentation(resolvedURLString: String?, resolvedPreviewText: String?) -> RenderPresentation {
+        let mergedPreviewText = SearchSource.preferredSnippet(existing: previewText, candidate: resolvedPreviewText)
+        let normalizedSnippet = SearchSource.normalizeSnippet(mergedPreviewText)
+
         if let resolvedURLString,
            let normalizedResolvedURL = SearchSource.normalizeURLString(resolvedURLString),
            let resolvedURL = URL(string: normalizedResolvedURL),
            let resolvedHost = resolvedURL.host?.trimmedNonEmpty {
             let resolvedHostDisplay = resolvedHost.replacingOccurrences(of: "www.", with: "")
             let resolvedTitle = title?.trimmedNonEmpty ?? resolvedHostDisplay
-            let resolvedPreview = SearchSource.pathPreview(for: resolvedURL) ?? normalizedResolvedURL
+            let resolvedPreview = SearchSource.previewText(
+                snippet: normalizedSnippet,
+                url: resolvedURL,
+                fallbackURLString: normalizedResolvedURL,
+                usesGoogleGroundingRedirect: usesGoogleGroundingRedirect
+            )
 
             return RenderPresentation(
                 urlString: normalizedResolvedURL,
@@ -518,16 +590,14 @@ private struct SearchSource: Identifiable, Hashable {
             )
         }
 
+        let canonicalURL = URL(string: canonicalURLString)
         let defaultTitle = title?.trimmedNonEmpty ?? hostDisplay
-        let defaultPreview: String
-        if usesGoogleGroundingRedirect {
-            defaultPreview = "Google grounded source"
-        } else if let canonicalURL = URL(string: canonicalURLString),
-                  let compactPath = SearchSource.pathPreview(for: canonicalURL) {
-            defaultPreview = compactPath
-        } else {
-            defaultPreview = canonicalURLString
-        }
+        let defaultPreview = SearchSource.previewText(
+            snippet: normalizedSnippet,
+            url: canonicalURL,
+            fallbackURLString: canonicalURLString,
+            usesGoogleGroundingRedirect: usesGoogleGroundingRedirect
+        )
 
         return RenderPresentation(
             urlString: canonicalURLString,
@@ -540,7 +610,7 @@ private struct SearchSource: Identifiable, Hashable {
         )
     }
 
-    init?(rawURL: String, title: String?) {
+    init?(rawURL: String, title: String?, previewText: String?) {
         guard let normalizedURL = SearchSource.normalizeURLString(rawURL) else { return nil }
         guard let rawHost = URL(string: normalizedURL)?.host?.trimmedNonEmpty else { return nil }
 
@@ -556,16 +626,19 @@ private struct SearchSource: Identifiable, Hashable {
         self.id = normalizedURL.lowercased()
         self.canonicalURLString = normalizedURL
         self.title = title?.trimmedNonEmpty
+        self.previewText = SearchSource.normalizeSnippet(previewText)
         self.host = resolvedHost
         self.hostDisplay = hostDisplay
         self.usesGoogleGroundingRedirect = isGoogleGroundingRedirect
     }
 
-    func merged(withTitle newerTitle: String?) -> SearchSource {
-        SearchSource(
+    func merged(withTitle newerTitle: String?, previewText newerPreviewText: String?) -> SearchSource {
+        let normalizedNewPreview = SearchSource.normalizeSnippet(newerPreviewText)
+        return SearchSource(
             id: id,
             canonicalURLString: canonicalURLString,
             title: newerTitle?.trimmedNonEmpty ?? title,
+            previewText: SearchSource.preferredSnippet(existing: previewText, candidate: normalizedNewPreview),
             host: host,
             hostDisplay: hostDisplay,
             usesGoogleGroundingRedirect: usesGoogleGroundingRedirect
@@ -576,6 +649,7 @@ private struct SearchSource: Identifiable, Hashable {
         id: String,
         canonicalURLString: String,
         title: String?,
+        previewText: String?,
         host: String,
         hostDisplay: String,
         usesGoogleGroundingRedirect: Bool
@@ -583,20 +657,14 @@ private struct SearchSource: Identifiable, Hashable {
         self.id = id
         self.canonicalURLString = canonicalURLString
         self.title = title
+        self.previewText = previewText
         self.host = host
         self.hostDisplay = hostDisplay
         self.usesGoogleGroundingRedirect = usesGoogleGroundingRedirect
     }
 
     private static func normalizeURLString(_ rawURL: String) -> String? {
-        guard let trimmed = rawURL.trimmedNonEmpty else { return nil }
-        if let url = URL(string: trimmed), url.scheme != nil {
-            return url.absoluteString
-        }
-        if let url = URL(string: "https://\(trimmed)"), url.scheme != nil {
-            return url.absoluteString
-        }
-        return nil
+        SearchURLNormalizer.normalize(rawURL)
     }
 
     private static func pathPreview(for url: URL) -> String? {
@@ -616,6 +684,102 @@ private struct SearchSource: Identifiable, Hashable {
         return readable
     }
 
+    private static func previewText(
+        snippet: String?,
+        url: URL?,
+        fallbackURLString: String,
+        usesGoogleGroundingRedirect: Bool
+    ) -> String {
+        let pathOrQueryPreview = compactPreviewFromURL(url, usesGoogleGroundingRedirect: usesGoogleGroundingRedirect)
+
+        if let snippet {
+            if let pathOrQueryPreview,
+               !snippet.localizedCaseInsensitiveContains(pathOrQueryPreview) {
+                return "\(snippet) · \(pathOrQueryPreview)"
+            }
+            return snippet
+        }
+
+        if let pathOrQueryPreview {
+            return pathOrQueryPreview
+        }
+
+        return fallbackURLString
+    }
+
+    private static func compactPreviewFromURL(
+        _ url: URL?,
+        usesGoogleGroundingRedirect: Bool
+    ) -> String? {
+        guard let url else { return nil }
+
+        if usesGoogleGroundingRedirect,
+           let redirectHint = googleRedirectPreviewHint(from: url) {
+            return redirectHint
+        }
+
+        if let path = pathPreview(for: url) {
+            return path
+        }
+
+        guard let query = url.query?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !query.isEmpty else {
+            return nil
+        }
+        return query
+    }
+
+    private static func googleRedirectPreviewHint(from url: URL) -> String? {
+        guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
+              let queryItems = components.queryItems,
+              !queryItems.isEmpty else {
+            return nil
+        }
+
+        let targetURLKeys = ["url", "u", "target", "dest", "redirect", "adurl"]
+        for key in targetURLKeys {
+            guard let rawValue = queryItems.first(where: { $0.name.caseInsensitiveCompare(key) == .orderedSame })?.value,
+                  let targetURL = URL(string: rawValue.removingPercentEncoding ?? rawValue) else {
+                continue
+            }
+
+            if let path = pathPreview(for: targetURL) {
+                return path
+            }
+            return targetURL.absoluteString
+        }
+
+        let searchKeys = ["q", "query", "search", "search_term"]
+        for key in searchKeys {
+            guard let rawValue = queryItems.first(where: { $0.name.caseInsensitiveCompare(key) == .orderedSame })?.value,
+                  let decodedValue = (rawValue.removingPercentEncoding ?? rawValue).trimmedNonEmpty else {
+                continue
+            }
+            return decodedValue
+        }
+
+        return nil
+    }
+
+    private static func normalizeSnippet(_ raw: String?) -> String? {
+        guard let raw else { return nil }
+        let collapsed = raw
+            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !collapsed.isEmpty else { return nil }
+        if collapsed.count <= 420 {
+            return collapsed
+        }
+        let endIndex = collapsed.index(collapsed.startIndex, offsetBy: 420)
+        return String(collapsed[..<endIndex]) + "…"
+    }
+
+    private static func preferredSnippet(existing: String?, candidate: String?) -> String? {
+        guard let candidate else { return existing }
+        guard let existing else { return candidate }
+        return candidate.count > existing.count ? candidate : existing
+    }
+
     private static let googleGroundingRedirectHost = "vertexaisearch.cloud.google.com"
 
     private static func domainCandidate(from title: String?) -> String? {
@@ -633,6 +797,7 @@ private struct SearchSource: Identifiable, Hashable {
 private struct SearchSourceArgument {
     let url: String
     let title: String?
+    let previewText: String?
 }
 
 private extension SearchActivity {
@@ -653,6 +818,10 @@ private extension SearchActivity {
         return []
     }
 
+    var sourcePreviewArgument: String? {
+        preferredPreviewValue(in: arguments.mapValues(\.value))
+    }
+
     var sourceArguments: [SearchSourceArgument] {
         guard let value = arguments["sources"]?.value else { return [] }
 
@@ -666,10 +835,41 @@ private extension SearchActivity {
         }
 
         return dictionaries.compactMap { item in
-            guard let url = (item["url"] as? String)?.trimmedNonEmpty else { return nil }
+            let nestedSource = item["source"] as? [String: Any]
+            let url = (item["url"] as? String)?.trimmedNonEmpty
+                ?? (nestedSource?["url"] as? String)?.trimmedNonEmpty
+            guard let url else { return nil }
+
             let title = (item["title"] as? String)?.trimmedNonEmpty
-            return SearchSourceArgument(url: url, title: title)
+                ?? (nestedSource?["title"] as? String)?.trimmedNonEmpty
+            let previewText = preferredPreviewValue(in: item)
+                ?? nestedSource.flatMap { preferredPreviewValue(in: $0) }
+            return SearchSourceArgument(url: url, title: title, previewText: previewText)
         }
+    }
+
+    private func preferredPreviewValue(in dictionary: [String: Any]) -> String? {
+        let candidateKeys = [
+            "snippet",
+            "summary",
+            "description",
+            "preview",
+            "excerpt",
+            "cited_text",
+            "citedText",
+            "text",
+            "content",
+            "quote",
+            "abstract"
+        ]
+
+        for key in candidateKeys {
+            if let value = (dictionary[key] as? String)?.trimmedNonEmpty {
+                return value
+            }
+        }
+
+        return nil
     }
 }
 
