@@ -301,13 +301,6 @@ function escapeHTML(e){return e.replace(/&/g,"&amp;").replace(/</g,"&lt;").repla
 window.texmath = texmath;
 
 </script>
-<script src="markdown-shiki-runtime.js"></script>
-<script src="markdown-mermaid-runtime.js"></script>
-<script>
-if (!window.mermaid && window.__esbuild_esm_mermaid_nm && window.__esbuild_esm_mermaid_nm.mermaid) {
-    window.mermaid = window.__esbuild_esm_mermaid_nm.mermaid;
-}
-</script>
 <script>
 var _codeBlockId = 0;
 var _codeBlockSrc = {};
@@ -317,9 +310,64 @@ var _stableRenderTicket = 0;
 var _latestStreamBase64 = '';
 var _streamRenderTicket = 0;
 var _shikiReady = false;
+var _shikiRuntimeLoadPromise = null;
+var _mermaidRuntimeLoadPromise = null;
 var _mermaidReadyPromise = null;
 
+function resolveMermaidFromGlobal() {
+    if (!window.mermaid && window.__esbuild_esm_mermaid_nm && window.__esbuild_esm_mermaid_nm.mermaid) {
+        window.mermaid = window.__esbuild_esm_mermaid_nm.mermaid;
+    }
+}
+
+function loadShikiRuntimeScript() {
+    if (window.JinShiki && typeof window.JinShiki.prepareHighlighter === 'function') {
+        return Promise.resolve(true);
+    }
+    if (_shikiRuntimeLoadPromise) {
+        return _shikiRuntimeLoadPromise;
+    }
+    _shikiRuntimeLoadPromise = new Promise(function(resolve) {
+        var script = document.createElement('script');
+        script.src = 'markdown-shiki-runtime.js';
+        script.async = true;
+        script.onload = function() { resolve(true); };
+        script.onerror = function(err) {
+            console.warn('[JinShiki] failed to load runtime script', err);
+            resolve(false);
+        };
+        document.head.appendChild(script);
+    });
+    return _shikiRuntimeLoadPromise;
+}
+
+function loadMermaidRuntimeScript() {
+    resolveMermaidFromGlobal();
+    if (window.mermaid && typeof window.mermaid.render === 'function') {
+        return Promise.resolve(true);
+    }
+    if (_mermaidRuntimeLoadPromise) {
+        return _mermaidRuntimeLoadPromise;
+    }
+    _mermaidRuntimeLoadPromise = new Promise(function(resolve) {
+        var script = document.createElement('script');
+        script.src = 'markdown-mermaid-runtime.js';
+        script.async = true;
+        script.onload = function() {
+            resolveMermaidFromGlobal();
+            resolve(!!(window.mermaid && typeof window.mermaid.render === 'function'));
+        };
+        script.onerror = function(err) {
+            console.warn('[JinMermaid] failed to load runtime script', err);
+            resolve(false);
+        };
+        document.head.appendChild(script);
+    });
+    return _mermaidRuntimeLoadPromise;
+}
+
 function getMermaidRuntime() {
+    resolveMermaidFromGlobal();
     if (window.mermaid && typeof window.mermaid.render === 'function') {
         return window.mermaid;
     }
@@ -654,15 +702,16 @@ function renderPreviewErrorHTML(message) {
 }
 
 function ensureMermaidReady() {
-    var mermaidRuntime = getMermaidRuntime();
-    if (!mermaidRuntime || typeof mermaidRuntime.render !== 'function') {
-        return Promise.resolve(false);
-    }
-    if (!window.mermaid) {
-        window.mermaid = mermaidRuntime;
-    }
     if (!_mermaidReadyPromise) {
-        _mermaidReadyPromise = Promise.resolve().then(function() {
+        _mermaidReadyPromise = loadMermaidRuntimeScript().then(function(loaded) {
+            if (!loaded) return false;
+            var mermaidRuntime = getMermaidRuntime();
+            if (!mermaidRuntime || typeof mermaidRuntime.render !== 'function') {
+                return false;
+            }
+            if (!window.mermaid) {
+                window.mermaid = mermaidRuntime;
+            }
             mermaidRuntime.initialize({
                 startOnLoad: false,
                 securityLevel: 'strict',
@@ -839,10 +888,13 @@ function ensureShikiReady() {
     if (_shikiReady) {
         return Promise.resolve(true);
     }
-    if (!window.JinShiki || typeof window.JinShiki.prepareHighlighter !== 'function') {
-        return Promise.resolve(false);
-    }
-    return window.JinShiki.prepareHighlighter()
+    return loadShikiRuntimeScript()
+        .then(function(loaded) {
+            if (!loaded || !window.JinShiki || typeof window.JinShiki.prepareHighlighter !== 'function') {
+                return false;
+            }
+            return window.JinShiki.prepareHighlighter();
+        })
         .then(function(ok) {
             _shikiReady = !!ok;
             return _shikiReady;
