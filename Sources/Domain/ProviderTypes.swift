@@ -55,6 +55,7 @@ struct ModelOverrides: Codable, Equatable {
 /// Provider type.
 enum ProviderType: String, Codable, CaseIterable {
     case openai
+    case codexAppServer
     case openaiCompatible
     case openrouter
     case anthropic
@@ -73,6 +74,7 @@ enum ProviderType: String, Codable, CaseIterable {
     var displayName: String {
         switch self {
         case .openai: return "OpenAI"
+        case .codexAppServer: return "Codex App Server (Beta)"
         case .openaiCompatible: return "OpenAI Compatible"
         case .openrouter: return "OpenRouter"
         case .anthropic: return "Anthropic"
@@ -93,6 +95,7 @@ enum ProviderType: String, Codable, CaseIterable {
     var defaultBaseURL: String? {
         switch self {
         case .openai: return "https://api.openai.com/v1"
+        case .codexAppServer: return "ws://127.0.0.1:4500"
         case .openaiCompatible: return "https://api.openai.com/v1"
         case .openrouter: return "https://openrouter.ai/api/v1"
         case .anthropic: return "https://api.anthropic.com/v1"
@@ -117,6 +120,8 @@ struct ProviderConfig: Identifiable, Codable {
     let name: String
     let type: ProviderType
     var iconID: String?
+    /// Optional provider-specific auth mode hint persisted with this provider config.
+    var authModeHint: String?
     var apiKey: String?
     var serviceAccountJSON: String?
     var baseURL: String?
@@ -127,6 +132,7 @@ struct ProviderConfig: Identifiable, Codable {
         name: String,
         type: ProviderType,
         iconID: String? = nil,
+        authModeHint: String? = nil,
         apiKey: String? = nil,
         serviceAccountJSON: String? = nil,
         baseURL: String? = nil,
@@ -136,6 +142,7 @@ struct ProviderConfig: Identifiable, Codable {
         self.name = name
         self.type = type
         self.iconID = iconID
+        self.authModeHint = authModeHint
         self.apiKey = apiKey
         self.serviceAccountJSON = serviceAccountJSON
         self.baseURL = baseURL

@@ -1,9 +1,18 @@
 import SwiftUI
 import SwiftData
+import AppKit
+
+@MainActor
+private final class JinAppDelegate: NSObject, NSApplicationDelegate {
+    func applicationWillTerminate(_ notification: Notification) {
+        CodexAppServerController.shared.stop()
+    }
+}
 
 @main
 struct JinApp: App {
     private let modelContainer: ModelContainer
+    @NSApplicationDelegateAdaptor(JinAppDelegate.self) private var appDelegate
     @StateObject private var streamingStore = ConversationStreamingStore()
     @StateObject private var responseCompletionNotifier = ResponseCompletionNotifier()
     @StateObject private var shortcutsStore = AppShortcutsStore.shared

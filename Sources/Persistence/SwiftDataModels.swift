@@ -275,6 +275,7 @@ final class ProviderConfigEntity {
             name: name,
             type: providerType,
             iconID: iconID,
+            authModeHint: apiKeyKeychainID,
             apiKey: apiKey,
             serviceAccountJSON: serviceAccountJSON,
             baseURL: baseURL,
@@ -294,7 +295,7 @@ final class ProviderConfigEntity {
             iconID: config.iconID,
             apiKey: config.apiKey,
             serviceAccountJSON: config.serviceAccountJSON,
-            apiKeyKeychainID: nil,
+            apiKeyKeychainID: config.authModeHint,
             baseURL: config.baseURL,
             modelsData: modelsData
         )

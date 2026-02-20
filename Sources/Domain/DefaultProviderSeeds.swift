@@ -10,6 +10,7 @@ enum DefaultProviderSeeds {
     static func allProviders() -> [ProviderConfig] {
         [
             openAI,
+            codexAppServer,
             groq,
             openRouter,
             anthropic,
@@ -55,6 +56,25 @@ enum DefaultProviderSeeds {
                     capabilities: [.streaming, .toolCalling, .vision, .promptCaching],
                     contextWindow: 128000,
                     reasoningConfig: nil
+                ),
+            ]
+        )
+    }
+
+    static var codexAppServer: ProviderConfig {
+        ProviderConfig(
+            id: "codex-app-server",
+            name: "Codex App Server (Beta)",
+            type: .codexAppServer,
+            iconID: LobeProviderIconCatalog.defaultIconID(for: .codexAppServer),
+            baseURL: ProviderType.codexAppServer.defaultBaseURL,
+            models: [
+                ModelInfo(
+                    id: "gpt-5.1-codex",
+                    name: "GPT-5.1 Codex",
+                    capabilities: [.streaming, .reasoning],
+                    contextWindow: 256_000,
+                    reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium)
                 ),
             ]
         )
