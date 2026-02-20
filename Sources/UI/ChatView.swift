@@ -8,6 +8,7 @@ struct ChatView: View {
     private static let initialMessageRenderLimit = 24
     private static let messageRenderPageSize = 40
     private static let eagerCodeHighlightTailCount = 12
+    private static let pinnedBottomRefreshDelays: [TimeInterval] = [0, 0.04, 0.14]
 
     @Environment(\.modelContext) private var modelContext
     @EnvironmentObject private var streamingStore: ConversationStreamingStore
@@ -651,9 +652,18 @@ struct ChatView: View {
         .padding(.bottom, 2)
     }
 
-    @ViewBuilder
     private func chatScrollView(geometry: GeometryProxy, proxy: ScrollViewProxy) -> some View {
-        ScrollView {
+        func refreshPinnedBottomIfNeeded() {
+            guard isPinnedToBottom else { return }
+
+            for delay in Self.pinnedBottomRefreshDelays {
+                DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                    proxy.scrollTo("bottom", anchor: .bottom)
+                }
+            }
+        }
+
+        return ScrollView {
             let bubbleMaxWidth = maxBubbleWidth(for: geometry.size.width)
             let assistantDisplayName = conversationEntity.assistant?.displayName ?? "Assistant"
             let providerIconID = currentProviderIconID
@@ -778,16 +788,12 @@ struct ChatView: View {
             }
         }
         .onChange(of: conversationEntity.messages.count) { _, _ in
-            guard isPinnedToBottom else { return }
-            DispatchQueue.main.async {
-                withAnimation(.easeOut(duration: 0.15)) {
-                    proxy.scrollTo("bottom", anchor: .bottom)
-                }
-            }
+            refreshPinnedBottomIfNeeded()
         }
         .onChange(of: isStreaming) { wasStreaming, nowStreaming in
             guard wasStreaming, !nowStreaming else { return }
             rebuildMessageCachesIfNeeded()
+            refreshPinnedBottomIfNeeded()
         }
         .onChange(of: conversationEntity.id) { _, _ in
             DispatchQueue.main.async {
