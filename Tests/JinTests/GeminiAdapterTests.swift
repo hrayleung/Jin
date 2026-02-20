@@ -243,6 +243,14 @@ final class GeminiAdapterTests: XCTestCase {
                                         "title": "Swift 6.2"
                                     ]
                                 ]
+                            ],
+                            "groundingSupports": [
+                                [
+                                    "segment": [
+                                        "text": "Swift 6.2 includes stronger diagnostics for actor isolation and data-race safety."
+                                    ],
+                                    "groundingChunkIndices": [0]
+                                ]
                             ]
                         ]
                     ]
@@ -274,6 +282,7 @@ final class GeminiAdapterTests: XCTestCase {
         XCTAssertEqual(searchEvents[1].type, "open_page")
         XCTAssertEqual(searchEvents[1].arguments["url"]?.value as? String, "https://example.com/swift-6-2")
         XCTAssertEqual(searchEvents[1].arguments["title"]?.value as? String, "Swift 6.2")
+        XCTAssertTrue((searchEvents[1].arguments["snippet"]?.value as? String ?? "").contains("actor isolation"))
     }
 
     func testGeminiAdapterEmitsSearchActivitiesFromTopLevelGroundingMetadataFallback() async throws {

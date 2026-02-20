@@ -25,7 +25,7 @@ enum ProviderParamsJSONSync {
             base = makeFireworksDraft(controls: controls, modelID: modelID)
         case .perplexity:
             base = makePerplexityDraft(controls: controls)
-        case .openaiCompatible, .openrouter, .groq, .cohere, .mistral, .deepinfra, .deepseek, .none:
+        case .codexAppServer, .openaiCompatible, .openrouter, .groq, .cohere, .mistral, .deepinfra, .deepseek, .none:
             base = [:]
         }
 
@@ -75,7 +75,7 @@ enum ProviderParamsJSONSync {
             applyFireworks(draft: normalizedDraft, modelID: modelID, controls: &controls, providerSpecific: &providerSpecific)
         case .perplexity:
             applyPerplexity(draft: normalizedDraft, controls: &controls, providerSpecific: &providerSpecific)
-        case .openaiCompatible, .openrouter, .groq, .cohere, .mistral, .deepinfra, .deepseek, .none:
+        case .codexAppServer, .openaiCompatible, .openrouter, .groq, .cohere, .mistral, .deepinfra, .deepseek, .none:
             break
         }
 
@@ -1779,7 +1779,7 @@ enum ProviderParamsJSONSync {
         switch providerType {
         case .openai, .anthropic, .gemini, .vertexai, .xai:
             return true
-        case .openaiCompatible, .openrouter, .perplexity, .groq, .cohere, .mistral, .deepinfra, .deepseek, .fireworks, .cerebras, .none:
+        case .codexAppServer, .openaiCompatible, .openrouter, .perplexity, .groq, .cohere, .mistral, .deepinfra, .deepseek, .fireworks, .cerebras, .none:
             return false
         }
     }
@@ -1965,7 +1965,7 @@ enum ProviderParamsJSONSync {
                 base[key] = value
             }
 
-        case .openai, .cerebras, .fireworks, .openaiCompatible, .openrouter, .groq, .cohere, .mistral, .deepinfra, .xai, .deepseek, .none:
+        case .openai, .codexAppServer, .cerebras, .fireworks, .openaiCompatible, .openrouter, .groq, .cohere, .mistral, .deepinfra, .xai, .deepseek, .none:
             for (key, value) in additional {
                 base[key] = value
             }

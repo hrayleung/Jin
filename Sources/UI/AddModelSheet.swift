@@ -208,7 +208,7 @@ struct AddModelSheet: View {
                 caps.insert(.nativePDF)
             }
 
-        case .openai?, .openaiCompatible?, .openrouter?, .anthropic?, .groq?, .cohere?, .mistral?, .deepinfra?, .deepseek?, .none:
+        case .openai?, .codexAppServer?, .openaiCompatible?, .openrouter?, .anthropic?, .groq?, .cohere?, .mistral?, .deepinfra?, .deepseek?, .none:
             break
         }
 
@@ -275,7 +275,7 @@ struct AddModelSheet: View {
             return lowerModelID.contains("qwen3-asr")
                 || lowerModelID.contains("qwen3-omni")
 
-        case .anthropic?, .perplexity?, .groq?, .cohere?, .xai?, .deepseek?, .cerebras?, .none:
+        case .anthropic?, .perplexity?, .groq?, .cohere?, .xai?, .deepseek?, .cerebras?, .codexAppServer?, .none:
             return false
         }
     }

@@ -1279,6 +1279,76 @@ final class XAIAdapterMediaTests: XCTestCase {
         XCTAssertLessThan(searchIndex, messageEndIndex)
     }
 
+    func testXAIResponsesNonStreamingUsesInlineCitationAnnotationsForSnippetPreview() async throws {
+        let (session, protocolType) = makeMockedURLSession()
+        let networkManager = NetworkManager(urlSession: session)
+
+        let providerConfig = ProviderConfig(
+            id: "x",
+            name: "xAI",
+            type: .xai,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://example.com/responses")
+
+            let response: [String: Any] = [
+                "id": "resp_inline_citation_1",
+                "output": [
+                    [
+                        "type": "message",
+                        "content": [
+                            [
+                                "type": "output_text",
+                                "text": "xAI updated Grok web search grounding in 2026.",
+                                "annotations": [
+                                    [
+                                        "type": "url_citation",
+                                        "url": "https://docs.x.ai/docs/guides/live-search",
+                                        "title": "1",
+                                        "start_index": 12,
+                                        "end_index": 36
+                                    ]
+                                ]
+                            ]
+                        ]
+                    ]
+                ],
+                "usage": [
+                    "input_tokens": 7,
+                    "output_tokens": 4
+                ]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = XAIAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hi")])],
+            modelID: "grok-4-1212",
+            controls: GenerationControls(),
+            tools: [],
+            streaming: false
+        )
+
+        var citationEvent: SearchActivity?
+        for try await event in stream {
+            guard case .searchActivity(let activity) = event else { continue }
+            citationEvent = activity
+            break
+        }
+
+        let citation = try XCTUnwrap(citationEvent)
+        XCTAssertEqual(citationURLs(from: citation), ["https://docs.x.ai/docs/guides/live-search"])
+
+        let rows = citationSourceRows(from: citation)
+        XCTAssertNil(rows.first?.title, "Numeric inline titles should be ignored")
+        XCTAssertTrue((rows.first?.snippet ?? "").contains("web search grounding"))
+    }
+
     func testXAIResponsesStreamingEmitsCitationSearchActivityOnResponseCompleted() async throws {
         let (session, protocolType) = makeMockedURLSession()
         let networkManager = NetworkManager(urlSession: session)
@@ -1780,6 +1850,10 @@ private func requestBodyData(_ request: URLRequest) -> Data? {
 }
 
 private func citationURLs(from activity: SearchActivity) -> [String] {
+    citationSourceRows(from: activity).compactMap(\.url)
+}
+
+private func citationSourceRows(from activity: SearchActivity) -> [(url: String?, title: String?, snippet: String?)] {
     guard let value = activity.arguments["sources"]?.value else { return [] }
 
     let rows: [[String: Any]]
@@ -1791,7 +1865,13 @@ private func citationURLs(from activity: SearchActivity) -> [String] {
         rows = []
     }
 
-    return rows.compactMap { $0["url"] as? String }
+    return rows.map { row in
+        (
+            url: row["url"] as? String,
+            title: row["title"] as? String,
+            snippet: row["snippet"] as? String
+        )
+    }
 }
 
 private func makeIsolatedUserDefaults() -> (UserDefaults, String) {

@@ -12,7 +12,7 @@ actor SearchRedirectURLResolver {
     private var inFlightByRawURL: [String: Task<String?, Never>] = [:]
 
     func resolveIfNeeded(rawURL: String) async -> String? {
-        guard let normalizedRawURL = normalizeURLString(rawURL) else { return nil }
+        guard let normalizedRawURL = SearchURLNormalizer.normalize(rawURL) else { return nil }
         guard shouldResolveRedirect(for: normalizedRawURL) else { return nil }
 
         if let cached = cacheByRawURL[normalizedRawURL] {
@@ -97,19 +97,5 @@ actor SearchRedirectURLResolver {
         }
 
         return false
-    }
-
-    private func normalizeURLString(_ rawURL: String) -> String? {
-        let trimmed = rawURL.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return nil }
-
-        if let url = URL(string: trimmed), url.scheme != nil {
-            return url.absoluteString
-        }
-        if let url = URL(string: "https://\(trimmed)"), url.scheme != nil {
-            return url.absoluteString
-        }
-
-        return nil
     }
 }

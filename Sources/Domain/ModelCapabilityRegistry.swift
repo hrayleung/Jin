@@ -12,6 +12,8 @@ enum ModelCapabilityRegistry {
         switch providerType {
         case .openai:
             return .openAIResponses
+        case .codexAppServer:
+            return .openAICompatible
         case .anthropic:
             return .anthropic
         case .gemini, .vertexai:
@@ -41,6 +43,8 @@ enum ModelCapabilityRegistry {
         switch providerType {
         case .openai:
             return supportsOpenAIWebSearch(lowerModelID: lower)
+        case .codexAppServer:
+            return false
         case .openrouter:
             return supportsOpenRouterWebSearch(lowerModelID: lower)
         case .anthropic:

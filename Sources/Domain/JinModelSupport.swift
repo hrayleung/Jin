@@ -13,6 +13,9 @@ enum JinModelSupport {
                 || lower.hasPrefix("o4")
                 || lower.hasPrefix("gpt-4o")
 
+        case .codexAppServer:
+            return false
+
         case .openaiCompatible, .openrouter, .groq, .cohere, .mistral, .deepinfra:
             // Generic/aggregated routing is provider-dependent; avoid over-promising.
             return false

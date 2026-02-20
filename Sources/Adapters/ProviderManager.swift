@@ -41,6 +41,8 @@ actor ProviderManager {
         switch config.type {
         case .openai:
             return OpenAIAdapter(providerConfig: config, apiKey: apiKey, networkManager: networkManager)
+        case .codexAppServer:
+            return CodexAppServerAdapter(providerConfig: config, apiKey: apiKey, networkManager: networkManager)
         case .openaiCompatible, .groq, .mistral, .deepinfra:
             return OpenAICompatibleAdapter(providerConfig: config, apiKey: apiKey, networkManager: networkManager)
         case .openrouter:
@@ -75,6 +77,16 @@ actor ProviderManager {
     private func resolveAPIKey(for config: ProviderConfig) async throws -> String {
         let direct = (config.apiKey ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         if !direct.isEmpty { return direct }
+
+        if config.type == .codexAppServer {
+            if config.authModeHint == CodexLocalAuthStore.authModeHint {
+                if let localKey = CodexLocalAuthStore.loadAPIKey() {
+                    return localKey
+                }
+                throw ProviderError.missingAPIKey(provider: config.name)
+            }
+            return ""
+        }
 
         throw ProviderError.missingAPIKey(provider: config.name)
     }

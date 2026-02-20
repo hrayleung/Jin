@@ -972,8 +972,9 @@ actor GeminiAdapter: LLMProviderAdapter {
         var seenSourceURLKeys: Set<String> = []
         var sourceSequence = 0
         let sourceSequenceBase = orderedQueries.count
+        let snippetByChunkIndex = groundingSnippetByChunkIndex(from: grounding)
 
-        func appendSourceActivity(url rawURL: String?, title rawTitle: String?, idPrefix: String) {
+        func appendSourceActivity(url rawURL: String?, title rawTitle: String?, snippet rawSnippet: String?, idPrefix: String) {
             let url = rawURL?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             guard !url.isEmpty else { return }
             let dedupeKey = url.lowercased()
@@ -982,6 +983,12 @@ actor GeminiAdapter: LLMProviderAdapter {
             var args: [String: AnyCodable] = ["url": AnyCodable(url)]
             if let title = rawTitle?.trimmingCharacters(in: .whitespacesAndNewlines), !title.isEmpty {
                 args["title"] = AnyCodable(title)
+            }
+            if let snippet = rawSnippet?
+                .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+                .trimmingCharacters(in: .whitespacesAndNewlines),
+               !snippet.isEmpty {
+                args["snippet"] = AnyCodable(snippet)
             }
 
             sourceEvents.append(
@@ -999,14 +1006,19 @@ actor GeminiAdapter: LLMProviderAdapter {
             sourceSequence += 1
         }
 
-        for chunk in (grounding.groundingChunks ?? []) {
-            appendSourceActivity(url: chunk.web?.uri, title: chunk.web?.title, idPrefix: "gemini-open")
+        for (chunkIndex, chunk) in (grounding.groundingChunks ?? []).enumerated() {
+            appendSourceActivity(
+                url: chunk.web?.uri,
+                title: chunk.web?.title,
+                snippet: snippetByChunkIndex[chunkIndex],
+                idPrefix: "gemini-open"
+            )
         }
 
         // Official fallback for custom Search Suggestions UI when chunk URLs are absent.
         if sourceEvents.isEmpty {
             for suggestion in GoogleGroundingSearchSuggestionParser.parse(sdkBlob: grounding.searchEntryPoint?.sdkBlob) {
-                appendSourceActivity(url: suggestion.url, title: suggestion.query, idPrefix: "gemini-search-url")
+                appendSourceActivity(url: suggestion.url, title: suggestion.query, snippet: nil, idPrefix: "gemini-search-url")
             }
         }
 
@@ -1026,6 +1038,40 @@ actor GeminiAdapter: LLMProviderAdapter {
         }
 
         return out
+    }
+
+    private func groundingSnippetByChunkIndex(from grounding: GenerateContentResponse.GroundingMetadata) -> [Int: String] {
+        var snippetsByIndex: [Int: [String]] = [:]
+
+        for support in grounding.groundingSupports ?? [] {
+            guard let segment = support.segment?.text?
+                .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+                .trimmingCharacters(in: .whitespacesAndNewlines),
+                  !segment.isEmpty else {
+                continue
+            }
+
+            for index in support.groundingChunkIndices ?? [] where index >= 0 {
+                var snippets = snippetsByIndex[index] ?? []
+                if !snippets.contains(segment) {
+                    snippets.append(segment)
+                    snippetsByIndex[index] = snippets
+                }
+            }
+        }
+
+        var merged: [Int: String] = [:]
+        for (index, snippets) in snippetsByIndex {
+            let joined = snippets.joined(separator: " • ")
+            if joined.count > 420 {
+                let endIndex = joined.index(joined.startIndex, offsetBy: 420)
+                merged[index] = String(joined[..<endIndex]) + "…"
+            } else {
+                merged[index] = joined
+            }
+        }
+
+        return merged
     }
 
     private func candidateGroundingMetadata(in candidates: [GenerateContentResponse.Candidate]?) -> GenerateContentResponse.GroundingMetadata? {
@@ -1217,6 +1263,7 @@ private struct GenerateContentResponse: Codable {
         let webSearchQueries: [String]?
         let retrievalQueries: [String]?
         let groundingChunks: [GroundingChunk]?
+        let groundingSupports: [GroundingSupport]?
         let searchEntryPoint: SearchEntryPoint?
 
         struct GroundingChunk: Codable {
@@ -1231,6 +1278,15 @@ private struct GenerateContentResponse: Codable {
         struct SearchEntryPoint: Codable {
             let renderedContent: String?
             let sdkBlob: String?
+        }
+
+        struct GroundingSupport: Codable {
+            let segment: Segment?
+            let groundingChunkIndices: [Int]?
+
+            struct Segment: Codable {
+                let text: String?
+            }
         }
     }
 
