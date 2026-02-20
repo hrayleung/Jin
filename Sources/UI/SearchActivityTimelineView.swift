@@ -307,9 +307,13 @@ struct SearchActivityTimelineView: View {
 
         for source in sources {
             guard !Task.isCancelled else { break }
-            guard source.previewText == nil else { continue }
             guard resolvedPreviewTextByCanonicalSource[source.canonicalURLString] == nil else { continue }
             guard fetchedPreviewCount < SearchActivityTimelineConfig.previewFetchLimit else { break }
+
+            if source.usesGoogleGroundingRedirect,
+               resolvedRedirectURLByCanonicalSource[source.canonicalURLString] == nil {
+                continue
+            }
 
             let previewURL = resolvedRedirectURLByCanonicalSource[source.canonicalURLString] ?? source.canonicalURLString
             guard let preview = await SearchSourcePreviewResolver.shared.resolvePreviewIfNeeded(rawURL: previewURL) else {
@@ -563,8 +567,10 @@ private struct SearchSource: Identifiable, Hashable {
     }
 
     func renderPresentation(resolvedURLString: String?, resolvedPreviewText: String?) -> RenderPresentation {
-        let mergedPreviewText = SearchSource.preferredSnippet(existing: previewText, candidate: resolvedPreviewText)
-        let normalizedSnippet = SearchSource.normalizeSnippet(mergedPreviewText)
+        let normalizedSnippet = SearchSource.preferredRenderSnippet(
+            providerSnippet: previewText,
+            resolvedSnippet: resolvedPreviewText
+        )
 
         if let resolvedURLString,
            let normalizedResolvedURL = SearchSource.normalizeURLString(resolvedURLString),
@@ -780,6 +786,16 @@ private struct SearchSource: Identifiable, Hashable {
         return candidate.count > existing.count ? candidate : existing
     }
 
+    private static func preferredRenderSnippet(
+        providerSnippet: String?,
+        resolvedSnippet: String?
+    ) -> String? {
+        if let resolved = normalizeSnippet(resolvedSnippet) {
+            return resolved
+        }
+        return normalizeSnippet(providerSnippet)
+    }
+
     private static let googleGroundingRedirectHost = "vertexaisearch.cloud.google.com"
 
     private static func domainCandidate(from title: String?) -> String? {
@@ -857,8 +873,6 @@ private extension SearchActivity {
             "excerpt",
             "cited_text",
             "citedText",
-            "text",
-            "content",
             "quote",
             "abstract"
         ]
