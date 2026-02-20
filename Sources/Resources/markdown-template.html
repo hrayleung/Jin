@@ -361,12 +361,28 @@ var languageLogoAliases = {
     sh: 'bash',
     zsh: 'bash',
     shell: 'bash',
+    shellscript: 'bash',
     shellsession: 'bash',
+    console: 'bash',
+    terminal: 'bash',
+    fishshell: 'fish',
+    nu: 'nushell',
+    ps: 'powershell',
+    pwsh: 'powershell',
     ps1: 'powershell',
     yml: 'yaml',
     md: 'markdown',
+    txt: 'txt',
+    plain: 'txt',
+    plaintext: 'txt',
+    text: 'txt',
+    proto: 'protobuf',
+    tex: 'latex',
+    vuejs: 'vue',
     cplusplus: 'cpp',
     'c++': 'cpp',
+    objc: 'c',
+    'obj-c': 'c',
     'objective-c': 'c',
     'objective-cpp': 'cpp',
     mmd: 'mermaid',
@@ -376,6 +392,7 @@ var languageLogoAliases = {
     cs: 'csharp',
     'c#': 'csharp',
     golang: 'go',
+    gdscript: 'godot',
     dockerfile: 'docker',
     mysql: 'sql',
     postgresql: 'sql',
@@ -391,30 +408,64 @@ var languageLogoURLs = {
     swift: 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/swift/swift-original.svg',
     go: 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/go/go-original.svg',
     rust: 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/rust/rust-original.svg',
+    zig: 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/zig/zig-original.svg',
+    nim: 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/nim/nim-original.svg',
+    ocaml: 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/ocaml/ocaml-original.svg',
+    haskell: 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/haskell/haskell-original.svg',
+    elm: 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/elm/elm-original.svg',
+    clojure: 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/clojure/clojure-original.svg',
+    lisp: 'https://api.iconify.design/simple-icons/commonlisp.svg?color=%23a38b6d',
+    apl: 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/apl/apl-original.svg',
     java: 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/java/java-original.svg',
     kotlin: 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/kotlin/kotlin-original.svg',
+    v: 'https://api.iconify.design/simple-icons/v.svg?color=%235f6b77',
     c: 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/c/c-original.svg',
     cpp: 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/cplusplus/cplusplus-original.svg',
     csharp: 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/csharp/csharp-original.svg',
     php: 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/php/php-original.svg',
     ruby: 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/ruby/ruby-original.svg',
+    prolog: 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/prolog/prolog-original.svg',
     html: 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/html5/html5-original.svg',
     css: 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/css3/css3-original.svg',
+    svelte: 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/svelte/svelte-original.svg',
+    vue: 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/vuejs/vuejs-original.svg',
+    astro: 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/astro/astro-original.svg',
+    gleam: 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/gleam/gleam-original.svg',
     docker: 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/docker/docker-original.svg',
+    godot: 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/godot/godot-original.svg',
+    wgsl: 'https://api.iconify.design/simple-icons/webgpu.svg?color=%235184fe',
+    solidity: 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/solidity/solidity-original.svg',
+    latex: 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/latex/latex-original.svg',
+    protobuf: 'https://api.iconify.design/simple-icons/protocolsdotio.svg?color=%23006A71',
+    nushell: 'https://api.iconify.design/simple-icons/nushell.svg?color=%234e9a06',
+    fish: 'https://api.iconify.design/simple-icons/fishshell.svg?color=%2334c534',
     powershell: 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/powershell/powershell-original.svg',
     sql: 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/mysql/mysql-original.svg',
     json: 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/javascript/javascript-original.svg',
     yaml: 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/yaml/yaml-original.svg',
+    txt: 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/markdown/markdown-original.svg',
     markdown: 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/markdown/markdown-original.svg',
     mermaid: 'https://api.iconify.design/simple-icons/mermaid.svg?color=%23ff3670'
 };
 
+var languageHighlightAliases = {
+    nu: 'nushell',
+    console: 'shellsession',
+    terminal: 'shellsession',
+    plain: 'txt',
+    plaintext: 'txt',
+    text: 'txt'
+};
+
 function resolveLanguageLabel(lang) {
+    var normalized = '';
     if (window.JinShiki && typeof window.JinShiki.normalizeLanguage === 'function') {
-        return window.JinShiki.normalizeLanguage(lang);
+        normalized = window.JinShiki.normalizeLanguage(lang);
+    } else {
+        normalized = lang ? String(lang).trim().toLowerCase() : '';
     }
-    var text = lang ? String(lang).trim().toLowerCase() : '';
-    return text || 'txt';
+    if (!normalized) return 'txt';
+    return languageHighlightAliases[normalized] || normalized;
 }
 
 function resolveLanguageLogoURL(lang, label) {
@@ -802,6 +853,8 @@ function buildHighlightLanguageCandidates(lang, label, renderKind) {
     var candidates = [];
     addLanguageCandidate(candidates, lang);
     addLanguageCandidate(candidates, label);
+    addLanguageCandidate(candidates, languageHighlightAliases[String(lang || '').trim().toLowerCase()] || '');
+    addLanguageCandidate(candidates, languageHighlightAliases[String(label || '').trim().toLowerCase()] || '');
 
     if (renderKind === 'svg') {
         addLanguageCandidate(candidates, 'svg');
