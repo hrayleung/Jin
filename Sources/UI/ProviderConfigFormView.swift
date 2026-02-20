@@ -4,8 +4,17 @@ import SwiftData
 struct ProviderConfigFormView: View {
     @Bindable var provider: ProviderConfigEntity
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.openURL) private var openURL
+    @ObservedObject private var codexServerController = CodexAppServerController.shared
     @State private var apiKey = ""
     @State private var serviceAccountJSON = ""
+    @State private var codexAuthMode: CodexAuthMode = .apiKey
+    @State private var codexAuthStatus: CodexAuthStatus = .idle
+    @State private var codexAccount: CodexAppServerAdapter.AccountStatus?
+    @State private var codexRateLimit: CodexAppServerAdapter.RateLimitStatus?
+    @State private var codexPendingLoginID: String?
+    @State private var codexAuthTask: Task<Void, Never>?
+    @State private var codexServerLaunchError: String?
     @State private var showingAPIKey = false
     @State private var hasLoadedCredentials = false
     @State private var credentialSaveError: String?
@@ -74,6 +83,9 @@ struct ProviderConfigFormView: View {
                     .jinInfoCallout()
 
                 switch providerType {
+                case .codexAppServer:
+                    codexServerSection
+                    codexAuthSection
                 case .openai, .openaiCompatible, .openrouter, .anthropic, .perplexity, .groq, .cohere, .mistral, .deepinfra, .xai, .deepseek, .fireworks, .cerebras, .gemini:
                     apiKeyField
                 case .vertexai:
@@ -81,6 +93,11 @@ struct ProviderConfigFormView: View {
                 case .none:
                     Text("Unknown provider type")
                         .foregroundColor(.secondary)
+                }
+
+                if providerType == .codexAppServer {
+                    Text("You can start/stop `codex app-server` here. Choose one auth mode only: API Key, ChatGPT Account, or Local Codex Auth file.")
+                        .jinInfoCallout()
                 }
 
                 if providerType == .openrouter {
@@ -223,6 +240,9 @@ struct ProviderConfigFormView: View {
             if providerType == .openrouter, allowAutomaticNetworkRequests {
                 await refreshOpenRouterUsage(force: true)
             }
+            if providerType == .codexAppServer, codexAuthMode == .chatGPT, allowAutomaticNetworkRequests {
+                await refreshCodexAccountStatus(forceRefreshToken: false)
+            }
         }
         .onChange(of: apiKey) { _, _ in
             guard hasLoadedCredentials else { return }
@@ -231,6 +251,15 @@ struct ProviderConfigFormView: View {
                 scheduleOpenRouterUsageRefresh()
             }
         }
+        .onChange(of: codexAuthMode) { _, _ in
+            guard hasLoadedCredentials else { return }
+            codexAuthTask?.cancel()
+            codexPendingLoginID = nil
+            codexAccount = nil
+            codexRateLimit = nil
+            codexAuthStatus = .idle
+            scheduleCredentialSave()
+        }
         .onChange(of: serviceAccountJSON) { _, _ in
             guard hasLoadedCredentials else { return }
             scheduleCredentialSave()
@@ -238,6 +267,7 @@ struct ProviderConfigFormView: View {
         .onDisappear {
             credentialSaveTask?.cancel()
             openRouterUsageTask?.cancel()
+            codexAuthTask?.cancel()
         }
         .sheet(isPresented: $showingAddModel) {
             AddModelSheet(
@@ -314,6 +344,325 @@ struct ProviderConfigFormView: View {
             }
             .buttonStyle(JinIconButtonStyle())
         }
+    }
+
+    // MARK: - Codex Auth
+
+    private var codexServerSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 6) {
+                Circle()
+                    .fill(codexServerStatusColor)
+                    .frame(width: 8, height: 8)
+                Text(codexServerStatusLabel)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Text(codexServerStatusMessage)
+                .foregroundStyle(.secondary)
+
+            if let codexServerLaunchError {
+                Text(codexServerLaunchError)
+                    .font(.caption)
+                    .foregroundStyle(.red)
+            } else if let lastLine = codexServerController.lastOutputLine, !lastLine.isEmpty {
+                Text(lastLine)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            HStack {
+                Button {
+                    startCodexServer()
+                } label: {
+                    Label("Start Server", systemImage: "play.fill")
+                }
+                .buttonStyle(.borderless)
+                .disabled(codexServerStartDisabled)
+
+                Button {
+                    stopCodexServer()
+                } label: {
+                    Label("Stop Server", systemImage: "stop.fill")
+                }
+                .buttonStyle(.borderless)
+                .disabled(codexServerStopDisabled)
+            }
+        }
+        .padding(.vertical, 4)
+    }
+
+    private var codexServerStatusLabel: String {
+        switch codexServerController.status {
+        case .stopped:
+            return "Server stopped"
+        case .starting:
+            return "Server starting"
+        case .running:
+            return "Server running"
+        case .stopping:
+            return "Server stopping"
+        case .failed:
+            return "Server failed"
+        }
+    }
+
+    private var codexServerStatusColor: Color {
+        switch codexServerController.status {
+        case .running:
+            return .green
+        case .starting, .stopping:
+            return .orange
+        case .stopped:
+            return .secondary
+        case .failed:
+            return .red
+        }
+    }
+
+    private var codexServerStatusMessage: String {
+        if let validation = codexServerListenURLValidationError {
+            return validation
+        }
+
+        switch codexServerController.status {
+        case .running(let pid, let listenURL):
+            return "`codex app-server` is running (pid \(pid)) on \(listenURL)"
+        case .starting:
+            return "Starting `codex app-server --listen \(codexServerListenURL)`..."
+        case .stopping:
+            return "Stopping `codex app-server`..."
+        case .failed(let message):
+            return message
+        case .stopped:
+            return "Ready to launch `codex app-server --listen \(codexServerListenURL)`."
+        }
+    }
+
+    private var codexServerStartDisabled: Bool {
+        if codexServerListenURLValidationError != nil { return true }
+        switch codexServerController.status {
+        case .starting, .running, .stopping:
+            return true
+        case .stopped, .failed:
+            return false
+        }
+    }
+
+    private var codexServerStopDisabled: Bool {
+        switch codexServerController.status {
+        case .running, .starting:
+            return false
+        case .stopped, .stopping, .failed:
+            return true
+        }
+    }
+
+    private var codexServerListenURL: String {
+        let fallback = ProviderType.codexAppServer.defaultBaseURL ?? "ws://127.0.0.1:4500"
+        let trimmed = (provider.baseURL ?? fallback).trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? fallback : trimmed
+    }
+
+    private var codexServerListenURLValidationError: String? {
+        let listen = codexServerListenURL
+        guard let parsed = URL(string: listen),
+              let scheme = parsed.scheme?.lowercased(),
+              scheme == "ws" || scheme == "wss" else {
+            return "Base URL must be a valid ws:// or wss:// listen address to launch app-server."
+        }
+
+        guard let host = parsed.host?.lowercased(),
+              host == "127.0.0.1" || host == "localhost" || host == "::1" else {
+            return "In-app app-server launch only supports localhost listen addresses."
+        }
+        return nil
+    }
+
+    private func startCodexServer() {
+        codexServerLaunchError = nil
+
+        if let validation = codexServerListenURLValidationError {
+            codexServerLaunchError = validation
+            return
+        }
+
+        do {
+            try codexServerController.start(listenURL: codexServerListenURL)
+        } catch {
+            codexServerLaunchError = error.localizedDescription
+        }
+    }
+
+    private func stopCodexServer() {
+        codexServerLaunchError = nil
+        codexServerController.stop()
+    }
+
+    private var codexAuthSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Picker("Authentication", selection: $codexAuthMode) {
+                Text("API Key").tag(CodexAuthMode.apiKey)
+                Text("ChatGPT Account").tag(CodexAuthMode.chatGPT)
+                Text("Local Codex").tag(CodexAuthMode.localCodex)
+            }
+            .pickerStyle(.segmented)
+
+            switch codexAuthMode {
+            case .apiKey:
+                apiKeyField
+            case .chatGPT:
+                codexChatGPTAccountSection
+            case .localCodex:
+                codexLocalAuthSection
+            }
+        }
+    }
+
+    private var codexLocalAuthSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            let hasLocalKey = CodexLocalAuthStore.loadAPIKey() != nil
+            let authPath = CodexLocalAuthStore.authFileURL().path
+
+            HStack(spacing: 6) {
+                Circle()
+                    .fill(hasLocalKey ? .green : .secondary)
+                    .frame(width: 8, height: 8)
+                Text(hasLocalKey ? "Local key available" : "No local key")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Text("Reading API key from `\(authPath)`.")
+                .foregroundStyle(.secondary)
+
+            if !hasLocalKey {
+                Text("No OPENAI_API_KEY found. Update your Codex login/auth first.")
+                    .foregroundStyle(.secondary)
+                    .font(.caption)
+            }
+        }
+        .padding(.vertical, 4)
+    }
+
+    private var codexChatGPTAccountSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 6) {
+                Circle()
+                    .fill(codexAuthStatusColor)
+                    .frame(width: 8, height: 8)
+                Text(codexAuthStatusLabel)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Text(codexAuthStatusMessage)
+                .foregroundStyle(.secondary)
+
+            if let codexRateLimit {
+                Text(formatCodexRateLimit(codexRateLimit))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            HStack {
+                Button {
+                    connectCodexChatGPTAccount()
+                } label: {
+                    Label("Connect ChatGPT", systemImage: "person.badge.key")
+                }
+                .buttonStyle(.borderless)
+                .disabled(codexAuthStatus == .working)
+
+                Button {
+                    Task { await refreshCodexAccountStatus(forceRefreshToken: true) }
+                } label: {
+                    Label("Refresh Status", systemImage: "arrow.clockwise")
+                }
+                .buttonStyle(.borderless)
+                .disabled(codexAuthStatus == .working)
+
+                Button(role: .destructive) {
+                    disconnectCodexChatGPTAccount()
+                } label: {
+                    Label("Logout", systemImage: "rectangle.portrait.and.arrow.right")
+                }
+                .buttonStyle(.borderless)
+                .disabled(codexAuthStatus == .working || codexAccount?.isAuthenticated != true)
+
+                if codexAuthStatus == .working {
+                    ProgressView()
+                        .scaleEffect(0.5)
+                }
+            }
+        }
+        .padding(.vertical, 4)
+    }
+
+    private var codexAuthStatusLabel: String {
+        switch codexAuthStatus {
+        case .idle:
+            return "Not checked"
+        case .working:
+            return "Working"
+        case .connected:
+            return "Connected"
+        case .failure:
+            return "Failed"
+        }
+    }
+
+    private var codexAuthStatusColor: Color {
+        switch codexAuthStatus {
+        case .connected:
+            return .green
+        case .working:
+            return .orange
+        case .idle, .failure:
+            return .secondary
+        }
+    }
+
+    private var codexAuthStatusMessage: String {
+        switch codexAuthStatus {
+        case .idle:
+            return "Use Connect ChatGPT to open browser login."
+        case .working:
+            return "Waiting for ChatGPT account authorization..."
+        case .connected:
+            let name = codexAccount?.displayName?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let email = codexAccount?.email?.trimmingCharacters(in: .whitespacesAndNewlines)
+            if let name, !name.isEmpty, let email, !email.isEmpty {
+                return "Logged in as \(name) (\(email))."
+            }
+            if let email, !email.isEmpty {
+                return "Logged in as \(email)."
+            }
+            if let mode = codexAccount?.authMode, !mode.isEmpty {
+                return "Account is authenticated via \(mode)."
+            }
+            return "Account is authenticated."
+        case .failure(let message):
+            return message
+        }
+    }
+
+    private func formatCodexRateLimit(_ rateLimit: CodexAppServerAdapter.RateLimitStatus) -> String {
+        var parts: [String] = []
+        parts.append("Rate limit: \(rateLimit.name)")
+
+        if let usedPercentage = rateLimit.usedPercentage {
+            parts.append("\(usedPercentage.formatted(.number.precision(.fractionLength(0...2))))% used")
+        }
+        if let windowMinutes = rateLimit.windowMinutes {
+            parts.append("window \(windowMinutes)m")
+        }
+        if let resetsAt = rateLimit.resetsAt {
+            parts.append("resets \(resetsAt.formatted(date: .omitted, time: .shortened))")
+        }
+
+        return parts.joined(separator: " · ")
     }
 
     // MARK: - OpenRouter Usage
@@ -506,6 +855,18 @@ struct ProviderConfigFormView: View {
     private func loadCredentials() async {
         await MainActor.run {
             switch ProviderType(rawValue: provider.typeRaw) {
+            case .codexAppServer:
+                let storedKey = provider.apiKey?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                apiKey = storedKey
+                if provider.apiKeyKeychainID == CodexLocalAuthStore.authModeHint {
+                    codexAuthMode = .localCodex
+                } else {
+                    codexAuthMode = storedKey.isEmpty ? .chatGPT : .apiKey
+                }
+                codexAuthStatus = .idle
+                codexAccount = nil
+                codexRateLimit = nil
+                codexPendingLoginID = nil
             case .openai, .openaiCompatible, .openrouter, .anthropic, .perplexity, .groq, .cohere, .mistral, .deepinfra, .xai, .deepseek, .fireworks, .cerebras, .gemini:
                 apiKey = provider.apiKey ?? ""
             case .vertexai:
@@ -678,8 +1039,147 @@ struct ProviderConfigFormView: View {
         return max(totalCredits - totalUsage, 0)
     }
 
+    private func connectCodexChatGPTAccount() {
+        codexAuthTask?.cancel()
+        codexAuthTask = Task {
+            await MainActor.run {
+                codexAuthStatus = .working
+                codexPendingLoginID = nil
+            }
+
+            do {
+                try await saveCredentials()
+                let adapter = try codexAdapterForCurrentState()
+                let challenge = try await adapter.startChatGPTLogin()
+                await MainActor.run {
+                    codexPendingLoginID = challenge.loginID
+                    openURL(challenge.authURL)
+                }
+
+                try await waitForCodexChatGPTAuthentication(
+                    adapter: adapter,
+                    loginID: challenge.loginID,
+                    timeoutSeconds: 180
+                )
+                await refreshCodexAccountStatus(forceRefreshToken: true)
+            } catch is CancellationError {
+                if let loginID = await MainActor.run(body: { codexPendingLoginID }) {
+                    try? await codexAdapterForCurrentState().cancelChatGPTLogin(loginID: loginID)
+                }
+            } catch {
+                await MainActor.run {
+                    codexAuthStatus = .failure(error.localizedDescription)
+                }
+            }
+        }
+    }
+
+    private func disconnectCodexChatGPTAccount() {
+        codexAuthTask?.cancel()
+        codexAuthTask = Task {
+            await MainActor.run { codexAuthStatus = .working }
+            do {
+                try await saveCredentials()
+                try await codexAdapterForCurrentState().logoutAccount()
+                await MainActor.run {
+                    codexAccount = nil
+                    codexRateLimit = nil
+                    codexPendingLoginID = nil
+                    codexAuthStatus = .idle
+                }
+            } catch is CancellationError {
+                return
+            } catch {
+                await MainActor.run {
+                    codexAuthStatus = .failure(error.localizedDescription)
+                }
+            }
+        }
+    }
+
+    private func refreshCodexAccountStatus(forceRefreshToken: Bool) async {
+        guard providerType == .codexAppServer, codexAuthMode == .chatGPT else { return }
+        await MainActor.run { codexAuthStatus = .working }
+
+        do {
+            try await saveCredentials()
+            let adapter = try codexAdapterForCurrentState()
+            let status = try await adapter.readAccountStatus(refreshToken: forceRefreshToken)
+            let rateLimit = try? await adapter.readPrimaryRateLimit()
+            await MainActor.run {
+                codexAccount = status
+                codexRateLimit = rateLimit
+                codexPendingLoginID = nil
+                codexAuthStatus = status.isAuthenticated ? .connected : .idle
+            }
+        } catch is CancellationError {
+            return
+        } catch {
+            await MainActor.run {
+                codexAccount = nil
+                codexRateLimit = nil
+                codexAuthStatus = .failure(error.localizedDescription)
+            }
+        }
+    }
+
+    private func waitForCodexChatGPTAuthentication(
+        adapter: CodexAppServerAdapter,
+        loginID: String,
+        timeoutSeconds: Int
+    ) async throws {
+        _ = try await adapter.waitForChatGPTLoginCompletion(
+            loginID: loginID,
+            timeoutSeconds: timeoutSeconds
+        )
+    }
+
+    private func codexAdapterForCurrentState() throws -> CodexAppServerAdapter {
+        guard providerType == .codexAppServer else {
+            throw LLMError.invalidRequest(message: "Current provider is not Codex App Server.")
+        }
+
+        let key: String
+        switch codexAuthMode {
+        case .apiKey:
+            key = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        case .chatGPT:
+            key = ""
+        case .localCodex:
+            guard let localKey = CodexLocalAuthStore.loadAPIKey() else {
+                throw LLMError.invalidRequest(
+                    message: "No OPENAI_API_KEY found in \(CodexLocalAuthStore.authFileURL().path)."
+                )
+            }
+            key = localKey
+        }
+
+        let config = ProviderConfig(
+            id: provider.id,
+            name: provider.name,
+            type: .codexAppServer,
+            iconID: provider.iconID,
+            authModeHint: codexAuthMode == .localCodex ? CodexLocalAuthStore.authModeHint : nil,
+            apiKey: key.isEmpty ? nil : key,
+            serviceAccountJSON: nil,
+            baseURL: provider.baseURL,
+            models: decodedModels
+        )
+
+        return CodexAppServerAdapter(providerConfig: config, apiKey: key, networkManager: networkManager)
+    }
+
     private func persistCredentials(validate: Bool) async throws {
         switch ProviderType(rawValue: provider.typeRaw) {
+        case .codexAppServer:
+            let key = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+            await MainActor.run {
+                provider.apiKeyKeychainID = codexAuthMode == .localCodex ? CodexLocalAuthStore.authModeHint : nil
+                provider.apiKey = (codexAuthMode == .apiKey && !key.isEmpty) ? key : nil
+                provider.serviceAccountJSON = nil
+                try? modelContext.save()
+            }
+
         case .openai, .openaiCompatible, .openrouter, .anthropic, .perplexity, .groq, .cohere, .mistral, .deepinfra, .xai, .deepseek, .fireworks, .cerebras, .gemini:
             let key = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
             await MainActor.run {
@@ -771,6 +1271,14 @@ struct ProviderConfigFormView: View {
 
     private var isTestDisabled: Bool {
         switch ProviderType(rawValue: provider.typeRaw) {
+        case .codexAppServer:
+            if codexAuthMode == .apiKey {
+                return apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || testStatus == .testing
+            }
+            if codexAuthMode == .localCodex {
+                return CodexLocalAuthStore.loadAPIKey() == nil || testStatus == .testing
+            }
+            return testStatus == .testing || codexAuthStatus == .working
         case .openai, .openaiCompatible, .openrouter, .anthropic, .perplexity, .groq, .cohere, .mistral, .deepinfra, .xai, .deepseek, .fireworks, .cerebras, .gemini:
             return apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || testStatus == .testing
         case .vertexai:
@@ -783,6 +1291,14 @@ struct ProviderConfigFormView: View {
     private var isFetchModelsDisabled: Bool {
         guard !isFetchingModels else { return true }
         switch providerType {
+        case .codexAppServer:
+            if codexAuthMode == .apiKey {
+                return apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            }
+            if codexAuthMode == .localCodex {
+                return CodexLocalAuthStore.loadAPIKey() == nil
+            }
+            return codexAuthStatus == .working
         case .openai, .openaiCompatible, .openrouter, .anthropic, .perplexity, .groq, .cohere, .mistral, .deepinfra, .xai, .deepseek, .fireworks, .cerebras, .gemini:
             return apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         case .vertexai:
@@ -841,6 +1357,19 @@ struct ProviderConfigFormView: View {
         case idle
         case testing
         case success
+        case failure(String)
+    }
+
+    enum CodexAuthMode: String, CaseIterable {
+        case apiKey
+        case chatGPT
+        case localCodex
+    }
+
+    enum CodexAuthStatus: Equatable {
+        case idle
+        case working
+        case connected
         case failure(String)
     }
 }

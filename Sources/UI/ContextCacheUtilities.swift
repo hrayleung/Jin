@@ -256,7 +256,7 @@ enum ContextCacheUtilities {
                 adjustedMessages = prepared.messages
                 adjustedControls = prepared.controls
             }
-        case .xai, .openaiCompatible, .openrouter, .perplexity, .groq, .cohere, .mistral, .deepinfra, .deepseek, .fireworks, .cerebras:
+        case .xai, .codexAppServer, .openaiCompatible, .openrouter, .perplexity, .groq, .cohere, .mistral, .deepinfra, .deepseek, .fireworks, .cerebras:
             break
         }
 

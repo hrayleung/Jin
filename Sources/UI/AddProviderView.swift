@@ -51,7 +51,19 @@ struct AddProviderView: View {
                         .help("Default endpoint is pre-filled.")
                 }
 
+                if providerType == .codexAppServer {
+                    Text("Codex App Server expects a running `codex app-server --listen ws://127.0.0.1:4500` process.")
+                        .jinInfoCallout()
+                }
+
                 switch providerType {
+                case .codexAppServer:
+                    VStack(alignment: .leading, spacing: 6) {
+                        SecureField("API Key (Optional)", text: $apiKey)
+                        Text("Leave blank to use ChatGPT account login in provider settings.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                 case .openai, .openaiCompatible, .openrouter, .anthropic, .perplexity, .groq, .cohere, .mistral, .deepinfra, .xai, .deepseek, .fireworks, .cerebras, .gemini:
                     SecureField("API Key", text: $apiKey)
                 case .vertexai:
@@ -119,7 +131,7 @@ struct AddProviderView: View {
                     name: trimmedName,
                     type: providerType,
                     iconID: trimmedIconID?.isEmpty == false ? trimmedIconID : nil,
-                    apiKey: providerType == .vertexai ? nil : trimmedAPIKey,
+                    apiKey: providerType == .vertexai ? nil : (trimmedAPIKey.isEmpty ? nil : trimmedAPIKey),
                     serviceAccountJSON: providerType == .vertexai ? trimmedServiceAccountJSON : nil,
                     baseURL: providerType == .vertexai ? nil : trimmedBaseURL.isEmpty ? nil : trimmedBaseURL
                 )
@@ -144,6 +156,8 @@ struct AddProviderView: View {
         guard !trimmedName.isEmpty, !isSaving else { return true }
 
         switch providerType {
+        case .codexAppServer:
+            return false
         case .openai, .openaiCompatible, .openrouter, .anthropic, .perplexity, .groq, .cohere, .mistral, .deepinfra, .xai, .deepseek, .fireworks, .cerebras, .gemini:
             return apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         case .vertexai:
