@@ -32,7 +32,7 @@ struct ChatView: View {
     @State private var composerHeight: CGFloat = 0
     @State private var composerTextContentHeight: CGFloat = 36
     @State private var isModelPickerPresented = false
-    @State private var messageRenderLimit: Int = 160
+    @State private var messageRenderLimit: Int = 80
     @State private var pendingRestoreScrollMessageID: UUID?
     @State private var isPinnedToBottom = true
     @State private var isExpandedComposerPresented = false
@@ -664,11 +664,11 @@ struct ChatView: View {
                 if hiddenCount > 0 {
                     LoadEarlierMessagesRow(
                         hiddenCount: hiddenCount,
-                        pageSize: 120,
+                        pageSize: 80,
                         onLoad: {
                             guard let firstVisible = visibleMessages.first else { return }
                             pendingRestoreScrollMessageID = firstVisible.id
-                            messageRenderLimit = min(allMessages.count, messageRenderLimit + 120)
+                            messageRenderLimit = min(allMessages.count, messageRenderLimit + 80)
                         }
                     )
                     .id("loadEarlier")
@@ -915,7 +915,7 @@ struct ChatView: View {
         .onChange(of: conversationEntity.id) { _, _ in
             // Switching chats: reset transient per-chat state and rebuild caches.
             cancelEditingUserMessage()
-            messageRenderLimit = 160
+            messageRenderLimit = 80
             pendingRestoreScrollMessageID = nil
             isPinnedToBottom = true
             isExpandedComposerPresented = false

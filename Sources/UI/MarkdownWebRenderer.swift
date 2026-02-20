@@ -3,11 +3,6 @@ import WebKit
 
 private let markdownTemplateURL = JinResourceBundle.url(forResource: "markdown-template", withExtension: "html")
 
-private let cachedTemplateHTML: String? = {
-    guard let url = markdownTemplateURL else { return nil }
-    return try? String(contentsOf: url, encoding: .utf8)
-}()
-
 // MARK: - Shared CSS Helpers
 
 private func resolvedFontCSS(family: String, fallback: String) -> String {
@@ -71,7 +66,7 @@ struct MarkdownWebRenderer: View {
         // Markdown renders more compactly than raw text (headings, code blocks, etc.)
         let newlineCount = CGFloat(text.filter { $0 == "\n" }.count)
         let lineEstimate = max(1, newlineCount + 1)
-        return max(24, min(lineEstimate * 22.0, 600))
+        return max(56, min(lineEstimate * 22.0, 600))
     }
 
     static func sendMarkdown(to webView: WKWebView, markdown: String, streaming: Bool = false) {
@@ -106,6 +101,8 @@ private struct MarkdownWebRendererRepresentable: NSViewRepresentable {
         context.coordinator.heightBinding = $contentHeight
         context.coordinator.pendingMarkdown = markdownText
         context.coordinator.currentMarkdown = markdownText
+        context.coordinator.appFontFamily = appFontFamily
+        context.coordinator.codeFontFamily = codeFontFamily
         context.coordinator.startObservingFontPreferences()
 
         loadTemplate(into: webView)
@@ -116,6 +113,8 @@ private struct MarkdownWebRendererRepresentable: NSViewRepresentable {
         context.coordinator.heightBinding = $contentHeight
         context.coordinator.currentMarkdown = markdownText
         context.coordinator.isStreaming = isStreaming
+        context.coordinator.appFontFamily = appFontFamily
+        context.coordinator.codeFontFamily = codeFontFamily
 
         if context.coordinator.isReady {
             let didUpdateFonts = context.coordinator.applyFontUpdateIfNeeded(
@@ -130,19 +129,8 @@ private struct MarkdownWebRendererRepresentable: NSViewRepresentable {
     }
 
     private func loadTemplate(into webView: WKWebView) {
-        guard var html = cachedTemplateHTML else { return }
-        let bodyCSS = resolvedBodyFontCSS(family: appFontFamily)
-        let codeCSS = resolvedCodeFontCSS(family: codeFontFamily)
-        let fontSize = currentBodyFontSize
-        html = html
-            .replacingOccurrences(of: "BODY_FONT_FAMILY", with: bodyCSS)
-            .replacingOccurrences(of: "BODY_FONT_SIZE", with: "\(cssPixelValue(fontSize))px")
-            .replacingOccurrences(of: "CODE_FONT_FAMILY", with: codeCSS)
-        webView.loadHTMLString(html, baseURL: markdownTemplateURL?.deletingLastPathComponent())
-    }
-
-    private var currentBodyFontSize: CGFloat {
-        JinTypography.chatBodyPointSize(scale: JinTypography.defaultChatMessageScale)
+        guard let templateURL = markdownTemplateURL else { return }
+        webView.loadFileURL(templateURL, allowingReadAccessTo: templateURL.deletingLastPathComponent())
     }
 
     final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
@@ -155,6 +143,8 @@ private struct MarkdownWebRendererRepresentable: NSViewRepresentable {
         var pendingMarkdown: String?
         var currentMarkdown: String?
         private var lastRenderedMarkdown: String?
+        var appFontFamily: String = JinTypography.systemFontPreferenceValue
+        var codeFontFamily: String = JinTypography.systemFontPreferenceValue
         var lastBodyFont: String = ""
         var lastCodeFont: String = ""
         var lastFontSize: CGFloat = 0
@@ -236,6 +226,11 @@ private struct MarkdownWebRendererRepresentable: NSViewRepresentable {
 
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
             isReady = true
+            _ = applyFontUpdateIfNeeded(
+                appFontFamily: appFontFamily,
+                codeFontFamily: codeFontFamily,
+                webView: webView
+            )
             if let pending = pendingMarkdown {
                 pendingMarkdown = nil
                 currentMarkdown = pending
