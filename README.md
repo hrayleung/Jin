@@ -1,52 +1,57 @@
 # Jin
 
-A native macOS app for chatting with 15 LLM provider types.
+A native macOS app for chatting with 16 LLM provider types from one workspace.
+Jin is intentionally conversation-first: fast, focused, and minimal, without trying to be an all-in-one productivity suite.
 
 ![macOS 14+](https://img.shields.io/badge/macOS-14%2B-000000?logo=apple&logoColor=white)
 ![Swift 5.9+](https://img.shields.io/badge/Swift-5.9%2B-F05138?logo=swift&logoColor=white)
 ![License: PolyForm Noncommercial](https://img.shields.io/badge/License-PolyForm%20NC%201.0-blue)
 
-<!-- TODO: Replace with actual screenshot -->
-<p align="center">
-  <img src="docs/screenshots/hero.png" alt="Jin main chat interface" width="800">
-</p>
+## Why Jin
+
+- **Conversation-first** - Built around high-quality chat flow, not workspace clutter
+- **Focused controls** - Keep model, reasoning, tool, and media controls close to the conversation
+- **Official API parity mindset** - Expose provider parameters as completely as practical instead of hiding them behind generic presets
+- **Native performance** - SwiftUI + macOS app behavior, no Electron overhead
 
 ## Features
 
-- **Multi-Provider Support** -- Connect to 15 provider types through a single app: OpenAI, OpenAI Compatible, OpenRouter, Anthropic, Perplexity, Groq, Cohere, Mistral, DeepInfra, xAI, DeepSeek, Fireworks, Cerebras, Gemini (AI Studio), and Vertex AI
-- **Multimodal Conversations** -- Send text, images, and files in a single conversation
-- **Reasoning Models** -- Collapsible thinking blocks for supported reasoning models
-- **Tool Calling (MCP)** -- Connect AI to external tools and data sources via the Model Context Protocol
-- **Image Generation** -- Generate images with Gemini, Vertex AI, and xAI (Grok) models
-- **Video Generation** -- Generate videos with Gemini/Vertex Veo models and xAI video models
-- **PDF Processing** -- Extract text from PDFs via Mistral OCR, DeepSeek OCR (DeepInfra), or local PDFKit
-- **Voice Plugins** -- Speech-to-Text (OpenAI, Groq, Mistral) and Text-to-Speech (ElevenLabs, OpenAI, Groq)
-- **Assistants** -- Create named assistants with custom system instructions, model preferences, and temperature settings
-- **Native macOS** -- Built with SwiftUI. Keyboard shortcuts, drag-and-drop, proper window management. No Electron.
+- **Multi-provider chat** - OpenAI, Codex App Server (Beta), OpenAI Compatible, OpenRouter, Anthropic, Perplexity, Groq, Cohere, Mistral, DeepInfra, xAI, DeepSeek, Fireworks, Cerebras, Gemini (AI Studio), and Vertex AI
+- **Multimodal conversations** - Send text, images, files, and generated media in one thread
+- **Reasoning model UX** - Collapsible thinking blocks for supported models
+- **Provider-native web search controls** - Search settings plus in-chat search activity timeline
+- **Context cache controls** - Unified caching controls across providers that support prompt caching
+- **Tool calling (MCP)** - Connect external tools and data via the Model Context Protocol
+- **Image generation** - Gemini, Vertex AI, and xAI image models
+- **Video generation** - Gemini/Vertex Veo and xAI video models
+- **PDF processing** - Mistral OCR, DeepSeek OCR (DeepInfra), or local PDFKit extraction
+- **Voice plugins** - Speech-to-Text (OpenAI, Groq, Mistral) and Text-to-Speech (ElevenLabs, OpenAI, Groq)
+- **Assistants** - Named assistants with custom system instructions and model defaults
+- **Native macOS app** - SwiftUI app with keyboard shortcuts, drag-and-drop, and proper windowing
 
 ## Screenshots
 
-<!-- TODO: Replace with actual screenshots -->
-<p align="center">
-  <img src="docs/screenshots/chat.png" alt="Chat conversation view" width="400">&nbsp;&nbsp;
-  <img src="docs/screenshots/settings.png" alt="Settings and provider configuration" width="400">
-</p>
-<p align="center">
-  <img src="docs/screenshots/mcp-tools.png" alt="MCP tool calling in action" width="400">&nbsp;&nbsp;
-  <img src="docs/screenshots/thinking.png" alt="Reasoning model with thinking blocks" width="400">
-</p>
+Screenshot placeholders are intentionally kept in this branch. UI screenshots are not committed yet.
+
+Planned screenshot paths:
+
+- `docs/screenshots/hero.png`
+- `docs/screenshots/chat.png`
+- `docs/screenshots/settings.png`
+- `docs/screenshots/mcp-tools.png`
+- `docs/screenshots/thinking.png`
 
 ## Supported Providers
 
-Jin currently supports 15 provider types (from `Sources/Domain/ProviderTypes.swift`):
+Jin currently supports 16 provider types (source: `Sources/Domain/ProviderTypes.swift`):
 
-OpenAI, OpenAI Compatible, OpenRouter, Anthropic, Perplexity, Groq, Cohere, Mistral, DeepInfra, xAI, DeepSeek, Fireworks, Cerebras, Gemini (AI Studio), Vertex AI.
+OpenAI, Codex App Server (Beta), OpenAI Compatible, OpenRouter, Anthropic, Perplexity, Groq, Cohere, Mistral, DeepInfra, xAI, DeepSeek, Fireworks, Cerebras, Gemini (AI Studio), Vertex AI.
 
 ### Built-in providers on first launch
 
-Jin pre-creates these providers (from `Sources/Domain/DefaultProviderSeeds.swift`):
+Jin pre-creates these providers (source: `Sources/Domain/DefaultProviderSeeds.swift`):
 
-OpenAI, Groq, OpenRouter, Anthropic, Cohere, Mistral, Perplexity, DeepInfra, xAI, DeepSeek, Fireworks, Gemini (AI Studio), Vertex AI.
+OpenAI, Codex App Server (Beta), Groq, OpenRouter, Anthropic, Cohere, Mistral, Perplexity, DeepInfra, xAI, DeepSeek, Fireworks, Gemini (AI Studio), Vertex AI.
 
 `OpenAI Compatible` and `Cerebras` are supported and can be added manually in **Settings > Add Provider**.
 
@@ -57,9 +62,10 @@ These are the starter model IDs seeded in `Sources/Domain/DefaultProviderSeeds.s
 | Provider | Seeded model IDs |
 |----------|------------------|
 | OpenAI | `gpt-5.2`, `gpt-5.2-2025-12-11`, `gpt-4o` |
+| Codex App Server (Beta) | `gpt-5.1-codex` |
 | OpenAI Compatible | _(none seeded)_ |
 | OpenRouter | _(none seeded)_ |
-| Anthropic | `claude-opus-4-6`, `claude-opus-4-5-20251101`, `claude-sonnet-4-5-20250929`, `claude-haiku-4-5-20251001` |
+| Anthropic | `claude-opus-4-6`, `claude-sonnet-4-6`, `claude-opus-4-5-20251101`, `claude-sonnet-4-5-20250929`, `claude-haiku-4-5-20251001` |
 | Perplexity | `sonar`, `sonar-pro`, `sonar-reasoning-pro`, `sonar-deep-research` |
 | Groq | _(none seeded)_ |
 | Cohere | _(none seeded)_ |
@@ -69,40 +75,31 @@ These are the starter model IDs seeded in `Sources/Domain/DefaultProviderSeeds.s
 | DeepSeek | `deepseek-chat`, `deepseek-reasoner`, `deepseek-v3.2-exp` |
 | Fireworks | `fireworks/glm-5`, `fireworks/minimax-m2p5`, `fireworks/kimi-k2p5`, `fireworks/glm-4p7` |
 | Cerebras | _(none seeded)_ |
-| Gemini (AI Studio) | `gemini-3-pro-preview`, `gemini-3-pro-image-preview`, `gemini-3-flash-preview`, `gemini-2.5-flash-image` |
-| Vertex AI | `gemini-3-pro-preview`, `gemini-3-pro-image-preview`, `gemini-3-flash-preview`, `gemini-2.5-pro`, `gemini-2.5-flash-image` |
+| Gemini (AI Studio) | `gemini-3-pro-preview`, `gemini-3.1-pro-preview`, `gemini-3-pro-image-preview`, `gemini-3-flash-preview`, `gemini-2.5-flash-image` |
+| Vertex AI | `gemini-3-pro-preview`, `gemini-3.1-pro-preview`, `gemini-3-pro-image-preview`, `gemini-3-flash-preview`, `gemini-2.5-pro`, `gemini-2.5-flash-image` |
 
 ### How model refresh works
 
-- `Fetch Models` in provider settings calls `adapter.fetchAvailableModels()` for that provider.
-- API-fetched model lists: OpenAI, OpenAI Compatible (including Groq/Mistral/DeepInfra), OpenRouter, Anthropic, Cohere, xAI, DeepSeek, Fireworks, Cerebras, Gemini (AI Studio).
-- Vertex AI does not call a model-list API in this codebase; it returns a curated static list from `Sources/Adapters/VertexAIAdapter.swift` (`knownModels`).
-- Perplexity does not call a model-list API in the adapter. It uses saved provider models, with a built-in fallback list: `sonar`, `sonar-pro`, `sonar-reasoning-pro`, `sonar-deep-research`.
-- If **Allow automatic network requests** is enabled, Jin also refreshes provider models on launch (max once every 24 hours per provider) in `Sources/UI/JinApp.swift`.
+- `Fetch Models` in provider settings calls `adapter.fetchAvailableModels()` for the selected provider.
+- API/model-list fetched in adapters: OpenAI, OpenAI Compatible (including Groq, Mistral, DeepInfra), OpenRouter, Anthropic, Cohere, xAI, DeepSeek, Fireworks, Cerebras, Gemini (AI Studio), and Codex App Server (Beta).
+- Vertex AI does not call a model-list API in this codebase. It returns a curated static list from `Sources/Adapters/VertexAIAdapter.swift` (`knownModels`).
+- Perplexity does not call a model-list API in this adapter. It uses saved provider models, with fallback models: `sonar`, `sonar-pro`, `sonar-reasoning-pro`, `sonar-deep-research`.
+- Codex App Server model refresh uses `model/list` over JSON-RPC and supports pagination; if the server returns no models, Jin falls back to `gpt-5.1-codex`.
+- If **Allow automatic network requests** is enabled, Jin refreshes provider models on launch (max once every 24 hours per provider) in `Sources/UI/JinApp.swift`.
 
 ### How model capabilities are assigned
 
-- Capabilities (`streaming`, `toolCalling`, `vision`, `audio`, `reasoning`, `promptCaching`, `nativePDF`, `imageGeneration`, `videoGeneration`) are stored per model as `ModelInfo.capabilities`.
-- For API-fetched lists, each adapter maps provider responses to `ModelInfo` using provider-specific rules (for example, OpenAI/OpenAI-compatible/OpenRouter infer some capabilities from model IDs, while Gemini/xAI also use modality metadata when available).
+- Capabilities (`streaming`, `toolCalling`, `vision`, `audio`, `reasoning`, `promptCaching`, `nativePDF`, `imageGeneration`, `videoGeneration`) are stored in `ModelInfo.capabilities`.
+- For fetched model lists, each adapter maps provider data to `ModelInfo` using provider-specific rules.
 - Manual model entries use provider-specific ID heuristics in `Sources/UI/AddModelSheet.swift`.
 
 ## `✦` Full-Support Badge Rules
 
-`✦` means "Jin full support" in the model list UI. The matching rules come directly from `Sources/Domain/JinModelSupport.swift`.
+`✦` means "Jin full support" in the model list UI.
+It highlights models with first-class UX support and curated defaults.
+No `✦` does not always mean "unsupported" - it usually means "less opinionated/default-tuned in Jin."
 
-| Provider | `✦` model matching rule |
-|----------|--------------------------|
-| OpenAI | Prefix: `gpt-5`, `o3`, `o4`, `gpt-4o` |
-| Anthropic | Contains: `claude-opus-4`, `claude-sonnet-4`, `claude-haiku-4` |
-| Perplexity | Contains: `sonar-pro`, `sonar-reasoning`, `sonar-deep-research` |
-| xAI | Contains: `grok-4`, `grok-5`, `grok-6`, `imagine-image`, `grok-2-image` |
-| DeepSeek | Exact: `deepseek-chat`, `deepseek-reasoner`; or contains `deepseek-v3.2-exp` |
-| Fireworks | Exact: `fireworks/kimi-k2p5`, `accounts/fireworks/models/kimi-k2p5`, `fireworks/glm-4p7`, `accounts/fireworks/models/glm-4p7`, `fireworks/glm-5`, `accounts/fireworks/models/glm-5`, `fireworks/minimax-m2p5`, `accounts/fireworks/models/minimax-m2p5` |
-| Cerebras | Exact: `zai-glm-4.7` |
-| Gemini (AI Studio) | Contains: `gemini-3`, `gemini-2.5-flash-image`, `veo-` |
-| Vertex AI | Contains: `gemini-3`, `gemini-2.5`, `veo-` |
-
-For `OpenAI Compatible`, `OpenRouter`, `Groq`, `Cohere`, `Mistral`, and `DeepInfra`, `✦` is intentionally not auto-assigned in code to avoid over-promising on generic/aggregated routing.
+`OpenAI Compatible`, `Groq`, `Cohere`, `Mistral`, and `DeepInfra` are intentionally not auto-badged to avoid over-promising on generic or aggregated routing.
 
 ## Requirements
 
@@ -115,50 +112,52 @@ For `OpenAI Compatible`, `OpenRouter`, `Groq`, `Cohere`, `Mistral`, and `DeepInf
 
 Download the latest `.dmg` from the [Releases](../../releases) page.
 
-### If macOS Blocks the App
+### If macOS blocks the app
 
 If macOS shows a warning like "is damaged and can't be opened", Gatekeeper is blocking an unsigned or unnotarized build.
 
 1. Open the DMG and drag `Jin.app` to `/Applications`.
-2. In Finder, Control-click `Jin.app` and choose **Open**.
-3. Click **Open** again in the confirmation dialog.
-4. If it is still blocked, remove quarantine attributes:
+2. Try opening `Jin.app` once so macOS records the block event.
+3. Open **System Settings > Privacy & Security**.
+4. In the **Security** section, click **Open Anyway** for Jin, then confirm **Open**.
 
-```bash
-xattr -dr com.apple.quarantine /Applications/Jin.app
-```
+Only do this for builds from a source you trust.
 
-If the DMG itself is blocked, run:
-
-```bash
-xattr -dr com.apple.quarantine ~/Downloads/Jin.dmg
-```
-
-Only run these commands for builds from a source you trust.
-
-### Build from Source
+### Build from source
 
 ```bash
 git clone <repo-url>
-cd jin
+cd Jin
 swift build
-open Package.swift   # or open in Xcode
+open Package.swift
 ```
 
 ## Getting Started
 
-1. Launch Jin
-2. Open **Settings** and add a provider with your API key
-3. Start a new conversation and pick a model
-4. (Optional) Configure MCP servers under **Settings > MCP** for tool calling
+1. Launch Jin.
+2. Open **Settings** and add a provider.
+3. Start a new conversation and pick a model.
+4. Optional: configure MCP servers under **Settings > MCP Servers** for tool calling.
+
+### Codex App Server (Beta) quick setup
+
+1. Start the local server:
+   ```bash
+   codex app-server --listen ws://127.0.0.1:4500
+   ```
+2. In Jin, go to **Settings > Add Provider** and choose **Codex App Server (Beta)**.
+3. Configure one auth mode in provider settings: API key, ChatGPT account login, or local Codex auth file.
+4. Use **Fetch Models** to pull available Codex models from the running app-server.
+
+Current beta limitation: this provider is designed for server-side built-in tools; client callback-style tool requests are rejected.
 
 ## Building & Testing
 
 ```bash
 swift build                        # Debug build
 swift build -c release             # Release build
-./Packaging/package.sh             # Build universal .app bundle (Apple Silicon + Intel)
-./Packaging/package.sh dmg         # Build .dmg installer
+bash Packaging/package.sh          # Build universal .app bundle (Apple Silicon + Intel)
+bash Packaging/package.sh dmg      # Build .dmg installer
 swift test                         # Run all tests
 swift test --filter FooTests       # Run a single test suite
 ```
@@ -178,19 +177,21 @@ Sources/
 
 Key design choices:
 
-- All providers implement the `LLMProviderAdapter` protocol
-- Streaming via `AsyncThrowingStream<StreamEvent, Error>`
-- Swift Concurrency throughout (actors, async/await, `@MainActor`)
+- All providers implement `LLMProviderAdapter`
+- Streaming is `AsyncThrowingStream<StreamEvent, Error>`
+- Swift Concurrency throughout (`actor`, `async/await`, `@MainActor`)
 - SwiftData for persistence
-- Minimal external dependencies -- only the [MCP Swift SDK](https://github.com/modelcontextprotocol/swift-sdk)
+- Minimal external dependencies: [MCP Swift SDK](https://github.com/modelcontextprotocol/swift-sdk)
 
 ## Plugins
 
 | Plugin | Services | Setup |
 |--------|----------|-------|
-| PDF OCR | Mistral OCR, DeepSeek OCR (DeepInfra), Local (PDFKit) | Settings > Plugins |
+| PDF OCR | Mistral OCR, DeepSeek OCR (DeepInfra), local PDFKit extraction | Settings > Plugins |
 | Text-to-Speech | ElevenLabs, OpenAI, Groq | Settings > Plugins |
 | Speech-to-Text | OpenAI, Groq, Mistral | Settings > Plugins |
+| Chat Naming | Automatic conversation naming with a selected model | Settings > Plugins |
+| Cloudflare R2 Upload | Upload local videos to R2 and send public URLs | Settings > Plugins |
 
 ## MCP (Model Context Protocol)
 
@@ -206,5 +207,5 @@ This project is licensed under the [PolyForm Noncommercial License 1.0.0](LICENS
 
 ## Acknowledgments
 
-- [MCP Swift SDK](https://github.com/modelcontextprotocol/swift-sdk) -- Model Context Protocol client library
-- [Lobe Icons](https://github.com/lobehub/lobe-icons) -- Provider icon assets
+- [MCP Swift SDK](https://github.com/modelcontextprotocol/swift-sdk) - Model Context Protocol client library
+- [Lobe Icons](https://github.com/lobehub/lobe-icons) - Provider icon assets

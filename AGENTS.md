@@ -47,6 +47,7 @@
 - Design decisions for screens, states, and micro-interactions should start from expected user intent and reduce cognitive load.
 - If UI/UX intent or interaction pattern is unclear, verify against reliable references (e.g., Apple HIG / established UI conventions) before implementation; avoid guessing.
 - After code changes are complete, run `bash Packaging/package.sh` once to produce a packaged build.
+- For docs-only changes (e.g., `README.md`, other `*.md`, or files under `docs/`), packaging is not required.
 
 ## Commit & Pull Request Guidelines
 
