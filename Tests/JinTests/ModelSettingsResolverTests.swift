@@ -204,6 +204,64 @@ final class ModelSettingsResolverTests: XCTestCase {
         XCTAssertFalse(resolved.reasoningCanDisable)
     }
 
+    func testResolverInfersGemini31ContextWindowForLegacyStoredModel() {
+        let legacyModel = ModelInfo(
+            id: "gemini-3.1-pro-preview",
+            name: "Gemini 3.1 Pro Preview",
+            capabilities: [.streaming, .toolCalling, .vision, .audio, .reasoning, .promptCaching, .nativePDF],
+            contextWindow: 128_000,
+            reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
+            isEnabled: true
+        )
+
+        let resolvedGemini = ModelSettingsResolver.resolve(model: legacyModel, providerType: .gemini)
+        XCTAssertEqual(resolvedGemini.contextWindow, 1_048_576)
+
+        let resolvedVertex = ModelSettingsResolver.resolve(model: legacyModel, providerType: .vertexai)
+        XCTAssertEqual(resolvedVertex.contextWindow, 1_048_576)
+    }
+
+    func testResolverInfersContextWindowForKnownLegacyAnthropicPerplexityAndXAIModels() {
+        let anthropicLegacy = ModelInfo(
+            id: "claude-opus-4-6",
+            name: "Claude Opus 4.6",
+            capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .nativePDF],
+            contextWindow: 128_000,
+            reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
+            isEnabled: true
+        )
+        XCTAssertEqual(
+            ModelSettingsResolver.resolve(model: anthropicLegacy, providerType: .anthropic).contextWindow,
+            200_000
+        )
+
+        let perplexityLegacy = ModelInfo(
+            id: "sonar-pro",
+            name: "Sonar Pro",
+            capabilities: [.streaming, .toolCalling, .vision],
+            contextWindow: 128_000,
+            reasoningConfig: nil,
+            isEnabled: true
+        )
+        XCTAssertEqual(
+            ModelSettingsResolver.resolve(model: perplexityLegacy, providerType: .perplexity).contextWindow,
+            200_000
+        )
+
+        let xaiLegacy = ModelInfo(
+            id: "grok-imagine-image",
+            name: "Grok Imagine Image",
+            capabilities: [.imageGeneration],
+            contextWindow: 128_000,
+            reasoningConfig: nil,
+            isEnabled: true
+        )
+        XCTAssertEqual(
+            ModelSettingsResolver.resolve(model: xaiLegacy, providerType: .xai).contextWindow,
+            32_768
+        )
+    }
+
     func testOpenRouterWebSearchDefaultsByModelFamily() {
         let gpt = ModelInfo(
             id: "openai/gpt-5",
