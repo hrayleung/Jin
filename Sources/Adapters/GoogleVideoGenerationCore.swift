@@ -145,101 +145,21 @@ enum GoogleVideoGenerationCore {
         networkManager: NetworkManager,
         authHeader: (key: String, value: String)? = nil
     ) async throws -> (localURL: URL, mimeType: String) {
-        guard let appSupport = FileManager.default.urls(
-            for: .applicationSupportDirectory,
-            in: .userDomainMask
-        ).first else {
-            throw LLMError.decodingError(
-                message: "Could not locate application support directory for video storage."
-            )
-        }
-
-        let dir = appSupport.appendingPathComponent("Jin/Attachments", isDirectory: true)
-        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-
-        var request = URLRequest(url: url)
-        request.httpMethod = "GET"
-        if let auth = authHeader {
-            request.addValue(auth.value, forHTTPHeaderField: auth.key)
-        }
-
-        let (videoData, response) = try await networkManager.sendRequest(request)
-
-        let contentType = response.value(forHTTPHeaderField: "Content-Type")?
-            .components(separatedBy: ";").first?
-            .trimmingCharacters(in: .whitespaces)
-            .lowercased()
-
-        let (mimeType, ext) = resolveVideoFormat(contentType: contentType, url: url)
-
-        let filename = "\(UUID().uuidString).\(ext)"
-        let destination = dir.appendingPathComponent(filename)
-        try videoData.write(to: destination, options: .atomic)
-        return (destination, mimeType)
+        try await VideoAttachmentUtility.downloadToLocal(
+            from: url,
+            networkManager: networkManager,
+            authHeader: authHeader
+        )
     }
 
     /// Saves base64-decoded video data to the local attachments directory.
     static func saveVideoDataToLocal(_ data: Data, mimeType: String) throws -> URL {
-        guard let appSupport = FileManager.default.urls(
-            for: .applicationSupportDirectory,
-            in: .userDomainMask
-        ).first else {
-            throw LLMError.decodingError(
-                message: "Could not locate application support directory for video storage."
-            )
-        }
-
-        let dir = appSupport.appendingPathComponent("Jin/Attachments", isDirectory: true)
-        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-
-        let ext = extensionForMIME(mimeType) ?? "mp4"
-        let filename = "\(UUID().uuidString).\(ext)"
-        let destination = dir.appendingPathComponent(filename)
-        try data.write(to: destination, options: .atomic)
-        return destination
+        try VideoAttachmentUtility.saveDataToLocal(data, mimeType: mimeType)
     }
 
     // MARK: - Format Resolution
 
     static func resolveVideoFormat(contentType: String?, url: URL) -> (mimeType: String, ext: String) {
-        let mimeToExt: [String: String] = [
-            "video/mp4": "mp4",
-            "video/quicktime": "mov",
-            "video/webm": "webm",
-            "video/x-msvideo": "avi",
-            "video/x-matroska": "mkv",
-        ]
-
-        if let ct = contentType, let ext = mimeToExt[ct] {
-            return (ct, ext)
-        }
-
-        let urlExt = url.pathExtension.lowercased()
-        if !urlExt.isEmpty {
-            let extToMime: [String: String] = [
-                "mp4": "video/mp4",
-                "mov": "video/quicktime",
-                "webm": "video/webm",
-                "avi": "video/x-msvideo",
-                "mkv": "video/x-matroska",
-            ]
-            if let mime = extToMime[urlExt] {
-                return (mime, urlExt)
-            }
-            return ("video/\(urlExt)", urlExt)
-        }
-
-        return ("video/mp4", "mp4")
-    }
-
-    private static func extensionForMIME(_ mimeType: String) -> String? {
-        switch mimeType.lowercased() {
-        case "video/mp4": return "mp4"
-        case "video/quicktime": return "mov"
-        case "video/webm": return "webm"
-        case "video/x-msvideo": return "avi"
-        case "video/x-matroska": return "mkv"
-        default: return nil
-        }
+        VideoAttachmentUtility.resolveVideoFormat(contentType: contentType, url: url)
     }
 }
