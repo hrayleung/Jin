@@ -93,12 +93,7 @@ struct ChatView: View {
 
     private let conversationTitleGenerator = ConversationTitleGenerator()
 
-    private enum ContextCacheTTLPreset: String, CaseIterable {
-        case providerDefault
-        case minutes5
-        case hour1
-        case custom
-    }
+    // ContextCacheTTLPreset is now a top-level enum in ContextCacheSheetView.swift
 
     private var isStreaming: Bool {
         streamingStore.isStreaming(conversationID: conversationEntity.id)
@@ -388,239 +383,6 @@ struct ChatView: View {
                 Spacer(minLength: 0)
             }
             .padding(.top, 2)
-        }
-    }
-
-    private var contextCacheSheet: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: JinSpacing.large) {
-                    contextCacheSummaryCard
-                    contextCacheBasicsCard
-
-                    if contextCacheSupportsAdvancedOptions, contextCacheDraft.mode != .off {
-                        contextCacheAdvancedCard
-                    }
-
-                    if let contextCacheDraftError {
-                        Text(contextCacheDraftError)
-                            .foregroundStyle(.red)
-                            .font(.caption)
-                            .padding(JinSpacing.small)
-                            .jinSurface(.subtleStrong, cornerRadius: JinRadius.small)
-                    } else {
-                        Text(contextCacheGuidanceText)
-                            .jinInfoCallout()
-                    }
-                }
-                .padding(JinSpacing.large)
-            }
-            .background {
-                JinSemanticColor.detailSurface
-                    .ignoresSafeArea()
-            }
-            .navigationTitle("Context Cache")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
-                        showingContextCacheSheet = false
-                    }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") {
-                        if applyContextCacheDraft() {
-                            showingContextCacheSheet = false
-                        }
-                    }
-                    .disabled(!isContextCacheDraftValid)
-                }
-            }
-        }
-        .frame(minWidth: 640, idealWidth: 700, minHeight: 480, idealHeight: 560)
-    }
-
-    private var contextCacheSummaryCard: some View {
-        VStack(alignment: .leading, spacing: JinSpacing.small) {
-            HStack(alignment: .center, spacing: JinSpacing.small) {
-                Text("Current mode")
-                    .font(.subheadline.weight(.semibold))
-                Spacer()
-                Text(contextCacheDraft.mode.displayName)
-                    .jinTagStyle(foreground: contextCacheDraft.mode == .off ? .secondary : .accentColor)
-            }
-
-            Text(contextCacheSummaryText)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-        .padding(JinSpacing.large)
-        .jinSurface(.raised, cornerRadius: JinRadius.large)
-    }
-
-    private var contextCacheBasicsCard: some View {
-        VStack(alignment: .leading, spacing: JinSpacing.medium) {
-            Text("Basics")
-                .font(.headline)
-
-            contextCacheField(
-                "Mode",
-                hint: "Implicit works for OpenAI, Anthropic, and xAI. Gemini/Vertex can also use Explicit mode with a cached content resource."
-            ) {
-                Picker("Mode", selection: $contextCacheDraft.mode) {
-                    Text("Off").tag(ContextCacheMode.off)
-                    Text("Implicit").tag(ContextCacheMode.implicit)
-                    if supportsExplicitContextCacheMode {
-                        Text("Explicit").tag(ContextCacheMode.explicit)
-                    }
-                }
-                .labelsHidden()
-                .pickerStyle(.segmented)
-                .frame(maxWidth: 380)
-            }
-
-            if supportsContextCacheStrategy, contextCacheDraft.mode != .off {
-                contextCacheField(
-                    "Strategy",
-                    hint: "Anthropic only. Controls which stable prompt prefix is marked cacheable."
-                ) {
-                    Picker("Strategy", selection: Binding(
-                        get: { contextCacheDraft.strategy ?? .systemOnly },
-                        set: { contextCacheDraft.strategy = $0 }
-                    )) {
-                        Text("System only").tag(ContextCacheStrategy.systemOnly)
-                        Text("System + tools").tag(ContextCacheStrategy.systemAndTools)
-                        Text("Prefix window").tag(ContextCacheStrategy.prefixWindow)
-                    }
-                    .labelsHidden()
-                    .pickerStyle(.menu)
-                    .frame(maxWidth: 260, alignment: .leading)
-                }
-            }
-
-            if supportsExplicitContextCacheMode, contextCacheDraft.mode == .explicit {
-                contextCacheField(
-                    "Cached content name",
-                    hint: "Gemini/Vertex resource name. Example: cachedContents/project-brief-v2"
-                ) {
-                    TextField("cachedContents/project-brief-v2", text: Binding(
-                        get: { contextCacheDraft.cachedContentName ?? "" },
-                        set: { contextCacheDraft.cachedContentName = $0 }
-                    ))
-                    .font(.system(.body, design: .monospaced))
-                    .textFieldStyle(.roundedBorder)
-                }
-            }
-
-            if contextCacheDraft.mode == .off {
-                Text("Turn on Implicit or Explicit mode to configure caching options.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-        }
-        .padding(JinSpacing.large)
-        .jinSurface(.raised, cornerRadius: JinRadius.large)
-    }
-
-    private var contextCacheAdvancedCard: some View {
-        DisclosureGroup(isExpanded: $contextCacheAdvancedExpanded) {
-            VStack(alignment: .leading, spacing: JinSpacing.medium) {
-                if supportsContextCacheTTL {
-                    contextCacheField(
-                        "TTL",
-                        hint: "OpenAI, Anthropic, and xAI support cache retention hints."
-                    ) {
-                        VStack(alignment: .leading, spacing: JinSpacing.small) {
-                            Picker("TTL", selection: $contextCacheTTLPreset) {
-                                Text("Provider default").tag(ContextCacheTTLPreset.providerDefault)
-                                Text("5 minutes").tag(ContextCacheTTLPreset.minutes5)
-                                Text("1 hour").tag(ContextCacheTTLPreset.hour1)
-                                Text("Custom").tag(ContextCacheTTLPreset.custom)
-                            }
-                            .labelsHidden()
-                            .pickerStyle(.menu)
-                            .frame(maxWidth: 260, alignment: .leading)
-
-                            if contextCacheTTLPreset == .custom {
-                                TextField("Custom TTL seconds", text: $contextCacheCustomTTLDraft)
-                                    .font(.system(.body, design: .monospaced))
-                                    .textFieldStyle(.roundedBorder)
-                                    .frame(maxWidth: 220, alignment: .leading)
-                            }
-                        }
-                    }
-                }
-
-                if providerType == .openai || providerType == .xai {
-                    contextCacheField(
-                        "Cache key",
-                        hint: "Optional stable key for request prefixes that should map to the same cache."
-                    ) {
-                        TextField("stable-prefix-key", text: Binding(
-                            get: { contextCacheDraft.cacheKey ?? "" },
-                            set: { contextCacheDraft.cacheKey = $0 }
-                        ))
-                        .font(.system(.body, design: .monospaced))
-                        .textFieldStyle(.roundedBorder)
-                    }
-
-                    contextCacheField(
-                        "Min tokens threshold",
-                        hint: "Optional. Cache hints apply only when prompt tokens are above this value."
-                    ) {
-                        TextField("1024", text: $contextCacheMinTokensDraft)
-                            .font(.system(.body, design: .monospaced))
-                            .textFieldStyle(.roundedBorder)
-                            .frame(maxWidth: 220, alignment: .leading)
-                    }
-                }
-
-                if providerType == .xai {
-                    contextCacheField(
-                        "Conversation ID",
-                        hint: "Optional xAI conversation scope for cache continuity."
-                    ) {
-                        TextField("x-grok-conv-id", text: Binding(
-                            get: { contextCacheDraft.conversationID ?? "" },
-                            set: { contextCacheDraft.conversationID = $0 }
-                        ))
-                        .font(.system(.body, design: .monospaced))
-                        .textFieldStyle(.roundedBorder)
-                    }
-                }
-            }
-            .padding(.top, JinSpacing.small)
-        } label: {
-            HStack(alignment: .center, spacing: JinSpacing.small) {
-                Text("Advanced")
-                    .font(.headline)
-                Spacer(minLength: 0)
-                Text("Optional")
-                    .jinTagStyle()
-            }
-        }
-        .padding(JinSpacing.large)
-        .jinSurface(.raised, cornerRadius: JinRadius.large)
-    }
-
-    @ViewBuilder
-    private func contextCacheField<Control: View>(
-        _ title: String,
-        hint: String? = nil,
-        @ViewBuilder control: () -> Control
-    ) -> some View {
-        VStack(alignment: .leading, spacing: JinSpacing.xSmall) {
-            Text(title)
-                .font(.subheadline.weight(.semibold))
-            control()
-                .frame(maxWidth: .infinity, alignment: .leading)
-            if let hint, !hint.isEmpty {
-                Text(hint)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
         }
     }
 
@@ -960,195 +722,70 @@ struct ChatView: View {
             }
         }
         .sheet(isPresented: $showingThinkingBudgetSheet) {
-            NavigationStack {
-                Form {
-                    Section("Claude thinking") {
-                        VStack(alignment: .leading, spacing: JinSpacing.medium) {
-                            Text(anthropicThinkingSummaryText)
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
-                                .fixedSize(horizontal: false, vertical: true)
-
-                            Divider()
-
-                            if anthropicUsesEffortMode {
-                                thinkingControlRow("Thinking effort") {
-                                    Picker("Thinking effort", selection: anthropicEffortBinding) {
-                                        Text("Low").tag(ReasoningEffort.low)
-                                        Text("Medium").tag(ReasoningEffort.medium)
-                                        Text("High").tag(ReasoningEffort.high)
-                                        if AnthropicModelLimits.supportsMaxEffort(for: conversationEntity.modelID) {
-                                            Text("Max").tag(ReasoningEffort.xhigh)
-                                        }
-                                    }
-                                    .labelsHidden()
-                                    .pickerStyle(.menu)
-                                    .frame(width: 180, alignment: .trailing)
-                                }
-                            } else {
-                                thinkingControlRow("Thinking budget") {
-                                    thinkingTokenField(placeholder: anthropicBudgetPlaceholder, text: $thinkingBudgetDraft)
-                                }
-                            }
-
-                            thinkingControlRow("Max output tokens") {
-                                thinkingTokenField(placeholder: anthropicMaxTokensPlaceholder, text: $maxTokensDraft)
-                            }
-
-                            if let modelMax = AnthropicModelLimits.maxOutputTokens(for: conversationEntity.modelID) {
-                                Text("Model max output tokens: \(modelMax.formatted())")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-
-                            if let warning = thinkingBudgetValidationWarning {
-                                HStack(alignment: .top, spacing: JinSpacing.small) {
-                                    Image(systemName: "exclamationmark.triangle.fill")
-                                        .foregroundStyle(.orange)
-                                    Text(warning)
-                                        .foregroundStyle(.secondary)
-                                        .fixedSize(horizontal: false, vertical: true)
-                                }
-                                .font(.caption)
-                                .padding(JinSpacing.small)
-                                .jinSurface(.subtleStrong, cornerRadius: JinRadius.small)
-                            }
-
-                            Label(anthropicThinkingFootnote, systemImage: "info.circle")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-                        .padding(JinSpacing.large)
-                        .jinSurface(.raised, cornerRadius: JinRadius.large)
-                        .listRowInsets(
-                            EdgeInsets(
-                                top: JinSpacing.small,
-                                leading: JinSpacing.small,
-                                bottom: JinSpacing.small,
-                                trailing: JinSpacing.small
-                            )
-                        )
-                        .listRowBackground(Color.clear)
-                    }
+            ThinkingBudgetSheetView(
+                usesEffortMode: anthropicUsesEffortMode,
+                summaryText: anthropicThinkingSummaryText,
+                footnoteText: anthropicThinkingFootnote,
+                budgetPlaceholder: anthropicBudgetPlaceholder,
+                maxTokensPlaceholder: anthropicMaxTokensPlaceholder,
+                modelID: conversationEntity.modelID,
+                modelMaxOutputTokens: AnthropicModelLimits.maxOutputTokens(for: conversationEntity.modelID),
+                supportsMaxEffort: AnthropicModelLimits.supportsMaxEffort(for: conversationEntity.modelID),
+                thinkingBudgetDraft: $thinkingBudgetDraft,
+                maxTokensDraft: $maxTokensDraft,
+                effortSelection: anthropicEffortBinding,
+                isValid: isThinkingBudgetDraftValid,
+                validationWarning: thinkingBudgetValidationWarning,
+                onCancel: { showingThinkingBudgetSheet = false },
+                onSave: {
+                    applyThinkingBudgetDraft()
+                    showingThinkingBudgetSheet = false
                 }
-                .formStyle(.grouped)
-                .scrollContentBackground(.hidden)
-                .background {
-                    JinSemanticColor.detailSurface
-                        .ignoresSafeArea()
-                }
-                .navigationTitle("Thinking")
-                .toolbar {
-                    ToolbarItem(placement: .cancellationAction) {
-                        Button("Cancel") {
-                            showingThinkingBudgetSheet = false
-                        }
-                    }
-                    ToolbarItem(placement: .confirmationAction) {
-                        Button("Save") {
-                            applyThinkingBudgetDraft()
-                            showingThinkingBudgetSheet = false
-                        }
-                        .disabled(!isThinkingBudgetDraftValid)
-                    }
-                }
-            }
-            .frame(minWidth: 640, idealWidth: 700)
+            )
         }
         .sheet(isPresented: $showingContextCacheSheet) {
-            contextCacheSheet
+            ContextCacheSheetView(
+                draft: $contextCacheDraft,
+                ttlPreset: $contextCacheTTLPreset,
+                customTTLDraft: $contextCacheCustomTTLDraft,
+                minTokensDraft: $contextCacheMinTokensDraft,
+                advancedExpanded: $contextCacheAdvancedExpanded,
+                draftError: $contextCacheDraftError,
+                providerType: providerType,
+                supportsExplicitMode: supportsExplicitContextCacheMode,
+                supportsStrategy: supportsContextCacheStrategy,
+                supportsTTL: supportsContextCacheTTL,
+                supportsAdvancedOptions: contextCacheSupportsAdvancedOptions,
+                summaryText: contextCacheSummaryText,
+                guidanceText: contextCacheGuidanceText,
+                isValid: isContextCacheDraftValid,
+                onCancel: { showingContextCacheSheet = false },
+                onSave: { applyContextCacheDraft() }
+            )
         }
         .sheet(isPresented: $showingAnthropicWebSearchSheet) {
-            anthropicWebSearchSheet
+            AnthropicWebSearchSheetView(
+                domainMode: $anthropicWebSearchDomainMode,
+                allowedDomainsDraft: $anthropicWebSearchAllowedDomainsDraft,
+                blockedDomainsDraft: $anthropicWebSearchBlockedDomainsDraft,
+                locationDraft: $anthropicWebSearchLocationDraft,
+                draftError: $anthropicWebSearchDraftError,
+                onCancel: { showingAnthropicWebSearchSheet = false },
+                onApply: { applyAnthropicWebSearchDraft() }
+            )
         }
         .sheet(isPresented: $showingImageGenerationSheet) {
-            NavigationStack {
-                Form {
-                    Section("Output") {
-                        Picker(
-                            "Response",
-                            selection: Binding(
-                                get: { imageGenerationDraft.responseMode ?? .textAndImage },
-                                set: { value in
-                                    imageGenerationDraft.responseMode = (value == .textAndImage) ? nil : value
-                                }
-                            )
-                        ) {
-                            ForEach(ImageResponseMode.allCases, id: \.self) { mode in
-                                Text(mode.displayName).tag(mode)
-                            }
-                        }
-
-                        Picker("Aspect Ratio", selection: $imageGenerationDraft.aspectRatio) {
-                            Text("Default").tag(Optional<ImageAspectRatio>.none)
-                            ForEach(ImageAspectRatio.allCases, id: \.self) { ratio in
-                                Text(ratio.displayName).tag(Optional(ratio))
-                            }
-                        }
-
-                        if supportsCurrentModelImageSizeControl {
-                            Picker("Image Size", selection: $imageGenerationDraft.imageSize) {
-                                Text("Default").tag(Optional<ImageOutputSize>.none)
-                                ForEach(ImageOutputSize.allCases, id: \.self) { size in
-                                    Text(size.displayName).tag(Optional(size))
-                                }
-                            }
-                        }
-
-                        TextField("Seed (optional)", text: $imageGenerationSeedDraft)
-                            .font(.system(.body, design: .monospaced))
-                            .textFieldStyle(.roundedBorder)
-                    }
-
-                    if providerType == .vertexai {
-                        Section("Vertex") {
-                            Picker("Person generation", selection: $imageGenerationDraft.vertexPersonGeneration) {
-                                Text("Default").tag(Optional<VertexImagePersonGeneration>.none)
-                                ForEach(VertexImagePersonGeneration.allCases, id: \.self) { item in
-                                    Text(item.displayName).tag(Optional(item))
-                                }
-                            }
-
-                            Picker("Output MIME", selection: $imageGenerationDraft.vertexOutputMIMEType) {
-                                Text("Default").tag(Optional<VertexImageOutputMIMEType>.none)
-                                ForEach(VertexImageOutputMIMEType.allCases, id: \.self) { item in
-                                    Text(item.displayName).tag(Optional(item))
-                                }
-                            }
-
-                            TextField("JPEG quality 0-100 (optional)", text: $imageGenerationCompressionQualityDraft)
-                                .font(.system(.body, design: .monospaced))
-                                .textFieldStyle(.roundedBorder)
-                        }
-                    }
-
-                    if let imageGenerationDraftError {
-                        Section {
-                            Text(imageGenerationDraftError)
-                                .foregroundStyle(.red)
-                                .font(.caption)
-                        }
-                    }
-                }
-                .navigationTitle("Image Generation")
-                .toolbar {
-                    ToolbarItem(placement: .cancellationAction) {
-                        Button("Cancel") {
-                            showingImageGenerationSheet = false
-                        }
-                    }
-                    ToolbarItem(placement: .confirmationAction) {
-                        Button("Save") {
-                            if applyImageGenerationDraft() {
-                                showingImageGenerationSheet = false
-                            }
-                        }
-                        .disabled(!isImageGenerationDraftValid)
-                    }
-                }
-            }
-            .frame(width: 500)
+            ImageGenerationSheetView(
+                draft: $imageGenerationDraft,
+                seedDraft: $imageGenerationSeedDraft,
+                compressionQualityDraft: $imageGenerationCompressionQualityDraft,
+                draftError: $imageGenerationDraftError,
+                providerType: providerType,
+                supportsImageSizeControl: supportsCurrentModelImageSizeControl,
+                isValid: isImageGenerationDraftValid,
+                onCancel: { showingImageGenerationSheet = false },
+                onSave: { applyImageGenerationDraft() }
+            )
         }
         .task {
             loadControlsFromConversation()
@@ -4683,7 +4320,7 @@ struct ChatView: View {
     private func openContextCacheEditor() {
         let defaultMode: ContextCacheMode = (providerType == .anthropic) ? .implicit : .off
         contextCacheDraft = controls.contextCache ?? ContextCacheControls(mode: defaultMode)
-        contextCacheTTLPreset = contextCachePreset(from: contextCacheDraft.ttl)
+        contextCacheTTLPreset = ContextCacheTTLPreset.from(ttl: contextCacheDraft.ttl)
         if case .customSeconds(let seconds) = contextCacheDraft.ttl {
             contextCacheCustomTTLDraft = "\(seconds)"
         } else {
@@ -4718,31 +4355,6 @@ struct ChatView: View {
             controls.webSearch?.allowedDomains = nil
             controls.webSearch?.blockedDomains = nil
         }
-    }
-
-    private var anthropicWebSearchCurrentDomainsDraft: Binding<String> {
-        Binding(
-            get: {
-                switch anthropicWebSearchDomainMode {
-                case .none:
-                    return ""
-                case .allowed:
-                    return anthropicWebSearchAllowedDomainsDraft
-                case .blocked:
-                    return anthropicWebSearchBlockedDomainsDraft
-                }
-            },
-            set: { value in
-                switch anthropicWebSearchDomainMode {
-                case .none:
-                    break
-                case .allowed:
-                    anthropicWebSearchAllowedDomainsDraft = value
-                case .blocked:
-                    anthropicWebSearchBlockedDomainsDraft = value
-                }
-            }
-        )
     }
 
     private func openAnthropicWebSearchEditor() {
@@ -4816,153 +4428,6 @@ struct ChatView: View {
 
         persistControlsToConversation()
         showingAnthropicWebSearchSheet = false
-    }
-
-    @ViewBuilder
-    private var anthropicWebSearchSheet: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: JinSpacing.large) {
-                    // Domain Filtering card
-                    VStack(alignment: .leading, spacing: JinSpacing.medium) {
-                        Text("Domain Filtering")
-                            .font(.headline)
-
-                        anthropicWebSearchField("Mode") {
-                            Picker("Mode", selection: $anthropicWebSearchDomainMode) {
-                                Text("None").tag(AnthropicDomainFilterMode.none)
-                                Text("Allowed only").tag(AnthropicDomainFilterMode.allowed)
-                                Text("Blocked").tag(AnthropicDomainFilterMode.blocked)
-                            }
-                            .labelsHidden()
-                            .pickerStyle(.segmented)
-                        }
-
-                        if anthropicWebSearchDomainMode != .none {
-                            anthropicWebSearchField(
-                                anthropicWebSearchDomainMode == .allowed ? "Allowed domains" : "Blocked domains",
-                                hint: "One domain per line. Subdomains are included automatically."
-                            ) {
-                                TextEditor(text: anthropicWebSearchCurrentDomainsDraft)
-                                    .font(.system(.body, design: .monospaced))
-                                    .frame(minHeight: 72)
-                                    .clipShape(RoundedRectangle(cornerRadius: JinRadius.small, style: .continuous))
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: JinRadius.small, style: .continuous)
-                                            .stroke(JinSemanticColor.separator, lineWidth: JinStrokeWidth.hairline)
-                                    )
-                            }
-                        }
-                    }
-                    .padding(JinSpacing.large)
-                    .jinSurface(.raised, cornerRadius: JinRadius.large)
-                    .onChange(of: anthropicWebSearchAllowedDomainsDraft) { _, _ in
-                        anthropicWebSearchDraftError = nil
-                    }
-                    .onChange(of: anthropicWebSearchBlockedDomainsDraft) { _, _ in
-                        anthropicWebSearchDraftError = nil
-                    }
-                    .onChange(of: anthropicWebSearchDomainMode) { _, _ in
-                        anthropicWebSearchDraftError = nil
-                    }
-                    VStack(alignment: .leading, spacing: JinSpacing.medium) {
-                        Text("User Location")
-                            .font(.headline)
-
-                        HStack(spacing: JinSpacing.medium) {
-                            anthropicWebSearchField("City") {
-                                TextField("San Francisco", text: Binding(
-                                    get: { anthropicWebSearchLocationDraft.city ?? "" },
-                                    set: { anthropicWebSearchLocationDraft.city = $0.isEmpty ? nil : $0 }
-                                ))
-                                .textFieldStyle(.roundedBorder)
-                            }
-
-                            anthropicWebSearchField("Region") {
-                                TextField("California", text: Binding(
-                                    get: { anthropicWebSearchLocationDraft.region ?? "" },
-                                    set: { anthropicWebSearchLocationDraft.region = $0.isEmpty ? nil : $0 }
-                                ))
-                                .textFieldStyle(.roundedBorder)
-                            }
-                        }
-
-                        HStack(spacing: JinSpacing.medium) {
-                            anthropicWebSearchField("Country (2-letter)") {
-                                TextField("US", text: Binding(
-                                    get: { anthropicWebSearchLocationDraft.country ?? "" },
-                                    set: { val in
-                                        let trimmed = String(val.prefix(2)).uppercased()
-                                        anthropicWebSearchLocationDraft.country = trimmed.isEmpty ? nil : trimmed
-                                    }
-                                ))
-                                .textFieldStyle(.roundedBorder)
-                                .frame(maxWidth: 120)
-                            }
-
-                            anthropicWebSearchField("Timezone") {
-                                TextField("America/Los_Angeles", text: Binding(
-                                    get: { anthropicWebSearchLocationDraft.timezone ?? "" },
-                                    set: { anthropicWebSearchLocationDraft.timezone = $0.isEmpty ? nil : $0 }
-                                ))
-                                .textFieldStyle(.roundedBorder)
-                            }
-                        }
-                    }
-                    .padding(JinSpacing.large)
-                    .jinSurface(.raised, cornerRadius: JinRadius.large)
-
-                    if let anthropicWebSearchDraftError {
-                        Text(anthropicWebSearchDraftError)
-                            .foregroundStyle(.red)
-                            .font(.caption)
-                            .padding(JinSpacing.small)
-                            .jinSurface(.subtleStrong, cornerRadius: JinRadius.small)
-                    } else {
-                        Text("User location biases search result ranking toward the specified area. It does not inject location context into the conversation.")
-                            .jinInfoCallout()
-                    }
-                }
-                .padding(JinSpacing.large)
-            }
-            .background {
-                JinSemanticColor.detailSurface
-                    .ignoresSafeArea()
-            }
-            .navigationTitle("Web Search")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
-                        showingAnthropicWebSearchSheet = false
-                    }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Apply") {
-                        applyAnthropicWebSearchDraft()
-                    }
-                }
-            }
-        }
-        .frame(minWidth: 520, idealWidth: 580, minHeight: 400, idealHeight: 480)
-    }
-
-    private func anthropicWebSearchField<Control: View>(
-        _ title: String,
-        hint: String? = nil,
-        @ViewBuilder control: () -> Control
-    ) -> some View {
-        VStack(alignment: .leading, spacing: JinSpacing.xSmall) {
-            Text(title)
-                .font(.subheadline.weight(.semibold))
-            control()
-                .frame(maxWidth: .infinity, alignment: .leading)
-            if let hint, !hint.isEmpty {
-                Text(hint)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-        }
     }
 
     private func shouldExpandContextCacheAdvancedOptions(for draft: ContextCacheControls) -> Bool {
@@ -5096,19 +4561,6 @@ struct ChatView: View {
         persistControlsToConversation()
         contextCacheDraftError = nil
         return true
-    }
-
-    private func contextCachePreset(from ttl: ContextCacheTTL?) -> ContextCacheTTLPreset {
-        switch ttl {
-        case .minutes5:
-            return .minutes5
-        case .hour1:
-            return .hour1
-        case .customSeconds:
-            return .custom
-        case .providerDefault, .none:
-            return .providerDefault
-        }
     }
 
     private func mcpServerSelectionBinding(serverID: String) -> Binding<Bool> {
@@ -5430,28 +4882,6 @@ struct ChatView: View {
         return value
     }
 
-    @ViewBuilder
-    private func thinkingControlRow<Control: View>(_ title: String, @ViewBuilder control: () -> Control) -> some View {
-        HStack(alignment: .center, spacing: JinSpacing.medium) {
-            Text(title)
-                .font(.body)
-                .foregroundStyle(.primary)
-
-            Spacer(minLength: 0)
-
-            control()
-        }
-    }
-
-    @ViewBuilder
-    private func thinkingTokenField(placeholder: String, text: Binding<String>) -> some View {
-        TextField("", text: text, prompt: Text(placeholder))
-            .font(.system(.body, design: .monospaced))
-            .multilineTextAlignment(.trailing)
-            .textFieldStyle(.roundedBorder)
-            .frame(width: 170)
-    }
-
     private var isThinkingBudgetDraftValid: Bool {
         if !anthropicUsesEffortMode {
             guard let budget = thinkingBudgetDraftInt, budget > 0 else { return false }
@@ -5650,165 +5080,200 @@ struct ChatView: View {
     }
 
     private func normalizeControlsForCurrentSelection() {
-        // Ensure the stored controls remain valid when switching provider/model.
         let originalData = (try? JSONEncoder().encode(controls)) ?? Data()
 
+        normalizeMaxTokensForModel()
+        normalizeMediaGenerationOverrides()
+        normalizeReasoningControls()
+        normalizeReasoningEffortLimits()
+        normalizeVertexAIGenerationConfig()
+        normalizeFireworksProviderSpecific()
+        normalizeWebSearchControls()
+        normalizeContextCacheControls()
+        normalizeMCPToolsControls()
+        normalizeAnthropicMaxTokens()
+        normalizeImageGenerationControls()
+        normalizeVideoGenerationControls()
+
+        let newData = (try? JSONEncoder().encode(controls)) ?? Data()
+        if newData != originalData {
+            persistControlsToConversation()
+        }
+    }
+
+    private func normalizeMaxTokensForModel() {
         if let modelMaxOutput = resolvedModelSettings?.maxOutputTokens,
            let requested = controls.maxTokens,
            requested > modelMaxOutput {
             controls.maxTokens = modelMaxOutput
         }
+    }
 
-        if supportsMediaGenerationControl {
-            if !supportsReasoningControl {
-                controls.reasoning = nil
-            }
-            if !supportsWebSearchControl {
-                controls.webSearch = nil
-            }
-            controls.mcpTools = nil
+    private func normalizeMediaGenerationOverrides() {
+        guard supportsMediaGenerationControl else { return }
+        if !supportsReasoningControl {
+            controls.reasoning = nil
         }
+        if !supportsWebSearchControl {
+            controls.webSearch = nil
+        }
+        controls.mcpTools = nil
+    }
 
-        // Reasoning: enforce model's reasoning config expectations.
+    private func normalizeReasoningControls() {
         if supportsReasoningControl, let reasoningConfig = selectedReasoningConfig {
             switch reasoningConfig.type {
             case .effort:
-                if providerType != .anthropic,
-                   controls.reasoning?.enabled == true,
-                   controls.reasoning?.effort == nil {
-                    updateReasoning { $0.effort = reasoningConfig.defaultEffort ?? .medium }
-                }
-
-                if providerType == .fireworks, isFireworksMiniMaxM2FamilyModel(conversationEntity.modelID) {
-                    if controls.reasoning == nil {
-                        controls.reasoning = ReasoningControls(
-                            enabled: true,
-                            effort: reasoningConfig.defaultEffort ?? .medium,
-                            budgetTokens: nil,
-                            summary: nil
-                        )
-                    }
-                    controls.reasoning?.enabled = true
-                    if controls.reasoning?.effort == nil || controls.reasoning?.effort == ReasoningEffort.none {
-                        controls.reasoning?.effort = reasoningConfig.defaultEffort ?? .medium
-                    }
-                }
-
-                if providerType != .anthropic {
-                    controls.reasoning?.budgetTokens = nil
-                }
-                if providerType == .openai,
-                   controls.reasoning?.enabled == true,
-                   (controls.reasoning?.effort ?? ReasoningEffort.none) != ReasoningEffort.none,
-                   controls.reasoning?.summary == nil {
-                    controls.reasoning?.summary = .auto
-                }
-                if providerType == .anthropic {
-                    normalizeAnthropicReasoningAndMaxTokens()
-                }
-
+                normalizeEffortBasedReasoning(config: reasoningConfig)
             case .budget:
-                if controls.reasoning?.enabled == true, controls.reasoning?.budgetTokens == nil {
-                    updateReasoning { $0.budgetTokens = reasoningConfig.defaultBudget ?? 2048 }
-                }
-                controls.reasoning?.effort = nil
-                controls.reasoning?.summary = nil
+                normalizeBudgetBasedReasoning(config: reasoningConfig)
             case .toggle:
-                if controls.reasoning == nil {
-                    // For toggle-only providers (e.g. Cerebras GLM), default to “On” so the UI and request match.
-                    controls.reasoning = ReasoningControls(enabled: true)
-                }
-                controls.reasoning?.effort = nil
-                controls.reasoning?.budgetTokens = nil
-                controls.reasoning?.summary = nil
+                normalizeToggleBasedReasoning()
             case .none:
                 controls.reasoning = nil
             }
         } else if !supportsReasoningControl {
             controls.reasoning = nil
         }
+    }
 
-        if supportsReasoningControl {
-            // OpenAI-style reasoning effort: only GPT-5.2 supports xhigh.
-            if usesOpenAIStyleReasoningEffort,
-               controls.reasoning?.effort == .xhigh,
-               !supportsOpenAIStyleExtremeReasoningEffort {
-                controls.reasoning?.effort = .high
+    private func normalizeEffortBasedReasoning(config: ModelReasoningConfig) {
+        if providerType != .anthropic,
+           controls.reasoning?.enabled == true,
+           controls.reasoning?.effort == nil {
+            updateReasoning { $0.effort = config.defaultEffort ?? .medium }
+        }
+
+        if providerType == .fireworks, isFireworksMiniMaxM2FamilyModel(conversationEntity.modelID) {
+            if controls.reasoning == nil {
+                controls.reasoning = ReasoningControls(
+                    enabled: true,
+                    effort: config.defaultEffort ?? .medium,
+                    budgetTokens: nil,
+                    summary: nil
+                )
             }
-
-            if providerType == .anthropic {
-                normalizeAnthropicReasoningAndMaxTokens()
-            }
-
-            // Gemini 3 Pro: only supports low/high thinking levels.
-            if providerType == .gemini,
-               conversationEntity.modelID.lowercased().contains("gemini-3-pro"),
-               let effort = controls.reasoning?.effort {
-                switch effort {
-                case .none:
-                    break
-                case .minimal:
-                    controls.reasoning?.effort = .low
-                case .low:
-                    break
-                case .medium:
-                    controls.reasoning?.effort = .high
-                case .high:
-                    break
-                case .xhigh:
-                    controls.reasoning?.effort = .high
-                }
+            controls.reasoning?.enabled = true
+            if controls.reasoning?.effort == nil || controls.reasoning?.effort == ReasoningEffort.none {
+                controls.reasoning?.effort = config.defaultEffort ?? .medium
             }
         }
 
-        if providerType == .vertexai,
-           var generationConfig = controls.providerSpecific["generationConfig"]?.value as? [String: Any] {
-            var mutated = false
+        if providerType != .anthropic {
+            controls.reasoning?.budgetTokens = nil
+        }
+        if providerType == .openai,
+           controls.reasoning?.enabled == true,
+           (controls.reasoning?.effort ?? ReasoningEffort.none) != ReasoningEffort.none,
+           controls.reasoning?.summary == nil {
+            controls.reasoning?.summary = .auto
+        }
+        if providerType == .anthropic {
+            normalizeAnthropicReasoningAndMaxTokens()
+        }
+    }
 
-            if lowerModelID.contains("gemini-3-pro-image") {
-                if generationConfig["thinkingConfig"] != nil {
-                    generationConfig.removeValue(forKey: "thinkingConfig")
-                    mutated = true
-                }
-            } else if lowerModelID.contains("gemini-2.5"),
-                      var thinkingConfig = generationConfig["thinkingConfig"] as? [String: Any],
-                      thinkingConfig["thinkingLevel"] != nil {
-                // Vertex Gemini 2.5 accepts thinkingBudget, not thinkingLevel.
-                thinkingConfig.removeValue(forKey: "thinkingLevel")
-                if thinkingConfig.isEmpty {
-                    generationConfig.removeValue(forKey: "thinkingConfig")
-                } else {
-                    generationConfig["thinkingConfig"] = thinkingConfig
-                }
+    private func normalizeBudgetBasedReasoning(config: ModelReasoningConfig) {
+        if controls.reasoning?.enabled == true, controls.reasoning?.budgetTokens == nil {
+            updateReasoning { $0.budgetTokens = config.defaultBudget ?? 2048 }
+        }
+        controls.reasoning?.effort = nil
+        controls.reasoning?.summary = nil
+    }
+
+    private func normalizeToggleBasedReasoning() {
+        if controls.reasoning == nil {
+            controls.reasoning = ReasoningControls(enabled: true)
+        }
+        controls.reasoning?.effort = nil
+        controls.reasoning?.budgetTokens = nil
+        controls.reasoning?.summary = nil
+    }
+
+    private func normalizeReasoningEffortLimits() {
+        guard supportsReasoningControl else { return }
+
+        if usesOpenAIStyleReasoningEffort,
+           controls.reasoning?.effort == .xhigh,
+           !supportsOpenAIStyleExtremeReasoningEffort {
+            controls.reasoning?.effort = .high
+        }
+
+        if providerType == .anthropic {
+            normalizeAnthropicReasoningAndMaxTokens()
+        }
+
+        if providerType == .gemini,
+           conversationEntity.modelID.lowercased().contains("gemini-3-pro"),
+           let effort = controls.reasoning?.effort {
+            controls.reasoning?.effort = clampGemini3ProEffort(effort)
+        }
+    }
+
+    private func clampGemini3ProEffort(_ effort: ReasoningEffort) -> ReasoningEffort {
+        switch effort {
+        case .none, .low, .high:
+            return effort
+        case .minimal:
+            return .low
+        case .medium, .xhigh:
+            return .high
+        }
+    }
+
+    private func normalizeVertexAIGenerationConfig() {
+        guard providerType == .vertexai,
+              var generationConfig = controls.providerSpecific["generationConfig"]?.value as? [String: Any] else {
+            return
+        }
+
+        var mutated = false
+
+        if lowerModelID.contains("gemini-3-pro-image") {
+            if generationConfig["thinkingConfig"] != nil {
+                generationConfig.removeValue(forKey: "thinkingConfig")
                 mutated = true
             }
-
-            if mutated {
-                if generationConfig.isEmpty {
-                    controls.providerSpecific.removeValue(forKey: "generationConfig")
-                } else {
-                    controls.providerSpecific["generationConfig"] = AnyCodable(generationConfig)
-                }
+        } else if lowerModelID.contains("gemini-2.5"),
+                  var thinkingConfig = generationConfig["thinkingConfig"] as? [String: Any],
+                  thinkingConfig["thinkingLevel"] != nil {
+            thinkingConfig.removeValue(forKey: "thinkingLevel")
+            if thinkingConfig.isEmpty {
+                generationConfig.removeValue(forKey: "thinkingConfig")
+            } else {
+                generationConfig["thinkingConfig"] = thinkingConfig
             }
+            mutated = true
         }
 
-        if providerType == .fireworks {
-            if isFireworksMiniMaxM2FamilyModel(conversationEntity.modelID) {
-                controls.providerSpecific.removeValue(forKey: "reasoning_effort")
-            }
+        guard mutated else { return }
+        if generationConfig.isEmpty {
+            controls.providerSpecific.removeValue(forKey: "generationConfig")
+        } else {
+            controls.providerSpecific["generationConfig"] = AnyCodable(generationConfig)
+        }
+    }
 
-            if let rawHistory = controls.providerSpecific["reasoning_history"]?.value as? String {
-                let normalized = rawHistory.lowercased()
-                if fireworksReasoningHistoryOptions.contains(normalized) {
-                    controls.providerSpecific["reasoning_history"] = AnyCodable(normalized)
-                } else {
-                    controls.providerSpecific.removeValue(forKey: "reasoning_history")
-                }
-            } else if controls.providerSpecific["reasoning_history"] != nil {
+    private func normalizeFireworksProviderSpecific() {
+        guard providerType == .fireworks else { return }
+
+        if isFireworksMiniMaxM2FamilyModel(conversationEntity.modelID) {
+            controls.providerSpecific.removeValue(forKey: "reasoning_effort")
+        }
+
+        if let rawHistory = controls.providerSpecific["reasoning_history"]?.value as? String {
+            let normalized = rawHistory.lowercased()
+            if fireworksReasoningHistoryOptions.contains(normalized) {
+                controls.providerSpecific["reasoning_history"] = AnyCodable(normalized)
+            } else {
                 controls.providerSpecific.removeValue(forKey: "reasoning_history")
             }
+        } else if controls.providerSpecific["reasoning_history"] != nil {
+            controls.providerSpecific.removeValue(forKey: "reasoning_history")
         }
+    }
 
+    private func normalizeWebSearchControls() {
         if supportsWebSearchControl {
             if controls.webSearch?.enabled == true {
                 ensureValidWebSearchDefaultsIfEnabled()
@@ -5816,37 +5281,33 @@ struct ChatView: View {
         } else {
             controls.webSearch = nil
         }
+    }
 
+    private func normalizeContextCacheControls() {
         if supportsContextCacheControl {
             if var contextCache = controls.contextCache {
                 if !supportsExplicitContextCacheMode, contextCache.mode == .explicit {
                     contextCache.mode = .implicit
                     contextCache.cachedContentName = nil
                 }
-
                 if !supportsContextCacheStrategy {
                     contextCache.strategy = nil
                 } else if contextCache.strategy == nil {
                     contextCache.strategy = .systemOnly
                 }
-
                 if !supportsContextCacheTTL {
                     contextCache.ttl = nil
                 }
-
                 if providerType != .openai && providerType != .xai {
                     contextCache.cacheKey = nil
                     contextCache.minTokensThreshold = nil
                 }
-
                 if providerType != .xai {
                     contextCache.conversationID = nil
                 }
-
                 if providerType != .gemini && providerType != .vertexai {
                     contextCache.cachedContentName = nil
                 }
-
                 if contextCache.mode == .off, providerType != .anthropic {
                     controls.contextCache = nil
                 } else {
@@ -5856,8 +5317,9 @@ struct ChatView: View {
         } else {
             controls.contextCache = nil
         }
+    }
 
-        // Keep MCP tools explicit to avoid silent "nil means enabled" behavior.
+    private func normalizeMCPToolsControls() {
         if supportsMCPToolsControl {
             if controls.mcpTools == nil {
                 controls.mcpTools = MCPToolsControls(enabled: true, enabledServerIDs: nil)
@@ -5867,23 +5329,24 @@ struct ChatView: View {
         } else {
             controls.mcpTools = nil
         }
+    }
 
+    private func normalizeAnthropicMaxTokens() {
         if !supportsReasoningControl, providerType == .anthropic {
             controls.maxTokens = nil
         }
-
         if providerType == .anthropic,
            controls.maxTokens != nil,
            controls.reasoning?.enabled != true {
             controls.maxTokens = nil
         }
+    }
 
+    private func normalizeImageGenerationControls() {
         if supportsImageGenerationControl {
             if providerType == .xai {
                 controls.imageGeneration = nil
-
                 if var xaiImage = controls.xaiImageGeneration {
-                    // Drop deprecated fields so persisted controls match current xAI API support.
                     xaiImage.quality = nil
                     xaiImage.style = nil
                     if xaiImage.aspectRatio != nil {
@@ -5909,18 +5372,15 @@ struct ChatView: View {
             controls.imageGeneration = nil
             controls.xaiImageGeneration = nil
         }
+    }
 
+    private func normalizeVideoGenerationControls() {
         if supportsVideoGenerationControl {
             if controls.xaiVideoGeneration?.isEmpty == true {
                 controls.xaiVideoGeneration = nil
             }
         } else {
             controls.xaiVideoGeneration = nil
-        }
-
-        let newData = (try? JSONEncoder().encode(controls)) ?? Data()
-        if newData != originalData {
-            persistControlsToConversation()
         }
     }
 

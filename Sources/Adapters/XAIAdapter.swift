@@ -688,65 +688,11 @@ actor XAIAdapter: LLMProviderAdapter {
     }
 
     private func downloadVideoToLocal(from url: URL) async throws -> (URL, String) {
-        guard let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
-            throw LLMError.decodingError(message: "Could not locate application support directory for video storage.")
-        }
-        let dir = appSupport.appendingPathComponent("Jin/Attachments", isDirectory: true)
-        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-
-        // Download video data via the app's network manager (consistent with other requests)
-        var request = URLRequest(url: url)
-        request.httpMethod = "GET"
-        let (videoData, response) = try await networkManager.sendRequest(request)
-
-        // Infer MIME type from Content-Type header, then URL extension, then default to mp4
-        let contentType = response.value(forHTTPHeaderField: "Content-Type")?
-            .components(separatedBy: ";").first?
-            .trimmingCharacters(in: .whitespaces)
-            .lowercased()
-
-        let (mimeType, ext) = Self.resolveVideoFormat(contentType: contentType, url: url)
-
-        let filename = "\(UUID().uuidString).\(ext)"
-        let destination = dir.appendingPathComponent(filename)
-        try videoData.write(to: destination, options: .atomic)
-        return (destination, mimeType)
-    }
-
-    private static func resolveVideoFormat(contentType: String?, url: URL) -> (mimeType: String, ext: String) {
-        // Known video MIME types to extension mapping
-        let mimeToExt: [String: String] = [
-            "video/mp4": "mp4",
-            "video/quicktime": "mov",
-            "video/webm": "webm",
-            "video/x-msvideo": "avi",
-            "video/x-matroska": "mkv",
-        ]
-
-        // 1. Try Content-Type header
-        if let ct = contentType, let ext = mimeToExt[ct] {
-            return (ct, ext)
-        }
-
-        // 2. Try URL path extension
-        let urlExt = url.pathExtension.lowercased()
-        if !urlExt.isEmpty {
-            let extToMime: [String: String] = [
-                "mp4": "video/mp4",
-                "mov": "video/quicktime",
-                "webm": "video/webm",
-                "avi": "video/x-msvideo",
-                "mkv": "video/x-matroska",
-            ]
-            if let mime = extToMime[urlExt] {
-                return (mime, urlExt)
-            }
-            // Unknown extension but present — use it with generic MIME
-            return ("video/\(urlExt)", urlExt)
-        }
-
-        // 3. Default to MP4
-        return ("video/mp4", "mp4")
+        let result = try await VideoAttachmentUtility.downloadToLocal(
+            from: url,
+            networkManager: networkManager
+        )
+        return (result.localURL, result.mimeType)
     }
 
     private func buildImageGenerationRequest(
@@ -1120,7 +1066,7 @@ actor XAIAdapter: LLMProviderAdapter {
                 continue
             }
 
-            let inferred = Self.resolveVideoFormat(contentType: nil, url: url)
+            let inferred = VideoAttachmentUtility.resolveVideoFormat(contentType: nil, url: url)
             return VideoContent(mimeType: inferred.mimeType, data: nil, url: url)
         }
         return nil

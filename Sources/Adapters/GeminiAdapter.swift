@@ -947,131 +947,12 @@ actor GeminiAdapter: LLMProviderAdapter {
     }
 
     private func searchActivities(from grounding: GenerateContentResponse.GroundingMetadata?) -> [StreamEvent] {
-        guard let grounding else { return [] }
-        var out: [StreamEvent] = []
-
-        let orderedQueries = mergedGroundingQueries(from: grounding)
-        for (index, query) in orderedQueries.enumerated() {
-            let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !trimmed.isEmpty else { continue }
-            out.append(
-                .searchActivity(
-                    SearchActivity(
-                        id: searchActivityID(prefix: "gemini-search", value: trimmed, index: index),
-                        type: "search",
-                        status: .completed,
-                        arguments: ["query": AnyCodable(trimmed)],
-                        outputIndex: nil,
-                        sequenceNumber: index
-                    )
-                )
-            )
-        }
-
-        var sourceEvents: [StreamEvent] = []
-        var seenSourceURLKeys: Set<String> = []
-        var sourceSequence = 0
-        let sourceSequenceBase = orderedQueries.count
-        let snippetByChunkIndex = groundingSnippetByChunkIndex(from: grounding)
-
-        func appendSourceActivity(url rawURL: String?, title rawTitle: String?, snippet rawSnippet: String?, idPrefix: String) {
-            let url = rawURL?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-            guard !url.isEmpty else { return }
-            let dedupeKey = url.lowercased()
-            guard seenSourceURLKeys.insert(dedupeKey).inserted else { return }
-
-            var args: [String: AnyCodable] = ["url": AnyCodable(url)]
-            if let title = rawTitle?.trimmingCharacters(in: .whitespacesAndNewlines), !title.isEmpty {
-                args["title"] = AnyCodable(title)
-            }
-            if let snippet = rawSnippet?
-                .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
-                .trimmingCharacters(in: .whitespacesAndNewlines),
-               !snippet.isEmpty {
-                args["snippet"] = AnyCodable(snippet)
-            }
-
-            sourceEvents.append(
-                .searchActivity(
-                    SearchActivity(
-                        id: searchActivityID(prefix: idPrefix, value: url, index: sourceSequence),
-                        type: "open_page",
-                        status: .completed,
-                        arguments: args,
-                        outputIndex: nil,
-                        sequenceNumber: sourceSequenceBase + sourceSequence
-                    )
-                )
-            )
-            sourceSequence += 1
-        }
-
-        for (chunkIndex, chunk) in (grounding.groundingChunks ?? []).enumerated() {
-            appendSourceActivity(
-                url: chunk.web?.uri,
-                title: chunk.web?.title,
-                snippet: snippetByChunkIndex[chunkIndex],
-                idPrefix: "gemini-open"
-            )
-        }
-
-        // Official fallback for custom Search Suggestions UI when chunk URLs are absent.
-        if sourceEvents.isEmpty {
-            for suggestion in GoogleGroundingSearchSuggestionParser.parse(sdkBlob: grounding.searchEntryPoint?.sdkBlob) {
-                appendSourceActivity(url: suggestion.url, title: suggestion.query, snippet: nil, idPrefix: "gemini-search-url")
-            }
-        }
-
-        out.append(contentsOf: sourceEvents)
-        return out
-    }
-
-    private func mergedGroundingQueries(from grounding: GenerateContentResponse.GroundingMetadata) -> [String] {
-        var seen: Set<String> = []
-        var out: [String] = []
-
-        for query in (grounding.webSearchQueries ?? []) + (grounding.retrievalQueries ?? []) {
-            let key = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-            guard !key.isEmpty, !seen.contains(key) else { continue }
-            seen.insert(key)
-            out.append(query)
-        }
-
-        return out
-    }
-
-    private func groundingSnippetByChunkIndex(from grounding: GenerateContentResponse.GroundingMetadata) -> [Int: String] {
-        var snippetsByIndex: [Int: [String]] = [:]
-
-        for support in grounding.groundingSupports ?? [] {
-            guard let segment = support.segment?.text?
-                .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
-                .trimmingCharacters(in: .whitespacesAndNewlines),
-                  !segment.isEmpty else {
-                continue
-            }
-
-            for index in support.groundingChunkIndices ?? [] where index >= 0 {
-                var snippets = snippetsByIndex[index] ?? []
-                if !snippets.contains(segment) {
-                    snippets.append(segment)
-                    snippetsByIndex[index] = snippets
-                }
-            }
-        }
-
-        var merged: [Int: String] = [:]
-        for (index, snippets) in snippetsByIndex {
-            let joined = snippets.joined(separator: " • ")
-            if joined.count > 420 {
-                let endIndex = joined.index(joined.startIndex, offsetBy: 420)
-                merged[index] = String(joined[..<endIndex]) + "…"
-            } else {
-                merged[index] = joined
-            }
-        }
-
-        return merged
+        GoogleGroundingSearchActivities.events(
+            from: grounding.map(toSharedGrounding),
+            searchPrefix: "gemini-search",
+            openPrefix: "gemini-open",
+            searchURLPrefix: "gemini-search-url"
+        )
     }
 
     private func candidateGroundingMetadata(in candidates: [GenerateContentResponse.Candidate]?) -> GenerateContentResponse.GroundingMetadata? {
@@ -1084,14 +965,20 @@ actor GeminiAdapter: LLMProviderAdapter {
         return nil
     }
 
-    private func searchActivityID(prefix: String, value: String, index: Int) -> String {
-        let normalized = value
-            .lowercased()
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .replacingOccurrences(of: " ", with: "_")
-            .replacingOccurrences(of: "/", with: "_")
-        let suffix = String(normalized.prefix(80))
-        return "\(prefix)_\(index)_\(suffix)"
+    private func toSharedGrounding(_ g: GenerateContentResponse.GroundingMetadata) -> GoogleGroundingSearchActivities.GroundingMetadata {
+        GoogleGroundingSearchActivities.GroundingMetadata(
+            webSearchQueries: g.webSearchQueries,
+            retrievalQueries: g.retrievalQueries,
+            groundingChunks: g.groundingChunks?.map {
+                .init(webURI: $0.web?.uri, webTitle: $0.web?.title)
+            },
+            groundingSupports: g.groundingSupports?.map {
+                .init(segmentText: $0.segment?.text, groundingChunkIndices: $0.groundingChunkIndices)
+            },
+            searchEntryPoint: g.searchEntryPoint.map {
+                .init(sdkBlob: $0.sdkBlob)
+            }
+        )
     }
 
     private func isCandidateContentFiltered(_ candidate: GenerateContentResponse.Candidate) -> Bool {

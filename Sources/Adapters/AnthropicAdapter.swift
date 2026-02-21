@@ -388,24 +388,34 @@ actor AnthropicAdapter: LLMProviderAdapter {
             "stream": streaming
         ]
 
-        if let systemPrompt = normalizedMessages.first(where: { $0.role == .system })?.content.first,
-           case .text(let text) = systemPrompt {
-            var block: [String: Any] = [
-                "type": "text",
-                "text": text
-            ]
-            if let cacheControl {
-                block["cache_control"] = cacheControl
-            }
-            body["system"] = [block]
-        }
+        appendSystemPrompt(to: &body, from: normalizedMessages, cacheControl: cacheControl)
+        appendThinkingConfig(to: &body, controls: controls, modelID: modelID)
+        appendToolSpecs(to: &body, controls: controls, tools: tools, modelID: modelID)
+        applyProviderSpecificOverrides(to: &body, controls: controls, modelID: modelID)
 
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        return request
+    }
+
+    private func appendSystemPrompt(to body: inout [String: Any], from messages: [Message], cacheControl: [String: Any]?) {
+        guard let systemPrompt = messages.first(where: { $0.role == .system })?.content.first,
+              case .text(let text) = systemPrompt else {
+            return
+        }
+        var block: [String: Any] = [
+            "type": "text",
+            "text": text
+        ]
+        if let cacheControl {
+            block["cache_control"] = cacheControl
+        }
+        body["system"] = [block]
+    }
+
+    private func appendThinkingConfig(to body: inout [String: Any], controls: GenerationControls, modelID: String) {
         let thinkingEnabled = controls.reasoning?.enabled == true
-        let supportsAdaptive = supportsAdaptiveThinking(modelID)
-        let supportsEffortControl = supportsEffort(modelID)
         let providerSpecificHasThinking = controls.providerSpecific["thinking"] != nil
 
-        // When thinking is enabled, Anthropic rejects temperature/top_p.
         if !thinkingEnabled {
             if let temperature = controls.temperature {
                 body["temperature"] = temperature
@@ -413,72 +423,35 @@ actor AnthropicAdapter: LLMProviderAdapter {
             if let topP = controls.topP {
                 body["top_p"] = topP
             }
+            return
         }
 
-        if thinkingEnabled {
-            if !providerSpecificHasThinking {
-                if supportsAdaptive, controls.reasoning?.budgetTokens == nil {
-                    body["thinking"] = [
-                        "type": "adaptive"
-                    ]
-                } else {
-                    body["thinking"] = [
-                        "type": "enabled",
-                        "budget_tokens": controls.reasoning?.budgetTokens ?? 2048
-                    ]
-                }
-            }
-
-            if supportsEffortControl,
-               controls.reasoning?.budgetTokens == nil,
-               let effort = controls.reasoning?.effort {
-                mergeOutputConfig(
-                    into: &body,
-                    additional: [
-                        "effort": mapAnthropicEffort(effort, modelID: modelID)
-                    ]
-                )
+        if !providerSpecificHasThinking {
+            if supportsAdaptiveThinking(modelID), controls.reasoning?.budgetTokens == nil {
+                body["thinking"] = ["type": "adaptive"]
+            } else {
+                body["thinking"] = [
+                    "type": "enabled",
+                    "budget_tokens": controls.reasoning?.budgetTokens ?? 2048
+                ]
             }
         }
 
+        if supportsEffort(modelID),
+           controls.reasoning?.budgetTokens == nil,
+           let effort = controls.reasoning?.effort {
+            mergeOutputConfig(
+                into: &body,
+                additional: ["effort": mapAnthropicEffort(effort, modelID: modelID)]
+            )
+        }
+    }
+
+    private func appendToolSpecs(to body: inout [String: Any], controls: GenerationControls, tools: [ToolDefinition], modelID: String) {
         var toolSpecs: [[String: Any]] = []
 
         if controls.webSearch?.enabled == true, supportsWebSearch(modelID) {
-            let ws = controls.webSearch!
-            let useDynamicFiltering = (ws.dynamicFiltering == true) && supportsWebSearchDynamicFiltering(modelID)
-
-            let allowedDomains = AnthropicWebSearchDomainUtils.normalizedDomains(ws.allowedDomains)
-            let blockedDomains = AnthropicWebSearchDomainUtils.normalizedDomains(ws.blockedDomains)
-
-            var spec: [String: Any] = [
-                "type": useDynamicFiltering ? "web_search_20260209" : "web_search_20250305",
-                "name": "web_search"
-            ]
-            if let maxUses = ws.maxUses, maxUses > 0 {
-                spec["max_uses"] = maxUses
-            }
-            if !allowedDomains.isEmpty {
-                spec["allowed_domains"] = allowedDomains
-            } else if !blockedDomains.isEmpty {
-                spec["blocked_domains"] = blockedDomains
-            }
-            if let loc = ws.userLocation, !loc.isEmpty {
-                var locDict: [String: Any] = ["type": "approximate"]
-                if let city = loc.city?.trimmingCharacters(in: .whitespacesAndNewlines), !city.isEmpty {
-                    locDict["city"] = city
-                }
-                if let region = loc.region?.trimmingCharacters(in: .whitespacesAndNewlines), !region.isEmpty {
-                    locDict["region"] = region
-                }
-                if let country = loc.country?.trimmingCharacters(in: .whitespacesAndNewlines), !country.isEmpty {
-                    locDict["country"] = country
-                }
-                if let tz = loc.timezone?.trimmingCharacters(in: .whitespacesAndNewlines), !tz.isEmpty {
-                    locDict["timezone"] = tz
-                }
-                spec["user_location"] = locDict
-            }
-            toolSpecs.append(spec)
+            toolSpecs.append(buildWebSearchToolSpec(controls: controls, modelID: modelID))
         }
 
         if !tools.isEmpty, let customTools = translateTools(tools) as? [[String: Any]] {
@@ -488,7 +461,51 @@ actor AnthropicAdapter: LLMProviderAdapter {
         if !toolSpecs.isEmpty {
             body["tools"] = toolSpecs
         }
+    }
 
+    private func buildWebSearchToolSpec(controls: GenerationControls, modelID: String) -> [String: Any] {
+        let ws = controls.webSearch!
+        let useDynamicFiltering = (ws.dynamicFiltering == true) && supportsWebSearchDynamicFiltering(modelID)
+
+        let allowedDomains = AnthropicWebSearchDomainUtils.normalizedDomains(ws.allowedDomains)
+        let blockedDomains = AnthropicWebSearchDomainUtils.normalizedDomains(ws.blockedDomains)
+
+        var spec: [String: Any] = [
+            "type": useDynamicFiltering ? "web_search_20260209" : "web_search_20250305",
+            "name": "web_search"
+        ]
+        if let maxUses = ws.maxUses, maxUses > 0 {
+            spec["max_uses"] = maxUses
+        }
+        if !allowedDomains.isEmpty {
+            spec["allowed_domains"] = allowedDomains
+        } else if !blockedDomains.isEmpty {
+            spec["blocked_domains"] = blockedDomains
+        }
+        if let loc = ws.userLocation, !loc.isEmpty {
+            spec["user_location"] = buildUserLocationDict(loc)
+        }
+        return spec
+    }
+
+    private func buildUserLocationDict(_ loc: WebSearchUserLocation) -> [String: Any] {
+        var locDict: [String: Any] = ["type": "approximate"]
+        if let city = loc.city?.trimmingCharacters(in: .whitespacesAndNewlines), !city.isEmpty {
+            locDict["city"] = city
+        }
+        if let region = loc.region?.trimmingCharacters(in: .whitespacesAndNewlines), !region.isEmpty {
+            locDict["region"] = region
+        }
+        if let country = loc.country?.trimmingCharacters(in: .whitespacesAndNewlines), !country.isEmpty {
+            locDict["country"] = country
+        }
+        if let tz = loc.timezone?.trimmingCharacters(in: .whitespacesAndNewlines), !tz.isEmpty {
+            locDict["timezone"] = tz
+        }
+        return locDict
+    }
+
+    private func applyProviderSpecificOverrides(to body: inout [String: Any], controls: GenerationControls, modelID: String) {
         for (key, value) in controls.providerSpecific {
             if key == "anthropic_beta" || key == "anthropic-beta" {
                 continue
@@ -511,9 +528,6 @@ actor AnthropicAdapter: LLMProviderAdapter {
 
             body[key] = value.value
         }
-
-        request.httpBody = try JSONSerialization.data(withJSONObject: body)
-        return request
     }
 
     private func translateMessage(
@@ -524,166 +538,178 @@ actor AnthropicAdapter: LLMProviderAdapter {
         userMessageOrdinal: Int
     ) -> [String: Any] {
         var content: [[String: Any]] = []
-        var didApplyPrefixCache = false
+        var cacheApplied = false
 
-        func applyCacheControlIfNeeded(to block: inout [String: Any], isCacheableBlock: Bool) {
-            guard isCacheableBlock, let cacheControl, message.role != .assistant else { return }
-
+        func maybeApplyCache(to block: inout [String: Any]) {
+            guard let cacheControl, message.role != .assistant else { return }
             switch cacheStrategy {
             case .systemOnly:
                 return
             case .systemAndTools:
                 block["cache_control"] = cacheControl
             case .prefixWindow:
-                guard userMessageOrdinal == 1, !didApplyPrefixCache else { return }
+                guard userMessageOrdinal == 1, !cacheApplied else { return }
                 block["cache_control"] = cacheControl
-                didApplyPrefixCache = true
+                cacheApplied = true
             }
         }
 
-        // Tool result blocks must come first in the user message that follows an assistant tool_use turn.
-        // Even if some legacy history stores tool results on a non-`.tool` role, putting them first
-        // keeps Anthropic's ordering rules satisfied.
-        if let toolResults = message.toolResults {
-            for result in toolResults {
-                let trimmed = result.content.trimmingCharacters(in: .whitespacesAndNewlines)
-                let safeContent = trimmed.isEmpty ? "<empty_content>" : result.content
-
-                var block: [String: Any] = [
-                    "type": "tool_result",
-                    "tool_use_id": result.toolCallID,
-                    "content": safeContent,
-                    "is_error": result.isError
-                ]
-                applyCacheControlIfNeeded(to: &block, isCacheableBlock: true)
-                content.append(block)
-            }
-        }
-
-        // Reasoning blocks first for assistant turns.
-        if message.role == .assistant {
-            for part in message.content {
-                switch part {
-                case .thinking(let thinking):
-                    var block: [String: Any] = [
-                        "type": "thinking",
-                        "thinking": thinking.text
-                    ]
-                    if let signature = thinking.signature {
-                        block["signature"] = signature
-                    }
-                    content.append(block)
-                case .redactedThinking(let redacted):
-                    content.append([
-                        "type": "redacted_thinking",
-                        "data": redacted.data
-                    ])
-                default:
-                    break
-                }
-            }
-        }
-
-        // User-facing blocks (text/images/files).
-        // For assistant tool_use turns, these should appear before the `tool_use` blocks.
-        // For tool_result messages, these will appear after tool_result blocks (see above).
-        if message.role != .tool {
-            for part in message.content {
-                switch part {
-                case .text(let text):
-                    var block: [String: Any] = [
-                        "type": "text",
-                        "text": text
-                    ]
-                    applyCacheControlIfNeeded(to: &block, isCacheableBlock: true)
-                    content.append(block)
-                case .image(let image):
-                    if let data = image.data {
-                        content.append([
-                            "type": "image",
-                            "source": [
-                                "type": "base64",
-                                "media_type": image.mimeType,
-                                "data": data.base64EncodedString()
-                            ]
-                        ])
-                    } else if let url = image.url, url.isFileURL, let data = try? Data(contentsOf: url) {
-                        content.append([
-                            "type": "image",
-                            "source": [
-                                "type": "base64",
-                                "media_type": image.mimeType,
-                                "data": data.base64EncodedString()
-                            ]
-                        ])
-                    }
-                case .file(let file):
-                    // Native PDF support for Claude 4.5+
-                    if supportsNativePDF && file.mimeType == "application/pdf" {
-                        // Load PDF data from file URL or use existing data
-                        let pdfData: Data?
-                        if let data = file.data {
-                            pdfData = data
-                        } else if let url = file.url, url.isFileURL {
-                            pdfData = try? Data(contentsOf: url)
-                        } else {
-                            pdfData = nil
-                        }
-
-                        if let pdfData = pdfData {
-                            var block: [String: Any] = [
-                                "type": "document",
-                                "source": [
-                                    "type": "base64",
-                                    "media_type": "application/pdf",
-                                    "data": pdfData.base64EncodedString()
-                                ]
-                            ]
-                            applyCacheControlIfNeeded(to: &block, isCacheableBlock: true)
-                            content.append(block)
-                            continue
-                        }
-                    }
-
-                    // Fallback to text extraction
-                    let text = AttachmentPromptRenderer.fallbackText(for: file)
-                    var block: [String: Any] = [
-                        "type": "text",
-                        "text": text
-                    ]
-                    applyCacheControlIfNeeded(to: &block, isCacheableBlock: true)
-                    content.append(block)
-                case .video(let video):
-                    var block: [String: Any] = [
-                        "type": "text",
-                        "text": unsupportedVideoInputNotice(video, providerName: "Anthropic")
-                    ]
-                    applyCacheControlIfNeeded(to: &block, isCacheableBlock: true)
-                    content.append(block)
-                default:
-                    break
-                }
-            }
-        }
-
-        // Append tool_use blocks last for assistant turns (Claude expects tool_use at the end
-        // of the assistant content array).
-        if message.role == .assistant, let toolCalls = message.toolCalls {
-            for call in toolCalls {
-                let input = call.arguments.mapValues { $0.value }
-                content.append([
-                    "type": "tool_use",
-                    "id": call.id,
-                    "name": call.name,
-                    "input": input
-                ])
-            }
-        }
+        appendToolResultBlocks(from: message, to: &content, applyCache: maybeApplyCache)
+        appendThinkingBlocks(from: message, to: &content)
+        appendUserFacingBlocks(from: message, supportsNativePDF: supportsNativePDF, to: &content, applyCache: maybeApplyCache)
+        appendToolUseBlocks(from: message, to: &content)
 
         return [
             "role": message.role == .assistant ? "assistant" : "user",
             "content": content
         ]
+    }
+
+    private func appendToolResultBlocks(
+        from message: Message,
+        to content: inout [[String: Any]],
+        applyCache: (inout [String: Any]) -> Void
+    ) {
+        guard let toolResults = message.toolResults else { return }
+        for result in toolResults {
+            let trimmed = result.content.trimmingCharacters(in: .whitespacesAndNewlines)
+            let safeContent = trimmed.isEmpty ? "<empty_content>" : result.content
+
+            var block: [String: Any] = [
+                "type": "tool_result",
+                "tool_use_id": result.toolCallID,
+                "content": safeContent,
+                "is_error": result.isError
+            ]
+            applyCache(&block)
+            content.append(block)
+        }
+    }
+
+    private func appendThinkingBlocks(from message: Message, to content: inout [[String: Any]]) {
+        guard message.role == .assistant else { return }
+        for part in message.content {
+            switch part {
+            case .thinking(let thinking):
+                var block: [String: Any] = [
+                    "type": "thinking",
+                    "thinking": thinking.text
+                ]
+                if let signature = thinking.signature {
+                    block["signature"] = signature
+                }
+                content.append(block)
+            case .redactedThinking(let redacted):
+                content.append([
+                    "type": "redacted_thinking",
+                    "data": redacted.data
+                ])
+            default:
+                break
+            }
+        }
+    }
+
+    private func appendUserFacingBlocks(
+        from message: Message,
+        supportsNativePDF: Bool,
+        to content: inout [[String: Any]],
+        applyCache: (inout [String: Any]) -> Void
+    ) {
+        guard message.role != .tool else { return }
+        for part in message.content {
+            switch part {
+            case .text(let text):
+                var block: [String: Any] = ["type": "text", "text": text]
+                applyCache(&block)
+                content.append(block)
+            case .image(let image):
+                if let imageBlock = translateImageBlock(image) {
+                    content.append(imageBlock)
+                }
+            case .file(let file):
+                translateFileBlock(file, supportsNativePDF: supportsNativePDF, to: &content, applyCache: applyCache)
+            case .video(let video):
+                var block: [String: Any] = [
+                    "type": "text",
+                    "text": unsupportedVideoInputNotice(video, providerName: "Anthropic")
+                ]
+                applyCache(&block)
+                content.append(block)
+            default:
+                break
+            }
+        }
+    }
+
+    private func translateImageBlock(_ image: ImageContent) -> [String: Any]? {
+        let data: Data?
+        if let existing = image.data {
+            data = existing
+        } else if let url = image.url, url.isFileURL {
+            data = try? Data(contentsOf: url)
+        } else {
+            data = nil
+        }
+        guard let data else { return nil }
+        return [
+            "type": "image",
+            "source": [
+                "type": "base64",
+                "media_type": image.mimeType,
+                "data": data.base64EncodedString()
+            ]
+        ]
+    }
+
+    private func translateFileBlock(
+        _ file: FileContent,
+        supportsNativePDF: Bool,
+        to content: inout [[String: Any]],
+        applyCache: (inout [String: Any]) -> Void
+    ) {
+        if supportsNativePDF && file.mimeType == "application/pdf" {
+            let pdfData: Data?
+            if let data = file.data {
+                pdfData = data
+            } else if let url = file.url, url.isFileURL {
+                pdfData = try? Data(contentsOf: url)
+            } else {
+                pdfData = nil
+            }
+
+            if let pdfData {
+                var block: [String: Any] = [
+                    "type": "document",
+                    "source": [
+                        "type": "base64",
+                        "media_type": "application/pdf",
+                        "data": pdfData.base64EncodedString()
+                    ]
+                ]
+                applyCache(&block)
+                content.append(block)
+                return
+            }
+        }
+
+        let text = AttachmentPromptRenderer.fallbackText(for: file)
+        var block: [String: Any] = ["type": "text", "text": text]
+        applyCache(&block)
+        content.append(block)
+    }
+
+    private func appendToolUseBlocks(from message: Message, to content: inout [[String: Any]]) {
+        guard message.role == .assistant, let toolCalls = message.toolCalls else { return }
+        for call in toolCalls {
+            let input = call.arguments.mapValues { $0.value }
+            content.append([
+                "type": "tool_use",
+                "id": call.id,
+                "name": call.name,
+                "input": input
+            ])
+        }
     }
 
     private func unsupportedVideoInputNotice(_ video: VideoContent, providerName: String) -> String {
