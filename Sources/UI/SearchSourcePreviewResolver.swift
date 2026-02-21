@@ -12,7 +12,9 @@ actor SearchSourcePreviewResolver {
         static let maxDownloadBytes = 64 * 1024
         static let requestTimeout: TimeInterval = 7
         static let acceptHeader = "text/html,application/xhtml+xml"
+        static let jsonAcceptHeader = "application/json,text/plain;q=0.9,*/*;q=0.8"
         static let userAgent = "Mozilla/5.0 Jin/1.0"
+        static let xOEmbedEndpoint = "https://publish.twitter.com/oembed"
         static let blockedPathExtensions: Set<String> = [
             "jpg", "jpeg", "png", "gif", "webp", "svg", "ico",
             "pdf", "zip", "gz", "tar", "rar", "7z",
@@ -63,6 +65,10 @@ actor SearchSourcePreviewResolver {
             return nil
         }
 
+        if let xStatusURL = canonicalXStatusURLIfNeeded(for: url) {
+            return await fetchXPostPreview(from: xStatusURL)
+        }
+
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
         request.timeoutInterval = Configuration.requestTimeout
@@ -89,6 +95,105 @@ actor SearchSourcePreviewResolver {
         }
     }
 
+    static func canonicalXStatusURLIfNeeded(for url: URL) -> URL? {
+        guard let host = url.host?.lowercased(), isXHost(host) else {
+            return nil
+        }
+
+        let parts = url.path.split(separator: "/", omittingEmptySubsequences: true).map(String.init)
+        let statusPath: String
+
+        if parts.count >= 3,
+           isStatusPathToken(parts[1]),
+           isDecimalString(parts[2]) {
+            statusPath = "/\(parts[0])/status/\(parts[2])"
+        } else if parts.count >= 4,
+                  parts[0].caseInsensitiveCompare("i") == .orderedSame,
+                  parts[1].caseInsensitiveCompare("web") == .orderedSame,
+                  isStatusPathToken(parts[2]),
+                  isDecimalString(parts[3]) {
+            statusPath = "/i/web/status/\(parts[3])"
+        } else if parts.count >= 3,
+                  parts[0].caseInsensitiveCompare("i") == .orderedSame,
+                  isStatusPathToken(parts[1]),
+                  isDecimalString(parts[2]) {
+            statusPath = "/i/web/status/\(parts[2])"
+        } else {
+            return nil
+        }
+
+        var components = URLComponents()
+        components.scheme = "https"
+        components.host = "x.com"
+        components.path = statusPath
+        return components.url
+    }
+
+    static func extractXPostPreview(fromOEmbedPayload data: Data) -> String? {
+        guard let payload = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return nil
+        }
+
+        if let html = payload["html"] as? String,
+           let preview = SearchSourcePreviewHTMLParser.extractPreview(from: html) {
+            return preview
+        }
+
+        guard let title = payload["title"] as? String else {
+            return nil
+        }
+        let collapsed = title
+            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return collapsed.isEmpty ? nil : collapsed
+    }
+
+    private static func fetchXPostPreview(from statusURL: URL) async -> String? {
+        guard var components = URLComponents(string: Configuration.xOEmbedEndpoint) else {
+            return nil
+        }
+        components.queryItems = [
+            URLQueryItem(name: "url", value: statusURL.absoluteString),
+            URLQueryItem(name: "omit_script", value: "1"),
+            URLQueryItem(name: "dnt", value: "true")
+        ]
+        guard let oEmbedURL = components.url else { return nil }
+
+        var request = URLRequest(url: oEmbedURL)
+        request.httpMethod = "GET"
+        request.timeoutInterval = Configuration.requestTimeout
+        request.cachePolicy = .returnCacheDataElseLoad
+        request.setValue(Configuration.jsonAcceptHeader, forHTTPHeaderField: "Accept")
+        request.setValue(Configuration.userAgent, forHTTPHeaderField: "User-Agent")
+
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+            guard !Task.isCancelled else { return nil }
+            guard let http = response as? HTTPURLResponse else { return nil }
+            guard (200..<300).contains(http.statusCode) else { return nil }
+            guard isLikelyJSON(response: http, data: data) else { return nil }
+            return extractXPostPreview(fromOEmbedPayload: data)
+        } catch {
+            return nil
+        }
+    }
+
+    private static func isXHost(_ host: String) -> Bool {
+        host == "x.com"
+            || host.hasSuffix(".x.com")
+            || host == "twitter.com"
+            || host.hasSuffix(".twitter.com")
+    }
+
+    private static func isStatusPathToken(_ value: String) -> Bool {
+        let lowered = value.lowercased()
+        return lowered == "status" || lowered == "statuses"
+    }
+
+    private static func isDecimalString(_ value: String) -> Bool {
+        !value.isEmpty && value.unicodeScalars.allSatisfy { CharacterSet.decimalDigits.contains($0) }
+    }
+
     private static func shouldAttemptPreviewFetch(for url: URL) -> Bool {
         guard let scheme = url.scheme?.lowercased(), scheme == "https" || scheme == "http" else {
             return false
@@ -112,6 +217,17 @@ actor SearchSourcePreviewResolver {
         }
 
         return !contentType.contains("json") && !contentType.contains("xml")
+    }
+
+    private static func isLikelyJSON(response: HTTPURLResponse, data: Data) -> Bool {
+        if let contentType = response.value(forHTTPHeaderField: "Content-Type")?.lowercased(),
+           contentType.contains("json") {
+            return true
+        }
+
+        let prefix = String(decoding: data.prefix(32), as: UTF8.self)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return prefix.hasPrefix("{") || prefix.hasPrefix("[")
     }
 }
 
