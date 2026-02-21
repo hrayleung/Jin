@@ -71,6 +71,79 @@ final class PDFProcessingModeTests: XCTestCase {
         for try await _ in stream {}
     }
 
+    func testOpenAIAdapterDoesNotSendNativePDFForNonExactModelID() async throws {
+        let (session, protocolType) = makeMockedURLSession()
+        let networkManager = NetworkManager(urlSession: session)
+
+        let providerConfig = ProviderConfig(
+            id: "o",
+            name: "OpenAI",
+            type: .openai,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://example.com/responses")
+
+            let body = try XCTUnwrap(requestBodyData(request))
+            let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+            let root = try XCTUnwrap(json)
+
+            let input = try XCTUnwrap(root["input"] as? [[String: Any]])
+            let first = try XCTUnwrap(input.first)
+            let content = try XCTUnwrap(first["content"] as? [[String: Any]])
+
+            XCTAssertFalse(content.contains { ($0["type"] as? String) == "input_file" })
+
+            let textParts = content.compactMap { item -> String? in
+                guard (item["type"] as? String) == "input_text" else { return nil }
+                return item["text"] as? String
+            }
+            XCTAssertEqual(textParts.count, 1)
+            XCTAssertTrue(textParts[0].contains("PDF: a.pdf (application/pdf)"))
+
+            let response: [String: Any] = [
+                "id": "resp_1",
+                "output": [
+                    [
+                        "type": "message",
+                        "content": [
+                            ["type": "output_text", "text": "OK"]
+                        ]
+                    ]
+                ]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (
+                HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                data
+            )
+        }
+
+        let adapter = OpenAIAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+
+        let pdf = FileContent(
+            mimeType: "application/pdf",
+            filename: "a.pdf",
+            data: Data([0x25, 0x50, 0x44, 0x46]),
+            url: nil,
+            extractedText: "HELLO"
+        )
+
+        let stream = try await adapter.sendMessage(
+            messages: [
+                Message(role: .user, content: [.file(pdf)])
+            ],
+            modelID: "o4-mini",
+            controls: GenerationControls(pdfProcessingMode: .native),
+            tools: [],
+            streaming: false
+        )
+
+        for try await _ in stream {}
+    }
+
     func testOpenAIAdapterFallsBackToTextWhenModeNotNative() async throws {
         let (session, protocolType) = makeMockedURLSession()
         let networkManager = NetworkManager(urlSession: session)
@@ -202,6 +275,76 @@ final class PDFProcessingModeTests: XCTestCase {
             ],
             modelID: "gpt-5.2",
             controls: GenerationControls(),
+            tools: [],
+            streaming: false
+        )
+
+        for try await _ in stream {}
+    }
+
+    func testXAIAdapterDoesNotSendNativePDFForNonExactModelID() async throws {
+        let (session, protocolType) = makeMockedURLSession()
+        let networkManager = NetworkManager(urlSession: session)
+
+        let providerConfig = ProviderConfig(
+            id: "x",
+            name: "xAI",
+            type: .xai,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://example.com/responses")
+
+            let body = try XCTUnwrap(requestBodyData(request))
+            let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+            let root = try XCTUnwrap(json)
+            let input = try XCTUnwrap(root["input"] as? [[String: Any]])
+            let first = try XCTUnwrap(input.first)
+            let content = try XCTUnwrap(first["content"] as? [[String: Any]])
+
+            XCTAssertFalse(content.contains { ($0["type"] as? String) == "input_file" })
+            let textParts = content.compactMap { item -> String? in
+                guard (item["type"] as? String) == "input_text" else { return nil }
+                return item["text"] as? String
+            }
+            XCTAssertEqual(textParts.count, 1)
+            XCTAssertTrue(textParts[0].contains("PDF: a.pdf (application/pdf)"))
+
+            let response: [String: Any] = [
+                "id": "resp_1",
+                "output": [
+                    [
+                        "type": "message",
+                        "content": [
+                            ["type": "output_text", "text": "OK"]
+                        ]
+                    ]
+                ]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (
+                HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                data
+            )
+        }
+
+        let adapter = XAIAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let pdf = FileContent(
+            mimeType: "application/pdf",
+            filename: "a.pdf",
+            data: Data([0x25, 0x50, 0x44, 0x46]),
+            url: nil,
+            extractedText: "HELLO"
+        )
+
+        let stream = try await adapter.sendMessage(
+            messages: [
+                Message(role: .user, content: [.file(pdf)])
+            ],
+            modelID: "grok-5",
+            controls: GenerationControls(pdfProcessingMode: .native),
             tools: [],
             streaming: false
         )

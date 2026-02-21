@@ -1356,20 +1356,17 @@ struct ChatView: View {
 
         switch providerType {
         case .openai:
-            return lowerModelID.contains("gpt-5.2") || lowerModelID.contains("o3") || lowerModelID.contains("o4")
+            return JinModelSupport.supportsNativePDF(providerType: .openai, modelID: lowerModelID)
         case .anthropic:
-            return lowerModelID.contains("-4-") || lowerModelID.contains("-4.")
+            return JinModelSupport.supportsNativePDF(providerType: .anthropic, modelID: lowerModelID)
         case .perplexity:
-            return lowerModelID.contains("sonar")
+            return JinModelSupport.supportsNativePDF(providerType: .perplexity, modelID: lowerModelID)
         case .xai:
-            return lowerModelID.contains("grok-4.1")
-                || lowerModelID.contains("grok-4-1")
-                || lowerModelID.contains("grok-4.2")
-                || lowerModelID.contains("grok-4-2")
-                || lowerModelID.contains("grok-5")
-                || lowerModelID.contains("grok-6")
-        case .gemini, .vertexai:
-            return lowerModelID.contains("gemini-3")
+            return JinModelSupport.supportsNativePDF(providerType: .xai, modelID: lowerModelID)
+        case .gemini:
+            return JinModelSupport.supportsNativePDF(providerType: .gemini, modelID: lowerModelID)
+        case .vertexai:
+            return JinModelSupport.supportsNativePDF(providerType: .vertexai, modelID: lowerModelID)
         case .codexAppServer, .openaiCompatible, .openrouter, .groq, .cohere, .mistral, .deepinfra, .deepseek, .fireworks, .cerebras, .none:
             return false
         }

@@ -846,13 +846,7 @@ actor XAIAdapter: LLMProviderAdapter {
     }
 
     private func supportsNativePDF(_ modelID: String) -> Bool {
-        let lower = modelID.lowercased()
-        return lower.contains("grok-4.1")
-            || lower.contains("grok-4-1")
-            || lower.contains("grok-4.2")
-            || lower.contains("grok-4-2")
-            || lower.contains("grok-5")
-            || lower.contains("grok-6")
+        JinModelSupport.supportsNativePDF(providerType: .xai, modelID: modelID)
     }
 
     private func normalizedContextCacheString(_ value: String?) -> String? {

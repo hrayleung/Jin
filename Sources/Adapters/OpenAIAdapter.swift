@@ -175,8 +175,8 @@ actor OpenAIAdapter: LLMProviderAdapter {
                 caps.insert(.audio)
             }
 
-            // Native PDF support for GPT-5.2+, o3+, o4+ (all have vision)
-            if (lower.contains("gpt-5.2") || lower.contains("o3") || lower.contains("o4")) && caps.contains(.vision) {
+            // Use the same exact-ID support matrix as UI model badges.
+            if JinModelSupport.supportsNativePDF(providerType: .openai, modelID: model.id) && caps.contains(.vision) {
                 caps.insert(.nativePDF)
             }
 
@@ -346,9 +346,7 @@ actor OpenAIAdapter: LLMProviderAdapter {
     }
 
     private func supportsNativePDF(_ modelID: String) -> Bool {
-        // GPT-5.2+, o3+, o4+ support native PDF
-        let lower = modelID.lowercased()
-        return lower.contains("gpt-5.2") || lower.contains("o3") || lower.contains("o4")
+        JinModelSupport.supportsNativePDF(providerType: .openai, modelID: modelID)
     }
 
     private func supportsWebSearch(_ modelID: String) -> Bool {
