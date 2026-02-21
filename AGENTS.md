@@ -38,6 +38,9 @@
 
 - When adding a new model, always check whether related parameter controls and capability UI must be updated (e.g., reasoning, web search, provider-specific options).
 - When changing functionality, always verify whether corresponding UI behavior/text/options must be updated.
+- UI/UX must follow elegant, user-first design principles: prioritize clarity, accessibility, and coherent interaction flow over feature-completeness alone.
+- Design decisions for screens, states, and micro-interactions should start from expected user intent and reduce cognitive load.
+- If UI/UX intent or interaction pattern is unclear, verify against reliable references (e.g., Apple HIG / established UI conventions) before implementation; avoid guessing.
 - After code changes are complete, run `bash Packaging/package.sh` once to produce a packaged build.
 
 ## Commit & Pull Request Guidelines

@@ -24,8 +24,10 @@ struct ProviderConfigFormView: View {
     @State private var modelsError: String?
     @State private var showingAddModel = false
     @State private var showingDeleteAllModelsConfirmation = false
+    @State private var showingDeleteModelConfirmation = false
     @State private var modelSearchText = ""
     @State private var editingModel: ModelInfo?
+    @State private var modelPendingDeletion: ModelInfo?
     @State private var openRouterUsageStatus: OpenRouterUsageStatus = .idle
     @State private var openRouterUsage: OpenRouterKeyUsage?
     @State private var openRouterUsageTask: Task<Void, Never>?
@@ -186,6 +188,15 @@ struct ProviderConfigFormView: View {
                             .buttonStyle(.plain)
                             .help("Model Settings")
 
+                            Button(role: .destructive) {
+                                requestDeleteModel(model)
+                            } label: {
+                                Image(systemName: "trash")
+                                    .foregroundStyle(.red)
+                            }
+                            .buttonStyle(.plain)
+                            .help("Delete Model")
+
                             Toggle("", isOn: modelEnabledBinding(modelID: model.id))
                                 .labelsHidden()
                         }
@@ -270,15 +281,19 @@ struct ProviderConfigFormView: View {
             codexAuthTask?.cancel()
         }
         .sheet(isPresented: $showingAddModel) {
-            AddModelSheet(
-                providerType: providerType,
-                onAdd: { model in
-                    var models = decodedModels
-                    models.append(model)
-                    models.sort { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
-                    setModels(models)
-                }
-            )
+                AddModelSheet(
+                    providerType: providerType,
+                    onAdd: { model in
+                        var models = decodedModels
+                        if let existingIndex = models.firstIndex(where: { $0.id == model.id }) {
+                            models[existingIndex] = model
+                        } else {
+                            models.append(model)
+                        }
+                        models.sort { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+                        setModels(models)
+                    }
+                )
         }
         .sheet(item: $editingModel) { model in
             ModelSettingsSheet(
@@ -300,6 +315,24 @@ struct ProviderConfigFormView: View {
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("This will remove the local model list. You can fetch it again anytime.")
+        }
+        .confirmationDialog(
+            "Delete model for \(provider.name)?",
+            isPresented: $showingDeleteModelConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Delete", role: .destructive) {
+                if let modelPendingDeletion {
+                    deleteModel(modelPendingDeletion)
+                }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            if let modelPendingDeletion {
+                Text("This will delete the model “\(modelPendingDeletion.name)” (\(modelPendingDeletion.id)).")
+            } else {
+                Text("This will remove this model from the local model list.")
+            }
         }
     }
 
@@ -848,6 +881,22 @@ struct ProviderConfigFormView: View {
             )
         }
         setModels(models)
+    }
+
+    private func requestDeleteModel(_ model: ModelInfo) {
+        modelPendingDeletion = model
+        showingDeleteModelConfirmation = true
+    }
+
+    private func deleteModel(_ model: ModelInfo) {
+        var updatedModels = decodedModels
+        guard let index = updatedModels.firstIndex(where: { $0.id == model.id }) else {
+            modelPendingDeletion = nil
+            return
+        }
+        updatedModels.remove(at: index)
+        setModels(updatedModels)
+        modelPendingDeletion = nil
     }
 
     // MARK: - Actions
