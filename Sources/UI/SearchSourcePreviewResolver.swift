@@ -3,9 +3,94 @@ import Foundation
 actor SearchSourcePreviewResolver {
     static let shared = SearchSourcePreviewResolver()
 
-    private enum CacheEntry: Sendable {
-        case resolved(String)
-        case unresolved
+    private struct CacheEntry: Sendable {
+        let previewText: String?
+        let fetchedAt: Date
+    }
+
+    private struct DiskCacheEntry: Codable {
+        let previewText: String
+        let fetchedAt: Date
+
+        enum CodingKeys: String, CodingKey {
+            case previewText
+            case fetchedAt
+        }
+
+        init(previewText: String, fetchedAt: Date) {
+            self.previewText = previewText
+            self.fetchedAt = fetchedAt
+        }
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            previewText = try container.decode(String.self, forKey: .previewText)
+
+            if let double = try? container.decode(Double.self, forKey: .fetchedAt) {
+                fetchedAt = Self.decodeDate(from: double)
+            } else if let int = try? container.decode(Int.self, forKey: .fetchedAt) {
+                fetchedAt = Self.decodeDate(from: Double(int))
+            } else if let dateString = try? container.decode(String.self, forKey: .fetchedAt),
+                      let parsed = Self.parseDateString(dateString) {
+                fetchedAt = parsed
+            } else {
+                throw DecodingError.typeMismatch(
+                    Date.self,
+                    DecodingError.Context(
+                        codingPath: [CodingKeys.fetchedAt],
+                        debugDescription: "Unsupported timestamp format"
+                    )
+                )
+            }
+        }
+
+        func encode(to encoder: Encoder) throws {
+            var container = encoder.container(keyedBy: CodingKeys.self)
+            try container.encode(previewText, forKey: .previewText)
+            try container.encode(fetchedAt.timeIntervalSince1970, forKey: .fetchedAt)
+        }
+
+        private static func parseDateString(_ string: String) -> Date? {
+            if let double = Double(string) {
+                return decodeDate(from: double)
+            }
+
+            let iso8601 = ISO8601DateFormatter()
+            if let parsedISO = iso8601.date(from: string) {
+                return parsedISO
+            }
+
+            let rfc3339 = DateFormatter()
+            rfc3339.locale = Locale(identifier: "en_US_POSIX")
+            rfc3339.timeZone = TimeZone(secondsFromGMT: 0)
+            rfc3339.dateFormat = "yyyy-MM-dd'T'HH:mm:ssXXXXX"
+
+            if let parsedRFC3339 = rfc3339.date(from: string) {
+                return parsedRFC3339
+            }
+
+            return nil
+        }
+
+        private static let minUnixEpochForPreviewTimestamps: TimeInterval = 946684800
+
+        private static func decodeDate(from timestamp: Double) -> Date {
+            let fromEpoch = Date(timeIntervalSince1970: timestamp)
+            if fromEpoch.timeIntervalSince1970 >= minUnixEpochForPreviewTimestamps {
+                return fromEpoch
+            }
+            return Date(timeIntervalSinceReferenceDate: timestamp)
+        }
+    }
+
+    private struct DiskCachePayload: Codable {
+        let version: Int
+        let entries: [String: DiskCacheEntry]
+
+        init(version: Int = 1, entries: [String: DiskCacheEntry]) {
+            self.version = version
+            self.entries = entries
+        }
     }
 
     private enum Configuration {
@@ -15,6 +100,9 @@ actor SearchSourcePreviewResolver {
         static let jsonAcceptHeader = "application/json,text/plain;q=0.9,*/*;q=0.8"
         static let userAgent = "Mozilla/5.0 Jin/1.0"
         static let xOEmbedEndpoint = "https://publish.twitter.com/oembed"
+        static let cacheTTLSeconds: TimeInterval = 7 * 24 * 60 * 60
+        static let cacheFileName = "SearchSourcePreviewCache.json"
+        static let cacheFileVersion = 1
         static let blockedPathExtensions: Set<String> = [
             "jpg", "jpeg", "png", "gif", "webp", "svg", "ico",
             "pdf", "zip", "gz", "tar", "rar", "7z",
@@ -25,17 +113,105 @@ actor SearchSourcePreviewResolver {
 
     private var cacheByURL: [String: CacheEntry] = [:]
     private var inFlightByURL: [String: Task<String?, Never>] = [:]
+    private let cacheFileURL: URL?
+    private let session: URLSession
+    private let fileManager: FileManager
+    private let now: () -> Date
+
+    init(
+        fileManager: FileManager = .default,
+        cacheFileURL: URL? = nil,
+        session: URLSession = .shared,
+        now: @escaping () -> Date = Date.init
+    ) {
+        self.fileManager = fileManager
+        self.cacheFileURL = cacheFileURL ?? Self.defaultCacheFileURL(fileManager: fileManager)
+        self.session = session
+        self.now = now
+        cacheByURL = Self.loadCacheFromDisk(
+            cacheFileURL: self.cacheFileURL,
+            now: self.now
+        )
+    }
+
+    static func defaultCacheFileURL(fileManager: FileManager) -> URL? {
+        guard let appSupport = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
+            return nil
+        }
+
+        return appSupport
+            .appendingPathComponent("Jin", isDirectory: true)
+            .appendingPathComponent(Configuration.cacheFileName)
+    }
+
+    private static func isExpired(_ date: Date, now: Date) -> Bool {
+        now.timeIntervalSince(date) > Configuration.cacheTTLSeconds
+    }
+
+    private static func loadCacheFromDisk(cacheFileURL: URL?, now: @escaping () -> Date) -> [String: CacheEntry] {
+        var loaded: [String: CacheEntry] = [:]
+        guard let cacheFileURL else { return loaded }
+        guard let data = try? Data(contentsOf: cacheFileURL) else { return loaded }
+
+        let decoder = JSONDecoder()
+        guard
+            let decoded = try? decoder.decode(DiskCachePayload.self, from: data),
+            decoded.version == Configuration.cacheFileVersion,
+            !decoded.entries.isEmpty
+        else {
+            return loaded
+        }
+
+        let now = now()
+        for (url, entry) in decoded.entries {
+            guard !Self.isExpired(entry.fetchedAt, now: now) else { continue }
+            loaded[url] = CacheEntry(previewText: entry.previewText, fetchedAt: entry.fetchedAt)
+        }
+
+        return loaded
+    }
+
+    private func persistCacheToDisk() {
+        guard let cacheFileURL else { return }
+        let validEntries = cacheByURL.compactMapValues { entry -> DiskCacheEntry? in
+            guard let previewText = entry.previewText else { return nil }
+            guard !Self.isExpired(entry.fetchedAt, now: now()) else { return nil }
+            return DiskCacheEntry(previewText: previewText, fetchedAt: entry.fetchedAt)
+        }
+        guard !validEntries.isEmpty else {
+            try? fileManager.removeItem(at: cacheFileURL)
+            return
+        }
+
+        guard let parentDir = cacheFileURL.deletingLastPathComponent() as URL? else { return }
+        if !fileManager.fileExists(atPath: parentDir.path) {
+            try? fileManager.createDirectory(at: parentDir, withIntermediateDirectories: true)
+        }
+
+        let payload = DiskCachePayload(
+            version: Configuration.cacheFileVersion,
+            entries: validEntries
+        )
+        let encoder = JSONEncoder()
+        guard let data = try? encoder.encode(payload) else { return }
+
+        try? data.write(to: cacheFileURL, options: .atomic)
+    }
 
     func resolvePreviewIfNeeded(rawURL: String) async -> String? {
         guard let normalizedURL = SearchURLNormalizer.normalize(rawURL) else { return nil }
+        let now = now()
 
         if let cached = cacheByURL[normalizedURL] {
-            switch cached {
-            case .resolved(let preview):
-                return preview
-            case .unresolved:
-                return nil
+            if Self.isExpired(cached.fetchedAt, now: now) {
+                cacheByURL[normalizedURL] = nil
+            } else {
+                return cached.previewText
             }
+        }
+
+        guard cacheByURL[normalizedURL] == nil else {
+            return cacheByURL[normalizedURL]?.previewText
         }
 
         if let inFlightTask = inFlightByURL[normalizedURL] {
@@ -43,29 +219,31 @@ actor SearchSourcePreviewResolver {
         }
 
         let task = Task<String?, Never> {
-            await Self.fetchPreviewText(from: normalizedURL)
+            await self.fetchPreviewText(from: normalizedURL)
         }
         inFlightByURL[normalizedURL] = task
 
         let preview = await task.value
         inFlightByURL[normalizedURL] = nil
 
+        let resolvedAt = self.now()
         if let preview {
-            cacheByURL[normalizedURL] = .resolved(preview)
+            cacheByURL[normalizedURL] = CacheEntry(previewText: preview, fetchedAt: resolvedAt)
+            persistCacheToDisk()
         } else {
-            cacheByURL[normalizedURL] = .unresolved
+            cacheByURL[normalizedURL] = CacheEntry(previewText: nil, fetchedAt: resolvedAt)
         }
 
         return preview
     }
 
-    private static func fetchPreviewText(from normalizedURLString: String) async -> String? {
+    private func fetchPreviewText(from normalizedURLString: String) async -> String? {
         guard !Task.isCancelled else { return nil }
-        guard let url = URL(string: normalizedURLString), shouldAttemptPreviewFetch(for: url) else {
+        guard let url = URL(string: normalizedURLString), Self.shouldAttemptPreviewFetch(for: url) else {
             return nil
         }
 
-        if let xStatusURL = canonicalXStatusURLIfNeeded(for: url) {
+        if let xStatusURL = Self.canonicalXStatusURLIfNeeded(for: url) {
             return await fetchXPostPreview(from: xStatusURL)
         }
 
@@ -78,11 +256,11 @@ actor SearchSourcePreviewResolver {
         request.setValue("bytes=0-\(Configuration.maxDownloadBytes - 1)", forHTTPHeaderField: "Range")
 
         do {
-            let (data, response) = try await URLSession.shared.data(for: request)
+            let (data, response) = try await session.data(for: request)
             guard !Task.isCancelled else { return nil }
             guard let http = response as? HTTPURLResponse else { return nil }
             guard (200..<400).contains(http.statusCode) else { return nil }
-            guard isLikelyHTML(response: http) else { return nil }
+            guard Self.isLikelyHTML(response: http) else { return nil }
 
             let limitedData = Data(data.prefix(Configuration.maxDownloadBytes))
             let html = String(data: limitedData, encoding: .utf8)
@@ -148,7 +326,7 @@ actor SearchSourcePreviewResolver {
         return collapsed.isEmpty ? nil : collapsed
     }
 
-    private static func fetchXPostPreview(from statusURL: URL) async -> String? {
+    private func fetchXPostPreview(from statusURL: URL) async -> String? {
         guard var components = URLComponents(string: Configuration.xOEmbedEndpoint) else {
             return nil
         }
@@ -167,12 +345,12 @@ actor SearchSourcePreviewResolver {
         request.setValue(Configuration.userAgent, forHTTPHeaderField: "User-Agent")
 
         do {
-            let (data, response) = try await URLSession.shared.data(for: request)
+            let (data, response) = try await session.data(for: request)
             guard !Task.isCancelled else { return nil }
             guard let http = response as? HTTPURLResponse else { return nil }
             guard (200..<300).contains(http.statusCode) else { return nil }
-            guard isLikelyJSON(response: http, data: data) else { return nil }
-            return extractXPostPreview(fromOEmbedPayload: data)
+            guard Self.isLikelyJSON(response: http, data: data) else { return nil }
+            return Self.extractXPostPreview(fromOEmbedPayload: data)
         } catch {
             return nil
         }
