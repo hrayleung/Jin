@@ -282,7 +282,7 @@ final class GeminiAdapterTests: XCTestCase {
         XCTAssertEqual(searchEvents[1].type, "open_page")
         XCTAssertEqual(searchEvents[1].arguments["url"]?.value as? String, "https://example.com/swift-6-2")
         XCTAssertEqual(searchEvents[1].arguments["title"]?.value as? String, "Swift 6.2")
-        XCTAssertTrue((searchEvents[1].arguments["snippet"]?.value as? String ?? "").contains("actor isolation"))
+        XCTAssertNil(searchEvents[1].arguments["snippet"]?.value)
     }
 
     func testGeminiAdapterEmitsSearchActivitiesFromTopLevelGroundingMetadataFallback() async throws {
