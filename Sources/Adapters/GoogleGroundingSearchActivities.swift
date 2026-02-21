@@ -72,9 +72,7 @@ enum GoogleGroundingSearchActivities {
         var seenSourceURLKeys: Set<String> = []
         var sourceSequence = 0
         let sourceSequenceBase = orderedQueries.count
-        let snippetByChunkIndex = groundingSnippetByChunkIndex(from: grounding)
-
-        func appendSourceActivity(url rawURL: String?, title rawTitle: String?, snippet rawSnippet: String?, idPrefix: String) {
+        func appendSourceActivity(url rawURL: String?, title rawTitle: String?, idPrefix: String) {
             let url = rawURL?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             guard !url.isEmpty else { return }
             let dedupeKey = url.lowercased()
@@ -83,12 +81,6 @@ enum GoogleGroundingSearchActivities {
             var args: [String: AnyCodable] = ["url": AnyCodable(url)]
             if let title = rawTitle?.trimmingCharacters(in: .whitespacesAndNewlines), !title.isEmpty {
                 args["title"] = AnyCodable(title)
-            }
-            if let snippet = rawSnippet?
-                .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
-                .trimmingCharacters(in: .whitespacesAndNewlines),
-               !snippet.isEmpty {
-                args["snippet"] = AnyCodable(snippet)
             }
 
             sourceEvents.append(
@@ -106,18 +98,17 @@ enum GoogleGroundingSearchActivities {
             sourceSequence += 1
         }
 
-        for (chunkIndex, chunk) in (grounding.groundingChunks ?? []).enumerated() {
+        for chunk in grounding.groundingChunks ?? [] {
             appendSourceActivity(
                 url: chunk.webURI,
                 title: chunk.webTitle,
-                snippet: snippetByChunkIndex[chunkIndex],
                 idPrefix: openPrefix
             )
         }
 
         if sourceEvents.isEmpty {
             for suggestion in GoogleGroundingSearchSuggestionParser.parse(sdkBlob: grounding.searchEntryPoint?.sdkBlob) {
-                appendSourceActivity(url: suggestion.url, title: suggestion.query, snippet: nil, idPrefix: searchURLPrefix)
+                appendSourceActivity(url: suggestion.url, title: suggestion.query, idPrefix: searchURLPrefix)
             }
         }
 
@@ -139,40 +130,6 @@ enum GoogleGroundingSearchActivities {
         }
 
         return out
-    }
-
-    private static func groundingSnippetByChunkIndex(from grounding: GroundingMetadata) -> [Int: String] {
-        var snippetsByIndex: [Int: [String]] = [:]
-
-        for support in grounding.groundingSupports ?? [] {
-            guard let segment = support.segmentText?
-                .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
-                .trimmingCharacters(in: .whitespacesAndNewlines),
-                  !segment.isEmpty else {
-                continue
-            }
-
-            for index in support.groundingChunkIndices ?? [] where index >= 0 {
-                var snippets = snippetsByIndex[index] ?? []
-                if !snippets.contains(segment) {
-                    snippets.append(segment)
-                    snippetsByIndex[index] = snippets
-                }
-            }
-        }
-
-        var merged: [Int: String] = [:]
-        for (index, snippets) in snippetsByIndex {
-            let joined = snippets.joined(separator: " \u{2022} ")
-            if joined.count > 420 {
-                let endIndex = joined.index(joined.startIndex, offsetBy: 420)
-                merged[index] = String(joined[..<endIndex]) + "\u{2026}"
-            } else {
-                merged[index] = joined
-            }
-        }
-
-        return merged
     }
 
     private static func activityID(prefix: String, value: String, index: Int) -> String {
