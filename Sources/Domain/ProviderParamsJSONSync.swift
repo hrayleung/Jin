@@ -1350,28 +1350,54 @@ enum ProviderParamsJSONSync {
         controls.imageGeneration = image.isEmpty ? nil : image
     }
 
+    private static let gemini3ModelIDs: Set<String> = [
+        "gemini-3",
+        "gemini-3-pro",
+        "gemini-3-pro-preview",
+        "gemini-3.1-pro-preview",
+        "gemini-3-flash-preview",
+        "gemini-3-pro-image-preview",
+    ]
+
+    private static let gemini3ProModelIDs: Set<String> = [
+        "gemini-3-pro",
+        "gemini-3-pro-preview",
+        "gemini-3.1-pro-preview",
+        "gemini-3-pro-image-preview",
+    ]
+
+    private static let geminiImageModelIDs: Set<String> = [
+        "gemini-3-pro-image-preview",
+        "gemini-2.5-flash-image",
+    ]
+
+    private static let googleVideoModelIDs: Set<String> = [
+        "veo-2",
+        "veo-3",
+    ]
+
     private static func geminiSupportsGoogleSearch(_ modelID: String) -> Bool {
-        !modelID.lowercased().contains("gemini-2.5-flash-image")
+        modelID.lowercased() != "gemini-2.5-flash-image"
     }
 
     private static func geminiSupportsThinking(_ modelID: String) -> Bool {
-        !modelID.lowercased().contains("gemini-2.5-flash-image")
+        modelID.lowercased() != "gemini-2.5-flash-image"
     }
 
     private static func isGemini3Model(_ modelID: String) -> Bool {
-        modelID.lowercased().contains("gemini-3")
+        gemini3ModelIDs.contains(modelID.lowercased())
     }
 
     private static func isGeminiImageModel(_ modelID: String) -> Bool {
-        modelID.lowercased().contains("-image")
+        geminiImageModelIDs.contains(modelID.lowercased())
     }
 
     private static func isGemini3ProImageModel(_ modelID: String) -> Bool {
-        modelID.lowercased().contains("gemini-3-pro-image")
+        modelID.lowercased() == "gemini-3-pro-image-preview"
     }
 
     private static func isGoogleVideoModel(_ modelID: String) -> Bool {
-        modelID.lowercased().contains("veo-")
+        googleVideoModelIDs.contains(modelID.lowercased())
     }
 
     private static func makeGoogleVideoGenerationDraft(_ controls: GoogleVideoGenerationControls) -> [String: Any] {
@@ -1421,16 +1447,14 @@ enum ProviderParamsJSONSync {
     }
 
     private static func defaultGeminiThinkingLevelWhenOff(modelID: String) -> String {
-        let lower = modelID.lowercased()
-        if lower.contains("gemini-3-pro") {
+        if gemini3ProModelIDs.contains(modelID.lowercased()) {
             return "LOW"
         }
         return "MINIMAL"
     }
 
     private static func mapEffortToGeminiThinkingLevel(_ effort: ReasoningEffort, modelID: String) -> String {
-        let lower = modelID.lowercased()
-        let isPro = lower.contains("gemini-3-pro")
+        let isPro = gemini3ProModelIDs.contains(modelID.lowercased())
 
         switch effort {
         case .none, .minimal:
@@ -1567,11 +1591,11 @@ enum ProviderParamsJSONSync {
     }
 
     private static func vertexSupportsGoogleSearch(_ modelID: String) -> Bool {
-        !modelID.lowercased().contains("gemini-2.5-flash-image")
+        modelID.lowercased() != "gemini-2.5-flash-image"
     }
 
     private static func vertexSupportsThinking(_ modelID: String) -> Bool {
-        !modelID.lowercased().contains("gemini-2.5-flash-image")
+        modelID.lowercased() != "gemini-2.5-flash-image"
     }
 
     private static func vertexSupportsThinkingConfig(_ modelID: String) -> Bool {
@@ -2012,9 +2036,24 @@ enum ProviderParamsJSONSync {
     }
 
     private static func isFireworksMiniMaxM2FamilyModel(_ modelID: String) -> Bool {
+        guard let canonicalID = fireworksCanonicalModelID(modelID) else { return false }
+        return canonicalID == "minimax-m2"
+            || canonicalID == "minimax-m2p1"
+            || canonicalID == "minimax-m2p5"
+    }
+
+    private static func fireworksCanonicalModelID(_ modelID: String) -> String? {
         let lower = modelID.lowercased()
-        return lower.hasPrefix("fireworks/minimax-m2")
-            || lower.hasPrefix("accounts/fireworks/models/minimax-m2")
+        if lower.hasPrefix("fireworks/") {
+            return String(lower.dropFirst("fireworks/".count))
+        }
+        if lower.hasPrefix("accounts/fireworks/models/") {
+            return String(lower.dropFirst("accounts/fireworks/models/".count))
+        }
+        if !lower.contains("/") {
+            return lower
+        }
+        return nil
     }
 
     private static func supportedFireworksReasoningHistoryValues(for modelID: String) -> Set<String> {

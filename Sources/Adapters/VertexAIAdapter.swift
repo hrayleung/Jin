@@ -4,6 +4,42 @@ import Security
 actor VertexAIAdapter: LLMProviderAdapter {
     let providerConfig: ProviderConfig
     let capabilities: ModelCapability = [.streaming, .toolCalling, .vision, .audio, .reasoning, .promptCaching, .nativePDF, .imageGeneration, .videoGeneration]
+    private static let geminiKnownModelIDs: Set<String> = [
+        "gemini-3",
+        "gemini-3-pro",
+        "gemini-3-pro-preview",
+        "gemini-3.1-pro-preview",
+        "gemini-3-flash-preview",
+        "gemini-3-pro-image-preview",
+        "gemini-2.5",
+        "gemini-2.5-pro",
+        "gemini-2.5-flash",
+        "gemini-2.5-flash-lite",
+        "gemini-2.5-flash-image",
+        "gemini-2.0-flash",
+        "gemini-2.0-flash-lite",
+    ]
+    private static let geminiImageGenerationModelIDs: Set<String> = [
+        "gemini-3-pro-image-preview",
+        "gemini-2.5-flash-image",
+    ]
+    private static let gemini25TextModelIDs: Set<String> = [
+        "gemini-2.5",
+        "gemini-2.5-pro",
+        "gemini-2.5-flash",
+        "gemini-2.5-flash-lite",
+    ]
+    private static let nativePDFModelIDs: Set<String> = [
+        "gemini-3",
+        "gemini-3-pro",
+        "gemini-3-pro-preview",
+        "gemini-3.1-pro-preview",
+        "gemini-3-flash-preview",
+        "gemini-2.5",
+        "gemini-2.5-pro",
+        "gemini-2.5-flash",
+        "gemini-2.5-flash-lite",
+    ]
 
     let networkManager: NetworkManager
     let serviceAccountJSON: ServiceAccountCredentials
@@ -212,13 +248,14 @@ actor VertexAIAdapter: LLMProviderAdapter {
     private static let knownModels: [(id: String, name: String, contextWindow: Int)] = [
         // Gemini 3
         ("gemini-3-pro-preview", "Gemini 3 Pro Preview", 1_048_576),
+        ("gemini-3.1-pro-preview", "Gemini 3.1 Pro Preview", 1_048_576),
         ("gemini-3-flash-preview", "Gemini 3 Flash Preview", 1_048_576),
-        ("gemini-3-pro-image-preview", "Gemini 3 Pro Image Preview", 1_048_576),
+        ("gemini-3-pro-image-preview", "Gemini 3 Pro Image Preview", 65_536),
         // Gemini 2.5
         ("gemini-2.5-pro", "Gemini 2.5 Pro", 1_048_576),
         ("gemini-2.5-flash", "Gemini 2.5 Flash", 1_048_576),
         ("gemini-2.5-flash-lite", "Gemini 2.5 Flash Lite", 1_048_576),
-        ("gemini-2.5-flash-image", "Gemini 2.5 Flash Image", 1_048_576),
+        ("gemini-2.5-flash-image", "Gemini 2.5 Flash Image", 32_768),
         // Gemini 2.0
         ("gemini-2.0-flash", "Gemini 2.0 Flash", 1_048_576),
         ("gemini-2.0-flash-lite", "Gemini 2.0 Flash Lite", 1_048_576),
@@ -419,8 +456,7 @@ actor VertexAIAdapter: LLMProviderAdapter {
     }
 
     private func isImageGenerationModel(_ modelID: String) -> Bool {
-        let lower = modelID.lowercased()
-        return lower.contains("-image")
+        Self.geminiImageGenerationModelIDs.contains(modelID.lowercased())
     }
 
     private func supportsFunctionCalling(_ modelID: String) -> Bool {
@@ -429,7 +465,7 @@ actor VertexAIAdapter: LLMProviderAdapter {
 
     private func supportsGoogleSearch(_ modelID: String) -> Bool {
         // Gemini 2.5 Flash Image does not support grounding with Google Search.
-        !modelID.lowercased().contains("gemini-2.5-flash-image")
+        modelID.lowercased() != "gemini-2.5-flash-image"
     }
 
     private func supportsWebSearch(_ modelID: String) -> Bool {
@@ -455,7 +491,7 @@ actor VertexAIAdapter: LLMProviderAdapter {
     }
 
     private func supportsImageSize(_ modelID: String) -> Bool {
-        modelID.lowercased().contains("gemini-3-pro-image")
+        modelID.lowercased() == "gemini-3-pro-image-preview"
     }
 
     private func requestTimeoutInterval(for modelID: String, controls: GenerationControls) -> TimeInterval? {
@@ -476,19 +512,18 @@ actor VertexAIAdapter: LLMProviderAdapter {
     }
 
     private func isAnyImageGenerationModel(_ modelID: String) -> Bool {
-        let lower = modelID.lowercased()
-        return lower.contains("-image") || lower.contains("imagen")
+        isImageGenerationModel(modelID)
     }
 
     private func supportsThinking(_ modelID: String) -> Bool {
         // Gemini 2.5 Flash Image does not support thinking.
-        !modelID.lowercased().contains("gemini-2.5-flash-image")
+        modelID.lowercased() != "gemini-2.5-flash-image"
     }
 
     private func supportsThinkingConfig(_ modelID: String) -> Bool {
         // Gemini 3 Pro Image supports thinking capability but doesn't accept
         // public thinkingConfig controls in generateContent.
-        supportsThinking(modelID) && !modelID.lowercased().contains("gemini-3-pro-image")
+        supportsThinking(modelID) && modelID.lowercased() != "gemini-3-pro-image-preview"
     }
 
     private func supportsThinkingLevel(_ modelID: String) -> Bool {
@@ -500,8 +535,8 @@ actor VertexAIAdapter: LLMProviderAdapter {
 
         var caps: ModelCapability = []
 
-        let imageModel = isImageGenerationModel(id) || lower.contains("imagen")
-        let geminiModel = lower.contains("gemini")
+        let imageModel = isImageGenerationModel(id)
+        let geminiModel = Self.geminiKnownModelIDs.contains(lower)
 
         if !imageModel {
             caps.insert(.streaming)
@@ -520,7 +555,7 @@ actor VertexAIAdapter: LLMProviderAdapter {
         var reasoningConfig: ModelReasoningConfig?
         if supportsThinking(id) && geminiModel {
             caps.insert(.reasoning)
-            if lower.contains("gemini-2.5") {
+            if Self.gemini25TextModelIDs.contains(lower) {
                 reasoningConfig = ModelReasoningConfig(type: .budget, defaultBudget: 2048)
             } else if supportsThinkingConfig(id) {
                 reasoningConfig = ModelReasoningConfig(type: .effort, defaultEffort: .medium)
@@ -637,8 +672,8 @@ actor VertexAIAdapter: LLMProviderAdapter {
     }
 
     private func supportsNativePDF(_ modelID: String) -> Bool {
-        // Gemini 3 series supports native PDF with free text extraction
-        return modelID.lowercased().contains("gemini-3") && !isImageGenerationModel(modelID)
+        let lower = modelID.lowercased()
+        return Self.nativePDFModelIDs.contains(lower)
     }
 
     private func normalizedContextCacheString(_ value: String?) -> String? {

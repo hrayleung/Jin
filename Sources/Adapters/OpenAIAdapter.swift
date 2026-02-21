@@ -158,30 +158,33 @@ actor OpenAIAdapter: LLMProviderAdapter {
 
         let (data, _) = try await networkManager.sendRequest(request)
         let response = try JSONDecoder().decode(ModelsResponse.self, from: data)
+        let reasoningModelIDs: Set<String> = ["gpt-5", "gpt-5.2", "gpt-5.2-2025-12-11", "o1", "o3", "o4"]
+        let visionModelIDs: Set<String> = ["gpt-5", "gpt-5.2", "gpt-5.2-2025-12-11", "gpt-4o", "o3", "o4"]
+        let largeContextModelIDs: Set<String> = ["gpt-5", "gpt-5.2", "gpt-5.2-2025-12-11"]
 
         return response.data.map { model in
             let lower = model.id.lowercased()
             var caps: ModelCapability = [.streaming, .toolCalling, .promptCaching]
             var reasoningConfig: ModelReasoningConfig?
 
-            if lower.contains("gpt-5") || lower.contains("o1") || lower.contains("o3") || lower.contains("o4") {
+            if reasoningModelIDs.contains(lower) {
                 caps.insert(.reasoning)
                 reasoningConfig = ModelReasoningConfig(type: .effort, defaultEffort: .medium)
             }
-            if lower.contains("gpt-4o") || lower.contains("gpt-5") || lower.contains("o3") || lower.contains("o4") {
+            if visionModelIDs.contains(lower) {
                 caps.insert(.vision)
             }
             if supportsAudioInputModelID(lower) {
                 caps.insert(.audio)
             }
 
-            // Native PDF support for GPT-5.2+, o3+, o4+ (all have vision)
-            if (lower.contains("gpt-5.2") || lower.contains("o3") || lower.contains("o4")) && caps.contains(.vision) {
+            // Use the same exact-ID support matrix as UI model badges.
+            if JinModelSupport.supportsNativePDF(providerType: .openai, modelID: model.id) && caps.contains(.vision) {
                 caps.insert(.nativePDF)
             }
 
             let contextWindow: Int
-            if lower.contains("gpt-5.2") {
+            if largeContextModelIDs.contains(lower) {
                 contextWindow = 400000
             } else {
                 contextWindow = 128000
@@ -346,9 +349,7 @@ actor OpenAIAdapter: LLMProviderAdapter {
     }
 
     private func supportsNativePDF(_ modelID: String) -> Bool {
-        // GPT-5.2+, o3+, o4+ support native PDF
-        let lower = modelID.lowercased()
-        return lower.contains("gpt-5.2") || lower.contains("o3") || lower.contains("o4")
+        JinModelSupport.supportsNativePDF(providerType: .openai, modelID: modelID)
     }
 
     private func supportsWebSearch(_ modelID: String) -> Bool {
@@ -372,9 +373,20 @@ actor OpenAIAdapter: LLMProviderAdapter {
     }
 
     private func supportsAudioInputModelID(_ lowerModelID: String) -> Bool {
-        lowerModelID.contains("gpt-audio")
-            || lowerModelID.contains("audio-preview")
-            || lowerModelID.contains("realtime")
+        let audioInputModelIDs: Set<String> = [
+            "gpt-4o-audio-preview",
+            "gpt-4o-audio-preview-2024-10-01",
+            "gpt-4o-mini-audio-preview",
+            "gpt-4o-mini-audio-preview-2024-12-17",
+            "gpt-4o-realtime-preview",
+            "gpt-4o-realtime-preview-2024-10-01",
+            "gpt-4o-realtime-preview-2024-12-17",
+            "gpt-4o-mini-realtime-preview",
+            "gpt-4o-mini-realtime-preview-2024-12-17",
+            "gpt-realtime",
+            "gpt-realtime-mini",
+        ]
+        return audioInputModelIDs.contains(lowerModelID)
     }
 
     private func shouldRouteToChatCompletionsForAudio(messages: [Message], modelID: String) -> Bool {

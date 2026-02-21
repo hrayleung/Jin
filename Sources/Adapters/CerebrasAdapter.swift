@@ -300,7 +300,7 @@ actor CerebrasAdapter: LLMProviderAdapter {
             caps.insert(.reasoning)
             // GLM 4.7 supports reasoning on/off via `disable_reasoning` (and preserved thinking via `clear_thinking`).
             reasoningConfig = ModelReasoningConfig(type: .toggle)
-            contextWindow = 128000
+            contextWindow = 131_072
         }
 
         return ModelInfo(

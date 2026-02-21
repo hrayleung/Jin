@@ -102,7 +102,7 @@ actor PerplexityAdapter: LLMProviderAdapter {
             ModelInfo(
                 id: "sonar-deep-research",
                 name: "Sonar Deep Research",
-                capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+                capabilities: [.streaming, .toolCalling, .reasoning],
                 contextWindow: 128_000,
                 reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium)
             )

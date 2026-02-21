@@ -267,17 +267,62 @@ struct AddModelSheet: View {
 
     private func makeModelInfo(id: String, name: String) -> ModelInfo {
         let lower = id.lowercased()
+        let openAIReasoningModels: Set<String> = ["gpt-5", "gpt-5.2", "gpt-5.2-2025-12-11", "o3", "o4"]
+        let openAIVisionModels: Set<String> = ["gpt-5", "gpt-5.2", "gpt-5.2-2025-12-11", "gpt-4o", "o3", "o4"]
+        let fireworksVisionModels: Set<String> = [
+            "fireworks/kimi-k2p5",
+            "accounts/fireworks/models/kimi-k2p5",
+            "fireworks/qwen3-omni-30b-a3b-instruct",
+            "accounts/fireworks/models/qwen3-omni-30b-a3b-instruct",
+            "fireworks/qwen3-omni-30b-a3b-thinking",
+            "accounts/fireworks/models/qwen3-omni-30b-a3b-thinking",
+        ]
+        let geminiTextModels: Set<String> = ["gemini-3", "gemini-3-pro", "gemini-3-pro-preview", "gemini-3.1-pro-preview", "gemini-3-flash-preview"]
+        let geminiImageModels: Set<String> = ["gemini-3-pro-image-preview", "gemini-2.5-flash-image"]
+        let vertexGemini3TextModels: Set<String> = ["gemini-3", "gemini-3-pro", "gemini-3-pro-preview", "gemini-3.1-pro-preview", "gemini-3-flash-preview"]
+        let vertexGemini25TextModels: Set<String> = ["gemini-2.5", "gemini-2.5-pro", "gemini-2.5-flash", "gemini-2.5-flash-lite"]
+        let anthropicExtendedContextModels: Set<String> = [
+            "claude-opus-4",
+            "claude-sonnet-4",
+            "claude-haiku-4",
+            "claude-opus-4-6",
+            "claude-sonnet-4-6",
+            "claude-opus-4-5-20251101",
+            "claude-sonnet-4-5-20250929",
+            "claude-haiku-4-5-20251001",
+        ]
+        let xAIImageModels: Set<String> = ["grok-imagine-image", "grok-2-image-1212"]
+        let xAIVideoModels: Set<String> = ["grok-imagine-video"]
+        let xAIReasoningChatModels: Set<String> = ["grok-4-1", "grok-4-1-fast", "grok-4-1-fast-non-reasoning", "grok-4-1-fast-reasoning"]
+        let perplexityReasoningModels: Set<String> = ["sonar-reasoning", "sonar-reasoning-pro", "sonar-deep-research"]
+        let perplexityVisionModels: Set<String> = ["sonar", "sonar-pro", "sonar-reasoning", "sonar-reasoning-pro"]
+        let perplexityNativePDFModels: Set<String> = ["sonar", "sonar-pro", "sonar-reasoning", "sonar-reasoning-pro", "sonar-deep-research"]
+        let perplexityExtendedContextModels: Set<String> = ["sonar-pro"]
 
         var caps: ModelCapability = [.streaming, .toolCalling]
         var contextWindow = 128000
         var reasoningConfig: ModelReasoningConfig?
 
         switch providerType {
+        case .openai?:
+            if openAIVisionModels.contains(lower) {
+                caps.insert(.vision)
+                caps.insert(.promptCaching)
+                caps.insert(.nativePDF)
+            }
+            if openAIReasoningModels.contains(lower) {
+                caps.insert(.reasoning)
+                reasoningConfig = ModelReasoningConfig(type: .effort, defaultEffort: .medium)
+            }
+            if ["gpt-5", "gpt-5.2", "gpt-5.2-2025-12-11"].contains(lower) {
+                contextWindow = 400_000
+            }
+
         case .fireworks?:
             if lower == "fireworks/minimax-m2p5" || lower == "accounts/fireworks/models/minimax-m2p5" {
                 caps.insert(.reasoning)
                 reasoningConfig = ModelReasoningConfig(type: .effort, defaultEffort: .medium)
-                contextWindow = 204_800
+                contextWindow = 196_600
             } else if lower == "fireworks/minimax-m2p1" || lower == "accounts/fireworks/models/minimax-m2p1" {
                 caps.insert(.reasoning)
                 reasoningConfig = ModelReasoningConfig(type: .effort, defaultEffort: .medium)
@@ -286,10 +331,6 @@ struct AddModelSheet: View {
                 caps.insert(.reasoning)
                 reasoningConfig = ModelReasoningConfig(type: .effort, defaultEffort: .medium)
                 contextWindow = 196_600
-            } else if lower.hasPrefix("fireworks/minimax-m2") || lower.hasPrefix("accounts/fireworks/models/minimax-m2") {
-                caps.insert(.reasoning)
-                reasoningConfig = ModelReasoningConfig(type: .effort, defaultEffort: .medium)
-                contextWindow = 204_800
             } else if lower == "fireworks/kimi-k2p5" || lower == "accounts/fireworks/models/kimi-k2p5" {
                 caps.insert(.vision)
                 caps.insert(.reasoning)
@@ -304,7 +345,7 @@ struct AddModelSheet: View {
                 reasoningConfig = ModelReasoningConfig(type: .effort, defaultEffort: .medium)
                 contextWindow = 202_800
             }
-            if lower.contains("qwen3-omni") {
+            if fireworksVisionModels.contains(lower) {
                 caps.insert(.vision)
             }
 
@@ -312,66 +353,98 @@ struct AddModelSheet: View {
             if lower == "zai-glm-4.7" {
                 caps.insert(.reasoning)
                 reasoningConfig = ModelReasoningConfig(type: .toggle)
+                contextWindow = 131_072
             }
 
         case .gemini?:
-            if lower.contains("gemini-3-pro-image") {
+            if lower == "gemini-3-pro-image-preview" {
                 caps = [.streaming, .vision, .reasoning, .imageGeneration]
                 reasoningConfig = ModelReasoningConfig(type: .effort, defaultEffort: .high)
-            } else if lower.contains("-image") {
+                contextWindow = 65_536
+            } else if lower == "gemini-2.5-flash-image" {
                 caps = [.streaming, .vision, .imageGeneration]
                 reasoningConfig = nil
-            } else if lower.contains("gemini-3") {
+                contextWindow = 32_768
+            } else if geminiTextModels.contains(lower) {
                 caps.insert(.vision)
                 caps.insert(.reasoning)
                 caps.insert(.nativePDF)
                 reasoningConfig = ModelReasoningConfig(type: .effort, defaultEffort: .high)
+                contextWindow = 1_048_576
+            } else if geminiImageModels.contains(lower) {
+                caps = [.streaming, .vision, .imageGeneration]
+                reasoningConfig = nil
             }
 
         case .vertexai?:
-            if lower.contains("gemini-3-pro-image") {
+            if lower == "gemini-3-pro-image-preview" {
                 caps = [.streaming, .vision, .reasoning, .imageGeneration]
                 reasoningConfig = nil
-            } else if lower.contains("-image") {
+                contextWindow = 65_536
+            } else if lower == "gemini-2.5-flash-image" {
                 caps = [.streaming, .vision, .imageGeneration]
                 reasoningConfig = nil
-            } else if lower.contains("gemini-2.5") {
+                contextWindow = 32_768
+            } else if geminiImageModels.contains(lower) {
+                caps = [.streaming, .vision, .imageGeneration]
+                reasoningConfig = nil
+            } else if vertexGemini25TextModels.contains(lower) {
                 caps.insert(.vision)
                 caps.insert(.reasoning)
+                caps.insert(.nativePDF)
                 reasoningConfig = ModelReasoningConfig(type: .budget, defaultBudget: 2048)
-            } else if lower.contains("gemini-3") {
+                contextWindow = 1_048_576
+            } else if vertexGemini3TextModels.contains(lower) {
                 caps.insert(.vision)
                 caps.insert(.reasoning)
                 caps.insert(.nativePDF)
                 reasoningConfig = ModelReasoningConfig(type: .effort, defaultEffort: .medium)
+                contextWindow = 1_048_576
+            }
+
+        case .anthropic?:
+            if anthropicExtendedContextModels.contains(lower) {
+                caps.insert(.vision)
+                caps.insert(.reasoning)
+                caps.insert(.promptCaching)
+                caps.insert(.nativePDF)
+                contextWindow = 200_000
+                reasoningConfig = ModelReasoningConfig(type: .effort, defaultEffort: .medium)
             }
 
         case .xai?:
-            if lower.contains("imagine-video")
-                || lower.hasSuffix("-video")
-                || lower.contains("grok-video")
-                || lower.contains("video-generation") {
+            if xAIVideoModels.contains(lower) {
                 caps = [.videoGeneration]
                 reasoningConfig = nil
-            } else if lower.contains("imagine-image")
-                || lower.contains("grok-2-image")
-                || lower.hasSuffix("-image") {
+                contextWindow = 32_768
+            } else if xAIImageModels.contains(lower) {
                 caps = [.imageGeneration]
                 reasoningConfig = nil
+                if lower == "grok-imagine-image" {
+                    contextWindow = 32_768
+                } else if lower == "grok-2-image-1212" {
+                    contextWindow = 131_072
+                }
+            } else if xAIReasoningChatModels.contains(lower) {
+                contextWindow = 2_000_000
             }
 
         case .perplexity?:
-            if lower.contains("reasoning") || lower.contains("deep-research") {
+            if perplexityReasoningModels.contains(lower) {
                 caps.insert(.reasoning)
-                caps.insert(.nativePDF)
                 reasoningConfig = ModelReasoningConfig(type: .effort, defaultEffort: .high)
             }
-            if lower.contains("sonar") {
+            if perplexityVisionModels.contains(lower) {
                 caps.insert(.vision)
+            }
+            if perplexityNativePDFModels.contains(lower) {
                 caps.insert(.nativePDF)
             }
+            if perplexityExtendedContextModels.contains(lower) {
+                contextWindow = 200_000
+            }
 
-        case .openai?, .codexAppServer?, .openaiCompatible?, .openrouter?, .anthropic?, .groq?, .cohere?, .mistral?, .deepinfra?, .deepseek?, .none:
+        case .codexAppServer?, .openaiCompatible?, .openrouter?, .groq?, .cohere?, .mistral?, .deepinfra?, .deepseek?, .none:
             break
         }
 
@@ -398,45 +471,76 @@ struct AddModelSheet: View {
     }
 
     private func supportsAudioInputModelID(lowerModelID: String, providerType: ProviderType?) -> Bool {
+        let openAIAudioInputModelIDs: Set<String> = [
+            "gpt-4o-audio-preview",
+            "gpt-4o-audio-preview-2024-10-01",
+            "gpt-4o-mini-audio-preview",
+            "gpt-4o-mini-audio-preview-2024-12-17",
+            "gpt-4o-realtime-preview",
+            "gpt-4o-realtime-preview-2024-10-01",
+            "gpt-4o-realtime-preview-2024-12-17",
+            "gpt-4o-mini-realtime-preview",
+            "gpt-4o-mini-realtime-preview-2024-12-17",
+            "gpt-realtime",
+            "gpt-realtime-mini",
+        ]
+        let mistralAudioInputModelIDs: Set<String> = [
+            "voxtral-large-latest",
+            "voxtral-small-latest",
+        ]
+        let geminiAudioInputModelIDs: Set<String> = [
+            "gemini-3",
+            "gemini-3-pro",
+            "gemini-3-pro-preview",
+            "gemini-3.1-pro-preview",
+            "gemini-3-flash-preview",
+            "gemini-2.5",
+            "gemini-2.5-pro",
+            "gemini-2.5-flash",
+            "gemini-2.5-flash-lite",
+            "gemini-2.0-flash",
+            "gemini-2.0-flash-lite",
+        ]
+        let qwenAudioInputModelIDs: Set<String> = [
+            "qwen3-asr-4b",
+            "qwen3-asr-0.6b",
+            "qwen3-omni-30b-a3b-instruct",
+            "qwen3-omni-30b-a3b-thinking",
+        ]
+        let fireworksAudioInputModelIDs: Set<String> = [
+            "qwen3-asr-4b",
+            "qwen3-asr-0.6b",
+            "qwen3-omni-30b-a3b-instruct",
+            "qwen3-omni-30b-a3b-thinking",
+            "fireworks/qwen3-asr-4b",
+            "fireworks/qwen3-asr-0.6b",
+            "fireworks/qwen3-omni-30b-a3b-instruct",
+            "fireworks/qwen3-omni-30b-a3b-thinking",
+            "accounts/fireworks/models/qwen3-asr-4b",
+            "accounts/fireworks/models/qwen3-asr-0.6b",
+            "accounts/fireworks/models/qwen3-omni-30b-a3b-instruct",
+            "accounts/fireworks/models/qwen3-omni-30b-a3b-thinking",
+        ]
+        let compatibleAudioInputModelIDs = openAIAudioInputModelIDs
+            .union(mistralAudioInputModelIDs)
+            .union(qwenAudioInputModelIDs)
+            .union(geminiAudioInputModelIDs)
+
         switch providerType {
         case .openai?:
-            return lowerModelID.contains("gpt-audio")
-                || lowerModelID.contains("audio-preview")
-                || lowerModelID.contains("realtime")
+            return openAIAudioInputModelIDs.contains(lowerModelID)
 
         case .mistral?:
-            return lowerModelID.contains("voxtral")
-                && lowerModelID != "voxtral-mini-2602"
-                && !lowerModelID.contains("transcribe")
+            return mistralAudioInputModelIDs.contains(lowerModelID)
 
         case .gemini?, .vertexai?:
-            return lowerModelID.contains("gemini-")
-                && !lowerModelID.contains("-image")
-                && !lowerModelID.contains("imagen")
+            return geminiAudioInputModelIDs.contains(lowerModelID)
 
         case .openaiCompatible?, .openrouter?, .deepinfra?:
-            if lowerModelID.contains("gpt-audio")
-                || lowerModelID.contains("audio-preview")
-                || lowerModelID.contains("realtime")
-                || lowerModelID.contains("voxtral")
-                || lowerModelID.contains("qwen3-asr")
-                || lowerModelID.contains("qwen3-omni") {
-                return true
-            }
-
-            if (lowerModelID.contains("gemini-2.0")
-                || lowerModelID.contains("gemini-2.5")
-                || lowerModelID.contains("gemini-3"))
-                && !lowerModelID.contains("-image")
-                && !lowerModelID.contains("imagen") {
-                return true
-            }
-
-            return false
+            return compatibleAudioInputModelIDs.contains(lowerModelID)
 
         case .fireworks?:
-            return lowerModelID.contains("qwen3-asr")
-                || lowerModelID.contains("qwen3-omni")
+            return fireworksAudioInputModelIDs.contains(lowerModelID)
 
         case .anthropic?, .perplexity?, .groq?, .cohere?, .xai?, .deepseek?, .cerebras?, .codexAppServer?, .none:
             return false

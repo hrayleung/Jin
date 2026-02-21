@@ -37,6 +37,11 @@
 ## UI & Packaging Checklist
 
 - When adding a new model, always check whether related parameter controls and capability UI must be updated (e.g., reasoning, web search, provider-specific options).
+- When adding or updating any model, you must carefully verify the official API documentation for that exact model ID and configure all parameters accurately (e.g., context window, max output, modalities like image/video/audio, reasoning/thinking behavior, tool/web search support, native PDF support). Do not rely on name-based guesses or family-level assumptions.
+- Model support matching must use exact IDs for fully-supported behavior and capability defaults. Do not use broad prefix/substring expansion for support classification.
+- When changing any model spec, sync all affected layers together: provider seeds, adapter model metadata, Add Model inference, settings resolver (including legacy data fallback), and fully-supported model allowlists.
+- Add or update regression tests for model metadata changes, especially context window and capability inference, including legacy persisted-model scenarios.
+- If a value is uncertain or undocumented for an exact model ID, do not guess; leave it conservative and mark it for follow-up verification.
 - When changing functionality, always verify whether corresponding UI behavior/text/options must be updated.
 - UI/UX must follow elegant, user-first design principles: prioritize clarity, accessibility, and coherent interaction flow over feature-completeness alone.
 - Design decisions for screens, states, and micro-interactions should start from expected user intent and reduce cognitive load.

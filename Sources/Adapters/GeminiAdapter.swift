@@ -12,6 +12,39 @@ import Foundation
 actor GeminiAdapter: LLMProviderAdapter {
     let providerConfig: ProviderConfig
     let capabilities: ModelCapability = [.streaming, .toolCalling, .vision, .audio, .reasoning, .promptCaching, .nativePDF, .imageGeneration, .videoGeneration]
+    private static let gemini3ModelIDs: Set<String> = [
+        "gemini-3",
+        "gemini-3-pro",
+        "gemini-3-pro-preview",
+        "gemini-3.1-pro-preview",
+        "gemini-3-flash-preview",
+        "gemini-3-pro-image-preview",
+    ]
+    private static let gemini3ProModelIDs: Set<String> = [
+        "gemini-3-pro",
+        "gemini-3-pro-preview",
+        "gemini-3.1-pro-preview",
+        "gemini-3-pro-image-preview",
+    ]
+    private static let geminiImageGenerationModelIDs: Set<String> = [
+        "gemini-3-pro-image-preview",
+        "gemini-2.5-flash-image",
+    ]
+    private static let geminiKnownModelIDs: Set<String> = [
+        "gemini-3",
+        "gemini-3-pro",
+        "gemini-3-pro-preview",
+        "gemini-3.1-pro-preview",
+        "gemini-3-flash-preview",
+        "gemini-3-pro-image-preview",
+        "gemini-2.5",
+        "gemini-2.5-pro",
+        "gemini-2.5-flash",
+        "gemini-2.5-flash-lite",
+        "gemini-2.5-flash-image",
+        "gemini-2.0-flash",
+        "gemini-2.0-flash-lite",
+    ]
 
     private let networkManager: NetworkManager
     private let apiKey: String
@@ -423,13 +456,11 @@ actor GeminiAdapter: LLMProviderAdapter {
     }
 
     private func isGemini3Model(_ modelID: String) -> Bool {
-        modelID.lowercased().contains("gemini-3")
+        Self.gemini3ModelIDs.contains(modelID.lowercased())
     }
 
     private func isImageGenerationModel(_ modelID: String) -> Bool {
-        let lower = modelID.lowercased()
-        // Gemini image-generation models include `-image` (e.g. gemini-2.5-flash-image, gemini-3-pro-image-preview).
-        return lower.contains("-image")
+        Self.geminiImageGenerationModelIDs.contains(modelID.lowercased())
     }
 
     private func isVideoGenerationModel(_ modelID: String) -> Bool {
@@ -588,9 +619,8 @@ actor GeminiAdapter: LLMProviderAdapter {
     }
 
     private func supportsGoogleSearch(_ modelID: String) -> Bool {
-        let lower = modelID.lowercased()
         // Gemini 2.5 Flash Image does not support Google Search grounding.
-        if lower.contains("gemini-2.5-flash-image") {
+        if modelID.lowercased() == "gemini-2.5-flash-image" {
             return false
         }
         return true
@@ -620,12 +650,12 @@ actor GeminiAdapter: LLMProviderAdapter {
 
     private func supportsImageSize(_ modelID: String) -> Bool {
         // imageSize is documented for Gemini 3 Pro Image.
-        modelID.lowercased().contains("gemini-3-pro-image")
+        modelID.lowercased() == "gemini-3-pro-image-preview"
     }
 
     private func supportsThinking(_ modelID: String) -> Bool {
         // Gemini 2.5 Flash Image does not support thinking; Gemini 3 Pro Image does.
-        !modelID.lowercased().contains("gemini-2.5-flash-image")
+        modelID.lowercased() != "gemini-2.5-flash-image"
     }
 
     private func buildGenerationConfig(_ controls: GenerationControls, modelID: String) -> [String: Any] {
@@ -689,16 +719,14 @@ actor GeminiAdapter: LLMProviderAdapter {
     }
 
     private func defaultThinkingLevelWhenOff(modelID: String) -> String {
-        let lower = modelID.lowercased()
-        if lower.contains("gemini-3-pro") {
+        if Self.gemini3ProModelIDs.contains(modelID.lowercased()) {
             return "LOW"
         }
         return "MINIMAL"
     }
 
     private func mapEffortToThinkingLevel(_ effort: ReasoningEffort, modelID: String) -> String {
-        let lower = modelID.lowercased()
-        let isPro = lower.contains("gemini-3-pro")
+        let isPro = Self.gemini3ProModelIDs.contains(modelID.lowercased())
 
         switch effort {
         case .none:
@@ -1004,14 +1032,14 @@ actor GeminiAdapter: LLMProviderAdapter {
             caps.insert(.streaming)
         }
 
-        let isImageModel = isImageGenerationModel(id) || lower.contains("imagen")
-        let isGeminiModel = lower.contains("gemini")
+        let isImageModel = isImageGenerationModel(id)
+        let isGeminiModel = Self.geminiKnownModelIDs.contains(lower)
 
         if supportsGenerateContent && !isImageModel {
             caps.insert(.toolCalling)
         }
 
-        if isGeminiModel || isImageModel || lower.contains("vision") || lower.contains("multimodal") {
+        if isGeminiModel || isImageModel {
             caps.insert(.vision)
         }
 
@@ -1020,7 +1048,7 @@ actor GeminiAdapter: LLMProviderAdapter {
         }
 
         var reasoningConfig: ModelReasoningConfig?
-        if supportsThinking(id) && (isGeminiModel || lower.contains("reason") || lower.contains("thinking")) {
+        if supportsThinking(id) && isGeminiModel {
             caps.insert(.reasoning)
             reasoningConfig = ModelReasoningConfig(type: .effort, defaultEffort: .high)
         }
@@ -1041,7 +1069,16 @@ actor GeminiAdapter: LLMProviderAdapter {
             caps.insert(.videoGeneration)
         }
 
-        let contextWindow = model.inputTokenLimit ?? 1_048_576
+        let contextWindow: Int
+        if let inputTokenLimit = model.inputTokenLimit {
+            contextWindow = inputTokenLimit
+        } else if lower == "gemini-3-pro-image-preview" {
+            contextWindow = 65_536
+        } else if lower == "gemini-2.5-flash-image" {
+            contextWindow = 32_768
+        } else {
+            contextWindow = 1_048_576
+        }
 
         return ModelInfo(
             id: id,

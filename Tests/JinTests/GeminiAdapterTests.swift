@@ -952,6 +952,48 @@ final class GeminiAdapterTests: XCTestCase {
         XCTAssertEqual(images[0].mimeType, "image/png")
         XCTAssertEqual(images[0].data, expectedData)
     }
+
+    func testGeminiAdapterFetchModelsAppliesImageFallbackContextWindows() async throws {
+        let (session, protocolType) = makeMockedURLSession()
+        let networkManager = NetworkManager(urlSession: session)
+
+        let providerConfig = ProviderConfig(
+            id: "g",
+            name: "Gemini",
+            type: .gemini,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://example.com/models?pageSize=1000")
+
+            // Simulate a response missing inputTokenLimit so fallback limits are exercised.
+            let payload: [String: Any] = [
+                "models": [
+                    [
+                        "name": "models/gemini-3-pro-image-preview",
+                        "displayName": "Gemini 3 Pro Image Preview",
+                        "supportedGenerationMethods": ["generateContent", "streamGenerateContent"]
+                    ],
+                    [
+                        "name": "models/gemini-2.5-flash-image",
+                        "displayName": "Gemini 2.5 Flash Image",
+                        "supportedGenerationMethods": ["generateContent", "streamGenerateContent"]
+                    ]
+                ]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: payload)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = GeminiAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let models = try await adapter.fetchAvailableModels()
+        let byID = Dictionary(uniqueKeysWithValues: models.map { ($0.id, $0) })
+
+        XCTAssertEqual(try XCTUnwrap(byID["gemini-3-pro-image-preview"]).contextWindow, 65_536)
+        XCTAssertEqual(try XCTUnwrap(byID["gemini-2.5-flash-image"]).contextWindow, 32_768)
+    }
 }
 
 // MARK: - URLProtocol stubbing

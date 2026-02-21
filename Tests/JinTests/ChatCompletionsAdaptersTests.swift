@@ -281,7 +281,7 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
 
         let minimaxM2p5 = try XCTUnwrap(byID["fireworks/minimax-m2p5"])
         XCTAssertEqual(minimaxM2p5.name, "MiniMax M2.5")
-        XCTAssertEqual(minimaxM2p5.contextWindow, 204_800)
+        XCTAssertEqual(minimaxM2p5.contextWindow, 196_600)
         XCTAssertTrue(minimaxM2p5.capabilities.contains(.reasoning))
         XCTAssertFalse(minimaxM2p5.capabilities.contains(.vision))
 
@@ -317,6 +317,87 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         let other = try XCTUnwrap(byID["accounts/fireworks/models/other"])
         XCTAssertEqual(other.name, "accounts/fireworks/models/other")
         XCTAssertEqual(other.contextWindow, 128000)
+    }
+
+    func testOpenAIAdapterFetchModelsAddsNativePDFForVisionFamilies() async throws {
+        let (session, protocolType) = makeMockedURLSession()
+        let networkManager = NetworkManager(urlSession: session)
+
+        let providerConfig = ProviderConfig(
+            id: "openai",
+            name: "OpenAI",
+            type: .openai,
+            apiKey: "ignored",
+            baseURL: "https://example.com/v1"
+        )
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://example.com/v1/models")
+            XCTAssertEqual(request.httpMethod, "GET")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer test-key")
+
+            let payload: [String: Any] = [
+                "data": [
+                    ["id": "gpt-5.2"],
+                    ["id": "gpt-4o"],
+                    ["id": "gpt-4.1-mini"]
+                ]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: payload)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = OpenAIAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let models = try await adapter.fetchAvailableModels()
+        let byID = Dictionary(uniqueKeysWithValues: models.map { ($0.id, $0) })
+
+        let gpt52 = try XCTUnwrap(byID["gpt-5.2"])
+        XCTAssertEqual(gpt52.contextWindow, 400_000)
+        XCTAssertTrue(gpt52.capabilities.contains(.vision))
+        XCTAssertTrue(gpt52.capabilities.contains(.reasoning))
+        XCTAssertTrue(gpt52.capabilities.contains(.nativePDF))
+
+        let gpt4o = try XCTUnwrap(byID["gpt-4o"])
+        XCTAssertEqual(gpt4o.contextWindow, 128_000)
+        XCTAssertTrue(gpt4o.capabilities.contains(.vision))
+        XCTAssertFalse(gpt4o.capabilities.contains(.reasoning))
+        XCTAssertTrue(gpt4o.capabilities.contains(.nativePDF))
+
+        let gpt41mini = try XCTUnwrap(byID["gpt-4.1-mini"])
+        XCTAssertFalse(gpt41mini.capabilities.contains(.nativePDF))
+    }
+
+    func testVertexAIAdapterFetchModelsUsesKnownContextWindows() async throws {
+        let (session, _) = makeMockedURLSession()
+        let networkManager = NetworkManager(urlSession: session)
+
+        let providerConfig = ProviderConfig(
+            id: "vertex",
+            name: "Vertex AI",
+            type: .vertexai,
+            apiKey: "ignored"
+        )
+
+        let credentials = ServiceAccountCredentials(
+            type: "service_account",
+            projectID: "project",
+            privateKeyID: "key-id",
+            privateKey: "-----BEGIN PRIVATE KEY-----\\nFAKE\\n-----END PRIVATE KEY-----\\n",
+            clientEmail: "svc@example.com",
+            clientID: "1234567890",
+            authURI: "https://accounts.google.com/o/oauth2/auth",
+            tokenURI: "https://oauth2.googleapis.com/token",
+            authProviderX509CertURL: "https://www.googleapis.com/oauth2/v1/certs",
+            clientX509CertURL: "https://www.googleapis.com/robot/v1/metadata/x509/svc%40example.com",
+            location: "global"
+        )
+
+        let adapter = VertexAIAdapter(providerConfig: providerConfig, serviceAccountJSON: credentials, networkManager: networkManager)
+        let models = try await adapter.fetchAvailableModels()
+        let byID = Dictionary(uniqueKeysWithValues: models.map { ($0.id, $0) })
+
+        XCTAssertEqual(try XCTUnwrap(byID["gemini-3-pro-image-preview"]).contextWindow, 65_536)
+        XCTAssertEqual(try XCTUnwrap(byID["gemini-2.5-flash-image"]).contextWindow, 32_768)
     }
 
     func testCerebrasAdapterClampsTemperatureAndSendsReasoningField() async throws {
