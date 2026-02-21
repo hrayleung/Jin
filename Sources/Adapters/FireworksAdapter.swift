@@ -472,8 +472,8 @@ actor FireworksAdapter: LLMProviderAdapter {
         } else if isMiniMaxM2p5 {
             caps.insert(.reasoning)
             reasoningConfig = ModelReasoningConfig(type: .effort, defaultEffort: .medium)
-            // Fireworks docs advertise 204,800 tokens.
-            contextWindow = 204_800
+            // Fireworks model page advertises 196.6k tokens.
+            contextWindow = 196_600
             name = "MiniMax M2.5"
         } else if isMiniMaxM2p1 {
             caps.insert(.reasoning)
@@ -499,10 +499,6 @@ actor FireworksAdapter: LLMProviderAdapter {
             // Fireworks model page advertises 202.8k tokens.
             contextWindow = 202_800
             name = "GLM-4.7"
-        } else if isFireworksMiniMaxM2FamilyModel(id) {
-            caps.insert(.reasoning)
-            reasoningConfig = ModelReasoningConfig(type: .effort, defaultEffort: .medium)
-            contextWindow = 204_800
         }
 
         return ModelInfo(
@@ -519,7 +515,8 @@ actor FireworksAdapter: LLMProviderAdapter {
     }
 
     private func isFireworksMiniMaxM2FamilyModel(_ modelID: String) -> Bool {
-        fireworksCanonicalModelID(modelID)?.hasPrefix("minimax-m2") == true
+        guard let canonical = fireworksCanonicalModelID(modelID) else { return false }
+        return canonical == "minimax-m2" || canonical == "minimax-m2p1" || canonical == "minimax-m2p5"
     }
 
     private func fireworksCanonicalModelID(_ modelID: String) -> String? {

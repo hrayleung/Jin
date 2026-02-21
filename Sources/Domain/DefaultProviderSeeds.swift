@@ -39,21 +39,21 @@ enum DefaultProviderSeeds {
                 ModelInfo(
                     id: "gpt-5.2",
                     name: "GPT-5.2",
-                    capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+                    capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .nativePDF],
                     contextWindow: 400000,
                     reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium)
                 ),
                 ModelInfo(
                     id: "gpt-5.2-2025-12-11",
                     name: "GPT-5.2 (2025-12-11)",
-                    capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+                    capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .nativePDF],
                     contextWindow: 400000,
                     reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium)
                 ),
                 ModelInfo(
                     id: "gpt-4o",
                     name: "GPT-4o",
-                    capabilities: [.streaming, .toolCalling, .vision, .promptCaching],
+                    capabilities: [.streaming, .toolCalling, .vision, .promptCaching, .nativePDF],
                     contextWindow: 128000,
                     reasoningConfig: nil
                 ),
@@ -203,7 +203,7 @@ enum DefaultProviderSeeds {
                 ModelInfo(
                     id: "sonar-deep-research",
                     name: "Sonar Deep Research",
-                    capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+                    capabilities: [.streaming, .toolCalling, .reasoning],
                     contextWindow: 128_000,
                     reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium)
                 ),
@@ -234,14 +234,14 @@ enum DefaultProviderSeeds {
                     id: "grok-4-1-fast",
                     name: "Grok 4.1 Fast",
                     capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .nativePDF],
-                    contextWindow: 128000,
+                    contextWindow: 2_000_000,
                     reasoningConfig: nil
                 ),
                 ModelInfo(
                     id: "grok-4-1",
                     name: "Grok 4.1",
                     capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .nativePDF],
-                    contextWindow: 128000,
+                    contextWindow: 2_000_000,
                     reasoningConfig: nil
                 ),
                 ModelInfo(
@@ -255,7 +255,7 @@ enum DefaultProviderSeeds {
                     id: "grok-2-image-1212",
                     name: "Grok 2 Image",
                     capabilities: [.imageGeneration],
-                    contextWindow: 32768,
+                    contextWindow: 131_072,
                     reasoningConfig: nil
                 ),
                 ModelInfo(
@@ -321,7 +321,7 @@ enum DefaultProviderSeeds {
                     id: "fireworks/minimax-m2p5",
                     name: "MiniMax M2.5",
                     capabilities: [.streaming, .toolCalling, .reasoning],
-                    contextWindow: 204_800,
+                    contextWindow: 196_600,
                     reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium)
                 ),
                 ModelInfo(
@@ -358,10 +358,17 @@ enum DefaultProviderSeeds {
                     reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high)
                 ),
                 ModelInfo(
+                    id: "gemini-3.1-pro-preview",
+                    name: "Gemini 3.1 Pro (Preview)",
+                    capabilities: [.streaming, .toolCalling, .vision, .audio, .reasoning, .promptCaching, .nativePDF],
+                    contextWindow: 1_048_576,
+                    reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high)
+                ),
+                ModelInfo(
                     id: "gemini-3-pro-image-preview",
                     name: "Gemini 3 Pro Image (Preview)",
                     capabilities: [.streaming, .vision, .reasoning, .imageGeneration],
-                    contextWindow: 1_048_576,
+                    contextWindow: 65_536,
                     reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high)
                 ),
                 ModelInfo(
@@ -375,7 +382,7 @@ enum DefaultProviderSeeds {
                     id: "gemini-2.5-flash-image",
                     name: "Gemini 2.5 Flash Image",
                     capabilities: [.streaming, .vision, .imageGeneration],
-                    contextWindow: 1_048_576,
+                    contextWindow: 32_768,
                     reasoningConfig: nil
                 ),
             ]
@@ -397,10 +404,17 @@ enum DefaultProviderSeeds {
                     reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium)
                 ),
                 ModelInfo(
+                    id: "gemini-3.1-pro-preview",
+                    name: "Gemini 3.1 Pro (Preview)",
+                    capabilities: [.streaming, .toolCalling, .vision, .audio, .reasoning, .promptCaching, .nativePDF],
+                    contextWindow: 1_048_576,
+                    reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium)
+                ),
+                ModelInfo(
                     id: "gemini-3-pro-image-preview",
                     name: "Gemini 3 Pro Image (Preview)",
                     capabilities: [.streaming, .vision, .reasoning, .imageGeneration],
-                    contextWindow: 1_048_576,
+                    contextWindow: 65_536,
                     reasoningConfig: nil
                 ),
                 ModelInfo(
@@ -413,7 +427,7 @@ enum DefaultProviderSeeds {
                 ModelInfo(
                     id: "gemini-2.5-pro",
                     name: "Gemini 2.5 Pro",
-                    capabilities: [.streaming, .toolCalling, .vision, .audio, .reasoning, .promptCaching],
+                    capabilities: [.streaming, .toolCalling, .vision, .audio, .reasoning, .promptCaching, .nativePDF],
                     contextWindow: 1_048_576,
                     reasoningConfig: ModelReasoningConfig(type: .budget, defaultBudget: 2048)
                 ),
@@ -421,7 +435,7 @@ enum DefaultProviderSeeds {
                     id: "gemini-2.5-flash-image",
                     name: "Gemini 2.5 Flash Image",
                     capabilities: [.streaming, .vision, .imageGeneration],
-                    contextWindow: 1_048_576,
+                    contextWindow: 32_768,
                     reasoningConfig: nil
                 ),
             ]

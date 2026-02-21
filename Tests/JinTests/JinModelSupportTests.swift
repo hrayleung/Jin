@@ -37,6 +37,7 @@ final class JinModelSupportTests: XCTestCase {
     }
 
     func testOpenAINativePDFSupportUsesExactMatch() {
+        XCTAssertTrue(JinModelSupport.supportsNativePDF(providerType: .openai, modelID: "gpt-4o"))
         XCTAssertTrue(JinModelSupport.supportsNativePDF(providerType: .openai, modelID: "o4"))
         XCTAssertFalse(JinModelSupport.supportsNativePDF(providerType: .openai, modelID: "o4-mini"))
     }

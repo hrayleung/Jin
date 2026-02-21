@@ -8,6 +8,24 @@ import Foundation
 actor XAIAdapter: LLMProviderAdapter {
     let providerConfig: ProviderConfig
     let capabilities: ModelCapability = [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .imageGeneration, .videoGeneration]
+    private static let chatReasoningModelIDs: Set<String> = [
+        "grok-4",
+        "grok-4-1",
+        "grok-4-1-fast",
+        "grok-4-1-fast-non-reasoning",
+        "grok-4-1-fast-reasoning",
+        "grok-4-1212",
+    ]
+    private static let imageGenerationModelIDs: Set<String> = [
+        "grok-imagine-image",
+        "grok-2-image-1212",
+    ]
+    private static let videoGenerationModelIDs: Set<String> = [
+        "grok-imagine-video",
+    ]
+    private static let reasoningEffortModelIDs: Set<String> = [
+        "grok-3-mini",
+    ]
 
     private let networkManager: NetworkManager
     private let r2Uploader: CloudflareR2Uploader
@@ -769,7 +787,7 @@ actor XAIAdapter: LLMProviderAdapter {
             caps.insert(.vision)
         }
 
-        if lowerID.contains("grok") {
+        if Self.chatReasoningModelIDs.contains(lowerID) {
             caps.insert(.vision)
             caps.insert(.reasoning)
         }
@@ -789,9 +807,7 @@ actor XAIAdapter: LLMProviderAdapter {
     }
 
     private func isImageGenerationModelID(_ lowerModelID: String) -> Bool {
-        lowerModelID.contains("imagine-image")
-            || lowerModelID.hasSuffix("-image")
-            || lowerModelID.contains("grok-2-image")
+        Self.imageGenerationModelIDs.contains(lowerModelID)
     }
 
     private func isVideoGenerationModel(_ modelID: String) -> Bool {
@@ -802,10 +818,7 @@ actor XAIAdapter: LLMProviderAdapter {
     }
 
     private func isVideoGenerationModelID(_ lowerModelID: String) -> Bool {
-        lowerModelID.contains("imagine-video")
-            || lowerModelID.hasSuffix("-video")
-            || lowerModelID.contains("grok-video")
-            || lowerModelID.contains("video-generation")
+        Self.videoGenerationModelIDs.contains(lowerModelID)
     }
 
     // MARK: - Shared helpers
@@ -822,7 +835,7 @@ actor XAIAdapter: LLMProviderAdapter {
     }
 
     private func supportsReasoningEffort(modelID: String) -> Bool {
-        modelID.lowercased().contains("grok-3-mini")
+        Self.reasoningEffortModelIDs.contains(modelID.lowercased())
     }
 
     private func supportsWebSearch(modelID: String) -> Bool {

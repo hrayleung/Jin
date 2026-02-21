@@ -9,6 +9,104 @@ struct ChatView: View {
     private static let messageRenderPageSize = 40
     private static let eagerCodeHighlightTailCount = 12
     private static let pinnedBottomRefreshDelays: [TimeInterval] = [0, 0.04, 0.14]
+    private static let xAIImageGenerationModelIDs: Set<String> = [
+        "grok-imagine-image",
+        "grok-2-image-1212",
+    ]
+    private static let xAIVideoGenerationModelIDs: Set<String> = [
+        "grok-imagine-video",
+    ]
+    private static let geminiImageGenerationModelIDs: Set<String> = [
+        "gemini-3-pro-image-preview",
+        "gemini-2.5-flash-image",
+    ]
+    private static let googleVideoGenerationModelIDs: Set<String> = [
+        "veo-2",
+        "veo-3",
+    ]
+    private static let openAIAudioInputModelIDs: Set<String> = [
+        "gpt-4o-audio-preview",
+        "gpt-4o-audio-preview-2024-10-01",
+        "gpt-4o-mini-audio-preview",
+        "gpt-4o-mini-audio-preview-2024-12-17",
+        "gpt-4o-realtime-preview",
+        "gpt-4o-realtime-preview-2024-10-01",
+        "gpt-4o-realtime-preview-2024-12-17",
+        "gpt-4o-mini-realtime-preview",
+        "gpt-4o-mini-realtime-preview-2024-12-17",
+        "gpt-realtime",
+        "gpt-realtime-mini",
+    ]
+    private static let mistralAudioInputModelIDs: Set<String> = [
+        "voxtral-large-latest",
+        "voxtral-small-latest",
+    ]
+    private static let mistralTranscriptionOnlyModelIDs: Set<String> = [
+        "voxtral-mini-2602",
+        "voxtral-mini-latest",
+    ]
+    private static let geminiAudioInputModelIDs: Set<String> = [
+        "gemini-3",
+        "gemini-3-pro",
+        "gemini-3-pro-preview",
+        "gemini-3.1-pro-preview",
+        "gemini-3-flash-preview",
+        "gemini-2.5",
+        "gemini-2.5-pro",
+        "gemini-2.5-flash",
+        "gemini-2.5-flash-lite",
+        "gemini-2.0-flash",
+        "gemini-2.0-flash-lite",
+    ]
+    private static let qwenAudioInputModelIDs: Set<String> = [
+        "qwen3-asr-4b",
+        "qwen3-asr-0.6b",
+        "qwen3-omni-30b-a3b-instruct",
+        "qwen3-omni-30b-a3b-thinking",
+    ]
+    private static let fireworksAudioInputModelIDs: Set<String> = [
+        "qwen3-asr-4b",
+        "qwen3-asr-0.6b",
+        "qwen3-omni-30b-a3b-instruct",
+        "qwen3-omni-30b-a3b-thinking",
+        "fireworks/qwen3-asr-4b",
+        "fireworks/qwen3-asr-0.6b",
+        "fireworks/qwen3-omni-30b-a3b-instruct",
+        "fireworks/qwen3-omni-30b-a3b-thinking",
+        "accounts/fireworks/models/qwen3-asr-4b",
+        "accounts/fireworks/models/qwen3-asr-0.6b",
+        "accounts/fireworks/models/qwen3-omni-30b-a3b-instruct",
+        "accounts/fireworks/models/qwen3-omni-30b-a3b-thinking",
+    ]
+    private static let compatibleAudioInputModelIDs: Set<String> = {
+        openAIAudioInputModelIDs
+            .union(mistralAudioInputModelIDs)
+            .union(qwenAudioInputModelIDs)
+            .union(geminiAudioInputModelIDs)
+    }()
+    private static let fireworksMiniMaxM2CanonicalModelIDs: Set<String> = [
+        "minimax-m2",
+        "minimax-m2p1",
+        "minimax-m2p5",
+    ]
+    private static let gemini3ProModelIDs: Set<String> = [
+        "gemini-3-pro",
+        "gemini-3-pro-preview",
+        "gemini-3.1-pro-preview",
+        "gemini-3-pro-image-preview",
+    ]
+    private static let vertexGemini25TextModelIDs: Set<String> = [
+        "gemini-2.5",
+        "gemini-2.5-pro",
+        "gemini-2.5-flash",
+        "gemini-2.5-flash-lite",
+    ]
+    private static let geminiPreferredModelOrder: [String] = [
+        "gemini-3.1-pro-preview",
+        "gemini-3-pro-preview",
+        "gemini-3-pro",
+        "gemini-3-flash-preview",
+    ]
 
     @Environment(\.modelContext) private var modelContext
     @EnvironmentObject private var streamingStore: ConversationStreamingStore
@@ -1288,7 +1386,7 @@ struct ChatView: View {
             if name == model.id { name = "GLM-4.7" }
         case "minimax-m2p5":
             caps.insert(.reasoning)
-            contextWindow = 204_800
+            contextWindow = 196_600
             reasoningConfig = defaultReasoningConfig
             if name == model.id { name = "MiniMax M2.5" }
         case "minimax-m2p1":
@@ -1301,15 +1399,6 @@ struct ChatView: View {
             contextWindow = 196_600
             reasoningConfig = defaultReasoningConfig
             if name == model.id { name = "MiniMax M2" }
-        case let id? where id.hasPrefix("minimax-m2"):
-            // Compatibility for legacy persisted MiniMax M2 variants without provider prefixes.
-            caps.insert(.reasoning)
-            if reasoningConfig == nil {
-                reasoningConfig = defaultReasoningConfig
-            }
-            if contextWindow == 128_000 {
-                contextWindow = 204_800
-            }
         default:
             break
         }
@@ -1326,23 +1415,22 @@ struct ChatView: View {
     }
 
     private var isImageGenerationModelID: Bool {
-        if lowerModelID.contains("-image") { return true }
-        if providerType == .xai {
-            return lowerModelID.contains("imagine-image")
-                || lowerModelID.contains("grok-2-image")
+        switch providerType {
+        case .xai:
+            return Self.xAIImageGenerationModelIDs.contains(lowerModelID)
+        case .gemini, .vertexai:
+            return Self.geminiImageGenerationModelIDs.contains(lowerModelID)
+        case .openai, .codexAppServer, .openaiCompatible, .openrouter, .anthropic, .perplexity, .groq, .cohere, .mistral, .deepinfra, .deepseek, .fireworks, .cerebras, .none:
+            return false
         }
-        return false
     }
 
     private var isVideoGenerationModelID: Bool {
         switch providerType {
         case .xai:
-            return lowerModelID.contains("imagine-video")
-                || lowerModelID.hasSuffix("-video")
-                || lowerModelID.contains("grok-video")
-                || lowerModelID.contains("video-generation")
+            return Self.xAIVideoGenerationModelIDs.contains(lowerModelID)
         case .gemini, .vertexai:
-            return lowerModelID.contains("veo-")
+            return Self.googleVideoGenerationModelIDs.contains(lowerModelID)
         default:
             return false
         }
@@ -1393,29 +1481,15 @@ struct ChatView: View {
 
         switch providerType {
         case .openai:
-            return lowerModelID.contains("gpt-audio")
-                || lowerModelID.contains("audio-preview")
-                || lowerModelID.contains("realtime")
+            return Self.openAIAudioInputModelIDs.contains(lowerModelID)
         case .mistral:
-            return lowerModelID.contains("voxtral")
+            return Self.mistralAudioInputModelIDs.contains(lowerModelID)
         case .gemini, .vertexai:
-            return lowerModelID.contains("gemini-")
-                && !lowerModelID.contains("-image")
-                && !lowerModelID.contains("imagen")
+            return Self.geminiAudioInputModelIDs.contains(lowerModelID)
         case .openrouter, .openaiCompatible, .deepinfra:
-            return lowerModelID.contains("gpt-audio")
-                || lowerModelID.contains("audio-preview")
-                || lowerModelID.contains("realtime")
-                || lowerModelID.contains("voxtral")
-                || lowerModelID.contains("qwen3-asr")
-                || lowerModelID.contains("qwen3-omni")
-                || ((lowerModelID.contains("gemini-2.5")
-                    || lowerModelID.contains("gemini-3")
-                    || lowerModelID.contains("gemini-2.0"))
-                    && !lowerModelID.contains("-image")
-                    && !lowerModelID.contains("imagen"))
+            return Self.compatibleAudioInputModelIDs.contains(lowerModelID)
         case .fireworks:
-            return lowerModelID.contains("qwen3-asr") || lowerModelID.contains("qwen3-omni")
+            return Self.fireworksAudioInputModelIDs.contains(lowerModelID)
         case .anthropic, .perplexity, .groq, .cohere, .xai, .deepseek, .cerebras, .codexAppServer, .none:
             return false
         }
@@ -1423,7 +1497,7 @@ struct ChatView: View {
 
     private var isMistralTranscriptionOnlyModelID: Bool {
         providerType == .mistral
-            && (lowerModelID == "voxtral-mini-2602" || lowerModelID.contains("transcribe"))
+            && Self.mistralTranscriptionOnlyModelIDs.contains(lowerModelID)
     }
 
     private var supportsImageGenerationControl: Bool {
@@ -1442,7 +1516,7 @@ struct ChatView: View {
         guard supportsImageGenerationControl else { return false }
         switch providerType {
         case .gemini, .vertexai:
-            return !lowerModelID.contains("gemini-2.5-flash-image")
+            return lowerModelID != "gemini-2.5-flash-image"
         case .perplexity:
             return false
         case .openai, .codexAppServer, .openaiCompatible, .openrouter, .anthropic, .groq, .cohere, .mistral, .deepinfra, .xai, .deepseek, .fireworks, .cerebras, .none:
@@ -1456,7 +1530,7 @@ struct ChatView: View {
     }
 
     private var supportsCurrentModelImageSizeControl: Bool {
-        lowerModelID.contains("gemini-3-pro-image")
+        lowerModelID == "gemini-3-pro-image-preview"
     }
 
     private var isImageGenerationConfigured: Bool {
@@ -1634,7 +1708,7 @@ struct ChatView: View {
     }
 
     private var selectedReasoningConfig: ModelReasoningConfig? {
-        if providerType == .vertexai, lowerModelID.contains("gemini-3-pro-image") {
+        if providerType == .vertexai, lowerModelID == "gemini-3-pro-image-preview" {
             return nil
         }
         return resolvedModelSettings?.reasoningConfig
@@ -2197,8 +2271,12 @@ struct ChatView: View {
         case .cerebras:
             return models.first(where: { $0.id == "zai-glm-4.7" })?.id
         case .gemini:
-            return models.first(where: { $0.id.lowercased().contains("gemini-3-pro") })?.id
-                ?? models.first(where: { $0.id.lowercased().contains("gemini-3-flash") })?.id
+            for preferredID in Self.geminiPreferredModelOrder {
+                if let exact = models.first(where: { $0.id.lowercased() == preferredID }) {
+                    return exact.id
+                }
+            }
+            return nil
         case .codexAppServer, .openaiCompatible, .openrouter, .groq, .cohere, .mistral, .deepinfra, .xai, .vertexai:
             return nil
         }
@@ -3012,6 +3090,11 @@ struct ChatView: View {
         let conversationID = conversationEntity.id
         guard !streamingStore.isStreaming(conversationID: conversationID) else { return }
 
+        // Re-apply model-aware normalization on every send so newly edited model
+        // settings (capabilities/web search/reasoning limits) are reflected in
+        // the outgoing request controls.
+        normalizeControlsForCurrentSelection()
+
         let providerID = conversationEntity.providerID
         let modelID = conversationEntity.modelID
         let modelInfoSnapshot = selectedModelInfo
@@ -3706,7 +3789,8 @@ struct ChatView: View {
     }
 
     private func isFireworksMiniMaxM2FamilyModel(_ modelID: String) -> Bool {
-        fireworksCanonicalModelID(modelID)?.hasPrefix("minimax-m2") == true
+        guard let canonicalID = fireworksCanonicalModelID(modelID) else { return false }
+        return Self.fireworksMiniMaxM2CanonicalModelIDs.contains(canonicalID)
     }
 
     private func fireworksCanonicalModelID(_ modelID: String) -> String? {
@@ -3777,7 +3861,7 @@ struct ChatView: View {
         case .vertexai, .perplexity:
             return [.minimal, .low, .medium, .high]
         case .gemini:
-            if conversationEntity.modelID.lowercased().contains("gemini-3-pro") {
+            if Self.gemini3ProModelIDs.contains(conversationEntity.modelID.lowercased()) {
                 return [.low, .high]
             }
             return [.minimal, .low, .medium, .high]
@@ -5201,7 +5285,7 @@ struct ChatView: View {
         }
 
         if providerType == .gemini,
-           conversationEntity.modelID.lowercased().contains("gemini-3-pro"),
+           Self.gemini3ProModelIDs.contains(conversationEntity.modelID.lowercased()),
            let effort = controls.reasoning?.effort {
             controls.reasoning?.effort = clampGemini3ProEffort(effort)
         }
@@ -5226,12 +5310,12 @@ struct ChatView: View {
 
         var mutated = false
 
-        if lowerModelID.contains("gemini-3-pro-image") {
+        if lowerModelID == "gemini-3-pro-image-preview" {
             if generationConfig["thinkingConfig"] != nil {
                 generationConfig.removeValue(forKey: "thinkingConfig")
                 mutated = true
             }
-        } else if lowerModelID.contains("gemini-2.5"),
+        } else if Self.vertexGemini25TextModelIDs.contains(lowerModelID),
                   var thinkingConfig = generationConfig["thinkingConfig"] as? [String: Any],
                   thinkingConfig["thinkingLevel"] != nil {
             thinkingConfig.removeValue(forKey: "thinkingLevel")

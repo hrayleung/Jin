@@ -89,6 +89,7 @@ enum JinModelSupport {
         .openai: [
             "gpt-5.2",
             "gpt-5.2-2025-12-11",
+            "gpt-4o",
             "o3",
             "o4",
         ],
