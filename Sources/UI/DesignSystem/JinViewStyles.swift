@@ -112,11 +112,21 @@ extension View {
     }
 
     func jinInfoCallout() -> some View {
-        self
-            .font(.caption)
-            .foregroundStyle(.secondary)
-            .padding(JinSpacing.small)
-            .jinSurface(.subtleStrong, cornerRadius: JinRadius.small)
+        HStack(alignment: .top, spacing: JinSpacing.small) {
+            Image(systemName: "info.circle")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(.tertiary)
+                .padding(.top, 1)
+
+            self
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.vertical, JinSpacing.xSmall)
+        .listRowBackground(Color.clear)
+        .accessibilityElement(children: .combine)
     }
 
     func jinCardPadding() -> some View {
