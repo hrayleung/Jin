@@ -85,6 +85,62 @@ final class XAIAdapterMediaTests: XCTestCase {
         XCTAssertEqual(generatedImages[0].url?.absoluteString, "https://cdn.example.com/generated.png")
     }
 
+    func testXAIImageGenerationProUsesImageEndpoint() async throws {
+        let (session, protocolType) = makeMockedURLSession()
+        let networkManager = NetworkManager(urlSession: session)
+
+        let providerConfig = ProviderConfig(
+            id: "x",
+            name: "xAI",
+            type: .xai,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://example.com/images/generations")
+            XCTAssertEqual(request.httpMethod, "POST")
+
+            let body = try XCTUnwrap(requestBodyData(request))
+            let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+            let root = try XCTUnwrap(json)
+
+            XCTAssertEqual(root["model"] as? String, "grok-imagine-image-pro")
+            XCTAssertEqual(root["prompt"] as? String, "Pro skyline render")
+
+            let response: [String: Any] = [
+                "id": "img_pro_1",
+                "data": [
+                    [
+                        "url": "https://cdn.example.com/generated-pro.png",
+                        "mime_type": "image/png"
+                    ]
+                ]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = XAIAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("Pro skyline render")])],
+            modelID: "grok-imagine-image-pro",
+            controls: GenerationControls(xaiImageGeneration: XAIImageGenerationControls()),
+            tools: [],
+            streaming: true
+        )
+
+        var imageURLs: [String] = []
+        for try await event in stream {
+            if case .contentDelta(.image(let image)) = event {
+                imageURLs.append(image.url?.absoluteString ?? "")
+            }
+        }
+
+        XCTAssertEqual(imageURLs, ["https://cdn.example.com/generated-pro.png"])
+    }
+
     func testXAIImageGenerationParsesBase64ImageResponse() async throws {
         let (session, protocolType) = makeMockedURLSession()
         let networkManager = NetworkManager(urlSession: session)
@@ -137,6 +193,108 @@ final class XAIAdapterMediaTests: XCTestCase {
         XCTAssertEqual(images.count, 1)
         XCTAssertEqual(images[0].mimeType, "image/png")
         XCTAssertEqual(images[0].data, expected)
+    }
+
+    func testXAIImageGenerationModelIDsRouteToImageGenerationEndpoint() async throws {
+        let imageModelIDs = [
+            "grok-imagine-image",
+            "grok-imagine-image-pro",
+            "grok-2-image-1212",
+        ]
+
+        for modelID in imageModelIDs {
+            let (session, protocolType) = makeMockedURLSession()
+            let networkManager = NetworkManager(urlSession: session)
+
+            let providerConfig = ProviderConfig(
+                id: "x",
+                name: "xAI",
+                type: .xai,
+                apiKey: "ignored",
+                baseURL: "https://example.com"
+            )
+
+            protocolType.requestHandler = { request in
+                XCTAssertEqual(request.url?.absoluteString, "https://example.com/images/generations")
+                XCTAssertEqual(request.httpMethod, "POST")
+
+                let body = try XCTUnwrap(requestBodyData(request))
+                let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+                let root = try XCTUnwrap(json)
+                XCTAssertEqual(root["model"] as? String, modelID)
+
+                let response: [String: Any] = [
+                    "id": "img_route_test",
+                    "data": [["url": "https://cdn.example.com/route-test.png", "mime_type": "image/png"]]
+                ]
+                let data = try JSONSerialization.data(withJSONObject: response)
+                return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+            }
+
+            let adapter = XAIAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+            let stream = try await adapter.sendMessage(
+                messages: [Message(role: .user, content: [.text("route test")])],
+                modelID: modelID,
+                controls: GenerationControls(xaiImageGeneration: XAIImageGenerationControls()),
+                tools: [],
+                streaming: false
+            )
+
+            for try await _ in stream {}
+        }
+    }
+
+    func testXAIReasoningChatModelIDsRouteToResponsesEndpoint() async throws {
+        let chatModelIDs = [
+            "grok-4-1",
+            "grok-4-1-fast",
+            "grok-4-1-fast-non-reasoning",
+            "grok-4-1-fast-reasoning",
+        ]
+
+        for modelID in chatModelIDs {
+            let (session, protocolType) = makeMockedURLSession()
+            let networkManager = NetworkManager(urlSession: session)
+
+            let providerConfig = ProviderConfig(
+                id: "x",
+                name: "xAI",
+                type: .xai,
+                apiKey: "ignored",
+                baseURL: "https://example.com"
+            )
+
+            protocolType.requestHandler = { request in
+                XCTAssertEqual(request.url?.absoluteString, "https://example.com/responses")
+                XCTAssertEqual(request.httpMethod, "POST")
+
+                let body = try XCTUnwrap(requestBodyData(request))
+                let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+                let root = try XCTUnwrap(json)
+                XCTAssertEqual(root["model"] as? String, modelID)
+
+                let response: [String: Any] = [
+                    "id": "resp_route_test",
+                    "output": [[
+                        "type": "message",
+                        "content": [["type": "output_text", "text": "ok"]]
+                    ]]
+                ]
+                let data = try JSONSerialization.data(withJSONObject: response)
+                return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+            }
+
+            let adapter = XAIAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+            let stream = try await adapter.sendMessage(
+                messages: [Message(role: .user, content: [.text("route test")])],
+                modelID: modelID,
+                controls: GenerationControls(),
+                tools: [],
+                streaming: false
+            )
+
+            for try await _ in stream {}
+        }
     }
 
     func testXAIChatFallsBackToTextForVideoInput() async throws {
@@ -1571,6 +1729,16 @@ final class XAIAdapterMediaTests: XCTestCase {
                         "output_modalities": ["image"]
                     ],
                     [
+                        "id": "grok-imagine-image-pro",
+                        "input_modalities": ["text", "image"],
+                        "output_modalities": ["image"]
+                    ],
+                    [
+                        "id": "grok-2-image-1212",
+                        "input_modalities": ["text"],
+                        "output_modalities": ["image"]
+                    ],
+                    [
                         "id": "grok-imagine-video",
                         "input_modalities": ["text", "image"],
                         "output_modalities": ["video"]
@@ -1598,6 +1766,14 @@ final class XAIAdapterMediaTests: XCTestCase {
         let image = try XCTUnwrap(byID["grok-imagine-image"])
         XCTAssertTrue(image.capabilities.contains(.imageGeneration))
         XCTAssertFalse(image.capabilities.contains(.toolCalling))
+
+        let imagePro = try XCTUnwrap(byID["grok-imagine-image-pro"])
+        XCTAssertTrue(imagePro.capabilities.contains(.imageGeneration))
+        XCTAssertFalse(imagePro.capabilities.contains(.toolCalling))
+
+        let image2 = try XCTUnwrap(byID["grok-2-image-1212"])
+        XCTAssertTrue(image2.capabilities.contains(.imageGeneration))
+        XCTAssertFalse(image2.capabilities.contains(.toolCalling))
 
         let video = try XCTUnwrap(byID["grok-imagine-video"])
         XCTAssertTrue(video.capabilities.contains(.videoGeneration))

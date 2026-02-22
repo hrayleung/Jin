@@ -11,6 +11,7 @@ struct ChatView: View {
     private static let pinnedBottomRefreshDelays: [TimeInterval] = [0, 0.04, 0.14]
     private static let xAIImageGenerationModelIDs: Set<String> = [
         "grok-imagine-image",
+        "grok-imagine-image-pro",
         "grok-2-image-1212",
     ]
     private static let xAIVideoGenerationModelIDs: Set<String> = [

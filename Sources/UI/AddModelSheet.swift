@@ -291,7 +291,7 @@ struct AddModelSheet: View {
             "claude-sonnet-4-5-20250929",
             "claude-haiku-4-5-20251001",
         ]
-        let xAIImageModels: Set<String> = ["grok-imagine-image", "grok-2-image-1212"]
+        let xAIImageModels: Set<String> = ["grok-imagine-image", "grok-imagine-image-pro", "grok-2-image-1212"]
         let xAIVideoModels: Set<String> = ["grok-imagine-video"]
         let xAIReasoningChatModels: Set<String> = ["grok-4-1", "grok-4-1-fast", "grok-4-1-fast-non-reasoning", "grok-4-1-fast-reasoning"]
         let perplexityReasoningModels: Set<String> = ["sonar-reasoning", "sonar-reasoning-pro", "sonar-deep-research"]
@@ -420,7 +420,7 @@ struct AddModelSheet: View {
             } else if xAIImageModels.contains(lower) {
                 caps = [.imageGeneration]
                 reasoningConfig = nil
-                if lower == "grok-imagine-image" {
+                if lower == "grok-imagine-image" || lower == "grok-imagine-image-pro" {
                     contextWindow = 32_768
                 } else if lower == "grok-2-image-1212" {
                     contextWindow = 131_072

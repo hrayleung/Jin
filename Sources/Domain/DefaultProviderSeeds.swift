@@ -252,6 +252,13 @@ enum DefaultProviderSeeds {
                     reasoningConfig: nil
                 ),
                 ModelInfo(
+                    id: "grok-imagine-image-pro",
+                    name: "Grok Imagine Image Pro",
+                    capabilities: [.imageGeneration],
+                    contextWindow: 32768,
+                    reasoningConfig: nil
+                ),
+                ModelInfo(
                     id: "grok-2-image-1212",
                     name: "Grok 2 Image",
                     capabilities: [.imageGeneration],
