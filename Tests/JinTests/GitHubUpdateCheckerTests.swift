@@ -14,6 +14,7 @@ final class GitHubUpdateCheckerTests: XCTestCase {
         let version200 = GitHubReleaseChecker.parseVersion("2.0")
         let versionPrerelease = GitHubReleaseChecker.parseVersion("1.2.3-rc.1")
         let versionComplexPrerelease = GitHubReleaseChecker.parseVersion("1.2.3-rc-1-extra")
+        let versionWithBuildMetadata = GitHubReleaseChecker.parseVersion("1.2.3+abc.5")
 
         XCTAssertNotNil(version12)
         XCTAssertNotNil(version123)
@@ -21,12 +22,15 @@ final class GitHubUpdateCheckerTests: XCTestCase {
         XCTAssertNotNil(version200)
         XCTAssertNotNil(versionPrerelease)
         XCTAssertNotNil(versionComplexPrerelease)
+        XCTAssertNotNil(versionWithBuildMetadata)
 
         XCTAssertTrue(version12! < version123!)
         XCTAssertTrue(version123! < version130!)
         XCTAssertTrue(version130! < version200!)
         XCTAssertTrue(versionPrerelease! < version123!)
         XCTAssertTrue(versionComplexPrerelease! < version200!)
+        XCTAssertFalse(versionWithBuildMetadata! < version123!)
+        XCTAssertFalse(version123! < versionWithBuildMetadata!)
     }
 
     func testUpdateVersionParsingPreservesSemVerStyleInput() {

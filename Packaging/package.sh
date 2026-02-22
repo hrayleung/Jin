@@ -24,6 +24,50 @@ mkdir -p "$DIST"
 export CLANG_MODULE_CACHE_PATH="$ROOT/.build/ModuleCache"
 mkdir -p "$CLANG_MODULE_CACHE_PATH"
 
+resolve_version() {
+  local default_version="$1"
+
+  if [[ -n "${JIN_BUNDLE_SHORT_VERSION:-}" ]]; then
+    echo "$JIN_BUNDLE_SHORT_VERSION"
+    return
+  fi
+
+  if command -v git >/dev/null 2>&1 && git -C "$ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    local release_tag
+    release_tag="$(git -C "$ROOT" describe --tags --exact-match --match 'v*' 2>/dev/null || true)"
+    if [[ -n "$release_tag" ]]; then
+      echo "${release_tag#v}"
+      return
+    fi
+
+    release_tag="$(git -C "$ROOT" describe --tags --abbrev=0 --match 'v*' 2>/dev/null || true)"
+    if [[ -n "$release_tag" ]]; then
+      local commits_ahead
+      commits_ahead="$(git -C "$ROOT" rev-list "${release_tag}..HEAD" --count 2>/dev/null || echo 0)"
+      local short_sha
+      short_sha="$(git -C "$ROOT" rev-parse --short=8 HEAD 2>/dev/null || true)"
+
+      if [[ -n "$commits_ahead" && "$commits_ahead" != "0" && -n "$short_sha" ]]; then
+        echo "${release_tag#v}+${short_sha}.${commits_ahead}"
+      else
+        echo "${release_tag#v}"
+      fi
+      return
+    fi
+
+    local short_sha
+    short_sha="$(git -C "$ROOT" rev-parse --short=8 HEAD 2>/dev/null || true)"
+    if [[ -n "$short_sha" ]]; then
+      local commit_count
+      commit_count="$(git -C "$ROOT" rev-list --count HEAD 2>/dev/null || echo 1)"
+      echo "0.0.0+${short_sha}.${commit_count}"
+      return
+    fi
+  fi
+
+  echo "$default_version"
+}
+
 echo "Cleaning stale SwiftPM resource bundles…"
 shopt -s nullglob
 for bundle in "$ROOT/.build/release"/*.bundle "$ROOT/.build/"*-apple-macosx/release/*.bundle; do
@@ -67,6 +111,12 @@ mkdir -p "$APP_BUNDLE/Contents/MacOS" "$APP_BUNDLE/Contents/Resources"
 cp "$BIN" "$APP_BUNDLE/Contents/MacOS/$APP_NAME"
 chmod +x "$APP_BUNDLE/Contents/MacOS/$APP_NAME"
 cp "$ROOT/Packaging/Info.plist" "$APP_BUNDLE/Contents/Info.plist"
+APP_SHORT_VERSION="$(resolve_version 0.1.0)"
+/usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $APP_SHORT_VERSION" "$APP_BUNDLE/Contents/Info.plist"
+APP_BUILD_NUMBER="$(git -C "$ROOT" rev-list --count HEAD 2>/dev/null || echo 1)"
+if [[ "$APP_BUILD_NUMBER" =~ ^[0-9]+$ ]]; then
+  /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $APP_BUILD_NUMBER" "$APP_BUNDLE/Contents/Info.plist"
+fi
 
 echo "Copying app icon variants…"
 for VARIANT in A B C D; do
