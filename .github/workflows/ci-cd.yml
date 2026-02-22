@@ -2,12 +2,33 @@ name: CI/CD
 
 on:
   pull_request:
+    branches:
+      - master
+    paths-ignore:
+      - "**/*.md"
+      - "docs/**"
+      - "LICENSE*"
   push:
     branches:
       - master
+    paths-ignore:
+      - "**/*.md"
+      - "docs/**"
+      - "LICENSE*"
     tags:
       - "v*"
   workflow_dispatch:
+    inputs:
+      run_package:
+        description: "Run full package job (Build app + DMG + artifacts)"
+        required: false
+        default: false
+        type: boolean
+      do_release:
+        description: "When manually running package, do full release signing/notary/release publish"
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -20,9 +41,20 @@ jobs:
   test:
     name: Test
     runs-on: macos-15
+    timeout-minutes: 30
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Restore SwiftPM cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            .build
+            ~/Library/Caches/org.swift.swiftpm
+          key: ${{ runner.os }}-swift-${{ hashFiles('Package.swift', 'Package.resolved') }}
+          restore-keys: |
+            ${{ runner.os }}-swift-
 
       - name: Select Xcode
         uses: maxim-lobanov/setup-xcode@v1
@@ -39,6 +71,9 @@ jobs:
     name: Build app and DMG
     runs-on: macos-15
     needs: test
+    if: |
+      startsWith(github.ref, 'refs/tags/v') ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.run_package == 'true')
     permissions:
       contents: write
     steps:
@@ -53,8 +88,10 @@ jobs:
       - name: Build app bundle
         run: bash Packaging/package.sh
 
-      - name: Validate notarization secrets for release tags
-        if: startsWith(github.ref, 'refs/tags/v')
+      - name: Validate notarization secrets for release jobs
+        if: |
+          startsWith(github.ref, 'refs/tags/v') ||
+          (github.event_name == 'workflow_dispatch' && github.event.inputs.do_release == 'true')
         env:
           MACOS_DEVELOPER_ID_APP_CERT_P12_BASE64: ${{ secrets.MACOS_DEVELOPER_ID_APP_CERT_P12_BASE64 }}
           MACOS_DEVELOPER_ID_APP_CERT_PASSWORD: ${{ secrets.MACOS_DEVELOPER_ID_APP_CERT_PASSWORD }}
@@ -84,7 +121,9 @@ jobs:
           fi
 
       - name: Import Developer ID certificate
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: |
+          startsWith(github.ref, 'refs/tags/v') ||
+          (github.event_name == 'workflow_dispatch' && github.event.inputs.do_release == 'true')
         env:
           MACOS_DEVELOPER_ID_APP_CERT_P12_BASE64: ${{ secrets.MACOS_DEVELOPER_ID_APP_CERT_P12_BASE64 }}
           MACOS_DEVELOPER_ID_APP_CERT_PASSWORD: ${{ secrets.MACOS_DEVELOPER_ID_APP_CERT_PASSWORD }}
@@ -125,7 +164,9 @@ jobs:
             "$KEYCHAIN_PATH"
 
       - name: Sign app bundle
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: |
+          startsWith(github.ref, 'refs/tags/v') ||
+          (github.event_name == 'workflow_dispatch' && github.event.inputs.do_release == 'true')
         env:
           MACOS_DEVELOPER_ID_APP_SIGNING_IDENTITY: ${{ secrets.MACOS_DEVELOPER_ID_APP_SIGNING_IDENTITY }}
         run: |
@@ -136,7 +177,9 @@ jobs:
           codesign --verify --deep --strict --verbose=2 dist/Jin.app
 
       - name: Create, notarize, and staple DMG
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: |
+          startsWith(github.ref, 'refs/tags/v') ||
+          (github.event_name == 'workflow_dispatch' && github.event.inputs.do_release == 'true')
         env:
           APPLE_NOTARY_KEY_ID: ${{ secrets.APPLE_NOTARY_KEY_ID }}
           APPLE_NOTARY_ISSUER_ID: ${{ secrets.APPLE_NOTARY_ISSUER_ID }}
@@ -184,7 +227,7 @@ jobs:
           xcrun stapler validate "$DMG_PATH"
 
       - name: Create DMG (unsigned)
-        if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
+        if: "!startsWith(github.ref, 'refs/tags/v') && !(github.event_name == 'workflow_dispatch' && github.event.inputs.do_release == 'true')"
         run: |
           set -euo pipefail
           DMG_ROOT="$RUNNER_TEMP/dmg-root"
@@ -215,7 +258,9 @@ jobs:
           if-no-files-found: error
 
       - name: Publish release on version tag
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: |
+          startsWith(github.ref, 'refs/tags/v') ||
+          (github.event_name == 'workflow_dispatch' && github.event.inputs.do_release == 'true')
         uses: softprops/action-gh-release@v2
         with:
           files: dist/Jin.dmg
