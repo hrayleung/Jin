@@ -24,7 +24,7 @@ final class OpenAIAdapterPromptCachingTests: XCTestCase {
             let root = try XCTUnwrap(try JSONSerialization.jsonObject(with: body) as? [String: Any])
             XCTAssertEqual(root["prompt_cache_key"] as? String, "stable-prefix")
             XCTAssertEqual(root["prompt_cache_retention"] as? String, "1h")
-            XCTAssertEqual(root["prompt_cache_min_tokens"] as? Int, 1024)
+            XCTAssertNil(root["prompt_cache_min_tokens"])
 
             let response: [String: Any] = [
                 "id": "resp_1",

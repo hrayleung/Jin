@@ -163,8 +163,11 @@ struct ContextCacheSheetView: View {
                     ttlSection
                 }
 
-                if providerType == .openai || providerType == .xai {
+                if providerType == .xai || providerType == .openai {
                     cacheKeySection
+                }
+
+                if providerType == .xai {
                     minTokensSection
                 }
 
