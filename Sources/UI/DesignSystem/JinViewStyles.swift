@@ -8,6 +8,7 @@ enum JinSurfaceVariant {
     case subtleStrong
     case accent
     case tool
+    case outlined
 
     fileprivate var fill: Color {
         switch self {
@@ -25,6 +26,8 @@ enum JinSurfaceVariant {
             return JinSemanticColor.accentSurface
         case .tool:
             return JinSemanticColor.surface.opacity(0.5)
+        case .outlined:
+            return Color.clear
         }
     }
 
@@ -34,6 +37,8 @@ enum JinSurfaceVariant {
             return JinSemanticColor.selectedStroke
         case .neutral, .accent, .tool:
             return Color.clear
+        case .outlined:
+            return JinSemanticColor.separator.opacity(0.5)
         default:
             return JinSemanticColor.separator.opacity(0.5)
         }
@@ -45,6 +50,8 @@ enum JinSurfaceVariant {
             return JinStrokeWidth.regular
         case .neutral, .accent, .tool:
             return 0
+        case .outlined:
+            return JinStrokeWidth.hairline
         default:
             return JinStrokeWidth.hairline
         }
@@ -112,11 +119,52 @@ extension View {
     }
 
     func jinInfoCallout() -> some View {
+        HStack(alignment: .top, spacing: JinSpacing.small) {
+            Image(systemName: "info.circle")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(.tertiary)
+                .padding(.top, 1)
+
+            self
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .lineSpacing(2)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.vertical, JinSpacing.xSmall)
+        .listRowBackground(Color.clear)
+        .accessibilityElement(children: .combine)
+    }
+
+    func jinTextEditorField(cornerRadius: CGFloat = JinRadius.small) -> some View {
         self
-            .font(.caption)
-            .foregroundStyle(.secondary)
+            .scrollContentBackground(.hidden)
             .padding(JinSpacing.small)
-            .jinSurface(.subtleStrong, cornerRadius: JinRadius.small)
+            .background(
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .fill(JinSemanticColor.textSurface)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .stroke(JinSemanticColor.separator.opacity(0.55), lineWidth: JinStrokeWidth.hairline)
+            )
+    }
+
+    func jinInlineErrorText() -> some View {
+        HStack(alignment: .top, spacing: JinSpacing.small) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.system(size: 11, weight: .semibold))
+                .padding(.top, 1)
+            self
+                .font(.caption)
+                .lineSpacing(1.5)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .foregroundStyle(.red)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.vertical, JinSpacing.xSmall)
+        .accessibilityElement(children: .combine)
     }
 
     func jinCardPadding() -> some View {

@@ -208,7 +208,7 @@ struct ProviderConfigFormView: View {
                     .frame(minHeight: 180)
                     .scrollContentBackground(.hidden)
                     .background(JinSemanticColor.detailSurface)
-                    .jinSurface(.raised, cornerRadius: JinRadius.medium)
+                    .jinSurface(.outlined, cornerRadius: JinRadius.medium)
                 }
 
                 HStack {
@@ -239,6 +239,8 @@ struct ProviderConfigFormView: View {
                     .buttonStyle(.borderless)
                 }
             }
+            .animation(.easeInOut(duration: 0.18), value: filteredModels.count)
+            .animation(.easeInOut(duration: 0.18), value: modelSearchText)
         }
         .formStyle(.grouped)
         .scrollContentBackground(.hidden)
@@ -776,8 +778,7 @@ struct ProviderConfigFormView: View {
             TextEditor(text: $serviceAccountJSON)
                 .font(.system(.body, design: .monospaced))
                 .frame(minHeight: 120)
-                .padding(JinSpacing.small)
-                .jinSurface(.raised, cornerRadius: JinRadius.small)
+                .jinTextEditorField(cornerRadius: JinRadius.small)
                 .overlay(alignment: .topLeading) {
                     if serviceAccountJSON.isEmpty {
                         Text("Paste JSON content here…")

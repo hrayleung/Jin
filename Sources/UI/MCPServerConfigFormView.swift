@@ -200,10 +200,8 @@ struct MCPServerConfigFormView: View {
                 if let verifyError {
                     Text(verifyError)
                         .font(.system(.caption, design: .monospaced))
-                        .foregroundStyle(.red)
                         .textSelection(.enabled)
-                        .padding(JinSpacing.small)
-                        .jinSurface(.subtleStrong, cornerRadius: JinRadius.small)
+                        .jinInlineErrorText()
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
 
@@ -237,6 +235,8 @@ struct MCPServerConfigFormView: View {
                     .padding(.top, 8)
                 }
             }
+            .animation(.easeInOut(duration: 0.18), value: verifyError)
+            .animation(.easeInOut(duration: 0.18), value: tools.count)
         }
     }
 
@@ -249,14 +249,14 @@ struct MCPServerConfigFormView: View {
                         .foregroundStyle(.secondary)
                         .textSelection(.enabled)
                         .padding(JinSpacing.medium)
-                        .jinSurface(.raised, cornerRadius: JinRadius.medium)
+                        .jinSurface(.outlined, cornerRadius: JinRadius.medium)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 } else {
                     Text("No schema available.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .padding(JinSpacing.medium)
-                        .jinSurface(.raised, cornerRadius: JinRadius.medium)
+                        .jinSurface(.outlined, cornerRadius: JinRadius.medium)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
@@ -489,6 +489,6 @@ private struct MCPToolCardView: View {
         }
         .padding(JinSpacing.medium)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .jinSurface(.raised, cornerRadius: JinRadius.medium)
+        .jinSurface(.outlined, cornerRadius: JinRadius.medium)
     }
 }
