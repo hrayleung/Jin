@@ -25,6 +25,8 @@ OpenAI · Anthropic · Gemini (AI Studio) · Vertex AI · xAI · DeepSeek · Mis
 
 Most providers are pre-configured on first launch. Use **Fetch Models** in provider settings to pull the latest available models, or add models manually.
 
+For **Codex App Server (Beta)**, models run on the server side, so Jin does not need per-model client adaptation.
+
 ### Included Models
 
 These models are ready to use out of the box (with your API key). You can also add any other model manually or via **Fetch Models**.
@@ -36,10 +38,10 @@ These models are ready to use out of the box (with your API key). You can also a
 | Gemini (AI Studio) | `gemini-3-pro-preview`, `gemini-3.1-pro-preview`, `gemini-3-pro-image-preview`, `gemini-3-flash-preview`, `gemini-2.5-flash-image` |
 | Vertex AI | `gemini-3-pro-preview`, `gemini-3.1-pro-preview`, `gemini-3-pro-image-preview`, `gemini-3-flash-preview`, `gemini-2.5-pro`, `gemini-2.5-flash-image` |
 | xAI | `grok-4-1-fast`, `grok-4-1`, `grok-imagine-image`, `grok-2-image-1212`, `grok-imagine-video` |
-| DeepSeek | `deepseek-chat`, `deepseek-reasoner`, `deepseek-v3.2-exp` |
+| DeepSeek | `deepseek-chat`, `deepseek-reasoner` |
 | Perplexity | `sonar`, `sonar-pro`, `sonar-reasoning-pro`, `sonar-deep-research` |
 | Fireworks | `fireworks/glm-5`, `fireworks/minimax-m2p5`, `fireworks/kimi-k2p5`, `fireworks/glm-4p7` |
-| Codex App Server (Beta) | `gpt-5.1-codex` |
+| Codex App Server (Beta) | Use models exposed by your server (server-side execution; no per-model client adaptation required) |
 | Groq, Cohere, Mistral, DeepInfra, OpenRouter, OpenAI Compatible, Cerebras | Use **Fetch Models** or add manually |
 
 ## Features
@@ -55,6 +57,31 @@ These models are ready to use out of the box (with your API key). You can also a
 - **PDF processing** — Mistral OCR, DeepSeek OCR, or local PDFKit text extraction
 - **Voice** — Speech-to-Text and Text-to-Speech via multiple providers
 - **Assistants** — Named assistants with custom system instructions, model defaults, and reply language
+
+## Screenshots
+
+<table>
+  <tr>
+    <td>
+      <img src="docs/screenshots/chat-web-search.png" alt="Chat with in-thread web search and source timeline" width="100%" />
+    </td>
+    <td>
+      <img src="docs/screenshots/tool-calling.png" alt="Tool calling flow with MCP tools in chat" width="100%" />
+    </td>
+  </tr>
+  <tr>
+    <td>
+      <img src="docs/screenshots/image-generation.png" alt="Image generation result in a conversation" width="100%" />
+    </td>
+    <td>
+      <img src="docs/screenshots/video-generation.png" alt="Video generation playback in chat" width="100%" />
+    </td>
+  </tr>
+</table>
+
+<p align="center">
+  <img src="docs/screenshots/provider-settings.png" alt="Provider and model settings panel" width="900" />
+</p>
 
 ## Plugins
 
@@ -76,16 +103,22 @@ Connect MCP servers for tool calling under **Settings > MCP Servers**. Both long
 
 ### Download
 
-Download the latest `.dmg` from the [Releases](../../releases) page.
+Download the latest `Jin.app` from the [Releases](../../releases) page.
+If the release asset is compressed, unzip it first.
 
 ### If macOS blocks the app
 
-If macOS shows a warning like "is damaged and can't be opened":
+If macOS shows a warning like "is damaged and can't be opened" or "Apple could not verify":
 
-1. Open the DMG and drag `Jin.app` to `/Applications`.
-2. Try opening `Jin.app` once so macOS records the block event.
-3. Open **System Settings > Privacy & Security**.
+1. Move `Jin.app` to `/Applications`.
+2. Right-click `Jin.app` and choose **Open** once.
+3. If it is still blocked, open **System Settings > Privacy & Security**.
 4. Click **Open Anyway** for Jin, then confirm **Open**.
+5. If needed, clear quarantine and retry:
+
+```bash
+xattr -dr com.apple.quarantine /Applications/Jin.app
+```
 
 ### Requirements
 
@@ -106,6 +139,7 @@ cd Jin
 swift build
 open Package.swift          # Open in Xcode
 bash Packaging/package.sh   # Build universal .app bundle
+bash Packaging/package.sh dmg  # Optional: also create a DMG
 ```
 
 Requires Swift 5.9+ / Xcode 15+.
