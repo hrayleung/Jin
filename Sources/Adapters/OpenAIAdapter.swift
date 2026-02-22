@@ -232,7 +232,7 @@ actor OpenAIAdapter: LLMProviderAdapter {
         ]
 
         if controls.contextCache?.mode != .off {
-            if let cacheKey = normalizedContextCacheString(controls.contextCache?.cacheKey) {
+            if let cacheKey = normalizedTrimmedString(controls.contextCache?.cacheKey) {
                 body["prompt_cache_key"] = cacheKey
             }
             if let retention = controls.contextCache?.ttl?.providerTTLString {
@@ -404,12 +404,6 @@ actor OpenAIAdapter: LLMProviderAdapter {
         }
 
         return false
-    }
-
-    private func normalizedContextCacheString(_ value: String?) -> String? {
-        guard let value else { return nil }
-        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? nil : trimmed
     }
 
     private func translateInput(_ messages: [Message], supportsNativePDF: Bool) -> [[String: Any]] {

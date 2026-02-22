@@ -234,10 +234,10 @@ actor XAIAdapter: LLMProviderAdapter {
         ]
 
         if controls.contextCache?.mode != .off {
-            if let conversationID = normalizedContextCacheString(controls.contextCache?.conversationID) {
+            if let conversationID = normalizedTrimmedString(controls.contextCache?.conversationID) {
                 request.setValue(conversationID, forHTTPHeaderField: "x-grok-conv-id")
             }
-            if let cacheKey = normalizedContextCacheString(controls.contextCache?.cacheKey) {
+            if let cacheKey = normalizedTrimmedString(controls.contextCache?.cacheKey) {
                 body["prompt_cache_key"] = cacheKey
             }
             if let retention = controls.contextCache?.ttl?.providerTTLString {
@@ -508,27 +508,17 @@ actor XAIAdapter: LLMProviderAdapter {
         httpStatus: Int
     ) -> VideoPollStatus {
         // 1. Check Codable status field
-        if let status = codable?.status?.lowercased() {
-            switch status {
-            case "done", "complete", "completed", "success": return .done
-            case "expired": return .expired
-            case "failed", "error": return .failed(nil)
-            case "pending", "in_progress", "processing", "queued": return .pending
-            default: break
-            }
+        if let status = codable?.status?.lowercased(),
+           let resolved = classifyVideoStatusString(status) {
+            return resolved
         }
 
         // 2. Check raw JSON for status/state fields
         if let json = rawJSON {
             for key in ["status", "state"] {
-                if let val = json[key] as? String {
-                    switch val.lowercased() {
-                    case "done", "complete", "completed", "success": return .done
-                    case "expired": return .expired
-                    case "failed", "error": return .failed(extractFailureMessage(from: json))
-                    case "pending", "in_progress", "processing", "queued": return .pending
-                    default: break
-                    }
+                if let val = json[key] as? String,
+                   let resolved = classifyVideoStatusString(val.lowercased(), failureMessage: extractFailureMessage(from: json)) {
+                    return resolved
                 }
             }
 
@@ -553,6 +543,22 @@ actor XAIAdapter: LLMProviderAdapter {
 
         // 5. Default to pending
         return .pending
+    }
+
+    /// Map a lowercased status string to a VideoPollStatus, returning nil if unrecognized.
+    private func classifyVideoStatusString(_ status: String, failureMessage: String? = nil) -> VideoPollStatus? {
+        switch status {
+        case "done", "complete", "completed", "success":
+            return .done
+        case "expired":
+            return .expired
+        case "failed", "error":
+            return .failed(failureMessage)
+        case "pending", "in_progress", "processing", "queued":
+            return .pending
+        default:
+            return nil
+        }
     }
 
     private func extractFailureMessage(from json: [String: Any]?) -> String? {
@@ -861,12 +867,6 @@ actor XAIAdapter: LLMProviderAdapter {
 
     private func supportsNativePDF(_ modelID: String) -> Bool {
         JinModelSupport.supportsNativePDF(providerType: .xai, modelID: modelID)
-    }
-
-    private func normalizedContextCacheString(_ value: String?) -> String? {
-        guard let value else { return nil }
-        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? nil : trimmed
     }
 
     private enum MediaEditMode {

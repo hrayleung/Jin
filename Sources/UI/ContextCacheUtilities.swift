@@ -122,44 +122,16 @@ enum ContextCacheUtilities {
         messages: [Message],
         controls: GenerationControls
     ) async -> (messages: [Message], controls: GenerationControls)? {
-        guard let systemText = normalizedSystemPrompt(in: messages),
-              approximateTokenEstimate(for: systemText) >= automaticGoogleExplicitCacheMinTokenEstimate else {
-            return nil
-        }
-
-        let fingerprint = sha256Hex("gemini|\(modelID)|\(systemText)")
-        let displayName = "jin-auto-\(fingerprint.prefix(24))"
-        let registryKey = "gemini|\(modelID)|\(fingerprint)"
-
-        let cachedName: String
-        if let name = await AutomaticExplicitCacheRegistry.shared.cachedName(for: registryKey) {
-            cachedName = name
-        } else {
-            let payload: [String: Any] = [
-                "model": normalizedGeminiCachedContentModel(modelID),
-                "displayName": displayName,
-                "ttl": "\(Int(automaticGoogleExplicitCacheTTLSeconds))s",
-                "systemInstruction": [
-                    "parts": [
-                        ["text": systemText]
-                    ]
-                ]
-            ]
-
-            do {
-                let created = try await adapter.createCachedContent(payload: payload)
-                cachedName = created.name
-                await AutomaticExplicitCacheRegistry.shared.save(
-                    name: cachedName,
-                    for: registryKey,
-                    ttlSeconds: automaticGoogleExplicitCacheTTLSeconds * 0.9
-                )
-            } catch {
-                return nil
+        await prepareGoogleExplicitContextCache(
+            providerPrefix: "gemini",
+            normalizedModel: normalizedGeminiCachedContentModel(modelID),
+            modelID: modelID,
+            messages: messages,
+            controls: controls,
+            createCachedContent: { payload in
+                try await adapter.createCachedContent(payload: payload).name
             }
-        }
-
-        return applyExplicitGoogleCache(named: cachedName, messages: messages, controls: controls)
+        )
     }
 
     static func prepareVertexExplicitContextCache(
@@ -168,21 +140,42 @@ enum ContextCacheUtilities {
         messages: [Message],
         controls: GenerationControls
     ) async -> (messages: [Message], controls: GenerationControls)? {
+        await prepareGoogleExplicitContextCache(
+            providerPrefix: "vertex",
+            normalizedModel: normalizedVertexCachedContentModel(modelID),
+            modelID: modelID,
+            messages: messages,
+            controls: controls,
+            createCachedContent: { payload in
+                try await adapter.createCachedContent(payload: payload).name
+            }
+        )
+    }
+
+    /// Shared implementation for Gemini and Vertex AI explicit context cache preparation.
+    private static func prepareGoogleExplicitContextCache(
+        providerPrefix: String,
+        normalizedModel: String,
+        modelID: String,
+        messages: [Message],
+        controls: GenerationControls,
+        createCachedContent: ([String: Any]) async throws -> String
+    ) async -> (messages: [Message], controls: GenerationControls)? {
         guard let systemText = normalizedSystemPrompt(in: messages),
               approximateTokenEstimate(for: systemText) >= automaticGoogleExplicitCacheMinTokenEstimate else {
             return nil
         }
 
-        let fingerprint = sha256Hex("vertex|\(modelID)|\(systemText)")
+        let fingerprint = sha256Hex("\(providerPrefix)|\(modelID)|\(systemText)")
         let displayName = "jin-auto-\(fingerprint.prefix(24))"
-        let registryKey = "vertex|\(modelID)|\(fingerprint)"
+        let registryKey = "\(providerPrefix)|\(modelID)|\(fingerprint)"
 
         let cachedName: String
         if let name = await AutomaticExplicitCacheRegistry.shared.cachedName(for: registryKey) {
             cachedName = name
         } else {
             let payload: [String: Any] = [
-                "model": normalizedVertexCachedContentModel(modelID),
+                "model": normalizedModel,
                 "displayName": displayName,
                 "ttl": "\(Int(automaticGoogleExplicitCacheTTLSeconds))s",
                 "systemInstruction": [
@@ -193,8 +186,7 @@ enum ContextCacheUtilities {
             ]
 
             do {
-                let created = try await adapter.createCachedContent(payload: payload)
-                cachedName = created.name
+                cachedName = try await createCachedContent(payload)
                 await AutomaticExplicitCacheRegistry.shared.save(
                     name: cachedName,
                     for: registryKey,

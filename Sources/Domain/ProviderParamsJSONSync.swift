@@ -168,7 +168,7 @@ enum ProviderParamsJSONSync {
         }
 
         if let contextCache = controls.contextCache, contextCache.mode != .off {
-            if let cacheKey = trimmedString(contextCache.cacheKey) {
+            if let cacheKey = normalizedTrimmedString(contextCache.cacheKey) {
                 out["prompt_cache_key"] = cacheKey
             }
             if let retention = contextCache.ttl?.providerTTLString {
@@ -266,10 +266,10 @@ enum ProviderParamsJSONSync {
             return out
         }
 
-        if let conversationID = trimmedString(contextCache.conversationID) {
+        if let conversationID = normalizedTrimmedString(contextCache.conversationID) {
             out["x-grok-conv-id"] = conversationID
         }
-        if let cacheKey = trimmedString(contextCache.cacheKey) {
+        if let cacheKey = normalizedTrimmedString(contextCache.cacheKey) {
             out["prompt_cache_key"] = cacheKey
         }
         if let retention = contextCache.ttl?.providerTTLString {
@@ -301,7 +301,7 @@ enum ProviderParamsJSONSync {
         }
 
         if controls.contextCache?.mode == .explicit,
-           let cachedContent = trimmedString(controls.contextCache?.cachedContentName) {
+           let cachedContent = normalizedTrimmedString(controls.contextCache?.cachedContentName) {
             out["cachedContent"] = cachedContent
         }
 
@@ -330,7 +330,7 @@ enum ProviderParamsJSONSync {
         }
 
         if controls.contextCache?.mode == .explicit,
-           let cachedContent = trimmedString(controls.contextCache?.cachedContentName) {
+           let cachedContent = normalizedTrimmedString(controls.contextCache?.cachedContentName) {
             out["cachedContent"] = cachedContent
         }
 
@@ -485,7 +485,7 @@ enum ProviderParamsJSONSync {
         var touchedContextCache = false
 
         if let raw = draft["prompt_cache_key"]?.value as? String {
-            contextCache.cacheKey = trimmedString(raw)
+            contextCache.cacheKey = normalizedTrimmedString(raw)
             touchedContextCache = true
             providerSpecific.removeValue(forKey: "prompt_cache_key")
         }
@@ -579,13 +579,13 @@ enum ProviderParamsJSONSync {
         var touchedContextCache = false
 
         if let raw = draft["x-grok-conv-id"]?.value as? String {
-            contextCache.conversationID = trimmedString(raw)
+            contextCache.conversationID = normalizedTrimmedString(raw)
             touchedContextCache = true
             providerSpecific.removeValue(forKey: "x-grok-conv-id")
         }
 
         if let raw = draft["prompt_cache_key"]?.value as? String {
-            contextCache.cacheKey = trimmedString(raw)
+            contextCache.cacheKey = normalizedTrimmedString(raw)
             touchedContextCache = true
             providerSpecific.removeValue(forKey: "prompt_cache_key")
         }
@@ -648,7 +648,7 @@ enum ProviderParamsJSONSync {
         }
 
         if let raw = draft["cachedContent"]?.value as? String {
-            let normalized = trimmedString(raw)
+            let normalized = normalizedTrimmedString(raw)
             var contextCache = controls.contextCache ?? ContextCacheControls(mode: .explicit)
             contextCache.mode = .explicit
             contextCache.cachedContentName = normalized
@@ -698,7 +698,7 @@ enum ProviderParamsJSONSync {
         }
 
         if let raw = draft["cachedContent"]?.value as? String {
-            let normalized = trimmedString(raw)
+            let normalized = normalizedTrimmedString(raw)
             var contextCache = controls.contextCache ?? ContextCacheControls(mode: .explicit)
             contextCache.mode = .explicit
             contextCache.cachedContentName = normalized
@@ -1830,13 +1830,13 @@ enum ProviderParamsJSONSync {
                 out["ttl"] = "custom:\(max(1, seconds))"
             }
         }
-        if let cacheKey = trimmedString(contextCache.cacheKey) {
+        if let cacheKey = normalizedTrimmedString(contextCache.cacheKey) {
             out["cache_key"] = cacheKey
         }
-        if let conversationID = trimmedString(contextCache.conversationID) {
+        if let conversationID = normalizedTrimmedString(contextCache.conversationID) {
             out["conversation_id"] = conversationID
         }
-        if let cachedContent = trimmedString(contextCache.cachedContentName) {
+        if let cachedContent = normalizedTrimmedString(contextCache.cachedContentName) {
             out["cached_content_name"] = cachedContent
         }
         if let minTokens = contextCache.minTokensThreshold, minTokens > 0 {
@@ -1886,17 +1886,17 @@ enum ProviderParamsJSONSync {
         }
 
         if let rawCacheKey = dict["cache_key"] as? String {
-            contextCache.cacheKey = trimmedString(rawCacheKey)
+            contextCache.cacheKey = normalizedTrimmedString(rawCacheKey)
             remaining.removeValue(forKey: "cache_key")
         }
 
         if let rawConversationID = dict["conversation_id"] as? String {
-            contextCache.conversationID = trimmedString(rawConversationID)
+            contextCache.conversationID = normalizedTrimmedString(rawConversationID)
             remaining.removeValue(forKey: "conversation_id")
         }
 
         if let rawCachedContent = dict["cached_content_name"] as? String {
-            contextCache.cachedContentName = trimmedString(rawCachedContent)
+            contextCache.cachedContentName = normalizedTrimmedString(rawCachedContent)
             remaining.removeValue(forKey: "cached_content_name")
         }
 
@@ -2126,11 +2126,5 @@ enum ProviderParamsJSONSync {
             return Int(value.trimmingCharacters(in: .whitespacesAndNewlines))
         }
         return nil
-    }
-
-    private static func trimmedString(_ raw: String?) -> String? {
-        guard let raw else { return nil }
-        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? nil : trimmed
     }
 }
