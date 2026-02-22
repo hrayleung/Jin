@@ -34,6 +34,7 @@ struct GitHubPreparedUpdate {
     let extractedAppURL: URL
     let targetAppURL: URL
     let installerScriptURL: URL
+    let installedVersion: String?
 }
 
 enum GitHubAutoUpdater {
@@ -44,7 +45,8 @@ enum GitHubAutoUpdater {
     static func prepareUpdate(
         from asset: GitHubReleaseCandidate.Asset,
         appNameHint: String = Bundle.main.bundleURL.deletingPathExtension().lastPathComponent,
-        targetAppURL: URL = Bundle.main.bundleURL
+        targetAppURL: URL = Bundle.main.bundleURL,
+        installedVersion: String? = nil
     ) async throws -> GitHubPreparedUpdate {
         try validateInstallTarget(targetAppURL)
 
@@ -69,19 +71,28 @@ enum GitHubAutoUpdater {
             workingDirectory: workingDirectory,
             extractedAppURL: extractedAppURL,
             targetAppURL: targetAppURL,
-            installerScriptURL: installerScriptURL
+            installerScriptURL: installerScriptURL,
+            installedVersion: GitHubReleaseChecker.resolveCurrentVersion(
+                bundleVersion: nil,
+                currentInstalledVersion: installedVersion
+            )
         )
     }
 
     static func launchInstaller(using preparedUpdate: GitHubPreparedUpdate) throws {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/bin/bash")
-        process.arguments = [
+        var arguments = [
             preparedUpdate.installerScriptURL.path,
             preparedUpdate.targetAppURL.path,
             preparedUpdate.extractedAppURL.path,
             preparedUpdate.workingDirectory.path
         ]
+        if let installedVersion = preparedUpdate.installedVersion,
+           !installedVersion.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            arguments.append(installedVersion)
+        }
+        process.arguments = arguments
 
         do {
             try process.run()
@@ -200,6 +211,7 @@ enum GitHubAutoUpdater {
         TARGET_APP="$1"
         NEW_APP="$2"
         WORK_DIR="$3"
+        INSTALLED_VERSION="${4:-}"
 
         /bin/sleep 1
 
@@ -217,6 +229,12 @@ enum GitHubAutoUpdater {
 
         /usr/bin/ditto "$NEW_APP" "$TARGET_APP"
         /usr/bin/xattr -dr com.apple.quarantine "$TARGET_APP" >/dev/null 2>&1 || true
+        if [ -n "$INSTALLED_VERSION" ] && [ -f "$TARGET_APP/Contents/Info.plist" ]; then
+          BUNDLE_ID="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$TARGET_APP/Contents/Info.plist" 2>/dev/null || true)"
+          if [ -n "$BUNDLE_ID" ]; then
+            /usr/bin/defaults write "$BUNDLE_ID" "updateInstalledVersion" "$INSTALLED_VERSION" >/dev/null 2>&1 || true
+          fi
+        fi
         /usr/bin/open "$TARGET_APP"
         /bin/rm -rf "$WORK_DIR"
         """

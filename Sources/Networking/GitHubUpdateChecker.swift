@@ -343,19 +343,21 @@ struct GitHubReleaseChecker {
         currentInstalledVersion: String?
     ) -> String? {
         let normalizedBundleVersion = normalizedVersionString(bundleVersion)
-        if let bundleVersion = normalizedBundleVersion,
-           !bundleVersion.isEmpty {
-            return bundleVersion
-        }
+        let normalizedInstalledVersion = normalizedVersionString(currentInstalledVersion)
 
-        let normalizedInstalledVersion = currentInstalledVersion?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        if let installedVersion = normalizedInstalledVersion,
-           !installedVersion.isEmpty {
-            return installedVersion
-        }
+        let parsedBundleVersion = normalizedBundleVersion.flatMap(UpdateVersion.init)
+        let parsedInstalledVersion = normalizedInstalledVersion.flatMap(UpdateVersion.init)
 
-        return nil
+        switch (parsedBundleVersion, parsedInstalledVersion) {
+        case let (.some(bundle), .some(installed)):
+            return installed > bundle ? normalizedInstalledVersion : normalizedBundleVersion
+        case (.some, .none):
+            return normalizedBundleVersion
+        case (.none, .some):
+            return normalizedInstalledVersion
+        case (.none, .none):
+            return normalizedBundleVersion ?? normalizedInstalledVersion
+        }
     }
 
     private static func normalizedVersionString(_ value: String?) -> String? {
