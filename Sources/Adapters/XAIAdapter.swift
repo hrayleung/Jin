@@ -18,6 +18,7 @@ actor XAIAdapter: LLMProviderAdapter {
     ]
     private static let imageGenerationModelIDs: Set<String> = [
         "grok-imagine-image",
+        "grok-imagine-image-pro",
         "grok-2-image-1212",
     ]
     private static let videoGenerationModelIDs: Set<String> = [
