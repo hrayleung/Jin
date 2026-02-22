@@ -149,15 +149,24 @@ enum NewChatMCPMode: String, CaseIterable, Identifiable {
 }
 
 enum AppIconVariant: String, CaseIterable, Identifiable {
-    case a = "A"
-    case b = "B"
-    case c = "C"
-    case d = "D"
+    case roseQuartz = "A"
+    case roseDusk = "B"
+    case warmIvory = "C"
+    case lavenderMist = "D"
 
     var id: String { rawValue }
 
     var label: String {
-        "Variant \(rawValue)"
+        switch self {
+        case .roseQuartz:
+            return "Rose Quartz"
+        case .roseDusk:
+            return "Rose Dusk"
+        case .warmIvory:
+            return "Warm Ivory"
+        case .lavenderMist:
+            return "Lavender Mist"
+        }
     }
 
     var icnsName: String {
