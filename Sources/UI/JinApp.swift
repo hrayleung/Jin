@@ -19,7 +19,7 @@ struct JinApp: App {
 
     @AppStorage(AppPreferenceKeys.appAppearanceMode) private var appAppearanceMode: AppAppearanceMode = .system
     @AppStorage(AppPreferenceKeys.appFontFamily) private var appFontFamily = JinTypography.systemFontPreferenceValue
-    @AppStorage(AppPreferenceKeys.appIconVariant) private var appIconVariant: AppIconVariant = .a
+    @AppStorage(AppPreferenceKeys.appIconVariant) private var appIconVariant: AppIconVariant = .roseQuartz
 
     private let mcpSchemaVersionPreferenceKey = "mcpTransportSchemaVersion"
     private let mcpSchemaVersion = 2
