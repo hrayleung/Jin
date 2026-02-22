@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import AppKit
 
 enum AssistantSidebarLayout: String {
     case list
@@ -50,11 +51,19 @@ struct ContentView: View {
     @State private var titleRegenerationErrorMessage = ""
     @State private var showingTitleRegenerationError = false
     @State private var regeneratingConversationID: UUID?
+    @State private var pendingAutomaticUpdate: GitHubReleaseCandidate?
+    @State private var showingAutomaticUpdatePrompt = false
+    @State private var automaticUpdateInstallInProgress = false
+    @State private var automaticUpdateErrorMessage = ""
+    @State private var showingAutomaticUpdateError = false
     @AppStorage("assistantSidebarLayout") private var assistantSidebarLayoutRaw = AssistantSidebarLayout.grid.rawValue
     @AppStorage("assistantSidebarSort") private var assistantSidebarSortRaw = AssistantSidebarSort.custom.rawValue
     @AppStorage("assistantSidebarShowName") private var assistantSidebarShowName = true
     @AppStorage("assistantSidebarShowIcon") private var assistantSidebarShowIcon = true
     @AppStorage("assistantSidebarGridColumns") private var assistantSidebarGridColumns = 3
+    @AppStorage(AppPreferenceKeys.updateAutoCheckOnLaunch) private var updateAutoCheckOnLaunch = true
+    @AppStorage(AppPreferenceKeys.updateAllowPreRelease) private var updateAllowPreRelease = false
+    @AppStorage(AppPreferenceKeys.updateInstalledVersion) private var updateInstalledVersion = ""
     @AppStorage(AppPreferenceKeys.newChatModelMode) private var newChatModelMode: NewChatModelMode = .lastUsed
     @AppStorage(AppPreferenceKeys.newChatFixedProviderID) private var newChatFixedProviderID = "openai"
     @AppStorage(AppPreferenceKeys.newChatFixedModelID) private var newChatFixedModelID = "gpt-5.2"
@@ -147,6 +156,7 @@ struct ContentView: View {
         .task {
             bootstrapDefaultProvidersIfNeeded()
             bootstrapDefaultAssistantsIfNeeded()
+            await checkForUpdatesOnLaunchIfNeeded()
         }
         .sheet(isPresented: $isAssistantInspectorPresented) {
             if let selectedAssistant {
@@ -193,6 +203,36 @@ struct ContentView: View {
             Button("OK", role: .cancel) {}
         } message: {
             Text(titleRegenerationErrorMessage)
+        }
+        .alert("Update Available", isPresented: $showingAutomaticUpdatePrompt, presenting: pendingAutomaticUpdate) { release in
+            Button("Install & Relaunch") {
+                Task {
+                    await installAutomaticUpdate(release)
+                }
+            }
+            .disabled(automaticUpdateInstallInProgress)
+
+            if let htmlURL = release.htmlURL {
+                Button("View Release") {
+                    NSWorkspace.shared.open(htmlURL)
+                }
+            }
+
+            Button("Later", role: .cancel) {
+                pendingAutomaticUpdate = nil
+            }
+        } message: { release in
+            Text("Jin \(release.tagName) is available. Install and relaunch now?")
+        }
+        .alert("Update Failed", isPresented: $showingAutomaticUpdateError) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(automaticUpdateErrorMessage)
+        }
+        .onChange(of: showingAutomaticUpdatePrompt) { _, isPresented in
+            if !isPresented {
+                pendingAutomaticUpdate = nil
+            }
         }
         .focusedSceneValue(
             \.workspaceActions,
@@ -277,6 +317,50 @@ struct ContentView: View {
     private func requestDeleteSelectedConversation() {
         guard let selectedConversation else { return }
         requestDeleteConversation(selectedConversation)
+    }
+
+    @MainActor
+    private func checkForUpdatesOnLaunchIfNeeded() async {
+        guard updateAutoCheckOnLaunch else { return }
+        guard await UpdateLaunchCheckGate.shared.claim() else { return }
+
+        let currentVersion = GitHubReleaseChecker.resolveCurrentVersion(
+            bundleVersion: GitHubReleaseChecker.currentVersion(from: .main),
+            currentInstalledVersion: updateInstalledVersion
+        )
+
+        do {
+            let result = try await GitHubReleaseChecker.checkForUpdate(
+                repository: GitHubReleaseChecker.defaultRepository,
+                currentInstalledVersion: currentVersion,
+                allowPreRelease: updateAllowPreRelease
+            )
+            guard result.isUpdateAvailable else { return }
+            pendingAutomaticUpdate = result
+            showingAutomaticUpdatePrompt = true
+        } catch {
+            // Ignore launch-time update errors to avoid noisy startup alerts.
+        }
+    }
+
+    @MainActor
+    private func installAutomaticUpdate(_ release: GitHubReleaseCandidate) async {
+        guard !automaticUpdateInstallInProgress else { return }
+        automaticUpdateInstallInProgress = true
+        defer { automaticUpdateInstallInProgress = false }
+
+        do {
+            let appNameHint = Bundle.main.bundleURL.deletingPathExtension().lastPathComponent
+            let preparedUpdate = try await GitHubAutoUpdater.prepareUpdate(
+                from: release.asset,
+                appNameHint: appNameHint
+            )
+            try GitHubAutoUpdater.launchInstaller(using: preparedUpdate)
+            NSApp.terminate(nil)
+        } catch {
+            automaticUpdateErrorMessage = error.localizedDescription
+            showingAutomaticUpdateError = true
+        }
     }
 
     private var assistantSidebarLayout: AssistantSidebarLayout {
