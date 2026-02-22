@@ -238,9 +238,6 @@ actor OpenAIAdapter: LLMProviderAdapter {
             if let retention = controls.contextCache?.ttl?.providerTTLString {
                 body["prompt_cache_retention"] = retention
             }
-            if let minTokens = controls.contextCache?.minTokensThreshold, minTokens > 0 {
-                body["prompt_cache_min_tokens"] = minTokens
-            }
         }
 
         let reasoningEffort = (controls.reasoning?.enabled == true) ? controls.reasoning?.effort : nil
@@ -292,6 +289,9 @@ actor OpenAIAdapter: LLMProviderAdapter {
         }
 
         for (key, value) in controls.providerSpecific {
+            guard key != "prompt_cache_min_tokens" else {
+                continue
+            }
             body[key] = value.value
         }
 
