@@ -377,7 +377,7 @@ actor GeminiAdapter: LLMProviderAdapter {
         ]
 
         let explicitCachedContent = (controls.contextCache?.mode == .explicit)
-            ? normalizedContextCacheString(controls.contextCache?.cachedContentName)
+            ? normalizedTrimmedString(controls.contextCache?.cachedContentName)
             : nil
 
         if explicitCachedContent == nil, let systemInstruction = systemInstructionText(from: messages) {
@@ -435,12 +435,6 @@ actor GeminiAdapter: LLMProviderAdapter {
             return String(trimmed.dropFirst("models/".count))
         }
         return trimmed
-    }
-
-    private func normalizedContextCacheString(_ value: String?) -> String? {
-        guard let value else { return nil }
-        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? nil : trimmed
     }
 
     private func normalizedCachedContentName(_ raw: String) -> String {

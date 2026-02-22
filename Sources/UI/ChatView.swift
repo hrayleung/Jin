@@ -5,109 +5,10 @@ import UniformTypeIdentifiers
 import Combine
 
 struct ChatView: View {
-    private static let initialMessageRenderLimit = 24
-    private static let messageRenderPageSize = 40
-    private static let eagerCodeHighlightTailCount = 12
-    private static let pinnedBottomRefreshDelays: [TimeInterval] = [0, 0.04, 0.14]
-    private static let xAIImageGenerationModelIDs: Set<String> = [
-        "grok-imagine-image",
-        "grok-imagine-image-pro",
-        "grok-2-image-1212",
-    ]
-    private static let xAIVideoGenerationModelIDs: Set<String> = [
-        "grok-imagine-video",
-    ]
-    private static let geminiImageGenerationModelIDs: Set<String> = [
-        "gemini-3-pro-image-preview",
-        "gemini-2.5-flash-image",
-    ]
-    private static let googleVideoGenerationModelIDs: Set<String> = [
-        "veo-2",
-        "veo-3",
-    ]
-    private static let openAIAudioInputModelIDs: Set<String> = [
-        "gpt-4o-audio-preview",
-        "gpt-4o-audio-preview-2024-10-01",
-        "gpt-4o-mini-audio-preview",
-        "gpt-4o-mini-audio-preview-2024-12-17",
-        "gpt-4o-realtime-preview",
-        "gpt-4o-realtime-preview-2024-10-01",
-        "gpt-4o-realtime-preview-2024-12-17",
-        "gpt-4o-mini-realtime-preview",
-        "gpt-4o-mini-realtime-preview-2024-12-17",
-        "gpt-realtime",
-        "gpt-realtime-mini",
-    ]
-    private static let mistralAudioInputModelIDs: Set<String> = [
-        "voxtral-large-latest",
-        "voxtral-small-latest",
-    ]
-    private static let mistralTranscriptionOnlyModelIDs: Set<String> = [
-        "voxtral-mini-2602",
-        "voxtral-mini-latest",
-    ]
-    private static let geminiAudioInputModelIDs: Set<String> = [
-        "gemini-3",
-        "gemini-3-pro",
-        "gemini-3-pro-preview",
-        "gemini-3.1-pro-preview",
-        "gemini-3-flash-preview",
-        "gemini-2.5",
-        "gemini-2.5-pro",
-        "gemini-2.5-flash",
-        "gemini-2.5-flash-lite",
-        "gemini-2.0-flash",
-        "gemini-2.0-flash-lite",
-    ]
-    private static let qwenAudioInputModelIDs: Set<String> = [
-        "qwen3-asr-4b",
-        "qwen3-asr-0.6b",
-        "qwen3-omni-30b-a3b-instruct",
-        "qwen3-omni-30b-a3b-thinking",
-    ]
-    private static let fireworksAudioInputModelIDs: Set<String> = [
-        "qwen3-asr-4b",
-        "qwen3-asr-0.6b",
-        "qwen3-omni-30b-a3b-instruct",
-        "qwen3-omni-30b-a3b-thinking",
-        "fireworks/qwen3-asr-4b",
-        "fireworks/qwen3-asr-0.6b",
-        "fireworks/qwen3-omni-30b-a3b-instruct",
-        "fireworks/qwen3-omni-30b-a3b-thinking",
-        "accounts/fireworks/models/qwen3-asr-4b",
-        "accounts/fireworks/models/qwen3-asr-0.6b",
-        "accounts/fireworks/models/qwen3-omni-30b-a3b-instruct",
-        "accounts/fireworks/models/qwen3-omni-30b-a3b-thinking",
-    ]
-    private static let compatibleAudioInputModelIDs: Set<String> = {
-        openAIAudioInputModelIDs
-            .union(mistralAudioInputModelIDs)
-            .union(qwenAudioInputModelIDs)
-            .union(geminiAudioInputModelIDs)
-    }()
-    private static let fireworksMiniMaxM2CanonicalModelIDs: Set<String> = [
-        "minimax-m2",
-        "minimax-m2p1",
-        "minimax-m2p5",
-    ]
-    private static let gemini3ProModelIDs: Set<String> = [
-        "gemini-3-pro",
-        "gemini-3-pro-preview",
-        "gemini-3.1-pro-preview",
-        "gemini-3-pro-image-preview",
-    ]
-    private static let vertexGemini25TextModelIDs: Set<String> = [
-        "gemini-2.5",
-        "gemini-2.5-pro",
-        "gemini-2.5-flash",
-        "gemini-2.5-flash-lite",
-    ]
-    private static let geminiPreferredModelOrder: [String] = [
-        "gemini-3.1-pro-preview",
-        "gemini-3-pro-preview",
-        "gemini-3-pro",
-        "gemini-3-flash-preview",
-    ]
+    static let initialMessageRenderLimit = 24
+    static let messageRenderPageSize = 40
+    static let eagerCodeHighlightTailCount = 12
+    static let pinnedBottomRefreshDelays: [TimeInterval] = [0, 0.04, 0.14]
 
     @Environment(\.modelContext) private var modelContext
     @EnvironmentObject private var streamingStore: ConversationStreamingStore
@@ -191,8 +92,6 @@ struct ChatView: View {
     @StateObject private var speechToTextManager = SpeechToTextManager()
 
     private let conversationTitleGenerator = ConversationTitleGenerator()
-
-    // ContextCacheTTLPreset is now a top-level enum in ContextCacheSheetView.swift
 
     private var isStreaming: Bool {
         streamingStore.isStreaming(conversationID: conversationEntity.id)

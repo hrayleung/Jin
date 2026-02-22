@@ -520,10 +520,8 @@ struct AddMCPServerView: View {
             )
         }
 
-        let serverID = id.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            ? UUID().uuidString
-            : id.trimmingCharacters(in: .whitespacesAndNewlines)
-
+        let trimmedID = id.trimmingCharacters(in: .whitespacesAndNewlines)
+        let serverID = trimmedID.isEmpty ? UUID().uuidString : trimmedID
         let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
         let transportData = (try? JSONEncoder().encode(transport)) ?? Data()
 
