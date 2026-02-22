@@ -60,27 +60,24 @@ These models are ready to use out of the box (with your API key). You can also a
 
 ## Screenshots
 
-<table>
-  <tr>
-    <td>
-      <img src="docs/screenshots/chat-web-search.png" alt="Chat with in-thread web search and source timeline" width="100%" />
-    </td>
-    <td>
-      <img src="docs/screenshots/tool-calling.png" alt="Tool calling flow with MCP tools in chat" width="100%" />
-    </td>
-  </tr>
-  <tr>
-    <td>
-      <img src="docs/screenshots/image-generation.png" alt="Image generation result in a conversation" width="100%" />
-    </td>
-    <td>
-      <img src="docs/screenshots/video-generation.png" alt="Video generation playback in chat" width="100%" />
-    </td>
-  </tr>
-</table>
+<p align="center">
+  <img src="docs/screenshots/chat-web-search.png" alt="Chat with in-thread web search and source timeline" width="1200" />
+</p>
 
 <p align="center">
-  <img src="docs/screenshots/provider-settings.png" alt="Provider and model settings panel" width="900" />
+  <img src="docs/screenshots/tool-calling.png" alt="Tool calling flow with MCP tools in chat" width="1200" />
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/image-generation.png" alt="Image generation result in a conversation" width="1200" />
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/video-generation.png" alt="Video generation playback in chat" width="1200" />
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/provider-settings.png" alt="Provider and model settings panel" width="1200" />
 </p>
 
 ## Plugins
@@ -134,7 +131,7 @@ xattr -dr com.apple.quarantine /Applications/Jin.app
 ## Build from Source
 
 ```bash
-git clone <repo-url>
+git clone https://github.com/hrayleung/Jin.git
 cd Jin
 swift build
 open Package.swift          # Open in Xcode
