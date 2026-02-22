@@ -151,10 +151,6 @@ struct JinApp: App {
 
     private func updateProviderModelsIfNeeded() {
         let defaults = UserDefaults.standard
-        guard defaults.bool(forKey: AppPreferenceKeys.allowAutomaticNetworkRequests) else {
-            return
-        }
-
         let refreshInterval: TimeInterval = 24 * 60 * 60
 
         Task {

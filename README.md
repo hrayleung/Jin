@@ -85,7 +85,7 @@ These are the starter model IDs seeded in `Sources/Domain/DefaultProviderSeeds.s
 - Vertex AI does not call a model-list API in this codebase. It returns a curated static list from `Sources/Adapters/VertexAIAdapter.swift` (`knownModels`).
 - Perplexity does not call a model-list API in this adapter. It uses saved provider models, with fallback models: `sonar`, `sonar-pro`, `sonar-reasoning-pro`, `sonar-deep-research`.
 - Codex App Server model refresh uses `model/list` over JSON-RPC and supports pagination; if the server returns no models, Jin falls back to `gpt-5.1-codex`.
-- If **Allow automatic network requests** is enabled, Jin refreshes provider models on launch (max once every 24 hours per provider) in `Sources/UI/JinApp.swift`.
+- Jin refreshes provider models on launch automatically (max once every 24 hours per provider) in `Sources/UI/JinApp.swift`.
 
 ### How model capabilities are assigned
 

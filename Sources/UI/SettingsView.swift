@@ -237,9 +237,9 @@ struct SettingsView: View {
                     case .defaults:
                         DefaultsSettingsView()
                             .id("defaults")
-                    case .network:
-                        NetworkSettingsView()
-                            .id("network")
+                    case .updates:
+                        UpdateSettingsView()
+                            .id("updates")
                     case .data:
                         DataSettingsView()
                             .id("data")
