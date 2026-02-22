@@ -82,13 +82,13 @@ final class GitHubUpdateCheckerTests: XCTestCase {
         XCTAssertFalse(GitHubReleaseChecker.isSourceZip(asset))
     }
 
-    func testResolveCurrentVersionPrefersBundleVersion() {
+    func testResolveCurrentVersionPrefersBundleVersionWhenItIsNewer() {
         let resolved = GitHubReleaseChecker.resolveCurrentVersion(
-            bundleVersion: "0.1.0",
+            bundleVersion: "1.2.4",
             currentInstalledVersion: "1.2.3"
         )
 
-        XCTAssertEqual(resolved, "0.1.0")
+        XCTAssertEqual(resolved, "1.2.4")
     }
 
     func testResolveCurrentVersionFallsBackToStoredInstalledVersionWhenBundleMissing() {
@@ -100,6 +100,15 @@ final class GitHubUpdateCheckerTests: XCTestCase {
         XCTAssertEqual(resolved, "1.2.3")
     }
 
+    func testResolveCurrentVersionPrefersNewerStoredInstalledVersionOverOlderBundleVersion() {
+        let resolved = GitHubReleaseChecker.resolveCurrentVersion(
+            bundleVersion: "1.2.3",
+            currentInstalledVersion: "1.2.4"
+        )
+
+        XCTAssertEqual(resolved, "1.2.4")
+    }
+
     func testResolveCurrentVersionNormalizesLeadingVPrefix() {
         let resolved = GitHubReleaseChecker.resolveCurrentVersion(
             bundleVersion: "v1.0",
@@ -107,6 +116,24 @@ final class GitHubUpdateCheckerTests: XCTestCase {
         )
 
         XCTAssertEqual(resolved, "1.0")
+    }
+
+    func testResolveCurrentVersionNormalizesLeadingVPrefixForStoredInstalledVersion() {
+        let resolved = GitHubReleaseChecker.resolveCurrentVersion(
+            bundleVersion: nil,
+            currentInstalledVersion: "v2.0.0"
+        )
+
+        XCTAssertEqual(resolved, "2.0.0")
+    }
+
+    func testResolveCurrentVersionUsesParseableStoredVersionWhenBundleVersionIsUnparseable() {
+        let resolved = GitHubReleaseChecker.resolveCurrentVersion(
+            bundleVersion: "build-2026.02.22",
+            currentInstalledVersion: "1.2.3"
+        )
+
+        XCTAssertEqual(resolved, "1.2.3")
     }
 
     func testBuildResultReportsNoDownloadableAssetWhenNoAssets() {

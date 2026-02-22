@@ -243,7 +243,8 @@ struct UpdateSettingsView: View {
             let appNameHint = Bundle.main.bundleURL.deletingPathExtension().lastPathComponent
             let preparedUpdate = try await GitHubAutoUpdater.prepareUpdate(
                 from: result.asset,
-                appNameHint: appNameHint
+                appNameHint: appNameHint,
+                installedVersion: result.tagName
             )
             installStatusMessage = "Installing update and restarting…"
             try GitHubAutoUpdater.launchInstaller(using: preparedUpdate)
@@ -258,14 +259,15 @@ struct UpdateSettingsView: View {
     @discardableResult
     private func syncCurrentVersion() -> String? {
         let bundleVersion = GitHubReleaseChecker.currentVersion(from: .main)
-        if let bundleVersion {
-            installedVersion = bundleVersion
-        } else if !installedVersion.isEmpty {
-            installedVersion = installedVersion.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let resolvedVersion = GitHubReleaseChecker.resolveCurrentVersion(
+            bundleVersion: bundleVersion,
+            currentInstalledVersion: installedVersion
+        ) {
+            installedVersion = resolvedVersion
+            return resolvedVersion
         }
 
-        return installedVersion.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            ? nil
-            : installedVersion
+        installedVersion = ""
+        return nil
     }
 }

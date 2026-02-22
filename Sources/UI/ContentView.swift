@@ -328,6 +328,9 @@ struct ContentView: View {
             bundleVersion: GitHubReleaseChecker.currentVersion(from: .main),
             currentInstalledVersion: updateInstalledVersion
         )
+        if let currentVersion {
+            updateInstalledVersion = currentVersion
+        }
 
         do {
             let result = try await GitHubReleaseChecker.checkForUpdate(
@@ -353,7 +356,8 @@ struct ContentView: View {
             let appNameHint = Bundle.main.bundleURL.deletingPathExtension().lastPathComponent
             let preparedUpdate = try await GitHubAutoUpdater.prepareUpdate(
                 from: release.asset,
-                appNameHint: appNameHint
+                appNameHint: appNameHint,
+                installedVersion: release.tagName
             )
             try GitHubAutoUpdater.launchInstaller(using: preparedUpdate)
             NSApp.terminate(nil)
