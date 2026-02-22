@@ -203,7 +203,8 @@ struct SearchActivityTimelineView: View {
                     SearchSourceCardView(presentation: renderPresentation(for: source))
                 }
             }
-            .padding(.vertical, 2)
+            .padding(.horizontal, JinStrokeWidth.emphasized)
+            .padding(.vertical, JinStrokeWidth.emphasized)
         }
     }
 
