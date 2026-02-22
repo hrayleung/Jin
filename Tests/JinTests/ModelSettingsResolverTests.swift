@@ -260,6 +260,19 @@ final class ModelSettingsResolverTests: XCTestCase {
             ModelSettingsResolver.resolve(model: xaiLegacy, providerType: .xai).contextWindow,
             32_768
         )
+
+        let xaiProLegacy = ModelInfo(
+            id: "grok-imagine-image-pro",
+            name: "Grok Imagine Image Pro",
+            capabilities: [.imageGeneration],
+            contextWindow: 128_000,
+            reasoningConfig: nil,
+            isEnabled: true
+        )
+        XCTAssertEqual(
+            ModelSettingsResolver.resolve(model: xaiProLegacy, providerType: .xai).contextWindow,
+            32_768
+        )
     }
 
     func testOpenRouterWebSearchDefaultsByModelFamily() {

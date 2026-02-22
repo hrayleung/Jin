@@ -39,6 +39,7 @@ enum JinModelSupport {
             "grok-4-1-fast-non-reasoning",
             "grok-4-1-fast-reasoning",
             "grok-imagine-image",
+            "grok-imagine-image-pro",
             "grok-2-image-1212",
             "grok-imagine-video",
         ],

@@ -57,6 +57,7 @@ enum ModelSettingsResolver {
             "grok-4-1-fast-reasoning": 2_000_000,
             "grok-2-image-1212": 131_072,
             "grok-imagine-image": 32_768,
+            "grok-imagine-image-pro": 32_768,
             "grok-imagine-video": 32_768,
         ],
         .gemini: [
