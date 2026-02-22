@@ -25,6 +25,7 @@ struct ProviderConfigFormView: View {
     @State private var showingAddModel = false
     @State private var showingDeleteAllModelsConfirmation = false
     @State private var showingDeleteModelConfirmation = false
+    @State private var showingKeepFullySupportedModelsConfirmation = false
     @State private var modelSearchText = ""
     @State private var editingModel: ModelInfo?
     @State private var modelPendingDeletion: ModelInfo?
@@ -140,6 +141,12 @@ struct ProviderConfigFormView: View {
                             setAllModelsEnabled(false)
                         }
                         .buttonStyle(.borderless)
+
+                        Button("Keep Fully Supported") {
+                            showingKeepFullySupportedModelsConfirmation = true
+                        }
+                        .buttonStyle(.borderless)
+                        .disabled(!canKeepFullySupportedModels)
                     }
                 }
 
@@ -315,6 +322,18 @@ struct ProviderConfigFormView: View {
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("This will remove the local model list. You can fetch it again anytime.")
+        }
+        .confirmationDialog(
+            "Keep fully supported models for \(provider.name)?",
+            isPresented: $showingKeepFullySupportedModelsConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Keep Fully Supported", role: .destructive) {
+                keepOnlyFullySupportedModels()
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This will delete \(nonFullySupportedModelsCount) models not marked as fully supported and keep \(fullySupportedModelsCount) fully supported model(s).")
         }
         .confirmationDialog(
             "Delete model for \(provider.name)?",
@@ -836,6 +855,19 @@ struct ProviderConfigFormView: View {
         decodedModels.filter(\.isEnabled).count
     }
 
+    private var fullySupportedModelsCount: Int {
+        decodedModels.filter { isFullySupportedModel($0.id) }.count
+    }
+
+    private var nonFullySupportedModelsCount: Int {
+        decodedModels.count - fullySupportedModelsCount
+    }
+
+    private var canKeepFullySupportedModels: Bool {
+        guard providerType != nil else { return false }
+        return fullySupportedModelsCount > 0 && nonFullySupportedModelsCount > 0
+    }
+
     private func setModels(_ models: [ModelInfo]) {
         do {
             provider.modelsData = try JSONEncoder().encode(models)
@@ -880,6 +912,13 @@ struct ProviderConfigFormView: View {
             )
         }
         setModels(models)
+    }
+
+    private func keepOnlyFullySupportedModels() {
+        guard providerType != nil else { return }
+        let filteredModels = decodedModels.filter { isFullySupportedModel($0.id) }
+        guard !filteredModels.isEmpty else { return }
+        setModels(filteredModels)
     }
 
     private func requestDeleteModel(_ model: ModelInfo) {

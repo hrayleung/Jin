@@ -174,9 +174,6 @@ enum ProviderParamsJSONSync {
             if let retention = contextCache.ttl?.providerTTLString {
                 out["prompt_cache_retention"] = retention
             }
-            if let minTokens = contextCache.minTokensThreshold, minTokens > 0 {
-                out["prompt_cache_min_tokens"] = minTokens
-            }
         }
 
         return out
@@ -277,9 +274,6 @@ enum ProviderParamsJSONSync {
         }
         if let retention = contextCache.ttl?.providerTTLString {
             out["prompt_cache_retention"] = retention
-        }
-        if let minTokens = contextCache.minTokensThreshold, minTokens > 0 {
-            out["prompt_cache_min_tokens"] = minTokens
         }
 
         return out
