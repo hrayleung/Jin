@@ -336,7 +336,7 @@ struct SettingsView: View {
                 HStack(spacing: JinSpacing.small + 2) {
                     ProviderIconView(iconID: provider.resolvedProviderIconID, fallbackSystemName: "network", size: 14)
                         .frame(width: 20, height: 20)
-                        .jinSurface(.subtle, cornerRadius: JinRadius.small)
+                        .jinSurface(.outlined, cornerRadius: JinRadius.small)
 
                     VStack(alignment: .leading, spacing: 2) {
                         Text(provider.name)
@@ -379,7 +379,7 @@ struct SettingsView: View {
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(.secondary)
                         .frame(width: 20, height: 20)
-                        .jinSurface(.subtle, cornerRadius: JinRadius.small)
+                        .jinSurface(.outlined, cornerRadius: JinRadius.small)
 
                     VStack(alignment: .leading, spacing: 2) {
                         Text(category.label)
@@ -408,7 +408,7 @@ struct SettingsView: View {
                     .font(.system(size: 14, weight: .medium))
                     .foregroundStyle(.secondary)
                     .frame(width: 20, height: 20)
-                    .jinSurface(.subtle, cornerRadius: JinRadius.small)
+                    .jinSurface(.outlined, cornerRadius: JinRadius.small)
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(plugin.name)
@@ -525,7 +525,7 @@ struct SettingsView: View {
                         .foregroundStyle(.secondary)
                         .padding(.horizontal, 6)
                         .padding(.vertical, 2)
-                        .jinSurface(.subtle, cornerRadius: JinRadius.small)
+                        .jinSurface(.outlined, cornerRadius: JinRadius.small)
                 }
                 .padding(.vertical, JinSpacing.xSmall)
             }

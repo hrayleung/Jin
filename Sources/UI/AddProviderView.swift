@@ -70,8 +70,7 @@ struct AddProviderView: View {
                     TextEditor(text: $serviceAccountJSON)
                         .frame(minHeight: 100)
                         .font(.system(.body, design: .monospaced))
-                        .padding(JinSpacing.small)
-                        .jinSurface(.raised, cornerRadius: JinRadius.small)
+                        .jinTextEditorField(cornerRadius: JinRadius.small)
                         .overlay(alignment: .topLeading) {
                             if serviceAccountJSON.isEmpty {
                                 Text("Paste service account JSON here…")
@@ -229,8 +228,7 @@ struct AddMCPServerView: View {
                             TextEditor(text: $importJSON)
                                 .font(.system(.body, design: .monospaced))
                                 .frame(minHeight: 120)
-                                .padding(JinSpacing.small)
-                                .jinSurface(.raised, cornerRadius: JinRadius.small)
+                                .jinTextEditorField(cornerRadius: JinRadius.small)
                                 .overlay(alignment: .topLeading) {
                                     if importJSON.isEmpty {
                                         Text("{ \"mcpServers\": { \"exa\": { \"type\": \"http\", \"url\": \"https://mcp.exa.ai/mcp\", \"headers\": { \"Authorization\": \"Bearer …\" } } } }")
@@ -243,16 +241,15 @@ struct AddMCPServerView: View {
 
                             if let importError {
                                 Text(importError)
-                                    .foregroundStyle(.red)
                                     .font(.caption)
-                                    .padding(JinSpacing.small)
-                                    .jinSurface(.subtleStrong, cornerRadius: JinRadius.small)
+                                    .jinInlineErrorText()
                             } else {
                                 Text("Supports Claude Desktop-style configs (`mcpServers`) plus single-server payloads. HTTP imports are mapped to native HTTP transport.")
                                     .jinInfoCallout()
                             }
                         }
                         .padding(.top, 4)
+                        .animation(.easeInOut(duration: 0.18), value: importError)
                     } label: {
                         Text("Import from JSON")
                     }
