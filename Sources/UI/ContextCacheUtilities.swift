@@ -28,7 +28,6 @@ actor AutomaticExplicitCacheRegistry {
 
 enum ContextCacheUtilities {
 
-    static let automaticOpenAIMinTokensThreshold = 1024
     static let automaticGoogleExplicitCacheTTLSeconds: TimeInterval = 3600
     static let automaticGoogleExplicitCacheMinTokenEstimate = 2048
 

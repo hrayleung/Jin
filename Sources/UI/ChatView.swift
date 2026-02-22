@@ -1831,7 +1831,7 @@ struct ChatView: View {
         case .gemini, .vertexai:
             return "Explicit mode requires a valid cached content resource name. Keep it stable across requests to reuse cached tokens."
         case .openai, .xai:
-            return "Use a stable cache key when your prompt prefix is consistent. Add a minimum token threshold to avoid caching short prompts."
+            return "Use a stable cache key when your prompt prefix is consistent."
         case .anthropic:
             return "For best results, keep system prompts and tool descriptions stable so Anthropic can reuse cacheable blocks."
         case .codexAppServer, .openaiCompatible, .openrouter, .perplexity, .groq, .cohere, .mistral, .deepinfra, .deepseek, .fireworks, .cerebras, .none:
@@ -1855,10 +1855,7 @@ struct ChatView: View {
 
         switch providerType {
         case .openai:
-            return ContextCacheControls(
-                mode: .implicit,
-                minTokensThreshold: ContextCacheUtilities.automaticOpenAIMinTokensThreshold
-            )
+            return ContextCacheControls(mode: .implicit)
         case .xai:
             return ContextCacheControls(
                 mode: .implicit,
@@ -4002,6 +3999,8 @@ struct ChatView: View {
             }
             if providerType != .openai && providerType != .xai {
                 cache.cacheKey = nil
+            }
+            if providerType != .xai {
                 cache.minTokensThreshold = nil
             }
             if providerType != .xai {
@@ -4520,12 +4519,9 @@ struct ChatView: View {
             return true
         }
 
-        if providerType == .openai || providerType == .xai {
+        if providerType == .xai {
             if let cacheKey = draft.cacheKey?.trimmingCharacters(in: .whitespacesAndNewlines),
                !cacheKey.isEmpty {
-                return true
-            }
-            if draft.minTokensThreshold != nil {
                 return true
             }
         }
@@ -4619,6 +4615,8 @@ struct ChatView: View {
 
         if providerType != .openai && providerType != .xai {
             draft.cacheKey = nil
+        }
+        if providerType != .xai {
             draft.minTokensThreshold = nil
         }
         if providerType != .xai {
@@ -5381,6 +5379,8 @@ struct ChatView: View {
                 }
                 if providerType != .openai && providerType != .xai {
                     contextCache.cacheKey = nil
+                }
+                if providerType != .xai {
                     contextCache.minTokensThreshold = nil
                 }
                 if providerType != .xai {
