@@ -3,11 +3,7 @@ import SwiftUI
 struct UpdateSettingsView: View {
     @EnvironmentObject private var updateManager: SparkleUpdateManager
 
-    @State private var isCheckingForUpdate = false
     @State private var checkError: String?
-
-    @AppStorage(AppPreferenceKeys.updateAutoCheckOnLaunch) private var autoCheckOnLaunch = true
-    @AppStorage(AppPreferenceKeys.updateAllowPreRelease) private var allowPreRelease = false
 
     private var currentVersion: String {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "Unknown"
@@ -32,32 +28,16 @@ struct UpdateSettingsView: View {
                     }
                 }
 
-                if isCheckingForUpdate {
-                    HStack(spacing: JinSpacing.small) {
-                        ProgressView()
-                            .controlSize(.small)
-                        Text("Checking for updates…")
-                            .font(.callout)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-
                 if let error = checkError {
                     Text(error)
                         .jinInlineErrorText()
                 }
 
-                Toggle("Check automatically on launch", isOn: $autoCheckOnLaunch)
-                    .onChange(of: autoCheckOnLaunch) { _, value in
-                        updateManager.setAutomaticallyChecksForUpdates(value)
-                    }
+                Toggle("Check automatically on launch", isOn: automaticallyChecksBinding)
 
-                Toggle("Include pre-release versions", isOn: $allowPreRelease)
-                    .onChange(of: allowPreRelease) { _, value in
-                        updateManager.setAllowsPreReleaseUpdates(value)
-                    }
+                Toggle("Include pre-release versions", isOn: preReleaseBinding)
 
-                if allowPreRelease {
+                if updateManager.allowPreRelease {
                     Text("Pre-release updates are delivered through the beta channel and may be unstable.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -69,7 +49,7 @@ struct UpdateSettingsView: View {
                     Label("Check for Updates", systemImage: "arrow.clockwise")
                 }
                 .buttonStyle(.borderedProminent)
-                .disabled(isCheckingForUpdate)
+                .disabled(!updateManager.canCheckForUpdates)
             }
         }
         .formStyle(.grouped)
@@ -77,9 +57,22 @@ struct UpdateSettingsView: View {
         .background(JinSemanticColor.detailSurface)
         .onAppear {
             checkError = nil
-            syncFromStorage()
-            syncFromUpdater()
+            updateManager.refreshPublishedProperties()
         }
+    }
+
+    private var automaticallyChecksBinding: Binding<Bool> {
+        Binding(
+            get: { updateManager.automaticallyChecksForUpdates },
+            set: { updateManager.setAutomaticallyChecksForUpdates($0) }
+        )
+    }
+
+    private var preReleaseBinding: Binding<Bool> {
+        Binding(
+            get: { updateManager.allowPreRelease },
+            set: { updateManager.setAllowsPreReleaseUpdates($0) }
+        )
     }
 
     private func runCheck() {
@@ -88,29 +81,7 @@ struct UpdateSettingsView: View {
             return
         }
 
-        isCheckingForUpdate = true
         checkError = nil
-
-        Task {
-            await MainActor.run {
-                updateManager.triggerManualCheck()
-                isCheckingForUpdate = false
-            }
-        }
-    }
-
-    private func syncFromStorage() {
-        if let value = UserDefaults.standard.object(forKey: AppPreferenceKeys.updateAutoCheckOnLaunch) as? Bool {
-            autoCheckOnLaunch = value
-        }
-
-        if let value = UserDefaults.standard.object(forKey: AppPreferenceKeys.updateAllowPreRelease) as? Bool {
-            allowPreRelease = value
-        }
-    }
-
-    private func syncFromUpdater() {
-        autoCheckOnLaunch = updateManager.automaticallyChecksForUpdates
-        allowPreRelease = updateManager.allowPreRelease
+        updateManager.triggerManualCheck()
     }
 }

@@ -252,7 +252,7 @@ enum GeneralSettingsCategory: String, CaseIterable, Identifiable {
         case .chat: return "Send behavior and background-completion notifications."
         case .shortcuts: return "Show and customize keyboard shortcuts."
         case .defaults: return "Model and MCP defaults for new chats."
-        case .updates: return "Sparkle checks updates from the appcast feed."
+        case .updates: return "Automatic updates and pre-release channel."
         case .data: return "Inspect and manage local chat data."
         }
     }

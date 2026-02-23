@@ -44,7 +44,7 @@ final class SparkleUpdateManager: NSObject, ObservableObject {
         refreshPublishedProperties()
     }
 
-    func setInitialStateFromStoredPreferences() {
+    private func setInitialStateFromStoredPreferences() {
         let autoCheck = objectBooleanValue(
             AppPreferenceKeys.updateAutoCheckOnLaunch,
             defaultValue: true
@@ -103,6 +103,7 @@ final class SparkleUpdateManager: NSObject, ObservableObject {
     }
 }
 
+@MainActor
 final class SparkleUpdaterDelegate: NSObject, SPUUpdaterDelegate {
     weak var owner: SparkleUpdateManager?
 

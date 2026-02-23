@@ -16,7 +16,7 @@ struct JinApp: App {
     @StateObject private var streamingStore = ConversationStreamingStore()
     @StateObject private var responseCompletionNotifier = ResponseCompletionNotifier()
     @StateObject private var shortcutsStore = AppShortcutsStore.shared
-    @StateObject private var updateManager = SparkleUpdateManager()
+    @StateObject private var updateManager: SparkleUpdateManager
 
     @AppStorage(AppPreferenceKeys.appAppearanceMode) private var appAppearanceMode: AppAppearanceMode = .system
     @AppStorage(AppPreferenceKeys.appFontFamily) private var appFontFamily = JinTypography.systemFontPreferenceValue
@@ -31,6 +31,7 @@ struct JinApp: App {
             AppPreferenceKeys.updateAutoCheckOnLaunch: true,
             AppPreferenceKeys.updateAllowPreRelease: false
         ])
+        _updateManager = StateObject(wrappedValue: SparkleUpdateManager())
         do {
             modelContainer = try ModelContainer(
                 for: ConversationEntity.self,
