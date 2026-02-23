@@ -16,6 +16,7 @@ struct JinApp: App {
     @StateObject private var streamingStore = ConversationStreamingStore()
     @StateObject private var responseCompletionNotifier = ResponseCompletionNotifier()
     @StateObject private var shortcutsStore = AppShortcutsStore.shared
+    @StateObject private var updateManager = SparkleUpdateManager()
 
     @AppStorage(AppPreferenceKeys.appAppearanceMode) private var appAppearanceMode: AppAppearanceMode = .system
     @AppStorage(AppPreferenceKeys.appFontFamily) private var appFontFamily = JinTypography.systemFontPreferenceValue
@@ -26,7 +27,9 @@ struct JinApp: App {
 
     init() {
         UserDefaults.standard.register(defaults: [
-            AppPreferenceKeys.notifyOnBackgroundResponseCompletion: true
+            AppPreferenceKeys.notifyOnBackgroundResponseCompletion: true,
+            AppPreferenceKeys.updateAutoCheckOnLaunch: true,
+            AppPreferenceKeys.updateAllowPreRelease: false
         ])
         do {
             modelContainer = try ModelContainer(
@@ -50,6 +53,7 @@ struct JinApp: App {
                 .environmentObject(streamingStore)
                 .environmentObject(responseCompletionNotifier)
                 .environmentObject(shortcutsStore)
+                .environmentObject(updateManager)
                 .font(JinTypography.appFont(familyPreference: appFontFamily))
                 .preferredColorScheme(preferredColorScheme)
                 .onAppear {
@@ -65,6 +69,7 @@ struct JinApp: App {
             SettingsView()
                 .environmentObject(responseCompletionNotifier)
                 .environmentObject(shortcutsStore)
+                .environmentObject(updateManager)
                 .font(JinTypography.appFont(familyPreference: appFontFamily))
                 .preferredColorScheme(preferredColorScheme)
         }

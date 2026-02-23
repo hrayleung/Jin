@@ -34,6 +34,10 @@
 	<true/>
 	<key>NSSupportsSuddenTermination</key>
 	<true/>
+	<key>SUFeedURL</key>
+	<string>https://hrayleung.github.io/Jin/appcast.xml</string>
+	<key>SUScheduledCheckInterval</key>
+	<integer>86400</integer>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Jin uses the microphone for speech-to-text dictation.</string>
 </dict>

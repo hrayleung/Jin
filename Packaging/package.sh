@@ -107,7 +107,7 @@ echo "Universal binary architectures: $universal_archs"
 BIN="$UNIVERSAL_BIN"
 
 echo "Creating .app bundle…"
-mkdir -p "$APP_BUNDLE/Contents/MacOS" "$APP_BUNDLE/Contents/Resources"
+mkdir -p "$APP_BUNDLE/Contents/MacOS" "$APP_BUNDLE/Contents/Resources" "$APP_BUNDLE/Contents/Frameworks"
 cp "$BIN" "$APP_BUNDLE/Contents/MacOS/$APP_NAME"
 chmod +x "$APP_BUNDLE/Contents/MacOS/$APP_NAME"
 cp "$ROOT/Packaging/Info.plist" "$APP_BUNDLE/Contents/Info.plist"
@@ -144,6 +144,31 @@ if [[ "$copied_bundle_count" -eq 0 ]]; then
   echo "Warning: no SwiftPM resource bundles found in release build outputs."
 fi
 
+echo "Embedding SwiftPM dynamic frameworks…"
+shopt -s nullglob
+embedded_framework_count=0
+for bundle_dir in "${BUILD_OUTPUT_DIRS[@]}"; do
+  for framework in "$bundle_dir"/*.framework; do
+    framework_name="$(basename "$framework")"
+    target_framework="$APP_BUNDLE/Contents/Frameworks/$framework_name"
+    # Framework payload is architecture-independent for our release build outputs; first copy wins.
+    if [[ -e "$target_framework" ]]; then
+      continue
+    fi
+    ditto "$framework" "$target_framework"
+    embedded_framework_count=$((embedded_framework_count + 1))
+  done
+done
+shopt -u nullglob
+
+if [[ "$embedded_framework_count" -gt 0 ]]; then
+  if ! otool -l "$APP_BUNDLE/Contents/MacOS/$APP_NAME" | grep -Fq "@executable_path/../Frameworks"; then
+    install_name_tool -add_rpath "@executable_path/../Frameworks" "$APP_BUNDLE/Contents/MacOS/$APP_NAME"
+  fi
+else
+  echo "Warning: no SwiftPM dynamic frameworks found in release build outputs."
+fi
+
 echo "Preparing for ad-hoc code signing…"
 chmod -R u+w "$APP_BUNDLE"
 xattr -cr "$APP_BUNDLE"
@@ -161,6 +186,10 @@ codesign --remove-signature "$APP_BUNDLE" >/dev/null 2>&1 || true
 echo "Code signing app bundle (identifier: $BUNDLE_ID)…"
 codesign --force --deep --sign - --identifier "$BUNDLE_ID" "$APP_BUNDLE"
 codesign --verify --deep --strict --verbose=2 "$APP_BUNDLE"
+
+ZIP_PATH="$DIST/$APP_NAME.zip"
+echo "Creating distributable zip: $ZIP_PATH"
+ditto -c -k --sequesterRsrc --keepParent "$APP_BUNDLE" "$ZIP_PATH"
 
 if [[ "${1-}" == "dmg" ]]; then
   echo "Creating .dmg…"
