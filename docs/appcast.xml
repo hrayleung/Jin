@@ -4,21 +4,12 @@
         <title>Jin</title>
         <item>
             <title>4.5</title>
-            <pubDate>Tue, 24 Feb 2026 00:12:57 +0800</pubDate>
+            <pubDate>Tue, 24 Feb 2026 00:27:38 +0800</pubDate>
             <link>https://github.com/hrayleung/Jin/releases</link>
-            <sparkle:version>175</sparkle:version>
+            <sparkle:version>176</sparkle:version>
             <sparkle:shortVersionString>4.5</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <enclosure url="https://github.com/hrayleung/Jin/releases/download/v4.5/Jin-v4.5.zip" length="22294254" type="application/octet-stream"/>
-        </item>
-        <item>
-            <title>4.4</title>
-            <pubDate>Mon, 23 Feb 2026 23:23:03 +0800</pubDate>
-            <link>https://github.com/hrayleung/Jin/releases</link>
-            <sparkle:version>173</sparkle:version>
-            <sparkle:shortVersionString>4.4</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <enclosure url="https://github.com/hrayleung/Jin/releases/download/v4.4/Jin-v4.4.zip" length="22290582" type="application/octet-stream"/>
+            <enclosure url="https://github.com/hrayleung/Jin/releases/download/v4.5/Jin-v4.5.zip" length="22294308" type="application/octet-stream" sparkle:edSignature="HqSytnJD0Lq3STSFIj/cDmKEgWzbhjm52AFfRsNpZtOSgyjTEZ33+KK2CMWBoQUVoUgIRIQT5gSDf64wOTB3Bw=="/>
         </item>
     </channel>
 </rss>

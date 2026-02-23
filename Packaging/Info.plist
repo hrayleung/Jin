@@ -36,6 +36,8 @@
 	<true/>
 	<key>SUFeedURL</key>
 	<string>https://hrayleung.github.io/Jin/appcast.xml</string>
+	<key>SUPublicEDKey</key>
+	<string>B9AL6+ZfmC9TnDdOLJa9rmQ3dezWN5CWehVOH996H/g=</string>
 	<key>SUScheduledCheckInterval</key>
 	<integer>86400</integer>
 	<key>NSMicrophoneUsageDescription</key>
