@@ -81,7 +81,9 @@ actor FireworksAdapter: LLMProviderAdapter {
     // MARK: - Private
 
     private var baseURL: String {
-        providerConfig.baseURL ?? "https://api.fireworks.ai/inference/v1"
+        let raw = (providerConfig.baseURL ?? "https://api.fireworks.ai/inference/v1")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return raw.hasSuffix("/") ? String(raw.dropLast()) : raw
     }
 
     private func buildRequest(

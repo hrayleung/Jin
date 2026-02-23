@@ -105,17 +105,10 @@ actor DeepSeekAdapter: LLMProviderAdapter {
     private func chatCompletionsURL(for modelID: String) throws -> URL {
         let lower = modelID.lowercased()
         if isDefaultHost, lower.contains("v3.2-exp") {
-            return try requireURL("\(baseURLRoot)/beta/chat/completions")
+            return try validatedURL("\(baseURLRoot)/beta/chat/completions")
         }
 
-        return try requireURL("\(baseURLRoot)/v1/chat/completions")
-    }
-
-    private func requireURL(_ raw: String) throws -> URL {
-        guard let url = URL(string: raw) else {
-            throw LLMError.invalidRequest(message: "Invalid DeepSeek base URL.")
-        }
-        return url
+        return try validatedURL("\(baseURLRoot)/v1/chat/completions")
     }
 
     private func buildRequest(

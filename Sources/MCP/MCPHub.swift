@@ -15,6 +15,9 @@ struct ToolRouteSnapshot: Sendable {
 
 actor MCPHub {
     static let shared = MCPHub()
+    static let functionNameSeparator = "__"
+    static let functionNameMaxLength = 64
+    private static let functionNameShortServerIDLength = 8
 
     private var clients: [String: MCPClient] = [:]
     private var clientConfigs: [String: MCPServerConfig] = [:]
@@ -133,7 +136,7 @@ actor MCPHub {
         // Collision — append incrementing suffix until unique.
         for suffix in 2...99 {
             let suffixStr = "_\(suffix)"
-            let maxBase = 64 - suffixStr.count
+            let maxBase = functionNameMaxLength - suffixStr.count
             let base = candidate.count > maxBase ? String(candidate.prefix(maxBase)) : candidate
             let disambiguated = "\(base)\(suffixStr)"
             if existing[disambiguated] == nil {
@@ -142,26 +145,26 @@ actor MCPHub {
         }
         // Extremely unlikely fallback — still enforce 64-char limit
         let uuidSuffix = "_\(UUID().uuidString.prefix(4))"
-        let maxBase = 64 - uuidSuffix.count
+        let maxBase = functionNameMaxLength - uuidSuffix.count
         let base = candidate.count > maxBase ? String(candidate.prefix(maxBase)) : candidate
         return "\(base)\(uuidSuffix)"
     }
 
-    private static func makeFunctionName(serverID: String, toolName: String) -> String {
-        let raw = "\(serverID)__\(toolName)"
-        if raw.count <= 64 {
+    static func makeFunctionName(serverID: String, toolName: String) -> String {
+        let raw = "\(serverID)\(functionNameSeparator)\(toolName)"
+        if raw.count <= functionNameMaxLength {
             return raw
         }
 
-        let shortID = String(serverID.prefix(8))
-        let shortened = "\(shortID)__\(toolName)"
-        if shortened.count <= 64 {
+        let shortID = String(serverID.prefix(functionNameShortServerIDLength))
+        let shortened = "\(shortID)\(functionNameSeparator)\(toolName)"
+        if shortened.count <= functionNameMaxLength {
             return shortened
         }
 
-        let remaining = max(1, 64 - (shortID.count + 2))
+        let remaining = max(1, functionNameMaxLength - (shortID.count + functionNameSeparator.count))
         let truncatedToolName = String(toolName.prefix(remaining))
-        return "\(shortID)__\(truncatedToolName)"
+        return "\(shortID)\(functionNameSeparator)\(truncatedToolName)"
     }
 
     struct ToolRoute: Sendable {
