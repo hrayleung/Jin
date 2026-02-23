@@ -61,6 +61,14 @@ struct StreamingMessageView: View {
                             )
                         }
 
+                        if !state.streamingToolCalls.isEmpty {
+                            MCPToolTimelineView(
+                                toolCalls: state.streamingToolCalls,
+                                toolResultsByCallID: state.toolResultsByCallID,
+                                isStreaming: true
+                            )
+                        }
+
                         if !state.thinkingChunks.isEmpty {
                             DisclosureGroup(isExpanded: .constant(true)) {
                                 ChunkedTextView(
@@ -84,7 +92,7 @@ struct StreamingMessageView: View {
 
                         if !state.textChunks.isEmpty {
                             MarkdownWebRenderer(markdownText: state.textContent, isStreaming: true)
-                        } else if state.thinkingChunks.isEmpty && state.searchActivities.isEmpty {
+                        } else if state.thinkingChunks.isEmpty && state.searchActivities.isEmpty && state.streamingToolCalls.isEmpty {
                             HStack(spacing: 6) {
                                 ProgressView().scaleEffect(0.5)
                                 Text("Generating...")
@@ -134,6 +142,8 @@ final class StreamingMessageState: ObservableObject {
     @Published private(set) var textChunks: [String] = []
     @Published private(set) var thinkingChunks: [String] = []
     @Published private(set) var searchActivities: [SearchActivity] = []
+    @Published private(set) var streamingToolCalls: [ToolCall] = []
+    @Published private(set) var toolResultsByCallID: [String: ToolResult] = [:]
     @Published private(set) var renderTick: Int = 0
     @Published private(set) var hasVisibleText: Bool = false
 
@@ -151,6 +161,8 @@ final class StreamingMessageState: ObservableObject {
         textChunks = []
         thinkingChunks = []
         searchActivities = []
+        streamingToolCalls = []
+        toolResultsByCallID = [:]
         searchActivitiesByID = [:]
         searchActivityOrder = []
         hasVisibleText = false
@@ -199,6 +211,18 @@ final class StreamingMessageState: ObservableObject {
             searchActivitiesByID[activity.id] = activity
         }
         searchActivities = searchActivityOrder.compactMap { searchActivitiesByID[$0] }
+        renderTick &+= 1
+    }
+
+    func setToolCalls(_ toolCalls: [ToolCall]) {
+        streamingToolCalls = toolCalls
+        toolResultsByCallID = [:]
+        renderTick &+= 1
+    }
+
+    func upsertToolResult(_ result: ToolResult) {
+        guard streamingToolCalls.contains(where: { $0.id == result.toolCallID }) else { return }
+        toolResultsByCallID[result.toolCallID] = result
         renderTick &+= 1
     }
 

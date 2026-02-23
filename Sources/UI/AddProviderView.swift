@@ -180,6 +180,7 @@ struct AddMCPServerView: View {
 
     @State private var id = ""
     @State private var name = ""
+    @State private var iconID: String?
     @State private var transportKind: MCPTransportKind = .stdio
 
     @State private var command = ""
@@ -259,6 +260,10 @@ struct AddMCPServerView: View {
                     TextField("ID", text: $id)
                         .help("Short identifier (e.g. 'git').")
                     TextField("Name", text: $name)
+                    MCPIconPickerField(
+                        selectedIconID: $iconID,
+                        defaultIconID: MCPIconCatalog.defaultIconID
+                    )
 
                     Picker("Transport", selection: $transportKind) {
                         Text("Command-line (stdio)").tag(MCPTransportKind.stdio)
@@ -523,11 +528,20 @@ struct AddMCPServerView: View {
         let trimmedID = id.trimmingCharacters(in: .whitespacesAndNewlines)
         let serverID = trimmedID.isEmpty ? UUID().uuidString : trimmedID
         let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedIconID = iconID?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalizedIconID: String? = {
+            guard let trimmedIconID, !trimmedIconID.isEmpty else { return nil }
+            if trimmedIconID.caseInsensitiveCompare(MCPIconCatalog.defaultIconID) == .orderedSame {
+                return nil
+            }
+            return trimmedIconID
+        }()
         let transportData = (try? JSONEncoder().encode(transport)) ?? Data()
 
         let server = MCPServerConfigEntity(
             id: serverID,
             name: trimmedName,
+            iconID: normalizedIconID,
             transportKindRaw: transport.kind.rawValue,
             transportData: transportData,
             lifecycleRaw: MCPLifecyclePolicy.persistent.rawValue,

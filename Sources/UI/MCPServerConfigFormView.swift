@@ -73,6 +73,22 @@ struct MCPServerConfigFormView: View {
 
             TextField("Name", text: $server.name)
                 .onChange(of: server.name) { _, _ in try? modelContext.save() }
+            MCPIconPickerField(
+                selectedIconID: Binding(
+                    get: { server.iconID },
+                    set: { newValue in
+                        let trimmed = newValue?.trimmingCharacters(in: .whitespacesAndNewlines)
+                        if let trimmed, !trimmed.isEmpty,
+                           trimmed.caseInsensitiveCompare(MCPIconCatalog.defaultIconID) != .orderedSame {
+                            server.iconID = trimmed
+                        } else {
+                            server.iconID = nil
+                        }
+                        try? modelContext.save()
+                    }
+                ),
+                defaultIconID: MCPIconCatalog.defaultIconID
+            )
             TextField("ID", text: $server.id)
                 .font(.system(.body, design: .monospaced))
                 .textSelection(.enabled)

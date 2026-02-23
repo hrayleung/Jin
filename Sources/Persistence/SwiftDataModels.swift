@@ -307,6 +307,7 @@ final class ProviderConfigEntity {
 final class MCPServerConfigEntity {
     @Attribute(.unique) var id: String
     var name: String
+    var iconID: String?
     // Legacy stdio fields kept for schema stability.
     var command: String
     var argsData: Data
@@ -323,6 +324,7 @@ final class MCPServerConfigEntity {
     init(
         id: String,
         name: String,
+        iconID: String? = nil,
         command: String = "",
         argsData: Data = Data(),
         envData: Data? = nil,
@@ -336,6 +338,7 @@ final class MCPServerConfigEntity {
     ) {
         self.id = id
         self.name = name
+        self.iconID = iconID
         self.command = command
         self.argsData = argsData
         self.envData = envData
