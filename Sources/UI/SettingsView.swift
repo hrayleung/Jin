@@ -7,6 +7,7 @@ import AppKit
 
 struct SettingsView: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Query private var conversations: [ConversationEntity]
 
     private enum SettingsSection: String, CaseIterable, Identifiable {
@@ -39,37 +40,37 @@ struct SettingsView: View {
             id: "text_to_speech",
             name: "Text to Speech",
             systemImage: "speaker.wave.2",
-            summary: "Play assistant messages aloud (ElevenLabs, OpenAI, Groq)."
+            summary: "Play assistant replies aloud."
         ),
         PluginDescriptor(
             id: "speech_to_text",
             name: "Speech to Text",
             systemImage: "mic",
-            summary: "Dictate messages via transcription (Groq, OpenAI)."
+            summary: "Dictate messages by voice."
         ),
         PluginDescriptor(
             id: "mistral_ocr",
             name: "Mistral OCR",
             systemImage: "doc.text.magnifyingglass",
-            summary: "OCR PDFs for models without native PDF support."
+            summary: "OCR PDFs when native PDF isn't available."
         ),
         PluginDescriptor(
             id: "deepseek_ocr",
-            name: "DeepSeek OCR (DeepInfra)",
+            name: "DeepSeek OCR",
             systemImage: "doc.text.magnifyingglass",
-            summary: "OCR PDFs via DeepInfra-hosted DeepSeek-OCR."
+            summary: "OCR PDFs using DeepInfra-hosted DeepSeek."
         ),
         PluginDescriptor(
             id: "chat_naming",
             name: "Chat Naming",
             systemImage: "text.bubble",
-            summary: "Name chats automatically via a selected model."
+            summary: "Auto-name chats with a selected model."
         ),
         PluginDescriptor(
             id: "cloudflare_r2_upload",
             name: "Cloudflare R2 Upload",
             systemImage: "externaldrive.badge.icloud",
-            summary: "Upload local videos to R2 and send public URLs to providers."
+            summary: "Upload local videos to R2 for remote video URLs."
         )
     ]
 
@@ -135,10 +136,96 @@ struct SettingsView: View {
         }
     }
 
+    private var settingsMotionAnimation: Animation? {
+        reduceMotion ? nil : .easeInOut(duration: 0.2)
+    }
+
+    private var pluginSelectionAnimation: Animation? {
+        settingsMotionAnimation
+    }
+
+    private var settingsColumnTransition: AnyTransition {
+        guard !reduceMotion else { return .identity }
+        return .asymmetric(
+            insertion: .opacity.combined(with: .offset(y: 4)),
+            removal: .opacity.combined(with: .offset(y: -2))
+        )
+    }
+
+    private var detailSelectionKey: String {
+        switch selectedSection {
+        case .providers:
+            return "providers:\(selectedProviderID ?? "")"
+        case .mcpServers:
+            return "mcp:\(selectedServerID ?? "")"
+        case .plugins:
+            return "plugins:\(selectedPluginID ?? "")"
+        case .general:
+            return "general:\(selectedGeneralCategory?.rawValue ?? "")"
+        case .none:
+            return "none"
+        }
+    }
+
+    private var animatedSelectedSection: Binding<SettingsSection?> {
+        Binding(
+            get: { selectedSection },
+            set: { newValue in
+                withAnimation(settingsMotionAnimation) {
+                    selectedSection = newValue
+                }
+            }
+        )
+    }
+
+    private var animatedSelectedProviderID: Binding<String?> {
+        Binding(
+            get: { selectedProviderID },
+            set: { newValue in
+                withAnimation(settingsMotionAnimation) {
+                    selectedProviderID = newValue
+                }
+            }
+        )
+    }
+
+    private var animatedSelectedServerID: Binding<String?> {
+        Binding(
+            get: { selectedServerID },
+            set: { newValue in
+                withAnimation(settingsMotionAnimation) {
+                    selectedServerID = newValue
+                }
+            }
+        )
+    }
+
+    private var animatedSelectedPluginID: Binding<String?> {
+        Binding(
+            get: { selectedPluginID },
+            set: { newValue in
+                withAnimation(settingsMotionAnimation) {
+                    selectedPluginID = newValue
+                }
+            }
+        )
+    }
+
+    private var animatedSelectedGeneralCategory: Binding<GeneralSettingsCategory?> {
+        Binding(
+            get: { selectedGeneralCategory },
+            set: { newValue in
+                withAnimation(settingsMotionAnimation) {
+                    selectedGeneralCategory = newValue
+                }
+            }
+        )
+    }
+
     var body: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
             // Column 1: Navigation Sidebar
-            List(SettingsSection.allCases, selection: $selectedSection) { section in
+            List(SettingsSection.allCases, selection: animatedSelectedSection) { section in
                 NavigationLink(value: section) {
                     Label(section.rawValue, systemImage: section.systemImage)
                 }
@@ -163,14 +250,19 @@ struct SettingsView: View {
                 switch selectedSection {
                 case .providers:
                     providersListWithActions
+                        .transition(settingsColumnTransition)
                 case .mcpServers:
                     mcpServersListWithActions
+                        .transition(settingsColumnTransition)
                 case .plugins:
                     pluginsList
+                        .transition(settingsColumnTransition)
                 case .general, .none:
                     generalCategoriesList
+                        .transition(settingsColumnTransition)
                 }
             }
+            .animation(settingsMotionAnimation, value: selectedSection)
             .background {
                 JinSemanticColor.panelSurface
                     .ignoresSafeArea()
@@ -180,7 +272,7 @@ struct SettingsView: View {
                     .fill(JinSemanticColor.separator.opacity(0.4))
                     .frame(width: JinStrokeWidth.hairline)
             }
-            .navigationSplitViewColumnWidth(min: 220, ideal: 250, max: 300)
+            .navigationSplitViewColumnWidth(min: 220, ideal: 280, max: 340)
 
         } detail: {
             // Column 3: Configuration / Detail
@@ -190,64 +282,83 @@ struct SettingsView: View {
                     if let id = selectedProviderID, let provider = providers.first(where: { $0.id == id }) {
                         ProviderConfigFormView(provider: provider)
                             .id(id) // Force refresh
+                            .transition(settingsColumnTransition)
                     } else {
                         ContentUnavailableView("Select a Provider", systemImage: "network")
+                            .transition(settingsColumnTransition)
                     }
                 case .mcpServers:
                     if let id = selectedServerID, let server = mcpServers.first(where: { $0.id == id }) {
                         MCPServerConfigFormView(server: server)
                             .id(id)
+                            .transition(settingsColumnTransition)
                     } else {
                         ContentUnavailableView("Select an MCP Server", systemImage: "server.rack")
+                            .transition(settingsColumnTransition)
                     }
                 case .plugins:
                     switch selectedPluginID {
                     case "mistral_ocr":
                         MistralOCRPluginSettingsView()
                             .id("mistral_ocr")
+                            .transition(settingsColumnTransition)
                     case "deepseek_ocr":
                         DeepSeekOCRPluginSettingsView()
                             .id("deepseek_ocr")
+                            .transition(settingsColumnTransition)
                     case "text_to_speech":
                         TextToSpeechPluginSettingsView()
                             .id("text_to_speech")
+                            .transition(settingsColumnTransition)
                     case "speech_to_text":
                         SpeechToTextPluginSettingsView()
                             .id("speech_to_text")
+                            .transition(settingsColumnTransition)
                     case "chat_naming":
                         ChatNamingPluginSettingsView()
                             .id("chat_naming")
+                            .transition(settingsColumnTransition)
                     case "cloudflare_r2_upload":
                         CloudflareR2UploadPluginSettingsView()
                             .id("cloudflare_r2_upload")
+                            .transition(settingsColumnTransition)
                     default:
                         ContentUnavailableView("Select a Plugin", systemImage: "puzzlepiece.extension")
+                            .transition(settingsColumnTransition)
                     }
                 case .general, .none:
                     switch selectedGeneralCategory {
                     case .appearance:
                         AppearanceSettingsView()
                             .id("appearance")
+                            .transition(settingsColumnTransition)
                     case .chat:
                         ChatSettingsView()
                             .id("chat")
+                            .transition(settingsColumnTransition)
                     case .shortcuts:
                         KeyboardShortcutsSettingsView()
                             .id("shortcuts")
+                            .transition(settingsColumnTransition)
                     case .defaults:
                         DefaultsSettingsView()
                             .id("defaults")
+                            .transition(settingsColumnTransition)
                     case .updates:
                         UpdateSettingsView()
                             .id("updates")
+                            .transition(settingsColumnTransition)
                     case .data:
                         DataSettingsView()
                             .id("data")
+                            .transition(settingsColumnTransition)
                     case nil:
                         ContentUnavailableView("Select a Category", systemImage: "gearshape")
+                            .transition(settingsColumnTransition)
                     }
                 }
             }
+            .animation(settingsMotionAnimation, value: detailSelectionKey)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background {
                 JinSemanticColor.detailSurface
@@ -331,7 +442,7 @@ struct SettingsView: View {
 
     // MARK: - Providers List
     private var providersList: some View {
-        List(filteredProviders, selection: $selectedProviderID) { provider in
+        List(filteredProviders, selection: animatedSelectedProviderID) { provider in
             NavigationLink(value: provider.id) {
                 HStack(spacing: JinSpacing.small + 2) {
                     ProviderIconView(iconID: provider.resolvedProviderIconID, fallbackSystemName: "network", size: 14)
@@ -372,7 +483,7 @@ struct SettingsView: View {
     }
 
     private var generalCategoriesList: some View {
-        List(GeneralSettingsCategory.allCases, selection: $selectedGeneralCategory) { category in
+        List(GeneralSettingsCategory.allCases, selection: animatedSelectedGeneralCategory) { category in
             NavigationLink(value: category) {
                 HStack(spacing: JinSpacing.small + 2) {
                     Image(systemName: category.systemImage)
@@ -402,7 +513,9 @@ struct SettingsView: View {
 
     // MARK: - Plugins List
     private var pluginsList: some View {
-        List(filteredPlugins, selection: $selectedPluginID) { plugin in
+        List(filteredPlugins, selection: animatedSelectedPluginID) { plugin in
+            let isSelected = selectedPluginID == plugin.id
+
             HStack(spacing: JinSpacing.small + 2) {
                 Image(systemName: plugin.systemImage)
                     .font(.system(size: 14, weight: .medium))
@@ -410,18 +523,14 @@ struct SettingsView: View {
                     .frame(width: 20, height: 20)
                     .jinSurface(.outlined, cornerRadius: JinRadius.small)
 
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(plugin.name)
-                        .font(.system(.body, design: .default))
-                        .fontWeight(.medium)
-                        .lineLimit(1)
-
-                    Text(plugin.summary)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(2)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
+                Text(plugin.name)
+                    .font(.system(.body, design: .default))
+                    .fontWeight(.medium)
+                    .lineLimit(isSelected ? nil : 1)
+                    .truncationMode(.tail)
+                    .fixedSize(horizontal: false, vertical: isSelected)
+                    .layoutPriority(1)
+                    .animation(pluginSelectionAnimation, value: isSelected)
 
                 Spacer(minLength: JinSpacing.small)
 
@@ -434,9 +543,9 @@ struct SettingsView: View {
             }
             .padding(.vertical, JinSpacing.xSmall)
             .contentShape(Rectangle())
-            .help(plugin.summary)
             .onTapGesture {
-                selectedPluginID = plugin.id
+                guard selectedPluginID != plugin.id else { return }
+                animatedSelectedPluginID.wrappedValue = plugin.id
             }
             .tag(plugin.id)
         }
@@ -502,7 +611,7 @@ struct SettingsView: View {
 
     // MARK: - MCP Servers List
     private var mcpServersList: some View {
-        List(filteredMCPServers, selection: $selectedServerID) { server in
+        List(filteredMCPServers, selection: animatedSelectedServerID) { server in
             NavigationLink(value: server.id) {
                 HStack(spacing: JinSpacing.small + 2) {
                     Circle()
