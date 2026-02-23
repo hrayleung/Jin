@@ -259,7 +259,7 @@ actor OpenAIAdapter: LLMProviderAdapter {
 
         if reasoningEnabled, let effort = reasoningEffort {
             var reasoningDict: [String: Any] = [
-                "effort": mapReasoningEffort(effort)
+                "effort": mapReasoningEffort(effort, modelID: modelID)
             ]
 
             // Add summary control if specified
@@ -333,8 +333,14 @@ actor OpenAIAdapter: LLMProviderAdapter {
         return out
     }
 
-    private func mapReasoningEffort(_ effort: ReasoningEffort) -> String {
-        switch effort {
+    private func mapReasoningEffort(_ effort: ReasoningEffort, modelID: String) -> String {
+        let normalized = ModelCapabilityRegistry.normalizedReasoningEffort(
+            effort,
+            for: providerConfig.type,
+            modelID: modelID
+        )
+
+        switch normalized {
         case .none:
             return "none"
         case .minimal, .low:

@@ -131,16 +131,39 @@ final class ModelSettingsResolverTests: XCTestCase {
         XCTAssertEqual(claude?.type, .effort)
     }
 
-    func testOpenAIStyleExtremeEffortSupportFollowsModelID() {
-        let gpt52 = ModelInfo(
-            id: "openai/gpt-5.2",
-            name: "GPT-5.2",
+    func testOpenAIStyleExtremeEffortSupportUsesExactModelIDs() {
+        let gpt52pro = ModelInfo(
+            id: "openai/gpt-5.2-pro",
+            name: "GPT-5.2 Pro",
             capabilities: [.streaming, .reasoning],
             contextWindow: 128_000,
             reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
             isEnabled: true
         )
-
+        let gpt52codex = ModelInfo(
+            id: "openai/gpt-5.2-codex",
+            name: "GPT-5.2 Codex",
+            capabilities: [.streaming, .reasoning],
+            contextWindow: 128_000,
+            reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+            isEnabled: true
+        )
+        let gpt53codexSpark = ModelInfo(
+            id: "openai/gpt-5.3-codex-spark",
+            name: "GPT-5.3 Codex Spark",
+            capabilities: [.streaming, .reasoning],
+            contextWindow: 128_000,
+            reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+            isEnabled: true
+        )
+        let gpt52custom = ModelInfo(
+            id: "openai/gpt-5.2-custom",
+            name: "GPT-5.2 Custom",
+            capabilities: [.streaming, .reasoning],
+            contextWindow: 128_000,
+            reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+            isEnabled: true
+        )
         let gpt5 = ModelInfo(
             id: "openai/gpt-5",
             name: "GPT-5",
@@ -150,8 +173,26 @@ final class ModelSettingsResolverTests: XCTestCase {
             isEnabled: true
         )
 
-        XCTAssertTrue(ModelSettingsResolver.resolve(model: gpt52, providerType: .openrouter).supportsOpenAIStyleExtremeEffort)
+        XCTAssertTrue(ModelSettingsResolver.resolve(model: gpt52pro, providerType: .openrouter).supportsOpenAIStyleExtremeEffort)
+        XCTAssertTrue(ModelSettingsResolver.resolve(model: gpt52codex, providerType: .openrouter).supportsOpenAIStyleExtremeEffort)
+        XCTAssertTrue(ModelSettingsResolver.resolve(model: gpt53codexSpark, providerType: .openrouter).supportsOpenAIStyleExtremeEffort)
+        XCTAssertFalse(ModelSettingsResolver.resolve(model: gpt52custom, providerType: .openrouter).supportsOpenAIStyleExtremeEffort)
         XCTAssertFalse(ModelSettingsResolver.resolve(model: gpt5, providerType: .openrouter).supportsOpenAIStyleExtremeEffort)
+    }
+
+    func testReasoningEffortNormalizationClampsUnsupportedExtreme() {
+        XCTAssertEqual(
+            ModelCapabilityRegistry.normalizedReasoningEffort(.xhigh, for: .openrouter, modelID: "openai/gpt-5"),
+            .high
+        )
+        XCTAssertEqual(
+            ModelCapabilityRegistry.normalizedReasoningEffort(.xhigh, for: .openrouter, modelID: "openai/gpt-5.2-pro"),
+            .xhigh
+        )
+        XCTAssertEqual(
+            ModelCapabilityRegistry.normalizedReasoningEffort(.xhigh, for: .openrouter, modelID: "openai/gpt-5.3-codex-spark"),
+            .xhigh
+        )
     }
 
     func testResolverSupportsExplicitReasoningDisableOverride() {

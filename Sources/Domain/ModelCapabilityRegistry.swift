@@ -8,6 +8,29 @@ enum ModelRequestShape {
 }
 
 enum ModelCapabilityRegistry {
+    private static let openAIStyleExtremeEffortModelIDs: Set<String> = [
+        "gpt-5.2",
+        "gpt-5.2-2025-12-11",
+        "gpt-5.2-codex",
+        "gpt-5.2-pro",
+        "gpt-5.3-codex-spark",
+    ]
+
+    private static let gemini3ProEffortModelIDs: Set<String> = [
+        "gemini-3-pro",
+        "gemini-3-pro-preview",
+        "gemini-3.1-pro-preview",
+    ]
+
+    private static let reasoningEffortRank: [ReasoningEffort: Int] = [
+        .none: 0,
+        .minimal: 1,
+        .low: 2,
+        .medium: 3,
+        .high: 4,
+        .xhigh: 5,
+    ]
+
     static func requestShape(for providerType: ProviderType?, modelID: String) -> ModelRequestShape {
         switch providerType {
         case .openai:
@@ -34,7 +57,69 @@ enum ModelCapabilityRegistry {
         guard supportsOpenAIStyleReasoningEffort(for: providerType, modelID: modelID) else {
             return false
         }
-        return modelID.lowercased().contains("gpt-5.2")
+        let canonicalLowerModelID = canonicalOpenAIModelID(lowerModelID: modelID.lowercased())
+        return openAIStyleExtremeEffortModelIDs.contains(canonicalLowerModelID)
+    }
+
+    static func supportedReasoningEfforts(for providerType: ProviderType?, modelID: String) -> [ReasoningEffort] {
+        let lowerModelID = modelID.lowercased()
+
+        switch providerType {
+        case .vertexai, .perplexity:
+            return [.minimal, .low, .medium, .high]
+        case .gemini:
+            if gemini3ProEffortModelIDs.contains(lowerModelID) {
+                return [.low, .high]
+            }
+            return [.minimal, .low, .medium, .high]
+        default:
+            break
+        }
+
+        if supportsOpenAIStyleReasoningEffort(for: providerType, modelID: modelID) {
+            var efforts: [ReasoningEffort] = [.low, .medium, .high]
+            if supportsOpenAIStyleExtremeEffort(for: providerType, modelID: modelID) {
+                efforts.append(.xhigh)
+            }
+            return efforts
+        }
+
+        return [.low, .medium, .high]
+    }
+
+    static func normalizedReasoningEffort(
+        _ effort: ReasoningEffort,
+        for providerType: ProviderType?,
+        modelID: String
+    ) -> ReasoningEffort {
+        guard effort != .none else { return .none }
+
+        let supportedEfforts = supportedReasoningEfforts(for: providerType, modelID: modelID)
+        guard !supportedEfforts.isEmpty else { return effort }
+        if supportedEfforts.contains(effort) {
+            return effort
+        }
+
+        guard let targetRank = reasoningEffortRank[effort] else {
+            return supportedEfforts.last ?? effort
+        }
+
+        var best: (effort: ReasoningEffort, distance: Int, rank: Int)?
+        for candidate in supportedEfforts {
+            guard let candidateRank = reasoningEffortRank[candidate] else { continue }
+            let distance = abs(candidateRank - targetRank)
+
+            if let currentBest = best {
+                if distance < currentBest.distance
+                    || (distance == currentBest.distance && candidateRank > currentBest.rank) {
+                    best = (candidate, distance, candidateRank)
+                }
+            } else {
+                best = (candidate, distance, candidateRank)
+            }
+        }
+
+        return best?.effort ?? supportedEfforts.last ?? effort
     }
 
     static func supportsWebSearch(for providerType: ProviderType?, modelID: String) -> Bool {
@@ -208,6 +293,13 @@ enum ModelCapabilityRegistry {
             return true
         }
         return false
+    }
+
+    private static func canonicalOpenAIModelID(lowerModelID: String) -> String {
+        if lowerModelID.hasPrefix("openai/") {
+            return String(lowerModelID.dropFirst("openai/".count))
+        }
+        return lowerModelID
     }
 
     /// Models that support the `web_search_20260209` tool with dynamic filtering.

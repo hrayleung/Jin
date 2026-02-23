@@ -30,6 +30,12 @@ struct ModelSettingsSheet: View {
 
         let resolved = ModelSettingsResolver.resolve(model: model, providerType: providerType)
         let resolvedReasoning = resolved.reasoningConfig
+        let initialEffort = resolvedReasoning?.defaultEffort ?? .medium
+        let normalizedInitialEffort = ModelCapabilityRegistry.normalizedReasoningEffort(
+            initialEffort,
+            for: providerType,
+            modelID: model.id
+        )
 
         _modelType = State(initialValue: resolved.modelType)
         _contextWindowText = State(initialValue: "\(resolved.contextWindow)")
@@ -37,7 +43,7 @@ struct ModelSettingsSheet: View {
         _capabilities = State(initialValue: resolved.capabilities)
         _reasoningEnabled = State(initialValue: resolvedReasoning?.type != ReasoningConfigType.none && resolvedReasoning != nil)
         _reasoningType = State(initialValue: resolvedReasoning?.type ?? .effort)
-        _reasoningEffort = State(initialValue: resolvedReasoning?.defaultEffort ?? .medium)
+        _reasoningEffort = State(initialValue: normalizedInitialEffort)
         _reasoningBudgetText = State(initialValue: resolvedReasoning?.defaultBudget.map(String.init) ?? "")
         _reasoningCanDisable = State(initialValue: resolved.reasoningCanDisable)
         _webSearchSupported = State(initialValue: resolved.supportsWebSearch)
@@ -83,11 +89,9 @@ struct ModelSettingsSheet: View {
 
                         if reasoningType == .effort {
                             Picker("Default effort", selection: $reasoningEffort) {
-                                Text("Minimal").tag(ReasoningEffort.minimal)
-                                Text("Low").tag(ReasoningEffort.low)
-                                Text("Medium").tag(ReasoningEffort.medium)
-                                Text("High").tag(ReasoningEffort.high)
-                                Text("Extreme").tag(ReasoningEffort.xhigh)
+                                ForEach(availableReasoningEffortLevels, id: \.self) { effort in
+                                    Text(effort.displayName).tag(effort)
+                                }
                             }
                         } else if reasoningType == .budget {
                             TextField("Default budget tokens", text: $reasoningBudgetText)
@@ -158,6 +162,13 @@ struct ModelSettingsSheet: View {
         )
     }
 
+    private var availableReasoningEffortLevels: [ReasoningEffort] {
+        ModelCapabilityRegistry.supportedReasoningEfforts(
+            for: providerType,
+            modelID: model.id
+        )
+    }
+
     private func save() {
         guard let contextWindow = parsedPositiveInt(from: contextWindowText) else {
             validationError = "Context length must be a positive integer."
@@ -192,7 +203,12 @@ struct ModelSettingsSheet: View {
         if reasoningEnabled {
             switch reasoningType {
             case .effort:
-                reasoningConfig = ModelReasoningConfig(type: .effort, defaultEffort: reasoningEffort)
+                let normalizedEffort = ModelCapabilityRegistry.normalizedReasoningEffort(
+                    reasoningEffort,
+                    for: providerType,
+                    modelID: model.id
+                )
+                reasoningConfig = ModelReasoningConfig(type: .effort, defaultEffort: normalizedEffort)
             case .budget:
                 guard let budget = parsedPositiveInt(from: reasoningBudgetText) else {
                     validationError = "Reasoning budget must be a positive integer."
