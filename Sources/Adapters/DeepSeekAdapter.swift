@@ -52,7 +52,7 @@ actor DeepSeekAdapter: LLMProviderAdapter {
     }
 
     func validateAPIKey(_ key: String) async throws -> Bool {
-        var request = URLRequest(url: URL(string: "\(baseURLRoot)/v1/models")!)
+        var request = URLRequest(url: try validatedURL("\(baseURLRoot)/v1/models"))
         request.httpMethod = "GET"
         request.addValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
         request.addValue("application/json", forHTTPHeaderField: "Accept")
@@ -67,7 +67,7 @@ actor DeepSeekAdapter: LLMProviderAdapter {
     }
 
     func fetchAvailableModels() async throws -> [ModelInfo] {
-        var request = URLRequest(url: URL(string: "\(baseURLRoot)/v1/models")!)
+        var request = URLRequest(url: try validatedURL("\(baseURLRoot)/v1/models"))
         request.httpMethod = "GET"
         request.addValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
         request.addValue("application/json", forHTTPHeaderField: "Accept")

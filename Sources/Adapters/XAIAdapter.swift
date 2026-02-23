@@ -69,7 +69,7 @@ actor XAIAdapter: LLMProviderAdapter {
     }
 
     func validateAPIKey(_ key: String) async throws -> Bool {
-        var request = URLRequest(url: URL(string: "\(baseURL)/models")!)
+        var request = URLRequest(url: try validatedURL("\(baseURL)/models"))
         request.httpMethod = "GET"
         request.addValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
 
@@ -82,7 +82,7 @@ actor XAIAdapter: LLMProviderAdapter {
     }
 
     func fetchAvailableModels() async throws -> [ModelInfo] {
-        var request = URLRequest(url: URL(string: "\(baseURL)/models")!)
+        var request = URLRequest(url: try validatedURL("\(baseURL)/models"))
         request.httpMethod = "GET"
         request.addValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
 
@@ -219,7 +219,7 @@ actor XAIAdapter: LLMProviderAdapter {
         tools: [ToolDefinition],
         streaming: Bool
     ) throws -> URLRequest {
-        var request = URLRequest(url: URL(string: "\(baseURL)/responses")!)
+        var request = URLRequest(url: try validatedURL("\(baseURL)/responses"))
         request.httpMethod = "POST"
         request.addValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
         request.addValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -402,6 +402,8 @@ actor XAIAdapter: LLMProviderAdapter {
                     let maxAttempts = 200 // ~10 minutes at 3s intervals
                     var firstPollSnapshot: String?
                     var lastPollSnapshot: String?
+                    var consecutiveDecodeFailures = 0
+                    let maxConsecutiveDecodeFailures = 5
 
                     for attempt in 0..<maxAttempts {
                         try Task.checkCancellation()
@@ -410,7 +412,7 @@ actor XAIAdapter: LLMProviderAdapter {
                             try await Task.sleep(nanoseconds: pollIntervalNanoseconds)
                         }
 
-                        var pollRequest = URLRequest(url: URL(string: "\(baseURL)/videos/\(requestID)")!)
+                        var pollRequest = URLRequest(url: try validatedURL("\(baseURL)/videos/\(requestID)"))
                         pollRequest.httpMethod = "GET"
                         pollRequest.addValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
 
@@ -445,14 +447,14 @@ actor XAIAdapter: LLMProviderAdapter {
 
                         switch status {
                         case .done:
-                            // Try to extract video URL from multiple locations
+                            // Terminal — reset counter, extract video.
+                            consecutiveDecodeFailures = 0
                             guard let videoURL = extractVideoURL(codable: statusResponse, rawJSON: rawJSON) else {
                                 throw LLMError.decodingError(
                                     message: "xAI video generation completed but no video URL found. Response: \(String(rawBody.prefix(500)))"
                                 )
                             }
 
-                            // Download to local storage (temporary URLs expire)
                             let (localURL, mimeType) = try await downloadVideoToLocal(from: videoURL)
                             let video = VideoContent(mimeType: mimeType, data: nil, url: localURL)
                             continuation.yield(.contentDelta(.video(video)))
@@ -473,6 +475,33 @@ actor XAIAdapter: LLMProviderAdapter {
                             )
 
                         case .pending:
+                            // Only count decode failures for polls that resolved
+                            // to .pending via the default fallback (no real signal).
+                            // If Codable decoded fine or rawJSON had a status/state
+                            // key, the response format is healthy.
+                            if statusResponse == nil
+                                && pollHTTPResponse.statusCode >= 200
+                                && pollHTTPResponse.statusCode < 300 {
+                                let rawHasStatusSignal: Bool = {
+                                    guard let json = rawJSON else { return false }
+                                    for key in ["status", "state"] {
+                                        if json[key] is String { return true }
+                                    }
+                                    return false
+                                }()
+                                if !rawHasStatusSignal {
+                                    consecutiveDecodeFailures += 1
+                                    if consecutiveDecodeFailures >= maxConsecutiveDecodeFailures {
+                                        throw LLMError.decodingError(
+                                            message: "xAI video poll response could not be decoded after \(maxConsecutiveDecodeFailures) consecutive attempts. Last response: \(String(rawBody.prefix(500)))"
+                                        )
+                                    }
+                                } else {
+                                    consecutiveDecodeFailures = 0
+                                }
+                            } else {
+                                consecutiveDecodeFailures = 0
+                            }
                             continue
                         }
                     }
@@ -670,7 +699,7 @@ actor XAIAdapter: LLMProviderAdapter {
         let isVideoEdit = videoURL?.isEmpty == false
         let endpoint = isVideoEdit ? "videos/edits" : "videos/generations"
 
-        var request = URLRequest(url: URL(string: "\(baseURL)/\(endpoint)")!)
+        var request = URLRequest(url: try validatedURL("\(baseURL)/\(endpoint)"))
         request.httpMethod = "POST"
         request.addValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
         request.addValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -728,7 +757,7 @@ actor XAIAdapter: LLMProviderAdapter {
     ) throws -> URLRequest {
         let endpoint = (imageURL?.isEmpty == false) ? "images/edits" : "images/generations"
 
-        var request = URLRequest(url: URL(string: "\(baseURL)/\(endpoint)")!)
+        var request = URLRequest(url: try validatedURL("\(baseURL)/\(endpoint)"))
         request.httpMethod = "POST"
         request.addValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
         request.addValue("application/json", forHTTPHeaderField: "Content-Type")

@@ -1,11 +1,23 @@
 import Foundation
 
+/// Opaque snapshot of tool-name → server/tool routing produced by
+/// `toolDefinitions(for:)`. Each call site holds its own snapshot,
+/// so concurrent conversations with different server configs never
+/// clobber each other's routes.
+struct ToolRouteSnapshot: Sendable {
+    fileprivate let routes: [String: MCPHub.ToolRoute]
+
+    func routeInfo(for functionName: String) -> (serverID: String, toolName: String)? {
+        guard let route = routes[functionName] else { return nil }
+        return (route.server.id, route.toolName)
+    }
+}
+
 actor MCPHub {
     static let shared = MCPHub()
 
     private var clients: [String: MCPClient] = [:]
     private var clientConfigs: [String: MCPServerConfig] = [:]
-    private var toolRoutes: [String: ToolRoute] = [:]
 
     func listTools(for server: MCPServerConfig) async throws -> [MCPToolInfo] {
         try await withClient(for: server) { client in
@@ -13,18 +25,34 @@ actor MCPHub {
         }
     }
 
-    func toolDefinitions(for servers: [MCPServerConfig]) async throws -> [ToolDefinition] {
-        var newRoutes: [String: ToolRoute] = [:]
-        var definitions: [ToolDefinition] = []
+    func toolDefinitions(for servers: [MCPServerConfig]) async throws -> (definitions: [ToolDefinition], routes: ToolRouteSnapshot) {
+        var serverTools: [(server: MCPServerConfig, tools: [MCPToolInfo])] = []
 
         for server in servers where server.isEnabled {
             let tools = try await withClient(for: server) { client in
                 try await client.listTools()
             }
+            serverTools.append((server, tools))
+        }
 
-            for tool in tools {
+        return Self.buildToolDefinitionsAndRoutes(from: serverTools)
+    }
+
+    static func buildToolDefinitionsAndRoutes(
+        from serverTools: [(server: MCPServerConfig, tools: [MCPToolInfo])]
+    ) -> (definitions: [ToolDefinition], routes: ToolRouteSnapshot) {
+        var newRoutes: [String: ToolRoute] = [:]
+        var definitions: [ToolDefinition] = []
+
+        for entry in serverTools {
+            let server = entry.server
+            for tool in entry.tools {
                 if server.disabledTools.contains(tool.name) { continue }
-                let functionName = makeFunctionName(serverID: server.id, toolName: tool.name)
+                let functionName = Self.disambiguatedFunctionName(
+                    serverID: server.id,
+                    toolName: tool.name,
+                    existing: newRoutes
+                )
                 newRoutes[functionName] = ToolRoute(server: server, toolName: tool.name)
 
                 definitions.append(
@@ -39,12 +67,11 @@ actor MCPHub {
             }
         }
 
-        toolRoutes = newRoutes
-        return definitions
+        return (definitions, ToolRouteSnapshot(routes: newRoutes))
     }
 
-    func executeTool(functionName: String, arguments: [String: AnyCodable]) async throws -> MCPToolCallResult {
-        guard let route = toolRoutes[functionName] else {
+    func executeTool(functionName: String, arguments: [String: AnyCodable], routes: ToolRouteSnapshot) async throws -> MCPToolCallResult {
+        guard let route = routes.routes[functionName] else {
             throw MCPHubError.unknownTool(functionName)
         }
 
@@ -93,7 +120,34 @@ actor MCPHub {
             && lhs.lifecycle == rhs.lifecycle
     }
 
-    private func makeFunctionName(serverID: String, toolName: String) -> String {
+    /// Build a function name, then disambiguate if it collides with an existing route.
+    private static func disambiguatedFunctionName(
+        serverID: String,
+        toolName: String,
+        existing: [String: ToolRoute]
+    ) -> String {
+        let candidate = makeFunctionName(serverID: serverID, toolName: toolName)
+        if existing[candidate] == nil {
+            return candidate
+        }
+        // Collision — append incrementing suffix until unique.
+        for suffix in 2...99 {
+            let suffixStr = "_\(suffix)"
+            let maxBase = 64 - suffixStr.count
+            let base = candidate.count > maxBase ? String(candidate.prefix(maxBase)) : candidate
+            let disambiguated = "\(base)\(suffixStr)"
+            if existing[disambiguated] == nil {
+                return disambiguated
+            }
+        }
+        // Extremely unlikely fallback — still enforce 64-char limit
+        let uuidSuffix = "_\(UUID().uuidString.prefix(4))"
+        let maxBase = 64 - uuidSuffix.count
+        let base = candidate.count > maxBase ? String(candidate.prefix(maxBase)) : candidate
+        return "\(base)\(uuidSuffix)"
+    }
+
+    private static func makeFunctionName(serverID: String, toolName: String) -> String {
         let raw = "\(serverID)__\(toolName)"
         if raw.count <= 64 {
             return raw
@@ -110,7 +164,7 @@ actor MCPHub {
         return "\(shortID)__\(truncatedToolName)"
     }
 
-    private struct ToolRoute: Sendable {
+    struct ToolRoute: Sendable {
         let server: MCPServerConfig
         let toolName: String
     }

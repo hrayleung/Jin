@@ -68,7 +68,7 @@ struct SSEParser: StreamParser {
 }
 
 /// SSE event
-enum SSEEvent {
+enum SSEEvent: Sendable {
     case event(type: String, data: String)
     case done
 }

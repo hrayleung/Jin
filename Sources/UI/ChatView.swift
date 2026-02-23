@@ -3065,7 +3065,7 @@ struct ChatView: View {
 
                 let providerManager = ProviderManager()
                 let adapter = try await providerManager.createAdapter(for: providerConfig)
-                let mcpTools = try await MCPHub.shared.toolDefinitions(for: mcpServerConfigs)
+                let (mcpTools, mcpRoutes) = try await MCPHub.shared.toolDefinitions(for: mcpServerConfigs)
                 let providerType = providerConfig.type
 
                 var requestControls = controlsToUse
@@ -3381,7 +3381,7 @@ struct ChatView: View {
                     for call in toolCalls {
                         let callStart = Date()
                         do {
-                            let result = try await MCPHub.shared.executeTool(functionName: call.name, arguments: call.arguments)
+                            let result = try await MCPHub.shared.executeTool(functionName: call.name, arguments: call.arguments, routes: mcpRoutes)
                             let duration = Date().timeIntervalSince(callStart)
                             let normalizedContent = normalizedToolResultContent(
                                 result.text,

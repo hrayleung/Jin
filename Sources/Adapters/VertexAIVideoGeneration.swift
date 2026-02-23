@@ -21,7 +21,7 @@ extension VertexAIAdapter {
                 do {
                     // 1. Build and submit the generation request
                     let endpoint = "\(baseURL)/projects/\(serviceAccountJSON.projectID)/locations/\(location)/publishers/google/models/\(modelID):predictLongRunning"
-                    var request = URLRequest(url: URL(string: endpoint)!)
+                    var request = URLRequest(url: try validatedURL(endpoint))
                     request.httpMethod = "POST"
                     request.addValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
                     request.addValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -71,7 +71,7 @@ extension VertexAIAdapter {
 
                         // Vertex uses POST fetchPredictOperation instead of GET on the operation URL
                         let pollEndpoint = "\(baseURL)/projects/\(serviceAccountJSON.projectID)/locations/\(location)/publishers/google/models/\(modelID):fetchPredictOperation"
-                        var pollRequest = URLRequest(url: URL(string: pollEndpoint)!)
+                        var pollRequest = URLRequest(url: try validatedURL(pollEndpoint))
                         pollRequest.httpMethod = "POST"
                         pollRequest.addValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
                         pollRequest.addValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -182,7 +182,10 @@ extension VertexAIAdapter {
         let bucket = String(withoutScheme[..<slashIndex])
         let objectPath = String(withoutScheme[withoutScheme.index(after: slashIndex)...])
 
-        guard let encodedPath = objectPath.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) else {
+        // Remove any existing percent-encoding first to avoid double-encoding
+        // (e.g., "%20" becoming "%2520"), then re-encode for URL path safety.
+        let decoded = objectPath.removingPercentEncoding ?? objectPath
+        guard let encodedPath = decoded.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) else {
             throw LLMError.decodingError(message: "Invalid GCS object path: \(objectPath)")
         }
 

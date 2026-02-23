@@ -49,7 +49,7 @@ actor PerplexityAdapter: LLMProviderAdapter {
 
     func validateAPIKey(_ key: String) async throws -> Bool {
         // Perplexity does not expose a lightweight auth check; use a minimal completion with small max_tokens.
-        var request = URLRequest(url: URL(string: "\(baseURL)/chat/completions")!)
+        var request = URLRequest(url: try validatedURL("\(baseURL)/chat/completions"))
         request.httpMethod = "POST"
         request.addValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
         request.addValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -128,7 +128,7 @@ actor PerplexityAdapter: LLMProviderAdapter {
         tools: [ToolDefinition],
         streaming: Bool
     ) throws -> URLRequest {
-        var request = URLRequest(url: URL(string: "\(baseURL)/chat/completions")!)
+        var request = URLRequest(url: try validatedURL("\(baseURL)/chat/completions"))
         request.httpMethod = "POST"
         request.addValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
         request.addValue("application/json", forHTTPHeaderField: "Content-Type")

@@ -70,7 +70,7 @@ actor GeminiAdapter: LLMProviderAdapter {
     }
 
     func listCachedContents() async throws -> [CachedContentResource] {
-        var request = URLRequest(url: URL(string: "\(baseURL)/cachedContents")!)
+        var request = URLRequest(url: try validatedURL("\(baseURL)/cachedContents"))
         request.httpMethod = "GET"
         request.addValue(apiKey, forHTTPHeaderField: "x-goog-api-key")
         request.addValue("application/json", forHTTPHeaderField: "Accept")
@@ -84,7 +84,7 @@ actor GeminiAdapter: LLMProviderAdapter {
 
     func getCachedContent(named name: String) async throws -> CachedContentResource {
         let path = normalizedCachedContentName(name)
-        var request = URLRequest(url: URL(string: "\(baseURL)/\(path)")!)
+        var request = URLRequest(url: try validatedURL("\(baseURL)/\(path)"))
         request.httpMethod = "GET"
         request.addValue(apiKey, forHTTPHeaderField: "x-goog-api-key")
         request.addValue("application/json", forHTTPHeaderField: "Accept")
@@ -100,7 +100,7 @@ actor GeminiAdapter: LLMProviderAdapter {
             throw LLMError.invalidRequest(message: "Invalid cachedContent payload.")
         }
 
-        var request = URLRequest(url: URL(string: "\(baseURL)/cachedContents")!)
+        var request = URLRequest(url: try validatedURL("\(baseURL)/cachedContents"))
         request.httpMethod = "POST"
         request.addValue(apiKey, forHTTPHeaderField: "x-goog-api-key")
         request.addValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -138,7 +138,7 @@ actor GeminiAdapter: LLMProviderAdapter {
     }
 
     func deleteCachedContent(named name: String) async throws {
-        var request = URLRequest(url: URL(string: "\(baseURL)/\(normalizedCachedContentName(name))")!)
+        var request = URLRequest(url: try validatedURL("\(baseURL)/\(normalizedCachedContentName(name))"))
         request.httpMethod = "DELETE"
         request.addValue(apiKey, forHTTPHeaderField: "x-goog-api-key")
         _ = try await networkManager.sendRequest(request)
@@ -269,6 +269,12 @@ actor GeminiAdapter: LLMProviderAdapter {
 
                     if didStart {
                         continuation.yield(.messageEnd(usage: pendingUsage))
+                    } else {
+                        // No chunks were received at all — emit an error so callers
+                        // don't silently succeed with an empty conversation.
+                        continuation.yield(.messageStart(id: messageID))
+                        continuation.yield(.error(.decodingError(message: "Gemini returned an empty response with no content.")))
+                        continuation.yield(.messageEnd(usage: nil))
                     }
 
                     continuation.finish()
@@ -280,7 +286,7 @@ actor GeminiAdapter: LLMProviderAdapter {
     }
 
     func validateAPIKey(_ key: String) async throws -> Bool {
-        var request = URLRequest(url: URL(string: "\(baseURL)/models")!)
+        var request = URLRequest(url: try validatedURL("\(baseURL)/models"))
         request.httpMethod = "GET"
         request.addValue(key, forHTTPHeaderField: "x-goog-api-key")
 
@@ -363,7 +369,7 @@ actor GeminiAdapter: LLMProviderAdapter {
         let method = streaming ? "streamGenerateContent?alt=sse" : "generateContent"
         let endpoint = "\(baseURL)/models/\(modelPath):\(method)"
 
-        var request = URLRequest(url: URL(string: endpoint)!)
+        var request = URLRequest(url: try validatedURL(endpoint))
         request.httpMethod = "POST"
         request.addValue(apiKey, forHTTPHeaderField: "x-goog-api-key")
         request.addValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -481,7 +487,7 @@ actor GeminiAdapter: LLMProviderAdapter {
                     // 1. Build and submit the generation request
                     let modelPath = modelIDForPath(modelID)
                     let endpoint = "\(baseURL)/models/\(modelPath):predictLongRunning"
-                    var request = URLRequest(url: URL(string: endpoint)!)
+                    var request = URLRequest(url: try validatedURL(endpoint))
                     request.httpMethod = "POST"
                     request.addValue(apiKey, forHTTPHeaderField: "x-goog-api-key")
                     request.addValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -531,7 +537,7 @@ actor GeminiAdapter: LLMProviderAdapter {
                             try await Task.sleep(nanoseconds: pollIntervalNanoseconds)
                         }
 
-                        var pollRequest = URLRequest(url: URL(string: "\(baseURL)/\(operationName)")!)
+                        var pollRequest = URLRequest(url: try validatedURL("\(baseURL)/\(operationName)"))
                         pollRequest.httpMethod = "GET"
                         pollRequest.addValue(apiKey, forHTTPHeaderField: "x-goog-api-key")
 
