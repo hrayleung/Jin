@@ -243,14 +243,11 @@ struct MessageRow: View {
                             }
 
                             if !item.toolCalls.isEmpty {
-                                VStack(alignment: .leading, spacing: 8) {
-                                    ForEach(item.toolCalls) { call in
-                                        ToolCallView(
-                                            toolCall: call,
-                                            toolResult: toolResultsByCallID[call.id]
-                                        )
-                                    }
-                                }
+                                MCPToolTimelineView(
+                                    toolCalls: item.toolCalls,
+                                    toolResultsByCallID: toolResultsByCallID,
+                                    isStreaming: false
+                                )
                             }
                         }
                     }

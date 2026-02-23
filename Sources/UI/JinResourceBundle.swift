@@ -18,6 +18,10 @@ enum JinResourceBundle {
         bundle?.url(forResource: name, withExtension: ext)
     }
 
+    static func url(forResource name: String, withExtension ext: String?, subdirectory: String?) -> URL? {
+        bundle?.url(forResource: name, withExtension: ext, subdirectory: subdirectory)
+    }
+
     private static func candidateURLs() -> [URL] {
         var urls: [URL] = []
 

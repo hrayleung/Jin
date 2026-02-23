@@ -3092,6 +3092,7 @@ struct ChatView: View {
                     var assistantVideoSegments: [VideoContent] = []
                     var assistantThinkingSegments: [ThinkingBlockAccumulator] = []
                     var toolCallsByID: [String: ToolCall] = [:]
+                    var toolCallOrder: [String] = []
                     var searchActivitiesByID: [String: SearchActivity] = [:]
                     var searchActivityOrder: [String] = []
 
@@ -3160,6 +3161,25 @@ struct ChatView: View {
                         }
                     }
 
+                    func upsertToolCall(_ call: ToolCall) {
+                        if toolCallsByID[call.id] == nil {
+                            toolCallOrder.append(call.id)
+                            toolCallsByID[call.id] = call
+                            return
+                        }
+
+                        let existing = toolCallsByID[call.id]
+                        let mergedArguments = (existing?.arguments ?? [:]).merging(call.arguments) { _, newValue in newValue }
+                        let mergedSignature = call.signature ?? existing?.signature
+                        let mergedName = call.name.isEmpty ? (existing?.name ?? call.name) : call.name
+                        toolCallsByID[call.id] = ToolCall(
+                            id: call.id,
+                            name: mergedName,
+                            arguments: mergedArguments,
+                            signature: mergedSignature
+                        )
+                    }
+
                     func buildAssistantParts() -> [ContentPart] {
                         var parts: [ContentPart] = []
                         parts.reserveCapacity(assistantPartRefs.count)
@@ -3185,6 +3205,10 @@ struct ChatView: View {
 
                     func buildSearchActivities() -> [SearchActivity] {
                         searchActivityOrder.compactMap { searchActivitiesByID[$0] }
+                    }
+
+                    func buildToolCalls() -> [ToolCall] {
+                        toolCallOrder.compactMap { toolCallsByID[$0] }
                     }
 
                     await MainActor.run {
@@ -3261,11 +3285,19 @@ struct ChatView: View {
                                 break
                             }
                         case .toolCallStart(let call):
-                            toolCallsByID[call.id] = call
+                            upsertToolCall(call)
+                            let visibleToolCalls = buildToolCalls()
+                            await MainActor.run {
+                                streamingState.setToolCalls(visibleToolCalls)
+                            }
                         case .toolCallDelta:
                             break
                         case .toolCallEnd(let call):
-                            toolCallsByID[call.id] = call
+                            upsertToolCall(call)
+                            let visibleToolCalls = buildToolCalls()
+                            await MainActor.run {
+                                streamingState.setToolCalls(visibleToolCalls)
+                            }
                         case .searchActivity(let activity):
                             upsertSearchActivity(activity)
                             await MainActor.run {
@@ -3282,7 +3314,7 @@ struct ChatView: View {
 
                     await flushStreamingUI(force: true)
 
-                    let toolCalls = Array(toolCallsByID.values)
+                    let toolCalls = buildToolCalls()
                     let assistantParts = buildAssistantParts()
                     let searchActivities = buildSearchActivities()
                     if !assistantParts.isEmpty || !toolCalls.isEmpty || !searchActivities.isEmpty {
@@ -3340,7 +3372,7 @@ struct ChatView: View {
 
                     await MainActor.run {
                         streamingState.reset()
-                        streamingState.appendTextDelta("Running tools…")
+                        streamingState.setToolCalls(toolCalls)
                     }
 
                     var toolResults: [ToolResult] = []
@@ -3356,16 +3388,18 @@ struct ChatView: View {
                                 toolName: call.name,
                                 isError: result.isError
                             )
-                            toolResults.append(
-                                ToolResult(
-                                    toolCallID: call.id,
-                                    toolName: call.name,
-                                    content: normalizedContent,
-                                    isError: result.isError,
-                                    signature: call.signature,
-                                    durationSeconds: duration
-                                )
+                            let toolResult = ToolResult(
+                                toolCallID: call.id,
+                                toolName: call.name,
+                                content: normalizedContent,
+                                isError: result.isError,
+                                signature: call.signature,
+                                durationSeconds: duration
                             )
+                            toolResults.append(toolResult)
+                            await MainActor.run {
+                                streamingState.upsertToolResult(toolResult)
+                            }
 
                             if result.isError {
                                 toolOutputLines.append("Tool \(call.name) failed:\n\(normalizedContent)")
@@ -3380,16 +3414,18 @@ struct ChatView: View {
                                 isError: true
                             )
                             let llmErrorContent = "Tool execution failed: \(normalizedError). You may retry this tool call with corrected arguments."
-                            toolResults.append(
-                                ToolResult(
-                                    toolCallID: call.id,
-                                    toolName: call.name,
-                                    content: llmErrorContent,
-                                    isError: true,
-                                    signature: call.signature,
-                                    durationSeconds: duration
-                                )
+                            let toolResult = ToolResult(
+                                toolCallID: call.id,
+                                toolName: call.name,
+                                content: llmErrorContent,
+                                isError: true,
+                                signature: call.signature,
+                                durationSeconds: duration
                             )
+                            toolResults.append(toolResult)
+                            await MainActor.run {
+                                streamingState.upsertToolResult(toolResult)
+                            }
                             toolOutputLines.append("Tool \(call.name) failed:\n\(llmErrorContent)")
                         }
                     }

@@ -24,9 +24,14 @@ final class StreamingMessageStateTests: XCTestCase {
 
     func testResetClearsDerivedState() {
         let state = StreamingMessageState()
+        let toolCall = ToolCall(id: "call_1", name: "exa__search", arguments: [:])
 
         state.appendDeltas(textDelta: "hello", thinkingDelta: "reasoning")
-        XCTAssertEqual(state.renderTick, 1)
+        state.setToolCalls([toolCall])
+        state.upsertToolResult(
+            ToolResult(toolCallID: "call_1", toolName: "exa__search", content: "ok", isError: false)
+        )
+        XCTAssertEqual(state.renderTick, 3)
         XCTAssertTrue(state.hasVisibleText)
 
         state.reset()
@@ -37,6 +42,8 @@ final class StreamingMessageStateTests: XCTestCase {
         XCTAssertEqual(state.thinkingChunks, [])
         XCTAssertEqual(state.textContent, "")
         XCTAssertEqual(state.thinkingContent, "")
+        XCTAssertEqual(state.streamingToolCalls.count, 0)
+        XCTAssertEqual(state.toolResultsByCallID.count, 0)
     }
 
     func testUpsertSearchActivityMergesByIDAndIncrementsRenderTick() {
@@ -69,5 +76,36 @@ final class StreamingMessageStateTests: XCTestCase {
         XCTAssertEqual(state.searchActivities[0].status, .completed)
         XCTAssertEqual(state.searchActivities[0].arguments["query"]?.value as? String, "swift concurrency")
         XCTAssertEqual(state.searchActivities[0].arguments["url"]?.value as? String, "https://example.com")
+    }
+
+    func testSetToolCallsAndUpsertToolResultTrackResultsByCallID() {
+        let state = StreamingMessageState()
+        let call = ToolCall(id: "call_1", name: "exa__search", arguments: ["query": AnyCodable("jin")])
+
+        state.setToolCalls([call])
+
+        XCTAssertEqual(state.renderTick, 1)
+        XCTAssertEqual(state.streamingToolCalls.count, 1)
+        XCTAssertEqual(state.streamingToolCalls.first?.id, "call_1")
+        XCTAssertEqual(state.toolResultsByCallID.count, 0)
+
+        state.upsertToolResult(
+            ToolResult(toolCallID: "call_1", toolName: "exa__search", content: "done", isError: false)
+        )
+
+        XCTAssertEqual(state.renderTick, 2)
+        XCTAssertEqual(state.toolResultsByCallID["call_1"]?.content, "done")
+    }
+
+    func testUpsertToolResultIgnoresUnknownToolCallID() {
+        let state = StreamingMessageState()
+
+        state.setToolCalls([ToolCall(id: "call_1", name: "exa__search", arguments: [:])])
+        state.upsertToolResult(
+            ToolResult(toolCallID: "call_2", toolName: "exa__search", content: "ignored", isError: true)
+        )
+
+        XCTAssertEqual(state.toolResultsByCallID.count, 0)
+        XCTAssertEqual(state.renderTick, 1)
     }
 }

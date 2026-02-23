@@ -614,10 +614,21 @@ struct SettingsView: View {
         List(filteredMCPServers, selection: animatedSelectedServerID) { server in
             NavigationLink(value: server.id) {
                 HStack(spacing: JinSpacing.small + 2) {
-                    Circle()
-                        .fill(server.isEnabled ? Color.green : Color.gray)
-                        .frame(width: 8, height: 8)
-                        .frame(width: 20)
+                    ZStack(alignment: .bottomTrailing) {
+                        MCPIconView(iconID: server.resolvedMCPIconID, fallbackSystemName: "server.rack", size: 14)
+                            .frame(width: 20, height: 20)
+                            .jinSurface(.subtle, cornerRadius: JinRadius.small)
+
+                        Circle()
+                            .fill(server.isEnabled ? Color.green : Color.gray)
+                            .frame(width: 7, height: 7)
+                            .overlay(
+                                Circle()
+                                    .stroke(JinSemanticColor.panelSurface, lineWidth: 1)
+                            )
+                            .offset(x: 1, y: 1)
+                    }
+                    .frame(width: 24, height: 24)
 
                     VStack(alignment: .leading, spacing: 2) {
                         Text(server.name)
