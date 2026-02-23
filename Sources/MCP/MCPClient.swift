@@ -226,8 +226,11 @@ actor MCPClient {
         process.standardError = stderrPipe
 
         process.terminationHandler = { [weak self] proc in
-            guard let self else { return }
-            Task { await self.handleProcessExit(status: proc.terminationStatus) }
+            let status = proc.terminationStatus
+            Task { [weak self] in
+                guard let self else { return }
+                await self.handleProcessExit(status: status)
+            }
         }
 
         do {

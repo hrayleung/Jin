@@ -179,20 +179,11 @@ struct JinApp: App {
                     let latestModels = try await adapter.fetchAvailableModels()
 
                     // Preserve user enable/disable choices when refreshing model metadata.
-                    let existingByID = Dictionary(uniqueKeysWithValues: providerEntity.allModels.map { ($0.id, $0) })
-                    let merged = latestModels.map { model in
-                        let isEnabled = existingByID[model.id]?.isEnabled ?? true
-                        let overrides = existingByID[model.id]?.overrides
-                        return ModelInfo(
-                            id: model.id,
-                            name: model.name,
-                            capabilities: model.capabilities,
-                            contextWindow: model.contextWindow,
-                            reasoningConfig: model.reasoningConfig,
-                            overrides: overrides,
-                            isEnabled: isEnabled
-                        )
-                    }
+                    // Be defensive against duplicate IDs in persisted data or provider payloads.
+                    let merged = Self.mergeRefreshedModels(
+                        latestModels: latestModels,
+                        existingModels: providerEntity.allModels
+                    )
 
                     let encoder = JSONEncoder()
                     if let newModelsData = try? encoder.encode(merged) {
@@ -207,5 +198,36 @@ struct JinApp: App {
 
             try? context.save()
         }
+    }
+
+    static func mergeRefreshedModels(latestModels: [ModelInfo], existingModels: [ModelInfo]) -> [ModelInfo] {
+        // Duplicate IDs can exist in legacy persisted data; latest duplicate wins.
+        let existingByID = existingModels.reduce(into: [String: ModelInfo]()) { result, model in
+            result[model.id] = model
+        }
+
+        // Provider responses may occasionally include duplicate IDs; keep first in fetch order.
+        var seenLatestIDs = Set<String>()
+        var merged: [ModelInfo] = []
+        merged.reserveCapacity(latestModels.count)
+
+        for model in latestModels {
+            guard seenLatestIDs.insert(model.id).inserted else { continue }
+
+            let existing = existingByID[model.id]
+            merged.append(
+                ModelInfo(
+                    id: model.id,
+                    name: model.name,
+                    capabilities: model.capabilities,
+                    contextWindow: model.contextWindow,
+                    reasoningConfig: model.reasoningConfig,
+                    overrides: existing?.overrides,
+                    isEnabled: existing?.isEnabled ?? true
+                )
+            )
+        }
+
+        return merged
     }
 }

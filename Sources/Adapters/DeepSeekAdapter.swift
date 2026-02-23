@@ -52,7 +52,7 @@ actor DeepSeekAdapter: LLMProviderAdapter {
     }
 
     func validateAPIKey(_ key: String) async throws -> Bool {
-        var request = URLRequest(url: URL(string: "\(baseURLRoot)/v1/models")!)
+        var request = URLRequest(url: try validatedURL("\(baseURLRoot)/v1/models"))
         request.httpMethod = "GET"
         request.addValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
         request.addValue("application/json", forHTTPHeaderField: "Accept")
@@ -67,7 +67,7 @@ actor DeepSeekAdapter: LLMProviderAdapter {
     }
 
     func fetchAvailableModels() async throws -> [ModelInfo] {
-        var request = URLRequest(url: URL(string: "\(baseURLRoot)/v1/models")!)
+        var request = URLRequest(url: try validatedURL("\(baseURLRoot)/v1/models"))
         request.httpMethod = "GET"
         request.addValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
         request.addValue("application/json", forHTTPHeaderField: "Accept")
@@ -105,17 +105,10 @@ actor DeepSeekAdapter: LLMProviderAdapter {
     private func chatCompletionsURL(for modelID: String) throws -> URL {
         let lower = modelID.lowercased()
         if isDefaultHost, lower.contains("v3.2-exp") {
-            return try requireURL("\(baseURLRoot)/beta/chat/completions")
+            return try validatedURL("\(baseURLRoot)/beta/chat/completions")
         }
 
-        return try requireURL("\(baseURLRoot)/v1/chat/completions")
-    }
-
-    private func requireURL(_ raw: String) throws -> URL {
-        guard let url = URL(string: raw) else {
-            throw LLMError.invalidRequest(message: "Invalid DeepSeek base URL.")
-        }
-        return url
+        return try validatedURL("\(baseURLRoot)/v1/chat/completions")
     }
 
     private func buildRequest(

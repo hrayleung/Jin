@@ -95,8 +95,8 @@ actor NetworkManager {
 }
 
 /// Stream parser protocol
-protocol StreamParser {
-    associatedtype Event
+protocol StreamParser: Sendable {
+    associatedtype Event: Sendable
     mutating func append(_ byte: UInt8)
     mutating func nextEvent() -> Event?
 }

@@ -52,7 +52,7 @@ actor FireworksAdapter: LLMProviderAdapter {
     }
 
     func validateAPIKey(_ key: String) async throws -> Bool {
-        var request = URLRequest(url: URL(string: "\(baseURL)/models")!)
+        var request = URLRequest(url: try validatedURL("\(baseURL)/models"))
         request.httpMethod = "GET"
         request.addValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
 
@@ -65,7 +65,7 @@ actor FireworksAdapter: LLMProviderAdapter {
     }
 
     func fetchAvailableModels() async throws -> [ModelInfo] {
-        var request = URLRequest(url: URL(string: "\(baseURL)/models")!)
+        var request = URLRequest(url: try validatedURL("\(baseURL)/models"))
         request.httpMethod = "GET"
         request.addValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
 
@@ -81,7 +81,9 @@ actor FireworksAdapter: LLMProviderAdapter {
     // MARK: - Private
 
     private var baseURL: String {
-        providerConfig.baseURL ?? "https://api.fireworks.ai/inference/v1"
+        let raw = (providerConfig.baseURL ?? "https://api.fireworks.ai/inference/v1")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return raw.hasSuffix("/") ? String(raw.dropLast()) : raw
     }
 
     private func buildRequest(
@@ -91,7 +93,7 @@ actor FireworksAdapter: LLMProviderAdapter {
         tools: [ToolDefinition],
         streaming: Bool
     ) throws -> URLRequest {
-        var request = URLRequest(url: URL(string: "\(baseURL)/chat/completions")!)
+        var request = URLRequest(url: try validatedURL("\(baseURL)/chat/completions"))
         request.httpMethod = "POST"
         request.addValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
         request.addValue("application/json", forHTTPHeaderField: "Content-Type")

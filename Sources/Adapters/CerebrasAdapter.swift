@@ -56,7 +56,7 @@ actor CerebrasAdapter: LLMProviderAdapter {
     }
 
     func validateAPIKey(_ key: String) async throws -> Bool {
-        var request = URLRequest(url: URL(string: "\(baseURLRoot)/v1/models")!)
+        var request = URLRequest(url: try validatedURL("\(baseURLRoot)/v1/models"))
         request.httpMethod = "GET"
         request.addValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
         request.addValue("application/json", forHTTPHeaderField: "Accept")
@@ -71,7 +71,7 @@ actor CerebrasAdapter: LLMProviderAdapter {
     }
 
     func fetchAvailableModels() async throws -> [ModelInfo] {
-        var request = URLRequest(url: URL(string: "\(baseURLRoot)/v1/models")!)
+        var request = URLRequest(url: try validatedURL("\(baseURLRoot)/v1/models"))
         request.httpMethod = "GET"
         request.addValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
         request.addValue("application/json", forHTTPHeaderField: "Accept")
@@ -110,7 +110,7 @@ actor CerebrasAdapter: LLMProviderAdapter {
         tools: [ToolDefinition],
         streaming: Bool
     ) throws -> URLRequest {
-        var request = URLRequest(url: URL(string: "\(baseURLRoot)/v1/chat/completions")!)
+        var request = URLRequest(url: try validatedURL("\(baseURLRoot)/v1/chat/completions"))
         request.httpMethod = "POST"
         request.addValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
         request.addValue("application/json", forHTTPHeaderField: "Content-Type")

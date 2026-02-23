@@ -66,7 +66,7 @@ actor VertexAIAdapter: LLMProviderAdapter {
 
     func listCachedContents() async throws -> [CachedContentResource] {
         let token = try await getAccessToken()
-        var request = URLRequest(url: URL(string: cachedContentsCollectionEndpoint)!)
+        var request = URLRequest(url: try validatedURL(cachedContentsCollectionEndpoint))
         request.httpMethod = "GET"
         request.addValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         request.addValue("application/json", forHTTPHeaderField: "Accept")
@@ -80,7 +80,7 @@ actor VertexAIAdapter: LLMProviderAdapter {
 
     func getCachedContent(named name: String) async throws -> CachedContentResource {
         let token = try await getAccessToken()
-        var request = URLRequest(url: URL(string: cachedContentEndpoint(for: name))!)
+        var request = URLRequest(url: try validatedURL(cachedContentEndpoint(for: name)))
         request.httpMethod = "GET"
         request.addValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         request.addValue("application/json", forHTTPHeaderField: "Accept")
@@ -97,7 +97,7 @@ actor VertexAIAdapter: LLMProviderAdapter {
         }
 
         let token = try await getAccessToken()
-        var request = URLRequest(url: URL(string: cachedContentsCollectionEndpoint)!)
+        var request = URLRequest(url: try validatedURL(cachedContentsCollectionEndpoint))
         request.httpMethod = "POST"
         request.addValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         request.addValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -137,7 +137,7 @@ actor VertexAIAdapter: LLMProviderAdapter {
 
     func deleteCachedContent(named name: String) async throws {
         let token = try await getAccessToken()
-        var request = URLRequest(url: URL(string: cachedContentEndpoint(for: name))!)
+        var request = URLRequest(url: try validatedURL(cachedContentEndpoint(for: name)))
         request.httpMethod = "DELETE"
         request.addValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         _ = try await networkManager.sendRequest(request)
@@ -370,7 +370,7 @@ actor VertexAIAdapter: LLMProviderAdapter {
     }
 
     private func exchangeJWTForToken(_ jwt: String) async throws -> TokenResponse {
-        var request = URLRequest(url: URL(string: serviceAccountJSON.tokenURI)!)
+        var request = URLRequest(url: try validatedURL(serviceAccountJSON.tokenURI))
         request.httpMethod = "POST"
         request.addValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
 
@@ -391,7 +391,7 @@ actor VertexAIAdapter: LLMProviderAdapter {
     ) throws -> URLRequest {
         let method = streaming ? "streamGenerateContent" : "generateContent"
         let endpoint = "\(baseURL)/projects/\(serviceAccountJSON.projectID)/locations/\(location)/publishers/google/models/\(modelID):\(method)"
-        var request = URLRequest(url: URL(string: endpoint)!)
+        var request = URLRequest(url: try validatedURL(endpoint))
         request.httpMethod = "POST"
         request.addValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
         request.addValue("application/json", forHTTPHeaderField: "Content-Type")

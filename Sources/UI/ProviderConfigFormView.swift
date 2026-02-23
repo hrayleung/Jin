@@ -1324,31 +1324,7 @@ struct ProviderConfigFormView: View {
     }
 
     private func mergeFetchedModelsWithExisting(_ fetchedModels: [ModelInfo]) -> [ModelInfo] {
-        let previousByID = Dictionary(uniqueKeysWithValues: decodedModels.map { ($0.id, $0) })
-
-        var merged: [ModelInfo] = []
-        var seenIDs: Set<String> = []
-        merged.reserveCapacity(fetchedModels.count)
-
-        for model in fetchedModels {
-            guard !seenIDs.contains(model.id) else { continue }
-            seenIDs.insert(model.id)
-
-            let isEnabled = previousByID[model.id]?.isEnabled ?? true
-            let overrides = previousByID[model.id]?.overrides
-            merged.append(
-                ModelInfo(
-                    id: model.id,
-                    name: model.name,
-                    capabilities: model.capabilities,
-                    contextWindow: model.contextWindow,
-                    reasoningConfig: model.reasoningConfig,
-                    overrides: overrides,
-                    isEnabled: isEnabled
-                )
-            )
-        }
-
+        let merged = JinApp.mergeRefreshedModels(latestModels: fetchedModels, existingModels: decodedModels)
         return merged.sorted { lhs, rhs in
             lhs.name.localizedStandardCompare(rhs.name) == .orderedAscending
         }

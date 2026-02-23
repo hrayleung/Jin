@@ -58,7 +58,7 @@ actor AnthropicAdapter: LLMProviderAdapter {
                                 continuation.yield(streamEvent)
                             }
                         case .done:
-                            continuation.yield(.messageEnd(usage: nil))
+                            continuation.yield(.messageEnd(usage: usageAccumulator.toUsage()))
                         }
                     }
                     continuation.finish()
@@ -70,7 +70,7 @@ actor AnthropicAdapter: LLMProviderAdapter {
     }
 
     func validateAPIKey(_ key: String) async throws -> Bool {
-        var request = URLRequest(url: URL(string: "\(baseURL)/models")!)
+        var request = URLRequest(url: try validatedURL("\(baseURL)/models"))
         request.httpMethod = "GET"
         request.addValue(key, forHTTPHeaderField: "x-api-key")
         request.addValue(anthropicVersion, forHTTPHeaderField: "anthropic-version")
@@ -348,7 +348,7 @@ actor AnthropicAdapter: LLMProviderAdapter {
         let cacheControl = anthropicCacheControl(from: controls.contextCache)
         let cacheStrategy = controls.contextCache?.strategy ?? .systemOnly
 
-        var request = URLRequest(url: URL(string: "\(baseURL)/messages")!)
+        var request = URLRequest(url: try validatedURL("\(baseURL)/messages"))
         request.httpMethod = "POST"
         request.addValue(apiKey, forHTTPHeaderField: "x-api-key")
         request.addValue("application/json", forHTTPHeaderField: "Content-Type")

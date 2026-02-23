@@ -845,6 +845,89 @@ final class XAIAdapterMediaTests: XCTestCase {
         XCTAssertNil(usage)
     }
 
+    func testXAIVideoGenerationDoesNotAbortOnDecodeFailuresWhenRawDoneURLExists() async throws {
+        let (session, protocolType) = makeMockedURLSession()
+        let networkManager = NetworkManager(urlSession: session)
+
+        let providerConfig = ProviderConfig(
+            id: "x",
+            name: "xAI",
+            type: .xai,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        let fakeVideoBytes = Data([0x00, 0x00, 0x00, 0x1C, 0x66, 0x74, 0x79, 0x70])
+
+        var requestCount = 0
+        protocolType.requestHandler = { request in
+            requestCount += 1
+
+            if requestCount == 1 {
+                let response: [String: Any] = ["request_id": "vid_decode_guard_1"]
+                let data = try JSONSerialization.data(withJSONObject: response)
+                return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+            } else if (2...5).contains(requestCount) {
+                // Force Codable decode failure (status is array, not string),
+                // and provide no fallback status/state string.
+                let response: [String: Any] = [
+                    "status": ["pending"],
+                    "details": ["phase": "working"],
+                ]
+                let data = try JSONSerialization.data(withJSONObject: response)
+                return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+            } else if requestCount == 6 {
+                // Still force Codable failure (duration is string), but provide a raw URL
+                // so fallback resolution can classify this as done.
+                let response: [String: Any] = [
+                    "result": [
+                        "url": "https://vidgen.example.com/fallback-done.mp4",
+                        "duration": "5",
+                    ],
+                ]
+                let data = try JSONSerialization.data(withJSONObject: response)
+                return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+            } else {
+                XCTAssertEqual(request.url?.absoluteString, "https://vidgen.example.com/fallback-done.mp4")
+                XCTAssertEqual(request.httpMethod, "GET")
+                return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, fakeVideoBytes)
+            }
+        }
+
+        let adapter = XAIAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("A drifting cloudscape")])],
+            modelID: "grok-imagine-video",
+            controls: GenerationControls(),
+            tools: [],
+            streaming: false
+        )
+
+        var events: [StreamEvent] = []
+        for try await event in stream {
+            events.append(event)
+        }
+
+        XCTAssertEqual(requestCount, 7)
+        guard case .messageStart(let id) = events.first else { return XCTFail("Expected messageStart") }
+        XCTAssertEqual(id, "vid_decode_guard_1")
+
+        let videoEvent = events.first { event in
+            if case .contentDelta(.video) = event { return true }
+            return false
+        }
+        guard case .contentDelta(.video(let video)) = videoEvent else {
+            return XCTFail("Expected contentDelta with video")
+        }
+        XCTAssertTrue(video.url?.isFileURL == true)
+
+        let localURL = try XCTUnwrap(video.url)
+        let savedData = try Data(contentsOf: localURL)
+        XCTAssertEqual(savedData, fakeVideoBytes)
+        try? FileManager.default.removeItem(at: localURL)
+    }
+
     func testXAIVideoGenerationHandlesExpiredStatus() async throws {
         let (session, protocolType) = makeMockedURLSession()
         let networkManager = NetworkManager(urlSession: session)
