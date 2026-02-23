@@ -478,10 +478,12 @@ struct SettingsView: View {
                 Button {
                     showingAddProvider = true
                 } label: {
-                    Label("Add Provider", systemImage: "plus")
+                    Label("Add", systemImage: "plus")
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.regular)
+                .help("Add Provider")
+                .accessibilityLabel("Add Provider")
 
                 Spacer(minLength: JinSpacing.small)
 
@@ -560,10 +562,12 @@ struct SettingsView: View {
                 Button {
                     showingAddServer = true
                 } label: {
-                    Label("Add Server", systemImage: "plus")
+                    Label("Add", systemImage: "plus")
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.regular)
+                .help("Add MCP Server")
+                .accessibilityLabel("Add MCP Server")
 
                 Spacer(minLength: JinSpacing.small)
 

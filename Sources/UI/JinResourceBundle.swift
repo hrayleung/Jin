@@ -71,13 +71,17 @@ enum JinResourceBundle {
                 .appendingPathComponent(".build", isDirectory: true)
                 .appendingPathComponent(bundleName, isDirectory: true)
         )
-        urls.append(
-            cwdDirectory
-                .appendingPathComponent(".build", isDirectory: true)
-                .appendingPathComponent("arm64-apple-macosx", isDirectory: true)
-                .appendingPathComponent("release", isDirectory: true)
-                .appendingPathComponent(bundleName, isDirectory: true)
-        )
+        for buildDirectory in ["arm64-apple-macosx", "x86_64-apple-macosx"] {
+            for configuration in ["debug", "release"] {
+                urls.append(
+                    cwdDirectory
+                        .appendingPathComponent(".build", isDirectory: true)
+                        .appendingPathComponent(buildDirectory, isDirectory: true)
+                        .appendingPathComponent(configuration, isDirectory: true)
+                        .appendingPathComponent(bundleName, isDirectory: true)
+                )
+            }
+        }
 
         return deduplicated(urls)
     }
