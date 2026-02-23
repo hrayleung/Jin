@@ -824,6 +824,54 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         for try await _ in stream {}
     }
 
+    func testOpenRouterAdapterClampsUnsupportedXHighEffortToHigh() async throws {
+        let (session, protocolType) = makeMockedURLSession()
+        let networkManager = NetworkManager(urlSession: session)
+
+        let providerConfig = ProviderConfig(
+            id: "or",
+            name: "OpenRouter",
+            type: .openrouter,
+            apiKey: "ignored",
+            baseURL: "https://openrouter.ai/api/v1"
+        )
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://openrouter.ai/api/v1/chat/completions")
+            let body = try XCTUnwrap(requestBodyData(request))
+            let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+            let root = try XCTUnwrap(json)
+            let reasoning = try XCTUnwrap(root["reasoning"] as? [String: Any])
+            XCTAssertEqual(reasoning["effort"] as? String, "high")
+
+            let response: [String: Any] = [
+                "id": "cmpl_or_high",
+                "choices": [
+                    [
+                        "message": [
+                            "role": "assistant",
+                            "content": "OK"
+                        ],
+                        "finish_reason": "stop"
+                    ]
+                ]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = OpenRouterAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hello")])],
+            modelID: "openai/gpt-5",
+            controls: GenerationControls(reasoning: ReasoningControls(enabled: true, effort: .xhigh)),
+            tools: [],
+            streaming: false
+        )
+
+        for try await _ in stream {}
+    }
+
     func testOpenRouterAdapterParsesReasoningDetailsWhenReasoningFieldIsMissing() async throws {
         let (session, protocolType) = makeMockedURLSession()
         let networkManager = NetworkManager(urlSession: session)
@@ -995,6 +1043,54 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         let stream = try await adapter.sendMessage(
             messages: [Message(role: .user, content: [.text("hello")])],
             modelID: "openai/gpt-5.2",
+            controls: GenerationControls(reasoning: ReasoningControls(enabled: true, effort: .xhigh)),
+            tools: [],
+            streaming: false
+        )
+
+        for try await _ in stream {}
+    }
+
+    func testOpenAICompatibleAdapterClampsUnsupportedXHighEffortToHigh() async throws {
+        let (session, protocolType) = makeMockedURLSession()
+        let networkManager = NetworkManager(urlSession: session)
+
+        let providerConfig = ProviderConfig(
+            id: "oac",
+            name: "Third Party",
+            type: .openaiCompatible,
+            apiKey: "ignored",
+            baseURL: "https://example-compat.ai"
+        )
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://example-compat.ai/v1/chat/completions")
+            let body = try XCTUnwrap(requestBodyData(request))
+            let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+            let root = try XCTUnwrap(json)
+            let reasoning = try XCTUnwrap(root["reasoning"] as? [String: Any])
+            XCTAssertEqual(reasoning["effort"] as? String, "high")
+
+            let response: [String: Any] = [
+                "id": "cmpl_oac_high",
+                "choices": [
+                    [
+                        "message": [
+                            "role": "assistant",
+                            "content": "OK"
+                        ],
+                        "finish_reason": "stop"
+                    ]
+                ]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = OpenAICompatibleAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hello")])],
+            modelID: "openai/gpt-5",
             controls: GenerationControls(reasoning: ReasoningControls(enabled: true, effort: .xhigh)),
             tools: [],
             streaming: false

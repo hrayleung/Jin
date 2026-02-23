@@ -3790,23 +3790,10 @@ struct ChatView: View {
     }
 
     private var availableReasoningEffortLevels: [ReasoningEffort] {
-        switch providerType {
-        case .vertexai, .perplexity:
-            return [.minimal, .low, .medium, .high]
-        case .gemini:
-            if Self.gemini3ProModelIDs.contains(conversationEntity.modelID.lowercased()) {
-                return [.low, .high]
-            }
-            return [.minimal, .low, .medium, .high]
-        case .openai, .openaiCompatible, .openrouter, .groq, .mistral, .deepinfra:
-            var levels: [ReasoningEffort] = [.low, .medium, .high]
-            if supportsOpenAIStyleExtremeReasoningEffort {
-                levels.append(.xhigh)
-            }
-            return levels
-        default:
-            return [.low, .medium, .high]
-        }
+        ModelCapabilityRegistry.supportedReasoningEfforts(
+            for: providerType,
+            modelID: conversationEntity.modelID
+        )
     }
 
     @ViewBuilder
@@ -5029,26 +5016,6 @@ struct ChatView: View {
         controls.reasoning = reasoning
     }
 
-    private var usesOpenAIStyleReasoningEffort: Bool {
-        if let resolved = resolvedModelSettings {
-            return resolved.supportsOpenAIStyleReasoningEffort
-        }
-        return ModelCapabilityRegistry.supportsOpenAIStyleReasoningEffort(
-            for: providerType,
-            modelID: conversationEntity.modelID
-        )
-    }
-
-    private var supportsOpenAIStyleExtremeReasoningEffort: Bool {
-        if let resolved = resolvedModelSettings {
-            return resolved.supportsOpenAIStyleExtremeEffort
-        }
-        return ModelCapabilityRegistry.supportsOpenAIStyleExtremeEffort(
-            for: providerType,
-            modelID: conversationEntity.modelID
-        )
-    }
-
     private func defaultWebSearchControls(enabled: Bool) -> WebSearchControls {
         guard enabled else { return WebSearchControls(enabled: false) }
 
@@ -5208,31 +5175,16 @@ struct ChatView: View {
     private func normalizeReasoningEffortLimits() {
         guard supportsReasoningControl else { return }
 
-        if usesOpenAIStyleReasoningEffort,
-           controls.reasoning?.effort == .xhigh,
-           !supportsOpenAIStyleExtremeReasoningEffort {
-            controls.reasoning?.effort = .high
+        if let effort = controls.reasoning?.effort {
+            controls.reasoning?.effort = ModelCapabilityRegistry.normalizedReasoningEffort(
+                effort,
+                for: providerType,
+                modelID: conversationEntity.modelID
+            )
         }
 
         if providerType == .anthropic {
             normalizeAnthropicReasoningAndMaxTokens()
-        }
-
-        if providerType == .gemini,
-           Self.gemini3ProModelIDs.contains(conversationEntity.modelID.lowercased()),
-           let effort = controls.reasoning?.effort {
-            controls.reasoning?.effort = clampGemini3ProEffort(effort)
-        }
-    }
-
-    private func clampGemini3ProEffort(_ effort: ReasoningEffort) -> ReasoningEffort {
-        switch effort {
-        case .none, .low, .high:
-            return effort
-        case .minimal:
-            return .low
-        case .medium, .xhigh:
-            return .high
         }
     }
 

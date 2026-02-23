@@ -100,4 +100,68 @@ final class ProviderParamsJSONSyncTests: XCTestCase {
         XCTAssertEqual(thinkingConfig["includeThoughts"] as? Bool, true)
         XCTAssertEqual(thinkingConfig["thinkingLevel"] as? String, "HIGH")
     }
+
+    func testOpenAIDraftClampsUnsupportedXHighEffortToHigh() throws {
+        let controls = GenerationControls(reasoning: ReasoningControls(enabled: true, effort: .xhigh))
+
+        let unsupportedDraft = ProviderParamsJSONSync.makeDraft(
+            providerType: .openai,
+            modelID: "gpt-5",
+            controls: controls
+        )
+        let unsupportedReasoning = try XCTUnwrap(unsupportedDraft["reasoning"]?.value as? [String: Any])
+        XCTAssertEqual(unsupportedReasoning["effort"] as? String, "high")
+
+        let supportedDraft = ProviderParamsJSONSync.makeDraft(
+            providerType: .openai,
+            modelID: "gpt-5.2-pro",
+            controls: controls
+        )
+        let supportedReasoning = try XCTUnwrap(supportedDraft["reasoning"]?.value as? [String: Any])
+        XCTAssertEqual(supportedReasoning["effort"] as? String, "xhigh")
+
+        let sparkDraft = ProviderParamsJSONSync.makeDraft(
+            providerType: .openai,
+            modelID: "gpt-5.3-codex-spark",
+            controls: controls
+        )
+        let sparkReasoning = try XCTUnwrap(sparkDraft["reasoning"]?.value as? [String: Any])
+        XCTAssertEqual(sparkReasoning["effort"] as? String, "xhigh")
+    }
+
+    func testApplyOpenAIDraftClampsUnsupportedXHighEffortToHigh() throws {
+        let draft: [String: AnyCodable] = [
+            "reasoning": AnyCodable([
+                "effort": "xhigh",
+                "summary": "auto"
+            ])
+        ]
+
+        var unsupportedControls = GenerationControls()
+        _ = ProviderParamsJSONSync.applyDraft(
+            providerType: .openai,
+            modelID: "gpt-5",
+            draft: draft,
+            controls: &unsupportedControls
+        )
+        XCTAssertEqual(unsupportedControls.reasoning?.effort, .high)
+
+        var supportedControls = GenerationControls()
+        _ = ProviderParamsJSONSync.applyDraft(
+            providerType: .openai,
+            modelID: "gpt-5.2-codex",
+            draft: draft,
+            controls: &supportedControls
+        )
+        XCTAssertEqual(supportedControls.reasoning?.effort, .xhigh)
+
+        var sparkControls = GenerationControls()
+        _ = ProviderParamsJSONSync.applyDraft(
+            providerType: .openai,
+            modelID: "gpt-5.3-codex-spark",
+            draft: draft,
+            controls: &sparkControls
+        )
+        XCTAssertEqual(sparkControls.reasoning?.effort, .xhigh)
+    }
 }

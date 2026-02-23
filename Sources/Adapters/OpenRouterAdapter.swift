@@ -403,10 +403,15 @@ actor OpenRouterAdapter: LLMProviderAdapter {
 
     private func mapReasoningEffort(
         _ effort: ReasoningEffort,
-        modelID: String,
-        requestShape: ModelRequestShape
+        modelID: String
     ) -> String {
-        switch effort {
+        let normalized = ModelCapabilityRegistry.normalizedReasoningEffort(
+            effort,
+            for: providerConfig.type,
+            modelID: modelID
+        )
+
+        switch normalized {
         case .none:
             return "none"
         case .minimal, .low:
@@ -416,14 +421,7 @@ actor OpenRouterAdapter: LLMProviderAdapter {
         case .high:
             return "high"
         case .xhigh:
-            if (requestShape == .openAIResponses || requestShape == .openAICompatible),
-               ModelCapabilityRegistry.supportsOpenAIStyleExtremeEffort(
-                for: providerConfig.type,
-                modelID: modelID
-               ) {
-                return "xhigh"
-            }
-            return "high"
+            return "xhigh"
         }
     }
 
@@ -489,8 +487,7 @@ actor OpenRouterAdapter: LLMProviderAdapter {
             body["reasoning"] = [
                 "effort": mapReasoningEffort(
                     effort,
-                    modelID: modelID,
-                    requestShape: requestShape
+                    modelID: modelID
                 )
             ]
             return requestShape == .openAIResponses

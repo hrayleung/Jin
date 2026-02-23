@@ -80,6 +80,57 @@ final class OpenAIAdapterPromptCachingTests: XCTestCase {
         XCTAssertEqual(finalUsage?.cachedTokens, 8)
     }
 
+    func testOpenAIAdapterClampsUnsupportedXHighEffortToHigh() async throws {
+        let (session, protocolType) = makeOpenAIMockedURLSession()
+        let networkManager = NetworkManager(urlSession: session)
+
+        let providerConfig = ProviderConfig(
+            id: "openai",
+            name: "OpenAI",
+            type: .openai,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://example.com/responses")
+
+            let body = try XCTUnwrap(openAIRequestBodyData(request))
+            let root = try XCTUnwrap(try JSONSerialization.jsonObject(with: body) as? [String: Any])
+            let reasoning = try XCTUnwrap(root["reasoning"] as? [String: Any])
+            XCTAssertEqual(reasoning["effort"] as? String, "high")
+
+            let response: [String: Any] = [
+                "id": "resp_high",
+                "output": [
+                    [
+                        "type": "message",
+                        "content": [
+                            ["type": "output_text", "text": "ok"]
+                        ]
+                    ]
+                ],
+                "usage": [
+                    "input_tokens": 1,
+                    "output_tokens": 1
+                ]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = OpenAIAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hi")])],
+            modelID: "gpt-5",
+            controls: GenerationControls(reasoning: ReasoningControls(enabled: true, effort: .xhigh)),
+            tools: [],
+            streaming: false
+        )
+
+        for try await _ in stream {}
+    }
+
     func testOpenAIAdapterNonStreamingEmitsWebSearchActivityFromOutputItems() async throws {
         let (session, protocolType) = makeOpenAIMockedURLSession()
         let networkManager = NetworkManager(urlSession: session)

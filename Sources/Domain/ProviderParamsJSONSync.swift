@@ -10,7 +10,7 @@ enum ProviderParamsJSONSync {
 
         switch providerType {
         case .openai:
-            base = makeOpenAIDraft(controls: controls)
+            base = makeOpenAIDraft(controls: controls, modelID: modelID)
         case .anthropic:
             base = makeAnthropicDraft(controls: controls, modelID: modelID)
         case .xai:
@@ -60,7 +60,12 @@ enum ProviderParamsJSONSync {
 
         switch providerType {
         case .openai:
-            applyOpenAI(draft: normalizedDraft, controls: &controls, providerSpecific: &providerSpecific)
+            applyOpenAI(
+                draft: normalizedDraft,
+                modelID: modelID,
+                controls: &controls,
+                providerSpecific: &providerSpecific
+            )
         case .anthropic:
             applyAnthropic(draft: normalizedDraft, modelID: modelID, controls: &controls, providerSpecific: &providerSpecific)
         case .xai:
@@ -127,7 +132,10 @@ enum ProviderParamsJSONSync {
 
     // MARK: - Draft builders
 
-    private static func makeOpenAIDraft(controls: GenerationControls) -> [String: Any] {
+    private static func makeOpenAIDraft(
+        controls: GenerationControls,
+        modelID: String
+    ) -> [String: Any] {
         var out: [String: Any] = [:]
 
         if let temperature = controls.temperature {
@@ -145,7 +153,12 @@ enum ProviderParamsJSONSync {
         if let reasoning = controls.reasoning {
             let effortString: String
             if reasoning.enabled {
-                effortString = mapOpenAIEffort(reasoning.effort ?? .none)
+                let normalizedEffort = ModelCapabilityRegistry.normalizedReasoningEffort(
+                    reasoning.effort ?? .none,
+                    for: .openai,
+                    modelID: modelID
+                )
+                effortString = mapOpenAIEffort(normalizedEffort)
             } else {
                 effortString = "none"
             }
@@ -427,6 +440,7 @@ enum ProviderParamsJSONSync {
 
     private static func applyOpenAI(
         draft: [String: AnyCodable],
+        modelID: String,
         controls: inout GenerationControls,
         providerSpecific: inout [String: AnyCodable]
     ) {
@@ -459,7 +473,7 @@ enum ProviderParamsJSONSync {
 
         if let raw = draft["reasoning"]?.value {
             if let dict = raw as? [String: Any] {
-                let canPromote = applyOpenAIReasoning(dict, controls: &controls)
+                let canPromote = applyOpenAIReasoning(dict, modelID: modelID, controls: &controls)
                 if canPromote {
                     providerSpecific.removeValue(forKey: "reasoning")
                 }
@@ -936,7 +950,11 @@ enum ProviderParamsJSONSync {
 
     // MARK: - OpenAI helpers
 
-    private static func applyOpenAIReasoning(_ dict: [String: Any], controls: inout GenerationControls) -> Bool {
+    private static func applyOpenAIReasoning(
+        _ dict: [String: Any],
+        modelID: String,
+        controls: inout GenerationControls
+    ) -> Bool {
         let knownKeys: Set<String> = ["effort", "summary"]
         let isSimple = Set(dict.keys).isSubset(of: knownKeys)
 
@@ -960,9 +978,15 @@ enum ProviderParamsJSONSync {
             return isSimple && (summaryString == nil || summary != nil)
         }
 
+        let normalizedEffort = ModelCapabilityRegistry.normalizedReasoningEffort(
+            effort,
+            for: .openai,
+            modelID: modelID
+        )
+
         controls.reasoning = ReasoningControls(
             enabled: true,
-            effort: effort,
+            effort: normalizedEffort,
             budgetTokens: nil,
             summary: summary ?? .auto
         )
