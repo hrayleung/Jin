@@ -3928,7 +3928,7 @@ struct ChatView: View {
             if providerType != .anthropic {
                 cache.strategy = nil
             }
-            if providerType != .openai && providerType != .xai {
+            if providerType != .openai && providerType != .openaiWebSocket && providerType != .xai {
                 cache.cacheKey = nil
             }
             if providerType != .xai {
@@ -4544,7 +4544,7 @@ struct ChatView: View {
             draft.mode = .implicit
         }
 
-        if providerType != .openai && providerType != .xai {
+        if providerType != .openai && providerType != .openaiWebSocket && providerType != .xai {
             draft.cacheKey = nil
         }
         if providerType != .xai {
@@ -5274,7 +5274,7 @@ struct ChatView: View {
                 if !supportsContextCacheTTL {
                     contextCache.ttl = nil
                 }
-                if providerType != .openai && providerType != .xai {
+                if providerType != .openai && providerType != .openaiWebSocket && providerType != .xai {
                     contextCache.cacheKey = nil
                 }
                 if providerType != .xai {
