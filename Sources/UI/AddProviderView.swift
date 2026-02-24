@@ -8,7 +8,7 @@ struct AddProviderView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
 
-    @State private var name = ""
+    @State private var name = ProviderType.openai.displayName
     @State private var providerType: ProviderType = .openai
     @State private var iconID: String? = LobeProviderIconCatalog.defaultIconID(for: .openai)
     @State private var baseURL = ProviderType.openai.defaultBaseURL ?? ""
@@ -21,7 +21,12 @@ struct AddProviderView: View {
     var body: some View {
         NavigationStack {
             Form {
-                TextField("Name", text: $name)
+                TextField("Name", text: $name, prompt: Text("e.g., \(providerType.displayName)"))
+                if name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    Text("Name is required.")
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                }
 
                 ProviderIconPickerField(
                     selectedIconID: $iconID,
@@ -43,6 +48,11 @@ struct AddProviderView: View {
                     let currentIconID = iconID?.trimmingCharacters(in: .whitespacesAndNewlines)
                     if currentIconID == nil || currentIconID?.isEmpty == true || currentIconID == oldDefaultIconID {
                         iconID = LobeProviderIconCatalog.defaultIconID(for: newValue)
+                    }
+
+                    let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+                    if trimmedName.isEmpty || trimmedName == oldValue.displayName {
+                        name = newValue.displayName
                     }
                 }
 
