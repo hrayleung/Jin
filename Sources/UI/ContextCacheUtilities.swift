@@ -222,6 +222,12 @@ enum ContextCacheUtilities {
                 messages: messages,
                 tools: tools
             )
+        case .openaiWebSocket:
+            adjustedControls.contextCache?.cacheKey = automaticOpenAICacheKey(
+                modelID: modelID,
+                messages: messages,
+                tools: tools
+            )
         case .anthropic:
             let systemTokenEstimate = approximateTokenEstimate(for: normalizedSystemPrompt(in: messages) ?? "")
             adjustedControls.contextCache?.strategy = (systemTokenEstimate >= 1024) ? .prefixWindow : .systemOnly

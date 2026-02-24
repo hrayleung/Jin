@@ -304,11 +304,14 @@ struct AddModelSheet: View {
         var reasoningConfig: ModelReasoningConfig?
 
         switch providerType {
-        case .openai?:
+        case .openai?, .openaiWebSocket?:
             if openAIVisionModels.contains(lower) {
                 caps.insert(.vision)
                 caps.insert(.promptCaching)
-                caps.insert(.nativePDF)
+                if let providerType,
+                   JinModelSupport.supportsNativePDF(providerType: providerType, modelID: lower) {
+                    caps.insert(.nativePDF)
+                }
             }
             if openAIReasoningModels.contains(lower) {
                 caps.insert(.reasoning)
@@ -527,7 +530,7 @@ struct AddModelSheet: View {
             .union(geminiAudioInputModelIDs)
 
         switch providerType {
-        case .openai?:
+        case .openai?, .openaiWebSocket?:
             return openAIAudioInputModelIDs.contains(lowerModelID)
 
         case .mistral?:

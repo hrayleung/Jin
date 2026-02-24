@@ -13,6 +13,14 @@ enum JinModelSupport {
             "o4",
             "gpt-4o",
         ],
+        .openaiWebSocket: [
+            "gpt-5",
+            "gpt-5.2",
+            "gpt-5.2-2025-12-11",
+            "o3",
+            "o4",
+            "gpt-4o",
+        ],
         .openrouter: [
             "google/gemini-3-pro-preview",
             "google/gemini-3.1-pro-preview",
@@ -88,6 +96,13 @@ enum JinModelSupport {
     // Keep native PDF support checks aligned across UI and adapters.
     private static let nativePDFSupportedModelsByProvider: [ProviderType: Set<String>] = [
         .openai: [
+            "gpt-5.2",
+            "gpt-5.2-2025-12-11",
+            "gpt-4o",
+            "o3",
+            "o4",
+        ],
+        .openaiWebSocket: [
             "gpt-5.2",
             "gpt-5.2-2025-12-11",
             "gpt-4o",

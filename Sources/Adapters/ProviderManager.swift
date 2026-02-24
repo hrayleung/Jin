@@ -41,6 +41,8 @@ actor ProviderManager {
         switch config.type {
         case .openai:
             return OpenAIAdapter(providerConfig: config, apiKey: apiKey, networkManager: networkManager)
+        case .openaiWebSocket:
+            return OpenAIWebSocketAdapter(providerConfig: config, apiKey: apiKey, networkManager: networkManager)
         case .codexAppServer:
             return CodexAppServerAdapter(providerConfig: config, apiKey: apiKey, networkManager: networkManager)
         case .openaiCompatible, .groq, .mistral, .deepinfra:

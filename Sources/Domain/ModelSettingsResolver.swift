@@ -20,6 +20,11 @@ enum ModelSettingsResolver {
             "gpt-5.2": 400_000,
             "gpt-5.2-2025-12-11": 400_000,
         ],
+        .openaiWebSocket: [
+            "gpt-5": 400_000,
+            "gpt-5.2": 400_000,
+            "gpt-5.2-2025-12-11": 400_000,
+        ],
         .anthropic: [
             "claude-opus-4": 200_000,
             "claude-sonnet-4": 200_000,

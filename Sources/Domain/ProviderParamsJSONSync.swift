@@ -11,6 +11,8 @@ enum ProviderParamsJSONSync {
         switch providerType {
         case .openai:
             base = makeOpenAIDraft(controls: controls, modelID: modelID)
+        case .openaiWebSocket:
+            base = makeOpenAIDraft(controls: controls, modelID: modelID)
         case .anthropic:
             base = makeAnthropicDraft(controls: controls, modelID: modelID)
         case .xai:
@@ -60,6 +62,13 @@ enum ProviderParamsJSONSync {
 
         switch providerType {
         case .openai:
+            applyOpenAI(
+                draft: normalizedDraft,
+                modelID: modelID,
+                controls: &controls,
+                providerSpecific: &providerSpecific
+            )
+        case .openaiWebSocket:
             applyOpenAI(
                 draft: normalizedDraft,
                 modelID: modelID,
@@ -1819,7 +1828,7 @@ enum ProviderParamsJSONSync {
 
     private static func supportsContextCache(providerType: ProviderType?) -> Bool {
         switch providerType {
-        case .openai, .anthropic, .gemini, .vertexai, .xai:
+        case .openai, .openaiWebSocket, .anthropic, .gemini, .vertexai, .xai:
             return true
         case .codexAppServer, .openaiCompatible, .openrouter, .perplexity, .groq, .cohere, .mistral, .deepinfra, .deepseek, .fireworks, .cerebras, .none:
             return false
@@ -2007,7 +2016,7 @@ enum ProviderParamsJSONSync {
                 base[key] = value
             }
 
-        case .openai, .codexAppServer, .cerebras, .fireworks, .openaiCompatible, .openrouter, .groq, .cohere, .mistral, .deepinfra, .xai, .deepseek, .none:
+        case .openai, .openaiWebSocket, .codexAppServer, .cerebras, .fireworks, .openaiCompatible, .openrouter, .groq, .cohere, .mistral, .deepinfra, .xai, .deepseek, .none:
             for (key, value) in additional {
                 base[key] = value
             }
