@@ -1320,7 +1320,7 @@ struct ChatView: View {
             return Self.xAIImageGenerationModelIDs.contains(lowerModelID)
         case .gemini, .vertexai:
             return Self.geminiImageGenerationModelIDs.contains(lowerModelID)
-        case .openai, .codexAppServer, .openaiCompatible, .openrouter, .anthropic, .perplexity, .groq, .cohere, .mistral, .deepinfra, .deepseek, .fireworks, .cerebras, .none:
+        case .openai, .openaiWebSocket, .codexAppServer, .openaiCompatible, .openrouter, .anthropic, .perplexity, .groq, .cohere, .mistral, .deepinfra, .deepseek, .fireworks, .cerebras, .none:
             return false
         }
     }
@@ -1345,6 +1345,8 @@ struct ChatView: View {
         switch providerType {
         case .openai:
             return JinModelSupport.supportsNativePDF(providerType: .openai, modelID: lowerModelID)
+        case .openaiWebSocket:
+            return JinModelSupport.supportsNativePDF(providerType: .openaiWebSocket, modelID: lowerModelID)
         case .anthropic:
             return JinModelSupport.supportsNativePDF(providerType: .anthropic, modelID: lowerModelID)
         case .perplexity:
@@ -1380,7 +1382,7 @@ struct ChatView: View {
         }
 
         switch providerType {
-        case .openai:
+        case .openai, .openaiWebSocket:
             return Self.openAIAudioInputModelIDs.contains(lowerModelID)
         case .mistral:
             return Self.mistralAudioInputModelIDs.contains(lowerModelID)
@@ -1419,7 +1421,7 @@ struct ChatView: View {
             return lowerModelID != "gemini-2.5-flash-image"
         case .perplexity:
             return false
-        case .openai, .codexAppServer, .openaiCompatible, .openrouter, .anthropic, .groq, .cohere, .mistral, .deepinfra, .xai, .deepseek, .fireworks, .cerebras, .none:
+        case .openai, .openaiWebSocket, .codexAppServer, .openaiCompatible, .openrouter, .anthropic, .groq, .cohere, .mistral, .deepinfra, .xai, .deepseek, .fireworks, .cerebras, .none:
             return false
         }
     }
@@ -1626,7 +1628,7 @@ struct ChatView: View {
         switch providerType {
         case .perplexity:
             return controls.webSearch?.enabled ?? true
-        case .openai, .codexAppServer, .openaiCompatible, .openrouter, .anthropic, .groq, .cohere, .mistral, .deepinfra, .xai, .deepseek, .fireworks, .cerebras, .gemini, .vertexai, .none:
+        case .openai, .openaiWebSocket, .codexAppServer, .openaiCompatible, .openrouter, .anthropic, .groq, .cohere, .mistral, .deepinfra, .xai, .deepseek, .fireworks, .cerebras, .gemini, .vertexai, .none:
             return controls.webSearch?.enabled == true
         }
     }
@@ -1689,7 +1691,7 @@ struct ChatView: View {
         switch providerType {
         case .gemini, .vertexai:
             return true
-        case .openai, .codexAppServer, .openaiCompatible, .openrouter, .anthropic, .perplexity, .groq, .cohere, .mistral, .deepinfra, .xai, .deepseek, .fireworks, .cerebras, .none:
+        case .openai, .openaiWebSocket, .codexAppServer, .openaiCompatible, .openrouter, .anthropic, .perplexity, .groq, .cohere, .mistral, .deepinfra, .xai, .deepseek, .fireworks, .cerebras, .none:
             return false
         }
     }
@@ -1700,7 +1702,7 @@ struct ChatView: View {
 
     private var supportsContextCacheTTL: Bool {
         switch providerType {
-        case .openai, .anthropic, .xai:
+        case .openai, .openaiWebSocket, .anthropic, .xai:
             return true
         case .codexAppServer, .openaiCompatible, .openrouter, .perplexity, .groq, .cohere, .mistral, .deepinfra, .gemini, .vertexai, .deepseek, .fireworks, .cerebras, .none:
             return false
@@ -1717,7 +1719,7 @@ struct ChatView: View {
             return "Use implicit caching for normal chats, or explicit caching with a cached content resource for long reusable context."
         case .anthropic:
             return "Anthropic caches tagged prompt blocks. Keep stable system/tool prefixes to improve cache hit rates."
-        case .openai:
+        case .openai, .openaiWebSocket:
             return "OpenAI uses prompt cache hints. A stable key and retention hint can improve reuse across similar prompts."
         case .xai:
             return "xAI supports prompt cache hints and optional conversation scoping for continuity across related turns."
@@ -1730,7 +1732,7 @@ struct ChatView: View {
         switch providerType {
         case .gemini, .vertexai:
             return "Explicit mode requires a valid cached content resource name. Keep it stable across requests to reuse cached tokens."
-        case .openai, .xai:
+        case .openai, .openaiWebSocket, .xai:
             return "Use a stable cache key when your prompt prefix is consistent."
         case .anthropic:
             return "For best results, keep system prompts and tool descriptions stable so Anthropic can reuse cacheable blocks."
@@ -1755,6 +1757,8 @@ struct ChatView: View {
 
         switch providerType {
         case .openai:
+            return ContextCacheControls(mode: .implicit)
+        case .openaiWebSocket:
             return ContextCacheControls(mode: .implicit)
         case .xai:
             return ContextCacheControls(
@@ -1817,7 +1821,7 @@ struct ChatView: View {
             return "Thinking: \(reasoningLabel)"
         case .perplexity:
             return "Reasoning: \(reasoningLabel)"
-        case .openai, .codexAppServer, .openaiCompatible, .openrouter, .groq, .cohere, .mistral, .deepinfra, .xai, .deepseek, .fireworks, .cerebras, .none:
+        case .openai, .openaiWebSocket, .codexAppServer, .openaiCompatible, .openrouter, .groq, .cohere, .mistral, .deepinfra, .xai, .deepseek, .fireworks, .cerebras, .none:
             return "Reasoning: \(reasoningLabel)"
         }
     }
@@ -1844,7 +1848,7 @@ struct ChatView: View {
 
     private var webSearchLabel: String {
         switch providerType {
-        case .openai:
+        case .openai, .openaiWebSocket:
             return (controls.webSearch?.contextSize ?? .medium).displayName
         case .perplexity:
             return (controls.webSearch?.contextSize ?? .low).displayName
@@ -1898,7 +1902,7 @@ struct ChatView: View {
         guard supportsWebSearchControl, isWebSearchEnabled else { return nil }
 
         switch providerType {
-        case .openai:
+        case .openai, .openaiWebSocket:
             switch controls.webSearch?.contextSize ?? .medium {
             case .low: return "L"
             case .medium: return "M"
@@ -2148,7 +2152,7 @@ struct ChatView: View {
         }
 
         switch type {
-        case .openai:
+        case .openai, .openaiWebSocket:
             return models.first(where: { $0.id == "gpt-5.2" })?.id
         case .anthropic:
             return models.first(where: { $0.id == "claude-opus-4-6" })?.id
@@ -3612,6 +3616,10 @@ struct ChatView: View {
         }
     }
 
+    private var supportsReasoningSummaryControl: Bool {
+        providerType == .openai || providerType == .openaiWebSocket
+    }
+
     @ViewBuilder
     private var reasoningMenuContent: some View {
         if let reasoningConfig = selectedReasoningConfig, reasoningConfig.type != .none {
@@ -3637,7 +3645,7 @@ struct ChatView: View {
                 } else {
                     effortLevelButtons(for: availableReasoningEffortLevels)
 
-                    if providerType == .openai {
+                    if supportsReasoningSummaryControl {
                         Divider()
                         Text("Reasoning summary")
                             .font(.caption)
@@ -3833,7 +3841,7 @@ struct ChatView: View {
         Toggle("Web Search", isOn: webSearchEnabledBinding)
         if isWebSearchEnabled {
             switch providerType {
-            case .openai:
+            case .openai, .openaiWebSocket:
                 Divider()
                 ForEach(WebSearchContextSize.allCases, id: \.self) { size in
                     Button {
@@ -4798,7 +4806,7 @@ struct ChatView: View {
             reasoning.enabled = true
             reasoning.effort = effort
             reasoning.budgetTokens = nil
-            if providerType == .openai, reasoning.summary == nil {
+            if supportsReasoningSummaryControl, reasoning.summary == nil {
                 reasoning.summary = .auto
             }
         }
@@ -5003,7 +5011,8 @@ struct ChatView: View {
         updateReasoning { reasoning in
             reasoning.enabled = true
             reasoning.summary = summary
-            if providerType == .openai, (reasoning.effort ?? ReasoningEffort.none) == ReasoningEffort.none {
+            if supportsReasoningSummaryControl,
+               (reasoning.effort ?? ReasoningEffort.none) == ReasoningEffort.none {
                 reasoning.effort = selectedReasoningConfig?.defaultEffort ?? .medium
             }
         }
@@ -5020,7 +5029,7 @@ struct ChatView: View {
         guard enabled else { return WebSearchControls(enabled: false) }
 
         switch providerType {
-        case .openai:
+        case .openai, .openaiWebSocket:
             return WebSearchControls(enabled: true, contextSize: .medium, sources: nil)
         case .perplexity:
             // Perplexity defaults `search_context_size` to `low` when omitted.
@@ -5037,7 +5046,7 @@ struct ChatView: View {
     private func ensureValidWebSearchDefaultsIfEnabled() {
         guard controls.webSearch?.enabled == true else { return }
         switch providerType {
-        case .openai:
+        case .openai, .openaiWebSocket:
             controls.webSearch?.sources = nil
             if controls.webSearch?.contextSize == nil {
                 controls.webSearch?.contextSize = .medium
@@ -5144,7 +5153,7 @@ struct ChatView: View {
         if providerType != .anthropic {
             controls.reasoning?.budgetTokens = nil
         }
-        if providerType == .openai,
+        if supportsReasoningSummaryControl,
            controls.reasoning?.enabled == true,
            (controls.reasoning?.effort ?? ReasoningEffort.none) != ReasoningEffort.none,
            controls.reasoning?.summary == nil {

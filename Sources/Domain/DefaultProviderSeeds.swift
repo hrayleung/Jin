@@ -10,6 +10,7 @@ enum DefaultProviderSeeds {
     static func allProviders() -> [ProviderConfig] {
         [
             openAI,
+            openAIWebSocket,
             codexAppServer,
             groq,
             openRouter,
@@ -58,6 +59,17 @@ enum DefaultProviderSeeds {
                     reasoningConfig: nil
                 ),
             ]
+        )
+    }
+
+    static var openAIWebSocket: ProviderConfig {
+        ProviderConfig(
+            id: "openai-websocket",
+            name: "OpenAI (WebSocket)",
+            type: .openaiWebSocket,
+            iconID: LobeProviderIconCatalog.defaultIconID(for: .openaiWebSocket),
+            baseURL: ProviderType.openaiWebSocket.defaultBaseURL,
+            models: openAI.models
         )
     }
 

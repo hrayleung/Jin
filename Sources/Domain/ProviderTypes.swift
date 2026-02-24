@@ -55,6 +55,7 @@ struct ModelOverrides: Codable, Equatable {
 /// Provider type.
 enum ProviderType: String, Codable, CaseIterable {
     case openai
+    case openaiWebSocket
     case codexAppServer
     case openaiCompatible
     case openrouter
@@ -74,6 +75,7 @@ enum ProviderType: String, Codable, CaseIterable {
     var displayName: String {
         switch self {
         case .openai: return "OpenAI"
+        case .openaiWebSocket: return "OpenAI (WebSocket)"
         case .codexAppServer: return "Codex App Server (Beta)"
         case .openaiCompatible: return "OpenAI Compatible"
         case .openrouter: return "OpenRouter"
@@ -95,6 +97,7 @@ enum ProviderType: String, Codable, CaseIterable {
     var defaultBaseURL: String? {
         switch self {
         case .openai: return "https://api.openai.com/v1"
+        case .openaiWebSocket: return "wss://api.openai.com/v1"
         case .codexAppServer: return "ws://127.0.0.1:4500"
         case .openaiCompatible: return "https://api.openai.com/v1"
         case .openrouter: return "https://openrouter.ai/api/v1"

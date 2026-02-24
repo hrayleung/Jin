@@ -87,13 +87,18 @@ struct ProviderConfigFormView: View {
                 case .codexAppServer:
                     codexServerSection
                     codexAuthSection
-                case .openai, .openaiCompatible, .openrouter, .anthropic, .perplexity, .groq, .cohere, .mistral, .deepinfra, .xai, .deepseek, .fireworks, .cerebras, .gemini:
+                case .openai, .openaiWebSocket, .openaiCompatible, .openrouter, .anthropic, .perplexity, .groq, .cohere, .mistral, .deepinfra, .xai, .deepseek, .fireworks, .cerebras, .gemini:
                     apiKeyField
                 case .vertexai:
                     vertexAISection
                 case .none:
                     Text("Unknown provider type")
                         .foregroundColor(.secondary)
+                }
+
+                if providerType == .openaiWebSocket {
+                    Text("Uses OpenAI Responses API WebSocket mode for long-running, tool-call-heavy workflows. This transport is sequential (no multiplexing): one response at a time per connection.")
+                        .jinInfoCallout()
                 }
 
                 if providerType == .codexAppServer {
@@ -954,7 +959,7 @@ struct ProviderConfigFormView: View {
                 codexAccount = nil
                 codexRateLimit = nil
                 codexPendingLoginID = nil
-            case .openai, .openaiCompatible, .openrouter, .anthropic, .perplexity, .groq, .cohere, .mistral, .deepinfra, .xai, .deepseek, .fireworks, .cerebras, .gemini:
+            case .openai, .openaiWebSocket, .openaiCompatible, .openrouter, .anthropic, .perplexity, .groq, .cohere, .mistral, .deepinfra, .xai, .deepseek, .fireworks, .cerebras, .gemini:
                 apiKey = provider.apiKey ?? ""
             case .vertexai:
                 serviceAccountJSON = provider.serviceAccountJSON ?? ""
@@ -1267,7 +1272,7 @@ struct ProviderConfigFormView: View {
                 try? modelContext.save()
             }
 
-        case .openai, .openaiCompatible, .openrouter, .anthropic, .perplexity, .groq, .cohere, .mistral, .deepinfra, .xai, .deepseek, .fireworks, .cerebras, .gemini:
+        case .openai, .openaiWebSocket, .openaiCompatible, .openrouter, .anthropic, .perplexity, .groq, .cohere, .mistral, .deepinfra, .xai, .deepseek, .fireworks, .cerebras, .gemini:
             let key = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
             await MainActor.run {
                 provider.apiKeyKeychainID = nil
@@ -1342,7 +1347,7 @@ struct ProviderConfigFormView: View {
                 return CodexLocalAuthStore.loadAPIKey() == nil || testStatus == .testing
             }
             return testStatus == .testing || codexAuthStatus == .working
-        case .openai, .openaiCompatible, .openrouter, .anthropic, .perplexity, .groq, .cohere, .mistral, .deepinfra, .xai, .deepseek, .fireworks, .cerebras, .gemini:
+        case .openai, .openaiWebSocket, .openaiCompatible, .openrouter, .anthropic, .perplexity, .groq, .cohere, .mistral, .deepinfra, .xai, .deepseek, .fireworks, .cerebras, .gemini:
             return apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || testStatus == .testing
         case .vertexai:
             return serviceAccountJSON.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || testStatus == .testing
@@ -1362,7 +1367,7 @@ struct ProviderConfigFormView: View {
                 return CodexLocalAuthStore.loadAPIKey() == nil
             }
             return codexAuthStatus == .working
-        case .openai, .openaiCompatible, .openrouter, .anthropic, .perplexity, .groq, .cohere, .mistral, .deepinfra, .xai, .deepseek, .fireworks, .cerebras, .gemini:
+        case .openai, .openaiWebSocket, .openaiCompatible, .openrouter, .anthropic, .perplexity, .groq, .cohere, .mistral, .deepinfra, .xai, .deepseek, .fireworks, .cerebras, .gemini:
             return apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         case .vertexai:
             return serviceAccountJSON.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty

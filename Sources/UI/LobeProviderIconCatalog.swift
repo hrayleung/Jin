@@ -209,6 +209,8 @@ enum LobeProviderIconCatalog {
         switch providerType {
         case .openai:
             return "OpenAI"
+        case .openaiWebSocket:
+            return "OpenAI"
         case .codexAppServer:
             return "OpenAI"
         case .openaiCompatible:

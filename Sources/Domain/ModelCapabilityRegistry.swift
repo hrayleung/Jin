@@ -35,6 +35,8 @@ enum ModelCapabilityRegistry {
         switch providerType {
         case .openai:
             return .openAIResponses
+        case .openaiWebSocket:
+            return .openAIResponses
         case .codexAppServer:
             return .openAICompatible
         case .anthropic:
@@ -127,6 +129,8 @@ enum ModelCapabilityRegistry {
 
         switch providerType {
         case .openai:
+            return supportsOpenAIWebSearch(lowerModelID: lower)
+        case .openaiWebSocket:
             return supportsOpenAIWebSearch(lowerModelID: lower)
         case .codexAppServer:
             return false

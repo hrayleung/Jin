@@ -56,6 +56,11 @@ struct AddProviderView: View {
                         .jinInfoCallout()
                 }
 
+                if providerType == .openaiWebSocket {
+                    Text("OpenAI WebSocket mode keeps a persistent connection to `/v1/responses` and can speed up tool-heavy workflows. Only one response can be in flight per connection.")
+                        .jinInfoCallout()
+                }
+
                 switch providerType {
                 case .codexAppServer:
                     VStack(alignment: .leading, spacing: 6) {
@@ -64,7 +69,7 @@ struct AddProviderView: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
-                case .openai, .openaiCompatible, .openrouter, .anthropic, .perplexity, .groq, .cohere, .mistral, .deepinfra, .xai, .deepseek, .fireworks, .cerebras, .gemini:
+                case .openai, .openaiWebSocket, .openaiCompatible, .openrouter, .anthropic, .perplexity, .groq, .cohere, .mistral, .deepinfra, .xai, .deepseek, .fireworks, .cerebras, .gemini:
                     SecureField("API Key", text: $apiKey)
                 case .vertexai:
                     TextEditor(text: $serviceAccountJSON)
@@ -157,7 +162,7 @@ struct AddProviderView: View {
         switch providerType {
         case .codexAppServer:
             return false
-        case .openai, .openaiCompatible, .openrouter, .anthropic, .perplexity, .groq, .cohere, .mistral, .deepinfra, .xai, .deepseek, .fireworks, .cerebras, .gemini:
+        case .openai, .openaiWebSocket, .openaiCompatible, .openrouter, .anthropic, .perplexity, .groq, .cohere, .mistral, .deepinfra, .xai, .deepseek, .fireworks, .cerebras, .gemini:
             return apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         case .vertexai:
             return serviceAccountJSON.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty

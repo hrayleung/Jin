@@ -112,6 +112,14 @@ final class ProviderParamsJSONSyncTests: XCTestCase {
         let unsupportedReasoning = try XCTUnwrap(unsupportedDraft["reasoning"]?.value as? [String: Any])
         XCTAssertEqual(unsupportedReasoning["effort"] as? String, "high")
 
+        let websocketDraft = ProviderParamsJSONSync.makeDraft(
+            providerType: .openaiWebSocket,
+            modelID: "gpt-5",
+            controls: controls
+        )
+        let websocketReasoning = try XCTUnwrap(websocketDraft["reasoning"]?.value as? [String: Any])
+        XCTAssertEqual(websocketReasoning["effort"] as? String, "high")
+
         let supportedDraft = ProviderParamsJSONSync.makeDraft(
             providerType: .openai,
             modelID: "gpt-5.2-pro",
@@ -145,6 +153,15 @@ final class ProviderParamsJSONSyncTests: XCTestCase {
             controls: &unsupportedControls
         )
         XCTAssertEqual(unsupportedControls.reasoning?.effort, .high)
+
+        var websocketControls = GenerationControls()
+        _ = ProviderParamsJSONSync.applyDraft(
+            providerType: .openaiWebSocket,
+            modelID: "gpt-5",
+            draft: draft,
+            controls: &websocketControls
+        )
+        XCTAssertEqual(websocketControls.reasoning?.effort, .high)
 
         var supportedControls = GenerationControls()
         _ = ProviderParamsJSONSync.applyDraft(
