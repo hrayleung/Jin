@@ -47,3 +47,4 @@ response.json
 # Temporary files
 *.tmp
 *.temp
+tmp/sparkle-derived-data/
