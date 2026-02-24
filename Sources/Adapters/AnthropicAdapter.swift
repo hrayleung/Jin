@@ -345,8 +345,15 @@ actor AnthropicAdapter: LLMProviderAdapter {
         let normalizedMessages = AnthropicToolUseNormalizer.normalize(messages)
         let allowNativePDF = (controls.pdfProcessingMode ?? .native) == .native
         let supportsNativePDF = allowNativePDF && self.supportsNativePDF(modelID)
-        let cacheControl = anthropicCacheControl(from: controls.contextCache)
         let cacheStrategy = controls.contextCache?.strategy ?? .systemOnly
+        let blockCacheControl = anthropicBlockCacheControl(
+            from: controls.contextCache,
+            strategy: cacheStrategy
+        )
+        let topLevelCacheControl = anthropicTopLevelCacheControl(
+            from: controls.contextCache,
+            strategy: cacheStrategy
+        )
 
         var request = URLRequest(url: try validatedURL("\(baseURL)/messages"))
         request.httpMethod = "POST"
@@ -357,19 +364,14 @@ actor AnthropicAdapter: LLMProviderAdapter {
             request.addValue(betaHeader, forHTTPHeaderField: "anthropic-beta")
         }
 
-        var userMessageOrdinal = 0
         let translatedMessages = normalizedMessages
             .filter { $0.role != .system }
             .map { message -> [String: Any] in
-                if message.role != .assistant {
-                    userMessageOrdinal += 1
-                }
                 return translateMessage(
                     message,
                     supportsNativePDF: supportsNativePDF,
-                    cacheControl: cacheControl,
-                    cacheStrategy: cacheStrategy,
-                    userMessageOrdinal: userMessageOrdinal
+                    cacheControl: blockCacheControl,
+                    cacheStrategy: cacheStrategy
                 )
             }
 
@@ -388,7 +390,10 @@ actor AnthropicAdapter: LLMProviderAdapter {
             "stream": streaming
         ]
 
-        appendSystemPrompt(to: &body, from: normalizedMessages, cacheControl: cacheControl)
+        appendSystemPrompt(to: &body, from: normalizedMessages, cacheControl: blockCacheControl)
+        if let topLevelCacheControl {
+            body["cache_control"] = topLevelCacheControl
+        }
         appendThinkingConfig(to: &body, controls: controls, modelID: modelID)
         appendToolSpecs(to: &body, controls: controls, tools: tools, modelID: modelID)
         applyProviderSpecificOverrides(to: &body, controls: controls, modelID: modelID)
@@ -534,11 +539,9 @@ actor AnthropicAdapter: LLMProviderAdapter {
         _ message: Message,
         supportsNativePDF: Bool,
         cacheControl: [String: Any]?,
-        cacheStrategy: ContextCacheStrategy,
-        userMessageOrdinal: Int
+        cacheStrategy: ContextCacheStrategy
     ) -> [String: Any] {
         var content: [[String: Any]] = []
-        var cacheApplied = false
 
         func maybeApplyCache(to block: inout [String: Any]) {
             guard let cacheControl, message.role != .assistant else { return }
@@ -548,9 +551,8 @@ actor AnthropicAdapter: LLMProviderAdapter {
             case .systemAndTools:
                 block["cache_control"] = cacheControl
             case .prefixWindow:
-                guard userMessageOrdinal == 1, !cacheApplied else { return }
-                block["cache_control"] = cacheControl
-                cacheApplied = true
+                // Prefix-window uses top-level Anthropic automatic caching.
+                return
             }
         }
 
@@ -724,7 +726,23 @@ actor AnthropicAdapter: LLMProviderAdapter {
         return "Video attachment omitted (\(video.mimeType), \(detail)): \(providerName) Messages API does not support native video input in Jin yet."
     }
 
-    private func anthropicCacheControl(from contextCache: ContextCacheControls?) -> [String: Any]? {
+    private func anthropicBlockCacheControl(
+        from contextCache: ContextCacheControls?,
+        strategy: ContextCacheStrategy
+    ) -> [String: Any]? {
+        guard strategy != .prefixWindow else { return nil }
+        return anthropicEphemeralCacheControl(from: contextCache)
+    }
+
+    private func anthropicTopLevelCacheControl(
+        from contextCache: ContextCacheControls?,
+        strategy: ContextCacheStrategy
+    ) -> [String: Any]? {
+        guard strategy == .prefixWindow else { return nil }
+        return anthropicEphemeralCacheControl(from: contextCache)
+    }
+
+    private func anthropicEphemeralCacheControl(from contextCache: ContextCacheControls?) -> [String: Any]? {
         let mode = contextCache?.mode ?? .implicit
         guard mode != .off else { return nil }
 

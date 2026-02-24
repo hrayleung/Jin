@@ -229,8 +229,9 @@ enum ContextCacheUtilities {
                 tools: tools
             )
         case .anthropic:
-            let systemTokenEstimate = approximateTokenEstimate(for: normalizedSystemPrompt(in: messages) ?? "")
-            adjustedControls.contextCache?.strategy = (systemTokenEstimate >= 1024) ? .prefixWindow : .systemOnly
+            // Anthropic's top-level automatic cache keeps the cache window aligned
+            // with the evolving conversation prefix.
+            adjustedControls.contextCache?.strategy = .prefixWindow
         case .gemini:
             if let geminiAdapter = adapter as? GeminiAdapter,
                let prepared = await prepareGeminiExplicitContextCache(

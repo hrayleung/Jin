@@ -427,6 +427,122 @@ final class AnthropicAdapterTests: XCTestCase {
         for try await _ in stream {}
     }
 
+    func testAnthropicPrefixWindowUsesTopLevelCacheControl() async throws {
+        let (session, protocolType) = makeMockedURLSession()
+        let networkManager = NetworkManager(urlSession: session)
+
+        let providerConfig = ProviderConfig(
+            id: "anthropic",
+            name: "Anthropic",
+            type: .anthropic,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        protocolType.requestHandler = { request in
+            let body = try XCTUnwrap(requestBodyData(request))
+            let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+            let root = try XCTUnwrap(json)
+
+            let topLevelCache = try XCTUnwrap(root["cache_control"] as? [String: Any])
+            XCTAssertEqual(topLevelCache["type"] as? String, "ephemeral")
+            XCTAssertEqual(topLevelCache["ttl"] as? String, "1h")
+
+            let system = try XCTUnwrap(root["system"] as? [[String: Any]])
+            XCTAssertNil(system.first?["cache_control"])
+
+            let messages = try XCTUnwrap(root["messages"] as? [[String: Any]])
+            let firstContent = try XCTUnwrap(messages.first?["content"] as? [[String: Any]])
+            XCTAssertNil(firstContent.first?["cache_control"])
+
+            let response = Data("data: [DONE]\n\n".utf8)
+            return (
+                HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                response
+            )
+        }
+
+        let adapter = AnthropicAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let controls = GenerationControls(
+            contextCache: ContextCacheControls(
+                mode: .implicit,
+                strategy: .prefixWindow,
+                ttl: .hour1
+            )
+        )
+
+        let stream = try await adapter.sendMessage(
+            messages: [
+                Message(role: .system, content: [.text("You are helpful.")]),
+                Message(role: .user, content: [.text("hi")])
+            ],
+            modelID: "claude-sonnet-4-6",
+            controls: controls,
+            tools: [],
+            streaming: true
+        )
+
+        for try await _ in stream {}
+    }
+
+    func testAnthropicSystemOnlyUsesBlockLevelCacheControl() async throws {
+        let (session, protocolType) = makeMockedURLSession()
+        let networkManager = NetworkManager(urlSession: session)
+
+        let providerConfig = ProviderConfig(
+            id: "anthropic",
+            name: "Anthropic",
+            type: .anthropic,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        protocolType.requestHandler = { request in
+            let body = try XCTUnwrap(requestBodyData(request))
+            let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+            let root = try XCTUnwrap(json)
+
+            XCTAssertNil(root["cache_control"])
+
+            let system = try XCTUnwrap(root["system"] as? [[String: Any]])
+            let systemCache = try XCTUnwrap(system.first?["cache_control"] as? [String: Any])
+            XCTAssertEqual(systemCache["type"] as? String, "ephemeral")
+            XCTAssertEqual(systemCache["ttl"] as? String, "5m")
+
+            let messages = try XCTUnwrap(root["messages"] as? [[String: Any]])
+            let firstContent = try XCTUnwrap(messages.first?["content"] as? [[String: Any]])
+            XCTAssertNil(firstContent.first?["cache_control"])
+
+            let response = Data("data: [DONE]\n\n".utf8)
+            return (
+                HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                response
+            )
+        }
+
+        let adapter = AnthropicAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let controls = GenerationControls(
+            contextCache: ContextCacheControls(
+                mode: .implicit,
+                strategy: .systemOnly,
+                ttl: .minutes5
+            )
+        )
+
+        let stream = try await adapter.sendMessage(
+            messages: [
+                Message(role: .system, content: [.text("You are helpful.")]),
+                Message(role: .user, content: [.text("hi")])
+            ],
+            modelID: "claude-sonnet-4-6",
+            controls: controls,
+            tools: [],
+            streaming: true
+        )
+
+        for try await _ in stream {}
+    }
+
     func testAnthropicStreamingUsageParsingIncludesInputOutputAndCacheRead() async throws {
         let (session, protocolType) = makeMockedURLSession()
         let networkManager = NetworkManager(urlSession: session)
