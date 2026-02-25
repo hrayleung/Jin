@@ -9,6 +9,7 @@ enum JinModelSupport {
             "gpt-5",
             "gpt-5.2",
             "gpt-5.2-2025-12-11",
+            "gpt-5.3-codex",
             "o3",
             "o4",
             "gpt-4o",
@@ -17,6 +18,7 @@ enum JinModelSupport {
             "gpt-5",
             "gpt-5.2",
             "gpt-5.2-2025-12-11",
+            "gpt-5.3-codex",
             "o3",
             "o4",
             "gpt-4o",
@@ -98,6 +100,7 @@ enum JinModelSupport {
         .openai: [
             "gpt-5.2",
             "gpt-5.2-2025-12-11",
+            "gpt-5.3-codex",
             "gpt-4o",
             "o3",
             "o4",
@@ -105,6 +108,7 @@ enum JinModelSupport {
         .openaiWebSocket: [
             "gpt-5.2",
             "gpt-5.2-2025-12-11",
+            "gpt-5.3-codex",
             "gpt-4o",
             "o3",
             "o4",

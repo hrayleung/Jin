@@ -52,6 +52,13 @@ enum DefaultProviderSeeds {
                     reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium)
                 ),
                 ModelInfo(
+                    id: "gpt-5.3-codex",
+                    name: "GPT-5.3 Codex",
+                    capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .nativePDF],
+                    contextWindow: 400000,
+                    reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium)
+                ),
+                ModelInfo(
                     id: "gpt-4o",
                     name: "GPT-4o",
                     capabilities: [.streaming, .toolCalling, .vision, .promptCaching, .nativePDF],

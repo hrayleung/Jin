@@ -267,8 +267,8 @@ struct AddModelSheet: View {
 
     private func makeModelInfo(id: String, name: String) -> ModelInfo {
         let lower = id.lowercased()
-        let openAIReasoningModels: Set<String> = ["gpt-5", "gpt-5.2", "gpt-5.2-2025-12-11", "o3", "o4"]
-        let openAIVisionModels: Set<String> = ["gpt-5", "gpt-5.2", "gpt-5.2-2025-12-11", "gpt-4o", "o3", "o4"]
+        let openAIReasoningModels: Set<String> = ["gpt-5", "gpt-5.2", "gpt-5.2-2025-12-11", "gpt-5.3-codex", "o3", "o4"]
+        let openAIVisionModels: Set<String> = ["gpt-5", "gpt-5.2", "gpt-5.2-2025-12-11", "gpt-5.3-codex", "gpt-4o", "o3", "o4"]
         let fireworksVisionModels: Set<String> = [
             "fireworks/kimi-k2p5",
             "accounts/fireworks/models/kimi-k2p5",
@@ -317,7 +317,7 @@ struct AddModelSheet: View {
                 caps.insert(.reasoning)
                 reasoningConfig = ModelReasoningConfig(type: .effort, defaultEffort: .medium)
             }
-            if ["gpt-5", "gpt-5.2", "gpt-5.2-2025-12-11"].contains(lower) {
+            if ["gpt-5", "gpt-5.2", "gpt-5.2-2025-12-11", "gpt-5.3-codex"].contains(lower) {
                 contextWindow = 400_000
             }
 

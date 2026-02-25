@@ -339,6 +339,7 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
             let payload: [String: Any] = [
                 "data": [
                     ["id": "gpt-5.2"],
+                    ["id": "gpt-5.3-codex"],
                     ["id": "gpt-4o"],
                     ["id": "gpt-4.1-mini"]
                 ]
@@ -356,6 +357,12 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         XCTAssertTrue(gpt52.capabilities.contains(.vision))
         XCTAssertTrue(gpt52.capabilities.contains(.reasoning))
         XCTAssertTrue(gpt52.capabilities.contains(.nativePDF))
+
+        let gpt53 = try XCTUnwrap(byID["gpt-5.3-codex"])
+        XCTAssertEqual(gpt53.contextWindow, 400_000)
+        XCTAssertTrue(gpt53.capabilities.contains(.vision))
+        XCTAssertTrue(gpt53.capabilities.contains(.reasoning))
+        XCTAssertTrue(gpt53.capabilities.contains(.nativePDF))
 
         let gpt4o = try XCTUnwrap(byID["gpt-4o"])
         XCTAssertEqual(gpt4o.contextWindow, 128_000)
