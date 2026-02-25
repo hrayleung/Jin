@@ -39,20 +39,11 @@ actor OpenAICompatibleAdapter: LLMProviderAdapter {
             streaming: streaming
         )
 
-        if !streaming {
-            let (data, _) = try await networkManager.sendRequest(request)
-            let response = try OpenAIChatCompletionsCore.decodeResponse(data)
-            return OpenAIChatCompletionsCore.makeNonStreamingStream(
-                response: response,
-                reasoningField: .reasoningOrReasoningContent
-            )
-        }
-
-        let parser = SSEParser()
-        let sseStream = await networkManager.streamRequest(request, parser: parser)
-        return OpenAIChatCompletionsCore.makeStreamingStream(
-            sseStream: sseStream,
-            reasoningField: .reasoningOrReasoningContent
+        return try await sendOpenAICompatibleMessage(
+            request: request,
+            streaming: streaming,
+            reasoningField: .reasoningOrReasoningContent,
+            networkManager: networkManager
         )
     }
 
@@ -290,24 +281,12 @@ actor OpenAICompatibleAdapter: LLMProviderAdapter {
     }
 
     private func supportsAudioInputModelID(_ lowerModelID: String) -> Bool {
-        if lowerModelID.contains("gpt-audio")
-            || lowerModelID.contains("audio-preview")
-            || lowerModelID.contains("realtime")
-            || lowerModelID.contains("qwen3-asr")
-            || lowerModelID.contains("qwen3-omni") {
+        if isAudioInputModelID(lowerModelID) {
+            if lowerModelID.contains("voxtral") && isMistralTranscriptionOnlyModelID(lowerModelID) {
+                return false
+            }
             return true
         }
-
-        if lowerModelID.contains("voxtral") && !isMistralTranscriptionOnlyModelID(lowerModelID) {
-            return true
-        }
-
-        if (lowerModelID.contains("gemini-2.5") || lowerModelID.contains("gemini-3") || lowerModelID.contains("gemini-2.0"))
-            && !lowerModelID.contains("-image")
-            && !lowerModelID.contains("imagen") {
-            return true
-        }
-
         return false
     }
 

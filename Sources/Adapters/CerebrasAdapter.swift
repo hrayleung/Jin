@@ -26,8 +26,7 @@ actor CerebrasAdapter: LLMProviderAdapter {
         tools: [ToolDefinition],
         streaming: Bool
     ) async throws -> AsyncThrowingStream<StreamEvent, Error> {
-        // Cerebras OpenAI-compatible API does not support streaming when using tool calling on reasoning models.
-        // Fall back to non-streaming to keep tool calling working.
+        // Cerebras does not support streaming with tool calling on reasoning models.
         let effectiveStreaming = streaming && tools.isEmpty
 
         let request = try buildRequest(
@@ -38,20 +37,11 @@ actor CerebrasAdapter: LLMProviderAdapter {
             streaming: effectiveStreaming
         )
 
-        if !effectiveStreaming {
-            let (data, _) = try await networkManager.sendRequest(request)
-            let response = try OpenAIChatCompletionsCore.decodeResponse(data)
-            return OpenAIChatCompletionsCore.makeNonStreamingStream(
-                response: response,
-                reasoningField: .reasoning
-            )
-        }
-
-        let parser = SSEParser()
-        let sseStream = await networkManager.streamRequest(request, parser: parser)
-        return OpenAIChatCompletionsCore.makeStreamingStream(
-            sseStream: sseStream,
-            reasoningField: .reasoning
+        return try await sendOpenAICompatibleMessage(
+            request: request,
+            streaming: effectiveStreaming,
+            reasoningField: .reasoning,
+            networkManager: networkManager
         )
     }
 

@@ -30,20 +30,11 @@ actor PerplexityAdapter: LLMProviderAdapter {
             streaming: streaming
         )
 
-        if !streaming {
-            let (data, _) = try await networkManager.sendRequest(request)
-            let response = try OpenAIChatCompletionsCore.decodeResponse(data)
-            return OpenAIChatCompletionsCore.makeNonStreamingStream(
-                response: response,
-                reasoningField: .reasoningOrReasoningContent
-            )
-        }
-
-        let parser = SSEParser()
-        let sseStream = await networkManager.streamRequest(request, parser: parser)
-        return OpenAIChatCompletionsCore.makeStreamingStream(
-            sseStream: sseStream,
-            reasoningField: .reasoningOrReasoningContent
+        return try await sendOpenAICompatibleMessage(
+            request: request,
+            streaming: streaming,
+            reasoningField: .reasoningOrReasoningContent,
+            networkManager: networkManager
         )
     }
 
