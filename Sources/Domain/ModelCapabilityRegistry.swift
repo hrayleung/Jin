@@ -13,6 +13,7 @@ enum ModelCapabilityRegistry {
         "gpt-5.2-2025-12-11",
         "gpt-5.2-codex",
         "gpt-5.2-pro",
+        "gpt-5.3-codex",
         "gpt-5.3-codex-spark",
     ]
 

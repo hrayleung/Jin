@@ -231,9 +231,9 @@ actor OpenAIWebSocketAdapter: LLMProviderAdapter {
 
         let (data, _) = try await networkManager.sendRequest(request)
         let response = try JSONDecoder().decode(ModelsResponse.self, from: data)
-        let reasoningModelIDs: Set<String> = ["gpt-5", "gpt-5.2", "gpt-5.2-2025-12-11", "o1", "o3", "o4"]
-        let visionModelIDs: Set<String> = ["gpt-5", "gpt-5.2", "gpt-5.2-2025-12-11", "gpt-4o", "o3", "o4"]
-        let largeContextModelIDs: Set<String> = ["gpt-5", "gpt-5.2", "gpt-5.2-2025-12-11"]
+        let reasoningModelIDs: Set<String> = ["gpt-5", "gpt-5.2", "gpt-5.2-2025-12-11", "gpt-5.3-codex", "o1", "o3", "o4"]
+        let visionModelIDs: Set<String> = ["gpt-5", "gpt-5.2", "gpt-5.2-2025-12-11", "gpt-5.3-codex", "gpt-4o", "o3", "o4"]
+        let largeContextModelIDs: Set<String> = ["gpt-5", "gpt-5.2", "gpt-5.2-2025-12-11", "gpt-5.3-codex"]
 
         return response.data.map { model in
             let lower = model.id.lowercased()

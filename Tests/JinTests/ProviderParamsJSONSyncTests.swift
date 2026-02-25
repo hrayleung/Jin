@@ -128,6 +128,14 @@ final class ProviderParamsJSONSyncTests: XCTestCase {
         let supportedReasoning = try XCTUnwrap(supportedDraft["reasoning"]?.value as? [String: Any])
         XCTAssertEqual(supportedReasoning["effort"] as? String, "xhigh")
 
+        let codexDraft = ProviderParamsJSONSync.makeDraft(
+            providerType: .openai,
+            modelID: "gpt-5.3-codex",
+            controls: controls
+        )
+        let codexReasoning = try XCTUnwrap(codexDraft["reasoning"]?.value as? [String: Any])
+        XCTAssertEqual(codexReasoning["effort"] as? String, "xhigh")
+
         let sparkDraft = ProviderParamsJSONSync.makeDraft(
             providerType: .openai,
             modelID: "gpt-5.3-codex-spark",
@@ -171,6 +179,15 @@ final class ProviderParamsJSONSyncTests: XCTestCase {
             controls: &supportedControls
         )
         XCTAssertEqual(supportedControls.reasoning?.effort, .xhigh)
+
+        var codexControls = GenerationControls()
+        _ = ProviderParamsJSONSync.applyDraft(
+            providerType: .openai,
+            modelID: "gpt-5.3-codex",
+            draft: draft,
+            controls: &codexControls
+        )
+        XCTAssertEqual(codexControls.reasoning?.effort, .xhigh)
 
         var sparkControls = GenerationControls()
         _ = ProviderParamsJSONSync.applyDraft(

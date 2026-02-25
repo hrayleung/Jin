@@ -148,6 +148,14 @@ final class ModelSettingsResolverTests: XCTestCase {
             reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
             isEnabled: true
         )
+        let gpt53codex = ModelInfo(
+            id: "openai/gpt-5.3-codex",
+            name: "GPT-5.3 Codex",
+            capabilities: [.streaming, .reasoning],
+            contextWindow: 128_000,
+            reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+            isEnabled: true
+        )
         let gpt53codexSpark = ModelInfo(
             id: "openai/gpt-5.3-codex-spark",
             name: "GPT-5.3 Codex Spark",
@@ -175,6 +183,7 @@ final class ModelSettingsResolverTests: XCTestCase {
 
         XCTAssertTrue(ModelSettingsResolver.resolve(model: gpt52pro, providerType: .openrouter).supportsOpenAIStyleExtremeEffort)
         XCTAssertTrue(ModelSettingsResolver.resolve(model: gpt52codex, providerType: .openrouter).supportsOpenAIStyleExtremeEffort)
+        XCTAssertTrue(ModelSettingsResolver.resolve(model: gpt53codex, providerType: .openrouter).supportsOpenAIStyleExtremeEffort)
         XCTAssertTrue(ModelSettingsResolver.resolve(model: gpt53codexSpark, providerType: .openrouter).supportsOpenAIStyleExtremeEffort)
         XCTAssertFalse(ModelSettingsResolver.resolve(model: gpt52custom, providerType: .openrouter).supportsOpenAIStyleExtremeEffort)
         XCTAssertFalse(ModelSettingsResolver.resolve(model: gpt5, providerType: .openrouter).supportsOpenAIStyleExtremeEffort)
@@ -187,6 +196,10 @@ final class ModelSettingsResolverTests: XCTestCase {
         )
         XCTAssertEqual(
             ModelCapabilityRegistry.normalizedReasoningEffort(.xhigh, for: .openrouter, modelID: "openai/gpt-5.2-pro"),
+            .xhigh
+        )
+        XCTAssertEqual(
+            ModelCapabilityRegistry.normalizedReasoningEffort(.xhigh, for: .openrouter, modelID: "openai/gpt-5.3-codex"),
             .xhigh
         )
         XCTAssertEqual(
