@@ -49,6 +49,32 @@
 - After code changes are complete, run `bash Packaging/package.sh` once to produce a packaged build.
 - For docs-only changes (e.g., `README.md`, other `*.md`, or files under `docs/`), packaging is not required.
 
+## Sparkle Release Workflow (v0.49 Lessons Applied)
+
+- Always treat release as a signed pipeline; never publish an appcast entry without `sparkle:edSignature`.
+- `generate_appcast` signing workflow:
+  1. Build app: `JIN_BUNDLE_SHORT_VERSION=<VERSION> bash Packaging/package.sh`
+  2. Rename zip: `mv dist/Jin.zip dist/Jin-<VERSION>.zip`
+  3. Export Sparkle private key from keychain (recommended):
+     `security find-generic-password -a ed25519 -s https://sparkle-project.org -w > /tmp/jin-sparkle-key.txt`
+  4. Run appcast generator from the release archive dir and overwrite `docs/appcast.xml`:
+     ```bash
+     SPARKLE_GENERATE_APPCAST=${SPARKLE_GENERATE_APPCAST:-generate_appcast}
+     "$SPARKLE_GENERATE_APPCAST" dist -o docs/appcast.xml --ed-key-file /tmp/jin-sparkle-key.txt --download-url-prefix https://github.com/<owner>/<repo>/releases/download/v<VERSION>/ --link https://github.com/<owner>/<repo>/releases --maximum-versions 10
+     ```
+  5. Confirm the first `<item>` is the target version and contains `sparkle:edSignature`.
+  6. Securely remove the temp key file.
+  7. Commit appcast update, tag, and publish release:
+     - `git tag -a v<VERSION> -m "v<VERSION>"`
+     - `git push origin v<VERSION>`
+     - `gh release create v<VERSION> dist/Jin-<VERSION>.zip --title "Jin v<VERSION>"`
+- Post checks:
+  - `xmllint --noout docs/appcast.xml`
+  - `rg -n "sparkle:edSignature|Jin-<VERSION>.zip" docs/appcast.xml`
+  - `gh release view v<VERSION> --json tagName,name,assets`
+  - `git diff` should show only intended release metadata/appcast changes.
+- The full runbook is in `.agentastic/jin-release-playbook/SKILL.md`.
+
 ## Commit & Pull Request Guidelines
 
 - This checkout may not include Git history; use a simple Conventional Commits style:
