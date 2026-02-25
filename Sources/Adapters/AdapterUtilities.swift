@@ -6,9 +6,21 @@ import Foundation
 /// on malformed input. Use this instead of `URL(string:)!` everywhere a provider base URL
 /// or user-configurable endpoint is interpolated.
 func validatedURL(_ string: String) throws -> URL {
-    guard let url = URL(string: string) else {
-        throw LLMError.invalidRequest(message: "Invalid URL: \(string)")
+    guard let url = URL(string: string),
+          let scheme = url.scheme?.lowercased(),
+          let host = url.host,
+          !host.isEmpty else {
+        throw LLMError.invalidRequest(
+            message: "Invalid URL (must be absolute with http/https/ws/wss): \(string)"
+        )
     }
+
+    guard scheme == "http" || scheme == "https" || scheme == "ws" || scheme == "wss" else {
+        throw LLMError.invalidRequest(
+            message: "Invalid URL scheme '\(scheme)' (expected http/https/ws/wss): \(string)"
+        )
+    }
+
     return url
 }
 
