@@ -122,6 +122,12 @@ private struct ProviderIconPickerSheet: View {
         }
     }
 
+    private var normalizedDraftIconID: String? {
+        let trimmed = draftIconID?.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let trimmed, !trimmed.isEmpty else { return nil }
+        return trimmed
+    }
+
     var body: some View {
         NavigationStack {
             VStack(spacing: JinSpacing.medium) {
@@ -162,7 +168,7 @@ private struct ProviderIconPickerSheet: View {
     }
 
     private var defaultCell: some View {
-        let isSelected = draftIconID?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty != false
+        let isSelected = normalizedDraftIconID == nil
 
         return Button {
             draftIconID = nil
@@ -195,7 +201,7 @@ private struct ProviderIconPickerSheet: View {
     }
 
     private func iconCell(icon: LobeProviderIcon) -> some View {
-        let isSelected = draftIconID?.caseInsensitiveCompare(icon.id) == .orderedSame
+        let isSelected = normalizedDraftIconID?.caseInsensitiveCompare(icon.id) == .orderedSame
 
         return Button {
             draftIconID = icon.id

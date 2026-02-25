@@ -182,6 +182,7 @@ struct ProviderConfigFormView: View {
                         .menuIndicator(.hidden)
                         .frame(width: 22)
                         .help("Filter actions")
+                        .accessibilityLabel("Filter actions")
                     }
                 }
 
