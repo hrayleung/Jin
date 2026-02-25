@@ -71,6 +71,11 @@ struct AddProviderView: View {
                         .jinInfoCallout()
                 }
 
+                if providerType == .cloudflareAIGateway {
+                    Text("Recommended: use a Cloudflare API Token (BYOK mode). Fill in `{account_id}` and `{gateway_slug}`, keep the `/compat` Base URL, configure upstream provider keys in AI Gateway, then use model IDs like `openai/gpt-5` or `anthropic/claude-sonnet-4.5`.")
+                        .jinInfoCallout()
+                }
+
                 switch providerType {
                 case .codexAppServer:
                     VStack(alignment: .leading, spacing: 6) {
@@ -79,7 +84,7 @@ struct AddProviderView: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
-                case .openai, .openaiWebSocket, .openaiCompatible, .openrouter, .anthropic, .perplexity, .groq, .cohere, .mistral, .deepinfra, .xai, .deepseek, .fireworks, .cerebras, .gemini:
+                case .openai, .openaiWebSocket, .openaiCompatible, .cloudflareAIGateway, .openrouter, .anthropic, .perplexity, .groq, .cohere, .mistral, .deepinfra, .xai, .deepseek, .fireworks, .cerebras, .gemini:
                     SecureField("API Key", text: $apiKey)
                 case .vertexai:
                     TextEditor(text: $serviceAccountJSON)
@@ -172,7 +177,7 @@ struct AddProviderView: View {
         switch providerType {
         case .codexAppServer:
             return false
-        case .openai, .openaiWebSocket, .openaiCompatible, .openrouter, .anthropic, .perplexity, .groq, .cohere, .mistral, .deepinfra, .xai, .deepseek, .fireworks, .cerebras, .gemini:
+        case .openai, .openaiWebSocket, .openaiCompatible, .cloudflareAIGateway, .openrouter, .anthropic, .perplexity, .groq, .cohere, .mistral, .deepinfra, .xai, .deepseek, .fireworks, .cerebras, .gemini:
             return apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         case .vertexai:
             return serviceAccountJSON.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty

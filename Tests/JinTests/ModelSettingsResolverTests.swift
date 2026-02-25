@@ -117,6 +117,34 @@ final class ModelSettingsResolverTests: XCTestCase {
         )
     }
 
+    func testCloudflareAIGatewayUsesOpenAICompatibleRequestShape() {
+        let claudeModel = ModelInfo(
+            id: "anthropic/claude-sonnet-4.6",
+            name: "Claude Sonnet 4.6",
+            capabilities: [.streaming],
+            contextWindow: 128_000,
+            reasoningConfig: nil,
+            isEnabled: true
+        )
+        let gptModel = ModelInfo(
+            id: "openai/gpt-5.2",
+            name: "GPT-5.2",
+            capabilities: [.streaming],
+            contextWindow: 128_000,
+            reasoningConfig: nil,
+            isEnabled: true
+        )
+
+        XCTAssertEqual(
+            ModelSettingsResolver.resolve(model: claudeModel, providerType: .cloudflareAIGateway).requestShape,
+            .openAICompatible
+        )
+        XCTAssertEqual(
+            ModelSettingsResolver.resolve(model: gptModel, providerType: .cloudflareAIGateway).requestShape,
+            .openAICompatible
+        )
+    }
+
     func testOpenRouterDefaultReasoningConfigRecognizesGeminiAndClaudeModelIDs() {
         let gemini = ModelCapabilityRegistry.defaultReasoningConfig(
             for: .openrouter,

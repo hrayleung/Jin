@@ -26,6 +26,7 @@ struct ProviderConfigFormView: View {
     @State private var showingDeleteAllModelsConfirmation = false
     @State private var showingDeleteModelConfirmation = false
     @State private var showingKeepFullySupportedModelsConfirmation = false
+    @State private var showingKeepEnabledModelsConfirmation = false
     @State private var modelSearchText = ""
     @State private var editingModel: ModelInfo?
     @State private var modelPendingDeletion: ModelInfo?
@@ -87,7 +88,7 @@ struct ProviderConfigFormView: View {
                 case .codexAppServer:
                     codexServerSection
                     codexAuthSection
-                case .openai, .openaiWebSocket, .openaiCompatible, .openrouter, .anthropic, .perplexity, .groq, .cohere, .mistral, .deepinfra, .xai, .deepseek, .fireworks, .cerebras, .gemini:
+                case .openai, .openaiWebSocket, .openaiCompatible, .cloudflareAIGateway, .openrouter, .anthropic, .perplexity, .groq, .cohere, .mistral, .deepinfra, .xai, .deepseek, .fireworks, .cerebras, .gemini:
                     apiKeyField
                 case .vertexai:
                     vertexAISection
@@ -98,6 +99,11 @@ struct ProviderConfigFormView: View {
 
                 if providerType == .openaiWebSocket {
                     Text("Uses OpenAI Responses API WebSocket mode for long-running, tool-call-heavy workflows. This transport is sequential (no multiplexing): one response at a time per connection.")
+                        .jinInfoCallout()
+                }
+
+                if providerType == .cloudflareAIGateway {
+                    Text("Recommended: use a Cloudflare API Token (BYOK mode). Fill in `{account_id}` and `{gateway_slug}`, keep the `/compat` Base URL, configure upstream provider keys in AI Gateway, then use model IDs like `openai/gpt-5` or `anthropic/claude-sonnet-4.5`.")
                         .jinInfoCallout()
                 }
 
@@ -152,6 +158,12 @@ struct ProviderConfigFormView: View {
                         }
                         .buttonStyle(.borderless)
                         .disabled(!canKeepFullySupportedModels)
+
+                        Button("Keep Enabled") {
+                            showingKeepEnabledModelsConfirmation = true
+                        }
+                        .buttonStyle(.borderless)
+                        .disabled(!canKeepEnabledModels)
                     }
                 }
 
@@ -339,6 +351,18 @@ struct ProviderConfigFormView: View {
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("This will delete \(nonFullySupportedModelsCount) models not marked as fully supported and keep \(fullySupportedModelsCount) fully supported model(s).")
+        }
+        .confirmationDialog(
+            "Keep enabled models for \(provider.name)?",
+            isPresented: $showingKeepEnabledModelsConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Keep Enabled", role: .destructive) {
+                keepOnlyEnabledModels()
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This will delete \(disabledModelCount) disabled model(s) and keep \(enabledModelCount) enabled model(s).")
         }
         .confirmationDialog(
             "Delete model for \(provider.name)?",
@@ -868,9 +892,17 @@ struct ProviderConfigFormView: View {
         decodedModels.count - fullySupportedModelsCount
     }
 
+    private var disabledModelCount: Int {
+        decodedModels.count - enabledModelCount
+    }
+
     private var canKeepFullySupportedModels: Bool {
         guard providerType != nil else { return false }
         return fullySupportedModelsCount > 0 && nonFullySupportedModelsCount > 0
+    }
+
+    private var canKeepEnabledModels: Bool {
+        enabledModelCount > 0 && disabledModelCount > 0
     }
 
     private func setModels(_ models: [ModelInfo]) {
@@ -926,6 +958,12 @@ struct ProviderConfigFormView: View {
         setModels(filteredModels)
     }
 
+    private func keepOnlyEnabledModels() {
+        let filteredModels = decodedModels.filter(\.isEnabled)
+        guard !filteredModels.isEmpty, filteredModels.count < decodedModels.count else { return }
+        setModels(filteredModels)
+    }
+
     private func requestDeleteModel(_ model: ModelInfo) {
         modelPendingDeletion = model
         showingDeleteModelConfirmation = true
@@ -959,7 +997,7 @@ struct ProviderConfigFormView: View {
                 codexAccount = nil
                 codexRateLimit = nil
                 codexPendingLoginID = nil
-            case .openai, .openaiWebSocket, .openaiCompatible, .openrouter, .anthropic, .perplexity, .groq, .cohere, .mistral, .deepinfra, .xai, .deepseek, .fireworks, .cerebras, .gemini:
+            case .openai, .openaiWebSocket, .openaiCompatible, .cloudflareAIGateway, .openrouter, .anthropic, .perplexity, .groq, .cohere, .mistral, .deepinfra, .xai, .deepseek, .fireworks, .cerebras, .gemini:
                 apiKey = provider.apiKey ?? ""
             case .vertexai:
                 serviceAccountJSON = provider.serviceAccountJSON ?? ""
@@ -1272,7 +1310,7 @@ struct ProviderConfigFormView: View {
                 try? modelContext.save()
             }
 
-        case .openai, .openaiWebSocket, .openaiCompatible, .openrouter, .anthropic, .perplexity, .groq, .cohere, .mistral, .deepinfra, .xai, .deepseek, .fireworks, .cerebras, .gemini:
+        case .openai, .openaiWebSocket, .openaiCompatible, .cloudflareAIGateway, .openrouter, .anthropic, .perplexity, .groq, .cohere, .mistral, .deepinfra, .xai, .deepseek, .fireworks, .cerebras, .gemini:
             let key = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
             await MainActor.run {
                 provider.apiKeyKeychainID = nil
@@ -1347,7 +1385,7 @@ struct ProviderConfigFormView: View {
                 return CodexLocalAuthStore.loadAPIKey() == nil || testStatus == .testing
             }
             return testStatus == .testing || codexAuthStatus == .working
-        case .openai, .openaiWebSocket, .openaiCompatible, .openrouter, .anthropic, .perplexity, .groq, .cohere, .mistral, .deepinfra, .xai, .deepseek, .fireworks, .cerebras, .gemini:
+        case .openai, .openaiWebSocket, .openaiCompatible, .cloudflareAIGateway, .openrouter, .anthropic, .perplexity, .groq, .cohere, .mistral, .deepinfra, .xai, .deepseek, .fireworks, .cerebras, .gemini:
             return apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || testStatus == .testing
         case .vertexai:
             return serviceAccountJSON.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || testStatus == .testing
@@ -1367,7 +1405,7 @@ struct ProviderConfigFormView: View {
                 return CodexLocalAuthStore.loadAPIKey() == nil
             }
             return codexAuthStatus == .working
-        case .openai, .openaiWebSocket, .openaiCompatible, .openrouter, .anthropic, .perplexity, .groq, .cohere, .mistral, .deepinfra, .xai, .deepseek, .fireworks, .cerebras, .gemini:
+        case .openai, .openaiWebSocket, .openaiCompatible, .cloudflareAIGateway, .openrouter, .anthropic, .perplexity, .groq, .cohere, .mistral, .deepinfra, .xai, .deepseek, .fireworks, .cerebras, .gemini:
             return apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         case .vertexai:
             return serviceAccountJSON.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty

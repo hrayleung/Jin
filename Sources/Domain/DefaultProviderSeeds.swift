@@ -14,6 +14,7 @@ enum DefaultProviderSeeds {
             codexAppServer,
             groq,
             openRouter,
+            cloudflareAIGateway,
             anthropic,
             cohere,
             mistral,
@@ -117,6 +118,17 @@ enum DefaultProviderSeeds {
             type: .openrouter,
             iconID: LobeProviderIconCatalog.defaultIconID(for: .openrouter),
             baseURL: ProviderType.openrouter.defaultBaseURL,
+            models: []
+        )
+    }
+
+    static var cloudflareAIGateway: ProviderConfig {
+        ProviderConfig(
+            id: "cloudflare-ai-gateway",
+            name: "Cloudflare AI Gateway",
+            type: .cloudflareAIGateway,
+            iconID: LobeProviderIconCatalog.defaultIconID(for: .cloudflareAIGateway),
+            baseURL: ProviderType.cloudflareAIGateway.defaultBaseURL,
             models: []
         )
     }

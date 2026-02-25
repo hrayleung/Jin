@@ -215,6 +215,8 @@ enum LobeProviderIconCatalog {
             return "OpenAI"
         case .openaiCompatible:
             return "OpenAI"
+        case .cloudflareAIGateway:
+            return "Cloudflare"
         case .openrouter:
             return "OpenRouter"
         case .anthropic:
