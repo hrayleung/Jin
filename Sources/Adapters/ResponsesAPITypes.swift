@@ -395,22 +395,24 @@ func citationPreviewSnippet(
 ) -> String? {
     guard let text, !text.isEmpty else { return nil }
     guard let startIndex, let endIndex,
-          startIndex >= 0, endIndex > startIndex else {
+          startIndex >= 0, endIndex >= startIndex else {
         return nil
     }
 
-    let nsText = text as NSString
-    let textLength = nsText.length
+    let textLength = text.count
     guard startIndex < textLength else { return nil }
 
-    let clampedEnd = min(endIndex, textLength)
-    guard clampedEnd > startIndex else { return nil }
+    // OpenAI Responses annotations use character offsets with inclusive end_index.
+    let clampedEnd = min(endIndex, textLength - 1)
+    guard clampedEnd >= startIndex else { return nil }
 
     let contextRadius = 80
     let windowStart = max(0, startIndex - contextRadius)
-    let windowEnd = min(textLength, clampedEnd + contextRadius)
-    guard windowEnd > windowStart else { return nil }
+    let windowEnd = min(textLength - 1, clampedEnd + contextRadius)
+    guard windowEnd >= windowStart else { return nil }
 
-    let snippet = nsText.substring(with: NSRange(location: windowStart, length: windowEnd - windowStart))
+    let snippetStart = text.index(text.startIndex, offsetBy: windowStart)
+    let snippetEnd = text.index(text.startIndex, offsetBy: windowEnd)
+    let snippet = String(text[snippetStart...snippetEnd])
     return normalizedSearchPreviewText(snippet)
 }
