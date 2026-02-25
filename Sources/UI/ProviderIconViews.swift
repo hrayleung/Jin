@@ -107,6 +107,7 @@ private struct ProviderIconPickerSheet: View {
     let defaultIconID: String?
 
     @State private var searchText = ""
+    @State private var draftIconID: String?
 
     private let columns: [GridItem] = [
         GridItem(.adaptive(minimum: 88), spacing: JinSpacing.medium)
@@ -143,30 +144,43 @@ private struct ProviderIconPickerSheet: View {
             .navigationTitle("Provider Icons")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Close") { dismiss() }
+                    Button("Cancel") { dismiss() }
                 }
 
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Use Default") {
-                        selectedIconID = nil
+                    Button("Done") {
+                        selectedIconID = draftIconID
                         dismiss()
                     }
                 }
             }
         }
         .frame(minWidth: 640, minHeight: 520)
+        .onAppear {
+            draftIconID = selectedIconID
+        }
     }
 
     private var defaultCell: some View {
-        let isSelected = selectedIconID?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty != false
+        let isSelected = draftIconID?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty != false
 
         return Button {
-            selectedIconID = nil
+            draftIconID = nil
         } label: {
             VStack(spacing: JinSpacing.xSmall) {
-                ProviderIconView(iconID: defaultIconID, size: 26)
-                    .frame(width: 40, height: 40)
-                    .jinSurface(.subtle, cornerRadius: JinRadius.medium)
+                ZStack(alignment: .bottomTrailing) {
+                    ProviderIconView(iconID: defaultIconID, size: 26)
+                        .frame(width: 40, height: 40)
+                        .jinSurface(.subtle, cornerRadius: JinRadius.medium)
+
+                    if isSelected {
+                        Image(systemName: "checkmark.circle.fill")
+                            .symbolRenderingMode(.palette)
+                            .foregroundStyle(.white, Color.accentColor)
+                            .font(.system(size: 13, weight: .bold))
+                            .offset(x: 4, y: 4)
+                    }
+                }
 
                 Text("Default")
                     .font(.caption)
@@ -181,15 +195,25 @@ private struct ProviderIconPickerSheet: View {
     }
 
     private func iconCell(icon: LobeProviderIcon) -> some View {
-        let isSelected = selectedIconID?.caseInsensitiveCompare(icon.id) == .orderedSame
+        let isSelected = draftIconID?.caseInsensitiveCompare(icon.id) == .orderedSame
 
         return Button {
-            selectedIconID = icon.id
+            draftIconID = icon.id
         } label: {
             VStack(spacing: JinSpacing.xSmall) {
-                ProviderIconView(iconID: icon.id, size: 26)
-                    .frame(width: 40, height: 40)
-                    .jinSurface(.subtle, cornerRadius: JinRadius.medium)
+                ZStack(alignment: .bottomTrailing) {
+                    ProviderIconView(iconID: icon.id, size: 26)
+                        .frame(width: 40, height: 40)
+                        .jinSurface(.subtle, cornerRadius: JinRadius.medium)
+
+                    if isSelected {
+                        Image(systemName: "checkmark.circle.fill")
+                            .symbolRenderingMode(.palette)
+                            .foregroundStyle(.white, Color.accentColor)
+                            .font(.system(size: 13, weight: .bold))
+                            .offset(x: 4, y: 4)
+                    }
+                }
 
                 Text(icon.id)
                     .font(.caption)

@@ -13,7 +13,7 @@ struct AssistantInspectorView: View {
             )
             .navigationTitle("Assistant Settings")
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
+                ToolbarItem(placement: .confirmationAction) {
                     Button("Done") {
                         dismiss()
                     }
@@ -136,6 +136,34 @@ private struct IconPickerSheet: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
+                    if searchText.isEmpty {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("None")
+                                .font(.headline)
+                                .foregroundStyle(.secondary)
+                                .padding(.horizontal, 4)
+
+                            Button {
+                                selectedIcon = ""
+                                dismiss()
+                            } label: {
+                                HStack(spacing: JinSpacing.small) {
+                                    Image(systemName: "xmark.circle")
+                                        .font(.system(size: 18, weight: .semibold))
+                                        .foregroundStyle(.secondary)
+                                        .frame(width: 44, height: 44)
+                                        .jinSurface(selectedIcon.isEmpty ? .selected : .neutral, cornerRadius: JinRadius.medium)
+
+                                    Text("No Icon")
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                            .buttonStyle(.plain)
+                        }
+                        .padding(12)
+                        .jinSurface(.raised, cornerRadius: JinRadius.medium)
+                    }
+
                     ForEach(filteredCategories) { category in
                         VStack(alignment: .leading, spacing: 12) {
                             Text(category.name)
@@ -172,8 +200,7 @@ private struct IconPickerSheet: View {
                 }
 
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Clear") {
-                        selectedIcon = ""
+                    Button("Done") {
                         dismiss()
                     }
                 }
