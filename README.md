@@ -19,9 +19,9 @@ Conversation-first: fast, focused, and minimal.
 
 ## Supported Providers
 
-Jin supports 16 provider types:
+Jin supports 17 provider types:
 
-OpenAI · Anthropic · Gemini (AI Studio) · Vertex AI · xAI · DeepSeek · Mistral · Cohere · Groq · Perplexity · Fireworks · Cerebras · DeepInfra · OpenRouter · OpenAI Compatible · Codex App Server (Beta)
+OpenAI · Anthropic · Gemini (AI Studio) · Vertex AI · xAI · DeepSeek · Mistral · Cohere · Groq · Perplexity · Fireworks · Cerebras · DeepInfra · OpenRouter · OpenAI Compatible · Cloudflare AI Gateway · Codex App Server (Beta)
 
 Most providers are pre-configured on first launch. Use **Fetch Models** in provider settings to pull the latest available models, or add models manually.
 
@@ -42,7 +42,7 @@ These models are ready to use out of the box (with your API key). You can also a
 | Perplexity | `sonar`, `sonar-pro`, `sonar-reasoning-pro`, `sonar-deep-research` |
 | Fireworks | `fireworks/glm-5`, `fireworks/minimax-m2p5`, `fireworks/kimi-k2p5`, `fireworks/glm-4p7` |
 | Codex App Server (Beta) | Use models exposed by your server (server-side execution; no per-model client adaptation required) |
-| Groq, Cohere, Mistral, DeepInfra, OpenRouter, OpenAI Compatible, Cerebras | Use **Fetch Models** or add manually |
+| Groq, Cohere, Mistral, DeepInfra, OpenRouter, OpenAI Compatible, Cloudflare AI Gateway, Cerebras | Use **Fetch Models** or add manually |
 
 ## Features
 

@@ -447,7 +447,7 @@ struct AddModelSheet: View {
                 contextWindow = 200_000
             }
 
-        case .codexAppServer?, .openaiCompatible?, .openrouter?, .groq?, .cohere?, .mistral?, .deepinfra?, .deepseek?, .none:
+        case .codexAppServer?, .openaiCompatible?, .cloudflareAIGateway?, .openrouter?, .groq?, .cohere?, .mistral?, .deepinfra?, .deepseek?, .none:
             break
         }
 
@@ -539,7 +539,7 @@ struct AddModelSheet: View {
         case .gemini?, .vertexai?:
             return geminiAudioInputModelIDs.contains(lowerModelID)
 
-        case .openaiCompatible?, .openrouter?, .deepinfra?:
+        case .openaiCompatible?, .cloudflareAIGateway?, .openrouter?, .deepinfra?:
             return compatibleAudioInputModelIDs.contains(lowerModelID)
 
         case .fireworks?:

@@ -198,4 +198,42 @@ final class ProviderParamsJSONSyncTests: XCTestCase {
         )
         XCTAssertEqual(sparkControls.reasoning?.effort, .xhigh)
     }
+
+    func testCloudflareGatewayDraftStartsEmptyLikeOpenAICompatible() {
+        let controls = GenerationControls(
+            temperature: 0.2,
+            maxTokens: 4096,
+            topP: 0.9,
+            reasoning: ReasoningControls(enabled: true, effort: .high),
+            webSearch: WebSearchControls(enabled: true)
+        )
+
+        let draft = ProviderParamsJSONSync.makeDraft(
+            providerType: .cloudflareAIGateway,
+            modelID: "openai/gpt-4o-mini",
+            controls: controls
+        )
+
+        XCTAssertTrue(draft.isEmpty)
+    }
+
+    func testCloudflareGatewayApplyDraftKeepsProviderSpecificUntouched() {
+        var controls = GenerationControls()
+        let draft: [String: AnyCodable] = [
+            "temperature": AnyCodable(0.7),
+            "custom_flag": AnyCodable(true)
+        ]
+
+        let providerSpecific = ProviderParamsJSONSync.applyDraft(
+            providerType: .cloudflareAIGateway,
+            modelID: "openai/gpt-4o-mini",
+            draft: draft,
+            controls: &controls
+        )
+
+        XCTAssertEqual(providerSpecific["temperature"]?.value as? Double, 0.7)
+        XCTAssertEqual(providerSpecific["custom_flag"]?.value as? Bool, true)
+        XCTAssertNil(controls.reasoning)
+        XCTAssertNil(controls.webSearch)
+    }
 }

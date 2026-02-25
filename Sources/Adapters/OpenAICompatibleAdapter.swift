@@ -90,7 +90,7 @@ actor OpenAICompatibleAdapter: LLMProviderAdapter {
     private var baseURL: String {
         let raw = (providerConfig.baseURL ?? providerConfig.type.defaultBaseURL ?? "https://api.openai.com/v1")
             .trimmingCharacters(in: .whitespacesAndNewlines)
-        let trimmed = raw.hasSuffix("/") ? String(raw.dropLast()) : raw
+        let trimmed = normalizedCloudflareGatewayBaseURL(from: raw.hasSuffix("/") ? String(raw.dropLast()) : raw)
         let lower = trimmed.lowercased()
 
         if lower.hasSuffix("/api/v1") || lower.hasSuffix("/v1") {
@@ -108,6 +108,18 @@ actor OpenAICompatibleAdapter: LLMProviderAdapter {
         return trimmed
     }
 
+    private func normalizedCloudflareGatewayBaseURL(from value: String) -> String {
+        guard providerConfig.type == .cloudflareAIGateway else { return value }
+
+        let lower = value.lowercased()
+        if lower.hasSuffix("/{provider}") {
+            let prefix = value.dropLast("/{provider}".count)
+            return "\(prefix)/compat"
+        }
+
+        return value
+    }
+
     private func buildRequest(
         messages: [Message],
         modelID: String,
@@ -120,6 +132,7 @@ actor OpenAICompatibleAdapter: LLMProviderAdapter {
         request.addValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
         request.addValue("application/json", forHTTPHeaderField: "Content-Type")
         request.addValue("application/json", forHTTPHeaderField: "Accept")
+        applyCloudflareGatewayCacheHeaders(to: &request, controls: controls)
 
         var body: [String: Any] = [
             "model": modelID,
@@ -159,6 +172,29 @@ actor OpenAICompatibleAdapter: LLMProviderAdapter {
 
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
         return request
+    }
+
+    private func applyCloudflareGatewayCacheHeaders(to request: inout URLRequest, controls: GenerationControls) {
+        guard providerConfig.type == .cloudflareAIGateway else { return }
+
+        if controls.contextCache?.mode == .off {
+            request.setValue("true", forHTTPHeaderField: "cf-aig-skip-cache")
+            return
+        }
+
+        let ttlSeconds = cloudflareGatewayCacheTTLSeconds(from: controls.contextCache?.ttl)
+        request.setValue(String(ttlSeconds), forHTTPHeaderField: "cf-aig-cache-ttl")
+    }
+
+    private func cloudflareGatewayCacheTTLSeconds(from ttl: ContextCacheTTL?) -> Int {
+        switch ttl {
+        case .hour1:
+            return 3_600
+        case .customSeconds(let seconds):
+            return max(1, seconds)
+        case .providerDefault, .minutes5, .none:
+            return 300
+        }
     }
 
     private func translateMessages(_ messages: [Message]) -> [[String: Any]] {

@@ -1286,6 +1286,187 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         for try await _ in stream {}
     }
 
+    func testCloudflareAIGatewayAdapterDefaultsPromptCacheTTLToFiveMinutes() async throws {
+        let (session, protocolType) = makeMockedURLSession()
+        let networkManager = NetworkManager(urlSession: session)
+
+        let providerConfig = ProviderConfig(
+            id: "cf",
+            name: "Cloudflare AI Gateway",
+            type: .cloudflareAIGateway,
+            apiKey: "ignored",
+            baseURL: "https://gateway.ai.cloudflare.com/v1/account/gateway/compat"
+        )
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://gateway.ai.cloudflare.com/v1/account/gateway/compat/chat/completions")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "cf-aig-cache-ttl"), "300")
+            XCTAssertNil(request.value(forHTTPHeaderField: "cf-aig-skip-cache"))
+
+            let response: [String: Any] = [
+                "id": "cmpl_cf_default_ttl",
+                "choices": [
+                    [
+                        "message": [
+                            "role": "assistant",
+                            "content": "OK"
+                        ],
+                        "finish_reason": "stop"
+                    ]
+                ]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = OpenAICompatibleAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hello")])],
+            modelID: "@cf/meta/llama-3.1-8b-instruct",
+            controls: GenerationControls(),
+            tools: [],
+            streaming: false
+        )
+
+        for try await _ in stream {}
+    }
+
+    func testCloudflareAIGatewayAdapterNormalizesLegacyProviderPlaceholderToCompat() async throws {
+        let (session, protocolType) = makeMockedURLSession()
+        let networkManager = NetworkManager(urlSession: session)
+
+        let providerConfig = ProviderConfig(
+            id: "cf",
+            name: "Cloudflare AI Gateway",
+            type: .cloudflareAIGateway,
+            apiKey: "ignored",
+            baseURL: "https://gateway.ai.cloudflare.com/v1/account/gateway/{provider}"
+        )
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://gateway.ai.cloudflare.com/v1/account/gateway/compat/chat/completions")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "cf-aig-cache-ttl"), "300")
+
+            let response: [String: Any] = [
+                "id": "cmpl_cf_legacy_provider_placeholder",
+                "choices": [
+                    [
+                        "message": [
+                            "role": "assistant",
+                            "content": "OK"
+                        ],
+                        "finish_reason": "stop"
+                    ]
+                ]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = OpenAICompatibleAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hello")])],
+            modelID: "@cf/meta/llama-3.1-8b-instruct",
+            controls: GenerationControls(),
+            tools: [],
+            streaming: false
+        )
+
+        for try await _ in stream {}
+    }
+
+    func testCloudflareAIGatewayAdapterMapsContextCacheTTLToHeader() async throws {
+        let (session, protocolType) = makeMockedURLSession()
+        let networkManager = NetworkManager(urlSession: session)
+
+        let providerConfig = ProviderConfig(
+            id: "cf",
+            name: "Cloudflare AI Gateway",
+            type: .cloudflareAIGateway,
+            apiKey: "ignored",
+            baseURL: "https://gateway.ai.cloudflare.com/v1/account/gateway/openai"
+        )
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.value(forHTTPHeaderField: "cf-aig-cache-ttl"), "3600")
+            XCTAssertNil(request.value(forHTTPHeaderField: "cf-aig-skip-cache"))
+
+            let response: [String: Any] = [
+                "id": "cmpl_cf_hour",
+                "choices": [
+                    [
+                        "message": [
+                            "role": "assistant",
+                            "content": "OK"
+                        ],
+                        "finish_reason": "stop"
+                    ]
+                ]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = OpenAICompatibleAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hello")])],
+            modelID: "@cf/meta/llama-3.1-8b-instruct",
+            controls: GenerationControls(
+                contextCache: ContextCacheControls(mode: .implicit, ttl: .hour1)
+            ),
+            tools: [],
+            streaming: false
+        )
+
+        for try await _ in stream {}
+    }
+
+    func testCloudflareAIGatewayAdapterSendsSkipCacheHeaderWhenContextCacheOff() async throws {
+        let (session, protocolType) = makeMockedURLSession()
+        let networkManager = NetworkManager(urlSession: session)
+
+        let providerConfig = ProviderConfig(
+            id: "cf",
+            name: "Cloudflare AI Gateway",
+            type: .cloudflareAIGateway,
+            apiKey: "ignored",
+            baseURL: "https://gateway.ai.cloudflare.com/v1/account/gateway/openai"
+        )
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.value(forHTTPHeaderField: "cf-aig-skip-cache"), "true")
+            XCTAssertNil(request.value(forHTTPHeaderField: "cf-aig-cache-ttl"))
+
+            let response: [String: Any] = [
+                "id": "cmpl_cf_skip",
+                "choices": [
+                    [
+                        "message": [
+                            "role": "assistant",
+                            "content": "OK"
+                        ],
+                        "finish_reason": "stop"
+                    ]
+                ]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = OpenAICompatibleAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hello")])],
+            modelID: "@cf/meta/llama-3.1-8b-instruct",
+            controls: GenerationControls(
+                contextCache: ContextCacheControls(mode: .off)
+            ),
+            tools: [],
+            streaming: false
+        )
+
+        for try await _ in stream {}
+    }
+
     func testOpenAICompatibleAdapterFetchModelsNormalizesAPIBaseURL() async throws {
         let (session, protocolType) = makeMockedURLSession()
         let networkManager = NetworkManager(urlSession: session)

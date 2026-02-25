@@ -44,7 +44,7 @@ enum ModelCapabilityRegistry {
             return .anthropic
         case .gemini, .vertexai:
             return .gemini
-        case .openaiCompatible, .openrouter, .groq, .mistral, .deepinfra:
+        case .openaiCompatible, .cloudflareAIGateway, .openrouter, .groq, .mistral, .deepinfra:
             return .openAICompatible
         case .perplexity, .cohere, .xai, .deepseek, .fireworks, .cerebras, .none:
             return .openAICompatible
@@ -147,7 +147,7 @@ enum ModelCapabilityRegistry {
             return supportsGeminiGoogleSearch(lowerModelID: lower)
         case .vertexai:
             return supportsVertexGoogleSearch(lowerModelID: lower)
-        case .openaiCompatible, .groq, .cohere, .mistral, .deepinfra, .deepseek, .fireworks, .cerebras, .none:
+        case .openaiCompatible, .cloudflareAIGateway, .groq, .cohere, .mistral, .deepinfra, .deepseek, .fireworks, .cerebras, .none:
             return false
         }
     }
