@@ -34,20 +34,11 @@ actor FireworksAdapter: LLMProviderAdapter {
             streaming: streaming
         )
 
-        if !streaming {
-            let (data, _) = try await networkManager.sendRequest(request)
-            let response = try OpenAIChatCompletionsCore.decodeResponse(data)
-            return OpenAIChatCompletionsCore.makeNonStreamingStream(
-                response: response,
-                reasoningField: .reasoningContent
-            )
-        }
-
-        let parser = SSEParser()
-        let sseStream = await networkManager.streamRequest(request, parser: parser)
-        return OpenAIChatCompletionsCore.makeStreamingStream(
-            sseStream: sseStream,
-            reasoningField: .reasoningContent
+        return try await sendOpenAICompatibleMessage(
+            request: request,
+            streaming: streaming,
+            reasoningField: .reasoningContent,
+            networkManager: networkManager
         )
     }
 

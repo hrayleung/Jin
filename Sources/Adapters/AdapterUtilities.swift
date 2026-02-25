@@ -355,3 +355,54 @@ func stripTrailingV1(_ rawURL: String) -> String {
 
     return trimmed
 }
+
+// MARK: - Audio Model ID Detection
+
+/// Detects whether a model ID (lowercased) supports audio input.
+/// Shared across OpenAICompatibleAdapter and OpenRouterAdapter.
+func isAudioInputModelID(_ lowerModelID: String) -> Bool {
+    if lowerModelID.contains("gpt-audio")
+        || lowerModelID.contains("audio-preview")
+        || lowerModelID.contains("realtime")
+        || lowerModelID.contains("voxtral")
+        || lowerModelID.contains("qwen3-asr")
+        || lowerModelID.contains("qwen3-omni") {
+        return true
+    }
+
+    if (lowerModelID.contains("gemini-2.5") || lowerModelID.contains("gemini-3") || lowerModelID.contains("gemini-2.0"))
+        && !lowerModelID.contains("-image")
+        && !lowerModelID.contains("imagen") {
+        return true
+    }
+
+    return false
+}
+
+// MARK: - OpenAI-Compatible Streaming Dispatch
+
+/// Common send/stream dispatch for OpenAI Chat Completions-compatible adapters.
+/// Eliminates the identical streaming/non-streaming branching duplicated in
+/// DeepSeek, Cerebras, Fireworks, Perplexity, OpenRouter, and OpenAICompatible adapters.
+func sendOpenAICompatibleMessage(
+    request: URLRequest,
+    streaming: Bool,
+    reasoningField: OpenAIChatCompletionsReasoningField,
+    networkManager: NetworkManager
+) async throws -> AsyncThrowingStream<StreamEvent, Error> {
+    if !streaming {
+        let (data, _) = try await networkManager.sendRequest(request)
+        let response = try OpenAIChatCompletionsCore.decodeResponse(data)
+        return OpenAIChatCompletionsCore.makeNonStreamingStream(
+            response: response,
+            reasoningField: reasoningField
+        )
+    }
+
+    let parser = SSEParser()
+    let sseStream = await networkManager.streamRequest(request, parser: parser)
+    return OpenAIChatCompletionsCore.makeStreamingStream(
+        sseStream: sseStream,
+        reasoningField: reasoningField
+    )
+}

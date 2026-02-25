@@ -170,7 +170,7 @@ actor XAIAdapter: LLMProviderAdapter {
         return AsyncThrowingStream { continuation in
             Task {
                 do {
-                    var functionCallsByItemID: [String: FunctionCallState] = [:]
+                    var functionCallsByItemID: [String: ResponsesAPIFunctionCallState] = [:]
                     var streamedOutputText = ""
 
                     for try await event in sseStream {
@@ -178,7 +178,7 @@ actor XAIAdapter: LLMProviderAdapter {
                         case .event(let type, let data):
                             if type == "response.completed",
                                let jsonData = data.data(using: .utf8),
-                               let completed = try? streamDecoder.decode(ResponseCompletedEvent.self, from: jsonData),
+                               let completed = try? streamDecoder.decode(ResponsesAPICompletedEvent.self, from: jsonData),
                                let citationActivity = citationSearchActivity(
                                    sources: citationCandidates(
                                        citations: completed.response.citations,
@@ -1414,7 +1414,7 @@ actor XAIAdapter: LLMProviderAdapter {
     private func parseSSEEvent(
         type: String,
         data: String,
-        functionCallsByItemID: inout [String: FunctionCallState]
+        functionCallsByItemID: inout [String: ResponsesAPIFunctionCallState]
     ) throws -> StreamEvent? {
         guard let jsonData = data.data(using: .utf8) else {
             return nil
@@ -1425,23 +1425,23 @@ actor XAIAdapter: LLMProviderAdapter {
 
         switch type {
         case "response.created":
-            let event = try decoder.decode(ResponseCreatedEvent.self, from: jsonData)
+            let event = try decoder.decode(ResponsesAPICreatedEvent.self, from: jsonData)
             return .messageStart(id: event.response.id)
 
         case "response.output_text.delta":
-            let event = try decoder.decode(OutputTextDeltaEvent.self, from: jsonData)
+            let event = try decoder.decode(ResponsesAPIOutputTextDeltaEvent.self, from: jsonData)
             return .contentDelta(.text(event.delta))
 
         case "response.reasoning_text.delta":
-            let event = try decoder.decode(ReasoningTextDeltaEvent.self, from: jsonData)
+            let event = try decoder.decode(ResponsesAPIReasoningTextDeltaEvent.self, from: jsonData)
             return .thinkingDelta(.thinking(textDelta: event.delta, signature: nil))
 
         case "response.reasoning_summary_text.delta":
-            let event = try decoder.decode(ReasoningSummaryTextDeltaEvent.self, from: jsonData)
+            let event = try decoder.decode(ResponsesAPIReasoningSummaryTextDeltaEvent.self, from: jsonData)
             return .thinkingDelta(.thinking(textDelta: event.delta, signature: nil))
 
         case "response.output_item.added":
-            let event = try decoder.decode(OutputItemAddedEvent.self, from: jsonData)
+            let event = try decoder.decode(ResponsesAPIOutputItemAddedEvent.self, from: jsonData)
             guard event.item.type == "function_call",
                   let itemID = event.item.id,
                   let callID = event.item.callId,
@@ -1449,18 +1449,18 @@ actor XAIAdapter: LLMProviderAdapter {
                 return nil
             }
 
-            functionCallsByItemID[itemID] = FunctionCallState(callID: callID, name: name)
+            functionCallsByItemID[itemID] = ResponsesAPIFunctionCallState(callID: callID, name: name)
             return .toolCallStart(ToolCall(id: callID, name: name, arguments: [:]))
 
         case "response.function_call_arguments.delta":
-            let event = try decoder.decode(FunctionCallArgumentsDeltaEvent.self, from: jsonData)
+            let event = try decoder.decode(ResponsesAPIFunctionCallArgumentsDeltaEvent.self, from: jsonData)
             guard let state = functionCallsByItemID[event.itemId] else { return nil }
 
             functionCallsByItemID[event.itemId]?.argumentsBuffer += event.delta
             return .toolCallDelta(id: state.callID, argumentsDelta: event.delta)
 
         case "response.function_call_arguments.done":
-            let event = try decoder.decode(FunctionCallArgumentsDoneEvent.self, from: jsonData)
+            let event = try decoder.decode(ResponsesAPIFunctionCallArgumentsDoneEvent.self, from: jsonData)
             guard let state = functionCallsByItemID[event.itemId] else { return nil }
             functionCallsByItemID.removeValue(forKey: event.itemId)
 
@@ -1468,7 +1468,7 @@ actor XAIAdapter: LLMProviderAdapter {
             return .toolCallEnd(ToolCall(id: state.callID, name: state.name, arguments: args))
 
         case "response.completed":
-            let event = try decoder.decode(ResponseCompletedEvent.self, from: jsonData)
+            let event = try decoder.decode(ResponsesAPICompletedEvent.self, from: jsonData)
             let usage = Usage(
                 inputTokens: event.response.usage.inputTokens,
                 outputTokens: event.response.usage.outputTokens,
@@ -1478,7 +1478,7 @@ actor XAIAdapter: LLMProviderAdapter {
             return .messageEnd(usage: usage)
 
         case "response.failed":
-            if let errorEvent = try? decoder.decode(ResponseFailedEvent.self, from: jsonData),
+            if let errorEvent = try? decoder.decode(ResponsesAPIFailedEvent.self, from: jsonData),
                let message = errorEvent.response.error?.message {
                 return .error(.providerError(code: errorEvent.response.error?.code ?? "response_failed", message: message))
             }
@@ -1487,24 +1487,6 @@ actor XAIAdapter: LLMProviderAdapter {
         default:
             return nil
         }
-    }
-
-    private func parseJSONObject(_ jsonString: String) -> [String: AnyCodable] {
-        guard let data = jsonString.data(using: .utf8),
-              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            return [:]
-        }
-        return object.mapValues(AnyCodable.init)
-    }
-
-    private func encodeJSONObject(_ object: [String: AnyCodable]) -> String {
-        let raw = object.mapValues { $0.value }
-        guard JSONSerialization.isValidJSONObject(raw),
-              let data = try? JSONSerialization.data(withJSONObject: raw),
-              let str = String(data: data, encoding: .utf8) else {
-            return "{}"
-        }
-        return str
     }
 
     private struct CitationSourceCandidate {
@@ -1519,7 +1501,7 @@ actor XAIAdapter: LLMProviderAdapter {
 
     private func citationCandidates(
         citations: [String]?,
-        output: [ResponsesAPIResponse.OutputItem]?,
+        output: [ResponsesAPIOutputItem]?,
         fallbackText: String?
     ) -> [CitationSourceCandidate]? {
         let inlineCandidates = inlineCitationCandidates(from: output)
@@ -1543,7 +1525,7 @@ actor XAIAdapter: LLMProviderAdapter {
         return normalized.isEmpty ? nil : normalized
     }
 
-    private func inlineCitationCandidates(from output: [ResponsesAPIResponse.OutputItem]?) -> [CitationSourceCandidate] {
+    private func inlineCitationCandidates(from output: [ResponsesAPIOutputItem]?) -> [CitationSourceCandidate] {
         guard let output else { return [] }
 
         var ordered: [CitationSourceCandidate] = []
@@ -1563,7 +1545,7 @@ actor XAIAdapter: LLMProviderAdapter {
                     let canonical = url.absoluteString
                     let key = canonical.lowercased()
                     let title = normalizedCitationTitle(annotation.title)
-                    let snippet = citationSnippet(
+                    let snippet = citationPreviewSnippet(
                         text: content.text,
                         startIndex: annotation.startIndex,
                         endIndex: annotation.endIndex
@@ -1699,48 +1681,11 @@ actor XAIAdapter: LLMProviderAdapter {
         return trimmed
     }
 
-    private func citationSnippet(text: String?, startIndex: Int?, endIndex: Int?) -> String? {
-        guard let text, !text.isEmpty else { return nil }
-        guard let startIndex, let endIndex,
-              startIndex >= 0, endIndex > startIndex else {
-            return nil
-        }
-
-        let nsText = text as NSString
-        let textLength = nsText.length
-        guard startIndex < textLength else { return nil }
-
-        let clampedEnd = min(endIndex, textLength)
-        guard clampedEnd > startIndex else { return nil }
-
-        let contextRadius = 80
-        let windowStart = max(0, startIndex - contextRadius)
-        let windowEnd = min(textLength, clampedEnd + contextRadius)
-        guard windowEnd > windowStart else { return nil }
-
-        let raw = nsText.substring(with: NSRange(location: windowStart, length: windowEnd - windowStart))
-        let collapsed = raw
-            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !collapsed.isEmpty else { return nil }
-        if collapsed.count <= 420 {
-            return collapsed
-        }
-        let end = collapsed.index(collapsed.startIndex, offsetBy: 420)
-        return String(collapsed[..<end]) + "…"
-    }
-
     private func preferredSnippet(existing: String?, candidate: String?) -> String? {
         guard let candidate else { return existing }
         guard let existing else { return candidate }
         return candidate.count > existing.count ? candidate : existing
     }
-}
-
-private struct FunctionCallState {
-    let callID: String
-    let name: String
-    var argumentsBuffer: String = ""
 }
 
 // MARK: - Models Response
@@ -1755,88 +1700,6 @@ private struct ModelData: Codable {
     let outputModalities: [String]?
     let modalities: [String]?
     let contextWindow: Int?
-}
-
-// MARK: - Streaming Event Types
-
-private struct ResponseCreatedEvent: Codable {
-    let response: ResponseInfo
-
-    struct ResponseInfo: Codable {
-        let id: String
-    }
-}
-
-private struct OutputTextDeltaEvent: Codable {
-    let delta: String
-}
-
-private struct ReasoningTextDeltaEvent: Codable {
-    let delta: String
-}
-
-private struct ReasoningSummaryTextDeltaEvent: Codable {
-    let delta: String
-}
-
-private struct OutputItemAddedEvent: Codable {
-    let item: Item
-
-    struct Item: Codable {
-        let id: String?
-        let type: String
-        let callId: String?
-        let name: String?
-    }
-}
-
-private struct FunctionCallArgumentsDeltaEvent: Codable {
-    let itemId: String
-    let delta: String
-}
-
-private struct FunctionCallArgumentsDoneEvent: Codable {
-    let itemId: String
-    let arguments: String
-}
-
-private struct ResponseCompletedEvent: Codable {
-    let response: Response
-
-    struct Response: Codable {
-        let id: String?
-        let citations: [String]?
-        let output: [ResponsesAPIResponse.OutputItem]?
-        let usage: UsageInfo
-
-        struct UsageInfo: Codable {
-            let inputTokens: Int
-            let outputTokens: Int
-            let outputTokensDetails: OutputTokensDetails?
-            let promptTokensDetails: PromptTokensDetails?
-
-            struct OutputTokensDetails: Codable {
-                let reasoningTokens: Int?
-            }
-
-            struct PromptTokensDetails: Codable {
-                let cachedTokens: Int?
-            }
-        }
-    }
-}
-
-private struct ResponseFailedEvent: Codable {
-    let response: Response
-
-    struct Response: Codable {
-        let error: ErrorInfo?
-
-        struct ErrorInfo: Codable {
-            let code: String?
-            let message: String
-        }
-    }
 }
 
 // MARK: - Media Generation Response Types
@@ -1950,110 +1813,3 @@ private struct XAIVideoResult: Codable {
     let duration: Int?
 }
 
-// MARK: - Non-streaming Responses API Types
-
-private struct XAIResponseOutputAnnotation: Codable {
-    let type: String
-    let url: String?
-    let title: String?
-    let startIndex: Int?
-    let endIndex: Int?
-
-    private enum CodingKeys: String, CodingKey {
-        case type
-        case url
-        case title
-        case startIndex
-        case endIndex
-        case urlCitation
-    }
-
-    private struct URLCitationPayload: Codable {
-        let url: String?
-        let title: String?
-        let startIndex: Int?
-        let endIndex: Int?
-    }
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        type = try container.decodeIfPresent(String.self, forKey: .type) ?? ""
-
-        let directURL = try container.decodeIfPresent(String.self, forKey: .url)
-        let directTitle = try container.decodeIfPresent(String.self, forKey: .title)
-        let directStartIndex = try container.decodeIfPresent(Int.self, forKey: .startIndex)
-        let directEndIndex = try container.decodeIfPresent(Int.self, forKey: .endIndex)
-        let nestedCitation = try container.decodeIfPresent(URLCitationPayload.self, forKey: .urlCitation)
-
-        url = directURL ?? nestedCitation?.url
-        title = directTitle ?? nestedCitation?.title
-        startIndex = directStartIndex ?? nestedCitation?.startIndex
-        endIndex = directEndIndex ?? nestedCitation?.endIndex
-    }
-
-    func encode(to encoder: Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encode(type, forKey: .type)
-        try container.encodeIfPresent(url, forKey: .url)
-        try container.encodeIfPresent(title, forKey: .title)
-        try container.encodeIfPresent(startIndex, forKey: .startIndex)
-        try container.encodeIfPresent(endIndex, forKey: .endIndex)
-    }
-}
-
-private struct ResponsesAPIResponse: Codable {
-    let id: String
-    let output: [OutputItem]
-    let citations: [String]?
-    let usage: UsageInfo?
-
-    struct OutputItem: Codable {
-        let type: String
-        let content: [Content]?
-        let summary: [Content]?
-
-        struct Content: Codable {
-            let type: String
-            let text: String?
-            let annotations: [XAIResponseOutputAnnotation]?
-        }
-    }
-
-    struct UsageInfo: Codable {
-        let inputTokens: Int
-        let outputTokens: Int
-        let outputTokensDetails: OutputTokensDetails?
-        let promptTokensDetails: PromptTokensDetails?
-
-        struct OutputTokensDetails: Codable {
-            let reasoningTokens: Int?
-        }
-
-        struct PromptTokensDetails: Codable {
-            let cachedTokens: Int?
-        }
-    }
-
-    var outputTextParts: [String] {
-        output.flatMap { item in
-            switch item.type {
-            case "message":
-                return item.content?.compactMap { $0.type == "output_text" ? $0.text : nil } ?? []
-            case "reasoning":
-                return item.summary?.compactMap { $0.type == "summary_text" ? $0.text : nil } ?? []
-            default:
-                return []
-            }
-        }
-    }
-
-    func toUsage() -> Usage? {
-        guard let usage else { return nil }
-        return Usage(
-            inputTokens: usage.inputTokens,
-            outputTokens: usage.outputTokens,
-            thinkingTokens: usage.outputTokensDetails?.reasoningTokens,
-            cachedTokens: usage.promptTokensDetails?.cachedTokens
-        )
-    }
-}
