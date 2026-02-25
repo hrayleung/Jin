@@ -22,20 +22,45 @@ final class SparkleUpdateManager: NSObject, ObservableObject {
     @Published private(set) var allowPreRelease: Bool = false
 
     private var hasCheckedOnLaunch = false
+    private var isCheckingOnLaunch = false
+    private let launchCheckRetryCount: Int
+    private let launchCheckRetryDelayNanoseconds: UInt64
+    private let launchCheckReadyEvaluator: () -> Bool
+    private let launchCheckExecutor: () -> Void
+    private let launchCheckSleep: @Sendable (UInt64) async -> Void
 
     init(
         userDefaults: UserDefaults = .standard,
-        startingUpdater: Bool = true
+        startingUpdater: Bool = true,
+        launchCheckRetryCount: Int = 20,
+        launchCheckRetryDelayNanoseconds: UInt64 = 250_000_000,
+        launchCheckReadyEvaluator: (() -> Bool)? = nil,
+        launchCheckExecutor: (() -> Void)? = nil,
+        launchCheckSleep: (@Sendable (UInt64) async -> Void)? = nil
     ) {
         let placeholderDelegate = SparkleUpdaterDelegate()
-        self.updaterDelegate = placeholderDelegate
-        self.userDefaults = userDefaults
-        self.controller = SPUStandardUpdaterController(
+        let standardController = SPUStandardUpdaterController(
             startingUpdater: startingUpdater,
             updaterDelegate: placeholderDelegate,
             userDriverDelegate: nil
         )
-        self.updater = controller.updater
+        let sparkleUpdater = standardController.updater
+
+        self.updaterDelegate = placeholderDelegate
+        self.userDefaults = userDefaults
+        self.controller = standardController
+        self.updater = sparkleUpdater
+        self.launchCheckRetryCount = max(0, launchCheckRetryCount)
+        self.launchCheckRetryDelayNanoseconds = launchCheckRetryDelayNanoseconds
+        self.launchCheckReadyEvaluator = launchCheckReadyEvaluator ?? {
+            sparkleUpdater.canCheckForUpdates && !sparkleUpdater.sessionInProgress
+        }
+        self.launchCheckExecutor = launchCheckExecutor ?? {
+            sparkleUpdater.checkForUpdatesInBackground()
+        }
+        self.launchCheckSleep = launchCheckSleep ?? { nanoseconds in
+            try? await Task.sleep(nanoseconds: nanoseconds)
+        }
 
         super.init()
 
@@ -64,11 +89,32 @@ final class SparkleUpdateManager: NSObject, ObservableObject {
     }
 
     func checkForUpdatesOnLaunchIfNeeded() async {
-        guard !hasCheckedOnLaunch else { return }
-        hasCheckedOnLaunch = true
+        guard !hasCheckedOnLaunch, !isCheckingOnLaunch else { return }
+        isCheckingOnLaunch = true
+        defer { isCheckingOnLaunch = false }
 
-        guard automaticallyChecksForUpdates else { return }
-        updater.checkForUpdatesInBackground()
+        refreshPublishedProperties()
+
+        guard automaticallyChecksForUpdates else {
+            hasCheckedOnLaunch = true
+            return
+        }
+
+        for attempt in 0...launchCheckRetryCount {
+            refreshPublishedProperties()
+            if launchCheckReadyEvaluator() {
+                launchCheckExecutor()
+                hasCheckedOnLaunch = true
+                refreshPublishedProperties()
+                return
+            }
+
+            guard attempt < launchCheckRetryCount else { break }
+            await launchCheckSleep(launchCheckRetryDelayNanoseconds)
+        }
+
+        // Sparkle may still be finishing its own cycle; avoid retrying this launch forever.
+        hasCheckedOnLaunch = true
         refreshPublishedProperties()
     }
 
