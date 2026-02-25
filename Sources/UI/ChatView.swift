@@ -85,6 +85,8 @@ struct ChatView: View {
     @State private var deepSeekOCRPluginEnabled = true
     @State private var textToSpeechPluginEnabled = true
     @State private var speechToTextPluginEnabled = true
+    @State private var webSearchPluginEnabled = true
+    @State private var webSearchPluginConfigured = false
     @State private var isPreparingToSend = false
     @State private var prepareToSendStatus: String?
     @State private var prepareToSendTask: Task<Void, Never>?
@@ -1664,7 +1666,7 @@ struct ChatView: View {
         return true
     }
 
-    private var supportsWebSearchControl: Bool {
+    private var supportsNativeWebSearchControl: Bool {
         if supportsMediaGenerationControl {
             if supportsImageGenerationControl {
                 return supportsImageGenerationWebSearch
@@ -1680,6 +1682,33 @@ struct ChatView: View {
             for: providerType,
             modelID: conversationEntity.modelID
         )
+    }
+
+    private var supportsBuiltinSearchPluginControl: Bool {
+        guard !supportsMediaGenerationControl else { return false }
+        guard resolvedModelSettings?.capabilities.contains(.toolCalling) == true else { return false }
+        guard webSearchPluginEnabled, webSearchPluginConfigured else { return false }
+        return true
+    }
+
+    private var supportsSearchEngineModeSwitch: Bool {
+        supportsNativeWebSearchControl && supportsBuiltinSearchPluginControl
+    }
+
+    private var prefersJinSearchEngine: Bool {
+        controls.searchPlugin?.preferJinSearch == true
+    }
+
+    private var usesBuiltinSearchPlugin: Bool {
+        guard supportsBuiltinSearchPluginControl else { return false }
+        if supportsNativeWebSearchControl {
+            return prefersJinSearchEngine
+        }
+        return true
+    }
+
+    private var supportsWebSearchControl: Bool {
+        supportsNativeWebSearchControl || supportsBuiltinSearchPluginControl
     }
 
     private var supportsContextCacheControl: Bool {
@@ -1847,6 +1876,14 @@ struct ChatView: View {
     }
 
     private var webSearchLabel: String {
+        if usesBuiltinSearchPlugin {
+            let provider = effectiveSearchPluginProvider.displayName
+            if let maxResults = controls.searchPlugin?.maxResults {
+                return "\(provider) · \(maxResults) results"
+            }
+            return provider
+        }
+
         switch providerType {
         case .openai, .openaiWebSocket:
             return (controls.webSearch?.contextSize ?? .medium).displayName
@@ -1865,6 +1902,13 @@ struct ChatView: View {
         if sources == [.web] { return "Web" }
         if sources == [.x] { return "X" }
         return "Web + X"
+    }
+
+    private var effectiveSearchPluginProvider: SearchPluginProvider {
+        if let provider = controls.searchPlugin?.provider {
+            return provider
+        }
+        return WebSearchPluginSettingsStore.load().defaultProvider
     }
 
     private var reasoningBadgeText: String? {
@@ -1900,6 +1944,10 @@ struct ChatView: View {
 
     private var webSearchBadgeText: String? {
         guard supportsWebSearchControl, isWebSearchEnabled else { return nil }
+
+        if usesBuiltinSearchPlugin {
+            return effectiveSearchPluginProvider.shortBadge
+        }
 
         switch providerType {
         case .openai, .openaiWebSocket:
@@ -3032,6 +3080,7 @@ struct ChatView: View {
         let reservedOutputTokens = max(0, controlsToUse.maxTokens ?? 2048)
         let mcpServerConfigs = resolvedMCPServerConfigs(for: controlsToUse)
         let chatNamingTarget = resolvedChatNamingTarget()
+        let shouldOfferBuiltinSearch = usesBuiltinSearchPlugin
 
         responseCompletionNotifier.prepareAuthorizationIfNeededWhileActive()
 
@@ -3070,6 +3119,11 @@ struct ChatView: View {
                 let providerManager = ProviderManager()
                 let adapter = try await providerManager.createAdapter(for: providerConfig)
                 let (mcpTools, mcpRoutes) = try await MCPHub.shared.toolDefinitions(for: mcpServerConfigs)
+                let (builtinTools, builtinRoutes) = await BuiltinSearchToolHub.shared.toolDefinitions(
+                    for: controlsToUse,
+                    useBuiltinSearch: shouldOfferBuiltinSearch
+                )
+                let allTools = mcpTools + builtinTools
                 let providerType = providerConfig.type
 
                 var requestControls = controlsToUse
@@ -3079,7 +3133,7 @@ struct ChatView: View {
                     modelID: modelID,
                     messages: history,
                     controls: requestControls,
-                    tools: mcpTools
+                    tools: allTools
                 )
                 history = optimizedContextCache.messages
                 requestControls = optimizedContextCache.controls
@@ -3223,7 +3277,7 @@ struct ChatView: View {
                         messages: history,
                         modelID: modelID,
                         controls: requestControls,
-                        tools: mcpTools,
+                        tools: allTools,
                         streaming: true
                     )
 
@@ -3290,6 +3344,16 @@ struct ChatView: View {
                             }
                         case .toolCallStart(let call):
                             upsertToolCall(call)
+                            if builtinRoutes.contains(functionName: call.name),
+                               let searchActivity = makeSearchActivityForToolCallStart(
+                                   call: call,
+                                   providerOverride: builtinRoutes.provider(for: call.name)
+                               ) {
+                                upsertSearchActivity(searchActivity)
+                                await MainActor.run {
+                                    streamingState.upsertSearchActivity(searchActivity)
+                                }
+                            }
                             let visibleToolCalls = buildToolCalls()
                             await MainActor.run {
                                 streamingState.setToolCalls(visibleToolCalls)
@@ -3321,6 +3385,7 @@ struct ChatView: View {
                     let toolCalls = buildToolCalls()
                     let assistantParts = buildAssistantParts()
                     let searchActivities = buildSearchActivities()
+                    var persistedAssistantMessageID: UUID?
                     if !assistantParts.isEmpty || !toolCalls.isEmpty || !searchActivities.isEmpty {
                         let persistedParts = await AttachmentImportPipeline.persistImagesToDisk(assistantParts)
                         let assistantMessage = Message(
@@ -3333,7 +3398,7 @@ struct ChatView: View {
                             completionPreview = preview
                         }
 
-                        await MainActor.run {
+                        persistedAssistantMessageID = await MainActor.run {
                             do {
                                 let entity = try MessageEntity.fromDomain(assistantMessage)
                                 entity.generatedProviderID = providerID
@@ -3344,13 +3409,19 @@ struct ChatView: View {
                                 conversationEntity.updatedAt = Date()
                                 rebuildMessageCaches()
                                 try? modelContext.save()
+                                // Preserve the assistant bubble so search timeline updates can be merged after tool results.
+                                return entity.id
                             } catch {
                                 errorMessage = error.localizedDescription
                                 showingError = true
+                                return nil
                             }
-                            // End streaming atomically with message persistence
-                            // to prevent the brief duplicate message flash.
-                            if toolCalls.isEmpty {
+                        }
+
+                        // End streaming atomically with assistant message persistence
+                        // to prevent the brief duplicate message flash.
+                        if toolCalls.isEmpty {
+                            await MainActor.run {
                                 streamingStore.endSession(conversationID: conversationID)
                             }
                         }
@@ -3381,11 +3452,35 @@ struct ChatView: View {
 
                     var toolResults: [ToolResult] = []
                     var toolOutputLines: [String] = []
+                    var toolSearchActivitiesByID: [String: SearchActivity] = [:]
+                    var toolSearchActivityOrder: [String] = []
+
+                    func upsertToolSearchActivity(_ activity: SearchActivity) {
+                        if let existing = toolSearchActivitiesByID[activity.id] {
+                            toolSearchActivitiesByID[activity.id] = existing.merged(with: activity)
+                        } else {
+                            toolSearchActivityOrder.append(activity.id)
+                            toolSearchActivitiesByID[activity.id] = activity
+                        }
+                    }
 
                     for call in toolCalls {
                         let callStart = Date()
                         do {
-                            let result = try await MCPHub.shared.executeTool(functionName: call.name, arguments: call.arguments, routes: mcpRoutes)
+                            let result: MCPToolCallResult
+                            if builtinRoutes.contains(functionName: call.name) {
+                                result = try await BuiltinSearchToolHub.shared.executeTool(
+                                    functionName: call.name,
+                                    arguments: call.arguments,
+                                    routes: builtinRoutes
+                                )
+                            } else {
+                                result = try await MCPHub.shared.executeTool(
+                                    functionName: call.name,
+                                    arguments: call.arguments,
+                                    routes: mcpRoutes
+                                )
+                            }
                             let duration = Date().timeIntervalSince(callStart)
                             let normalizedContent = normalizedToolResultContent(
                                 result.text,
@@ -3410,6 +3505,18 @@ struct ChatView: View {
                             } else {
                                 toolOutputLines.append("Tool \(call.name):\n\(normalizedContent)")
                             }
+
+                            if let activity = makeSearchActivityFromToolResult(
+                                call: call,
+                                toolResultText: result.text,
+                                isError: result.isError,
+                                providerOverride: builtinRoutes.provider(for: call.name)
+                            ) {
+                                upsertToolSearchActivity(activity)
+                                await MainActor.run {
+                                    streamingState.upsertSearchActivity(activity)
+                                }
+                            }
                         } catch {
                             let duration = Date().timeIntervalSince(callStart)
                             let normalizedError = normalizedToolResultContent(
@@ -3431,10 +3538,37 @@ struct ChatView: View {
                                 streamingState.upsertToolResult(toolResult)
                             }
                             toolOutputLines.append("Tool \(call.name) failed:\n\(llmErrorContent)")
+
+                            if let activity = makeSearchActivityFromToolResult(
+                                call: call,
+                                toolResultText: llmErrorContent,
+                                isError: true,
+                                providerOverride: builtinRoutes.provider(for: call.name)
+                            ) {
+                                upsertToolSearchActivity(activity)
+                                await MainActor.run {
+                                    streamingState.upsertSearchActivity(activity)
+                                }
+                            }
                         }
                     }
 
-                    let toolMessage = Message(role: .tool, content: toolOutputLines.isEmpty ? [] : [.text(toolOutputLines.joined(separator: "\n\n"))], toolResults: toolResults)
+                    let toolSearchActivities = toolSearchActivityOrder.compactMap { toolSearchActivitiesByID[$0] }
+                    if let assistantMessageID = persistedAssistantMessageID, !toolSearchActivities.isEmpty {
+                        await MainActor.run {
+                            mergeSearchActivitiesIntoAssistantMessage(
+                                messageID: assistantMessageID,
+                                newActivities: toolSearchActivities
+                            )
+                        }
+                    }
+
+                    let toolMessage = Message(
+                        role: .tool,
+                        content: toolOutputLines.isEmpty ? [] : [.text(toolOutputLines.joined(separator: "\n\n"))],
+                        toolResults: toolResults,
+                        searchActivities: toolSearchActivities.isEmpty ? nil : toolSearchActivities
+                    )
                     await MainActor.run {
                         do {
                             let entity = try MessageEntity.fromDomain(toolMessage)
@@ -3575,6 +3709,145 @@ struct ChatView: View {
             return "Tool \(toolName) failed without details"
         }
         return "Tool \(toolName) returned no output"
+    }
+
+    nonisolated private func makeSearchActivityForToolCallStart(
+        call: ToolCall,
+        providerOverride: SearchPluginProvider?
+    ) -> SearchActivity? {
+        guard isSearchToolName(call.name) else { return nil }
+
+        var args: [String: AnyCodable] = [:]
+        let query = (call.arguments["query"]?.value as? String)
+            ?? (call.arguments["q"]?.value as? String)
+            ?? ""
+        let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmedQuery.isEmpty {
+            args["query"] = AnyCodable(trimmedQuery)
+        }
+
+        if let providerOverride {
+            args["provider"] = AnyCodable(providerOverride.rawValue)
+        }
+
+        return SearchActivity(
+            id: "tool-search-\(call.id)",
+            type: "tool_web_search",
+            status: .searching,
+            arguments: args
+        )
+    }
+
+    nonisolated private func makeSearchActivityFromToolResult(
+        call: ToolCall,
+        toolResultText: String,
+        isError: Bool,
+        providerOverride: SearchPluginProvider?
+    ) -> SearchActivity? {
+        guard isSearchToolName(call.name) else { return nil }
+
+        let decoder = JSONDecoder()
+        var query = ""
+        var sources: [[String: Any]] = []
+        var providerRaw = providerOverride?.rawValue
+
+        if let data = toolResultText.data(using: .utf8),
+           let payload = try? decoder.decode(BuiltinToolActivityPayload.self, from: data) {
+            query = payload.query
+            providerRaw = providerRaw ?? payload.provider.rawValue
+            sources = payload.results.map { row in
+                var item: [String: Any] = [
+                    "url": row.url,
+                    "title": row.title
+                ]
+                if let snippet = row.snippet {
+                    item["snippet"] = snippet
+                }
+                if let publishedAt = row.publishedAt {
+                    item["published_at"] = publishedAt
+                }
+                if let source = row.source {
+                    item["source"] = source
+                }
+                return item
+            }
+        } else {
+            query = (call.arguments["query"]?.value as? String)
+                ?? (call.arguments["q"]?.value as? String)
+                ?? ""
+        }
+
+        var args: [String: AnyCodable] = [:]
+        if !query.isEmpty {
+            args["query"] = AnyCodable(query)
+        }
+        if !sources.isEmpty {
+            args["sources"] = AnyCodable(sources)
+        }
+        if let providerRaw, !providerRaw.isEmpty {
+            args["provider"] = AnyCodable(providerRaw)
+        }
+
+        return SearchActivity(
+            id: "tool-search-\(call.id)",
+            type: "tool_web_search",
+            status: isError ? .failed : .completed,
+            arguments: args
+        )
+    }
+
+    nonisolated private func isSearchToolName(_ toolName: String) -> Bool {
+        let normalizedName = toolName.lowercased()
+        return normalizedName.contains("search")
+            || normalizedName.contains("web_lookup")
+            || normalizedName.contains("web_search")
+    }
+
+    @MainActor
+    private func mergeSearchActivitiesIntoAssistantMessage(
+        messageID: UUID,
+        newActivities: [SearchActivity]
+    ) {
+        guard !newActivities.isEmpty else { return }
+        guard let entity = conversationEntity.messages.first(where: { $0.id == messageID && $0.role == "assistant" }) else {
+            return
+        }
+
+        let decoder = JSONDecoder()
+        let encoder = JSONEncoder()
+
+        let existingActivities: [SearchActivity]
+        if let data = entity.searchActivitiesData,
+           let decoded = try? decoder.decode([SearchActivity].self, from: data) {
+            existingActivities = decoded
+        } else {
+            existingActivities = []
+        }
+
+        var order: [String] = []
+        var byID: [String: SearchActivity] = [:]
+
+        for activity in existingActivities {
+            if byID[activity.id] == nil {
+                order.append(activity.id)
+            }
+            byID[activity.id] = activity
+        }
+
+        for activity in newActivities {
+            if let existing = byID[activity.id] {
+                byID[activity.id] = existing.merged(with: activity)
+            } else {
+                order.append(activity.id)
+                byID[activity.id] = activity
+            }
+        }
+
+        let mergedActivities = order.compactMap { byID[$0] }
+        entity.searchActivitiesData = mergedActivities.isEmpty ? nil : (try? encoder.encode(mergedActivities))
+        conversationEntity.updatedAt = Date()
+        rebuildMessageCaches()
+        try? modelContext.save()
     }
     
     // MARK: - Model Controls (Shortened for brevity, preserving existing logic)
@@ -3840,77 +4113,173 @@ struct ChatView: View {
     private var webSearchMenuContent: some View {
         Toggle("Web Search", isOn: webSearchEnabledBinding)
         if isWebSearchEnabled {
-            switch providerType {
-            case .openai, .openaiWebSocket:
+            if supportsSearchEngineModeSwitch {
                 Divider()
-                ForEach(WebSearchContextSize.allCases, id: \.self) { size in
+                Menu("Engine") {
                     Button {
-                        controls.webSearch?.contextSize = size
-                        persistControlsToConversation()
+                        setSearchEnginePreference(useJinSearch: false)
                     } label: {
-                        menuItemLabel(size.displayName, isSelected: (controls.webSearch?.contextSize ?? .medium) == size)
+                        menuItemLabel("Native", isSelected: !usesBuiltinSearchPlugin)
                     }
-                }
-            case .perplexity:
-                Divider()
-                ForEach(WebSearchContextSize.allCases, id: \.self) { size in
-                    Button {
-                        if controls.webSearch == nil {
-                            controls.webSearch = defaultWebSearchControls(enabled: true)
-                        }
-                        controls.webSearch?.contextSize = size
-                        persistControlsToConversation()
-                    } label: {
-                        menuItemLabel(size.displayName, isSelected: (controls.webSearch?.contextSize ?? .low) == size)
-                    }
-                }
-            case .xai:
-                Divider()
-                Toggle("Web", isOn: webSearchSourceBinding(.web))
-                Toggle("X", isOn: webSearchSourceBinding(.x))
 
-                if Set(controls.webSearch?.sources ?? []).isEmpty {
-                    Divider()
-                    Text("Select at least one source.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            case .anthropic:
-                Divider()
-                Menu("Max Uses") {
-                    let current = controls.webSearch?.maxUses
                     Button {
-                        controls.webSearch?.maxUses = nil
-                        persistControlsToConversation()
+                        setSearchEnginePreference(useJinSearch: true)
                     } label: {
-                        menuItemLabel("Default (10)", isSelected: current == nil)
+                        menuItemLabel("Jin Search", isSelected: usesBuiltinSearchPlugin)
                     }
-                    ForEach([1, 3, 5, 10, 20], id: \.self) { value in
+                }
+            }
+
+            if usesBuiltinSearchPlugin {
+                Divider()
+                Menu("Provider") {
+                    ForEach(SearchPluginProvider.allCases) { provider in
                         Button {
-                            controls.webSearch?.maxUses = value
+                            if controls.searchPlugin == nil {
+                                controls.searchPlugin = SearchPluginControls()
+                            }
+                            controls.searchPlugin?.provider = provider
+                            persistControlsToConversation()
+                        } label: {
+                            menuItemLabel(
+                                provider.displayName,
+                                isSelected: effectiveSearchPluginProvider == provider
+                            )
+                        }
+                    }
+                }
+
+                Menu("Max Results") {
+                    let current = controls.searchPlugin?.maxResults ?? WebSearchPluginSettingsStore.load().defaultMaxResults
+                    ForEach([3, 5, 8, 10, 20, 30, 50], id: \.self) { value in
+                        Button {
+                            if controls.searchPlugin == nil {
+                                controls.searchPlugin = SearchPluginControls()
+                            }
+                            controls.searchPlugin?.maxResults = value
                             persistControlsToConversation()
                         } label: {
                             menuItemLabel("\(value)", isSelected: current == value)
                         }
                     }
                 }
-                if supportsAnthropicDynamicFiltering {
-                    Toggle("Dynamic Filtering", isOn: Binding(
-                        get: { controls.webSearch?.dynamicFiltering ?? false },
-                        set: { newValue in
-                            controls.webSearch?.dynamicFiltering = newValue ? true : nil
-                            persistControlsToConversation()
+
+                Menu("Recency") {
+                    let current = controls.searchPlugin?.recencyDays
+                    Button {
+                        if controls.searchPlugin == nil {
+                            controls.searchPlugin = SearchPluginControls()
                         }
-                    ))
+                        controls.searchPlugin?.recencyDays = nil
+                        persistControlsToConversation()
+                    } label: {
+                        menuItemLabel("Any time", isSelected: current == nil)
+                    }
+
+                    ForEach([1, 7, 30, 90], id: \.self) { value in
+                        Button {
+                            if controls.searchPlugin == nil {
+                                controls.searchPlugin = SearchPluginControls()
+                            }
+                            controls.searchPlugin?.recencyDays = value
+                            persistControlsToConversation()
+                        } label: {
+                            menuItemLabel("Past \(value)d", isSelected: current == value)
+                        }
+                    }
                 }
+
                 Divider()
-                Button("Configure\u{2026}") {
-                    openAnthropicWebSearchEditor()
+                Toggle("Include raw snippets", isOn: builtinSearchIncludeRawBinding)
+
+                if effectiveSearchPluginProvider == .jina {
+                    Toggle("Fetch pages via Reader", isOn: builtinSearchFetchPageBinding)
+                } else if effectiveSearchPluginProvider == .exa {
+                    Toggle("Exa autoprompt", isOn: builtinSearchExaAutopromptBinding)
+                } else if effectiveSearchPluginProvider == .firecrawl {
+                    Toggle("Extract markdown", isOn: builtinSearchFirecrawlExtractBinding)
                 }
-            case .codexAppServer, .openaiCompatible, .openrouter, .groq, .cohere, .mistral, .deepinfra, .gemini, .vertexai, .deepseek, .fireworks, .cerebras, .none:
-                EmptyView()
+            } else {
+                switch providerType {
+                case .openai, .openaiWebSocket:
+                    Divider()
+                    ForEach(WebSearchContextSize.allCases, id: \.self) { size in
+                        Button {
+                            controls.webSearch?.contextSize = size
+                            persistControlsToConversation()
+                        } label: {
+                            menuItemLabel(size.displayName, isSelected: (controls.webSearch?.contextSize ?? .medium) == size)
+                        }
+                    }
+                case .perplexity:
+                    Divider()
+                    ForEach(WebSearchContextSize.allCases, id: \.self) { size in
+                        Button {
+                            if controls.webSearch == nil {
+                                controls.webSearch = defaultWebSearchControls(enabled: true)
+                            }
+                            controls.webSearch?.contextSize = size
+                            persistControlsToConversation()
+                        } label: {
+                            menuItemLabel(size.displayName, isSelected: (controls.webSearch?.contextSize ?? .low) == size)
+                        }
+                    }
+                case .xai:
+                    Divider()
+                    Toggle("Web", isOn: webSearchSourceBinding(.web))
+                    Toggle("X", isOn: webSearchSourceBinding(.x))
+
+                    if Set(controls.webSearch?.sources ?? []).isEmpty {
+                        Divider()
+                        Text("Select at least one source.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                case .anthropic:
+                    Divider()
+                    Menu("Max Uses") {
+                        let current = controls.webSearch?.maxUses
+                        Button {
+                            controls.webSearch?.maxUses = nil
+                            persistControlsToConversation()
+                        } label: {
+                            menuItemLabel("Default (10)", isSelected: current == nil)
+                        }
+                        ForEach([1, 3, 5, 10, 20], id: \.self) { value in
+                            Button {
+                                controls.webSearch?.maxUses = value
+                                persistControlsToConversation()
+                            } label: {
+                                menuItemLabel("\(value)", isSelected: current == value)
+                            }
+                        }
+                    }
+                    if supportsAnthropicDynamicFiltering {
+                        Toggle("Dynamic Filtering", isOn: Binding(
+                            get: { controls.webSearch?.dynamicFiltering ?? false },
+                            set: { newValue in
+                                controls.webSearch?.dynamicFiltering = newValue ? true : nil
+                                persistControlsToConversation()
+                            }
+                        ))
+                    }
+                    Divider()
+                    Button("Configure\u{2026}") {
+                        openAnthropicWebSearchEditor()
+                    }
+                case .codexAppServer, .openaiCompatible, .openrouter, .groq, .cohere, .mistral, .deepinfra, .gemini, .vertexai, .deepseek, .fireworks, .cerebras, .none:
+                    EmptyView()
+                }
             }
         }
+    }
+
+    private func setSearchEnginePreference(useJinSearch: Bool) {
+        if controls.searchPlugin == nil {
+            controls.searchPlugin = SearchPluginControls()
+        }
+        controls.searchPlugin?.preferJinSearch = useJinSearch
+        persistControlsToConversation()
     }
 
     @ViewBuilder
@@ -4696,17 +5065,24 @@ struct ChatView: View {
         let deepSeekEnabled = AppPreferences.isPluginEnabled("deepseek_ocr", defaults: defaults)
         let ttsEnabled = AppPreferences.isPluginEnabled("text_to_speech", defaults: defaults)
         let sttEnabled = AppPreferences.isPluginEnabled("speech_to_text", defaults: defaults)
+        let webSearchSettings = WebSearchPluginSettingsStore.load(defaults: defaults)
+        let webSearchEnabled = webSearchSettings.isEnabled
+        let webSearchConfigured = SearchPluginProvider.allCases.contains {
+            webSearchSettings.hasConfiguredCredential(for: $0)
+        }
 
         await MainActor.run {
             mistralOCRConfigured = mistralConfigured
             deepSeekOCRConfigured = deepSeekConfigured
             textToSpeechConfigured = ttsConfigured
             speechToTextConfigured = sttKeyConfigured
+            webSearchPluginConfigured = webSearchConfigured
 
             mistralOCRPluginEnabled = mistralEnabled
             deepSeekOCRPluginEnabled = deepSeekEnabled
             textToSpeechPluginEnabled = ttsEnabled
             speechToTextPluginEnabled = sttEnabled
+            webSearchPluginEnabled = webSearchEnabled
 
             if !ttsEnabled {
                 ttsPlaybackManager.stop()
@@ -5080,6 +5456,7 @@ struct ChatView: View {
         normalizeVertexAIGenerationConfig()
         normalizeFireworksProviderSpecific()
         normalizeWebSearchControls()
+        normalizeSearchPluginControls()
         normalizeContextCacheControls()
         normalizeMCPToolsControls()
         normalizeAnthropicMaxTokens()
@@ -5108,6 +5485,7 @@ struct ChatView: View {
         if !supportsWebSearchControl {
             controls.webSearch = nil
         }
+        controls.searchPlugin = nil
         controls.mcpTools = nil
     }
 
@@ -5259,6 +5637,31 @@ struct ChatView: View {
         }
     }
 
+    private func normalizeSearchPluginControls() {
+        if !supportsBuiltinSearchPluginControl {
+            controls.searchPlugin = nil
+            return
+        }
+
+        guard controls.webSearch?.enabled == true else {
+            controls.searchPlugin = nil
+            return
+        }
+
+        guard var plugin = controls.searchPlugin else {
+            return
+        }
+
+        if let maxResults = plugin.maxResults {
+            plugin.maxResults = max(1, min(50, maxResults))
+        }
+        if let recencyDays = plugin.recencyDays {
+            plugin.recencyDays = max(1, min(365, recencyDays))
+        }
+
+        controls.searchPlugin = plugin
+    }
+
     private func normalizeContextCacheControls() {
         if supportsContextCacheControl {
             if var contextCache = controls.contextCache {
@@ -5362,6 +5765,69 @@ struct ChatView: View {
         }
     }
 
+    private var builtinSearchIncludeRawBinding: Binding<Bool> {
+        Binding(
+            get: {
+                controls.searchPlugin?.includeRawContent ?? false
+            },
+            set: { newValue in
+                if controls.searchPlugin == nil {
+                    controls.searchPlugin = SearchPluginControls()
+                }
+                controls.searchPlugin?.includeRawContent = newValue ? true : nil
+                persistControlsToConversation()
+            }
+        )
+    }
+
+    private var builtinSearchFetchPageBinding: Binding<Bool> {
+        Binding(
+            get: {
+                let settings = WebSearchPluginSettingsStore.load()
+                return controls.searchPlugin?.fetchPageContent ?? settings.jinaReadPages
+            },
+            set: { newValue in
+                if controls.searchPlugin == nil {
+                    controls.searchPlugin = SearchPluginControls()
+                }
+                controls.searchPlugin?.fetchPageContent = newValue
+                persistControlsToConversation()
+            }
+        )
+    }
+
+    private var builtinSearchExaAutopromptBinding: Binding<Bool> {
+        Binding(
+            get: {
+                let settings = WebSearchPluginSettingsStore.load()
+                return controls.searchPlugin?.exaUseAutoprompt ?? settings.exaUseAutoprompt
+            },
+            set: { newValue in
+                if controls.searchPlugin == nil {
+                    controls.searchPlugin = SearchPluginControls()
+                }
+                controls.searchPlugin?.exaUseAutoprompt = newValue
+                persistControlsToConversation()
+            }
+        )
+    }
+
+    private var builtinSearchFirecrawlExtractBinding: Binding<Bool> {
+        Binding(
+            get: {
+                let settings = WebSearchPluginSettingsStore.load()
+                return controls.searchPlugin?.firecrawlExtractContent ?? settings.firecrawlExtractContent
+            },
+            set: { newValue in
+                if controls.searchPlugin == nil {
+                    controls.searchPlugin = SearchPluginControls()
+                }
+                controls.searchPlugin?.firecrawlExtractContent = newValue
+                persistControlsToConversation()
+            }
+        )
+    }
+
 
     private func webSearchSourceBinding(_ source: WebSearchSource) -> Binding<Bool> {
         Binding(
@@ -5380,4 +5846,18 @@ struct ChatView: View {
             }
         )
     }
+}
+
+private struct BuiltinToolActivityPayload: Decodable {
+    let provider: SearchPluginProvider
+    let query: String
+    let results: [BuiltinToolActivityPayloadRow]
+}
+
+private struct BuiltinToolActivityPayloadRow: Decodable {
+    let title: String
+    let url: String
+    let snippet: String?
+    let publishedAt: String?
+    let source: String?
 }
