@@ -193,76 +193,74 @@ enum OpenAIChatCompletionsCore {
         }
     }
 
-    private static func messageReasoning(
-        _ message: OpenAIChatCompletionsResponse.AssistantMessage,
+    /// Extracts reasoning text from any type that carries the standard
+    /// `reasoning` / `reasoningContent` / `reasoningDetails` fields.
+    private static func extractReasoning(
+        reasoning: String?,
+        reasoningContent: String?,
+        reasoningDetails: [[String: AnyCodable]]?,
         field: OpenAIChatCompletionsReasoningField
     ) -> String? {
         switch field {
         case .reasoning:
-            return normalized(message.reasoning)
-                ?? reasoningDetailsText(message.reasoningDetails)
+            return normalized(reasoning)
+                ?? reasoningDetailsText(reasoningDetails)
         case .reasoningContent:
-            return normalized(message.reasoningContent)
-                ?? reasoningDetailsText(message.reasoningDetails)
+            return normalized(reasoningContent)
+                ?? reasoningDetailsText(reasoningDetails)
         case .reasoningOrReasoningContent:
-            return normalized(message.reasoning)
-                ?? normalized(message.reasoningContent)
-                ?? reasoningDetailsText(message.reasoningDetails)
+            return normalized(reasoning)
+                ?? normalized(reasoningContent)
+                ?? reasoningDetailsText(reasoningDetails)
         }
+    }
+
+    private static func messageReasoning(
+        _ message: OpenAIChatCompletionsResponse.AssistantMessage,
+        field: OpenAIChatCompletionsReasoningField
+    ) -> String? {
+        extractReasoning(
+            reasoning: message.reasoning,
+            reasoningContent: message.reasoningContent,
+            reasoningDetails: message.reasoningDetails,
+            field: field
+        )
     }
 
     private static func responseChoiceReasoning(
         _ choice: OpenAIChatCompletionsResponse.Choice,
         field: OpenAIChatCompletionsReasoningField
     ) -> String? {
-        switch field {
-        case .reasoning:
-            return normalized(choice.reasoning)
-                ?? reasoningDetailsText(choice.reasoningDetails)
-        case .reasoningContent:
-            return normalized(choice.reasoningContent)
-                ?? reasoningDetailsText(choice.reasoningDetails)
-        case .reasoningOrReasoningContent:
-            return normalized(choice.reasoning)
-                ?? normalized(choice.reasoningContent)
-                ?? reasoningDetailsText(choice.reasoningDetails)
-        }
+        extractReasoning(
+            reasoning: choice.reasoning,
+            reasoningContent: choice.reasoningContent,
+            reasoningDetails: choice.reasoningDetails,
+            field: field
+        )
     }
 
     private static func deltaReasoning(
         _ delta: OpenAIChatCompletionsChunk.Delta,
         field: OpenAIChatCompletionsReasoningField
     ) -> String? {
-        switch field {
-        case .reasoning:
-            return normalized(delta.reasoning)
-                ?? reasoningDetailsText(delta.reasoningDetails)
-        case .reasoningContent:
-            return normalized(delta.reasoningContent)
-                ?? reasoningDetailsText(delta.reasoningDetails)
-        case .reasoningOrReasoningContent:
-            return normalized(delta.reasoning)
-                ?? normalized(delta.reasoningContent)
-                ?? reasoningDetailsText(delta.reasoningDetails)
-        }
+        extractReasoning(
+            reasoning: delta.reasoning,
+            reasoningContent: delta.reasoningContent,
+            reasoningDetails: delta.reasoningDetails,
+            field: field
+        )
     }
 
     private static func chunkChoiceReasoning(
         _ choice: OpenAIChatCompletionsChunk.Choice,
         field: OpenAIChatCompletionsReasoningField
     ) -> String? {
-        switch field {
-        case .reasoning:
-            return normalized(choice.reasoning)
-                ?? reasoningDetailsText(choice.reasoningDetails)
-        case .reasoningContent:
-            return normalized(choice.reasoningContent)
-                ?? reasoningDetailsText(choice.reasoningDetails)
-        case .reasoningOrReasoningContent:
-            return normalized(choice.reasoning)
-                ?? normalized(choice.reasoningContent)
-                ?? reasoningDetailsText(choice.reasoningDetails)
-        }
+        extractReasoning(
+            reasoning: choice.reasoning,
+            reasoningContent: choice.reasoningContent,
+            reasoningDetails: choice.reasoningDetails,
+            field: field
+        )
     }
 
     private static func incrementalReasoningDelta(candidate: String, previousSnapshot: String) -> String {
@@ -326,14 +324,6 @@ enum OpenAIChatCompletionsCore {
         guard let value else { return nil }
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? nil : value
-    }
-
-    private static func parseJSONObject(_ jsonString: String) -> [String: AnyCodable] {
-        guard let data = jsonString.data(using: .utf8),
-              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            return [:]
-        }
-        return object.mapValues(AnyCodable.init)
     }
 
     private static func sourcesMarkdown(

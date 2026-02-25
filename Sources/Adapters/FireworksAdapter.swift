@@ -75,7 +75,7 @@ actor FireworksAdapter: LLMProviderAdapter {
     }
 
     func translateTools(_ tools: [ToolDefinition]) -> Any {
-        tools.map(translateSingleTool)
+        tools.map(translateToolToOpenAIFormat)
     }
 
     // MARK: - Private
@@ -155,42 +155,11 @@ actor FireworksAdapter: LLMProviderAdapter {
     }
 
     private func translateMessages(_ messages: [Message]) -> [[String: Any]] {
-        var out: [[String: Any]] = []
-        out.reserveCapacity(messages.count + 4)
-
-        for message in messages {
-            switch message.role {
-            case .tool:
-                if let toolResults = message.toolResults {
-                    for result in toolResults {
-                        out.append([
-                            "role": "tool",
-                            "tool_call_id": result.toolCallID,
-                            "content": result.content
-                        ])
-                    }
-                }
-
-            case .system, .user, .assistant:
-                out.append(translateNonToolMessage(message))
-
-                if let toolResults = message.toolResults {
-                    for result in toolResults {
-                        out.append([
-                            "role": "tool",
-                            "tool_call_id": result.toolCallID,
-                            "content": result.content
-                        ])
-                    }
-                }
-            }
-        }
-
-        return out
+        translateMessagesToOpenAIFormat(messages, translateNonToolMessage: translateNonToolMessage)
     }
 
     private func translateNonToolMessage(_ message: Message) -> [String: Any] {
-        let (visibleContent, thinkingContent, hasRichUserContent) = splitContent(message.content)
+        let split = splitContentParts(message.content, includeImages: true, includeAudio: true)
 
         var dict: [String: Any] = [
             "role": message.role.rawValue
@@ -198,107 +167,45 @@ actor FireworksAdapter: LLMProviderAdapter {
 
         switch message.role {
         case .system:
-            dict["content"] = visibleContent
+            dict["content"] = split.visible
 
         case .user:
-            if hasRichUserContent {
-                dict["content"] = translateUserContentParts(message.content)
+            if split.hasRichUserContent {
+                dict["content"] = translateUserContentPartsToOpenAIFormat(
+                    message.content,
+                    audioPartBuilder: fireworksInputAudioPart
+                )
             } else {
-                dict["content"] = visibleContent
+                dict["content"] = split.visible
             }
 
         case .assistant:
             let hasToolCalls = (message.toolCalls?.isEmpty == false)
-            if visibleContent.isEmpty {
-                // OpenAI-style: assistant content can be null when tool_calls exist.
+            if split.visible.isEmpty {
                 dict["content"] = hasToolCalls ? NSNull() : ""
             } else {
-                dict["content"] = visibleContent
+                dict["content"] = split.visible
             }
 
-            if !thinkingContent.isEmpty {
-                // Fireworks returns this as `reasoning_content`; preserving it improves multi-turn stability for supported models.
-                dict["reasoning_content"] = thinkingContent
+            if !split.thinking.isEmpty {
+                dict["reasoning_content"] = split.thinking
             }
 
             if let toolCalls = message.toolCalls, !toolCalls.isEmpty {
-                dict["tool_calls"] = translateToolCalls(toolCalls)
+                dict["tool_calls"] = translateToolCallsToOpenAIFormat(toolCalls)
             }
 
         case .tool:
-            // Not used here; tool results are expanded in translateMessages(_:).
             dict["content"] = ""
         }
 
         return dict
     }
 
-    private func translateUserContentParts(_ parts: [ContentPart]) -> [[String: Any]] {
-        var out: [[String: Any]] = []
-        out.reserveCapacity(parts.count)
+    // MARK: - Fireworks Audio
 
-        for part in parts {
-            switch part {
-            case .text(let text):
-                out.append([
-                    "type": "text",
-                    "text": text
-                ])
-
-            case .image(let image):
-                if let urlString = imageURLString(image) {
-                    out.append([
-                        "type": "image_url",
-                        "image_url": [
-                            "url": urlString
-                        ]
-                    ])
-                }
-
-            case .file(let file):
-                let text = AttachmentPromptRenderer.fallbackText(for: file)
-                out.append([
-                    "type": "text",
-                    "text": text
-                ])
-
-            case .audio(let audio):
-                if let inputAudio = inputAudioPart(audio) {
-                    out.append(inputAudio)
-                }
-
-            case .thinking, .redactedThinking, .video:
-                continue
-            }
-        }
-
-        return out
-    }
-
-    private func imageURLString(_ image: ImageContent) -> String? {
-        if let data = image.data {
-            return "data:\(image.mimeType);base64,\(data.base64EncodedString())"
-        }
-        if let url = image.url {
-            if url.isFileURL, let data = try? Data(contentsOf: url) {
-                return "data:\(image.mimeType);base64,\(data.base64EncodedString())"
-            }
-            return url.absoluteString
-        }
-        return nil
-    }
-
-    private func inputAudioPart(_ audio: AudioContent) -> [String: Any]? {
-        let payloadData: Data?
-        if let data = audio.data {
-            payloadData = data
-        } else if let url = audio.url, url.isFileURL {
-            payloadData = try? Data(contentsOf: url)
-        } else {
-            payloadData = nil
-        }
-
-        guard let payloadData else {
+    private func fireworksInputAudioPart(_ audio: AudioContent) -> [String: Any]? {
+        guard let payloadData = resolveAudioData(audio) else {
             return nil
         }
 
@@ -327,74 +234,9 @@ actor FireworksAdapter: LLMProviderAdapter {
         return "audio/wav"
     }
 
-    private func splitContent(_ parts: [ContentPart]) -> (visible: String, thinking: String, hasRichUserContent: Bool) {
-        var visibleParts: [String] = []
-        visibleParts.reserveCapacity(parts.count)
-
-        var thinkingParts: [String] = []
-        var hasRichUserContent = false
-
-        for part in parts {
-            switch part {
-            case .text(let text):
-                visibleParts.append(text)
-            case .file(let file):
-                visibleParts.append(AttachmentPromptRenderer.fallbackText(for: file))
-            case .image:
-                hasRichUserContent = true
-            case .audio:
-                hasRichUserContent = true
-            case .thinking(let thinking):
-                thinkingParts.append(thinking.text)
-            case .redactedThinking, .video:
-                break
-            }
-        }
-
-        return (visibleParts.joined(), thinkingParts.joined(), hasRichUserContent)
-    }
-
-    private func translateToolCalls(_ calls: [ToolCall]) -> [[String: Any]] {
-        calls.map { call in
-            [
-                "id": call.id,
-                "type": "function",
-                "function": [
-                    "name": call.name,
-                    "arguments": encodeJSONObject(call.arguments)
-                ]
-            ]
-        }
-    }
-
-    private func translateSingleTool(_ tool: ToolDefinition) -> [String: Any] {
-        [
-            "type": "function",
-            "function": [
-                "name": tool.name,
-                "description": tool.description,
-                "parameters": [
-                    "type": tool.parameters.type,
-                    "properties": tool.parameters.properties.mapValues { $0.toDictionary() },
-                    "required": tool.parameters.required
-                ]
-            ]
-        ]
-    }
-
-    private func encodeJSONObject(_ object: [String: AnyCodable]) -> String {
-        let raw = object.mapValues { $0.value }
-        guard JSONSerialization.isValidJSONObject(raw),
-              let data = try? JSONSerialization.data(withJSONObject: raw),
-              let str = String(data: data, encoding: .utf8) else {
-            return "{}"
-        }
-        return str
-    }
+    // MARK: - Reasoning
 
     private func mapReasoningEffort(_ effort: ReasoningEffort) -> String {
-        // Fireworks accepts: low, medium, high across reasoning models.
-        // For non-MiniMax families, we may also send `none` to disable reasoning.
         switch effort {
         case .none:
             return "none"
@@ -441,6 +283,8 @@ actor FireworksAdapter: LLMProviderAdapter {
         return []
     }
 
+    // MARK: - Model Info
+
     private func makeModelInfo(id: String) -> ModelInfo {
         let isKimiK2p5 = isFireworksModelID(id, canonicalID: "kimi-k2p5")
         let isGLM4p7 = isFireworksModelID(id, canonicalID: "glm-4p7")
@@ -458,7 +302,6 @@ actor FireworksAdapter: LLMProviderAdapter {
         var contextWindow = 128000
         var name = id
 
-        // Known models we explicitly support well.
         if isQwen3OmniInstruct || isQwen3OmniThinking {
             caps.insert(.vision)
             caps.insert(.audio)
@@ -468,37 +311,31 @@ actor FireworksAdapter: LLMProviderAdapter {
             caps.insert(.vision)
             caps.insert(.reasoning)
             reasoningConfig = ModelReasoningConfig(type: .effort, defaultEffort: .medium)
-            // Fireworks model page advertises 262.1k tokens.
             contextWindow = 262_100
             name = "Kimi K2.5"
         } else if isMiniMaxM2p5 {
             caps.insert(.reasoning)
             reasoningConfig = ModelReasoningConfig(type: .effort, defaultEffort: .medium)
-            // Fireworks model page advertises 196.6k tokens.
             contextWindow = 196_600
             name = "MiniMax M2.5"
         } else if isMiniMaxM2p1 {
             caps.insert(.reasoning)
             reasoningConfig = ModelReasoningConfig(type: .effort, defaultEffort: .medium)
-            // Fireworks model page advertises 204.8k tokens.
             contextWindow = 204_800
             name = "MiniMax M2.1"
         } else if isMiniMaxM2 {
             caps.insert(.reasoning)
             reasoningConfig = ModelReasoningConfig(type: .effort, defaultEffort: .medium)
-            // Fireworks model page advertises 196.6k tokens.
             contextWindow = 196_600
             name = "MiniMax M2"
         } else if isGLM5 {
             caps.insert(.reasoning)
             reasoningConfig = ModelReasoningConfig(type: .effort, defaultEffort: .medium)
-            // Fireworks model page advertises 202.8k tokens.
             contextWindow = 202_800
             name = "GLM-5"
         } else if isGLM4p7 {
             caps.insert(.reasoning)
             reasoningConfig = ModelReasoningConfig(type: .effort, defaultEffort: .medium)
-            // Fireworks model page advertises 202.8k tokens.
             contextWindow = 202_800
             name = "GLM-4.7"
         }
@@ -511,6 +348,8 @@ actor FireworksAdapter: LLMProviderAdapter {
             reasoningConfig: reasoningConfig
         )
     }
+
+    // MARK: - Model ID Matching
 
     private func isFireworksModelID(_ modelID: String, canonicalID: String) -> Bool {
         fireworksCanonicalModelID(modelID) == canonicalID

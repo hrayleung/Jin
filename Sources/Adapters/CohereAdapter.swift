@@ -95,7 +95,7 @@ actor CohereAdapter: LLMProviderAdapter {
     }
 
     func translateTools(_ tools: [ToolDefinition]) -> Any {
-        tools.map(translateSingleTool)
+        tools.map(translateToolToOpenAIFormat)
     }
 
     // MARK: - Private
@@ -167,38 +167,7 @@ actor CohereAdapter: LLMProviderAdapter {
     }
 
     private func translateMessages(_ messages: [Message]) -> [[String: Any]] {
-        var out: [[String: Any]] = []
-        out.reserveCapacity(messages.count + 4)
-
-        for message in messages {
-            switch message.role {
-            case .tool:
-                if let toolResults = message.toolResults {
-                    for result in toolResults {
-                        out.append([
-                            "role": "tool",
-                            "tool_call_id": result.toolCallID,
-                            "content": result.content
-                        ])
-                    }
-                }
-
-            case .system, .user, .assistant:
-                out.append(translateNonToolMessage(message))
-
-                if let toolResults = message.toolResults {
-                    for result in toolResults {
-                        out.append([
-                            "role": "tool",
-                            "tool_call_id": result.toolCallID,
-                            "content": result.content
-                        ])
-                    }
-                }
-            }
-        }
-
-        return out
+        translateMessagesToOpenAIFormat(messages, translateNonToolMessage: translateNonToolMessage)
     }
 
     private func translateNonToolMessage(_ message: Message) -> [String: Any] {
@@ -212,16 +181,7 @@ actor CohereAdapter: LLMProviderAdapter {
         if message.role == .assistant,
            let toolCalls = message.toolCalls,
            !toolCalls.isEmpty {
-            dict["tool_calls"] = toolCalls.map { call in
-                [
-                    "id": call.id,
-                    "type": "function",
-                    "function": [
-                        "name": call.name,
-                        "arguments": encodeJSONObject(call.arguments)
-                    ]
-                ]
-            }
+            dict["tool_calls"] = translateToolCallsToOpenAIFormat(toolCalls)
         }
 
         return dict
@@ -243,31 +203,6 @@ actor CohereAdapter: LLMProviderAdapter {
         }
 
         return segments.joined(separator: "\n")
-    }
-
-    private func encodeJSONObject(_ object: [String: AnyCodable]) -> String {
-        let raw = object.mapValues { $0.value }
-        guard JSONSerialization.isValidJSONObject(raw),
-              let data = try? JSONSerialization.data(withJSONObject: raw),
-              let str = String(data: data, encoding: .utf8) else {
-            return "{}"
-        }
-        return str
-    }
-
-    private func translateSingleTool(_ tool: ToolDefinition) -> [String: Any] {
-        [
-            "type": "function",
-            "function": [
-                "name": tool.name,
-                "description": tool.description,
-                "parameters": [
-                    "type": tool.parameters.type,
-                    "properties": tool.parameters.properties.mapValues { $0.toDictionary() },
-                    "required": tool.parameters.required
-                ]
-            ]
-        ]
     }
 
     // MARK: - Decode / Stream Mapping
@@ -504,14 +439,6 @@ actor CohereAdapter: LLMProviderAdapter {
         return nil
     }
 
-    private func parseJSONObject(_ jsonString: String) -> [String: AnyCodable] {
-        guard let data = jsonString.data(using: .utf8),
-              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            return [:]
-        }
-        return object.mapValues(AnyCodable.init)
-    }
-
     private func makeModelInfo(id: String) -> ModelInfo {
         ModelInfo(
             id: id,
@@ -523,4 +450,3 @@ actor CohereAdapter: LLMProviderAdapter {
         )
     }
 }
-
