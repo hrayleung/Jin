@@ -110,7 +110,7 @@ actor PerplexityAdapter: LLMProviderAdapter {
     }
 
     func translateTools(_ tools: [ToolDefinition]) -> Any {
-        tools.map(translateSingleTool)
+        tools.map(translateToolToOpenAIFormat)
     }
 
     // MARK: - Private
@@ -181,42 +181,11 @@ actor PerplexityAdapter: LLMProviderAdapter {
     }
 
     private func translateMessages(_ messages: [Message]) -> [[String: Any]] {
-        var out: [[String: Any]] = []
-        out.reserveCapacity(messages.count + 4)
-
-        for message in messages {
-            switch message.role {
-            case .tool:
-                if let toolResults = message.toolResults {
-                    for result in toolResults {
-                        out.append([
-                            "role": "tool",
-                            "tool_call_id": result.toolCallID,
-                            "content": result.content
-                        ])
-                    }
-                }
-
-            case .system, .user, .assistant:
-                out.append(translateNonToolMessage(message))
-
-                if let toolResults = message.toolResults {
-                    for result in toolResults {
-                        out.append([
-                            "role": "tool",
-                            "tool_call_id": result.toolCallID,
-                            "content": result.content
-                        ])
-                    }
-                }
-            }
-        }
-
-        return out
+        translateMessagesToOpenAIFormat(messages, translateNonToolMessage: translateNonToolMessage)
     }
 
     private func translateNonToolMessage(_ message: Message) -> [String: Any] {
-        let (visibleContent, thinkingContent, hasImage) = splitContent(message.content)
+        let split = splitContentParts(message.content, separator: "\n", includeImages: true)
 
         var dict: [String: Any] = [
             "role": message.role.rawValue
@@ -224,157 +193,43 @@ actor PerplexityAdapter: LLMProviderAdapter {
 
         switch message.role {
         case .system:
-            dict["content"] = visibleContent
+            dict["content"] = split.visible
 
         case .assistant:
-            dict["content"] = visibleContent
-            if let thinkingContent {
-                dict["reasoning"] = thinkingContent
+            dict["content"] = split.visible
+            if let thinking = split.thinkingOrNil {
+                dict["reasoning"] = thinking
             }
 
             if let toolCalls = message.toolCalls, !toolCalls.isEmpty {
-                dict["tool_calls"] = toolCalls.map { call in
-                    [
-                        "id": call.id,
-                        "type": "function",
-                        "function": [
-                            "name": call.name,
-                            "arguments": encodeJSONObject(call.arguments)
-                        ]
-                    ]
-                }
+                dict["tool_calls"] = translateToolCallsToOpenAIFormat(toolCalls)
             }
 
         case .user:
-            if hasImage {
-                dict["content"] = translateUserContentParts(message.content)
+            if split.hasRichUserContent {
+                dict["content"] = translateUserContentPartsToOpenAIFormat(message.content, audioPartBuilder: nil)
             } else {
-                dict["content"] = visibleContent
+                dict["content"] = split.visible
             }
 
         case .tool:
-            dict["content"] = visibleContent
+            dict["content"] = split.visible
         }
 
         return dict
     }
 
-    private func splitContent(_ parts: [ContentPart]) -> (visible: String, thinking: String?, hasImage: Bool) {
-        var visibleSegments: [String] = []
-        var thinkingSegments: [String] = []
-        var hasImage = false
-
-        for part in parts {
-            switch part {
-            case .text(let text):
-                visibleSegments.append(text)
-            case .file(let file):
-                visibleSegments.append(AttachmentPromptRenderer.fallbackText(for: file))
-            case .thinking(let thinking):
-                let text = thinking.text.trimmingCharacters(in: .whitespacesAndNewlines)
-                if !text.isEmpty {
-                    thinkingSegments.append(text)
-                }
-            case .redactedThinking, .audio, .video:
-                continue
-            case .image:
-                hasImage = true
-            }
-        }
-
-        let visible = visibleSegments.joined(separator: "\n")
-        let thinking = thinkingSegments.isEmpty ? nil : thinkingSegments.joined(separator: "\n")
-        return (visible, thinking, hasImage)
-    }
-
-    private func translateUserContentParts(_ parts: [ContentPart]) -> [[String: Any]] {
-        var out: [[String: Any]] = []
-        out.reserveCapacity(parts.count)
-
-        for part in parts {
-            switch part {
-            case .text(let text):
-                out.append([
-                    "type": "text",
-                    "text": text
-                ])
-
-            case .image(let image):
-                if let urlString = imageURLString(image) {
-                    out.append([
-                        "type": "image_url",
-                        "image_url": [
-                            "url": urlString
-                        ]
-                    ])
-                }
-
-            case .file(let file):
-                out.append([
-                    "type": "text",
-                    "text": AttachmentPromptRenderer.fallbackText(for: file)
-                ])
-
-            case .thinking, .redactedThinking, .audio, .video:
-                continue
-            }
-        }
-
-        return out
-    }
-
     private func containsImage(_ messages: [Message]) -> Bool {
-        for message in messages {
-            if message.content.contains(where: { part in
+        messages.contains { message in
+            message.content.contains { part in
                 if case .image = part { return true }
                 return false
-            }) {
-                return true
             }
         }
-        return false
-    }
-
-    private func imageURLString(_ image: ImageContent) -> String? {
-        if let data = image.data {
-            return "data:\(image.mimeType);base64,\(data.base64EncodedString())"
-        }
-        if let url = image.url {
-            if url.isFileURL, let data = try? Data(contentsOf: url) {
-                return "data:\(image.mimeType);base64,\(data.base64EncodedString())"
-            }
-            return url.absoluteString
-        }
-        return nil
-    }
-
-    private func translateSingleTool(_ tool: ToolDefinition) -> [String: Any] {
-        [
-            "type": "function",
-            "function": [
-                "name": tool.name,
-                "description": tool.description,
-                "parameters": [
-                    "type": tool.parameters.type,
-                    "properties": tool.parameters.properties.mapValues { $0.toDictionary() },
-                    "required": tool.parameters.required
-                ]
-            ]
-        ]
-    }
-
-    private func encodeJSONObject(_ object: [String: AnyCodable]) -> String {
-        let raw = object.mapValues { $0.value }
-        guard JSONSerialization.isValidJSONObject(raw),
-              let data = try? JSONSerialization.data(withJSONObject: raw),
-              let str = String(data: data, encoding: .utf8) else {
-            return "{}"
-        }
-        return str
     }
 
     private func supportsWebSearch(modelID: String) -> Bool {
-        if let model = configuredModel(for: modelID) {
+        if let model = findConfiguredModel(in: providerConfig, for: modelID) {
             let resolved = ModelSettingsResolver.resolve(model: model, providerType: providerConfig.type)
             return resolved.supportsWebSearch
         }
@@ -383,14 +238,6 @@ actor PerplexityAdapter: LLMProviderAdapter {
             for: providerConfig.type,
             modelID: modelID
         )
-    }
-
-    private func configuredModel(for modelID: String) -> ModelInfo? {
-        if let exact = providerConfig.models.first(where: { $0.id == modelID }) {
-            return exact
-        }
-        let target = modelID.lowercased()
-        return providerConfig.models.first(where: { $0.id.lowercased() == target })
     }
 
     private func mapReasoningEffort(_ reasoning: ReasoningControls?) -> String? {

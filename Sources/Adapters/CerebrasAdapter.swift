@@ -83,24 +83,15 @@ actor CerebrasAdapter: LLMProviderAdapter {
     }
 
     func translateTools(_ tools: [ToolDefinition]) -> Any {
-        tools.map(translateSingleTool)
+        tools.map(translateToolToOpenAIFormat)
     }
 
     // MARK: - Private
 
     private var baseURLRoot: String {
-        // Cerebras docs use https://api.cerebras.ai + /v1/... paths. Users may paste a baseURL with /v1.
-        // Normalize so both "https://api.cerebras.ai" and "https://api.cerebras.ai/v1" work.
         let raw = (providerConfig.baseURL ?? "https://api.cerebras.ai")
             .trimmingCharacters(in: .whitespacesAndNewlines)
-        let trimmed = raw.hasSuffix("/") ? String(raw.dropLast()) : raw
-
-        if trimmed.hasSuffix("/v1") {
-            let withoutV1 = String(trimmed.dropLast(3))
-            return withoutV1.hasSuffix("/") ? String(withoutV1.dropLast()) : withoutV1
-        }
-
-        return trimmed
+        return stripTrailingV1(raw)
     }
 
     private func buildRequest(
@@ -153,42 +144,14 @@ actor CerebrasAdapter: LLMProviderAdapter {
     }
 
     private func translateMessages(_ messages: [Message]) -> [[String: Any]] {
-        var out: [[String: Any]] = []
-        out.reserveCapacity(messages.count + 4)
-
-        for message in messages {
-            switch message.role {
-            case .tool:
-                if let toolResults = message.toolResults {
-                    for result in toolResults {
-                        out.append([
-                            "role": "tool",
-                            "tool_call_id": result.toolCallID,
-                            "content": result.content
-                        ])
-                    }
-                }
-
-            case .system, .user, .assistant:
-                out.append(translateNonToolMessage(message))
-
-                if let toolResults = message.toolResults {
-                    for result in toolResults {
-                        out.append([
-                            "role": "tool",
-                            "tool_call_id": result.toolCallID,
-                            "content": result.content
-                        ])
-                    }
-                }
-            }
-        }
-
-        return out
+        translateMessagesToOpenAIFormat(messages, translateNonToolMessage: translateNonToolMessage)
     }
 
     private func translateNonToolMessage(_ message: Message) -> [String: Any] {
-        let (visibleContent, thinkingContent) = splitContent(message.content)
+        let split = splitContentParts(
+            message.content,
+            imageUnsupportedMessage: "[Image attachment omitted: this provider does not support vision in Jin yet]"
+        )
 
         var dict: [String: Any] = [
             "role": message.role.rawValue
@@ -196,26 +159,26 @@ actor CerebrasAdapter: LLMProviderAdapter {
 
         switch message.role {
         case .system, .user:
-            dict["content"] = visibleContent
+            dict["content"] = split.visible
 
         case .assistant:
             let hasToolCalls = (message.toolCalls?.isEmpty == false)
             let combinedContent: String
-            if !thinkingContent.isEmpty {
+            if !split.thinking.isEmpty {
                 // Cerebras reasoning docs recommend embedding prior thinking in the assistant content using <think> tags.
-                if visibleContent.isEmpty {
-                    combinedContent = "<think>\(thinkingContent)</think>"
+                if split.visible.isEmpty {
+                    combinedContent = "<think>\(split.thinking)</think>"
                 } else {
-                    combinedContent = "<think>\(thinkingContent)</think>\n\(visibleContent)"
+                    combinedContent = "<think>\(split.thinking)</think>\n\(split.visible)"
                 }
             } else {
-                combinedContent = visibleContent
+                combinedContent = split.visible
             }
 
             dict["content"] = combinedContent.isEmpty ? (hasToolCalls ? NSNull() : "") : combinedContent
 
             if let toolCalls = message.toolCalls, !toolCalls.isEmpty {
-                dict["tool_calls"] = translateToolCalls(toolCalls)
+                dict["tool_calls"] = translateToolCallsToOpenAIFormat(toolCalls)
             }
 
         case .tool:
@@ -223,70 +186,6 @@ actor CerebrasAdapter: LLMProviderAdapter {
         }
 
         return dict
-    }
-
-    private func splitContent(_ parts: [ContentPart]) -> (visible: String, thinking: String) {
-        var visibleParts: [String] = []
-        visibleParts.reserveCapacity(parts.count)
-
-        var thinkingParts: [String] = []
-
-        for part in parts {
-            switch part {
-            case .text(let text):
-                visibleParts.append(text)
-            case .file(let file):
-                visibleParts.append(AttachmentPromptRenderer.fallbackText(for: file))
-            case .image(let image):
-                if image.url != nil || image.data != nil {
-                    visibleParts.append("[Image attachment omitted: this provider does not support vision in Jin yet]")
-                }
-            case .thinking(let thinking):
-                thinkingParts.append(thinking.text)
-            case .redactedThinking, .audio, .video:
-                break
-            }
-        }
-
-        return (visibleParts.joined(), thinkingParts.joined())
-    }
-
-    private func translateToolCalls(_ calls: [ToolCall]) -> [[String: Any]] {
-        calls.map { call in
-            [
-                "id": call.id,
-                "type": "function",
-                "function": [
-                    "name": call.name,
-                    "arguments": encodeJSONObject(call.arguments)
-                ]
-            ]
-        }
-    }
-
-    private func translateSingleTool(_ tool: ToolDefinition) -> [String: Any] {
-        [
-            "type": "function",
-            "function": [
-                "name": tool.name,
-                "description": tool.description,
-                "parameters": [
-                    "type": tool.parameters.type,
-                    "properties": tool.parameters.properties.mapValues { $0.toDictionary() },
-                    "required": tool.parameters.required
-                ]
-            ]
-        ]
-    }
-
-    private func encodeJSONObject(_ object: [String: AnyCodable]) -> String {
-        let raw = object.mapValues { $0.value }
-        guard JSONSerialization.isValidJSONObject(raw),
-              let data = try? JSONSerialization.data(withJSONObject: raw),
-              let str = String(data: data, encoding: .utf8) else {
-            return "{}"
-        }
-        return str
     }
 
     private func makeModelInfo(id: String) -> ModelInfo {
@@ -298,7 +197,6 @@ actor CerebrasAdapter: LLMProviderAdapter {
 
         if lower == "zai-glm-4.7" {
             caps.insert(.reasoning)
-            // GLM 4.7 supports reasoning on/off via `disable_reasoning` (and preserved thinking via `clear_thinking`).
             reasoningConfig = ModelReasoningConfig(type: .toggle)
             contextWindow = 131_072
         }
