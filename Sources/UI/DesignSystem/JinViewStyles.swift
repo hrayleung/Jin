@@ -38,9 +38,9 @@ enum JinSurfaceVariant {
         case .neutral, .accent, .tool:
             return Color.clear
         case .outlined:
-            return JinSemanticColor.separator.opacity(0.5)
+            return JinSemanticColor.separator.opacity(0.7)
         default:
-            return JinSemanticColor.separator.opacity(0.5)
+            return JinSemanticColor.separator.opacity(0.7)
         }
     }
 
@@ -114,7 +114,7 @@ extension View {
             )
             .overlay(
                 Capsule(style: .continuous)
-                    .stroke(JinSemanticColor.separator.opacity(0.6), lineWidth: JinStrokeWidth.hairline)
+                    .stroke(JinSemanticColor.separator.opacity(0.8), lineWidth: JinStrokeWidth.hairline)
             )
     }
 

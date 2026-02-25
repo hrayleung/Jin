@@ -41,9 +41,24 @@ enum AppPreferenceKeys {
     static let pluginDeepSeekOCREnabled = "pluginDeepSeekOCREnabled"
     static let pluginChatNamingEnabled = "pluginChatNamingEnabled"
     static let pluginCloudflareR2UploadEnabled = "pluginCloudflareR2UploadEnabled"
+    static let pluginWebSearchEnabled = "pluginWebSearchEnabled"
 
     static let pluginMistralOCRAPIKey = "pluginMistralOCRAPIKey"
     static let pluginDeepSeekOCRAPIKey = "pluginDeepSeekOCRAPIKey"
+    static let pluginWebSearchDefaultProvider = "pluginWebSearchDefaultProvider"
+    static let pluginWebSearchDefaultMaxResults = "pluginWebSearchDefaultMaxResults"
+    static let pluginWebSearchDefaultRecencyDays = "pluginWebSearchDefaultRecencyDays"
+    static let pluginWebSearchExaAPIKey = "pluginWebSearchExaAPIKey"
+    static let pluginWebSearchBraveAPIKey = "pluginWebSearchBraveAPIKey"
+    static let pluginWebSearchJinaAPIKey = "pluginWebSearchJinaAPIKey"
+    static let pluginWebSearchFirecrawlAPIKey = "pluginWebSearchFirecrawlAPIKey"
+    static let pluginWebSearchExaSearchType = "pluginWebSearchExaSearchType"
+    static let pluginWebSearchExaUseAutoprompt = "pluginWebSearchExaUseAutoprompt"
+    static let pluginWebSearchBraveCountry = "pluginWebSearchBraveCountry"
+    static let pluginWebSearchBraveLanguage = "pluginWebSearchBraveLanguage"
+    static let pluginWebSearchBraveSafesearch = "pluginWebSearchBraveSafesearch"
+    static let pluginWebSearchJinaReadPages = "pluginWebSearchJinaReadPages"
+    static let pluginWebSearchFirecrawlExtractContent = "pluginWebSearchFirecrawlExtractContent"
 
     // Cloudflare R2 Upload
     static let cloudflareR2AccountID = "cloudflareR2AccountID"
@@ -273,6 +288,8 @@ enum AppPreferences {
             return AppPreferenceKeys.pluginChatNamingEnabled
         case "cloudflare_r2_upload":
             return AppPreferenceKeys.pluginCloudflareR2UploadEnabled
+        case "web_search_builtin":
+            return AppPreferenceKeys.pluginWebSearchEnabled
         default:
             return nil
         }

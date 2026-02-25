@@ -46,7 +46,7 @@ struct ToolCallView: View {
 
                     Text(toolLabel)
                         .font(.system(.caption, design: .monospaced).weight(.semibold))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.primary)
                         .lineLimit(1)
 
                     Spacer(minLength: 0)
@@ -295,7 +295,7 @@ struct ToolCallView: View {
     private func statusColor(for status: ToolCallExecutionStatus) -> Color {
         switch status {
         case .running: return .secondary
-        case .success: return .secondary
+        case .success: return Color(nsColor: .systemTeal)
         case .error: return .orange
         }
     }

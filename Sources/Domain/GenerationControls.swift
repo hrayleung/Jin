@@ -16,6 +16,7 @@ struct GenerationControls: Codable {
     var topP: Double?
     var reasoning: ReasoningControls?
     var webSearch: WebSearchControls?
+    var searchPlugin: SearchPluginControls?
     var mcpTools: MCPToolsControls?
     var contextCache: ContextCacheControls?
     var pdfProcessingMode: PDFProcessingMode?
@@ -31,6 +32,7 @@ struct GenerationControls: Codable {
         topP: Double? = nil,
         reasoning: ReasoningControls? = nil,
         webSearch: WebSearchControls? = nil,
+        searchPlugin: SearchPluginControls? = nil,
         mcpTools: MCPToolsControls? = nil,
         contextCache: ContextCacheControls? = nil,
         pdfProcessingMode: PDFProcessingMode? = nil,
@@ -45,6 +47,7 @@ struct GenerationControls: Codable {
         self.topP = topP
         self.reasoning = reasoning
         self.webSearch = webSearch
+        self.searchPlugin = searchPlugin
         self.mcpTools = mcpTools
         self.contextCache = contextCache
         self.pdfProcessingMode = pdfProcessingMode

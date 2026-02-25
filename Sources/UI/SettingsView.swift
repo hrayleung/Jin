@@ -37,6 +37,12 @@ struct SettingsView: View {
 
     private static let availablePlugins: [PluginDescriptor] = [
         PluginDescriptor(
+            id: "web_search_builtin",
+            name: "Web Search",
+            systemImage: "globe",
+            summary: "Use Exa/Brave/Jina/Firecrawl as built-in search tools."
+        ),
+        PluginDescriptor(
             id: "text_to_speech",
             name: "Text to Speech",
             systemImage: "speaker.wave.2",
@@ -301,6 +307,10 @@ struct SettingsView: View {
                     case "mistral_ocr":
                         MistralOCRPluginSettingsView()
                             .id("mistral_ocr")
+                            .transition(settingsColumnTransition)
+                    case "web_search_builtin":
+                        WebSearchPluginSettingsView()
+                            .id("web_search_builtin")
                             .transition(settingsColumnTransition)
                     case "deepseek_ocr":
                         DeepSeekOCRPluginSettingsView()

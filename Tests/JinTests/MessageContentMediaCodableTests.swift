@@ -77,6 +77,26 @@ final class MessageContentMediaCodableTests: XCTestCase {
         XCTAssertEqual(decoded.webSearch?.dynamicFiltering, true)
     }
 
+    func testGenerationControlsRoundTripIncludesSearchPluginEnginePreference() throws {
+        let controls = GenerationControls(
+            webSearch: WebSearchControls(enabled: true),
+            searchPlugin: SearchPluginControls(
+                preferJinSearch: true,
+                provider: .exa,
+                maxResults: 10,
+                recencyDays: 7
+            )
+        )
+
+        let encoded = try JSONEncoder().encode(controls)
+        let decoded = try JSONDecoder().decode(GenerationControls.self, from: encoded)
+
+        XCTAssertEqual(decoded.searchPlugin?.preferJinSearch, true)
+        XCTAssertEqual(decoded.searchPlugin?.provider, .exa)
+        XCTAssertEqual(decoded.searchPlugin?.maxResults, 10)
+        XCTAssertEqual(decoded.searchPlugin?.recencyDays, 7)
+    }
+
     func testLegacyXAIVideoControlFieldIsIgnored() throws {
         let legacyJSON = """
         {

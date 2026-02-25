@@ -198,6 +198,9 @@ struct MessageRow: View {
         let copyText = item.copyText
         let showsCopyButton = (isUser || isAssistant) && !copyText.isEmpty
         let canEditUserMessage = item.canEditUserMessage
+        let visibleToolCalls = item.toolCalls.filter { call in
+            !BuiltinSearchToolHub.isBuiltinSearchFunctionName(call.name)
+        }
 
         HStack(alignment: .top, spacing: 0) {
             if isUser {
@@ -242,9 +245,9 @@ struct MessageRow: View {
                                 )
                             }
 
-                            if !item.toolCalls.isEmpty {
+                            if !visibleToolCalls.isEmpty {
                                 MCPToolTimelineView(
-                                    toolCalls: item.toolCalls,
+                                    toolCalls: visibleToolCalls,
                                     toolResultsByCallID: toolResultsByCallID,
                                     isStreaming: false
                                 )

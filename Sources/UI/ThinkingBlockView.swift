@@ -15,17 +15,17 @@ struct ThinkingBlockView: View {
                 HStack(spacing: JinSpacing.small) {
                     Image(systemName: "brain")
                         .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.primary)
 
                     Text("Thinking")
                         .font(.subheadline.weight(.medium))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.primary)
 
                     Spacer()
 
                     Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
                         .font(.caption.weight(.semibold))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.tertiary)
                 }
                 .padding(.horizontal, JinSpacing.medium)
                 .padding(.vertical, JinSpacing.small)
