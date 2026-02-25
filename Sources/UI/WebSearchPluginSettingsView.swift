@@ -96,8 +96,12 @@ struct WebSearchPluginSettingsView: View {
                     }
                     Toggle("Use autoprompt", isOn: $exaUseAutoprompt)
                 case .brave:
-                    TextField("Country (2-letter, optional)", text: $braveCountry)
-                    TextField("Language (e.g. en, zh-hans)", text: $braveLanguage)
+                    TextField(text: $braveCountry, prompt: Text("Country (2-letter, optional)")) {
+                        EmptyView()
+                    }
+                    TextField(text: $braveLanguage, prompt: Text("Language (e.g. en, zh-hans)")) {
+                        EmptyView()
+                    }
                     Picker("Safesearch", selection: $braveSafesearch) {
                         Text("Provider default").tag("")
                         Text("Off").tag("off")

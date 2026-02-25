@@ -63,12 +63,30 @@ final class BuiltinSearchToolHubTests: XCTestCase {
         XCTAssertEqual(routes.provider(for: tool.name), .exa)
     }
 
-    func testToolDefinitionsFallbackToConfiguredProviderWhenOverrideMissingKey() async throws {
+    func testToolDefinitionsDoNotFallbackWhenExplicitProviderMissingKey() async {
         configurePluginDefaults(defaultProvider: .exa, exaKey: "", braveKey: "brave-key")
 
         let controls = GenerationControls(
             webSearch: WebSearchControls(enabled: true),
             searchPlugin: SearchPluginControls(provider: .exa)
+        )
+
+        let (definitions, routes) = await BuiltinSearchToolHub.shared.toolDefinitions(
+            for: controls,
+            useBuiltinSearch: true,
+            defaults: defaults
+        )
+
+        XCTAssertTrue(definitions.isEmpty)
+        XCTAssertFalse(routes.contains(functionName: BuiltinSearchToolHub.functionName))
+    }
+
+    func testToolDefinitionsFallbackToConfiguredProviderWhenNoExplicitProvider() async throws {
+        configurePluginDefaults(defaultProvider: .exa, exaKey: "", braveKey: "brave-key")
+
+        let controls = GenerationControls(
+            webSearch: WebSearchControls(enabled: true),
+            searchPlugin: nil
         )
 
         let (definitions, routes) = await BuiltinSearchToolHub.shared.toolDefinitions(

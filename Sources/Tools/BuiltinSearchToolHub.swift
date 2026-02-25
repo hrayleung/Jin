@@ -38,21 +38,23 @@ actor BuiltinSearchToolHub {
         let settings = WebSearchPluginSettingsStore.load(defaults: defaults)
         guard settings.isEnabled else { return ([], BuiltinToolRouteSnapshot(routes: [:])) }
 
-        let providerCandidates: [SearchPluginProvider] = [
-            controls.searchPlugin?.provider,
-            settings.defaultProvider
-        ]
-        .compactMap { $0 }
-        + SearchPluginProvider.allCases
-
         var resolvedProvider: SearchPluginProvider?
         var resolvedAPIKey: String = ""
-        for candidate in providerCandidates {
-            let key = settings.apiKey(for: candidate).trimmingCharacters(in: .whitespacesAndNewlines)
+        if let explicitProvider = controls.searchPlugin?.provider {
+            let key = settings.apiKey(for: explicitProvider).trimmingCharacters(in: .whitespacesAndNewlines)
             if !key.isEmpty {
-                resolvedProvider = candidate
+                resolvedProvider = explicitProvider
                 resolvedAPIKey = key
-                break
+            }
+        } else {
+            let providerCandidates = [settings.defaultProvider] + SearchPluginProvider.allCases
+            for candidate in providerCandidates {
+                let key = settings.apiKey(for: candidate).trimmingCharacters(in: .whitespacesAndNewlines)
+                if !key.isEmpty {
+                    resolvedProvider = candidate
+                    resolvedAPIKey = key
+                    break
+                }
             }
         }
         guard let provider = resolvedProvider else {
@@ -99,9 +101,16 @@ actor BuiltinSearchToolHub {
             output = try await searchFirecrawl(resolved, route: route)
         }
 
-        let text = prettyJSONString(from: output) ?? """
-        {"provider":"\(route.provider.rawValue)","query":"\(resolved.query)","results":[]}
-        """
+        let text = prettyJSONString(from: output)
+            ?? prettyJSONString(
+                from: BuiltinSearchToolOutput(
+                    provider: route.provider,
+                    query: resolved.query,
+                    resultCount: 0,
+                    results: []
+                )
+            )
+            ?? #"{"provider":"exa","query":"","resultCount":0,"results":[]}"#
         return MCPToolCallResult(text: text, isError: false)
     }
 

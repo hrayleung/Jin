@@ -1684,9 +1684,14 @@ struct ChatView: View {
         )
     }
 
-    private var supportsBuiltinSearchPluginControl: Bool {
+    private var modelSupportsBuiltinSearchPluginControl: Bool {
         guard !supportsMediaGenerationControl else { return false }
         guard resolvedModelSettings?.capabilities.contains(.toolCalling) == true else { return false }
+        return true
+    }
+
+    private var supportsBuiltinSearchPluginControl: Bool {
+        guard modelSupportsBuiltinSearchPluginControl else { return false }
         guard webSearchPluginEnabled, webSearchPluginConfigured else { return false }
         return true
     }
@@ -1705,6 +1710,10 @@ struct ChatView: View {
             return prefersJinSearchEngine
         }
         return true
+    }
+
+    private var modelSupportsWebSearchControl: Bool {
+        supportsNativeWebSearchControl || modelSupportsBuiltinSearchPluginControl
     }
 
     private var supportsWebSearchControl: Bool {
@@ -5628,7 +5637,7 @@ struct ChatView: View {
     }
 
     private func normalizeWebSearchControls() {
-        if supportsWebSearchControl {
+        if modelSupportsWebSearchControl {
             if controls.webSearch?.enabled == true {
                 ensureValidWebSearchDefaultsIfEnabled()
             }
@@ -5638,13 +5647,12 @@ struct ChatView: View {
     }
 
     private func normalizeSearchPluginControls() {
-        if !supportsBuiltinSearchPluginControl {
+        if !modelSupportsBuiltinSearchPluginControl {
             controls.searchPlugin = nil
             return
         }
 
         guard controls.webSearch?.enabled == true else {
-            controls.searchPlugin = nil
             return
         }
 
