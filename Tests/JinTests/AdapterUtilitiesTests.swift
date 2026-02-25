@@ -30,4 +30,36 @@ final class AdapterUtilitiesTests: XCTestCase {
             XCTAssertTrue(message.contains("Invalid URL scheme"))
         }
     }
+
+    func testSplitContentPartsKeepsThinkingUnseparatedWhenVisibleUsesSeparator() {
+        let parts: [ContentPart] = [
+            .text("visible-a"),
+            .text("visible-b"),
+            .thinking(ThinkingBlock(text: "think-a")),
+            .thinking(ThinkingBlock(text: "think-b"))
+        ]
+
+        let split = splitContentParts(parts, separator: "\n")
+        XCTAssertEqual(split.visible, "visible-a\nvisible-b")
+        XCTAssertEqual(split.thinking, "think-athink-b")
+    }
+
+    func testFindConfiguredModelRequiresExactIDMatch() {
+        let provider = ProviderConfig(
+            id: "p1",
+            name: "Provider",
+            type: .openaiCompatible,
+            models: [
+                ModelInfo(
+                    id: "gpt-4o",
+                    name: "GPT-4o",
+                    capabilities: [.streaming],
+                    contextWindow: 128_000
+                )
+            ]
+        )
+
+        XCTAssertNotNil(findConfiguredModel(in: provider, for: "gpt-4o"))
+        XCTAssertNil(findConfiguredModel(in: provider, for: "GPT-4O"))
+    }
 }

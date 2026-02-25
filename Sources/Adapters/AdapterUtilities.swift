@@ -261,7 +261,7 @@ func splitContentParts(
 
     return SplitContentResult(
         visible: visibleParts.joined(separator: separator),
-        thinking: thinkingParts.joined(separator: separator),
+        thinking: thinkingParts.joined(),
         hasRichUserContent: hasRichUserContent
     )
 }
@@ -316,13 +316,9 @@ func translateUserContentPartsToOpenAIFormat(
 
 // MARK: - Model Lookup
 
-/// Finds a model in the provider config by ID (case-insensitive fallback).
+/// Finds a model in the provider config by exact ID.
 func findConfiguredModel(in providerConfig: ProviderConfig, for modelID: String) -> ModelInfo? {
-    if let exact = providerConfig.models.first(where: { $0.id == modelID }) {
-        return exact
-    }
-    let target = modelID.lowercased()
-    return providerConfig.models.first(where: { $0.id.lowercased() == target })
+    providerConfig.models.first(where: { $0.id == modelID })
 }
 
 // MARK: - Reasoning Support Detection
