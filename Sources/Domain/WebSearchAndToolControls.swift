@@ -74,6 +74,90 @@ enum WebSearchSource: String, Codable, CaseIterable {
     }
 }
 
+/// Built-in web search providers (non-provider-native).
+enum SearchPluginProvider: String, Codable, CaseIterable, Identifiable, Sendable {
+    case exa
+    case brave
+    case jina
+    case firecrawl
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .exa: return "Exa"
+        case .brave: return "Brave Search"
+        case .jina: return "Jina Search"
+        case .firecrawl: return "Firecrawl"
+        }
+    }
+
+    var shortBadge: String {
+        switch self {
+        case .exa: return "Exa"
+        case .brave: return "Br"
+        case .jina: return "Jina"
+        case .firecrawl: return "FC"
+        }
+    }
+}
+
+enum ExaSearchType: String, Codable, CaseIterable, Sendable {
+    case auto
+    case keyword
+    case neural
+}
+
+/// Built-in web search controls (app plugin-backed).
+struct SearchPluginControls: Codable, Sendable {
+    var preferJinSearch: Bool?
+    var provider: SearchPluginProvider?
+    var maxResults: Int?
+    var recencyDays: Int?
+    var includeRawContent: Bool?
+    var fetchPageContent: Bool?
+
+    // Exa-specific
+    var exaSearchType: ExaSearchType?
+    var exaUseAutoprompt: Bool?
+
+    // Brave-specific
+    var braveCountry: String?
+    var braveLanguage: String?
+    var braveSafesearch: String?
+
+    // Firecrawl-specific
+    var firecrawlExtractContent: Bool?
+
+    init(
+        preferJinSearch: Bool? = nil,
+        provider: SearchPluginProvider? = nil,
+        maxResults: Int? = nil,
+        recencyDays: Int? = nil,
+        includeRawContent: Bool? = nil,
+        fetchPageContent: Bool? = nil,
+        exaSearchType: ExaSearchType? = nil,
+        exaUseAutoprompt: Bool? = nil,
+        braveCountry: String? = nil,
+        braveLanguage: String? = nil,
+        braveSafesearch: String? = nil,
+        firecrawlExtractContent: Bool? = nil
+    ) {
+        self.preferJinSearch = preferJinSearch
+        self.provider = provider
+        self.maxResults = maxResults
+        self.recencyDays = recencyDays
+        self.includeRawContent = includeRawContent
+        self.fetchPageContent = fetchPageContent
+        self.exaSearchType = exaSearchType
+        self.exaUseAutoprompt = exaUseAutoprompt
+        self.braveCountry = braveCountry
+        self.braveLanguage = braveLanguage
+        self.braveSafesearch = braveSafesearch
+        self.firecrawlExtractContent = firecrawlExtractContent
+    }
+}
+
 /// UI-only enum for Anthropic domain filtering mode selection.
 enum AnthropicDomainFilterMode: Hashable {
     case none

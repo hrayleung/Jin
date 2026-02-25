@@ -29,6 +29,9 @@ struct StreamingMessageView: View {
 
     var body: some View {
         let showsCopyButton = state.hasVisibleText
+        let visibleToolCalls = state.streamingToolCalls.filter { call in
+            !BuiltinSearchToolHub.isBuiltinSearchFunctionName(call.name)
+        }
 
         HStack(alignment: .top, spacing: 0) {
             ConstrainedWidth(maxBubbleWidth) {
@@ -61,9 +64,9 @@ struct StreamingMessageView: View {
                             )
                         }
 
-                        if !state.streamingToolCalls.isEmpty {
+                        if !visibleToolCalls.isEmpty {
                             MCPToolTimelineView(
-                                toolCalls: state.streamingToolCalls,
+                                toolCalls: visibleToolCalls,
                                 toolResultsByCallID: state.toolResultsByCallID,
                                 isStreaming: true
                             )
@@ -92,7 +95,7 @@ struct StreamingMessageView: View {
 
                         if !state.textChunks.isEmpty {
                             MarkdownWebRenderer(markdownText: state.textContent, isStreaming: true)
-                        } else if state.thinkingChunks.isEmpty && state.searchActivities.isEmpty && state.streamingToolCalls.isEmpty {
+                        } else if state.thinkingChunks.isEmpty && state.searchActivities.isEmpty && visibleToolCalls.isEmpty {
                             HStack(spacing: 6) {
                                 ProgressView().scaleEffect(0.5)
                                 Text("Generating...")
