@@ -165,17 +165,21 @@ Configuration via `ContextCacheControls` in `GenerationControls.swift`. Strategi
 
 - `NetworkManager` handles HTTP requests with `sendRequest()` (throws on non-2xx) and `sendRawRequest()` (returns raw data + response for custom status handling, used by video polling)
 - SSE streaming via dedicated SSE client
-- All API keys stored in macOS Keychain, referenced by keychain IDs
+- Credentials are stored locally in app persistence (`ProviderConfigEntity` + `AppPreferenceKeys` entries for plugin credentials)
 
 ## Plugins
 
-Optional features configured via Settings, each with dedicated keychain IDs:
+Optional features configured via Settings, with dedicated app preference keys:
 
-| Plugin | Clients | Keychain IDs |
-|--------|---------|-------------|
-| PDF OCR | `MistralOCRClient`, `DeepInfraDeepSeekOCRClient`, `PDFKitTextExtractor` (local) | `plugin_mistral_ocr`, `plugin_deepinfra_deepseek_ocr` |
-| TTS | `ElevenLabsTTSClient` + OpenAI/Groq TTS | `plugin_elevenlabs_tts`, `plugin_openai_tts`, `plugin_groq_tts` |
-| STT | `OpenAIAudioClient`, `GroqAudioClient` | `plugin_openai_stt`, `plugin_groq_stt` |
+| Plugin | Clients | Preference Keys |
+|--------|---------|-----------------|
+| Web Search | `BuiltinSearchToolHub` (Exa / Brave / Jina / Firecrawl) | `pluginWebSearchExaAPIKey`, `pluginWebSearchBraveAPIKey`, `pluginWebSearchJinaAPIKey`, `pluginWebSearchFirecrawlAPIKey` |
+| Mistral OCR | `MistralOCRClient` | `pluginMistralOCRAPIKey` |
+| DeepSeek OCR | `DeepInfraDeepSeekOCRClient` | `pluginDeepSeekOCRAPIKey` |
+| TTS | `ElevenLabsTTSClient`, `OpenAIAudioClient`, `GroqAudioClient` | `ttsElevenLabsAPIKey`, `ttsOpenAIAPIKey`, `ttsGroqAPIKey` |
+| STT | `OpenAIAudioClient`, `GroqAudioClient` (Mistral STT uses OpenAI-compatible client) | `sttOpenAIAPIKey`, `sttGroqAPIKey`, `sttMistralAPIKey` |
+| Chat Naming | Model-based naming flow (no standalone API key) | `chatNamingProviderID`, `chatNamingModelID` |
+| Cloudflare R2 Upload | R2 upload settings + signed request flow | `cloudflareR2AccessKeyID`, `cloudflareR2SecretAccessKey`, `cloudflareR2AccountID`, `cloudflareR2Bucket` |
 
 ## Dependencies
 
