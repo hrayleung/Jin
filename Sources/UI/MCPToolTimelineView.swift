@@ -77,7 +77,7 @@ struct MCPToolTimelineView: View {
 
                 Text(collapsedTitle)
                     .font(.subheadline.weight(.medium))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.primary)
                     .lineLimit(1)
 
                 Spacer(minLength: 0)
