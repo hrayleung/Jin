@@ -30,6 +30,7 @@ struct ProviderConfigFormView: View {
     @State private var modelSearchText = ""
     @State private var editingModel: ModelInfo?
     @State private var modelPendingDeletion: ModelInfo?
+    @State private var hoveredModelID: String?
     @State private var openRouterUsageStatus: OpenRouterUsageStatus = .idle
     @State private var openRouterUsage: OpenRouterKeyUsage?
     @State private var openRouterUsageTask: Task<Void, Never>?
@@ -136,7 +137,7 @@ struct ProviderConfigFormView: View {
                     TextField("Search models", text: $modelSearchText)
                         .textFieldStyle(.roundedBorder)
 
-                    HStack(spacing: 10) {
+                    HStack(spacing: JinSpacing.small) {
                         Text("Enabled \(enabledModelCount) / \(decodedModels.count)")
                             .font(.caption)
                             .foregroundStyle(.secondary)
@@ -147,23 +148,41 @@ struct ProviderConfigFormView: View {
                             setAllModelsEnabled(true)
                         }
                         .buttonStyle(.borderless)
+                        .controlSize(.small)
+
+                        Divider().frame(height: 12)
 
                         Button("Disable All") {
                             setAllModelsEnabled(false)
                         }
                         .buttonStyle(.borderless)
+                        .controlSize(.small)
 
-                        Button("Keep Fully Supported") {
-                            showingKeepFullySupportedModelsConfirmation = true
-                        }
-                        .buttonStyle(.borderless)
-                        .disabled(!canKeepFullySupportedModels)
+                        Divider().frame(height: 12)
 
-                        Button("Keep Enabled") {
-                            showingKeepEnabledModelsConfirmation = true
+                        Menu {
+                            Button {
+                                showingKeepFullySupportedModelsConfirmation = true
+                            } label: {
+                                Label("Keep Fully Supported", systemImage: "checkmark.seal")
+                            }
+                            .disabled(!canKeepFullySupportedModels)
+
+                            Button {
+                                showingKeepEnabledModelsConfirmation = true
+                            } label: {
+                                Label("Keep Enabled Only", systemImage: "power")
+                            }
+                            .disabled(!canKeepEnabledModels)
+                        } label: {
+                            Image(systemName: "ellipsis.circle")
+                                .foregroundStyle(.secondary)
                         }
-                        .buttonStyle(.borderless)
-                        .disabled(!canKeepEnabledModels)
+                        .menuStyle(.borderlessButton)
+                        .menuIndicator(.hidden)
+                        .frame(width: 22)
+                        .help("Filter actions")
+                        .accessibilityLabel("Filter actions")
                     }
                 }
 
@@ -205,19 +224,25 @@ struct ProviderConfigFormView: View {
                                 editingModel = model
                             } label: {
                                 Image(systemName: "slider.horizontal.3")
+                                    .font(.system(size: 12))
                                     .foregroundStyle(.secondary)
+                                    .frame(width: 22, height: 22)
                             }
                             .buttonStyle(.plain)
                             .help("Model Settings")
+                            .opacity(hoveredModelID == model.id ? 1 : 0)
 
                             Button(role: .destructive) {
                                 requestDeleteModel(model)
                             } label: {
                                 Image(systemName: "trash")
-                                    .foregroundStyle(.red)
+                                    .font(.system(size: 12))
+                                    .foregroundStyle(.secondary)
+                                    .frame(width: 22, height: 22)
                             }
                             .buttonStyle(.plain)
                             .help("Delete Model")
+                            .opacity(hoveredModelID == model.id ? 1 : 0)
 
                             Toggle("", isOn: modelEnabledBinding(modelID: model.id))
                                 .labelsHidden()
@@ -225,6 +250,13 @@ struct ProviderConfigFormView: View {
                         .contentShape(Rectangle())
                         .onTapGesture {
                             editingModel = model
+                        }
+                        .onHover { isHovered in
+                            if isHovered {
+                                hoveredModelID = model.id
+                            } else if hoveredModelID == model.id {
+                                hoveredModelID = nil
+                            }
                         }
                     }
                     .frame(minHeight: 180)

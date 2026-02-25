@@ -13,7 +13,7 @@ struct AssistantInspectorView: View {
             )
             .navigationTitle("Assistant Settings")
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
+                ToolbarItem(placement: .confirmationAction) {
                     Button("Done") {
                         dismiss()
                     }
@@ -87,6 +87,7 @@ private struct IconPickerSheet: View {
     @Binding var selectedIcon: String
     @Environment(\.dismiss) private var dismiss
     @State private var searchText = ""
+    @State private var draftIcon = ""
 
     let iconOptions: [IconCategory] = [
         IconCategory(
@@ -136,6 +137,33 @@ private struct IconPickerSheet: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
+                    if searchText.isEmpty {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("None")
+                                .font(.headline)
+                                .foregroundStyle(.secondary)
+                                .padding(.horizontal, 4)
+
+                            Button {
+                                draftIcon = ""
+                            } label: {
+                                HStack(spacing: JinSpacing.small) {
+                                    Image(systemName: "xmark.circle")
+                                        .font(.system(size: 18, weight: .semibold))
+                                        .foregroundStyle(.secondary)
+                                        .frame(width: 44, height: 44)
+                                        .jinSurface(draftIcon.isEmpty ? .selected : .neutral, cornerRadius: JinRadius.medium)
+
+                                    Text("No Icon")
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                            .buttonStyle(.plain)
+                        }
+                        .padding(12)
+                        .jinSurface(.raised, cornerRadius: JinRadius.medium)
+                    }
+
                     ForEach(filteredCategories) { category in
                         VStack(alignment: .leading, spacing: 12) {
                             Text(category.name)
@@ -147,10 +175,9 @@ private struct IconPickerSheet: View {
                                 ForEach(category.icons, id: \.self) { icon in
                                     IconButton(
                                         icon: icon,
-                                        isSelected: selectedIcon == icon
+                                        isSelected: draftIcon == icon
                                     ) {
-                                        selectedIcon = icon
-                                        dismiss()
+                                        draftIcon = icon
                                     }
                                 }
                             }
@@ -172,14 +199,17 @@ private struct IconPickerSheet: View {
                 }
 
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Clear") {
-                        selectedIcon = ""
+                    Button("Done") {
+                        selectedIcon = draftIcon
                         dismiss()
                     }
                 }
             }
         }
         .frame(minWidth: 500, minHeight: 600)
+        .onAppear {
+            draftIcon = selectedIcon
+        }
     }
 }
 
