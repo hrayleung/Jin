@@ -159,7 +159,8 @@ enum AttachmentImportPipeline {
         if ext == "pdf" { return true }
         if ext == "png" || ext == "jpg" || ext == "jpeg" || ext == "webp" { return true }
         if ["wav", "mp3", "m4a", "aac", "flac", "ogg", "oga", "webm"].contains(ext) { return true }
-        return ["mp4", "m4v", "mov", "webm", "avi", "mkv", "mpeg", "mpg", "wmv", "flv", "3gp", "3gpp"].contains(ext)
+        if ["mp4", "m4v", "mov", "webm", "avi", "mkv", "mpeg", "mpg", "wmv", "flv", "3gp", "3gpp"].contains(ext) { return true }
+        return documentMIMEType(for: url) != nil
     }
 
     // MARK: - Private Helpers
@@ -216,6 +217,10 @@ enum AttachmentImportPipeline {
 
         if type.conforms(to: .image) {
             return await importImage(from: sourceURL, type: type, filename: filename, storage: storage)
+        }
+
+        if let mimeType = documentMIMEType(for: sourceURL) {
+            return await saveAttachmentFile(from: sourceURL, filename: filename, mimeType: mimeType, storage: storage)
         }
 
         return .failure(AttachmentImportError(message: "\(filename): unsupported file type."))
@@ -310,6 +315,27 @@ enum AttachmentImportPipeline {
         case "ogg", "oga": return "audio/ogg"
         case "webm": return "audio/webm"
         default: return nil
+        }
+    }
+
+    private static func documentMIMEType(for url: URL) -> String? {
+        switch url.pathExtension.lowercased() {
+        case "docx": return "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        case "doc":  return "application/msword"
+        case "odt":  return "application/vnd.oasis.opendocument.text"
+        case "rtf":  return "application/rtf"
+        case "xlsx": return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        case "xls":  return "application/vnd.ms-excel"
+        case "csv":  return "text/csv"
+        case "tsv":  return "text/tab-separated-values"
+        case "pptx": return "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+        case "ppt":  return "application/vnd.ms-powerpoint"
+        case "txt":  return "text/plain"
+        case "md", "markdown": return "text/markdown"
+        case "json": return "application/json"
+        case "html", "htm": return "text/html"
+        case "xml":  return "application/xml"
+        default:     return nil
         }
     }
 

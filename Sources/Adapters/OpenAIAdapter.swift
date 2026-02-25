@@ -222,12 +222,16 @@ actor OpenAIAdapter: LLMProviderAdapter {
         request.addValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
         request.addValue("application/json", forHTTPHeaderField: "Content-Type")
 
+        let supportsNativeFileInput = supportsNativePDF(modelID)
         let allowNativePDF = (controls.pdfProcessingMode ?? .native) == .native
-        let nativePDFEnabled = allowNativePDF && supportsNativePDF(modelID)
 
         var body: [String: Any] = [
             "model": modelID,
-            "input": translateInput(messages, supportsNativePDF: nativePDFEnabled),
+            "input": translateInput(
+                messages,
+                supportsNativeFileInput: supportsNativeFileInput,
+                allowNativePDF: allowNativePDF
+            ),
             "stream": streaming
         ]
 
@@ -358,6 +362,26 @@ actor OpenAIAdapter: LLMProviderAdapter {
         JinModelSupport.supportsNativePDF(providerType: .openai, modelID: modelID)
     }
 
+    // MIME types supported natively by OpenAI Responses API via input_file
+    private static let openAISupportedFileMIMETypes: Set<String> = [
+        "application/pdf",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document", // docx
+        "application/msword",                                                        // doc
+        "application/vnd.oasis.opendocument.text",                                  // odt
+        "application/rtf", "text/rtf",                                              // rtf
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",        // xlsx
+        "application/vnd.ms-excel",                                                 // xls
+        "text/csv",                                                                 // csv
+        "text/tab-separated-values",                                                // tsv
+        "application/vnd.openxmlformats-officedocument.presentationml.presentation", // pptx
+        "application/vnd.ms-powerpoint",                                            // ppt
+        "text/plain",                                                               // txt
+        "text/markdown", "text/x-markdown",                                        // md
+        "application/json",                                                         // json
+        "text/html",                                                                // html
+        "application/xml", "text/xml",                                              // xml
+    ]
+
     private func supportsWebSearch(_ modelID: String) -> Bool {
         if let model = configuredModel(for: modelID) {
             let resolved = ModelSettingsResolver.resolve(model: model, providerType: providerConfig.type)
@@ -412,7 +436,11 @@ actor OpenAIAdapter: LLMProviderAdapter {
         return false
     }
 
-    private func translateInput(_ messages: [Message], supportsNativePDF: Bool) -> [[String: Any]] {
+    private func translateInput(
+        _ messages: [Message],
+        supportsNativeFileInput: Bool,
+        allowNativePDF: Bool
+    ) -> [[String: Any]] {
         var items: [[String: Any]] = []
 
         for message in messages {
@@ -429,7 +457,11 @@ actor OpenAIAdapter: LLMProviderAdapter {
                 }
 
             case .system, .user, .assistant:
-                if let translated = translateMessage(message, supportsNativePDF: supportsNativePDF) {
+                if let translated = translateMessage(
+                    message,
+                    supportsNativeFileInput: supportsNativeFileInput,
+                    allowNativePDF: allowNativePDF
+                ) {
                     items.append(translated)
                 }
 
@@ -452,9 +484,18 @@ actor OpenAIAdapter: LLMProviderAdapter {
         return items
     }
 
-    private func translateMessage(_ message: Message, supportsNativePDF: Bool) -> [String: Any]? {
+    private func translateMessage(
+        _ message: Message,
+        supportsNativeFileInput: Bool,
+        allowNativePDF: Bool
+    ) -> [String: Any]? {
         let content = message.content.compactMap { part in
-            translateContentPart(part, role: message.role, supportsNativePDF: supportsNativePDF)
+            translateContentPart(
+                part,
+                role: message.role,
+                supportsNativeFileInput: supportsNativeFileInput,
+                allowNativePDF: allowNativePDF
+            )
         }
 
         guard !content.isEmpty else { return nil }
@@ -486,7 +527,12 @@ actor OpenAIAdapter: LLMProviderAdapter {
         return "Tool returned no output"
     }
 
-    private func translateContentPart(_ part: ContentPart, role: MessageRole, supportsNativePDF: Bool) -> [String: Any]? {
+    private func translateContentPart(
+        _ part: ContentPart,
+        role: MessageRole,
+        supportsNativeFileInput: Bool,
+        allowNativePDF: Bool
+    ) -> [String: Any]? {
         switch part {
         case .text(let text):
             // OpenAI Responses API: assistant uses output_text, others use input_text
@@ -518,28 +564,40 @@ actor OpenAIAdapter: LLMProviderAdapter {
             return nil
 
         case .file(let file):
-            // Native PDF support for GPT-5.2+, o3+, o4+
-            if supportsNativePDF && file.mimeType == "application/pdf" {
-                // Load PDF data from file URL or use existing data
-                let pdfData: Data?
-                if let data = file.data {
-                    pdfData = data
-                } else if let url = file.url, url.isFileURL {
-                    pdfData = try? Data(contentsOf: url)
-                } else {
-                    pdfData = nil
+            let shouldAllowNativeFileUpload =
+                supportsNativeFileInput &&
+                Self.openAISupportedFileMIMETypes.contains(file.mimeType) &&
+                (file.mimeType != "application/pdf" || allowNativePDF)
+
+            if shouldAllowNativeFileUpload {
+                // Remote URL: use file_url directly (Responses API supports this)
+                if let url = file.url, !url.isFileURL {
+                    return [
+                        "type": "input_file",
+                        "file_url": url.absoluteString
+                    ]
                 }
 
-                if let pdfData = pdfData {
+                // Load data from file URL or use existing data
+                let fileData: Data?
+                if let data = file.data {
+                    fileData = data
+                } else if let url = file.url, url.isFileURL {
+                    fileData = try? Data(contentsOf: url)
+                } else {
+                    fileData = nil
+                }
+
+                if let fileData {
                     return [
                         "type": "input_file",
                         "filename": file.filename,
-                        "file_data": "data:application/pdf;base64,\(pdfData.base64EncodedString())"
+                        "file_data": "data:\(file.mimeType);base64,\(fileData.base64EncodedString())"
                     ]
                 }
             }
 
-            // Fallback to text extraction for non-PDF or unsupported models
+            // Fallback to text extraction for unsupported types or models
             let textType = (role == .assistant) ? "output_text" : "input_text"
             let text = AttachmentPromptRenderer.fallbackText(for: file)
             return [

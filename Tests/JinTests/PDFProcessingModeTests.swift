@@ -218,6 +218,76 @@ final class PDFProcessingModeTests: XCTestCase {
         for try await _ in stream {}
     }
 
+    func testOpenAIAdapterStillSendsNativeNonPDFWhenModeNotNative() async throws {
+        let (session, protocolType) = makeMockedURLSession()
+        let networkManager = NetworkManager(urlSession: session)
+
+        let providerConfig = ProviderConfig(
+            id: "o",
+            name: "OpenAI",
+            type: .openai,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://example.com/responses")
+
+            let body = try XCTUnwrap(requestBodyData(request))
+            let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+            let root = try XCTUnwrap(json)
+
+            let input = try XCTUnwrap(root["input"] as? [[String: Any]])
+            let first = try XCTUnwrap(input.first)
+            let content = try XCTUnwrap(first["content"] as? [[String: Any]])
+
+            let inputFile = try XCTUnwrap(content.first { ($0["type"] as? String) == "input_file" })
+            XCTAssertEqual(inputFile["filename"] as? String, "a.docx")
+            let fileData = try XCTUnwrap(inputFile["file_data"] as? String)
+            XCTAssertTrue(fileData.hasPrefix("data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64,"))
+            XCTAssertFalse(content.contains { ($0["type"] as? String) == "input_text" })
+
+            let response: [String: Any] = [
+                "id": "resp_1",
+                "output": [
+                    [
+                        "type": "message",
+                        "content": [
+                            ["type": "output_text", "text": "OK"]
+                        ]
+                    ]
+                ]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (
+                HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                data
+            )
+        }
+
+        let adapter = OpenAIAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+
+        let docx = FileContent(
+            mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            filename: "a.docx",
+            data: Data([0x50, 0x4B, 0x03, 0x04]),
+            url: nil,
+            extractedText: "HELLO"
+        )
+
+        let stream = try await adapter.sendMessage(
+            messages: [
+                Message(role: .user, content: [.file(docx)])
+            ],
+            modelID: "gpt-5.2",
+            controls: GenerationControls(pdfProcessingMode: .macOSExtract),
+            tools: [],
+            streaming: false
+        )
+
+        for try await _ in stream {}
+    }
+
     func testOpenAIAdapterFallsBackToTextForVideoInput() async throws {
         let (session, protocolType) = makeMockedURLSession()
         let networkManager = NetworkManager(urlSession: session)
