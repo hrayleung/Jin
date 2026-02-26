@@ -1,5 +1,6 @@
 import SwiftUI
 import Foundation
+import AppKit
 
 private enum SearchActivityTimelineConfig {
     static let maxVisibleAvatars = 10
@@ -494,36 +495,38 @@ private struct WebsiteFaviconView: View {
     let host: String
     let fallbackText: String
     let iconSize: CGFloat
+    @State private var faviconImage: NSImage?
 
     var body: some View {
         Group {
-            if let faviconURL {
-                AsyncImage(url: faviconURL) { phase in
-                    switch phase {
-                    case .success(let image):
-                        image
-                            .resizable()
-                            .scaledToFit()
-                            .frame(width: iconSize, height: iconSize)
-                    case .empty, .failure:
-                        fallbackBadge
-                    @unknown default:
-                        fallbackBadge
-                    }
-                }
+            if let faviconImage {
+                Image(nsImage: faviconImage)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: iconSize, height: iconSize)
             } else {
                 fallbackBadge
             }
         }
+        .task(id: host) {
+            await resolveFavicon(for: host)
+        }
     }
 
-    private var faviconURL: URL? {
-        var components = URLComponents(string: "https://www.google.com/s2/favicons")
-        components?.queryItems = [
-            URLQueryItem(name: "domain", value: host),
-            URLQueryItem(name: "sz", value: "64")
-        ]
-        return components?.url
+    private func resolveFavicon(for host: String) async {
+        await MainActor.run {
+            faviconImage = nil
+        }
+
+        let faviconData = await WebsiteFaviconRepository.shared.faviconData(for: host)
+        guard !Task.isCancelled else { return }
+
+        let image = faviconData.flatMap(NSImage.init(data:))
+        guard !Task.isCancelled else { return }
+
+        await MainActor.run {
+            faviconImage = image
+        }
     }
 
     private var fallbackBadge: some View {
