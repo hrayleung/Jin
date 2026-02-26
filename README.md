@@ -23,13 +23,21 @@ Jin supports 18 provider types:
 
 OpenAI · OpenAI (WebSocket) · Anthropic · Gemini (AI Studio) · Vertex AI · xAI · DeepSeek · Mistral · Cohere · Groq · Perplexity · Fireworks · Cerebras · DeepInfra · OpenRouter · OpenAI Compatible · Cloudflare AI Gateway · Codex App Server (Beta)
 
-Most providers are pre-configured on first launch. Use **Fetch Models** in provider settings to pull the latest available models, or add models manually.
+Most providers are pre-configured on first launch; you can add the remaining types via **Settings > Providers > Add Provider**. Use **Fetch Models** in provider settings to pull the latest available models, or add models manually.
 
 For **Codex App Server (Beta)**, models run on the server side, so Jin does not need per-model client adaptation.
 
+### Provider setup notes
+
+- **Vertex AI** uses a Google Cloud service account JSON (not an API key). Optional `location` in the JSON defaults to `global`.
+- **Cloudflare AI Gateway** expects the `/compat` endpoint. Replace `{account_id}` and `{gateway_slug}` in the Base URL, then use compound model IDs like `openai/gpt-5` or `anthropic/claude-sonnet-4-6`.
+- **Codex App Server (Beta)** expects a running `codex app-server --listen ws://127.0.0.1:4500` process (or launch from provider settings). Auth can be an API key, a ChatGPT account, or Local Codex (reads `auth.json` from `$CODEX_HOME` or `~/.codex`).
+- **OpenAI Compatible** expects OpenAI-style endpoints: `GET /v1/models` and `POST /v1/chat/completions`.
+- **OpenAI (WebSocket)** keeps a persistent connection to `/v1/responses`; only one response can be in flight per connection.
+
 ### Included Models
 
-These models are ready to use out of the box (with your API key). You can also add any other model manually or via **Fetch Models**.
+These models are ready to use out of the box once you've configured provider credentials. You can also add any other model manually or via **Fetch Models**.
 
 | Provider | Models |
 |----------|--------|
@@ -45,19 +53,21 @@ These models are ready to use out of the box (with your API key). You can also a
 | Codex App Server (Beta) | `gpt-5.1-codex` (default seed), plus models exposed by your server (server-side execution; no per-model client adaptation required) |
 | Groq, Cohere, Mistral, DeepInfra, OpenRouter, OpenAI Compatible, Cloudflare AI Gateway, Cerebras | Use **Fetch Models** or add manually |
 
+Note: this list reflects seeded models that are preloaded for quick start. Additional catalog-known models can be accepted when added manually (for example unseeded OpenAI variants), and manually entered models fall back to conservative defaults when capabilities are unknown.
+
 ## Features
 
 - **Multi-provider chat** — Switch between providers and models within the same workspace
 - **Multimodal conversations** — Text, images, files, audio, and generated media in one thread
-- **Reasoning models** — Collapsible thinking blocks for models that support extended reasoning
-- **Web search** — Provider-native controls plus built-in Exa/Brave/Jina/Firecrawl fallback with in-chat search activity timeline
-- **Context caching** — Unified prompt caching controls across supporting providers
-- **Tool calling (MCP)** — Connect external tools and data via the Model Context Protocol
-- **Image generation** — Gemini, Vertex AI, and xAI image models
-- **Video generation** — Gemini/Vertex Veo and xAI video models
-- **PDF processing** — Mistral OCR, DeepSeek OCR, or local PDFKit text extraction
-- **Voice** — Speech-to-Text and Text-to-Speech via multiple providers
-- **Assistants** — Named assistants with custom system instructions, model defaults, and reply language
+- **Reasoning models** — Collapsible thinking blocks for models that support extended reasoning, with per-model budget controls
+- **Web search** — Provider-native search plus fallback through built-in search plugins (Exa, Brave, Jina, Firecrawl, Tavily), with in-chat search activity, citations, and source timeline
+- **Context caching** — Model-aware caching controls (mode, TTL, strategy) across supported providers
+- **Tool calling (MCP)** — Connect external tools and data via the Model Context Protocol using persistent or ephemeral servers
+- **Image generation + edits** — Gemini, Vertex AI, and xAI image generation; xAI supports image edit flows by attaching a source image
+- **Video generation + edits** — Gemini/Vertex Veo and xAI video flows, with optional public URL input for editable workflows
+- **PDF processing** — Native PDF for supported models, or explicit Mistral/DeepSeek OCR modes and local macOS extraction fallback
+- **Voice** — Speech-to-text (dictation or audio attachment when supported) and text-to-speech from assistant messages
+- **Assistants** — Named assistants with custom prompts, model defaults, language preference, temperature/output limits, and optional history truncation
 
 ## Screenshots
 
@@ -87,7 +97,7 @@ All plugins are optional and configured in **Settings > Plugins**.
 
 | Plugin | Services |
 |--------|----------|
-| Web Search | Exa, Brave Search, Jina Search, Firecrawl |
+| Web Search | Exa, Brave Search, Jina Search, Firecrawl, Tavily |
 | Text-to-Speech | ElevenLabs, OpenAI, Groq |
 | Speech-to-Text | OpenAI, Groq, Mistral |
 | Mistral OCR | Mistral OCR for PDF extraction |
@@ -97,14 +107,14 @@ All plugins are optional and configured in **Settings > Plugins**.
 
 ## MCP (Model Context Protocol)
 
-Connect MCP servers for tool calling under **Settings > MCP Servers**. Both long-running (persistent) and ephemeral servers are supported, with per-server tool enable/disable.
+Connect MCP servers for tool calling under **Settings > MCP Servers**. Jin supports long-running (persistent) and short-lived (ephemeral) MCP servers over stdio or HTTP/SSE transports. Server presets and `mcpServers` JSON import are supported; each server keeps separate tool enablement, and MCP calls can be used with per-chat controls.
 
 ## Installation
 
 ### Download
 
-Download the latest `Jin.app` from the [Releases](../../releases) page.
-If the release asset is compressed, unzip it first.
+Download the latest release from the [Releases](../../releases) page. Assets are typically `Jin.zip` (containing `Jin.app`) or `Jin.dmg`.
+If your release is zipped, unzip it first.
 
 ### If macOS blocks the app
 
@@ -127,7 +137,7 @@ xattr -dr com.apple.quarantine /Applications/Jin.app
 ## Getting Started
 
 1. Launch Jin.
-2. Open **Settings** and add a provider with your API key.
+2. Open **Settings** and add a provider (API key for most providers; service account JSON for Vertex AI; optional for Codex App Server).
 3. Start a new conversation and pick a model.
 4. Optional: configure MCP servers under **Settings > MCP Servers** for tool calling.
 
@@ -137,12 +147,24 @@ xattr -dr com.apple.quarantine /Applications/Jin.app
 git clone https://github.com/hrayleung/Jin.git
 cd Jin
 swift build
+swift test
+swift run Jin            # Run from the command line (Debug)
 open Package.swift          # Open in Xcode
-bash Packaging/package.sh   # Build universal .app bundle
+bash Packaging/package.sh   # Build universal release .app bundle and create dist/Jin.zip
 bash Packaging/package.sh dmg  # Optional: also create a DMG
 ```
 
 Requires Swift 5.9+ / Xcode 15+.
+
+## Updates & Release
+
+Jin uses [Sparkle](https://github.com/sparkle-project/Sparkle) for in-app updates.
+
+- Update feed and signing key are configured in `Packaging/Info.plist` (`SUFeedURL`, `SUPublicEDKey`).
+- The appcast lives at `docs/appcast.xml` (published via GitHub Pages for the upstream repo).
+- CI packaging/signing is in `.github/workflows/ci-cd.yml` (Build + notarized DMG on `v*` tags).
+
+Maintainers: see `docs/sparkle-update.md` for the recommended `generate_appcast` signing workflow and release checklist.
 
 ## Contributing
 
@@ -155,4 +177,5 @@ Contributions are welcome. All contributions fall under the same [PolyForm Nonco
 ## Acknowledgments
 
 - [MCP Swift SDK](https://github.com/modelcontextprotocol/swift-sdk) — Model Context Protocol client library
+- [Sparkle](https://github.com/sparkle-project/Sparkle) — In-app update framework for macOS
 - [Lobe Icons](https://github.com/lobehub/lobe-icons) — Provider icon assets
