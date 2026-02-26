@@ -50,6 +50,7 @@ enum ModelCapabilityRegistry {
 
     /// Models documented by Google as supporting grounding with Google Search in Vertex AI.
     private static let vertexGoogleSearchSupportedModelIDs: Set<String> = [
+        "gemini-3.1-pro-preview",
         "gemini-3-pro-preview",
         "gemini-3-flash-preview",
         "gemini-3-pro-image-preview",
