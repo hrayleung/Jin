@@ -64,7 +64,14 @@
      ```
   5. Confirm the first `<item>` is the target version and contains `sparkle:edSignature`.
   6. Securely remove the temp key file.
-  7. Commit appcast update, tag, and publish release:
+  7. Compose release notes (keep historical release-note shape used in repo):
+     - Default language is English unless the user explicitly requests another language.
+     - Use this structure:
+       - `## What's Changed`
+       - one bullet per merged PR / user-facing change
+       - `**Full Changelog**: https://github.com/<owner>/<repo>/compare/<prev-tag>...v<VERSION>`
+     - If `--generate-notes` is not used, keep at least the same headings + bullet style so the format remains consistent across versions.
+  8. Commit appcast update, tag, and publish release:
      - `git tag -a v<VERSION> -m "v<VERSION>"`
      - `git push origin v<VERSION>`
      - `gh release create v<VERSION> dist/Jin-<VERSION>.zip --title "Jin v<VERSION>"`
