@@ -1302,7 +1302,12 @@ enum ProviderParamsJSONSync {
                 ]
 
                 if let effort = reasoning.effort {
-                    thinkingConfig["thinkingLevel"] = mapEffortToGeminiThinkingLevel(effort, modelID: modelID)
+                    let normalizedEffort = ModelCapabilityRegistry.normalizedReasoningEffort(
+                        effort,
+                        for: .gemini,
+                        modelID: modelID
+                    )
+                    thinkingConfig["thinkingLevel"] = mapEffortToGeminiThinkingLevel(normalizedEffort, modelID: modelID)
                 } else if let budget = reasoning.budgetTokens {
                     thinkingConfig["thinkingBudget"] = budget
                 }
@@ -1383,13 +1388,6 @@ enum ProviderParamsJSONSync {
         "gemini-3-pro-preview",
         "gemini-3.1-pro-preview",
         "gemini-3-flash-preview",
-        "gemini-3-pro-image-preview",
-    ]
-
-    private static let gemini3ProModelIDs: Set<String> = [
-        "gemini-3-pro",
-        "gemini-3-pro-preview",
-        "gemini-3.1-pro-preview",
         "gemini-3-pro-image-preview",
     ]
 
@@ -1474,22 +1472,28 @@ enum ProviderParamsJSONSync {
     }
 
     private static func defaultGeminiThinkingLevelWhenOff(modelID: String) -> String {
-        if gemini3ProModelIDs.contains(modelID.lowercased()) {
-            return "LOW"
-        }
-        return "MINIMAL"
+        let supportsMinimal = ModelCapabilityRegistry.supportedReasoningEfforts(
+            for: .gemini,
+            modelID: modelID
+        ).contains(.minimal)
+        return supportsMinimal ? "MINIMAL" : "LOW"
     }
 
     private static func mapEffortToGeminiThinkingLevel(_ effort: ReasoningEffort, modelID: String) -> String {
-        let isPro = gemini3ProModelIDs.contains(modelID.lowercased())
+        let supportedEfforts = ModelCapabilityRegistry.supportedReasoningEfforts(
+            for: .gemini,
+            modelID: modelID
+        )
+        let supportsMinimal = supportedEfforts.contains(.minimal)
+        let supportsMedium = supportedEfforts.contains(.medium)
 
         switch effort {
         case .none, .minimal:
-            return isPro ? "LOW" : "MINIMAL"
+            return supportsMinimal ? "MINIMAL" : "LOW"
         case .low:
             return "LOW"
         case .medium:
-            return isPro ? "HIGH" : "MEDIUM"
+            return supportsMedium ? "MEDIUM" : "HIGH"
         case .high, .xhigh:
             return "HIGH"
         }
@@ -1517,7 +1521,15 @@ enum ProviderParamsJSONSync {
             ]
 
             if let effort = reasoning.effort {
-                thinkingConfig["thinkingLevel"] = mapEffortToVertexThinkingLevel(effort)
+                let normalizedEffort = ModelCapabilityRegistry.normalizedReasoningEffort(
+                    effort,
+                    for: .vertexai,
+                    modelID: modelID
+                )
+                thinkingConfig["thinkingLevel"] = mapEffortToVertexThinkingLevel(
+                    normalizedEffort,
+                    modelID: modelID
+                )
             } else if let budget = reasoning.budgetTokens {
                 thinkingConfig["thinkingBudget"] = budget
             }
@@ -1571,7 +1583,7 @@ enum ProviderParamsJSONSync {
     ) {
         let remaining = applyGoogleStyleGenerationConfig(
             dict,
-            defaultLevelWhenOff: "MINIMAL",
+            defaultLevelWhenOff: defaultVertexThinkingLevelWhenOff(modelID: modelID),
             isImageModel: isVertexImageModel(modelID),
             controls: &controls,
             applyImageConfig: { imageDict, ctrl in
@@ -1637,14 +1649,29 @@ enum ProviderParamsJSONSync {
         isGemini3ProImageModel(modelID)
     }
 
-    private static func mapEffortToVertexThinkingLevel(_ effort: ReasoningEffort) -> String {
+    private static func defaultVertexThinkingLevelWhenOff(modelID: String) -> String {
+        let supportsMinimal = ModelCapabilityRegistry.supportedReasoningEfforts(
+            for: .vertexai,
+            modelID: modelID
+        ).contains(.minimal)
+        return supportsMinimal ? "MINIMAL" : "LOW"
+    }
+
+    private static func mapEffortToVertexThinkingLevel(_ effort: ReasoningEffort, modelID: String) -> String {
+        let supportedEfforts = ModelCapabilityRegistry.supportedReasoningEfforts(
+            for: .vertexai,
+            modelID: modelID
+        )
+        let supportsMinimal = supportedEfforts.contains(.minimal)
+        let supportsMedium = supportedEfforts.contains(.medium)
+
         switch effort {
         case .none, .minimal:
-            return "MINIMAL"
+            return supportsMinimal ? "MINIMAL" : "LOW"
         case .low:
             return "LOW"
         case .medium:
-            return "MEDIUM"
+            return supportsMedium ? "MEDIUM" : "HIGH"
         case .high, .xhigh:
             return "HIGH"
         }

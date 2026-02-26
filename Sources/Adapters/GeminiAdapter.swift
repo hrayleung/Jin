@@ -20,12 +20,6 @@ actor GeminiAdapter: LLMProviderAdapter {
         "gemini-3-flash-preview",
         "gemini-3-pro-image-preview",
     ]
-    private static let gemini3ProModelIDs: Set<String> = [
-        "gemini-3-pro",
-        "gemini-3-pro-preview",
-        "gemini-3.1-pro-preview",
-        "gemini-3-pro-image-preview",
-    ]
     private static let geminiImageGenerationModelIDs: Set<String> = [
         "gemini-3-pro-image-preview",
         "gemini-2.5-flash-image",
@@ -680,7 +674,12 @@ actor GeminiAdapter: LLMProviderAdapter {
                 ]
 
                 if let effort = reasoning.effort {
-                    thinkingConfig["thinkingLevel"] = mapEffortToThinkingLevel(effort, modelID: modelID)
+                    let normalizedEffort = ModelCapabilityRegistry.normalizedReasoningEffort(
+                        effort,
+                        for: .gemini,
+                        modelID: modelID
+                    )
+                    thinkingConfig["thinkingLevel"] = mapEffortToThinkingLevel(normalizedEffort, modelID: modelID)
                 } else if let budget = reasoning.budgetTokens {
                     thinkingConfig["thinkingBudget"] = budget
                 }
@@ -719,24 +718,30 @@ actor GeminiAdapter: LLMProviderAdapter {
     }
 
     private func defaultThinkingLevelWhenOff(modelID: String) -> String {
-        if Self.gemini3ProModelIDs.contains(modelID.lowercased()) {
-            return "LOW"
-        }
-        return "MINIMAL"
+        let supportsMinimal = ModelCapabilityRegistry.supportedReasoningEfforts(
+            for: .gemini,
+            modelID: modelID
+        ).contains(.minimal)
+        return supportsMinimal ? "MINIMAL" : "LOW"
     }
 
     private func mapEffortToThinkingLevel(_ effort: ReasoningEffort, modelID: String) -> String {
-        let isPro = Self.gemini3ProModelIDs.contains(modelID.lowercased())
+        let supportedEfforts = ModelCapabilityRegistry.supportedReasoningEfforts(
+            for: .gemini,
+            modelID: modelID
+        )
+        let supportsMinimal = supportedEfforts.contains(.minimal)
+        let supportsMedium = supportedEfforts.contains(.medium)
 
         switch effort {
         case .none:
-            return isPro ? "LOW" : "MINIMAL"
+            return supportsMinimal ? "MINIMAL" : "LOW"
         case .minimal:
-            return isPro ? "LOW" : "MINIMAL"
+            return supportsMinimal ? "MINIMAL" : "LOW"
         case .low:
             return "LOW"
         case .medium:
-            return isPro ? "HIGH" : "MEDIUM"
+            return supportsMedium ? "MEDIUM" : "HIGH"
         case .high:
             return "HIGH"
         case .xhigh:

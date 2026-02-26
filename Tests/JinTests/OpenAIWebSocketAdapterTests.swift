@@ -58,6 +58,40 @@ final class OpenAIWebSocketAdapterTests: XCTestCase {
         XCTAssertFalse(gpt41mini.capabilities.contains(.nativePDF))
     }
 
+    func testOpenAIWebSocketAdapterFetchModelsPreservesAudioMetadataForKnownAudioIDs() async throws {
+        let (session, protocolType) = makeMockedURLSession()
+        let networkManager = NetworkManager(urlSession: session)
+
+        let providerConfig = ProviderConfig(
+            id: "openai-websocket",
+            name: "OpenAI (WebSocket)",
+            type: .openaiWebSocket,
+            apiKey: "ignored",
+            baseURL: "https://example.com/v1"
+        )
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://example.com/v1/models")
+            let payload: [String: Any] = [
+                "data": [
+                    ["id": "gpt-4o-audio-preview"],
+                    ["id": "gpt-realtime-mini"],
+                    ["id": "gpt-4.1-mini"]
+                ]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: payload)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = OpenAIWebSocketAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let models = try await adapter.fetchAvailableModels()
+        let byID = Dictionary(uniqueKeysWithValues: models.map { ($0.id, $0) })
+
+        XCTAssertTrue(try XCTUnwrap(byID["gpt-4o-audio-preview"]).capabilities.contains(.audio))
+        XCTAssertTrue(try XCTUnwrap(byID["gpt-realtime-mini"]).capabilities.contains(.audio))
+        XCTAssertFalse(try XCTUnwrap(byID["gpt-4.1-mini"]).capabilities.contains(.audio))
+    }
+
     func testResponseCreateEventPutsResponsesBodyAtTopLevel() throws {
         let responsePayload: [String: Any] = [
             "model": "gpt-5.2",

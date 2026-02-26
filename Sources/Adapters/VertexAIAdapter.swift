@@ -606,7 +606,12 @@ actor VertexAIAdapter: LLMProviderAdapter {
             ]
 
             if let effort = reasoning.effort, supportsThinkingLevel(modelID) {
-                thinkingConfig["thinkingLevel"] = mapEffortToVertexLevel(effort)
+                let normalizedEffort = ModelCapabilityRegistry.normalizedReasoningEffort(
+                    effort,
+                    for: .vertexai,
+                    modelID: modelID
+                )
+                thinkingConfig["thinkingLevel"] = mapEffortToVertexLevel(normalizedEffort, modelID: modelID)
             } else if let budget = reasoning.budgetTokens {
                 thinkingConfig["thinkingBudget"] = budget
             }
@@ -654,16 +659,23 @@ actor VertexAIAdapter: LLMProviderAdapter {
         return config
     }
 
-    private func mapEffortToVertexLevel(_ effort: ReasoningEffort) -> String {
+    private func mapEffortToVertexLevel(_ effort: ReasoningEffort, modelID: String) -> String {
+        let supportedEfforts = ModelCapabilityRegistry.supportedReasoningEfforts(
+            for: .vertexai,
+            modelID: modelID
+        )
+        let supportsMinimal = supportedEfforts.contains(.minimal)
+        let supportsMedium = supportedEfforts.contains(.medium)
+
         switch effort {
         case .none:
-            return "MINIMAL"
+            return supportsMinimal ? "MINIMAL" : "LOW"
         case .minimal:
-            return "MINIMAL"
+            return supportsMinimal ? "MINIMAL" : "LOW"
         case .low:
             return "LOW"
         case .medium:
-            return "MEDIUM"
+            return supportsMedium ? "MEDIUM" : "HIGH"
         case .high:
             return "HIGH"
         case .xhigh:
