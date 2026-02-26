@@ -236,6 +236,64 @@ final class ModelSettingsResolverTests: XCTestCase {
         )
     }
 
+    func testGeminiAndVertexReasoningEffortSupportMatchesGemini3Families() {
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .gemini, modelID: "gemini-3-pro-preview"),
+            [.low, .high]
+        )
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .gemini, modelID: "gemini-3.1-pro-preview"),
+            [.low, .medium, .high]
+        )
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .gemini, modelID: "gemini-3-flash-preview"),
+            [.minimal, .low, .medium, .high]
+        )
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .vertexai, modelID: "gemini-3-pro-preview"),
+            [.low, .high]
+        )
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .vertexai, modelID: "gemini-3.1-pro-preview"),
+            [.low, .medium, .high]
+        )
+    }
+
+    func testGeminiAndVertexNormalizationClampsUnsupportedMinimalAndMedium() {
+        XCTAssertEqual(
+            ModelCapabilityRegistry.normalizedReasoningEffort(.minimal, for: .vertexai, modelID: "gemini-3-pro-preview"),
+            .low
+        )
+        XCTAssertEqual(
+            ModelCapabilityRegistry.normalizedReasoningEffort(.medium, for: .vertexai, modelID: "gemini-3-pro-preview"),
+            .high
+        )
+        XCTAssertEqual(
+            ModelCapabilityRegistry.normalizedReasoningEffort(.minimal, for: .vertexai, modelID: "gemini-3.1-pro-preview"),
+            .low
+        )
+        XCTAssertEqual(
+            ModelCapabilityRegistry.normalizedReasoningEffort(.medium, for: .vertexai, modelID: "gemini-3.1-pro-preview"),
+            .medium
+        )
+        XCTAssertEqual(
+            ModelCapabilityRegistry.normalizedReasoningEffort(.minimal, for: .gemini, modelID: "gemini-3-pro-preview"),
+            .low
+        )
+        XCTAssertEqual(
+            ModelCapabilityRegistry.normalizedReasoningEffort(.medium, for: .gemini, modelID: "gemini-3-pro-preview"),
+            .high
+        )
+        XCTAssertEqual(
+            ModelCapabilityRegistry.normalizedReasoningEffort(.minimal, for: .gemini, modelID: "gemini-3.1-pro-preview"),
+            .low
+        )
+        XCTAssertEqual(
+            ModelCapabilityRegistry.normalizedReasoningEffort(.medium, for: .gemini, modelID: "gemini-3.1-pro-preview"),
+            .medium
+        )
+    }
+
     func testResolverSupportsExplicitReasoningDisableOverride() {
         let model = ModelInfo(
             id: "groq/openai/gpt-oss-120b",

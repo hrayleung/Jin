@@ -101,6 +101,34 @@ final class ProviderParamsJSONSyncTests: XCTestCase {
         XCTAssertEqual(thinkingConfig["thinkingLevel"] as? String, "HIGH")
     }
 
+    func testVertexGemini3ProDraftClampsUnsupportedMinimalToLow() throws {
+        let controls = GenerationControls(reasoning: ReasoningControls(enabled: true, effort: .minimal))
+
+        let draft = ProviderParamsJSONSync.makeDraft(
+            providerType: .vertexai,
+            modelID: "gemini-3-pro-preview",
+            controls: controls
+        )
+
+        let generationConfig = try XCTUnwrap(draft["generationConfig"]?.value as? [String: Any])
+        let thinkingConfig = try XCTUnwrap(generationConfig["thinkingConfig"] as? [String: Any])
+        XCTAssertEqual(thinkingConfig["thinkingLevel"] as? String, "LOW")
+    }
+
+    func testVertexGemini31ProDraftKeepsMediumThinkingLevel() throws {
+        let controls = GenerationControls(reasoning: ReasoningControls(enabled: true, effort: .medium))
+
+        let draft = ProviderParamsJSONSync.makeDraft(
+            providerType: .vertexai,
+            modelID: "gemini-3.1-pro-preview",
+            controls: controls
+        )
+
+        let generationConfig = try XCTUnwrap(draft["generationConfig"]?.value as? [String: Any])
+        let thinkingConfig = try XCTUnwrap(generationConfig["thinkingConfig"] as? [String: Any])
+        XCTAssertEqual(thinkingConfig["thinkingLevel"] as? String, "MEDIUM")
+    }
+
     func testOpenAIDraftClampsUnsupportedXHighEffortToHigh() throws {
         let controls = GenerationControls(reasoning: ReasoningControls(enabled: true, effort: .xhigh))
 

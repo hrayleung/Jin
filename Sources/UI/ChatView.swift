@@ -1340,6 +1340,13 @@ struct ChatView: View {
 
     private var supportsNativePDF: Bool {
         guard !supportsMediaGenerationControl else { return false }
+        switch providerType {
+        case .openai, .openaiWebSocket, .anthropic, .perplexity, .xai, .gemini, .vertexai:
+            break
+        case .codexAppServer, .openaiCompatible, .cloudflareAIGateway, .openrouter, .groq, .cohere, .mistral, .deepinfra, .deepseek, .fireworks, .cerebras, .none:
+            return false
+        }
+
         if resolvedModelSettings?.capabilities.contains(.nativePDF) == true {
             return true
         }

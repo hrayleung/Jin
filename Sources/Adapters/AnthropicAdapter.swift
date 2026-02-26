@@ -1037,35 +1037,7 @@ actor AnthropicAdapter: LLMProviderAdapter {
     }
 
     private func makeModelInfo(from model: ModelsListResponse.ModelInfo) -> ModelInfo {
-        let id = model.id
-        let name = model.displayName ?? id
-
-        var caps: ModelCapability = [.streaming, .toolCalling, .vision, .promptCaching]
-        var reasoningConfig: ModelReasoningConfig?
-        let lower = id.lowercased()
-
-        if id.contains("claude-") {
-            caps.insert(.reasoning)
-            if supportsEffort(id) {
-                reasoningConfig = ModelReasoningConfig(type: .effort, defaultEffort: defaultAnthropicEffort(for: id))
-            } else {
-                reasoningConfig = ModelReasoningConfig(type: .budget, defaultBudget: 2048)
-            }
-        }
-
-        // Claude 4.x series supports native PDF.
-        if lower.contains("-4-") || lower.contains("-4.") {
-            caps.insert(.nativePDF)
-        }
-
-        return ModelInfo(
-            id: id,
-            name: name,
-            capabilities: caps,
-            contextWindow: 200000,
-            reasoningConfig: reasoningConfig,
-            isEnabled: true
-        )
+        ModelCatalog.modelInfo(for: model.id, provider: .anthropic, name: model.displayName)
     }
 }
 

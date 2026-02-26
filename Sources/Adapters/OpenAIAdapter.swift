@@ -118,45 +118,8 @@ actor OpenAIAdapter: LLMProviderAdapter {
 
         let (data, _) = try await networkManager.sendRequest(request)
         let response = try JSONDecoder().decode(ModelsResponse.self, from: data)
-        let reasoningModelIDs: Set<String> = ["gpt-5", "gpt-5.2", "gpt-5.2-2025-12-11", "gpt-5.3-codex", "o1", "o3", "o4"]
-        let visionModelIDs: Set<String> = ["gpt-5", "gpt-5.2", "gpt-5.2-2025-12-11", "gpt-5.3-codex", "gpt-4o", "o3", "o4"]
-        let largeContextModelIDs: Set<String> = ["gpt-5", "gpt-5.2", "gpt-5.2-2025-12-11", "gpt-5.3-codex"]
-
         return response.data.map { model in
-            let lower = model.id.lowercased()
-            var caps: ModelCapability = [.streaming, .toolCalling, .promptCaching]
-            var reasoningConfig: ModelReasoningConfig?
-
-            if reasoningModelIDs.contains(lower) {
-                caps.insert(.reasoning)
-                reasoningConfig = ModelReasoningConfig(type: .effort, defaultEffort: .medium)
-            }
-            if visionModelIDs.contains(lower) {
-                caps.insert(.vision)
-            }
-            if supportsAudioInputModelID(lower) {
-                caps.insert(.audio)
-            }
-
-            // Use the same exact-ID support matrix as UI model badges.
-            if JinModelSupport.supportsNativePDF(providerType: .openai, modelID: model.id) && caps.contains(.vision) {
-                caps.insert(.nativePDF)
-            }
-
-            let contextWindow: Int
-            if largeContextModelIDs.contains(lower) {
-                contextWindow = 400000
-            } else {
-                contextWindow = 128000
-            }
-
-            return ModelInfo(
-                id: model.id,
-                name: model.id,
-                capabilities: caps,
-                contextWindow: contextWindow,
-                reasoningConfig: reasoningConfig
-            )
+            ModelCatalog.modelInfo(for: model.id, provider: .openai, name: model.id)
         }
     }
 

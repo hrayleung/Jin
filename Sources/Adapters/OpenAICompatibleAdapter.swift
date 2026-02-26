@@ -248,36 +248,7 @@ actor OpenAICompatibleAdapter: LLMProviderAdapter {
     }
 
     private func makeModelInfo(id: String) -> ModelInfo {
-        let lower = id.lowercased()
-
-        var caps: ModelCapability = [.streaming, .toolCalling]
-        let reasoningConfig = ModelCapabilityRegistry.defaultReasoningConfig(for: providerConfig.type, modelID: id)
-        let contextWindow = 128000
-
-        if reasoningConfig != nil {
-            caps.insert(.reasoning)
-        }
-
-        if lower.contains("vision") || lower.contains("image") || lower.contains("gpt-4o") || lower.contains("gpt-5") || lower.contains("gemini") || lower.contains("claude") {
-            caps.insert(.vision)
-        }
-
-        if lower.contains("image") {
-            caps.insert(.imageGeneration)
-        }
-
-        if supportsAudioInputModelID(lower) {
-            caps.insert(.audio)
-        }
-
-        return ModelInfo(
-            id: id,
-            name: id,
-            capabilities: caps,
-            contextWindow: contextWindow,
-            reasoningConfig: reasoningConfig,
-            isEnabled: true
-        )
+        ModelCatalog.modelInfo(for: id, provider: providerConfig.type, name: id)
     }
 
     private func supportsAudioInputModelID(_ lowerModelID: String) -> Bool {

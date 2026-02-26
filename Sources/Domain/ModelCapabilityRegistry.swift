@@ -17,10 +17,22 @@ enum ModelCapabilityRegistry {
         "gpt-5.3-codex-spark",
     ]
 
-    private static let gemini3ProEffortModelIDs: Set<String> = [
+    /// Gemini 3 Flash supports MINIMAL/LOW/MEDIUM/HIGH.
+    private static let gemini3FlashEffortModelIDs: Set<String> = [
+        "gemini-3-flash-preview",
+    ]
+
+    /// Gemini 3.1 Pro supports LOW/MEDIUM/HIGH.
+    private static let gemini31ProEffortModelIDs: Set<String> = [
+        "gemini-3.1-pro-preview",
+    ]
+
+    /// Gemini 3 Pro family supports LOW/HIGH.
+    private static let gemini3ProLowHighEffortModelIDs: Set<String> = [
+        "gemini-3",
         "gemini-3-pro",
         "gemini-3-pro-preview",
-        "gemini-3.1-pro-preview",
+        "gemini-3-pro-image-preview",
     ]
 
     private static let reasoningEffortRank: [ReasoningEffort: Int] = [
@@ -68,13 +80,12 @@ enum ModelCapabilityRegistry {
         let lowerModelID = modelID.lowercased()
 
         switch providerType {
-        case .vertexai, .perplexity:
+        case .vertexai:
+            return supportedGeminiThinkingEfforts(lowerModelID: lowerModelID)
+        case .perplexity:
             return [.minimal, .low, .medium, .high]
         case .gemini:
-            if gemini3ProEffortModelIDs.contains(lowerModelID) {
-                return [.low, .high]
-            }
-            return [.minimal, .low, .medium, .high]
+            return supportedGeminiThinkingEfforts(lowerModelID: lowerModelID)
         default:
             break
         }
@@ -88,6 +99,19 @@ enum ModelCapabilityRegistry {
         }
 
         return [.low, .medium, .high]
+    }
+
+    private static func supportedGeminiThinkingEfforts(lowerModelID: String) -> [ReasoningEffort] {
+        if gemini3FlashEffortModelIDs.contains(lowerModelID) {
+            return [.minimal, .low, .medium, .high]
+        }
+        if gemini31ProEffortModelIDs.contains(lowerModelID) {
+            return [.low, .medium, .high]
+        }
+        if gemini3ProLowHighEffortModelIDs.contains(lowerModelID) {
+            return [.low, .high]
+        }
+        return [.minimal, .low, .medium, .high]
     }
 
     static func normalizedReasoningEffort(

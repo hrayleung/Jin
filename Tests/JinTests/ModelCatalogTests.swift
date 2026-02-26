@@ -1,0 +1,55 @@
+import XCTest
+@testable import Jin
+
+final class ModelCatalogTests: XCTestCase {
+    func testUnknownGeminiAndVertexIDsUseConservativeFallback() {
+        let gemini = ModelCatalog.modelInfo(
+            for: "gemini-3-pro-preview-custom",
+            provider: .gemini,
+            name: "Custom Gemini"
+        )
+        XCTAssertEqual(gemini.capabilities, [.streaming, .toolCalling])
+        XCTAssertEqual(gemini.contextWindow, 128_000)
+        XCTAssertNil(gemini.reasoningConfig)
+
+        let vertex = ModelCatalog.modelInfo(
+            for: "gemini-2.5-pro-experimental",
+            provider: .vertexai,
+            name: "Custom Vertex"
+        )
+        XCTAssertEqual(vertex.capabilities, [.streaming, .toolCalling])
+        XCTAssertEqual(vertex.contextWindow, 128_000)
+        XCTAssertNil(vertex.reasoningConfig)
+    }
+
+    func testCloudflareRequiresExactCompoundIDMatches() {
+        let known = ModelCatalog.modelInfo(
+            for: "openai/gpt-5.2",
+            provider: .cloudflareAIGateway
+        )
+        XCTAssertTrue(known.capabilities.contains(.vision))
+        XCTAssertFalse(known.capabilities.contains(.nativePDF))
+
+        let unknown = ModelCatalog.modelInfo(
+            for: "openai/gpt-5.2-custom",
+            provider: .cloudflareAIGateway
+        )
+        XCTAssertEqual(unknown.capabilities, [.streaming, .toolCalling])
+        XCTAssertEqual(unknown.contextWindow, 128_000)
+        XCTAssertNil(unknown.reasoningConfig)
+    }
+
+    func testOpenAIAudioModelsAreCatalogBackedByExactIDs() {
+        let audioPreview = ModelCatalog.modelInfo(
+            for: "gpt-4o-audio-preview",
+            provider: .openai
+        )
+        XCTAssertTrue(audioPreview.capabilities.contains(.audio))
+
+        let realtime = ModelCatalog.modelInfo(
+            for: "gpt-realtime-mini",
+            provider: .openai
+        )
+        XCTAssertTrue(realtime.capabilities.contains(.audio))
+    }
+}
