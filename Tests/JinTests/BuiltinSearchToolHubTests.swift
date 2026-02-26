@@ -115,4 +115,20 @@ final class BuiltinSearchToolHubTests: XCTestCase {
         defaults.set(jinaKey, forKey: AppPreferenceKeys.pluginWebSearchJinaAPIKey)
         defaults.set(firecrawlKey, forKey: AppPreferenceKeys.pluginWebSearchFirecrawlAPIKey)
     }
+
+    func testExaSearchTypeLegacyKeywordMapsToFast() {
+        XCTAssertEqual(ExaSearchType.resolved(from: "keyword"), .fast)
+        XCTAssertEqual(ExaSearchType.resolved(from: " auto "), .auto)
+        XCTAssertNil(ExaSearchType.resolved(from: ""))
+        XCTAssertNil(ExaSearchType.resolved(from: nil))
+    }
+
+    func testWebSearchPluginSettingsLoadMapsLegacyExaType() {
+        defaults.set("keyword", forKey: AppPreferenceKeys.pluginWebSearchExaSearchType)
+        defaults.set(true, forKey: AppPreferenceKeys.pluginWebSearchEnabled)
+
+        let settings = WebSearchPluginSettingsStore.load(defaults: defaults)
+
+        XCTAssertEqual(settings.exaSearchType, .fast)
+    }
 }

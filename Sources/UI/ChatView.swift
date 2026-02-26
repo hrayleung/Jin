@@ -4213,8 +4213,6 @@ struct ChatView: View {
 
                 if effectiveSearchPluginProvider == .jina {
                     Toggle("Fetch pages via Reader", isOn: builtinSearchFetchPageBinding)
-                } else if effectiveSearchPluginProvider == .exa {
-                    Toggle("Exa autoprompt", isOn: builtinSearchExaAutopromptBinding)
                 } else if effectiveSearchPluginProvider == .firecrawl {
                     Toggle("Extract markdown", isOn: builtinSearchFirecrawlExtractBinding)
                 }
@@ -5809,22 +5807,6 @@ struct ChatView: View {
                     controls.searchPlugin = SearchPluginControls()
                 }
                 controls.searchPlugin?.fetchPageContent = newValue
-                persistControlsToConversation()
-            }
-        )
-    }
-
-    private var builtinSearchExaAutopromptBinding: Binding<Bool> {
-        Binding(
-            get: {
-                let settings = WebSearchPluginSettingsStore.load()
-                return controls.searchPlugin?.exaUseAutoprompt ?? settings.exaUseAutoprompt
-            },
-            set: { newValue in
-                if controls.searchPlugin == nil {
-                    controls.searchPlugin = SearchPluginControls()
-                }
-                controls.searchPlugin?.exaUseAutoprompt = newValue
                 persistControlsToConversation()
             }
         )
