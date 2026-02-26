@@ -1,13 +1,7 @@
 import Foundation
 
 enum MistralOCRMarkdown {
-    // Matches Markdown image syntax: ![alt](target)
-    // Captures `target` in group 1.
-    // Note: Mistral OCR commonly emits placeholders like: ![img-0.jpeg](img-0.jpeg)
     private static let imageRegex = try! NSRegularExpression(pattern: "!\\[[^\\]]*\\]\\(([^)]+)\\)")
-
-    // Matches Mistral OCR table placeholders like: [tbl-3.html](tbl-3.html)
-    // Captures the link target in group 2.
     private static let tableRegex = try! NSRegularExpression(pattern: "\\[(tbl-[^\\]]+)\\]\\(([^)]+)\\)")
 
     static func referencedImageIDs(in markdown: String) -> [String] {
@@ -27,44 +21,13 @@ enum MistralOCRMarkdown {
         from markdown: String,
         replacement: (String) -> String
     ) -> String {
-        let ns = markdown as NSString
-        let fullRange = NSRange(location: 0, length: ns.length)
-        let matches = tableRegex.matches(in: markdown, range: fullRange)
-        guard !matches.isEmpty else { return markdown }
-
-        var output = ""
-        output.reserveCapacity(markdown.count)
-
-        var cursor = 0
-        for match in matches {
-            let matchRange = match.range(at: 0)
-            guard matchRange.location != NSNotFound else { continue }
-
-            let prefixRange = NSRange(location: cursor, length: max(0, matchRange.location - cursor))
-            if prefixRange.length > 0 {
-                output += ns.substring(with: prefixRange)
-            }
-
-            let rawTarget: String
-            if match.numberOfRanges > 2 {
-                rawTarget = ns.substring(with: match.range(at: 2))
-            } else if match.numberOfRanges > 1 {
-                rawTarget = ns.substring(with: match.range(at: 1))
-            } else {
-                rawTarget = ""
-            }
-
-            let normalized = normalizedResourceID(from: rawTarget)
-            output += replacement(normalized)
-
-            cursor = matchRange.location + matchRange.length
-        }
-
-        if cursor < ns.length {
-            output += ns.substring(from: cursor)
-        }
-
-        return output
+        replacingMatches(
+            in: markdown,
+            using: tableRegex,
+            captureGroup: 2,
+            fallbackGroup: 1,
+            replacement: replacement
+        )
     }
 
     static func removingImageMarkdown(from markdown: String) -> String {
@@ -75,9 +38,27 @@ enum MistralOCRMarkdown {
         from markdown: String,
         replacement: (String) -> String
     ) -> String {
+        replacingMatches(
+            in: markdown,
+            using: imageRegex,
+            captureGroup: 1,
+            fallbackGroup: nil,
+            replacement: replacement
+        )
+    }
+
+    // MARK: - Private
+
+    private static func replacingMatches(
+        in markdown: String,
+        using regex: NSRegularExpression,
+        captureGroup: Int,
+        fallbackGroup: Int?,
+        replacement: (String) -> String
+    ) -> String {
         let ns = markdown as NSString
         let fullRange = NSRange(location: 0, length: ns.length)
-        let matches = imageRegex.matches(in: markdown, range: fullRange)
+        let matches = regex.matches(in: markdown, range: fullRange)
         guard !matches.isEmpty else { return markdown }
 
         var output = ""
@@ -93,14 +74,8 @@ enum MistralOCRMarkdown {
                 output += ns.substring(with: prefixRange)
             }
 
-            let rawID: String
-            if match.numberOfRanges > 1 {
-                rawID = ns.substring(with: match.range(at: 1))
-            } else {
-                rawID = ""
-            }
-            let normalized = normalizedResourceID(from: rawID)
-            output += replacement(normalized)
+            let rawID = extractCapturedString(from: match, in: ns, group: captureGroup, fallbackGroup: fallbackGroup)
+            output += replacement(normalizedResourceID(from: rawID))
 
             cursor = matchRange.location + matchRange.length
         }
@@ -112,11 +87,25 @@ enum MistralOCRMarkdown {
         return output
     }
 
+    private static func extractCapturedString(
+        from match: NSTextCheckingResult,
+        in ns: NSString,
+        group: Int,
+        fallbackGroup: Int?
+    ) -> String {
+        if match.numberOfRanges > group {
+            return ns.substring(with: match.range(at: group))
+        }
+        if let fallback = fallbackGroup, match.numberOfRanges > fallback {
+            return ns.substring(with: match.range(at: fallback))
+        }
+        return ""
+    }
+
     private static func normalizedResourceID(from raw: String) -> String {
         let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return "" }
 
-        // Common Markdown forms include: <img-0.jpeg>, "img-0.jpeg", 'img-0.jpeg'
         let unwrapped = trimmed.trimmingCharacters(in: CharacterSet(charactersIn: "<>\"'"))
         let lastComponent = (unwrapped as NSString).lastPathComponent
         let withoutQuery = lastComponent.split(separator: "?", maxSplits: 1).first.map(String.init) ?? lastComponent

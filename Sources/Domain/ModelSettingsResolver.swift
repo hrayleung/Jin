@@ -93,22 +93,4 @@ enum ModelSettingsResolver {
         return ModelCatalog.entry(for: modelID, provider: providerType)?.contextWindow ?? fallback
     }
 
-    private static func isFireworksMiniMaxM2FamilyModel(_ modelID: String) -> Bool {
-        let lower = modelID.lowercased()
-        let canonicalID: String?
-        if lower.hasPrefix("fireworks/") {
-            canonicalID = String(lower.dropFirst("fireworks/".count))
-        } else if lower.hasPrefix("accounts/fireworks/models/") {
-            canonicalID = String(lower.dropFirst("accounts/fireworks/models/".count))
-        } else if !lower.contains("/") {
-            canonicalID = lower
-        } else {
-            canonicalID = nil
-        }
-
-        guard let canonicalID else { return false }
-        return canonicalID == "minimax-m2"
-            || canonicalID == "minimax-m2p1"
-            || canonicalID == "minimax-m2p5"
-    }
 }

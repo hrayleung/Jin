@@ -580,7 +580,7 @@ actor GeminiAdapter: LLMProviderAdapter {
                             throw LLMError.decodingError(message: "Invalid video download URI: \(uriString)")
                         }
 
-                        let (localURL, mimeType) = try await GoogleVideoGenerationCore.downloadVideoToLocal(
+                        let (localURL, mimeType) = try await VideoAttachmentUtility.downloadToLocal(
                             from: downloadURL,
                             networkManager: networkManager
                         )

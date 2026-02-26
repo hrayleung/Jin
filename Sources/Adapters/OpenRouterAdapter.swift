@@ -294,7 +294,7 @@ actor OpenRouterAdapter: LLMProviderAdapter {
         if inputModalities.contains(where: { $0.contains("audio") }) {
             caps.insert(.audio)
         }
-        if supportsAudioInputModelID(lower) {
+        if isAudioInputModelID(lower) {
             caps.insert(.audio)
         }
 
@@ -311,9 +311,6 @@ actor OpenRouterAdapter: LLMProviderAdapter {
         )
     }
 
-    private func supportsAudioInputModelID(_ lowerModelID: String) -> Bool {
-        isAudioInputModelID(lowerModelID)
-    }
 }
 
 private struct OpenRouterModelsResponse: Decodable {

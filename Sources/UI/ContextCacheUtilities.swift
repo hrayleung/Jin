@@ -216,13 +216,7 @@ enum ContextCacheUtilities {
         }
 
         switch providerType {
-        case .openai:
-            adjustedControls.contextCache?.cacheKey = automaticOpenAICacheKey(
-                modelID: modelID,
-                messages: messages,
-                tools: tools
-            )
-        case .openaiWebSocket:
+        case .openai, .openaiWebSocket:
             adjustedControls.contextCache?.cacheKey = automaticOpenAICacheKey(
                 modelID: modelID,
                 messages: messages,

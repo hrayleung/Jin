@@ -19,4 +19,3 @@ enum GenerationControlsResolver {
         return resolved
     }
 }
-

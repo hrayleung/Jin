@@ -137,29 +137,4 @@ enum GoogleVideoGenerationCore {
         return nil
     }
 
-    // MARK: - Video Download & Save
-
-    /// Downloads a video from a URL and saves it to the local attachments directory.
-    static func downloadVideoToLocal(
-        from url: URL,
-        networkManager: NetworkManager,
-        authHeader: (key: String, value: String)? = nil
-    ) async throws -> (localURL: URL, mimeType: String) {
-        try await VideoAttachmentUtility.downloadToLocal(
-            from: url,
-            networkManager: networkManager,
-            authHeader: authHeader
-        )
-    }
-
-    /// Saves base64-decoded video data to the local attachments directory.
-    static func saveVideoDataToLocal(_ data: Data, mimeType: String) throws -> URL {
-        try VideoAttachmentUtility.saveDataToLocal(data, mimeType: mimeType)
-    }
-
-    // MARK: - Format Resolution
-
-    static func resolveVideoFormat(contentType: String?, url: URL) -> (mimeType: String, ext: String) {
-        VideoAttachmentUtility.resolveVideoFormat(contentType: contentType, url: url)
-    }
 }

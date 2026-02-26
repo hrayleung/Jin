@@ -93,12 +93,6 @@ extension ChatView {
             .union(geminiAudioInputModelIDs)
     }()
 
-    static let fireworksMiniMaxM2CanonicalModelIDs: Set<String> = [
-        "minimax-m2",
-        "minimax-m2p1",
-        "minimax-m2p5",
-    ]
-
     static let gemini3ProModelIDs: Set<String> = [
         "gemini-3-pro",
         "gemini-3-pro-preview",
