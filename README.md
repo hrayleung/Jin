@@ -19,9 +19,9 @@ Conversation-first: fast, focused, and minimal.
 
 ## Supported Providers
 
-Jin supports 17 provider types:
+Jin supports 18 provider types:
 
-OpenAI · Anthropic · Gemini (AI Studio) · Vertex AI · xAI · DeepSeek · Mistral · Cohere · Groq · Perplexity · Fireworks · Cerebras · DeepInfra · OpenRouter · OpenAI Compatible · Cloudflare AI Gateway · Codex App Server (Beta)
+OpenAI · OpenAI (WebSocket) · Anthropic · Gemini (AI Studio) · Vertex AI · xAI · DeepSeek · Mistral · Cohere · Groq · Perplexity · Fireworks · Cerebras · DeepInfra · OpenRouter · OpenAI Compatible · Cloudflare AI Gateway · Codex App Server (Beta)
 
 Most providers are pre-configured on first launch. Use **Fetch Models** in provider settings to pull the latest available models, or add models manually.
 
@@ -33,15 +33,16 @@ These models are ready to use out of the box (with your API key). You can also a
 
 | Provider | Models |
 |----------|--------|
-| OpenAI | `gpt-5.2`, `gpt-5.2-2025-12-11`, `gpt-4o` |
+| OpenAI | `gpt-5.2`, `gpt-5.2-2025-12-11`, `gpt-5.3-codex`, `gpt-4o` |
+| OpenAI (WebSocket) | `gpt-5.2`, `gpt-5.2-2025-12-11`, `gpt-5.3-codex`, `gpt-4o` |
 | Anthropic | `claude-opus-4-6`, `claude-sonnet-4-6`, `claude-opus-4-5-20251101`, `claude-sonnet-4-5-20250929`, `claude-haiku-4-5-20251001` |
 | Gemini (AI Studio) | `gemini-3-pro-preview`, `gemini-3.1-pro-preview`, `gemini-3-pro-image-preview`, `gemini-3-flash-preview`, `gemini-2.5-flash-image` |
 | Vertex AI | `gemini-3-pro-preview`, `gemini-3.1-pro-preview`, `gemini-3-pro-image-preview`, `gemini-3-flash-preview`, `gemini-2.5-pro`, `gemini-2.5-flash-image` |
 | xAI | `grok-4-1-fast`, `grok-4-1`, `grok-imagine-image`, `grok-imagine-image-pro`, `grok-2-image-1212`, `grok-imagine-video` |
-| DeepSeek | `deepseek-chat`, `deepseek-reasoner` |
+| DeepSeek | `deepseek-chat`, `deepseek-reasoner`, `deepseek-v3.2-exp` |
 | Perplexity | `sonar`, `sonar-pro`, `sonar-reasoning-pro`, `sonar-deep-research` |
 | Fireworks | `fireworks/glm-5`, `fireworks/minimax-m2p5`, `fireworks/kimi-k2p5`, `fireworks/glm-4p7` |
-| Codex App Server (Beta) | Use models exposed by your server (server-side execution; no per-model client adaptation required) |
+| Codex App Server (Beta) | `gpt-5.1-codex` (default seed), plus models exposed by your server (server-side execution; no per-model client adaptation required) |
 | Groq, Cohere, Mistral, DeepInfra, OpenRouter, OpenAI Compatible, Cloudflare AI Gateway, Cerebras | Use **Fetch Models** or add manually |
 
 ## Features
@@ -49,7 +50,7 @@ These models are ready to use out of the box (with your API key). You can also a
 - **Multi-provider chat** — Switch between providers and models within the same workspace
 - **Multimodal conversations** — Text, images, files, audio, and generated media in one thread
 - **Reasoning models** — Collapsible thinking blocks for models that support extended reasoning
-- **Web search** — Provider-native search controls with in-chat search activity timeline
+- **Web search** — Provider-native controls plus built-in Exa/Brave/Jina/Firecrawl fallback with in-chat search activity timeline
 - **Context caching** — Unified prompt caching controls across supporting providers
 - **Tool calling (MCP)** — Connect external tools and data via the Model Context Protocol
 - **Image generation** — Gemini, Vertex AI, and xAI image models
@@ -86,9 +87,11 @@ All plugins are optional and configured in **Settings > Plugins**.
 
 | Plugin | Services |
 |--------|----------|
-| PDF OCR | Mistral OCR, DeepSeek OCR (DeepInfra), local PDFKit |
+| Web Search | Exa, Brave Search, Jina Search, Firecrawl |
 | Text-to-Speech | ElevenLabs, OpenAI, Groq |
 | Speech-to-Text | OpenAI, Groq, Mistral |
+| Mistral OCR | Mistral OCR for PDF extraction |
+| DeepSeek OCR | DeepSeek OCR (via DeepInfra) for PDF extraction |
 | Chat Naming | Automatic conversation naming with a selected model |
 | Cloudflare R2 Upload | Upload local videos to R2 and send public URLs |
 
