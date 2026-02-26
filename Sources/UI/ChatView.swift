@@ -1340,10 +1340,12 @@ struct ChatView: View {
 
     private var supportsNativePDF: Bool {
         guard !supportsMediaGenerationControl else { return false }
+        guard let providerType = providerType else { return false }
+
         switch providerType {
         case .openai, .openaiWebSocket, .anthropic, .perplexity, .xai, .gemini, .vertexai:
             break
-        case .codexAppServer, .openaiCompatible, .cloudflareAIGateway, .openrouter, .groq, .cohere, .mistral, .deepinfra, .deepseek, .fireworks, .cerebras, .none:
+        case .codexAppServer, .openaiCompatible, .cloudflareAIGateway, .openrouter, .groq, .cohere, .mistral, .deepinfra, .deepseek, .fireworks, .cerebras:
             return false
         }
 
@@ -1351,24 +1353,7 @@ struct ChatView: View {
             return true
         }
 
-        switch providerType {
-        case .openai:
-            return JinModelSupport.supportsNativePDF(providerType: .openai, modelID: lowerModelID)
-        case .openaiWebSocket:
-            return JinModelSupport.supportsNativePDF(providerType: .openaiWebSocket, modelID: lowerModelID)
-        case .anthropic:
-            return JinModelSupport.supportsNativePDF(providerType: .anthropic, modelID: lowerModelID)
-        case .perplexity:
-            return JinModelSupport.supportsNativePDF(providerType: .perplexity, modelID: lowerModelID)
-        case .xai:
-            return JinModelSupport.supportsNativePDF(providerType: .xai, modelID: lowerModelID)
-        case .gemini:
-            return JinModelSupport.supportsNativePDF(providerType: .gemini, modelID: lowerModelID)
-        case .vertexai:
-            return JinModelSupport.supportsNativePDF(providerType: .vertexai, modelID: lowerModelID)
-        case .codexAppServer, .openaiCompatible, .cloudflareAIGateway, .openrouter, .groq, .cohere, .mistral, .deepinfra, .deepseek, .fireworks, .cerebras, .none:
-            return false
-        }
+        return JinModelSupport.supportsNativePDF(providerType: providerType, modelID: lowerModelID)
     }
 
     private var supportsVision: Bool {
@@ -1802,9 +1787,7 @@ struct ChatView: View {
         let conversationID = automaticContextCacheConversationID(modelID: modelID)
 
         switch providerType {
-        case .openai:
-            return ContextCacheControls(mode: .implicit)
-        case .openaiWebSocket:
+        case .openai, .openaiWebSocket:
             return ContextCacheControls(mode: .implicit)
         case .xai:
             return ContextCacheControls(
@@ -4019,26 +4002,6 @@ struct ChatView: View {
 
     private func isFireworksModelID(_ modelID: String, canonicalID: String) -> Bool {
         fireworksCanonicalModelID(modelID) == canonicalID
-    }
-
-    private func isFireworksMiniMaxM2FamilyModel(_ modelID: String) -> Bool {
-        guard let canonicalID = fireworksCanonicalModelID(modelID) else { return false }
-        return Self.fireworksMiniMaxM2CanonicalModelIDs.contains(canonicalID)
-    }
-
-    private func fireworksCanonicalModelID(_ modelID: String) -> String? {
-        let lower = modelID.lowercased()
-        if lower.hasPrefix("fireworks/") {
-            return String(lower.dropFirst("fireworks/".count))
-        }
-        if lower.hasPrefix("accounts/fireworks/models/") {
-            return String(lower.dropFirst("accounts/fireworks/models/".count))
-        }
-        // Compatibility for legacy persisted IDs stored without provider prefixes.
-        if !lower.contains("/") {
-            return lower
-        }
-        return nil
     }
 
     private func fireworksReasoningHistoryLabel(for option: String) -> String {

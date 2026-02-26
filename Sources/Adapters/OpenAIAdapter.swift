@@ -232,31 +232,22 @@ actor OpenAIAdapter: LLMProviderAdapter {
     }
 
     private func mergedIncludeFields(_ existing: Any?, adding field: String) -> [String] {
-        var out: [String] = []
+        let existingStrings: [String]
+        if let strings = existing as? [String] {
+            existingStrings = strings
+        } else if let anyArray = existing as? [Any] {
+            existingStrings = anyArray.compactMap { $0 as? String }
+        } else {
+            existingStrings = []
+        }
+
         var seen: Set<String> = []
-
-        if let existingStrings = existing as? [String] {
-            for item in existingStrings {
-                let trimmed = item.trimmingCharacters(in: .whitespacesAndNewlines)
-                guard !trimmed.isEmpty, !seen.contains(trimmed) else { continue }
-                seen.insert(trimmed)
-                out.append(trimmed)
-            }
-        } else if let existingAny = existing as? [Any] {
-            for item in existingAny {
-                guard let value = item as? String else { continue }
-                let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-                guard !trimmed.isEmpty, !seen.contains(trimmed) else { continue }
-                seen.insert(trimmed)
-                out.append(trimmed)
-            }
+        var out: [String] = []
+        for raw in existingStrings + [field] {
+            let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty, seen.insert(trimmed).inserted else { continue }
+            out.append(trimmed)
         }
-
-        let target = field.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !target.isEmpty, !seen.contains(target) {
-            out.append(target)
-        }
-
         return out
     }
 

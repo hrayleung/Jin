@@ -23,19 +23,10 @@ enum AnthropicModelLimits {
             return 128_000
         }
 
-        if isSonnet46(lower) {
-            return 64_000
-        }
-
-        if lower == "claude-opus-4-5" || lower.contains("claude-opus-4-5-") {
-            return 64_000
-        }
-
-        if lower == "claude-sonnet-4-5" || lower.contains("claude-sonnet-4-5-") {
-            return 64_000
-        }
-
-        if lower == "claude-haiku-4-5" || lower.contains("claude-haiku-4-5-") {
+        if isSonnet46(lower)
+            || isModelFamily(lower, prefix: "claude-opus-4-5")
+            || isModelFamily(lower, prefix: "claude-sonnet-4-5")
+            || isModelFamily(lower, prefix: "claude-haiku-4-5") {
             return 64_000
         }
 
@@ -55,10 +46,14 @@ enum AnthropicModelLimits {
     }
 
     private static func isOpus46(_ lowercasedModelID: String) -> Bool {
-        lowercasedModelID == "claude-opus-4-6" || lowercasedModelID.contains("claude-opus-4-6-")
+        isModelFamily(lowercasedModelID, prefix: "claude-opus-4-6")
     }
 
     private static func isSonnet46(_ lowercasedModelID: String) -> Bool {
-        lowercasedModelID == "claude-sonnet-4-6" || lowercasedModelID.contains("claude-sonnet-4-6-")
+        isModelFamily(lowercasedModelID, prefix: "claude-sonnet-4-6")
+    }
+
+    private static func isModelFamily(_ lowercasedModelID: String, prefix: String) -> Bool {
+        lowercasedModelID == prefix || lowercasedModelID.hasPrefix("\(prefix)-")
     }
 }

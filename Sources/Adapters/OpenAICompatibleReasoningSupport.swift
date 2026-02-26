@@ -165,10 +165,7 @@ enum OpenAICompatibleReasoningSupport {
     }
 
     private static func mergeOutputConfig(into body: inout [String: Any], additional: [String: Any]) {
-        var merged = (body["output_config"] as? [String: Any]) ?? [:]
-        for (key, value) in additional {
-            merged[key] = value
-        }
-        body["output_config"] = merged
+        let existing = (body["output_config"] as? [String: Any]) ?? [:]
+        body["output_config"] = existing.merging(additional) { _, new in new }
     }
 }

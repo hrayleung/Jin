@@ -35,6 +35,36 @@ enum ModelCapabilityRegistry {
         "gemini-3-pro-image-preview",
     ]
 
+    /// Models documented by Google as supporting grounding with Google Search in Gemini API.
+    private static let geminiGoogleSearchSupportedModelIDs: Set<String> = [
+        "gemini-3.1-pro-preview",
+        "gemini-3-pro-preview",
+        "gemini-3-flash-preview",
+        "gemini-3-pro-image-preview",
+        "gemini-2.5-pro",
+        "gemini-2.5-flash",
+        "gemini-2.5-flash-lite",
+        "gemini-2.0-flash",
+        "gemini-2.0-flash-001",
+    ]
+
+    /// Models documented by Google as supporting grounding with Google Search in Vertex AI.
+    private static let vertexGoogleSearchSupportedModelIDs: Set<String> = [
+        "gemini-3-pro-preview",
+        "gemini-3-flash-preview",
+        "gemini-3-pro-image-preview",
+        "gemini-2.5-pro",
+        "gemini-2.5-flash",
+        "gemini-2.5-flash-lite",
+        "gemini-2.5-flash-preview",
+        "gemini-2.5-flash-lite-preview",
+        "gemini-2.0-flash",
+    ]
+
+    /// Fallback used by proxy providers (for example OpenRouter `google/*` model IDs).
+    private static let proxiedGoogleSearchSupportedModelIDs: Set<String> =
+        geminiGoogleSearchSupportedModelIDs.union(vertexGoogleSearchSupportedModelIDs)
+
     private static let reasoningEffortRank: [ReasoningEffort: Int] = [
         .none: 0,
         .minimal: 1,
@@ -46,19 +76,15 @@ enum ModelCapabilityRegistry {
 
     static func requestShape(for providerType: ProviderType?, modelID: String) -> ModelRequestShape {
         switch providerType {
-        case .openai:
+        case .openai, .openaiWebSocket:
             return .openAIResponses
-        case .openaiWebSocket:
-            return .openAIResponses
-        case .codexAppServer:
-            return .openAICompatible
         case .anthropic:
             return .anthropic
         case .gemini, .vertexai:
             return .gemini
-        case .openaiCompatible, .cloudflareAIGateway, .openrouter, .groq, .mistral, .deepinfra:
-            return .openAICompatible
-        case .perplexity, .cohere, .xai, .deepseek, .fireworks, .cerebras, .none:
+        case .codexAppServer, .openaiCompatible, .cloudflareAIGateway, .openrouter,
+             .groq, .cohere, .mistral, .deepinfra, .xai, .deepseek,
+             .fireworks, .cerebras, .perplexity, .none:
             return .openAICompatible
         }
     }
@@ -153,12 +179,8 @@ enum ModelCapabilityRegistry {
         let lower = modelID.lowercased()
 
         switch providerType {
-        case .openai:
+        case .openai, .openaiWebSocket:
             return supportsOpenAIWebSearch(lowerModelID: lower)
-        case .openaiWebSocket:
-            return supportsOpenAIWebSearch(lowerModelID: lower)
-        case .codexAppServer:
-            return false
         case .openrouter:
             return supportsOpenRouterWebSearch(lowerModelID: lower)
         case .anthropic:
@@ -168,10 +190,11 @@ enum ModelCapabilityRegistry {
         case .xai:
             return !isLikelyMediaGenerationModelID(lower)
         case .gemini:
-            return supportsGeminiGoogleSearch(lowerModelID: lower)
+            return supportsGoogleSearch(lowerModelID: lower, providerType: .gemini)
         case .vertexai:
-            return supportsVertexGoogleSearch(lowerModelID: lower)
-        case .openaiCompatible, .cloudflareAIGateway, .groq, .cohere, .mistral, .deepinfra, .deepseek, .fireworks, .cerebras, .none:
+            return supportsGoogleSearch(lowerModelID: lower, providerType: .vertexai)
+        case .codexAppServer, .openaiCompatible, .cloudflareAIGateway, .groq,
+             .cohere, .mistral, .deepinfra, .deepseek, .fireworks, .cerebras, .none:
             return false
         }
     }
@@ -291,7 +314,7 @@ enum ModelCapabilityRegistry {
         }
 
         if lowerModelID.hasPrefix("google/") {
-            return supportsGeminiGoogleSearch(lowerModelID: lowerModelID)
+            return supportsGoogleSearch(lowerModelID: lowerModelID, providerType: .openrouter)
         }
 
         if lowerModelID.hasPrefix("x-ai/") || lowerModelID.hasPrefix("xai/") || lowerModelID.hasPrefix("perplexity/") {
@@ -301,14 +324,30 @@ enum ModelCapabilityRegistry {
         return false
     }
 
-    private static func supportsGeminiGoogleSearch(lowerModelID: String) -> Bool {
-        // Gemini 2.5 Flash Image is the known model that rejects Google Search grounding.
-        !lowerModelID.contains("gemini-2.5-flash-image")
+    private static func supportsGoogleSearch(lowerModelID: String, providerType: ProviderType?) -> Bool {
+        let canonical = canonicalGoogleModelID(lowerModelID: lowerModelID)
+
+        switch providerType {
+        case .gemini:
+            return geminiGoogleSearchSupportedModelIDs.contains(canonical)
+        case .vertexai:
+            return vertexGoogleSearchSupportedModelIDs.contains(canonical)
+        default:
+            return proxiedGoogleSearchSupportedModelIDs.contains(canonical)
+        }
     }
 
-    private static func supportsVertexGoogleSearch(lowerModelID: String) -> Bool {
-        // Vertex mirrors Gemini model-family search support behavior.
-        !lowerModelID.contains("gemini-2.5-flash-image")
+    private static func canonicalGoogleModelID(lowerModelID: String) -> String {
+        if lowerModelID.hasPrefix("google/") {
+            return String(lowerModelID.dropFirst("google/".count))
+        }
+        if lowerModelID.hasPrefix("google-ai-studio/") {
+            return String(lowerModelID.dropFirst("google-ai-studio/".count))
+        }
+        if lowerModelID.hasPrefix("google-vertex-ai/google/") {
+            return String(lowerModelID.dropFirst("google-vertex-ai/google/".count))
+        }
+        return lowerModelID
     }
 
     private static func isLikelyMediaGenerationModelID(_ lowerModelID: String) -> Bool {

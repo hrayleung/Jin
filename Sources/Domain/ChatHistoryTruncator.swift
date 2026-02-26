@@ -93,4 +93,3 @@ enum ChatHistoryTruncator {
         return max(1, trimmed.count / 4)
     }
 }
-

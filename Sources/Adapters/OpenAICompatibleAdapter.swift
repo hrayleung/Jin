@@ -251,16 +251,6 @@ actor OpenAICompatibleAdapter: LLMProviderAdapter {
         ModelCatalog.modelInfo(for: id, provider: providerConfig.type, name: id)
     }
 
-    private func supportsAudioInputModelID(_ lowerModelID: String) -> Bool {
-        if isAudioInputModelID(lowerModelID) {
-            if lowerModelID.contains("voxtral") && isMistralTranscriptionOnlyModelID(lowerModelID) {
-                return false
-            }
-            return true
-        }
-        return false
-    }
-
     private func isMistralTranscriptionOnlyModelID(_ lowerModelID: String) -> Bool {
         lowerModelID == "voxtral-mini-2602" || lowerModelID.contains("transcribe")
     }

@@ -251,9 +251,10 @@ actor PerplexityAdapter: LLMProviderAdapter {
 
     private func deepMerge(into base: inout [String: Any], additional: [String: Any]) {
         for (key, value) in additional {
-            if var baseDict = base[key] as? [String: Any], let addDict = value as? [String: Any] {
-                deepMerge(into: &baseDict, additional: addDict)
-                base[key] = baseDict
+            if var existingDict = base[key] as? [String: Any],
+               let newDict = value as? [String: Any] {
+                deepMerge(into: &existingDict, additional: newDict)
+                base[key] = existingDict
             } else {
                 base[key] = value
             }

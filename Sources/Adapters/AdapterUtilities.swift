@@ -379,6 +379,34 @@ func isAudioInputModelID(_ lowerModelID: String) -> Bool {
     return false
 }
 
+// MARK: - Fireworks Model ID Utilities
+
+private let fireworksMiniMaxM2CanonicalIDs: Set<String> = [
+    "minimax-m2", "minimax-m2p1", "minimax-m2p5"
+]
+
+/// Extracts the canonical (lowercased, prefix-stripped) Fireworks model ID.
+/// Returns nil if the model ID contains an unrecognized namespace prefix.
+func fireworksCanonicalModelID(_ modelID: String) -> String? {
+    let lower = modelID.lowercased()
+    if lower.hasPrefix("fireworks/") {
+        return String(lower.dropFirst("fireworks/".count))
+    }
+    if lower.hasPrefix("accounts/fireworks/models/") {
+        return String(lower.dropFirst("accounts/fireworks/models/".count))
+    }
+    if !lower.contains("/") {
+        return lower
+    }
+    return nil
+}
+
+/// Checks whether a Fireworks model ID belongs to the MiniMax M2 family.
+func isFireworksMiniMaxM2FamilyModel(_ modelID: String) -> Bool {
+    guard let canonical = fireworksCanonicalModelID(modelID) else { return false }
+    return fireworksMiniMaxM2CanonicalIDs.contains(canonical)
+}
+
 // MARK: - OpenAI-Compatible Streaming Dispatch
 
 /// Common send/stream dispatch for OpenAI Chat Completions-compatible adapters.

@@ -281,16 +281,11 @@ struct SearchActivity: Codable, Identifiable, Sendable {
     }
 
     func merged(with newer: SearchActivity) -> SearchActivity {
-        var mergedArguments = arguments
-        for (key, value) in newer.arguments {
-            mergedArguments[key] = value
-        }
-
-        return SearchActivity(
+        SearchActivity(
             id: id,
             type: newer.type.isEmpty ? type : newer.type,
             status: newer.status,
-            arguments: mergedArguments,
+            arguments: arguments.merging(newer.arguments) { _, new in new },
             outputIndex: newer.outputIndex ?? outputIndex,
             sequenceNumber: newer.sequenceNumber ?? sequenceNumber
         )

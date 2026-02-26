@@ -9,9 +9,7 @@ enum ProviderParamsJSONSync {
         let base: [String: Any]
 
         switch providerType {
-        case .openai:
-            base = makeOpenAIDraft(controls: controls, modelID: modelID)
-        case .openaiWebSocket:
+        case .openai, .openaiWebSocket:
             base = makeOpenAIDraft(controls: controls, modelID: modelID)
         case .anthropic:
             base = makeAnthropicDraft(controls: controls, modelID: modelID)
@@ -61,14 +59,7 @@ enum ProviderParamsJSONSync {
         )
 
         switch providerType {
-        case .openai:
-            applyOpenAI(
-                draft: normalizedDraft,
-                modelID: modelID,
-                controls: &controls,
-                providerSpecific: &providerSpecific
-            )
-        case .openaiWebSocket:
+        case .openai, .openaiWebSocket:
             applyOpenAI(
                 draft: normalizedDraft,
                 modelID: modelID,
@@ -2044,9 +2035,7 @@ enum ProviderParamsJSONSync {
             }
 
         case .openai, .openaiWebSocket, .codexAppServer, .cerebras, .fireworks, .openaiCompatible, .cloudflareAIGateway, .openrouter, .groq, .cohere, .mistral, .deepinfra, .xai, .deepseek, .none:
-            for (key, value) in additional {
-                base[key] = value
-            }
+            base.merge(additional) { _, new in new }
         }
     }
 
@@ -2089,39 +2078,14 @@ enum ProviderParamsJSONSync {
         }
     }
 
-    private static func isFireworksMiniMaxM2FamilyModel(_ modelID: String) -> Bool {
-        guard let canonicalID = fireworksCanonicalModelID(modelID) else { return false }
-        return canonicalID == "minimax-m2"
-            || canonicalID == "minimax-m2p1"
-            || canonicalID == "minimax-m2p5"
-    }
-
-    private static func fireworksCanonicalModelID(_ modelID: String) -> String? {
-        let lower = modelID.lowercased()
-        if lower.hasPrefix("fireworks/") {
-            return String(lower.dropFirst("fireworks/".count))
-        }
-        if lower.hasPrefix("accounts/fireworks/models/") {
-            return String(lower.dropFirst("accounts/fireworks/models/".count))
-        }
-        if !lower.contains("/") {
-            return lower
-        }
-        return nil
-    }
-
     private static func supportedFireworksReasoningHistoryValues(for modelID: String) -> Set<String> {
         if isFireworksMiniMaxM2FamilyModel(modelID) {
             return ["interleaved", "disabled"]
         }
 
-        let lower = modelID.lowercased()
-        if lower == "fireworks/kimi-k2p5"
-            || lower == "accounts/fireworks/models/kimi-k2p5"
-            || lower == "fireworks/glm-4p7"
-            || lower == "accounts/fireworks/models/glm-4p7"
-            || lower == "fireworks/glm-5"
-            || lower == "accounts/fireworks/models/glm-5" {
+        let preservedHistoryModels: Set<String> = ["kimi-k2p5", "glm-4p7", "glm-5"]
+        if let canonical = fireworksCanonicalModelID(modelID),
+           preservedHistoryModels.contains(canonical) {
             return ["preserved", "interleaved", "disabled"]
         }
 

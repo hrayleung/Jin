@@ -345,23 +345,4 @@ actor FireworksAdapter: LLMProviderAdapter {
     private func isFireworksModelID(_ modelID: String, canonicalID: String) -> Bool {
         fireworksCanonicalModelID(modelID) == canonicalID
     }
-
-    private func isFireworksMiniMaxM2FamilyModel(_ modelID: String) -> Bool {
-        guard let canonical = fireworksCanonicalModelID(modelID) else { return false }
-        return canonical == "minimax-m2" || canonical == "minimax-m2p1" || canonical == "minimax-m2p5"
-    }
-
-    private func fireworksCanonicalModelID(_ modelID: String) -> String? {
-        let lower = modelID.lowercased()
-        if lower.hasPrefix("fireworks/") {
-            return String(lower.dropFirst("fireworks/".count))
-        }
-        if lower.hasPrefix("accounts/fireworks/models/") {
-            return String(lower.dropFirst("accounts/fireworks/models/".count))
-        }
-        if !lower.contains("/") {
-            return lower
-        }
-        return nil
-    }
 }

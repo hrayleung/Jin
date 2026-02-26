@@ -120,7 +120,7 @@ extension VertexAIAdapter {
                         // Try inline base64 first
                         if let base64String = firstVideo["bytesBase64Encoded"] as? String,
                            let videoData = Data(base64Encoded: base64String, options: .ignoreUnknownCharacters) {
-                            let localURL = try GoogleVideoGenerationCore.saveVideoDataToLocal(
+                            let localURL = try VideoAttachmentUtility.saveDataToLocal(
                                 videoData,
                                 mimeType: "video/mp4"
                             )
@@ -134,7 +134,7 @@ extension VertexAIAdapter {
                         // Try GCS URI
                         if let gcsUri = firstVideo["gcsUri"] as? String, !gcsUri.isEmpty {
                             let downloadURL = try convertGCSURIToHTTPS(gcsUri)
-                            let (localURL, mimeType) = try await GoogleVideoGenerationCore.downloadVideoToLocal(
+                            let (localURL, mimeType) = try await VideoAttachmentUtility.downloadToLocal(
                                 from: downloadURL,
                                 networkManager: networkManager,
                                 authHeader: (key: "Authorization", value: "Bearer \(accessToken)")
