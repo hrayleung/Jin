@@ -54,6 +54,6 @@ enum AnthropicModelLimits {
     }
 
     private static func isModelFamily(_ lowercasedModelID: String, prefix: String) -> Bool {
-        lowercasedModelID == prefix || lowercasedModelID.contains("\(prefix)-")
+        lowercasedModelID == prefix || lowercasedModelID.hasPrefix("\(prefix)-")
     }
 }

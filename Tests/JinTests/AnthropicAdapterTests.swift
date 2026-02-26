@@ -832,6 +832,7 @@ final class AnthropicAdapterTests: XCTestCase {
         XCTAssertEqual(AnthropicModelLimits.maxOutputTokens(for: "claude-opus-4-5-20251101"), 64000)
         XCTAssertEqual(AnthropicModelLimits.maxOutputTokens(for: "claude-sonnet-4-5-20250929"), 64000)
         XCTAssertEqual(AnthropicModelLimits.maxOutputTokens(for: "claude-haiku-4-5-20251001"), 64000)
+        XCTAssertNil(AnthropicModelLimits.maxOutputTokens(for: "beta-claude-opus-4-6-variant"))
         XCTAssertNil(AnthropicModelLimits.maxOutputTokens(for: "claude-3-5-sonnet-20241022"))
     }
 
