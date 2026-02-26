@@ -13,7 +13,6 @@ struct WebSearchPluginSettings: Sendable {
     var firecrawlAPIKey: String
 
     var exaSearchType: ExaSearchType?
-    var exaUseAutoprompt: Bool
 
     var braveCountry: String?
     var braveLanguage: String?
@@ -21,6 +20,10 @@ struct WebSearchPluginSettings: Sendable {
 
     var jinaReadPages: Bool
     var firecrawlExtractContent: Bool
+
+    var tavilyAPIKey: String
+    var tavilySearchDepth: String?  // "basic" | "fast" | "advanced" | "ultra-fast"
+    var tavilyTopic: String?        // "general" | "news" | "finance"
 
     func apiKey(for provider: SearchPluginProvider) -> String {
         switch provider {
@@ -32,6 +35,8 @@ struct WebSearchPluginSettings: Sendable {
             return jinaAPIKey
         case .firecrawl:
             return firecrawlAPIKey
+        case .tavily:
+            return tavilyAPIKey
         }
     }
 
@@ -56,12 +61,14 @@ enum WebSearchPluginSettingsStore {
             defaultRecencyDays = clamp(recencyStored, min: 1, max: 365)
         }
 
-        let exaTypeRaw = defaults.string(forKey: AppPreferenceKeys.pluginWebSearchExaSearchType)
-        let exaType = ExaSearchType(rawValue: exaTypeRaw ?? "")
+        let exaType = ExaSearchType.resolved(from: defaults.string(forKey: AppPreferenceKeys.pluginWebSearchExaSearchType))
 
         let braveCountry = trimmed(defaults.string(forKey: AppPreferenceKeys.pluginWebSearchBraveCountry))
         let braveLanguage = trimmed(defaults.string(forKey: AppPreferenceKeys.pluginWebSearchBraveLanguage))
         let braveSafesearch = trimmed(defaults.string(forKey: AppPreferenceKeys.pluginWebSearchBraveSafesearch))
+
+        let tavilySearchDepth = trimmed(defaults.string(forKey: AppPreferenceKeys.pluginWebSearchTavilySearchDepth))
+        let tavilyTopic = trimmed(defaults.string(forKey: AppPreferenceKeys.pluginWebSearchTavilyTopic))
 
         return WebSearchPluginSettings(
             isEnabled: AppPreferences.isPluginEnabled("web_search_builtin", defaults: defaults),
@@ -73,12 +80,14 @@ enum WebSearchPluginSettingsStore {
             jinaAPIKey: trimmed(defaults.string(forKey: AppPreferenceKeys.pluginWebSearchJinaAPIKey)) ?? "",
             firecrawlAPIKey: trimmed(defaults.string(forKey: AppPreferenceKeys.pluginWebSearchFirecrawlAPIKey)) ?? "",
             exaSearchType: exaType,
-            exaUseAutoprompt: defaults.object(forKey: AppPreferenceKeys.pluginWebSearchExaUseAutoprompt) as? Bool ?? true,
             braveCountry: braveCountry,
             braveLanguage: braveLanguage,
             braveSafesearch: braveSafesearch,
             jinaReadPages: defaults.object(forKey: AppPreferenceKeys.pluginWebSearchJinaReadPages) as? Bool ?? true,
-            firecrawlExtractContent: defaults.object(forKey: AppPreferenceKeys.pluginWebSearchFirecrawlExtractContent) as? Bool ?? true
+            firecrawlExtractContent: defaults.object(forKey: AppPreferenceKeys.pluginWebSearchFirecrawlExtractContent) as? Bool ?? true,
+            tavilyAPIKey: trimmed(defaults.string(forKey: AppPreferenceKeys.pluginWebSearchTavilyAPIKey)) ?? "",
+            tavilySearchDepth: tavilySearchDepth,
+            tavilyTopic: tavilyTopic
         )
     }
 

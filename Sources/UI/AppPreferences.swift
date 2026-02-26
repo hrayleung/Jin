@@ -53,12 +53,14 @@ enum AppPreferenceKeys {
     static let pluginWebSearchJinaAPIKey = "pluginWebSearchJinaAPIKey"
     static let pluginWebSearchFirecrawlAPIKey = "pluginWebSearchFirecrawlAPIKey"
     static let pluginWebSearchExaSearchType = "pluginWebSearchExaSearchType"
-    static let pluginWebSearchExaUseAutoprompt = "pluginWebSearchExaUseAutoprompt"
     static let pluginWebSearchBraveCountry = "pluginWebSearchBraveCountry"
     static let pluginWebSearchBraveLanguage = "pluginWebSearchBraveLanguage"
     static let pluginWebSearchBraveSafesearch = "pluginWebSearchBraveSafesearch"
     static let pluginWebSearchJinaReadPages = "pluginWebSearchJinaReadPages"
     static let pluginWebSearchFirecrawlExtractContent = "pluginWebSearchFirecrawlExtractContent"
+    static let pluginWebSearchTavilyAPIKey = "pluginWebSearchTavilyAPIKey"
+    static let pluginWebSearchTavilySearchDepth = "pluginWebSearchTavilySearchDepth"
+    static let pluginWebSearchTavilyTopic = "pluginWebSearchTavilyTopic"
 
     // Cloudflare R2 Upload
     static let cloudflareR2AccountID = "cloudflareR2AccountID"

@@ -99,6 +99,8 @@ actor BuiltinSearchToolHub {
             output = try await searchJina(resolved, route: route)
         case .firecrawl:
             output = try await searchFirecrawl(resolved, route: route)
+        case .tavily:
+            output = try await searchTavily(resolved, route: route)
         }
 
         let text = prettyJSONString(from: output)
@@ -145,15 +147,15 @@ actor BuiltinSearchToolHub {
         }
 
         let defaultMaxResults = route.overrides?.maxResults ?? route.settings.defaultMaxResults
-        let maxResults = clamp(
-            firstInt(in: raw, keys: ["max_results", "maxResults", "results", "limit", "count"]) ?? defaultMaxResults,
-            min: 1,
-            max: 50
-        )
+        let requestedMaxResults = firstInt(in: raw, keys: ["max_results", "maxResults", "results", "limit", "count"]) ?? defaultMaxResults
+        let maxResults = max(0, requestedMaxResults)
 
         let defaultRecency = route.overrides?.recencyDays ?? route.settings.defaultRecencyDays
-        let recencyDays = firstInt(in: raw, keys: ["recency_days", "recencyDays"])
+        let rawRecencyDays = firstInt(in: raw, keys: ["recency_days", "recencyDays"])
             ?? defaultRecency
+        let recencyDays = rawRecencyDays.flatMap { value in
+            value == 0 ? nil : clamp(value, min: 1, max: 365)
+        }
 
         let includeRaw = firstBool(in: raw, keys: ["include_raw_content", "includeRawContent"])
             ?? route.overrides?.includeRawContent
@@ -179,7 +181,10 @@ actor BuiltinSearchToolHub {
     private static let defaultParameterSchema = ParameterSchema(
         properties: [
             "query": PropertySchema(type: "string", description: "What to search for."),
-            "max_results": PropertySchema(type: "integer", description: "Maximum number of results to return (1-50)."),
+            "max_results": PropertySchema(
+                type: "integer",
+                description: "Maximum number of results to return (provider-specific limits apply, e.g. Tavily 0-20)."
+            ),
             "recency_days": PropertySchema(type: "integer", description: "Prefer results from the last N days."),
             "include_domains": PropertySchema(
                 type: "array",
@@ -205,16 +210,15 @@ actor BuiltinSearchToolHub {
         request.addValue("Bearer \(route.apiKey)", forHTTPHeaderField: "Authorization")
         request.addValue("application/json", forHTTPHeaderField: "Content-Type")
 
+        let maxResults = clamp(args.maxResults, min: 1, max: 50)
         var body: [String: Any] = [
             "query": args.query,
-            "numResults": args.maxResults
+            "numResults": maxResults
         ]
 
         if let searchType = route.overrides?.exaSearchType ?? route.settings.exaSearchType {
             body["type"] = searchType.rawValue
         }
-        body["useAutoprompt"] = route.overrides?.exaUseAutoprompt ?? route.settings.exaUseAutoprompt
-
         if !args.includeDomains.isEmpty {
             body["includeDomains"] = args.includeDomains
         }
@@ -226,19 +230,21 @@ actor BuiltinSearchToolHub {
             body["startPublishedDate"] = Self.iso8601String(start)
         }
         if args.includeRawContent {
-            body["text"] = true
+            // Exa API requires content retrieval to be nested under "contents"
+            body["contents"] = ["text": true]
         }
 
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
         let (data, _) = try await networkManager.sendRequest(request)
         let json = try parseJSONObject(data)
 
-        let results = parseArray(json["results"]).prefix(args.maxResults).compactMap { item -> SearchCitationRow? in
+        let results = parseArray(json["results"]).prefix(maxResults).compactMap { item -> SearchCitationRow? in
             guard let url = firstString(in: item, keys: ["url", "id"]) else { return nil }
             let title = firstString(in: item, keys: ["title"]) ?? URL(string: url)?.host ?? url
-            let firstHighlight = parseArray(item["highlights"]).first ?? [:]
+            let firstHighlight = highlights(from: item["highlights"])
             let snippet = firstString(in: item, keys: ["text", "summary", "snippet", "highlightsSummary"])
-                ?? firstString(in: firstHighlight, keys: ["text"])
+                ?? firstHighlight.flatMap { firstString(in: $0, keys: ["text", "highlight", "snippet"]) }
+                ?? firstString(in: item, keys: ["contents"])
             let publishedAt = firstString(in: item, keys: ["publishedDate", "published_at", "date"])
             return SearchCitationRow(
                 title: title,
@@ -260,74 +266,90 @@ actor BuiltinSearchToolHub {
     // MARK: - Brave
 
     private func searchBrave(_ args: ResolvedArguments, route: ToolRoute) async throws -> BuiltinSearchToolOutput {
-        var components = URLComponents(string: "https://api.search.brave.com/res/v1/web/search")
-        var queryItems: [URLQueryItem] = [
-            URLQueryItem(name: "q", value: args.query),
-            URLQueryItem(name: "count", value: String(args.maxResults))
-        ]
-
-        if let recency = args.recencyDays {
-            queryItems.append(URLQueryItem(name: "freshness", value: braveFreshnessValue(recencyDays: recency)))
-        }
+        let desiredMaxResults = max(1, args.maxResults)
+        let requestCount = desiredMaxResults <= BraveSearchAPI.maxCount ? desiredMaxResults : BraveSearchAPI.maxCount
+        let shouldIncludeExtraSnippets = args.includeRawContent
 
         let country = normalizedTrimmedString(route.overrides?.braveCountry) ?? route.settings.braveCountry
-        if let country {
-            queryItems.append(URLQueryItem(name: "country", value: country))
-        }
-
         let language = normalizedTrimmedString(route.overrides?.braveLanguage) ?? route.settings.braveLanguage
-        if let language {
-            queryItems.append(URLQueryItem(name: "search_lang", value: language))
-        }
-
         let safesearch = normalizedTrimmedString(route.overrides?.braveSafesearch) ?? route.settings.braveSafesearch
-        if let safesearch {
-            queryItems.append(URLQueryItem(name: "safesearch", value: safesearch))
+
+        let freshness = args.recencyDays.map { braveFreshnessValue(recencyDays: $0) }
+        let pageCount = Int(ceil(Double(desiredMaxResults) / Double(BraveSearchAPI.maxCount)))
+        let maxPages = min(pageCount, BraveSearchAPI.maxOffset + 1)
+
+        var seenURLs = Set<String>()
+        var rows: [SearchCitationRow] = []
+        rows.reserveCapacity(desiredMaxResults)
+
+        for pageIndex in 0..<maxPages {
+            guard rows.count < desiredMaxResults else { break }
+
+            guard let url = BraveSearchAPI.makeWebSearchURL(
+                query: args.query,
+                count: requestCount,
+                offset: pageIndex == 0 ? nil : pageIndex,
+                freshness: freshness,
+                country: country,
+                searchLanguage: language,
+                safesearch: safesearch,
+                extraSnippets: shouldIncludeExtraSnippets
+            ) else {
+                throw LLMError.invalidRequest(message: "Failed to construct Brave search URL.")
+            }
+
+            var request = URLRequest(url: url)
+            request.httpMethod = "GET"
+            request.addValue(route.apiKey, forHTTPHeaderField: "X-Subscription-Token")
+            request.addValue("application/json", forHTTPHeaderField: "Accept")
+
+            let (data, _) = try await networkManager.sendRequest(request)
+            let json = try parseJSONObject(data)
+
+            let query = json["query"] as? [String: Any] ?? [:]
+            let web = json["web"] as? [String: Any] ?? [:]
+            let results = parseArray(web["results"])
+            let moreResultsAvailable = firstBool(in: query, keys: ["more_results_available"])
+            for item in results {
+                guard rows.count < desiredMaxResults else { break }
+
+                guard let url = firstString(in: item, keys: ["url", "profile", "link"]) else { continue }
+                guard seenURLs.insert(url).inserted else { continue }
+
+                let title = firstString(in: item, keys: ["title"]) ?? URL(string: url)?.host ?? url
+                let snippet = braveSnippet(from: item, includeExtraSnippets: shouldIncludeExtraSnippets)
+                let publishedAt = firstString(in: item, keys: ["age", "page_age", "published"])
+
+                rows.append(
+                    SearchCitationRow(
+                        title: title,
+                        url: url,
+                        snippet: snippet,
+                        publishedAt: publishedAt,
+                        source: urlHost(url)
+                    )
+                )
+            }
+
+            if moreResultsAvailable == false || (moreResultsAvailable == nil && results.isEmpty) {
+                break
+            }
         }
 
-        components?.queryItems = queryItems
-        guard let url = components?.url else {
-            throw LLMError.invalidRequest(message: "Failed to construct Brave search URL.")
-        }
-
-        var request = URLRequest(url: url)
-        request.httpMethod = "GET"
-        request.addValue(route.apiKey, forHTTPHeaderField: "X-Subscription-Token")
-        request.addValue("application/json", forHTTPHeaderField: "Accept")
-
-        let (data, _) = try await networkManager.sendRequest(request)
-        let json = try parseJSONObject(data)
-        let web = json["web"] as? [String: Any] ?? [:]
-        let rows = parseArray(web["results"]).prefix(args.maxResults).compactMap { item -> SearchCitationRow? in
-            guard let url = firstString(in: item, keys: ["url", "profile", "link"]) else { return nil }
-            let title = firstString(in: item, keys: ["title"]) ?? URL(string: url)?.host ?? url
-            let snippet = firstString(in: item, keys: ["description", "snippet", "extra_snippets"])
-            let publishedAt = firstString(in: item, keys: ["age", "page_age", "published"])
-            return SearchCitationRow(
-                title: title,
-                url: url,
-                snippet: snippet,
-                publishedAt: publishedAt,
-                source: urlHost(url)
-            )
-        }
-
-        return BuiltinSearchToolOutput(
-            provider: .brave,
-            query: args.query,
-            resultCount: rows.count,
-            results: rows
-        )
+        return BuiltinSearchToolOutput(provider: .brave, query: args.query, resultCount: rows.count, results: rows)
     }
 
     // MARK: - Jina
 
     private func searchJina(_ args: ResolvedArguments, route: ToolRoute) async throws -> BuiltinSearchToolOutput {
-        var components = URLComponents(string: "https://s.jina.ai/search")
-        components?.queryItems = [
-            URLQueryItem(name: "q", value: args.query),
-            URLQueryItem(name: "count", value: String(args.maxResults))
-        ]
+        // Jina Search API: GET https://s.jina.ai/<encoded-query>
+        let encoded = args.query.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? args.query
+        var components = URLComponents(string: "https://s.jina.ai/\(encoded)")
+        let queryItems: [URLQueryItem] = args.includeDomains.map { domain in
+            URLQueryItem(name: "site", value: domain)
+        }
+        let resolvedMaxResults = min(max(args.maxResults, 1), 5)
+        components?.queryItems = queryItems
 
         guard let url = components?.url else {
             throw LLMError.invalidRequest(message: "Failed to construct Jina search URL.")
@@ -339,17 +361,30 @@ actor BuiltinSearchToolHub {
         request.addValue("application/json", forHTTPHeaderField: "Accept")
 
         let (data, _) = try await networkManager.sendRequest(request)
-        let json = try parseJSONObject(data)
+        let response = try parseJSON(data)
 
-        var rawResults = parseArray(json["data"])
-        if rawResults.isEmpty {
-            rawResults = parseArray(json["results"])
+        var rawResults: [[String: Any]]
+        switch response {
+        case let results as [[String: Any]]:
+            rawResults = results
+        case let results as [Any]:
+            rawResults = parseArray(results)
+        case let dict as [String: Any]:
+            rawResults = parseArray(dict["data"])
+            if rawResults.isEmpty {
+                rawResults = parseArray(dict["web"])
+            }
+            if rawResults.isEmpty {
+                rawResults = parseArray(dict["results"])
+            }
+        default:
+            throw LLMError.decodingError(message: "Unexpected Jina response format.")
         }
 
-        var rows = rawResults.prefix(args.maxResults).compactMap { item -> SearchCitationRow? in
+        var rows = rawResults.prefix(resolvedMaxResults).compactMap { item -> SearchCitationRow? in
             guard let url = firstString(in: item, keys: ["url", "link"]) else { return nil }
             let title = firstString(in: item, keys: ["title"]) ?? URL(string: url)?.host ?? url
-            let snippet = firstString(in: item, keys: ["snippet", "summary", "description", "text"])
+            let snippet = firstString(in: item, keys: ["snippet", "summary", "description", "text", "content"])
             let publishedAt = firstString(in: item, keys: ["publishedDate", "date", "published"])
             return SearchCitationRow(
                 title: title,
@@ -419,22 +454,20 @@ actor BuiltinSearchToolHub {
     // MARK: - Firecrawl
 
     private func searchFirecrawl(_ args: ResolvedArguments, route: ToolRoute) async throws -> BuiltinSearchToolOutput {
-        var request = URLRequest(url: try validatedURL("https://api.firecrawl.dev/v1/search"))
+        var request = URLRequest(url: try validatedURL("https://api.firecrawl.dev/v2/search"))
         request.httpMethod = "POST"
         request.addValue("Bearer \(route.apiKey)", forHTTPHeaderField: "Authorization")
         request.addValue("application/json", forHTTPHeaderField: "Content-Type")
         request.addValue("application/json", forHTTPHeaderField: "Accept")
 
+        let maxResults = clamp(args.maxResults, min: 1, max: 50)
         var body: [String: Any] = [
             "query": args.query,
-            "limit": args.maxResults
+            "limit": maxResults
         ]
 
         if let recency = args.recencyDays {
             body["tbs"] = firecrawlRecencyValue(recencyDays: recency)
-        }
-        if let language = normalizedTrimmedString(route.overrides?.braveLanguage) ?? route.settings.braveLanguage {
-            body["lang"] = language
         }
         if let country = normalizedTrimmedString(route.overrides?.braveCountry) ?? route.settings.braveCountry {
             body["country"] = country
@@ -449,15 +482,25 @@ actor BuiltinSearchToolHub {
         let (data, _) = try await networkManager.sendRequest(request)
         let json = try parseJSONObject(data)
 
+        if let success = json["success"] as? Bool, !success {
+            throw LLMError.invalidRequest(message: firecrawlErrorMessage(from: json))
+        }
+
         var raw = parseArray(json["data"])
+        if raw.isEmpty {
+            raw = parseArray((json["data"] as? [String: Any])?["web"])
+        }
+        if raw.isEmpty {
+            raw = parseArray((json["data"] as? [String: Any])?["results"])
+        }
         if raw.isEmpty {
             raw = parseArray(json["results"])
         }
 
-        let rows = raw.prefix(args.maxResults).compactMap { item -> SearchCitationRow? in
+        let rows = raw.prefix(maxResults).compactMap { item -> SearchCitationRow? in
             guard let url = firstString(in: item, keys: ["url", "link"]) else { return nil }
             let title = firstString(in: item, keys: ["title"]) ?? URL(string: url)?.host ?? url
-            let snippet = firstString(in: item, keys: ["description", "markdown", "content", "snippet", "summary"])
+            let snippet = firstString(in: item, keys: ["description", "markdown", "summary", "content", "snippet"])
             let publishedAt = firstString(in: item, keys: ["publishedDate", "published", "date"])
             return SearchCitationRow(
                 title: title,
@@ -476,7 +519,99 @@ actor BuiltinSearchToolHub {
         )
     }
 
+    // MARK: - Tavily
+
+    private func searchTavily(_ args: ResolvedArguments, route: ToolRoute) async throws -> BuiltinSearchToolOutput {
+        var request = URLRequest(url: try validatedURL("https://api.tavily.com/search"))
+        request.httpMethod = "POST"
+        request.addValue("Bearer \(route.apiKey)", forHTTPHeaderField: "Authorization")
+        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.addValue("application/json", forHTTPHeaderField: "Accept")
+
+        // max_results: Tavily supports 0-20
+        let clampedMax = clamp(args.maxResults, min: 0, max: 20)
+
+        var body: [String: Any] = [
+            "query": args.query,
+            "max_results": clampedMax
+        ]
+
+        // Tavily supports "basic", "fast", "advanced", and "ultra-fast".
+        let searchDepth = tavilySearchDepthValue(
+            normalizedTrimmedString(route.overrides?.tavilySearchDepth)
+                ?? route.settings.tavilySearchDepth
+        )
+        body["search_depth"] = searchDepth
+
+        // topic: "general" | "news" | "finance"
+        let topic = tavilyTopicValue(
+            normalizedTrimmedString(route.overrides?.tavilyTopic)
+                ?? route.settings.tavilyTopic
+        )
+        body["topic"] = topic
+
+        // Prefer exact recency windows over bucketed time ranges.
+        if let recency = args.recencyDays {
+            if let startDate = Calendar.current.date(
+                byAdding: .day,
+                value: -recency,
+                to: Date()
+            ) {
+                let date = tavilyDateFormatter.string(from: startDate)
+                body["start_date"] = date
+                body["end_date"] = tavilyDateFormatter.string(from: Date())
+            } else {
+                body["time_range"] = tavilyTimeRange(recencyDays: recency)
+            }
+        }
+
+        if !args.includeDomains.isEmpty {
+            body["include_domains"] = Array(args.includeDomains.prefix(300))
+        }
+        if !args.excludeDomains.isEmpty {
+            // Tavily excludes up to 150 domains (include_domains supports a larger limit).
+            body["exclude_domains"] = Array(args.excludeDomains.prefix(150))
+        }
+
+        // include_raw_content: include cleaned markdown/snippets when requested
+        if args.includeRawContent {
+            body["include_raw_content"] = "markdown"
+        }
+
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        let (data, _) = try await networkManager.sendRequest(request)
+        let json = try parseJSONObject(data)
+
+        let rows = parseArray(json["results"]).prefix(clampedMax).compactMap { item -> SearchCitationRow? in
+            guard let url = firstString(in: item, keys: ["url"]) else { return nil }
+            let title = firstString(in: item, keys: ["title"]) ?? URL(string: url)?.host ?? url
+            // "content" is the primary snippet; "raw_content" is full page text when requested
+            let snippet = firstString(
+                in: item,
+                keys: ["raw_content", "content", "text", "snippet", "summary"]
+            )
+            return SearchCitationRow(
+                title: title,
+                url: url,
+                snippet: snippet.map { String($0.prefix(500)) },
+                publishedAt: firstString(in: item, keys: ["published_date", "publishedDate", "published_at", "published"]),
+                source: urlHost(url)
+            )
+        }
+
+        return BuiltinSearchToolOutput(
+            provider: .tavily,
+            query: args.query,
+            resultCount: rows.count,
+            results: rows
+        )
+    }
+
     // MARK: - Helpers
+
+    private func parseJSON(_ data: Data) throws -> Any {
+        try JSONSerialization.jsonObject(with: data)
+    }
 
     private func parseJSONObject(_ data: Data) throws -> [String: Any] {
         guard let object = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
@@ -491,6 +626,25 @@ actor BuiltinSearchToolHub {
         }
         if let array = value as? [Any] {
             return array.compactMap { $0 as? [String: Any] }
+        }
+        return []
+    }
+
+    private func stringValues(_ value: Any?) -> [String] {
+        if let values = value as? [String] {
+            return values.compactMap { normalizedTrimmedString($0) }
+        }
+        if let values = value as? [Any] {
+            return values.compactMap { item in
+                if let value = item as? String {
+                    return normalizedTrimmedString(value)
+                }
+                if let value = item as? [String: Any],
+                   let text = firstString(in: value, keys: ["text", "message", "detail"]) {
+                    return text
+                }
+                return nil
+            }
         }
         return []
     }
@@ -542,6 +696,36 @@ actor BuiltinSearchToolHub {
         return nil
     }
 
+    private func firecrawlErrorMessage(from json: [String: Any]) -> String {
+        if let errors = firstString(in: json, keys: ["error", "message", "status"])?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+           !errors.isEmpty {
+            return errors
+        }
+
+        let flattenedErrors = stringValues(json["errors"])
+        if let first = flattenedErrors.first {
+            return first
+        }
+
+        if let details = firstString(in: json, keys: ["details"]),
+           !details.isEmpty {
+            return details
+        }
+
+        return "Unknown Firecrawl error."
+    }
+
+    private func highlights(from value: Any?) -> [String: Any]? {
+        if let values = value as? [String] {
+            return values.isEmpty ? nil : ["text": values[0]]
+        }
+        if let value = value as? [[String: Any]], let first = value.first {
+            return first
+        }
+        return value as? [String: Any]
+    }
+
     private func firstStringArray(in dictionary: [String: Any], keys: [String]) -> [String] {
         for key in keys {
             if let value = dictionary[key] as? [String] {
@@ -582,6 +766,51 @@ actor BuiltinSearchToolHub {
         }
     }
 
+    private func tavilyTimeRange(recencyDays: Int) -> String {
+        switch recencyDays {
+        case ...1:
+            return "day"
+        case ...7:
+            return "week"
+        case ...31:
+            return "month"
+        default:
+            return "year"
+        }
+    }
+
+    private var tavilyDateFormatter: DateFormatter {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter
+    }
+
+    private func tavilySearchDepthValue(_ value: String?) -> String {
+        guard let depth = normalizedTrimmedString(value)?.lowercased() else {
+            return "basic"
+        }
+        let normalized = depth.replacingOccurrences(of: "-", with: "_")
+
+        switch normalized {
+        case "basic", "fast", "advanced", "ultra_fast":
+            return normalized == "ultra_fast" ? "ultra-fast" : normalized
+        default:
+            return "basic"
+        }
+    }
+
+    private func tavilyTopicValue(_ value: String?) -> String {
+        guard let topic = normalizedTrimmedString(value)?.lowercased() else { return "general" }
+        switch topic {
+        case "general", "news", "finance":
+            return topic
+        default:
+            return "general"
+        }
+    }
+
     private func firecrawlRecencyValue(recencyDays: Int) -> String {
         switch recencyDays {
         case ...1:
@@ -601,6 +830,33 @@ actor BuiltinSearchToolHub {
 
     private func clamp(_ value: Int, min minimum: Int, max maximum: Int) -> Int {
         Swift.max(minimum, Swift.min(maximum, value))
+    }
+
+    private func braveSnippet(from item: [String: Any], includeExtraSnippets: Bool) -> String? {
+        var parts: [String] = []
+        var seenParts = Set<String>()
+
+        for value in [
+            firstString(in: item, keys: ["description"]),
+            firstString(in: item, keys: ["snippet"])
+        ].compactMap({ $0 }) {
+            if seenParts.insert(value).inserted {
+                parts.append(value)
+            }
+        }
+
+        if includeExtraSnippets {
+            let extras = firstStringArray(in: item, keys: ["extra_snippets"])
+            for extra in extras where seenParts.insert(extra).inserted {
+                parts.append(extra)
+            }
+        }
+
+        let joined = parts
+            .joined(separator: "\n")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !joined.isEmpty else { return nil }
+        return String(joined.prefix(500))
     }
 }
 

@@ -80,6 +80,7 @@ enum SearchPluginProvider: String, Codable, CaseIterable, Identifiable, Sendable
     case brave
     case jina
     case firecrawl
+    case tavily
 
     var id: String { rawValue }
 
@@ -89,6 +90,7 @@ enum SearchPluginProvider: String, Codable, CaseIterable, Identifiable, Sendable
         case .brave: return "Brave Search"
         case .jina: return "Jina Search"
         case .firecrawl: return "Firecrawl"
+        case .tavily: return "Tavily"
         }
     }
 
@@ -98,14 +100,32 @@ enum SearchPluginProvider: String, Codable, CaseIterable, Identifiable, Sendable
         case .brave: return "Br"
         case .jina: return "Jina"
         case .firecrawl: return "FC"
+        case .tavily: return "Tv"
         }
     }
 }
 
 enum ExaSearchType: String, Codable, CaseIterable, Sendable {
     case auto
-    case keyword
+    case fast
+    case deep
     case neural
+    case instant
+
+    static let publicCases: [ExaSearchType] = [.auto, .fast, .neural, .deep, .instant]
+
+    static func resolved(from rawValue: String?) -> ExaSearchType? {
+        guard let value = rawValue?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(),
+              !value.isEmpty else {
+            return nil
+        }
+
+        // Keep compatibility with legacy UI/config values.
+        if value == "keyword" {
+            return .fast
+        }
+        return ExaSearchType(rawValue: value)
+    }
 }
 
 /// Built-in web search controls (app plugin-backed).
@@ -119,7 +139,6 @@ struct SearchPluginControls: Codable, Sendable {
 
     // Exa-specific
     var exaSearchType: ExaSearchType?
-    var exaUseAutoprompt: Bool?
 
     // Brave-specific
     var braveCountry: String?
@@ -129,6 +148,10 @@ struct SearchPluginControls: Codable, Sendable {
     // Firecrawl-specific
     var firecrawlExtractContent: Bool?
 
+    // Tavily-specific
+    var tavilySearchDepth: String?  // "basic" | "fast" | "advanced" | "ultra_fast"
+    var tavilyTopic: String?        // "general" | "news" | "finance"
+
     init(
         preferJinSearch: Bool? = nil,
         provider: SearchPluginProvider? = nil,
@@ -137,11 +160,12 @@ struct SearchPluginControls: Codable, Sendable {
         includeRawContent: Bool? = nil,
         fetchPageContent: Bool? = nil,
         exaSearchType: ExaSearchType? = nil,
-        exaUseAutoprompt: Bool? = nil,
         braveCountry: String? = nil,
         braveLanguage: String? = nil,
         braveSafesearch: String? = nil,
-        firecrawlExtractContent: Bool? = nil
+        firecrawlExtractContent: Bool? = nil,
+        tavilySearchDepth: String? = nil,
+        tavilyTopic: String? = nil
     ) {
         self.preferJinSearch = preferJinSearch
         self.provider = provider
@@ -150,11 +174,12 @@ struct SearchPluginControls: Codable, Sendable {
         self.includeRawContent = includeRawContent
         self.fetchPageContent = fetchPageContent
         self.exaSearchType = exaSearchType
-        self.exaUseAutoprompt = exaUseAutoprompt
         self.braveCountry = braveCountry
         self.braveLanguage = braveLanguage
         self.braveSafesearch = braveSafesearch
         self.firecrawlExtractContent = firecrawlExtractContent
+        self.tavilySearchDepth = tavilySearchDepth
+        self.tavilyTopic = tavilyTopic
     }
 }
 
