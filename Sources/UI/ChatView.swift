@@ -8,6 +8,7 @@ struct ChatView: View {
     static let initialMessageRenderLimit = 24
     static let messageRenderPageSize = 40
     static let eagerCodeHighlightTailCount = 12
+    static let nonLazyMessageStackThreshold = 80
     static let pinnedBottomRefreshDelays: [TimeInterval] = [0, 0.04, 0.14]
 
     @Environment(\.modelContext) private var modelContext
@@ -40,6 +41,7 @@ struct ChatView: View {
     @State private var messageRenderLimit: Int = Self.initialMessageRenderLimit
     @State private var pendingRestoreScrollMessageID: UUID?
     @State private var isPinnedToBottom = true
+    @State private var pinnedBottomRefreshGeneration = 0
     @State private var isExpandedComposerPresented = false
 
     // Cache expensive derived data so typing/streaming doesn't repeatedly sort/decode the entire history.
@@ -414,12 +416,103 @@ struct ChatView: View {
         .padding(.bottom, 2)
     }
 
+    @ViewBuilder
+    private func chatMessageRows(
+        visibleMessages: [MessageRenderItem],
+        hiddenCount: Int,
+        allMessagesCount: Int,
+        bubbleMaxWidth: CGFloat,
+        assistantDisplayName: String,
+        providerIconID: String?,
+        eagerCodeHighlightStartIndex: Int,
+        toolResultsByCallID: [String: ToolResult],
+        messageEntitiesByID: [UUID: MessageEntity]
+    ) -> some View {
+        if hiddenCount > 0 {
+            LoadEarlierMessagesRow(
+                hiddenCount: hiddenCount,
+                pageSize: Self.messageRenderPageSize,
+                onLoad: {
+                    guard let firstVisible = visibleMessages.first else { return }
+                    pendingRestoreScrollMessageID = firstVisible.id
+                    messageRenderLimit = min(allMessagesCount, messageRenderLimit + Self.messageRenderPageSize)
+                }
+            )
+            .id("loadEarlier")
+        }
+
+        ForEach(Array(visibleMessages.enumerated()), id: \.element.id) { index, message in
+            MessageRow(
+                item: message,
+                maxBubbleWidth: bubbleMaxWidth,
+                assistantDisplayName: assistantDisplayName,
+                providerIconID: providerIconID,
+                deferCodeHighlightUpgrade: index < eagerCodeHighlightStartIndex,
+                toolResultsByCallID: toolResultsByCallID,
+                actionsEnabled: !isStreaming,
+                textToSpeechEnabled: textToSpeechPluginEnabled,
+                textToSpeechConfigured: textToSpeechConfigured,
+                textToSpeechIsGenerating: ttsPlaybackManager.isGenerating(messageID: message.id),
+                textToSpeechIsPlaying: ttsPlaybackManager.isPlaying(messageID: message.id),
+                textToSpeechIsPaused: ttsPlaybackManager.isPaused(messageID: message.id),
+                onToggleSpeakAssistantMessage: { messageID, text in
+                    guard let entity = messageEntitiesByID[messageID] else { return }
+                    toggleSpeakAssistantMessage(entity, text: text)
+                },
+                onStopSpeakAssistantMessage: { messageID in
+                    guard let entity = messageEntitiesByID[messageID] else { return }
+                    stopSpeakAssistantMessage(entity)
+                },
+                onRegenerate: { messageID in
+                    guard let entity = messageEntitiesByID[messageID] else { return }
+                    regenerateMessage(entity)
+                },
+                onEditUserMessage: { messageID in
+                    guard let entity = messageEntitiesByID[messageID] else { return }
+                    beginEditingUserMessage(entity)
+                },
+                editingUserMessageID: editingUserMessageID,
+                editingUserMessageText: $editingUserMessageText,
+                editingUserMessageFocused: $isEditingUserMessageFocused,
+                onSubmitUserEdit: { messageID in
+                    guard let entity = messageEntitiesByID[messageID] else { return }
+                    submitEditingUserMessage(entity)
+                },
+                onCancelUserEdit: {
+                    cancelEditingUserMessage()
+                }
+            )
+            .id(message.id)
+        }
+
+        // Streaming message
+        if let streaming = streamingMessage {
+            StreamingMessageView(
+                state: streaming,
+                maxBubbleWidth: bubbleMaxWidth,
+                assistantDisplayName: assistantDisplayName,
+                modelLabel: streamingModelLabel,
+                providerIconID: providerIconID,
+                onContentUpdate: { }
+            )
+            .id("streaming")
+        }
+
+        Color.clear
+            .frame(height: composerHeight + 24)
+            .id("bottom")
+    }
+
     private func chatScrollView(geometry: GeometryProxy, proxy: ScrollViewProxy) -> some View {
         func refreshPinnedBottomIfNeeded() {
             guard isPinnedToBottom else { return }
+            pinnedBottomRefreshGeneration &+= 1
+            let refreshGeneration = pinnedBottomRefreshGeneration
 
             for delay in Self.pinnedBottomRefreshDelays {
                 DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                    guard refreshGeneration == pinnedBottomRefreshGeneration else { return }
+                    guard isPinnedToBottom else { return }
                     proxy.scrollTo("bottom", anchor: .bottom)
                 }
             }
@@ -436,81 +529,38 @@ struct ChatView: View {
             let visibleMessages = Array(allMessages.suffix(messageRenderLimit))
             let hiddenCount = allMessages.count - visibleMessages.count
             let eagerCodeHighlightStartIndex = max(0, visibleMessages.count - Self.eagerCodeHighlightTailCount)
+            let useLazyMessageStack = visibleMessages.count > Self.nonLazyMessageStackThreshold
 
-            LazyVStack(alignment: .leading, spacing: 16) {
-                if hiddenCount > 0 {
-                    LoadEarlierMessagesRow(
-                        hiddenCount: hiddenCount,
-                        pageSize: Self.messageRenderPageSize,
-                        onLoad: {
-                            guard let firstVisible = visibleMessages.first else { return }
-                            pendingRestoreScrollMessageID = firstVisible.id
-                            messageRenderLimit = min(allMessages.count, messageRenderLimit + Self.messageRenderPageSize)
-                        }
-                    )
-                    .id("loadEarlier")
+            Group {
+                if useLazyMessageStack {
+                    LazyVStack(alignment: .leading, spacing: 16) {
+                        chatMessageRows(
+                            visibleMessages: visibleMessages,
+                            hiddenCount: hiddenCount,
+                            allMessagesCount: allMessages.count,
+                            bubbleMaxWidth: bubbleMaxWidth,
+                            assistantDisplayName: assistantDisplayName,
+                            providerIconID: providerIconID,
+                            eagerCodeHighlightStartIndex: eagerCodeHighlightStartIndex,
+                            toolResultsByCallID: toolResultsByCallID,
+                            messageEntitiesByID: messageEntitiesByID
+                        )
+                    }
+                } else {
+                    VStack(alignment: .leading, spacing: 16) {
+                        chatMessageRows(
+                            visibleMessages: visibleMessages,
+                            hiddenCount: hiddenCount,
+                            allMessagesCount: allMessages.count,
+                            bubbleMaxWidth: bubbleMaxWidth,
+                            assistantDisplayName: assistantDisplayName,
+                            providerIconID: providerIconID,
+                            eagerCodeHighlightStartIndex: eagerCodeHighlightStartIndex,
+                            toolResultsByCallID: toolResultsByCallID,
+                            messageEntitiesByID: messageEntitiesByID
+                        )
+                    }
                 }
-
-                ForEach(Array(visibleMessages.enumerated()), id: \.element.id) { index, message in
-                    MessageRow(
-                        item: message,
-                        maxBubbleWidth: bubbleMaxWidth,
-                        assistantDisplayName: assistantDisplayName,
-                        providerIconID: providerIconID,
-                        deferCodeHighlightUpgrade: index < eagerCodeHighlightStartIndex,
-                        toolResultsByCallID: toolResultsByCallID,
-                        actionsEnabled: !isStreaming,
-                        textToSpeechEnabled: textToSpeechPluginEnabled,
-                        textToSpeechConfigured: textToSpeechConfigured,
-                        textToSpeechIsGenerating: ttsPlaybackManager.isGenerating(messageID: message.id),
-                        textToSpeechIsPlaying: ttsPlaybackManager.isPlaying(messageID: message.id),
-                        textToSpeechIsPaused: ttsPlaybackManager.isPaused(messageID: message.id),
-                        onToggleSpeakAssistantMessage: { messageID, text in
-                            guard let entity = messageEntitiesByID[messageID] else { return }
-                            toggleSpeakAssistantMessage(entity, text: text)
-                        },
-                        onStopSpeakAssistantMessage: { messageID in
-                            guard let entity = messageEntitiesByID[messageID] else { return }
-                            stopSpeakAssistantMessage(entity)
-                        },
-                        onRegenerate: { messageID in
-                            guard let entity = messageEntitiesByID[messageID] else { return }
-                            regenerateMessage(entity)
-                        },
-                        onEditUserMessage: { messageID in
-                            guard let entity = messageEntitiesByID[messageID] else { return }
-                            beginEditingUserMessage(entity)
-                        },
-                        editingUserMessageID: editingUserMessageID,
-                        editingUserMessageText: $editingUserMessageText,
-                        editingUserMessageFocused: $isEditingUserMessageFocused,
-                        onSubmitUserEdit: { messageID in
-                            guard let entity = messageEntitiesByID[messageID] else { return }
-                            submitEditingUserMessage(entity)
-                        },
-                        onCancelUserEdit: {
-                            cancelEditingUserMessage()
-                        }
-                    )
-                    .id(message.id)
-                }
-
-                // Streaming message
-                if let streaming = streamingMessage {
-                    StreamingMessageView(
-                        state: streaming,
-                        maxBubbleWidth: bubbleMaxWidth,
-                        assistantDisplayName: assistantDisplayName,
-                        modelLabel: streamingModelLabel,
-                        providerIconID: providerIconID,
-                        onContentUpdate: { }
-                    )
-                    .id("streaming")
-                }
-
-                Color.clear
-                    .frame(height: composerHeight + 24)
-                    .id("bottom")
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 20)
