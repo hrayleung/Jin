@@ -58,6 +58,7 @@ Note: this list reflects seeded models that are preloaded for quick start. Addit
 ## Features
 
 - **Multi-provider chat** — Switch between providers and models within the same workspace
+- **Parallel multi-model chat** — Ask up to 3 models in one chat, with side-by-side responses and independent per-model context
 - **Multimodal conversations** — Text, images, files, audio, and generated media in one thread
 - **Reasoning models** — Collapsible thinking blocks for models that support extended reasoning, with per-model budget controls
 - **Web search** — Provider-native search plus fallback through built-in search plugins (Exa, Brave, Jina, Firecrawl, Tavily), with in-chat search activity, citations, and source timeline
@@ -70,6 +71,10 @@ Note: this list reflects seeded models that are preloaded for quick start. Addit
 - **Assistants** — Named assistants with custom prompts, model defaults, language preference, temperature/output limits, and optional history truncation
 
 ## Screenshots
+
+<p align="center">
+  <img src="docs/screenshots/multi-model-chat.png" alt="Parallel multi-model conversation in one chat with side-by-side responses" width="1200" />
+</p>
 
 <p align="center">
   <img src="docs/screenshots/chat-web-search.png" alt="Chat with in-thread web search and source timeline" width="1200" />
