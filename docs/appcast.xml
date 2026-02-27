@@ -3,6 +3,15 @@
     <channel>
         <title>Jin</title>
         <item>
+            <title>0.55</title>
+            <pubDate>Sat, 28 Feb 2026 00:14:27 +0800</pubDate>
+            <link>https://github.com/hrayleung/Jin/releases</link>
+            <sparkle:version>218</sparkle:version>
+            <sparkle:shortVersionString>0.55</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <enclosure url="https://github.com/hrayleung/Jin/releases/download/v0.55/Jin-0.55.zip" length="22814466" type="application/octet-stream" sparkle:edSignature="wGyvdbdLBoHWzIbApTy71NS9S5kQNZiCxutEkyIoiuQff5ju035QM23jq6Atc2+F1VOV3+qweMT5pt5S8unuAg=="/>
+        </item>
+        <item>
             <title>0.54</title>
             <pubDate>Fri, 27 Feb 2026 19:57:46 +0800</pubDate>
             <link>https://github.com/hrayleung/Jin/releases</link>
@@ -82,15 +91,6 @@
             <sparkle:shortVersionString>0.46</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
             <enclosure url="https://github.com/hrayleung/Jin/releases/download/v0.46/Jin-v0.46.zip" length="22508489" type="application/octet-stream" sparkle:edSignature="10DdxtEJ867EG7jZ4KeIJWn6KP8XSutwqiYQj7Ha2PSQ5oVxyOYqBEd6oDQ+K3gEWc1ANNmjXEhl1khWtw4EAA=="/>
-        </item>
-        <item>
-            <title>0.45</title>
-            <pubDate>Tue, 24 Feb 2026 20:42:17 +0800</pubDate>
-            <link>https://github.com/hrayleung/Jin/releases</link>
-            <sparkle:version>177</sparkle:version>
-            <sparkle:shortVersionString>0.45</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <enclosure url="https://github.com/hrayleung/Jin/releases/download/v0.45/Jin-v0.45.zip" length="22294310" type="application/octet-stream" sparkle:edSignature="YSGtzlfk0h3DBF5V8AoqraOsK5ZiwxAq3nBVKyv5tvGwy5PlljLpEeYWyf08D3qib1YSSmgsBn/v0t6dMv0pDw=="/>
         </item>
     </channel>
 </rss>
