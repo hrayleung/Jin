@@ -3459,6 +3459,11 @@ struct ChatView: View {
         parts.reserveCapacity(attachments.count + (messageText.isEmpty ? 0 : 1) + (remoteVideoURL == nil ? 0 : 1))
 
         if let remoteVideoURL {
+            guard profile.supportsVideoGenerationControl else {
+                throw LLMError.invalidRequest(
+                    message: "Remote video URL is only supported by video-capable models. (\(profile.modelName))"
+                )
+            }
             parts.append(.video(VideoContent(mimeType: inferredVideoMIMEType(from: remoteVideoURL), data: nil, url: remoteVideoURL)))
         }
 
