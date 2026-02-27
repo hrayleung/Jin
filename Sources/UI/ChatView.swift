@@ -3495,7 +3495,8 @@ struct ChatView: View {
                                 toolOutputLines.append("Tool \(call.name):\n\(normalizedContent)")
                             }
 
-                            if let activity = makeSearchActivityFromToolResult(
+                            if builtinRoutes.contains(functionName: call.name),
+                               let activity = makeSearchActivityFromToolResult(
                                 call: call,
                                 toolResultText: result.text,
                                 isError: result.isError,
@@ -3528,7 +3529,8 @@ struct ChatView: View {
                             }
                             toolOutputLines.append("Tool \(call.name) failed:\n\(llmErrorContent)")
 
-                            if let activity = makeSearchActivityFromToolResult(
+                            if builtinRoutes.contains(functionName: call.name),
+                               let activity = makeSearchActivityFromToolResult(
                                 call: call,
                                 toolResultText: llmErrorContent,
                                 isError: true,
