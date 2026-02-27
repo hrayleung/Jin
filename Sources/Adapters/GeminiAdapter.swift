@@ -659,8 +659,19 @@ actor GeminiAdapter: LLMProviderAdapter {
     }
 
     private func supportsThinking(_ modelID: String) -> Bool {
-        // Gemini 2.5 Flash Image does not support thinking; Gemini 3 Pro Image does.
+        // Gemini 2.5 Flash Image does not support thinking.
         modelID.lowercased() != "gemini-2.5-flash-image"
+    }
+
+    private func supportsThinkingConfig(_ modelID: String) -> Bool {
+        // Gemini 3 Pro Image is a thinking model, but does not support public
+        // thinkingConfig controls (for example thinkingLevel) in requests.
+        let lower = modelID.lowercased()
+        return supportsThinking(modelID) && lower != "gemini-3-pro-image-preview"
+    }
+
+    private func supportsThinkingLevel(_ modelID: String) -> Bool {
+        supportsThinkingConfig(modelID)
     }
 
     private func buildGenerationConfig(_ controls: GenerationControls, modelID: String) -> [String: Any] {
@@ -678,13 +689,13 @@ actor GeminiAdapter: LLMProviderAdapter {
         }
 
         // Gemini 3: dynamic thinking is on by default; thinkingLevel controls the amount of thinking.
-        if supportsThinking(modelID), let reasoning = controls.reasoning {
+        if supportsThinkingConfig(modelID), let reasoning = controls.reasoning {
             if reasoning.enabled {
                 var thinkingConfig: [String: Any] = [
                     "includeThoughts": true
                 ]
 
-                if let effort = reasoning.effort {
+                if let effort = reasoning.effort, supportsThinkingLevel(modelID) {
                     let normalizedEffort = ModelCapabilityRegistry.normalizedReasoningEffort(
                         effort,
                         for: .gemini,
@@ -696,7 +707,7 @@ actor GeminiAdapter: LLMProviderAdapter {
                 }
 
                 config["thinkingConfig"] = thinkingConfig
-            } else if isGemini3Model(modelID) {
+            } else if isGemini3Model(modelID), supportsThinkingLevel(modelID) {
                 // Best-effort "off": minimize thinking level (cannot be fully disabled for Gemini 3 Pro).
                 config["thinkingConfig"] = [
                     "thinkingLevel": defaultThinkingLevelWhenOff(modelID: modelID)
@@ -1068,8 +1079,10 @@ actor GeminiAdapter: LLMProviderAdapter {
             caps.insert(.reasoning)
             if lower == "gemini-3.1-flash-image-preview" {
                 reasoningConfig = ModelReasoningConfig(type: .effort, defaultEffort: .minimal)
-            } else {
+            } else if supportsThinkingConfig(id) {
                 reasoningConfig = ModelReasoningConfig(type: .effort, defaultEffort: .high)
+            } else {
+                reasoningConfig = nil
             }
         }
 

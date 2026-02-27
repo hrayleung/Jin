@@ -25,7 +25,12 @@ enum ModelSettingsResolver {
             fallback: model.contextWindow
         )
         let contextWindow = max(1, overrides?.contextWindow ?? inferredContextWindow)
-        var reasoningConfig = overrides?.reasoningConfig ?? model.reasoningConfig
+        let inferredReasoningConfig = inferredReasoningConfig(
+            for: providerType,
+            modelID: model.id,
+            fallback: model.reasoningConfig
+        )
+        var reasoningConfig = overrides?.reasoningConfig ?? inferredReasoningConfig
         if !capabilities.contains(.reasoning) {
             // Backward compatibility: older overrides could remove reasoning capability
             // without persisting an explicit reasoningConfig override.
@@ -91,6 +96,18 @@ enum ModelSettingsResolver {
     private static func inferredContextWindow(for providerType: ProviderType?, modelID: String, fallback: Int) -> Int {
         guard let providerType else { return fallback }
         return ModelCatalog.entry(for: modelID, provider: providerType)?.contextWindow ?? fallback
+    }
+
+    private static func inferredReasoningConfig(
+        for providerType: ProviderType?,
+        modelID: String,
+        fallback: ModelReasoningConfig?
+    ) -> ModelReasoningConfig? {
+        guard let providerType else { return fallback }
+        guard let entry = ModelCatalog.entry(for: modelID, provider: providerType) else {
+            return fallback
+        }
+        return entry.reasoningConfig
     }
 
 }

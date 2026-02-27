@@ -54,6 +54,15 @@ final class ModelCatalogTests: XCTestCase {
     }
 
     func testNanoBanana2CatalogMetadataUsesExactIDs() {
+        let proImage = ModelCatalog.modelInfo(
+            for: "gemini-3-pro-image-preview",
+            provider: .gemini
+        )
+        XCTAssertEqual(proImage.contextWindow, 65_536)
+        XCTAssertTrue(proImage.capabilities.contains(.imageGeneration))
+        XCTAssertTrue(proImage.capabilities.contains(.reasoning))
+        XCTAssertNil(proImage.reasoningConfig)
+
         let gemini = ModelCatalog.modelInfo(
             for: "gemini-3.1-flash-image-preview",
             provider: .gemini

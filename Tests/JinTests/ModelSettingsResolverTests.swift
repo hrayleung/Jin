@@ -380,9 +380,11 @@ final class ModelSettingsResolverTests: XCTestCase {
 
         let resolvedGemini = ModelSettingsResolver.resolve(model: legacyModel, providerType: .gemini)
         XCTAssertEqual(resolvedGemini.contextWindow, 1_048_576)
+        XCTAssertEqual(resolvedGemini.reasoningConfig?.defaultEffort, .high)
 
         let resolvedVertex = ModelSettingsResolver.resolve(model: legacyModel, providerType: .vertexai)
         XCTAssertEqual(resolvedVertex.contextWindow, 1_048_576)
+        XCTAssertEqual(resolvedVertex.reasoningConfig?.defaultEffort, .medium)
 
         let legacyNanoBanana = ModelInfo(
             id: "gemini-3.1-flash-image-preview",
@@ -395,9 +397,28 @@ final class ModelSettingsResolverTests: XCTestCase {
 
         let resolvedGeminiNanoBanana = ModelSettingsResolver.resolve(model: legacyNanoBanana, providerType: .gemini)
         XCTAssertEqual(resolvedGeminiNanoBanana.contextWindow, 131_072)
+        XCTAssertEqual(resolvedGeminiNanoBanana.reasoningConfig?.defaultEffort, .minimal)
 
         let resolvedVertexNanoBanana = ModelSettingsResolver.resolve(model: legacyNanoBanana, providerType: .vertexai)
         XCTAssertEqual(resolvedVertexNanoBanana.contextWindow, 131_072)
+        XCTAssertNil(resolvedVertexNanoBanana.reasoningConfig)
+
+        let legacyProImage = ModelInfo(
+            id: "gemini-3-pro-image-preview",
+            name: "Gemini 3 Pro Image Preview",
+            capabilities: [.streaming, .vision, .reasoning, .imageGeneration],
+            contextWindow: 128_000,
+            reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
+            isEnabled: true
+        )
+
+        let resolvedGeminiProImage = ModelSettingsResolver.resolve(model: legacyProImage, providerType: .gemini)
+        XCTAssertEqual(resolvedGeminiProImage.contextWindow, 65_536)
+        XCTAssertNil(resolvedGeminiProImage.reasoningConfig)
+
+        let resolvedVertexProImage = ModelSettingsResolver.resolve(model: legacyProImage, providerType: .vertexai)
+        XCTAssertEqual(resolvedVertexProImage.contextWindow, 65_536)
+        XCTAssertNil(resolvedVertexProImage.reasoningConfig)
     }
 
     func testResolverInfersContextWindowForKnownLegacyAnthropicPerplexityAndXAIModels() {
