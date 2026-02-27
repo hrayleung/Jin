@@ -601,6 +601,10 @@ struct ContentView: View {
         providers.first(where: { $0.id == providerID })?.resolvedProviderIconID
     }
 
+    private func modelName(id modelID: String, providerID: String) -> String {
+        providers.first(where: { $0.id == providerID })?.allModels.first(where: { $0.id == modelID })?.name ?? modelID
+    }
+
     private func resolveAssistantForContextMenu() -> AssistantEntity? {
         if let assistantContextMenuTargetID,
            let assistant = assistants.first(where: { $0.id == assistantContextMenuTargetID }) {
@@ -1059,7 +1063,7 @@ extension ContentView {
                             ConversationRowView(
                                 title: conversation.title,
                                 isStarred: isStarred,
-                                subtitle: "\(providerName(for: conversation.providerID)) • \(conversation.modelID)",
+                                subtitle: "\(providerName(for: conversation.providerID)) • \(modelName(id: conversation.modelID, providerID: conversation.providerID))",
                                 providerIconID: providerIconID(for: conversation.providerID),
                                 updatedAt: conversation.updatedAt,
                                 isStreaming: streamingStore.isStreaming(conversationID: conversation.id)

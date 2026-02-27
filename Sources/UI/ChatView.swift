@@ -2207,7 +2207,7 @@ struct ChatView: View {
     }
 
     private var currentModelName: String {
-        availableModels.first(where: { $0.id == conversationEntity.modelID })?.name ?? conversationEntity.modelID
+        currentProvider?.allModels.first(where: { $0.id == conversationEntity.modelID })?.name ?? conversationEntity.modelID
     }
 
     private var currentProvider: ProviderConfigEntity? {
