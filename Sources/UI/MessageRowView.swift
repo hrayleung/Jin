@@ -146,6 +146,7 @@ private struct VideoPlayerView: NSViewRepresentable {
 
 struct MessageRenderItem: Identifiable {
     let id: UUID
+    let contextThreadID: UUID?
     let role: String
     let timestamp: Date
     let renderedContentParts: [RenderedMessageContentPart]
@@ -188,6 +189,7 @@ struct MessageRow: View {
     let editingUserMessageFocused: Binding<Bool>
     let onSubmitUserEdit: (UUID) -> Void
     let onCancelUserEdit: () -> Void
+    let onActivate: (() -> Void)?
 
     var body: some View {
         let isUser = item.isUser
@@ -278,6 +280,10 @@ struct MessageRow: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 8)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            onActivate?()
+        }
     }
 
     @ViewBuilder
