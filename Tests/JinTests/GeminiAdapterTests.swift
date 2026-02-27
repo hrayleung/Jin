@@ -839,6 +839,53 @@ final class GeminiAdapterTests: XCTestCase {
         for try await _ in stream {}
     }
 
+    func testGeminiProImageOmitsThinkingConfigWhenReasoningControlsArePresent() async throws {
+        let (session, protocolType) = makeMockedURLSession()
+        let networkManager = NetworkManager(urlSession: session)
+
+        let providerConfig = ProviderConfig(
+            id: "g",
+            name: "Gemini",
+            type: .gemini,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://example.com/models/gemini-3-pro-image-preview:generateContent")
+
+            let body = try XCTUnwrap(requestBodyData(request))
+            let json = try XCTUnwrap(try JSONSerialization.jsonObject(with: body) as? [String: Any])
+            let generationConfig = try XCTUnwrap(json["generationConfig"] as? [String: Any])
+            XCTAssertNil(generationConfig["thinkingConfig"])
+
+            let response: [String: Any] = [
+                "candidates": [
+                    [
+                        "content": [
+                            "parts": [
+                                ["text": "OK"]
+                            ]
+                        ]
+                    ]
+                ]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = GeminiAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("draw")])],
+            modelID: "gemini-3-pro-image-preview",
+            controls: GenerationControls(reasoning: ReasoningControls(enabled: true, effort: .high)),
+            tools: [],
+            streaming: false
+        )
+
+        for try await _ in stream {}
+    }
+
     func testGemini25FlashImageDoesNotSendToolsOrGoogleSearch() async throws {
         let (session, protocolType) = makeMockedURLSession()
         let networkManager = NetworkManager(urlSession: session)
@@ -1092,7 +1139,11 @@ final class GeminiAdapterTests: XCTestCase {
         let models = try await adapter.fetchAvailableModels()
         let byID = Dictionary(uniqueKeysWithValues: models.map { ($0.id, $0) })
 
-        XCTAssertEqual(try XCTUnwrap(byID["gemini-3-pro-image-preview"]).contextWindow, 65_536)
+        let proImage = try XCTUnwrap(byID["gemini-3-pro-image-preview"])
+        XCTAssertEqual(proImage.contextWindow, 65_536)
+        XCTAssertTrue(proImage.capabilities.contains(.reasoning))
+        XCTAssertNil(proImage.reasoningConfig)
+
         XCTAssertEqual(try XCTUnwrap(byID["gemini-2.5-flash-image"]).contextWindow, 32_768)
         let nanoBanana = try XCTUnwrap(byID["gemini-3.1-flash-image-preview"])
         XCTAssertEqual(nanoBanana.contextWindow, 131_072)

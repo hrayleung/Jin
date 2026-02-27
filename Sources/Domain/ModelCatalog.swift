@@ -720,7 +720,7 @@ extension ModelCatalog {
         Record(id: "gemini-3-pro-image-preview", displayName: "Gemini 3 Pro Image (Preview)",
                capabilities: [.streaming, .vision, .reasoning, .imageGeneration],
                contextWindow: 65_536,
-               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
+               reasoningConfig: nil,
                isFullySupported: true, isSeeded: true),
         Record(id: "gemini-3.1-flash-image-preview", displayName: "Gemini 3.1 Flash Image (Preview)",
                capabilities: [.streaming, .vision, .reasoning, .nativePDF, .imageGeneration],
