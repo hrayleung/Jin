@@ -83,7 +83,7 @@ actor GeminiAdapter: LLMProviderAdapter {
         let (data, _) = try await networkManager.sendRequest(request)
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
-        let response = try decoder.decode(CachedContentsListResponse.self, from: data)
+        let response = try decoder.decode(GeminiCachedContentsListResponse.self, from: data)
         return response.cachedContents ?? []
     }
 
@@ -176,7 +176,7 @@ actor GeminiAdapter: LLMProviderAdapter {
             let (data, _) = try await networkManager.sendRequest(request)
             let decoder = JSONDecoder()
             decoder.keyDecodingStrategy = .convertFromSnakeCase
-            let response = try decoder.decode(GenerateContentResponse.self, from: data)
+            let response = try decoder.decode(GeminiGenerateContentResponse.self, from: data)
 
             // Handle prompt-level blocks explicitly (Gemini returns promptFeedback for blocked prompts).
             if response.promptFeedback?.blockReason != nil {
@@ -229,7 +229,7 @@ actor GeminiAdapter: LLMProviderAdapter {
 
                             let decoder = JSONDecoder()
                             decoder.keyDecodingStrategy = .convertFromSnakeCase
-                            let chunk = try decoder.decode(GenerateContentResponse.self, from: jsonData)
+                            let chunk = try decoder.decode(GeminiGenerateContentResponse.self, from: jsonData)
 
                             if chunk.promptFeedback?.blockReason != nil {
                                 continuation.yield(.error(.contentFiltered))
@@ -330,7 +330,7 @@ actor GeminiAdapter: LLMProviderAdapter {
 
             let decoder = JSONDecoder()
             decoder.keyDecodingStrategy = .convertFromSnakeCase
-            let response = try decoder.decode(ListModelsResponse.self, from: data)
+            let response = try decoder.decode(GeminiListModelsResponse.self, from: data)
 
             for model in response.models {
                 let info = makeModelInfo(from: model)
@@ -954,7 +954,7 @@ actor GeminiAdapter: LLMProviderAdapter {
         ]
     }
 
-    private func events(from part: GenerateContentResponse.Part) -> [StreamEvent] {
+    private func events(from part: GeminiGenerateContentResponse.Part) -> [StreamEvent] {
         var out: [StreamEvent] = []
 
         if part.thought == true {
@@ -990,7 +990,7 @@ actor GeminiAdapter: LLMProviderAdapter {
         return out
     }
 
-    private func searchActivities(from grounding: GenerateContentResponse.GroundingMetadata?) -> [StreamEvent] {
+    private func searchActivities(from grounding: GeminiGenerateContentResponse.GroundingMetadata?) -> [StreamEvent] {
         GoogleGroundingSearchActivities.events(
             from: grounding.map(toSharedGrounding),
             searchPrefix: "gemini-search",
@@ -999,7 +999,7 @@ actor GeminiAdapter: LLMProviderAdapter {
         )
     }
 
-    private func candidateGroundingMetadata(in candidates: [GenerateContentResponse.Candidate]?) -> GenerateContentResponse.GroundingMetadata? {
+    private func candidateGroundingMetadata(in candidates: [GeminiGenerateContentResponse.Candidate]?) -> GeminiGenerateContentResponse.GroundingMetadata? {
         guard let candidates else { return nil }
         for candidate in candidates {
             if let grounding = candidate.groundingMetadata {
@@ -1009,7 +1009,7 @@ actor GeminiAdapter: LLMProviderAdapter {
         return nil
     }
 
-    private func toSharedGrounding(_ g: GenerateContentResponse.GroundingMetadata) -> GoogleGroundingSearchActivities.GroundingMetadata {
+    private func toSharedGrounding(_ g: GeminiGenerateContentResponse.GroundingMetadata) -> GoogleGroundingSearchActivities.GroundingMetadata {
         GoogleGroundingSearchActivities.GroundingMetadata(
             webSearchQueries: g.webSearchQueries,
             retrievalQueries: g.retrievalQueries,
@@ -1025,7 +1025,7 @@ actor GeminiAdapter: LLMProviderAdapter {
         )
     }
 
-    private func isCandidateContentFiltered(_ candidate: GenerateContentResponse.Candidate) -> Bool {
+    private func isCandidateContentFiltered(_ candidate: GeminiGenerateContentResponse.Candidate) -> Bool {
         // Gemini can signal blocks via finishReason. Treat safety/blocked as filtered.
         let reason = (candidate.finishReason ?? "").uppercased()
         if reason == "SAFETY" || reason == "BLOCKED" || reason == "PROHIBITED_CONTENT" {
@@ -1034,7 +1034,7 @@ actor GeminiAdapter: LLMProviderAdapter {
         return false
     }
 
-    private func makeModelInfo(from model: ListModelsResponse.Model) -> ModelInfo {
+    private func makeModelInfo(from model: GeminiListModelsResponse.GeminiModel) -> ModelInfo {
         let id = model.id
         let lower = id.lowercased()
         let methods = Set(model.supportedGenerationMethods?.map { $0.lowercased() } ?? [])
@@ -1125,128 +1125,4 @@ actor GeminiAdapter: LLMProviderAdapter {
     }
 }
 
-// MARK: - DTOs
-
-private struct CachedContentsListResponse: Codable {
-    let cachedContents: [GeminiAdapter.CachedContentResource]?
-    let nextPageToken: String?
-}
-
-private struct ListModelsResponse: Codable {
-    let models: [Model]
-    let nextPageToken: String?
-
-    struct Model: Codable {
-        let name: String
-        let displayName: String?
-        let description: String?
-        let inputTokenLimit: Int?
-        let outputTokenLimit: Int?
-        let supportedGenerationMethods: [String]?
-
-        var id: String {
-            if name.lowercased().hasPrefix("models/") {
-                return String(name.dropFirst("models/".count))
-            }
-            return name
-        }
-    }
-}
-
-private struct GenerateContentResponse: Codable {
-    let candidates: [Candidate]?
-    let promptFeedback: PromptFeedback?
-    let usageMetadata: UsageMetadata?
-    let groundingMetadata: GroundingMetadata?
-
-    struct Candidate: Codable {
-        let content: Content?
-        let finishReason: String?
-        let groundingMetadata: GroundingMetadata?
-    }
-
-    struct Content: Codable {
-        let parts: [Part]?
-        let role: String?
-    }
-
-    struct Part: Codable {
-        let text: String?
-        let thought: Bool?
-        let thoughtSignature: String?
-        let functionCall: FunctionCall?
-        let functionResponse: FunctionResponse?
-        let inlineData: InlineData?
-    }
-
-    struct InlineData: Codable {
-        let mimeType: String?
-        let data: String?
-    }
-
-    struct FunctionCall: Codable {
-        let name: String
-        let args: [String: AnyCodable]?
-    }
-
-    struct FunctionResponse: Codable {
-        let name: String?
-        let response: [String: AnyCodable]?
-    }
-
-    struct PromptFeedback: Codable {
-        let blockReason: String?
-    }
-
-    struct UsageMetadata: Codable {
-        let promptTokenCount: Int?
-        let candidatesTokenCount: Int?
-        let totalTokenCount: Int?
-        let cachedContentTokenCount: Int?
-    }
-
-    struct GroundingMetadata: Codable {
-        let webSearchQueries: [String]?
-        let retrievalQueries: [String]?
-        let groundingChunks: [GroundingChunk]?
-        let groundingSupports: [GroundingSupport]?
-        let searchEntryPoint: SearchEntryPoint?
-
-        struct GroundingChunk: Codable {
-            let web: WebChunk?
-
-            struct WebChunk: Codable {
-                let uri: String?
-                let title: String?
-            }
-        }
-
-        struct SearchEntryPoint: Codable {
-            let renderedContent: String?
-            let sdkBlob: String?
-        }
-
-        struct GroundingSupport: Codable {
-            let segment: Segment?
-            let groundingChunkIndices: [Int]?
-
-            struct Segment: Codable {
-                let text: String?
-            }
-        }
-    }
-
-    func toUsage() -> Usage? {
-        guard let usageMetadata else { return nil }
-        guard let input = usageMetadata.promptTokenCount,
-              let output = usageMetadata.candidatesTokenCount else {
-            return nil
-        }
-        return Usage(
-            inputTokens: input,
-            outputTokens: output,
-            thinkingTokens: nil,
-            cachedTokens: usageMetadata.cachedContentTokenCount
-        )
-    }
-}
+// DTOs are defined in GeminiAdapterResponseTypes.swift

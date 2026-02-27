@@ -887,7 +887,7 @@ actor VertexAIAdapter: LLMProviderAdapter {
         decoder.keyDecodingStrategy = .convertFromSnakeCase
 
         if trimmed.hasPrefix("[") {
-            let responses = try decoder.decode([GenerateContentResponse].self, from: jsonData)
+            let responses = try decoder.decode([VertexGenerateContentResponse].self, from: jsonData)
             var events: [StreamEvent] = []
             var usage: Usage?
             for response in responses {
@@ -899,7 +899,7 @@ actor VertexAIAdapter: LLMProviderAdapter {
             return (events, usage)
         }
 
-        let response = try decoder.decode(GenerateContentResponse.self, from: jsonData)
+        let response = try decoder.decode(VertexGenerateContentResponse.self, from: jsonData)
         return (eventsFromVertexResponse(response), usageFromVertexResponse(response))
     }
 
@@ -960,7 +960,7 @@ actor VertexAIAdapter: LLMProviderAdapter {
         return results
     }
 
-    private func eventsFromVertexResponse(_ response: GenerateContentResponse) -> [StreamEvent] {
+    private func eventsFromVertexResponse(_ response: VertexGenerateContentResponse) -> [StreamEvent] {
         var events: [StreamEvent] = []
 
         if let candidate = response.candidates?.first,
@@ -1003,7 +1003,7 @@ actor VertexAIAdapter: LLMProviderAdapter {
         return events
     }
 
-    private func searchActivities(from grounding: GenerateContentResponse.GroundingMetadata?) -> [StreamEvent] {
+    private func searchActivities(from grounding: VertexGenerateContentResponse.GroundingMetadata?) -> [StreamEvent] {
         GoogleGroundingSearchActivities.events(
             from: grounding.map(toSharedGrounding),
             searchPrefix: "vertex-search",
@@ -1012,7 +1012,7 @@ actor VertexAIAdapter: LLMProviderAdapter {
         )
     }
 
-    private func toSharedGrounding(_ g: GenerateContentResponse.GroundingMetadata) -> GoogleGroundingSearchActivities.GroundingMetadata {
+    private func toSharedGrounding(_ g: VertexGenerateContentResponse.GroundingMetadata) -> GoogleGroundingSearchActivities.GroundingMetadata {
         GoogleGroundingSearchActivities.GroundingMetadata(
             webSearchQueries: g.webSearchQueries,
             retrievalQueries: g.retrievalQueries,
@@ -1028,7 +1028,7 @@ actor VertexAIAdapter: LLMProviderAdapter {
         )
     }
 
-    private func usageFromVertexResponse(_ response: GenerateContentResponse) -> Usage? {
+    private func usageFromVertexResponse(_ response: VertexGenerateContentResponse) -> Usage? {
         guard let usageMetadata = response.usageMetadata else { return nil }
         guard let input = usageMetadata.promptTokenCount,
               let output = usageMetadata.candidatesTokenCount else {
@@ -1086,90 +1086,5 @@ private enum VertexImageRequestTimeout {
     static let size4KSeconds: TimeInterval = 1_200
 }
 
-private struct VertexCachedContentsListResponse: Codable {
-    let cachedContents: [VertexAIAdapter.CachedContentResource]?
-    let nextPageToken: String?
-}
-
 // JWT types, PEM/DER parsing, and base64URL encoding are in VertexAIJWTSupport.swift
-
-// MARK: - Response Types
-
-private struct GenerateContentResponse: Codable {
-    let candidates: [Candidate]?
-    let usageMetadata: UsageMetadata?
-    let groundingMetadata: GroundingMetadata?
-
-    struct Candidate: Codable {
-        let content: Content?
-        let finishReason: String?
-        let groundingMetadata: GroundingMetadata?
-    }
-
-    struct Content: Codable {
-        let parts: [Part]?
-        let role: String?
-    }
-
-    struct Part: Codable {
-        let text: String?
-        let thought: Bool?
-        let thoughtSignature: String?
-        let functionCall: FunctionCall?
-        let functionResponse: FunctionResponse?
-        let inlineData: InlineData?
-    }
-
-    struct InlineData: Codable {
-        let mimeType: String?
-        let data: String?
-    }
-
-    struct FunctionCall: Codable {
-        let name: String
-        let args: [String: AnyCodable]?
-    }
-
-    struct FunctionResponse: Codable {
-        let name: String?
-        let response: [String: AnyCodable]?
-    }
-
-    struct UsageMetadata: Codable {
-        let promptTokenCount: Int?
-        let candidatesTokenCount: Int?
-        let totalTokenCount: Int?
-        let cachedContentTokenCount: Int?
-    }
-
-    struct GroundingMetadata: Codable {
-        let webSearchQueries: [String]?
-        let retrievalQueries: [String]?
-        let groundingChunks: [GroundingChunk]?
-        let groundingSupports: [GroundingSupport]?
-        let searchEntryPoint: SearchEntryPoint?
-
-        struct GroundingChunk: Codable {
-            let web: WebChunk?
-
-            struct WebChunk: Codable {
-                let uri: String?
-                let title: String?
-            }
-        }
-
-        struct SearchEntryPoint: Codable {
-            let renderedContent: String?
-            let sdkBlob: String?
-        }
-
-        struct GroundingSupport: Codable {
-            let segment: Segment?
-            let groundingChunkIndices: [Int]?
-
-            struct Segment: Codable {
-                let text: String?
-            }
-        }
-    }
-}
+// Response types are defined in VertexAIAdapterResponseTypes.swift

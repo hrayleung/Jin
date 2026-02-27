@@ -3206,130 +3206,7 @@ struct ChatView: View {
                 while iteration < maxToolIterations {
                     try Task.checkCancellation()
 
-                    var assistantPartRefs: [StreamedAssistantPartRef] = []
-                    var assistantTextSegments: [String] = []
-                    var assistantImageSegments: [ImageContent] = []
-                    var assistantVideoSegments: [VideoContent] = []
-                    var assistantThinkingSegments: [ThinkingBlockAccumulator] = []
-                    var toolCallsByID: [String: ToolCall] = [:]
-                    var toolCallOrder: [String] = []
-                    var searchActivitiesByID: [String: SearchActivity] = [:]
-                    var searchActivityOrder: [String] = []
-
-                    func appendAssistantTextDelta(_ delta: String) {
-                        guard !delta.isEmpty else { return }
-                        if let last = assistantPartRefs.last, case .text(let idx) = last {
-                            assistantTextSegments[idx].append(delta)
-                        } else {
-                            let idx = assistantTextSegments.count
-                            assistantTextSegments.append(delta)
-                            assistantPartRefs.append(.text(idx))
-                        }
-                    }
-
-                    func appendAssistantImage(_ image: ImageContent) {
-                        let idx = assistantImageSegments.count
-                        assistantImageSegments.append(image)
-                        assistantPartRefs.append(.image(idx))
-                    }
-
-                    func appendAssistantVideo(_ video: VideoContent) {
-                        let idx = assistantVideoSegments.count
-                        assistantVideoSegments.append(video)
-                        assistantPartRefs.append(.video(idx))
-                    }
-
-                    func appendAssistantThinkingDelta(_ delta: ThinkingDelta) {
-                        switch delta {
-                        case .thinking(let textDelta, let signature):
-                            if textDelta.isEmpty,
-                               let signature,
-                               let last = assistantPartRefs.last,
-                               case .thinking(let idx) = last {
-                                if assistantThinkingSegments[idx].signature != signature {
-                                    assistantThinkingSegments[idx].signature = signature
-                                }
-                                return
-                            }
-
-                            if let last = assistantPartRefs.last,
-                               case .thinking(let idx) = last,
-                               assistantThinkingSegments[idx].signature == signature {
-                                if !textDelta.isEmpty {
-                                    assistantThinkingSegments[idx].text.append(textDelta)
-                                }
-                                return
-                            }
-
-                            let idx = assistantThinkingSegments.count
-                            assistantThinkingSegments.append(
-                                ThinkingBlockAccumulator(text: textDelta, signature: signature)
-                            )
-                            assistantPartRefs.append(.thinking(idx))
-
-                        case .redacted(let data):
-                            assistantPartRefs.append(.redacted(RedactedThinkingBlock(data: data)))
-                        }
-                    }
-
-                    func upsertSearchActivity(_ activity: SearchActivity) {
-                        if let existing = searchActivitiesByID[activity.id] {
-                            searchActivitiesByID[activity.id] = existing.merged(with: activity)
-                        } else {
-                            searchActivityOrder.append(activity.id)
-                            searchActivitiesByID[activity.id] = activity
-                        }
-                    }
-
-                    func upsertToolCall(_ call: ToolCall) {
-                        if toolCallsByID[call.id] == nil {
-                            toolCallOrder.append(call.id)
-                            toolCallsByID[call.id] = call
-                            return
-                        }
-
-                        let existing = toolCallsByID[call.id]
-                        let mergedArguments = (existing?.arguments ?? [:]).merging(call.arguments) { _, newValue in newValue }
-                        let mergedSignature = call.signature ?? existing?.signature
-                        let mergedName = call.name.isEmpty ? (existing?.name ?? call.name) : call.name
-                        toolCallsByID[call.id] = ToolCall(
-                            id: call.id,
-                            name: mergedName,
-                            arguments: mergedArguments,
-                            signature: mergedSignature
-                        )
-                    }
-
-                    func buildAssistantParts() -> [ContentPart] {
-                        var parts: [ContentPart] = []
-                        parts.reserveCapacity(assistantPartRefs.count)
-
-                        for ref in assistantPartRefs {
-                            switch ref {
-                            case .text(let idx):
-                                parts.append(.text(assistantTextSegments[idx]))
-                            case .image(let idx):
-                                parts.append(.image(assistantImageSegments[idx]))
-                            case .video(let idx):
-                                parts.append(.video(assistantVideoSegments[idx]))
-                            case .thinking(let idx):
-                                let thinking = assistantThinkingSegments[idx]
-                                parts.append(.thinking(ThinkingBlock(text: thinking.text, signature: thinking.signature)))
-                            case .redacted(let redacted):
-                                parts.append(.redactedThinking(redacted))
-                            }
-                        }
-
-                        return parts
-                    }
-
-                    func buildSearchActivities() -> [SearchActivity] {
-                        searchActivityOrder.compactMap { searchActivitiesByID[$0] }
-                    }
-
-                    func buildToolCalls() -> [ToolCall] {
-                        toolCallOrder.compactMap { toolCallsByID[$0] }
-                    }
+                    var accumulator = StreamingResponseAccumulator()
 
                     await MainActor.run {
                         streamingState.reset()
@@ -3385,16 +3262,16 @@ struct ChatView: View {
                             break
                         case .contentDelta(let part):
                             if case .text(let delta) = part {
-                                appendAssistantTextDelta(delta)
+                                accumulator.appendTextDelta(delta)
                                 pendingTextDelta.append(delta)
                                 streamedCharacterCount += delta.count
                             } else if case .image(let image) = part {
-                                appendAssistantImage(image)
+                                accumulator.appendImage(image)
                             } else if case .video(let video) = part {
-                                appendAssistantVideo(video)
+                                accumulator.appendVideo(video)
                             }
                         case .thinkingDelta(let delta):
-                            appendAssistantThinkingDelta(delta)
+                            accumulator.appendThinkingDelta(delta)
                             switch delta {
                             case .thinking(let textDelta, _):
                                 if !textDelta.isEmpty {
@@ -3405,31 +3282,31 @@ struct ChatView: View {
                                 break
                             }
                         case .toolCallStart(let call):
-                            upsertToolCall(call)
+                            accumulator.upsertToolCall(call)
                             if builtinRoutes.contains(functionName: call.name),
                                let searchActivity = makeSearchActivityForToolCallStart(
                                    call: call,
                                    providerOverride: builtinRoutes.provider(for: call.name)
                                ) {
-                                upsertSearchActivity(searchActivity)
+                                accumulator.upsertSearchActivity(searchActivity)
                                 await MainActor.run {
                                     streamingState.upsertSearchActivity(searchActivity)
                                 }
                             }
-                            let visibleToolCalls = buildToolCalls()
+                            let visibleToolCalls = accumulator.buildToolCalls()
                             await MainActor.run {
                                 streamingState.setToolCalls(visibleToolCalls)
                             }
                         case .toolCallDelta:
                             break
                         case .toolCallEnd(let call):
-                            upsertToolCall(call)
-                            let visibleToolCalls = buildToolCalls()
+                            accumulator.upsertToolCall(call)
+                            let visibleToolCalls = accumulator.buildToolCalls()
                             await MainActor.run {
                                 streamingState.setToolCalls(visibleToolCalls)
                             }
                         case .searchActivity(let activity):
-                            upsertSearchActivity(activity)
+                            accumulator.upsertSearchActivity(activity)
                             await MainActor.run {
                                 streamingState.upsertSearchActivity(activity)
                             }
@@ -3444,9 +3321,9 @@ struct ChatView: View {
 
                     await flushStreamingUI(force: true)
 
-                    let toolCalls = buildToolCalls()
-                    let assistantParts = buildAssistantParts()
-                    let searchActivities = buildSearchActivities()
+                    let toolCalls = accumulator.buildToolCalls()
+                    let assistantParts = accumulator.buildAssistantParts()
+                    let searchActivities = accumulator.buildSearchActivities()
                     var persistedAssistantMessageID: UUID?
                     if !assistantParts.isEmpty || !toolCalls.isEmpty || !searchActivities.isEmpty {
                         let persistedParts = await AttachmentImportPipeline.persistImagesToDisk(assistantParts)

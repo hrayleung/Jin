@@ -77,8 +77,6 @@ All providers implement the `LLMProviderAdapter` protocol (`sendMessage`, `valid
 - `GenerationControlsResolver` - Resolves effective controls from assistant defaults + conversation overrides
 - `ProviderConfig` - Provider metadata, API key references, models
 - `JinModelSupport` - Model capability detection (`.videoGeneration`, `.imageGeneration`, `.promptCaching`, `.reasoning`, etc.)
-- `ProviderParamsJSONSync` - Syncs provider-specific JSON params bidirectionally between typed controls and raw JSON
-
 ### Persistence Layer
 
 SwiftData entities in `SwiftDataModels.swift`:
