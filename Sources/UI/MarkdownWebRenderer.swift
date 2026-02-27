@@ -198,7 +198,10 @@ private struct MarkdownWebRendererRepresentable: NSViewRepresentable {
 
         private func logLargeMarkdownIfNeeded(_ markdown: String) {
             let count = markdown.count
-            guard count >= largeMarkdownLogThreshold else { return }
+            guard count >= largeMarkdownLogThreshold else {
+                lastLoggedMarkdownCount = 0
+                return
+            }
             guard count - lastLoggedMarkdownCount >= largeMarkdownLogStep else { return }
             lastLoggedMarkdownCount = count
 
