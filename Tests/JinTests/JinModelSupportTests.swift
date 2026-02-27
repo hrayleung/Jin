@@ -50,10 +50,12 @@ final class JinModelSupportTests: XCTestCase {
 
     func testGeminiProvider3Point1PreviewIsMarkedAsFullySupported() {
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .gemini, modelID: "gemini-3.1-pro-preview"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .gemini, modelID: "gemini-3.1-flash-image-preview"))
     }
 
     func testVertexAIProvider3Point1PreviewIsMarkedAsFullySupported() {
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .vertexai, modelID: "gemini-3.1-pro-preview"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .vertexai, modelID: "gemini-3.1-flash-image-preview"))
     }
 
     func testXAIGrok41FastVariantsUseExactMatch() {
@@ -85,5 +87,10 @@ final class JinModelSupportTests: XCTestCase {
     func testXAINativePDFSupportUsesExactMatch() {
         XCTAssertTrue(JinModelSupport.supportsNativePDF(providerType: .xai, modelID: "grok-4-1-fast-reasoning"))
         XCTAssertFalse(JinModelSupport.supportsNativePDF(providerType: .xai, modelID: "grok-5"))
+    }
+
+    func testNanoBanana2NativePDFSupportUsesExactMatch() {
+        XCTAssertTrue(JinModelSupport.supportsNativePDF(providerType: .gemini, modelID: "gemini-3.1-flash-image-preview"))
+        XCTAssertTrue(JinModelSupport.supportsNativePDF(providerType: .vertexai, modelID: "gemini-3.1-flash-image-preview"))
     }
 }

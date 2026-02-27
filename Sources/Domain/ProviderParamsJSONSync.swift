@@ -1323,7 +1323,8 @@ enum ProviderParamsJSONSync {
             if let aspectRatio = imageControls.aspectRatio {
                 imageConfig["aspectRatio"] = aspectRatio.rawValue
             }
-            if isGemini3ProImageModel(modelID), let imageSize = imageControls.imageSize {
+            if let imageSize = imageControls.imageSize,
+               supportsGoogleImageSize(modelID, imageSize: imageSize) {
                 imageConfig["imageSize"] = imageSize.rawValue
             }
             if !imageConfig.isEmpty {
@@ -1367,7 +1368,7 @@ enum ProviderParamsJSONSync {
         if isGemini3ProImageModel(modelID),
            let sizeString = dict["imageSize"] as? String,
            let size = ImageOutputSize(rawValue: sizeString) {
-            image.imageSize = size
+            image.imageSize = supportsGoogleImageSize(modelID, imageSize: size) ? size : nil
         }
 
         controls.imageGeneration = image.isEmpty ? nil : image
@@ -1378,12 +1379,14 @@ enum ProviderParamsJSONSync {
         "gemini-3-pro",
         "gemini-3-pro-preview",
         "gemini-3.1-pro-preview",
+        "gemini-3.1-flash-image-preview",
         "gemini-3-flash-preview",
         "gemini-3-pro-image-preview",
     ]
 
     private static let geminiImageModelIDs: Set<String> = [
         "gemini-3-pro-image-preview",
+        "gemini-3.1-flash-image-preview",
         "gemini-2.5-flash-image",
     ]
 
@@ -1393,7 +1396,7 @@ enum ProviderParamsJSONSync {
     ]
 
     private static func geminiSupportsGoogleSearch(_ modelID: String) -> Bool {
-        modelID.lowercased() != "gemini-2.5-flash-image"
+        ModelCapabilityRegistry.supportsWebSearch(for: .gemini, modelID: modelID)
     }
 
     private static func geminiSupportsThinking(_ modelID: String) -> Bool {
@@ -1409,7 +1412,21 @@ enum ProviderParamsJSONSync {
     }
 
     private static func isGemini3ProImageModel(_ modelID: String) -> Bool {
-        modelID.lowercased() == "gemini-3-pro-image-preview"
+        // Models that support explicit imageSize controls.
+        let lower = modelID.lowercased()
+        return lower == "gemini-3-pro-image-preview" || lower == "gemini-3.1-flash-image-preview"
+    }
+
+    private static func supportsGoogleImageSize(_ modelID: String, imageSize: ImageOutputSize) -> Bool {
+        let lower = modelID.lowercased()
+        switch lower {
+        case "gemini-3.1-flash-image-preview":
+            return true
+        case "gemini-3-pro-image-preview":
+            return imageSize != .size512px
+        default:
+            return false
+        }
     }
 
     private static func isGoogleVideoModel(_ modelID: String) -> Bool {
@@ -1540,7 +1557,8 @@ enum ProviderParamsJSONSync {
             if let aspectRatio = imageControls.aspectRatio {
                 imageConfig["aspectRatio"] = aspectRatio.rawValue
             }
-            if isVertexGemini3ProImageModel(modelID), let imageSize = imageControls.imageSize {
+            if let imageSize = imageControls.imageSize,
+               supportsGoogleImageSize(modelID, imageSize: imageSize) {
                 imageConfig["imageSize"] = imageSize.rawValue
             }
             if let person = imageControls.vertexPersonGeneration {
@@ -1599,7 +1617,7 @@ enum ProviderParamsJSONSync {
         if isVertexGemini3ProImageModel(modelID),
            let sizeString = dict["imageSize"] as? String,
            let size = ImageOutputSize(rawValue: sizeString) {
-            image.imageSize = size
+            image.imageSize = supportsGoogleImageSize(modelID, imageSize: size) ? size : nil
         }
 
         if let personString = dict["personGeneration"] as? String,
@@ -1621,7 +1639,7 @@ enum ProviderParamsJSONSync {
     }
 
     private static func vertexSupportsGoogleSearch(_ modelID: String) -> Bool {
-        modelID.lowercased() != "gemini-2.5-flash-image"
+        ModelCapabilityRegistry.supportsWebSearch(for: .vertexai, modelID: modelID)
     }
 
     private static func vertexSupportsThinking(_ modelID: String) -> Bool {
@@ -1629,6 +1647,8 @@ enum ProviderParamsJSONSync {
     }
 
     private static func vertexSupportsThinkingConfig(_ modelID: String) -> Bool {
+        // Gemini image-generation models expose thinking but don't currently
+        // expose public thinkingConfig controls in Vertex requests.
         vertexSupportsThinking(modelID) && !isVertexGemini3ProImageModel(modelID)
     }
 

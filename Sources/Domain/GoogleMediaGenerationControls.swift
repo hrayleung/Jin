@@ -76,7 +76,8 @@ enum GoogleVideoPersonGeneration: String, Codable, CaseIterable {
 struct ImageGenerationControls: Codable {
     var responseMode: ImageResponseMode?
     var aspectRatio: ImageAspectRatio?
-    /// Gemini 3 Pro Image supports 1K/2K/4K. Keep `nil` for model default.
+    /// Gemini 3 Pro Image supports 1K/2K/4K; Gemini 3.1 Flash Image adds 512px.
+    /// Keep `nil` for model default.
     var imageSize: ImageOutputSize?
     var seed: Int?
     var vertexPersonGeneration: VertexImagePersonGeneration?
@@ -133,7 +134,10 @@ enum ImageResponseMode: String, Codable, CaseIterable {
 
 enum ImageAspectRatio: String, Codable, CaseIterable {
     case ratio1x1 = "1:1"
+    case ratio1x4 = "1:4"
+    case ratio1x8 = "1:8"
     case ratio3x4 = "3:4"
+    case ratio4x1 = "4:1"
     case ratio4x3 = "4:3"
     case ratio9x16 = "9:16"
     case ratio16x9 = "16:9"
@@ -141,14 +145,36 @@ enum ImageAspectRatio: String, Codable, CaseIterable {
     case ratio3x2 = "3:2"
     case ratio4x5 = "4:5"
     case ratio5x4 = "5:4"
+    case ratio8x1 = "8:1"
+    case ratio21x9 = "21:9"
+
+    static let defaultSupportedCases: [ImageAspectRatio] = [
+        .ratio1x1, .ratio3x4, .ratio4x3, .ratio9x16, .ratio16x9,
+        .ratio2x3, .ratio3x2, .ratio4x5, .ratio5x4
+    ]
+
+    static let nanoBanana2SupportedCases: [ImageAspectRatio] = [
+        .ratio1x1, .ratio1x4, .ratio1x8, .ratio2x3, .ratio3x2,
+        .ratio3x4, .ratio4x1, .ratio4x3, .ratio4x5, .ratio5x4,
+        .ratio8x1, .ratio9x16, .ratio16x9, .ratio21x9
+    ]
 
     var displayName: String { rawValue }
 }
 
 enum ImageOutputSize: String, Codable, CaseIterable {
+    case size512px = "512px"
     case size1K = "1K"
     case size2K = "2K"
     case size4K = "4K"
+
+    static let defaultSupportedCases: [ImageOutputSize] = [
+        .size1K, .size2K, .size4K
+    ]
+
+    static let nanoBanana2SupportedCases: [ImageOutputSize] = [
+        .size512px, .size1K, .size2K, .size4K
+    ]
 
     var displayName: String { rawValue }
 }

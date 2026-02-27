@@ -257,6 +257,14 @@ final class ModelSettingsResolverTests: XCTestCase {
             ModelCapabilityRegistry.supportedReasoningEfforts(for: .vertexai, modelID: "gemini-3.1-pro-preview"),
             [.low, .medium, .high]
         )
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .gemini, modelID: "gemini-3.1-flash-image-preview"),
+            [.minimal, .high]
+        )
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .vertexai, modelID: "gemini-3.1-flash-image-preview"),
+            [.minimal, .high]
+        )
     }
 
     func testGeminiAndVertexNormalizationClampsUnsupportedMinimalAndMedium() {
@@ -291,6 +299,22 @@ final class ModelSettingsResolverTests: XCTestCase {
         XCTAssertEqual(
             ModelCapabilityRegistry.normalizedReasoningEffort(.medium, for: .gemini, modelID: "gemini-3.1-pro-preview"),
             .medium
+        )
+        XCTAssertEqual(
+            ModelCapabilityRegistry.normalizedReasoningEffort(.low, for: .gemini, modelID: "gemini-3.1-flash-image-preview"),
+            .minimal
+        )
+        XCTAssertEqual(
+            ModelCapabilityRegistry.normalizedReasoningEffort(.medium, for: .gemini, modelID: "gemini-3.1-flash-image-preview"),
+            .high
+        )
+        XCTAssertEqual(
+            ModelCapabilityRegistry.normalizedReasoningEffort(.low, for: .vertexai, modelID: "gemini-3.1-flash-image-preview"),
+            .minimal
+        )
+        XCTAssertEqual(
+            ModelCapabilityRegistry.normalizedReasoningEffort(.medium, for: .vertexai, modelID: "gemini-3.1-flash-image-preview"),
+            .high
         )
     }
 
@@ -359,6 +383,21 @@ final class ModelSettingsResolverTests: XCTestCase {
 
         let resolvedVertex = ModelSettingsResolver.resolve(model: legacyModel, providerType: .vertexai)
         XCTAssertEqual(resolvedVertex.contextWindow, 1_048_576)
+
+        let legacyNanoBanana = ModelInfo(
+            id: "gemini-3.1-flash-image-preview",
+            name: "Gemini 3.1 Flash Image Preview",
+            capabilities: [.streaming, .vision, .reasoning, .imageGeneration],
+            contextWindow: 128_000,
+            reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+            isEnabled: true
+        )
+
+        let resolvedGeminiNanoBanana = ModelSettingsResolver.resolve(model: legacyNanoBanana, providerType: .gemini)
+        XCTAssertEqual(resolvedGeminiNanoBanana.contextWindow, 131_072)
+
+        let resolvedVertexNanoBanana = ModelSettingsResolver.resolve(model: legacyNanoBanana, providerType: .vertexai)
+        XCTAssertEqual(resolvedVertexNanoBanana.contextWindow, 131_072)
     }
 
     func testResolverInfersContextWindowForKnownLegacyAnthropicPerplexityAndXAIModels() {

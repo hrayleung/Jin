@@ -8,6 +8,8 @@ struct ImageGenerationSheetView: View {
 
     let providerType: ProviderType?
     let supportsImageSizeControl: Bool
+    let supportedAspectRatios: [ImageAspectRatio]
+    let supportedImageSizes: [ImageOutputSize]
     let isValid: Bool
 
     var onCancel: () -> Void
@@ -60,7 +62,7 @@ struct ImageGenerationSheetView: View {
 
             Picker("Aspect Ratio", selection: $draft.aspectRatio) {
                 Text("Default").tag(Optional<ImageAspectRatio>.none)
-                ForEach(ImageAspectRatio.allCases, id: \.self) { ratio in
+                ForEach(supportedAspectRatios, id: \.self) { ratio in
                     Text(ratio.displayName).tag(Optional(ratio))
                 }
             }
@@ -68,7 +70,7 @@ struct ImageGenerationSheetView: View {
             if supportsImageSizeControl {
                 Picker("Image Size", selection: $draft.imageSize) {
                     Text("Default").tag(Optional<ImageOutputSize>.none)
-                    ForEach(ImageOutputSize.allCases, id: \.self) { size in
+                    ForEach(supportedImageSizes, id: \.self) { size in
                         Text(size.displayName).tag(Optional(size))
                     }
                 }

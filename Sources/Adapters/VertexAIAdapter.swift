@@ -9,6 +9,7 @@ actor VertexAIAdapter: LLMProviderAdapter {
         "gemini-3-pro",
         "gemini-3-pro-preview",
         "gemini-3.1-pro-preview",
+        "gemini-3.1-flash-image-preview",
         "gemini-3-flash-preview",
         "gemini-3-pro-image-preview",
         "gemini-2.5",
@@ -21,6 +22,7 @@ actor VertexAIAdapter: LLMProviderAdapter {
     ]
     private static let geminiImageGenerationModelIDs: Set<String> = [
         "gemini-3-pro-image-preview",
+        "gemini-3.1-flash-image-preview",
         "gemini-2.5-flash-image",
     ]
     private static let gemini25TextModelIDs: Set<String> = [
@@ -34,6 +36,7 @@ actor VertexAIAdapter: LLMProviderAdapter {
         "gemini-3-pro",
         "gemini-3-pro-preview",
         "gemini-3.1-pro-preview",
+        "gemini-3.1-flash-image-preview",
         "gemini-3-flash-preview",
         "gemini-2.5",
         "gemini-2.5-pro",
@@ -251,6 +254,7 @@ actor VertexAIAdapter: LLMProviderAdapter {
         ("gemini-3.1-pro-preview", "Gemini 3.1 Pro Preview", 1_048_576),
         ("gemini-3-flash-preview", "Gemini 3 Flash Preview", 1_048_576),
         ("gemini-3-pro-image-preview", "Gemini 3 Pro Image Preview", 65_536),
+        ("gemini-3.1-flash-image-preview", "Gemini 3.1 Flash Image Preview", 131_072),
         // Gemini 2.5
         ("gemini-2.5-pro", "Gemini 2.5 Pro", 1_048_576),
         ("gemini-2.5-flash", "Gemini 2.5 Flash", 1_048_576),
@@ -463,14 +467,7 @@ actor VertexAIAdapter: LLMProviderAdapter {
         !isImageGenerationModel(modelID)
     }
 
-    private func supportsGoogleSearch(_ modelID: String) -> Bool {
-        // Gemini 2.5 Flash Image does not support grounding with Google Search.
-        modelID.lowercased() != "gemini-2.5-flash-image"
-    }
-
     private func supportsWebSearch(_ modelID: String) -> Bool {
-        guard supportsGoogleSearch(modelID) else { return false }
-
         if let model = configuredModel(for: modelID) {
             let resolved = ModelSettingsResolver.resolve(model: model, providerType: providerConfig.type)
             return resolved.supportsWebSearch
@@ -491,7 +488,17 @@ actor VertexAIAdapter: LLMProviderAdapter {
     }
 
     private func supportsImageSize(_ modelID: String) -> Bool {
-        modelID.lowercased() == "gemini-3-pro-image-preview"
+        let lower = modelID.lowercased()
+        return lower == "gemini-3-pro-image-preview" || lower == "gemini-3.1-flash-image-preview"
+    }
+
+    private func supportsImageSize(_ modelID: String, imageSize: ImageOutputSize) -> Bool {
+        guard supportsImageSize(modelID) else { return false }
+        let lower = modelID.lowercased()
+        if lower == "gemini-3-pro-image-preview" {
+            return imageSize != .size512px
+        }
+        return true
     }
 
     private func requestTimeoutInterval(for modelID: String, controls: GenerationControls) -> TimeInterval? {
@@ -500,6 +507,8 @@ actor VertexAIAdapter: LLMProviderAdapter {
         }
 
         switch controls.imageGeneration?.imageSize {
+        case .size512px:
+            return VertexImageRequestTimeout.size1KSeconds
         case .size4K:
             return VertexImageRequestTimeout.size4KSeconds
         case .size2K:
@@ -523,7 +532,10 @@ actor VertexAIAdapter: LLMProviderAdapter {
     private func supportsThinkingConfig(_ modelID: String) -> Bool {
         // Gemini 3 Pro Image supports thinking capability but doesn't accept
         // public thinkingConfig controls in generateContent.
-        supportsThinking(modelID) && modelID.lowercased() != "gemini-3-pro-image-preview"
+        let lower = modelID.lowercased()
+        return supportsThinking(modelID)
+            && lower != "gemini-3-pro-image-preview"
+            && lower != "gemini-3.1-flash-image-preview"
     }
 
     private func supportsThinkingLevel(_ modelID: String) -> Bool {
@@ -632,7 +644,7 @@ actor VertexAIAdapter: LLMProviderAdapter {
             if let aspectRatio = imageControls?.aspectRatio {
                 imageConfig["aspectRatio"] = aspectRatio.rawValue
             }
-            if supportsImageSize(modelID), let imageSize = imageControls?.imageSize {
+            if let imageSize = imageControls?.imageSize, supportsImageSize(modelID, imageSize: imageSize) {
                 imageConfig["imageSize"] = imageSize.rawValue
             }
             if let person = imageControls?.vertexPersonGeneration {

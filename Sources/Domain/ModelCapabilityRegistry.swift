@@ -22,6 +22,11 @@ enum ModelCapabilityRegistry {
         "gemini-3-flash-preview",
     ]
 
+    /// Gemini 3.1 Flash Image supports MINIMAL/HIGH.
+    private static let gemini31FlashImageEffortModelIDs: Set<String> = [
+        "gemini-3.1-flash-image-preview",
+    ]
+
     /// Gemini 3.1 Pro supports LOW/MEDIUM/HIGH.
     private static let gemini31ProEffortModelIDs: Set<String> = [
         "gemini-3.1-pro-preview",
@@ -41,6 +46,7 @@ enum ModelCapabilityRegistry {
         "gemini-3-pro-preview",
         "gemini-3-flash-preview",
         "gemini-3-pro-image-preview",
+        "gemini-3.1-flash-image-preview",
         "gemini-2.5-pro",
         "gemini-2.5-flash",
         "gemini-2.5-flash-lite",
@@ -48,12 +54,14 @@ enum ModelCapabilityRegistry {
         "gemini-2.0-flash-001",
     ]
 
-    /// Models documented by Google as supporting grounding with Google Search in Vertex AI.
+    /// Models supporting grounding with Google Search in Vertex AI.
+    /// Includes Gemini 3.1 Flash Image based on runtime validation.
     private static let vertexGoogleSearchSupportedModelIDs: Set<String> = [
         "gemini-3.1-pro-preview",
         "gemini-3-pro-preview",
         "gemini-3-flash-preview",
         "gemini-3-pro-image-preview",
+        "gemini-3.1-flash-image-preview",
         "gemini-2.5-pro",
         "gemini-2.5-flash",
         "gemini-2.5-flash-lite",
@@ -129,6 +137,9 @@ enum ModelCapabilityRegistry {
     }
 
     private static func supportedGeminiThinkingEfforts(lowerModelID: String) -> [ReasoningEffort] {
+        if gemini31FlashImageEffortModelIDs.contains(lowerModelID) {
+            return [.minimal, .high]
+        }
         if gemini3FlashEffortModelIDs.contains(lowerModelID) {
             return [.minimal, .low, .medium, .high]
         }

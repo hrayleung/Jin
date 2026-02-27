@@ -782,6 +782,8 @@ struct ChatView: View {
                 draftError: $imageGenerationDraftError,
                 providerType: providerType,
                 supportsImageSizeControl: supportsCurrentModelImageSizeControl,
+                supportedAspectRatios: supportedCurrentModelImageAspectRatios,
+                supportedImageSizes: supportedCurrentModelImageSizes,
                 isValid: isImageGenerationDraftValid,
                 onCancel: { showingImageGenerationSheet = false },
                 onSave: { applyImageGenerationDraft() }
@@ -1410,14 +1412,10 @@ struct ChatView: View {
 
     private var supportsImageGenerationWebSearch: Bool {
         guard supportsImageGenerationControl else { return false }
-        switch providerType {
-        case .gemini, .vertexai:
-            return lowerModelID != "gemini-2.5-flash-image"
-        case .perplexity:
-            return false
-        case .openai, .openaiWebSocket, .codexAppServer, .openaiCompatible, .cloudflareAIGateway, .openrouter, .anthropic, .groq, .cohere, .mistral, .deepinfra, .xai, .deepseek, .fireworks, .cerebras, .none:
-            return false
+        if let resolvedModelSettings {
+            return resolvedModelSettings.supportsWebSearch
         }
+        return ModelCapabilityRegistry.supportsWebSearch(for: providerType, modelID: conversationEntity.modelID)
     }
 
     private var supportsPDFProcessingControl: Bool {
@@ -1427,6 +1425,21 @@ struct ChatView: View {
 
     private var supportsCurrentModelImageSizeControl: Bool {
         lowerModelID == "gemini-3-pro-image-preview"
+            || lowerModelID == "gemini-3.1-flash-image-preview"
+    }
+
+    private var supportedCurrentModelImageAspectRatios: [ImageAspectRatio] {
+        if lowerModelID == "gemini-3.1-flash-image-preview" {
+            return ImageAspectRatio.nanoBanana2SupportedCases
+        }
+        return ImageAspectRatio.defaultSupportedCases
+    }
+
+    private var supportedCurrentModelImageSizes: [ImageOutputSize] {
+        if lowerModelID == "gemini-3.1-flash-image-preview" {
+            return ImageOutputSize.nanoBanana2SupportedCases
+        }
+        return ImageOutputSize.defaultSupportedCases
     }
 
     private var isImageGenerationConfigured: Bool {
@@ -1604,7 +1617,9 @@ struct ChatView: View {
     }
 
     private var selectedReasoningConfig: ModelReasoningConfig? {
-        if providerType == .vertexai, lowerModelID == "gemini-3-pro-image-preview" {
+        if providerType == .vertexai,
+           (lowerModelID == "gemini-3-pro-image-preview"
+               || lowerModelID == "gemini-3.1-flash-image-preview") {
             return nil
         }
         return resolvedModelSettings?.reasoningConfig
@@ -4608,7 +4623,13 @@ struct ChatView: View {
     }
 
     private func openImageGenerationEditor() {
-        let current = controls.imageGeneration ?? ImageGenerationControls()
+        var current = controls.imageGeneration ?? ImageGenerationControls()
+        if let ratio = current.aspectRatio, !supportedCurrentModelImageAspectRatios.contains(ratio) {
+            current.aspectRatio = nil
+        }
+        if let size = current.imageSize, !supportedCurrentModelImageSizes.contains(size) {
+            current.imageSize = nil
+        }
         imageGenerationDraft = current
         imageGenerationSeedDraft = current.seed.map(String.init) ?? ""
         imageGenerationCompressionQualityDraft = current.vertexCompressionQuality.map(String.init) ?? ""
@@ -4658,6 +4679,12 @@ struct ChatView: View {
 
         if !supportsCurrentModelImageSizeControl {
             draft.imageSize = nil
+        } else if let size = draft.imageSize, !supportedCurrentModelImageSizes.contains(size) {
+            draft.imageSize = nil
+        }
+
+        if let ratio = draft.aspectRatio, !supportedCurrentModelImageAspectRatios.contains(ratio) {
+            draft.aspectRatio = nil
         }
 
         if providerType != .vertexai {
@@ -5563,7 +5590,8 @@ struct ChatView: View {
 
         var mutated = false
 
-        if lowerModelID == "gemini-3-pro-image-preview" {
+        if lowerModelID == "gemini-3-pro-image-preview"
+            || lowerModelID == "gemini-3.1-flash-image-preview" {
             if generationConfig["thinkingConfig"] != nil {
                 generationConfig.removeValue(forKey: "thinkingConfig")
                 mutated = true
@@ -5717,6 +5745,13 @@ struct ChatView: View {
             } else {
                 if !supportsCurrentModelImageSizeControl {
                     controls.imageGeneration?.imageSize = nil
+                } else if let size = controls.imageGeneration?.imageSize,
+                          !supportedCurrentModelImageSizes.contains(size) {
+                    controls.imageGeneration?.imageSize = nil
+                }
+                if let ratio = controls.imageGeneration?.aspectRatio,
+                   !supportedCurrentModelImageAspectRatios.contains(ratio) {
+                    controls.imageGeneration?.aspectRatio = nil
                 }
                 if providerType != .vertexai {
                     controls.imageGeneration?.vertexPersonGeneration = nil
