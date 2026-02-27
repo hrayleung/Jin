@@ -52,4 +52,28 @@ final class ModelCatalogTests: XCTestCase {
         )
         XCTAssertTrue(realtime.capabilities.contains(.audio))
     }
+
+    func testNanoBanana2CatalogMetadataUsesExactIDs() {
+        let gemini = ModelCatalog.modelInfo(
+            for: "gemini-3.1-flash-image-preview",
+            provider: .gemini
+        )
+        XCTAssertEqual(gemini.contextWindow, 131_072)
+        XCTAssertTrue(gemini.capabilities.contains(.imageGeneration))
+        XCTAssertTrue(gemini.capabilities.contains(.nativePDF))
+        XCTAssertTrue(gemini.capabilities.contains(.reasoning))
+        XCTAssertFalse(gemini.capabilities.contains(.toolCalling))
+        XCTAssertEqual(gemini.reasoningConfig?.defaultEffort, .minimal)
+
+        let vertex = ModelCatalog.modelInfo(
+            for: "gemini-3.1-flash-image-preview",
+            provider: .vertexai
+        )
+        XCTAssertEqual(vertex.contextWindow, 131_072)
+        XCTAssertTrue(vertex.capabilities.contains(.imageGeneration))
+        XCTAssertTrue(vertex.capabilities.contains(.nativePDF))
+        XCTAssertTrue(vertex.capabilities.contains(.reasoning))
+        XCTAssertFalse(vertex.capabilities.contains(.toolCalling))
+        XCTAssertNil(vertex.reasoningConfig)
+    }
 }

@@ -17,11 +17,13 @@ actor GeminiAdapter: LLMProviderAdapter {
         "gemini-3-pro",
         "gemini-3-pro-preview",
         "gemini-3.1-pro-preview",
+        "gemini-3.1-flash-image-preview",
         "gemini-3-flash-preview",
         "gemini-3-pro-image-preview",
     ]
     private static let geminiImageGenerationModelIDs: Set<String> = [
         "gemini-3-pro-image-preview",
+        "gemini-3.1-flash-image-preview",
         "gemini-2.5-flash-image",
     ]
     private static let geminiKnownModelIDs: Set<String> = [
@@ -29,6 +31,7 @@ actor GeminiAdapter: LLMProviderAdapter {
         "gemini-3-pro",
         "gemini-3-pro-preview",
         "gemini-3.1-pro-preview",
+        "gemini-3.1-flash-image-preview",
         "gemini-3-flash-preview",
         "gemini-3-pro-image-preview",
         "gemini-2.5",
@@ -38,6 +41,14 @@ actor GeminiAdapter: LLMProviderAdapter {
         "gemini-2.5-flash-image",
         "gemini-2.0-flash",
         "gemini-2.0-flash-lite",
+    ]
+    private static let nativePDFModelIDs: Set<String> = [
+        "gemini-3",
+        "gemini-3-pro",
+        "gemini-3-pro-preview",
+        "gemini-3.1-pro-preview",
+        "gemini-3-flash-preview",
+        "gemini-3.1-flash-image-preview",
     ]
 
     private let networkManager: NetworkManager
@@ -446,7 +457,7 @@ actor GeminiAdapter: LLMProviderAdapter {
     }
 
     private func supportsNativePDF(_ modelID: String) -> Bool {
-        isGemini3Model(modelID) && !isImageGenerationModel(modelID)
+        Self.nativePDFModelIDs.contains(modelID.lowercased())
     }
 
     private func isGemini3Model(_ modelID: String) -> Bool {
@@ -612,17 +623,7 @@ actor GeminiAdapter: LLMProviderAdapter {
         !isImageGenerationModel(modelID)
     }
 
-    private func supportsGoogleSearch(_ modelID: String) -> Bool {
-        // Gemini 2.5 Flash Image does not support Google Search grounding.
-        if modelID.lowercased() == "gemini-2.5-flash-image" {
-            return false
-        }
-        return true
-    }
-
     private func supportsWebSearch(_ modelID: String) -> Bool {
-        guard supportsGoogleSearch(modelID) else { return false }
-
         if let model = configuredModel(for: modelID) {
             let resolved = ModelSettingsResolver.resolve(model: model, providerType: providerConfig.type)
             return resolved.supportsWebSearch
@@ -643,8 +644,18 @@ actor GeminiAdapter: LLMProviderAdapter {
     }
 
     private func supportsImageSize(_ modelID: String) -> Bool {
-        // imageSize is documented for Gemini 3 Pro Image.
-        modelID.lowercased() == "gemini-3-pro-image-preview"
+        // imageSize is documented for Gemini 3 Pro Image and Gemini 3.1 Flash Image.
+        let lower = modelID.lowercased()
+        return lower == "gemini-3-pro-image-preview" || lower == "gemini-3.1-flash-image-preview"
+    }
+
+    private func supportsImageSize(_ modelID: String, imageSize: ImageOutputSize) -> Bool {
+        guard supportsImageSize(modelID) else { return false }
+        let lower = modelID.lowercased()
+        if lower == "gemini-3-pro-image-preview" {
+            return imageSize != .size512px
+        }
+        return true
     }
 
     private func supportsThinking(_ modelID: String) -> Bool {
@@ -706,7 +717,7 @@ actor GeminiAdapter: LLMProviderAdapter {
             if let aspectRatio = imageControls?.aspectRatio {
                 imageConfig["aspectRatio"] = aspectRatio.rawValue
             }
-            if supportsImageSize(modelID), let imageSize = imageControls?.imageSize {
+            if let imageSize = imageControls?.imageSize, supportsImageSize(modelID, imageSize: imageSize) {
                 imageConfig["imageSize"] = imageSize.rawValue
             }
             if !imageConfig.isEmpty {
@@ -1055,7 +1066,11 @@ actor GeminiAdapter: LLMProviderAdapter {
         var reasoningConfig: ModelReasoningConfig?
         if supportsThinking(id) && isGeminiModel {
             caps.insert(.reasoning)
-            reasoningConfig = ModelReasoningConfig(type: .effort, defaultEffort: .high)
+            if lower == "gemini-3.1-flash-image-preview" {
+                reasoningConfig = ModelReasoningConfig(type: .effort, defaultEffort: .minimal)
+            } else {
+                reasoningConfig = ModelReasoningConfig(type: .effort, defaultEffort: .high)
+            }
         }
 
         if supportsNativePDF(id) {
@@ -1079,6 +1094,8 @@ actor GeminiAdapter: LLMProviderAdapter {
             contextWindow = inputTokenLimit
         } else if lower == "gemini-3-pro-image-preview" {
             contextWindow = 65_536
+        } else if lower == "gemini-3.1-flash-image-preview" {
+            contextWindow = 131_072
         } else if lower == "gemini-2.5-flash-image" {
             contextWindow = 32_768
         } else {

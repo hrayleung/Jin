@@ -1076,6 +1076,11 @@ final class GeminiAdapterTests: XCTestCase {
                         "name": "models/gemini-2.5-flash-image",
                         "displayName": "Gemini 2.5 Flash Image",
                         "supportedGenerationMethods": ["generateContent", "streamGenerateContent"]
+                    ],
+                    [
+                        "name": "models/gemini-3.1-flash-image-preview",
+                        "displayName": "Gemini 3.1 Flash Image Preview",
+                        "supportedGenerationMethods": ["generateContent", "streamGenerateContent"]
                     ]
                 ]
             ]
@@ -1089,6 +1094,12 @@ final class GeminiAdapterTests: XCTestCase {
 
         XCTAssertEqual(try XCTUnwrap(byID["gemini-3-pro-image-preview"]).contextWindow, 65_536)
         XCTAssertEqual(try XCTUnwrap(byID["gemini-2.5-flash-image"]).contextWindow, 32_768)
+        let nanoBanana = try XCTUnwrap(byID["gemini-3.1-flash-image-preview"])
+        XCTAssertEqual(nanoBanana.contextWindow, 131_072)
+        XCTAssertTrue(nanoBanana.capabilities.contains(.nativePDF))
+        XCTAssertTrue(nanoBanana.capabilities.contains(.reasoning))
+        XCTAssertFalse(nanoBanana.capabilities.contains(.toolCalling))
+        XCTAssertEqual(nanoBanana.reasoningConfig?.defaultEffort, .minimal)
     }
 }
 

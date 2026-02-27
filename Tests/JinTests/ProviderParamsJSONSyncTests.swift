@@ -129,6 +129,81 @@ final class ProviderParamsJSONSyncTests: XCTestCase {
         XCTAssertEqual(thinkingConfig["thinkingLevel"] as? String, "MEDIUM")
     }
 
+    func testGeminiNanoBananaDraftSupportsSearchGroundingAndImageSize() throws {
+        let controls = GenerationControls(
+            reasoning: ReasoningControls(enabled: true, effort: .high),
+            webSearch: WebSearchControls(enabled: true),
+            imageGeneration: ImageGenerationControls(
+                responseMode: .imageOnly,
+                aspectRatio: .ratio16x9,
+                imageSize: .size2K,
+                seed: 123
+            )
+        )
+
+        let draft = ProviderParamsJSONSync.makeDraft(
+            providerType: .gemini,
+            modelID: "gemini-3.1-flash-image-preview",
+            controls: controls
+        )
+
+        let generationConfig = try XCTUnwrap(draft["generationConfig"]?.value as? [String: Any])
+        let thinkingConfig = try XCTUnwrap(generationConfig["thinkingConfig"] as? [String: Any])
+        XCTAssertEqual(thinkingConfig["thinkingLevel"] as? String, "HIGH")
+
+        let imageConfig = try XCTUnwrap(generationConfig["imageConfig"] as? [String: Any])
+        XCTAssertEqual(imageConfig["aspectRatio"] as? String, "16:9")
+        XCTAssertEqual(imageConfig["imageSize"] as? String, "2K")
+
+        let tools = try XCTUnwrap(draft["tools"]?.value as? [[String: Any]])
+        XCTAssertEqual(tools.count, 1)
+        XCTAssertNotNil(tools.first?["google_search"])
+    }
+
+    func testVertexNanoBananaDraftOmitsThinkingConfigAndSupportsGoogleSearch() throws {
+        let controls = GenerationControls(
+            reasoning: ReasoningControls(enabled: true, effort: .high),
+            webSearch: WebSearchControls(enabled: true),
+            imageGeneration: ImageGenerationControls(
+                responseMode: .imageOnly,
+                imageSize: .size2K
+            )
+        )
+
+        let draft = ProviderParamsJSONSync.makeDraft(
+            providerType: .vertexai,
+            modelID: "gemini-3.1-flash-image-preview",
+            controls: controls
+        )
+
+        let generationConfig = try XCTUnwrap(draft["generationConfig"]?.value as? [String: Any])
+        XCTAssertNil(generationConfig["thinkingConfig"])
+        let imageConfig = try XCTUnwrap(generationConfig["imageConfig"] as? [String: Any])
+        XCTAssertEqual(imageConfig["imageSize"] as? String, "2K")
+        let tools = try XCTUnwrap(draft["tools"]?.value as? [[String: Any]])
+        XCTAssertEqual(tools.count, 1)
+        XCTAssertNotNil(tools.first?["googleSearch"])
+    }
+
+    func testGemini3ProImageDraftOmitsUnsupported512pxImageSize() throws {
+        let controls = GenerationControls(
+            imageGeneration: ImageGenerationControls(
+                responseMode: .imageOnly,
+                imageSize: .size512px
+            )
+        )
+
+        let draft = ProviderParamsJSONSync.makeDraft(
+            providerType: .gemini,
+            modelID: "gemini-3-pro-image-preview",
+            controls: controls
+        )
+
+        let generationConfig = try XCTUnwrap(draft["generationConfig"]?.value as? [String: Any])
+        let imageConfig = generationConfig["imageConfig"] as? [String: Any]
+        XCTAssertNil(imageConfig?["imageSize"])
+    }
+
     func testOpenAIDraftClampsUnsupportedXHighEffortToHigh() throws {
         let controls = GenerationControls(reasoning: ReasoningControls(enabled: true, effort: .xhigh))
 
