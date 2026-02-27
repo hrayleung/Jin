@@ -520,6 +520,17 @@ struct ContentView: View {
             modelConfigData: controlsData,
             assistant: assistant
         )
+        let initialThread = ConversationModelThreadEntity(
+            providerID: providerID,
+            modelID: modelID,
+            modelConfigData: controlsData,
+            displayOrder: 0,
+            isSelected: true,
+            isPrimary: true
+        )
+        initialThread.conversation = conversation
+        conversation.modelThreads.append(initialThread)
+        conversation.activeThreadID = initialThread.id
 
         selectedConversation = conversation
     }

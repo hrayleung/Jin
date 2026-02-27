@@ -64,14 +64,22 @@ final class ConversationEntity {
     var createdAt: Date
     var updatedAt: Date
     var systemPrompt: String?
+    /// Legacy compatibility snapshot of the currently active thread's provider.
     var providerID: String
+    /// Legacy compatibility snapshot of the currently active thread's model.
     var modelID: String
+    /// Legacy compatibility snapshot of the currently active thread's controls.
     var modelConfigData: Data // Codable GenerationControls
+    /// Currently active model thread for composer/send.
+    var activeThreadID: UUID?
 
     @Relationship var assistant: AssistantEntity?
 
     @Relationship(deleteRule: .cascade, inverse: \MessageEntity.conversation)
     var messages: [MessageEntity] = []
+
+    @Relationship(deleteRule: .cascade, inverse: \ConversationModelThreadEntity.conversation)
+    var modelThreads: [ConversationModelThreadEntity] = []
 
     init(
         id: UUID = UUID(),
@@ -83,6 +91,7 @@ final class ConversationEntity {
         providerID: String,
         modelID: String,
         modelConfigData: Data,
+        activeThreadID: UUID? = nil,
         assistant: AssistantEntity? = nil
     ) {
         self.id = id
@@ -94,17 +103,25 @@ final class ConversationEntity {
         self.providerID = providerID
         self.modelID = modelID
         self.modelConfigData = modelConfigData
+        self.activeThreadID = activeThreadID
         self.assistant = assistant
     }
 
     /// Convert to domain model
     func toDomain() throws -> Conversation {
         let decoder = JSONDecoder()
-        let controls = try decoder.decode(GenerationControls.self, from: modelConfigData)
+        let threadByID = Dictionary(uniqueKeysWithValues: modelThreads.map { ($0.id, $0) })
+        let activeThread = activeThreadID.flatMap { threadByID[$0] } ?? modelThreads.first
+
+        let effectiveProviderID = activeThread?.providerID ?? providerID
+        let effectiveModelID = activeThread?.modelID ?? modelID
+        let effectiveModelConfigData = activeThread?.modelConfigData ?? modelConfigData
+
+        let controls = try decoder.decode(GenerationControls.self, from: effectiveModelConfigData)
 
         let modelConfig = ModelConfig(
-            providerID: providerID,
-            modelID: modelID,
+            providerID: effectiveProviderID,
+            modelID: effectiveModelID,
             controls: controls
         )
 
@@ -137,12 +154,57 @@ final class ConversationEntity {
     }
 }
 
+/// Per-conversation model thread (independent context + controls).
+@Model
+final class ConversationModelThreadEntity {
+    @Attribute(.unique) var id: UUID
+    var providerID: String
+    var modelID: String
+    var modelConfigData: Data
+    var displayOrder: Int
+    var isSelected: Bool
+    var isPrimary: Bool
+    var lastActivatedAt: Date
+    var createdAt: Date
+    var updatedAt: Date
+
+    @Relationship var conversation: ConversationEntity?
+
+    init(
+        id: UUID = UUID(),
+        providerID: String,
+        modelID: String,
+        modelConfigData: Data,
+        displayOrder: Int = 0,
+        isSelected: Bool = true,
+        isPrimary: Bool = false,
+        lastActivatedAt: Date = Date(),
+        createdAt: Date = Date(),
+        updatedAt: Date = Date()
+    ) {
+        self.id = id
+        self.providerID = providerID
+        self.modelID = modelID
+        self.modelConfigData = modelConfigData
+        self.displayOrder = displayOrder
+        self.isSelected = isSelected
+        self.isPrimary = isPrimary
+        self.lastActivatedAt = lastActivatedAt
+        self.createdAt = createdAt
+        self.updatedAt = updatedAt
+    }
+}
+
 /// Message entity (SwiftData)
 @Model
 final class MessageEntity {
     @Attribute(.unique) var id: UUID
     var role: String // MessageRole.rawValue
     var timestamp: Date
+    /// Conversation model thread this message belongs to.
+    var contextThreadID: UUID?
+    /// Optional cross-thread turn fan-out identifier.
+    var turnID: UUID?
     var contentData: Data // Codable [ContentPart]
     var toolCallsData: Data?
     var toolResultsData: Data?
@@ -159,6 +221,8 @@ final class MessageEntity {
         id: UUID = UUID(),
         role: String,
         timestamp: Date = Date(),
+        contextThreadID: UUID? = nil,
+        turnID: UUID? = nil,
         contentData: Data,
         toolCallsData: Data? = nil,
         toolResultsData: Data? = nil,
@@ -171,6 +235,8 @@ final class MessageEntity {
         self.id = id
         self.role = role
         self.timestamp = timestamp
+        self.contextThreadID = contextThreadID
+        self.turnID = turnID
         self.contentData = contentData
         self.toolCallsData = toolCallsData
         self.toolResultsData = toolResultsData

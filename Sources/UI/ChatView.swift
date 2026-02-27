@@ -38,11 +38,13 @@ struct ChatView: View {
     @State private var composerHeight: CGFloat = 0
     @State private var composerTextContentHeight: CGFloat = 36
     @State private var isModelPickerPresented = false
+    @State private var isAddModelPickerPresented = false
     @State private var messageRenderLimit: Int = Self.initialMessageRenderLimit
     @State private var pendingRestoreScrollMessageID: UUID?
     @State private var isPinnedToBottom = true
     @State private var pinnedBottomRefreshGeneration = 0
     @State private var isExpandedComposerPresented = false
+    @State private var activeThreadID: UUID?
 
     // Cache expensive derived data so typing/streaming doesn't repeatedly sort/decode the entire history.
     @State private var cachedVisibleMessages: [MessageRenderItem] = []
@@ -51,7 +53,6 @@ struct ChatView: View {
     @State private var cachedToolResultsByCallID: [String: ToolResult] = [:]
     @State private var lastCacheRebuildMessageCount: Int = 0
     @State private var lastCacheRebuildUpdatedAt: Date = .distantPast
-
     @ObservedObject private var favoriteModelsStore = FavoriteModelsStore.shared
 
     @State private var errorMessage: String?
@@ -106,11 +107,64 @@ struct ChatView: View {
     }
 
     private var streamingMessage: StreamingMessageState? {
-        streamingStore.streamingState(conversationID: conversationEntity.id)
+        guard let activeThreadID else { return nil }
+        return streamingStore.streamingState(conversationID: conversationEntity.id, threadID: activeThreadID)
     }
 
     private var streamingModelLabel: String? {
-        streamingStore.streamingModelLabel(conversationID: conversationEntity.id)
+        guard let activeThreadID else { return nil }
+        return streamingStore.streamingModelLabel(conversationID: conversationEntity.id, threadID: activeThreadID)
+    }
+
+    private func streamingMessage(for threadID: UUID) -> StreamingMessageState? {
+        streamingStore.streamingState(conversationID: conversationEntity.id, threadID: threadID)
+    }
+
+    private func streamingModelLabel(for threadID: UUID) -> String? {
+        streamingStore.streamingModelLabel(conversationID: conversationEntity.id, threadID: threadID)
+    }
+
+    private var sortedModelThreads: [ConversationModelThreadEntity] {
+        conversationEntity.modelThreads.sorted { lhs, rhs in
+            if lhs.displayOrder != rhs.displayOrder {
+                return lhs.displayOrder < rhs.displayOrder
+            }
+            return lhs.createdAt < rhs.createdAt
+        }
+    }
+
+    private var selectedModelThreads: [ConversationModelThreadEntity] {
+        let selected = sortedModelThreads.filter(\.isSelected)
+        let base = selected.isEmpty ? sortedModelThreads.prefix(1).map { $0 } : selected
+        guard let active = activeModelThread else { return base }
+
+        if base.contains(where: { $0.id == active.id }) {
+            return base
+        }
+        return base + [active]
+    }
+
+    private var secondaryToolbarThreads: [ConversationModelThreadEntity] {
+        guard let active = activeModelThread else { return sortedModelThreads }
+        return sortedModelThreads.filter { $0.id != active.id }
+    }
+
+    private var activeModelThread: ConversationModelThreadEntity? {
+        let threads = sortedModelThreads
+        guard !threads.isEmpty else { return nil }
+
+        let preferredID = activeThreadID ?? conversationEntity.activeThreadID
+        if let preferredID,
+           let thread = threads.first(where: { $0.id == preferredID }) {
+            return thread
+        }
+
+        let selected = threads.filter(\.isSelected)
+        if let latest = selected.max(by: { $0.lastActivatedAt < $1.lastActivatedAt }) {
+            return latest
+        }
+
+        return threads.first
     }
 
     private var composerOverlay: some View {
@@ -480,6 +534,11 @@ struct ChatView: View {
                 },
                 onCancelUserEdit: {
                     cancelEditingUserMessage()
+                },
+                onActivate: {
+                    if let threadID = message.contextThreadID {
+                        activateThread(by: threadID)
+                    }
                 }
             )
             .id(message.id)
@@ -614,12 +673,254 @@ struct ChatView: View {
         }
     }
 
+    private struct ThreadRenderContext {
+        let visibleMessages: [MessageRenderItem]
+        let messageEntitiesByID: [UUID: MessageEntity]
+        let toolResultsByCallID: [String: ToolResult]
+    }
+
+    private func threadRenderContext(threadID: UUID) -> ThreadRenderContext {
+        let ordered = orderedConversationMessages(threadID: threadID)
+        let fallbackModelLabel = sortedModelThreads
+            .first(where: { $0.id == threadID })
+            .map { modelName(id: $0.modelID, providerID: $0.providerID) }
+            ?? currentModelName
+
+        var messageEntitiesByID: [UUID: MessageEntity] = [:]
+        messageEntitiesByID.reserveCapacity(ordered.count)
+
+        var renderedItems: [MessageRenderItem] = []
+        renderedItems.reserveCapacity(ordered.count)
+
+        for entity in ordered {
+            messageEntitiesByID[entity.id] = entity
+            guard entity.role != "tool" else { continue }
+
+            guard let message = try? entity.toDomain() else { continue }
+            let renderedParts = renderedContentParts(content: message.content)
+
+            renderedItems.append(
+                MessageRenderItem(
+                    id: entity.id,
+                    contextThreadID: entity.contextThreadID,
+                    role: entity.role,
+                    timestamp: entity.timestamp,
+                    renderedContentParts: renderedParts,
+                    toolCalls: message.toolCalls ?? [],
+                    searchActivities: message.searchActivities ?? [],
+                    assistantModelLabel: entity.role == "assistant"
+                        ? (entity.generatedModelName ?? entity.generatedModelID ?? fallbackModelLabel)
+                        : nil,
+                    copyText: copyableText(from: message),
+                    canEditUserMessage: entity.role == "user"
+                        && message.content.contains(where: { part in
+                            if case .text = part { return true }
+                            return false
+                        })
+                )
+            )
+        }
+
+        return ThreadRenderContext(
+            visibleMessages: renderedItems,
+            messageEntitiesByID: messageEntitiesByID,
+            toolResultsByCallID: toolResultsByToolCallID(in: ordered)
+        )
+    }
+
+    private func multiModelChatView(geometry: GeometryProxy) -> some View {
+        let threads = selectedModelThreads
+        let horizontalPadding: CGFloat = 20
+        let spacing: CGFloat = 12
+        let availableWidth = max(0, geometry.size.width - (horizontalPadding * 2) - (spacing * CGFloat(max(threads.count - 1, 0))))
+        let columnWidth = max(320, availableWidth / CGFloat(max(threads.count, 1)))
+
+        return ScrollView(.horizontal) {
+            HStack(alignment: .top, spacing: spacing) {
+                ForEach(threads) { thread in
+                    multiModelThreadColumn(
+                        thread: thread,
+                        columnWidth: columnWidth,
+                        containerHeight: geometry.size.height
+                    )
+                }
+            }
+            .padding(.horizontal, horizontalPadding)
+            .padding(.top, 16)
+            .frame(minHeight: geometry.size.height, alignment: .bottomLeading)
+        }
+    }
+
+    private func multiModelThreadColumn(
+        thread: ConversationModelThreadEntity,
+        columnWidth: CGFloat,
+        containerHeight: CGFloat
+    ) -> some View {
+        let context = threadRenderContext(threadID: thread.id)
+        let assistantDisplayName = conversationEntity.assistant?.displayName ?? "Assistant"
+        let providerIcon = providerIconID(for: thread.providerID)
+        let eagerCodeHighlightStartIndex = max(0, context.visibleMessages.count - Self.eagerCodeHighlightTailCount)
+        let bubbleMaxWidth = max(220, columnWidth - 34)
+        let bottomID = "bottom-\(thread.id.uuidString)"
+
+        return VStack(spacing: 0) {
+            Button {
+                activateThread(thread)
+            } label: {
+                HStack(spacing: 8) {
+                    ProviderIconView(iconID: providerIcon, size: 12)
+                        .frame(width: 14, height: 14)
+                    Text(modelName(id: thread.modelID, providerID: thread.providerID))
+                        .font(.caption)
+                        .fontWeight(.semibold)
+                        .lineLimit(1)
+                    Spacer(minLength: 0)
+                    if isActiveThread(thread) {
+                        Image(systemName: "pencil.circle.fill")
+                            .font(.caption)
+                            .foregroundStyle(Color.accentColor)
+                    }
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            Divider()
+                .overlay(JinSemanticColor.separator.opacity(0.35))
+
+            ScrollViewReader { proxy in
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 16) {
+                        multiModelThreadRows(
+                            thread: thread,
+                            context: context,
+                            bubbleMaxWidth: bubbleMaxWidth,
+                            assistantDisplayName: assistantDisplayName,
+                            providerIcon: providerIcon,
+                            eagerCodeHighlightStartIndex: eagerCodeHighlightStartIndex
+                        )
+
+                        if let streaming = streamingMessage(for: thread.id) {
+                            StreamingMessageView(
+                                state: streaming,
+                                maxBubbleWidth: bubbleMaxWidth,
+                                assistantDisplayName: assistantDisplayName,
+                                modelLabel: streamingModelLabel(for: thread.id),
+                                providerIconID: providerIcon,
+                                onContentUpdate: { }
+                            )
+                            .id("streaming-\(thread.id.uuidString)")
+                        }
+
+                        Color.clear
+                            .frame(height: composerHeight + 24)
+                            .id(bottomID)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.top, 14)
+                }
+                .defaultScrollAnchor(.bottom)
+                .onAppear {
+                    DispatchQueue.main.async {
+                        proxy.scrollTo(bottomID, anchor: .bottom)
+                    }
+                }
+                .onChange(of: conversationEntity.messages.count) { _, _ in
+                    DispatchQueue.main.async {
+                        proxy.scrollTo(bottomID, anchor: .bottom)
+                    }
+                }
+                .onChange(of: isStreaming) { _, _ in
+                    DispatchQueue.main.async {
+                        proxy.scrollTo(bottomID, anchor: .bottom)
+                    }
+                }
+            }
+        }
+        .frame(width: columnWidth, alignment: .topLeading)
+        .frame(minHeight: containerHeight, alignment: .topLeading)
+        .background(
+            RoundedRectangle(cornerRadius: JinRadius.large, style: .continuous)
+                .fill(JinSemanticColor.detailSurface)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: JinRadius.large, style: .continuous)
+                .stroke(
+                    isActiveThread(thread) ? Color.accentColor.opacity(0.65) : JinSemanticColor.separator.opacity(0.45),
+                    lineWidth: isActiveThread(thread) ? JinStrokeWidth.emphasized : JinStrokeWidth.hairline
+                )
+        )
+    }
+
+    @ViewBuilder
+    private func multiModelThreadRows(
+        thread: ConversationModelThreadEntity,
+        context: ThreadRenderContext,
+        bubbleMaxWidth: CGFloat,
+        assistantDisplayName: String,
+        providerIcon: String?,
+        eagerCodeHighlightStartIndex: Int
+    ) -> some View {
+        ForEach(Array(context.visibleMessages.enumerated()), id: \.element.id) { index, message in
+            MessageRow(
+                item: message,
+                maxBubbleWidth: bubbleMaxWidth,
+                assistantDisplayName: assistantDisplayName,
+                providerIconID: providerIcon,
+                deferCodeHighlightUpgrade: index < eagerCodeHighlightStartIndex,
+                toolResultsByCallID: context.toolResultsByCallID,
+                actionsEnabled: !isStreaming,
+                textToSpeechEnabled: textToSpeechPluginEnabled,
+                textToSpeechConfigured: textToSpeechConfigured,
+                textToSpeechIsGenerating: ttsPlaybackManager.isGenerating(messageID: message.id),
+                textToSpeechIsPlaying: ttsPlaybackManager.isPlaying(messageID: message.id),
+                textToSpeechIsPaused: ttsPlaybackManager.isPaused(messageID: message.id),
+                onToggleSpeakAssistantMessage: { messageID, text in
+                    guard let entity = context.messageEntitiesByID[messageID] else { return }
+                    toggleSpeakAssistantMessage(entity, text: text)
+                },
+                onStopSpeakAssistantMessage: { messageID in
+                    guard let entity = context.messageEntitiesByID[messageID] else { return }
+                    stopSpeakAssistantMessage(entity)
+                },
+                onRegenerate: { messageID in
+                    guard let entity = context.messageEntitiesByID[messageID] else { return }
+                    regenerateMessage(entity)
+                },
+                onEditUserMessage: { messageID in
+                    guard let entity = context.messageEntitiesByID[messageID] else { return }
+                    beginEditingUserMessage(entity)
+                },
+                editingUserMessageID: editingUserMessageID,
+                editingUserMessageText: $editingUserMessageText,
+                editingUserMessageFocused: $isEditingUserMessageFocused,
+                onSubmitUserEdit: { messageID in
+                    guard let entity = context.messageEntitiesByID[messageID] else { return }
+                    submitEditingUserMessage(entity)
+                },
+                onCancelUserEdit: {
+                    cancelEditingUserMessage()
+                },
+                onActivate: {
+                    activateThread(thread)
+                }
+            )
+            .id(message.id)
+        }
+    }
+
     var body: some View {
         ZStack(alignment: .bottom) {
             // Message list
             GeometryReader { geometry in
-                ScrollViewReader { proxy in
-                    chatScrollView(geometry: geometry, proxy: proxy)
+                if selectedModelThreads.count > 1 {
+                    multiModelChatView(geometry: geometry)
+                } else {
+                    ScrollViewReader { proxy in
+                        chatScrollView(geometry: geometry, proxy: proxy)
+                    }
                 }
             }
 
@@ -694,6 +995,11 @@ struct ChatView: View {
             .jinHideSharedBackgroundIfAvailable()
 
             ToolbarItem(placement: .primaryAction) {
+                selectedModelsToolbar
+            }
+            .jinHideSharedBackgroundIfAvailable()
+
+            ToolbarItem(placement: .primaryAction) {
                 let isStarred = conversationEntity.isStarred == true
                 Button {
                     conversationEntity.isStarred = !isStarred
@@ -734,6 +1040,9 @@ struct ChatView: View {
         }
         .onAppear {
             isComposerFocused = true
+            ensureModelThreadsInitializedIfNeeded()
+            syncActiveThreadSelection()
+            loadControlsFromConversation()
             rebuildMessageCaches()
         }
         .onChange(of: conversationEntity.id) { _, _ in
@@ -744,6 +1053,8 @@ struct ChatView: View {
             isPinnedToBottom = true
             isExpandedComposerPresented = false
             remoteVideoInputURLText = ""
+            ensureModelThreadsInitializedIfNeeded()
+            syncActiveThreadSelection()
             loadControlsFromConversation()
             rebuildMessageCaches()
         }
@@ -840,6 +1151,8 @@ struct ChatView: View {
             )
         }
         .task {
+            ensureModelThreadsInitializedIfNeeded()
+            syncActiveThreadSelection()
             loadControlsFromConversation()
             await refreshExtensionCredentialsStatus()
         }
@@ -1607,14 +1920,7 @@ struct ChatView: View {
     }
 
     private var resolvedPDFProcessingMode: PDFProcessingMode {
-        let requested = controls.pdfProcessingMode ?? .native
-        if isPDFProcessingModeAvailable(requested) {
-            return requested
-        }
-        if supportsNativePDF {
-            return .native
-        }
-        return defaultPDFProcessingFallbackMode
+        resolvedPDFProcessingMode(for: controls, supportsNativePDF: supportsNativePDF)
     }
 
     private var defaultPDFProcessingFallbackMode: PDFProcessingMode {
@@ -1628,6 +1934,10 @@ struct ChatView: View {
     }
 
     private func isPDFProcessingModeAvailable(_ mode: PDFProcessingMode) -> Bool {
+        isPDFProcessingModeAvailable(mode, supportsNativePDF: supportsNativePDF)
+    }
+
+    private func isPDFProcessingModeAvailable(_ mode: PDFProcessingMode, supportsNativePDF: Bool) -> Bool {
         switch mode {
         case .native:
             return supportsNativePDF
@@ -1638,6 +1948,17 @@ struct ChatView: View {
         case .deepSeekOCR:
             return deepSeekOCRPluginEnabled
         }
+    }
+
+    private func resolvedPDFProcessingMode(for controls: GenerationControls, supportsNativePDF: Bool) -> PDFProcessingMode {
+        let requested = controls.pdfProcessingMode ?? .native
+        if isPDFProcessingModeAvailable(requested, supportsNativePDF: supportsNativePDF) {
+            return requested
+        }
+        if supportsNativePDF {
+            return .native
+        }
+        return defaultPDFProcessingFallbackMode
     }
 
     private var pdfProcessingBadgeText: String? {
@@ -2193,17 +2514,104 @@ struct ChatView: View {
         .help("Select model")
         .accessibilityLabel("Select model")
         .popover(isPresented: $isModelPickerPresented, arrowEdge: .bottom) {
-            ModelPickerPopover(
-                favoritesStore: favoriteModelsStore,
-                providers: providers,
-                selectedProviderID: conversationEntity.providerID,
-                selectedModelID: conversationEntity.modelID,
-                onSelect: { providerID, modelID in
-                    setProviderAndModel(providerID: providerID, modelID: modelID)
-                    isModelPickerPresented = false
-                }
-            )
+            modelPickerPopoverContent { providerID, modelID in
+                setProviderAndModel(providerID: providerID, modelID: modelID)
+                isModelPickerPresented = false
+            }
         }
+    }
+
+    private func modelPickerPopoverContent(onSelect: @escaping (String, String) -> Void) -> some View {
+        ModelPickerPopover(
+            favoritesStore: favoriteModelsStore,
+            providers: providers,
+            selectedProviderID: conversationEntity.providerID,
+            selectedModelID: conversationEntity.modelID,
+            onSelect: onSelect
+        )
+    }
+
+    private var selectedModelsToolbar: some View {
+        HStack(spacing: 6) {
+            ForEach(secondaryToolbarThreads) { thread in
+                HStack(spacing: 4) {
+                    Button {
+                        toggleThreadSelection(thread)
+                    } label: {
+                        HStack(spacing: 4) {
+                            ProviderIconView(iconID: providerIconID(for: thread.providerID), size: 10)
+                                .frame(width: 10, height: 10)
+                            Text(toolbarThreadLabel(thread))
+                                .font(.caption2)
+                                .lineLimit(1)
+                            Image(systemName: thread.isSelected ? "checkmark.circle.fill" : "circle")
+                                .font(.system(size: 10, weight: .semibold))
+                                .foregroundStyle(thread.isSelected ? Color.accentColor : Color.secondary)
+                        }
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 3)
+                        .background(
+                            Capsule(style: .circular)
+                                .fill(thread.isSelected ? Color.accentColor.opacity(0.2) : JinSemanticColor.surface)
+                        )
+                        .overlay(
+                            Capsule(style: .circular)
+                                .stroke(
+                                    isActiveThread(thread) ? Color.accentColor.opacity(0.75) : JinSemanticColor.separator.opacity(0.45),
+                                    lineWidth: isActiveThread(thread) ? JinStrokeWidth.emphasized : JinStrokeWidth.hairline
+                                )
+                        )
+                    }
+                    .buttonStyle(.plain)
+                    .help(thread.isSelected ? "Selected for next send" : "Click to include this model")
+                    .contextMenu {
+                        Button("Set as input target") {
+                            activateThread(thread)
+                        }
+
+                        if sortedModelThreads.count > 1 {
+                            Divider()
+                            Button("Remove from this chat", role: .destructive) {
+                                removeModelThread(thread)
+                            }
+                        }
+                    }
+
+                    if sortedModelThreads.count > 1 {
+                        Button {
+                            removeModelThread(thread)
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                        .buttonStyle(.plain)
+                        .help("Remove model from this chat")
+                    }
+                }
+            }
+
+            Button {
+                isAddModelPickerPresented = true
+            } label: {
+                Image(systemName: "plus.circle")
+                    .font(.system(size: 14, weight: .regular))
+                    .foregroundStyle(.secondary)
+            }
+            .buttonStyle(.plain)
+            .help("Add model")
+            .popover(isPresented: $isAddModelPickerPresented, arrowEdge: .bottom) {
+                modelPickerPopoverContent { providerID, modelID in
+                    addOrActivateThread(providerID: providerID, modelID: modelID)
+                    isAddModelPickerPresented = false
+                }
+            }
+        }
+    }
+
+    private func toolbarThreadLabel(_ thread: ConversationModelThreadEntity) -> String {
+        let name = modelName(id: thread.modelID, providerID: thread.providerID)
+        return String(name.prefix(22))
     }
 
     private var currentModelName: String {
@@ -2218,6 +2626,147 @@ struct ChatView: View {
         currentProvider?.resolvedProviderIconID
     }
 
+    private func providerIconID(for providerID: String) -> String? {
+        providers.first(where: { $0.id == providerID })?.resolvedProviderIconID
+    }
+
+    private func modelName(id modelID: String, providerID: String) -> String {
+        providers
+            .first(where: { $0.id == providerID })?
+            .allModels
+            .first(where: { $0.id == modelID })?
+            .name
+            ?? modelID
+    }
+
+    private func isActiveThread(_ thread: ConversationModelThreadEntity) -> Bool {
+        activeModelThread?.id == thread.id
+    }
+
+    private func toggleThreadSelection(_ thread: ConversationModelThreadEntity) {
+        guard let index = conversationEntity.modelThreads.firstIndex(where: { $0.id == thread.id }) else { return }
+        if activeModelThread?.id == thread.id {
+            activateThread(conversationEntity.modelThreads[index])
+            return
+        }
+
+        let selectedCount = sortedModelThreads.filter(\.isSelected).count
+        let isCurrentlySelected = conversationEntity.modelThreads[index].isSelected
+
+        if isCurrentlySelected && selectedCount <= 1 {
+            activateThread(conversationEntity.modelThreads[index])
+            return
+        }
+
+        conversationEntity.modelThreads[index].isSelected.toggle()
+        conversationEntity.modelThreads[index].updatedAt = Date()
+        conversationEntity.updatedAt = Date()
+
+        if conversationEntity.modelThreads[index].isSelected {
+            activateThread(conversationEntity.modelThreads[index])
+            return
+        }
+
+        if activeModelThread?.id == thread.id,
+           let replacement = sortedModelThreads.first(where: { $0.id != thread.id && $0.isSelected }) {
+            activateThread(replacement)
+            return
+        }
+
+        rebuildMessageCaches()
+        try? modelContext.save()
+    }
+
+    private func synchronizeLegacyConversationModelFields(with thread: ConversationModelThreadEntity) {
+        conversationEntity.providerID = thread.providerID
+        conversationEntity.modelID = thread.modelID
+        conversationEntity.modelConfigData = thread.modelConfigData
+        conversationEntity.activeThreadID = thread.id
+        activeThreadID = thread.id
+    }
+
+    private func activateThread(_ thread: ConversationModelThreadEntity) {
+        guard conversationEntity.modelThreads.contains(where: { $0.id == thread.id }) else { return }
+
+        thread.lastActivatedAt = Date()
+        thread.updatedAt = Date()
+        thread.isSelected = true
+        synchronizeLegacyConversationModelFields(with: thread)
+        loadControlsFromConversation()
+        normalizeControlsForCurrentSelection()
+        rebuildMessageCaches()
+        try? modelContext.save()
+    }
+
+    private func activateThread(by threadID: UUID) {
+        guard let thread = sortedModelThreads.first(where: { $0.id == threadID }) else { return }
+        activateThread(thread)
+    }
+
+    private func removeModelThread(_ thread: ConversationModelThreadEntity) {
+        guard sortedModelThreads.count > 1 else { return }
+        let removedThreadID = thread.id
+        let activeBeforeRemovalID = activeThreadID ?? conversationEntity.activeThreadID
+        let removedWasActive = activeBeforeRemovalID == removedThreadID
+        streamingStore.cancel(conversationID: conversationEntity.id, threadID: removedThreadID)
+        streamingStore.endSession(conversationID: conversationEntity.id, threadID: removedThreadID)
+
+        for message in conversationEntity.messages where message.contextThreadID == removedThreadID {
+            modelContext.delete(message)
+        }
+        conversationEntity.messages.removeAll { $0.contextThreadID == removedThreadID }
+
+        if let index = conversationEntity.modelThreads.firstIndex(where: { $0.id == removedThreadID }) {
+            let threadEntity = conversationEntity.modelThreads[index]
+            conversationEntity.modelThreads.remove(at: index)
+            modelContext.delete(threadEntity)
+        }
+
+        if removedWasActive {
+            if let replacement = sortedModelThreads.first(where: \.isSelected) ?? sortedModelThreads.first {
+                activateThread(replacement)
+            }
+        } else if let currentActiveID = activeBeforeRemovalID {
+            if !sortedModelThreads.contains(where: { $0.id == currentActiveID }),
+               let fallback = sortedModelThreads.first {
+                activateThread(fallback)
+            }
+        }
+
+        conversationEntity.updatedAt = Date()
+        rebuildMessageCaches()
+        try? modelContext.save()
+    }
+
+    private func addOrActivateThread(providerID: String, modelID: String) {
+        if let existing = sortedModelThreads.first(where: { $0.providerID == providerID && $0.modelID == modelID }) {
+            existing.isSelected = true
+            activateThread(existing)
+            return
+        }
+
+        guard sortedModelThreads.count < 3 else {
+            errorMessage = "A chat can include up to 3 models."
+            showingError = true
+            return
+        }
+
+        let encodedControls = (try? JSONEncoder().encode(GenerationControls())) ?? Data()
+        let nextOrder = (sortedModelThreads.map(\.displayOrder).max() ?? -1) + 1
+        let thread = ConversationModelThreadEntity(
+            providerID: providerID,
+            modelID: modelID,
+            modelConfigData: encodedControls,
+            displayOrder: nextOrder,
+            isSelected: true,
+            isPrimary: false
+        )
+        thread.conversation = conversationEntity
+        conversationEntity.modelThreads.append(thread)
+        conversationEntity.updatedAt = Date()
+        activateThread(thread)
+    }
+
     private var availableModels: [ModelInfo] {
         currentProvider?.enabledModels ?? []
     }
@@ -2228,36 +2777,51 @@ struct ChatView: View {
     }
 
     private func setProvider(_ providerID: String) {
-        guard providerID != conversationEntity.providerID else { return }
+        guard let thread = activeModelThread else { return }
+        guard providerID != thread.providerID else { return }
 
-        conversationEntity.providerID = providerID
+        thread.providerID = providerID
 
-        let models = availableModels
+        let models = providers.first(where: { $0.id == providerID })?.enabledModels ?? []
         if let preferredModelID = preferredModelID(in: models, providerID: providerID) {
-            conversationEntity.modelID = preferredModelID
+            thread.modelID = preferredModelID
+            synchronizeLegacyConversationModelFields(with: thread)
             normalizeControlsForCurrentSelection()
             try? modelContext.save()
             return
         }
-        conversationEntity.modelID = models.first?.id ?? conversationEntity.modelID
+        thread.modelID = models.first?.id ?? thread.modelID
+        synchronizeLegacyConversationModelFields(with: thread)
         normalizeControlsForCurrentSelection()
         try? modelContext.save()
     }
 
     private func setModel(_ modelID: String) {
-        guard modelID != conversationEntity.modelID else { return }
-        conversationEntity.modelID = modelID
+        guard let thread = activeModelThread else { return }
+        guard modelID != thread.modelID else { return }
+        thread.modelID = modelID
+        synchronizeLegacyConversationModelFields(with: thread)
         normalizeControlsForCurrentSelection()
         try? modelContext.save()
     }
 
     private func setProviderAndModel(providerID: String, modelID: String) {
-        guard providerID != conversationEntity.providerID || modelID != conversationEntity.modelID else { return }
+        if let existing = sortedModelThreads.first(where: { $0.providerID == providerID && $0.modelID == modelID }) {
+            activateThread(existing)
+            return
+        }
 
-        conversationEntity.providerID = providerID
-        conversationEntity.modelID = modelID
+        guard let thread = activeModelThread else {
+            addOrActivateThread(providerID: providerID, modelID: modelID)
+            return
+        }
+
+        thread.providerID = providerID
+        thread.modelID = modelID
+        thread.updatedAt = Date()
+        synchronizeLegacyConversationModelFields(with: thread)
         normalizeControlsForCurrentSelection()
-        try? modelContext.save()
+        persistControlsToConversation()
     }
 
     private func preferredModelID(in models: [ModelInfo], providerID: String) -> String? {
@@ -2299,8 +2863,12 @@ struct ChatView: View {
     }
 
 
-    private func orderedConversationMessages() -> [MessageEntity] {
-        conversationEntity.messages.sorted { lhs, rhs in
+    private func orderedConversationMessages(threadID: UUID? = nil) -> [MessageEntity] {
+        let filtered = conversationEntity.messages.filter { entity in
+            guard let threadID else { return true }
+            return entity.contextThreadID == threadID
+        }
+        return filtered.sorted { lhs, rhs in
             if lhs.timestamp != rhs.timestamp {
                 return lhs.timestamp < rhs.timestamp
             }
@@ -2318,7 +2886,7 @@ struct ChatView: View {
     }
 
     private func rebuildMessageCaches() {
-        let ordered = orderedConversationMessages()
+        let ordered = orderedConversationMessages(threadID: activeModelThread?.id)
 
         var messageEntitiesByID: [UUID: MessageEntity] = [:]
         messageEntitiesByID.reserveCapacity(ordered.count)
@@ -2336,6 +2904,7 @@ struct ChatView: View {
             renderedItems.append(
                 MessageRenderItem(
                     id: entity.id,
+                    contextThreadID: entity.contextThreadID,
                     role: entity.role,
                     timestamp: entity.timestamp,
                     renderedContentParts: renderedParts,
@@ -2435,38 +3004,42 @@ struct ChatView: View {
     }
 
     private func regenerateFromUserMessage(_ messageEntity: MessageEntity) {
-        guard let keepCount = keepCountForRegeneratingUserMessage(messageEntity) else { return }
+        guard let threadID = messageEntity.contextThreadID ?? activeModelThread?.id else { return }
+        guard let keepCount = keepCountForRegeneratingUserMessage(messageEntity, threadID: threadID) else { return }
         let askedAt = Date()
-        truncateConversation(keepingMessages: keepCount)
+        truncateConversation(keepingMessages: keepCount, in: threadID)
         messageEntity.timestamp = askedAt
         conversationEntity.updatedAt = askedAt
-        startStreamingResponse(triggeredByUserSend: false)
+        activateThread(by: threadID)
+        startStreamingResponse(for: threadID, triggeredByUserSend: false)
     }
 
     private func regenerateFromAssistantMessage(_ messageEntity: MessageEntity) {
-        guard let keepCount = keepCountForRegeneratingAssistantMessage(messageEntity) else { return }
-        truncateConversation(keepingMessages: keepCount)
-        startStreamingResponse(triggeredByUserSend: false)
+        guard let threadID = messageEntity.contextThreadID ?? activeModelThread?.id else { return }
+        guard let keepCount = keepCountForRegeneratingAssistantMessage(messageEntity, threadID: threadID) else { return }
+        truncateConversation(keepingMessages: keepCount, in: threadID)
+        activateThread(by: threadID)
+        startStreamingResponse(for: threadID, triggeredByUserSend: false)
     }
 
-    private func keepCountForRegeneratingUserMessage(_ messageEntity: MessageEntity) -> Int? {
-        let ordered = orderedConversationMessages()
+    private func keepCountForRegeneratingUserMessage(_ messageEntity: MessageEntity, threadID: UUID) -> Int? {
+        let ordered = orderedConversationMessages(threadID: threadID)
         guard let index = ordered.firstIndex(where: { $0.id == messageEntity.id }) else { return nil }
         let keepCount = index + 1
         guard keepCount > 0 else { return nil }
         return keepCount
     }
 
-    private func keepCountForRegeneratingAssistantMessage(_ messageEntity: MessageEntity) -> Int? {
-        let ordered = orderedConversationMessages()
+    private func keepCountForRegeneratingAssistantMessage(_ messageEntity: MessageEntity, threadID: UUID) -> Int? {
+        let ordered = orderedConversationMessages(threadID: threadID)
         guard let index = ordered.firstIndex(where: { $0.id == messageEntity.id }) else { return nil }
         let keepCount = index
         guard keepCount > 0 else { return nil }
         return keepCount
     }
 
-    private func truncateConversation(keepingMessages keepCount: Int) {
-        let ordered = orderedConversationMessages()
+    private func truncateConversation(keepingMessages keepCount: Int, in threadID: UUID) {
+        let ordered = orderedConversationMessages(threadID: threadID)
         let normalizedKeepCount = max(0, min(keepCount, ordered.count))
         let keepIDs = Set(ordered.prefix(normalizedKeepCount).map(\.id))
         let messagesToDelete = ordered.suffix(from: normalizedKeepCount)
@@ -2475,7 +3048,9 @@ struct ChatView: View {
             modelContext.delete(message)
         }
 
-        conversationEntity.messages.removeAll { !keepIDs.contains($0.id) }
+        conversationEntity.messages.removeAll {
+            $0.contextThreadID == threadID && !keepIDs.contains($0.id)
+        }
         refreshConversationActivityTimestampFromLatestUserMessage()
         pendingRestoreScrollMessageID = nil
         isPinnedToBottom = true
@@ -2597,6 +3172,10 @@ struct ChatView: View {
     }
 
     private func sendMessage() {
+        sendMessageInternal()
+    }
+
+    private func sendMessageInternal() {
         if isStreaming {
             streamingStore.cancel(conversationID: conversationEntity.id)
             return
@@ -2609,24 +3188,41 @@ struct ChatView: View {
 
         guard canSendDraft else { return }
         cancelEditingUserMessage()
+        ensureModelThreadsInitializedIfNeeded()
+
+        guard let activeThread = activeModelThread else {
+            errorMessage = "No active model is available for this chat."
+            showingError = true
+            return
+        }
+
+        let targetThreadIDs = selectedModelThreads.map(\.id)
+        guard !targetThreadIDs.isEmpty else {
+            errorMessage = "Please add a model before sending."
+            showingError = true
+            return
+        }
+        let targetThreads = targetThreadIDs.compactMap { targetID in
+            sortedModelThreads.first(where: { $0.id == targetID })
+        }
+        guard !targetThreads.isEmpty else {
+            errorMessage = "Please add a model before sending."
+            showingError = true
+            return
+        }
+        let namingThreadID = targetThreadIDs.contains(activeThread.id) ? activeThread.id : targetThreadIDs.first
 
         let messageTextSnapshot = trimmedMessageText
         let remoteVideoURLTextSnapshot = trimmedRemoteVideoInputURLText
         let attachmentsSnapshot = draftAttachments
         let askedAt = Date()
+        let turnID = UUID()
 
         let remoteVideoURLSnapshot: URL?
         do {
             remoteVideoURLSnapshot = try resolvedRemoteVideoInputURL(from: remoteVideoURLTextSnapshot)
         } catch {
             errorMessage = error.localizedDescription
-            showingError = true
-            return
-        }
-
-        if supportsMediaGenerationControl && messageTextSnapshot.isEmpty {
-            let mediaType = supportsVideoGenerationControl ? "Video" : "Image"
-            errorMessage = "\(mediaType) generation models require a text prompt."
             showingError = true
             return
         }
@@ -2641,22 +3237,27 @@ struct ChatView: View {
 
         let task = Task {
             do {
-                let parts = try await buildUserMessageParts(
+                let preparedMessages = try await buildUserMessagePartsForThreads(
+                    threads: targetThreads,
                     messageText: messageTextSnapshot,
                     attachments: attachmentsSnapshot,
                     remoteVideoURL: remoteVideoURLSnapshot
                 )
-
-                let message = Message(role: .user, content: parts, timestamp: askedAt)
-                let messageEntity = try MessageEntity.fromDomain(message)
 
                 await MainActor.run {
                     if conversationEntity.messages.isEmpty {
                         onPersistConversationIfNeeded()
                     }
 
-                    messageEntity.conversation = conversationEntity
-                    conversationEntity.messages.append(messageEntity)
+                    for prepared in preparedMessages {
+                        let message = Message(role: .user, content: prepared.parts, timestamp: askedAt)
+                        guard let messageEntity = try? MessageEntity.fromDomain(message) else { continue }
+                        messageEntity.contextThreadID = prepared.threadID
+                        messageEntity.turnID = turnID
+                        messageEntity.conversation = conversationEntity
+                        conversationEntity.messages.append(messageEntity)
+                    }
+
                     if conversationEntity.title == "New Chat", !isChatNamingPluginEnabled {
                         if !messageTextSnapshot.isEmpty {
                             conversationEntity.title = makeConversationTitle(from: messageTextSnapshot)
@@ -2673,7 +3274,13 @@ struct ChatView: View {
                     isPreparingToSend = false
                     prepareToSendStatus = nil
                     prepareToSendTask = nil
-                    startStreamingResponse(triggeredByUserSend: true)
+                    for threadID in targetThreadIDs {
+                        startStreamingResponse(
+                            for: threadID,
+                            triggeredByUserSend: threadID == namingThreadID,
+                            turnID: turnID
+                        )
+                    }
                 }
             } catch is CancellationError {
                 await MainActor.run {
@@ -2701,10 +3308,152 @@ struct ChatView: View {
         prepareToSendTask = task
     }
 
-    private func buildUserMessageParts(
+    private struct ThreadPreparedUserMessage {
+        let threadID: UUID
+        let parts: [ContentPart]
+    }
+
+    private struct MessagePreparationProfile {
+        let threadID: UUID
+        let modelName: String
+        let supportsVideoGenerationControl: Bool
+        let supportsMediaGenerationControl: Bool
+        let supportsNativePDF: Bool
+        let supportsVision: Bool
+        let pdfProcessingMode: PDFProcessingMode
+    }
+
+    private func buildUserMessagePartsForThreads(
+        threads: [ConversationModelThreadEntity],
         messageText: String,
         attachments: [DraftAttachment],
         remoteVideoURL: URL?
+    ) async throws -> [ThreadPreparedUserMessage] {
+        var preparedMessages: [ThreadPreparedUserMessage] = []
+        preparedMessages.reserveCapacity(threads.count)
+
+        for thread in threads {
+            try Task.checkCancellation()
+            let profile = messagePreparationProfile(for: thread)
+            if profile.supportsMediaGenerationControl && messageText.isEmpty {
+                let mediaType = profile.supportsVideoGenerationControl ? "Video" : "Image"
+                throw LLMError.invalidRequest(message: "\(mediaType) generation models require a text prompt. (\(profile.modelName))")
+            }
+
+            let parts = try await buildUserMessageParts(
+                messageText: messageText,
+                attachments: attachments,
+                remoteVideoURL: remoteVideoURL,
+                profile: profile
+            )
+            preparedMessages.append(ThreadPreparedUserMessage(threadID: profile.threadID, parts: parts))
+        }
+
+        return preparedMessages
+    }
+
+    private func messagePreparationProfile(for thread: ConversationModelThreadEntity) -> MessagePreparationProfile {
+        let providerTypeSnapshot = providerType(forProviderID: thread.providerID)
+        let lowerModelID = thread.modelID.lowercased()
+        let providerEntity = providers.first(where: { $0.id == thread.providerID })
+        let modelInfo = providerEntity?.allModels.first(where: { $0.id == thread.modelID })
+        let normalizedModelInfoSnapshot = modelInfo.map { normalizedModelInfo($0, for: providerTypeSnapshot) }
+        let resolvedModelSettings = normalizedModelInfoSnapshot.map {
+            ModelSettingsResolver.resolve(model: $0, providerType: providerTypeSnapshot)
+        }
+
+        let supportsImageGenerationControl = (resolvedModelSettings?.capabilities.contains(.imageGeneration) == true)
+            || supportsImageGenerationModel(providerType: providerTypeSnapshot, lowerModelID: lowerModelID)
+        let supportsVideoGenerationControl = (resolvedModelSettings?.capabilities.contains(.videoGeneration) == true)
+            || supportsVideoGenerationModel(providerType: providerTypeSnapshot, lowerModelID: lowerModelID)
+        let supportsMediaGenerationControl = supportsImageGenerationControl || supportsVideoGenerationControl
+        let nativePDFSupported = supportsNativePDFForThread(
+            providerType: providerTypeSnapshot,
+            lowerModelID: lowerModelID,
+            supportsMediaGenerationControl: supportsMediaGenerationControl,
+            resolvedModelSettings: resolvedModelSettings
+        )
+        let supportsVision = (resolvedModelSettings?.capabilities.contains(.vision) == true)
+            || supportsImageGenerationControl
+            || supportsVideoGenerationControl
+        let controls = (try? JSONDecoder().decode(GenerationControls.self, from: thread.modelConfigData)) ?? GenerationControls()
+        let pdfMode = resolvedPDFProcessingMode(for: controls, supportsNativePDF: nativePDFSupported)
+        let modelName = modelInfo?.name ?? thread.modelID
+
+        return MessagePreparationProfile(
+            threadID: thread.id,
+            modelName: modelName,
+            supportsVideoGenerationControl: supportsVideoGenerationControl,
+            supportsMediaGenerationControl: supportsMediaGenerationControl,
+            supportsNativePDF: nativePDFSupported,
+            supportsVision: supportsVision,
+            pdfProcessingMode: pdfMode
+        )
+    }
+
+    private func providerType(forProviderID providerID: String) -> ProviderType? {
+        if let provider = providers.first(where: { $0.id == providerID }),
+           let resolvedType = ProviderType(rawValue: provider.typeRaw) {
+            return resolvedType
+        }
+        return ProviderType(rawValue: providerID)
+    }
+
+    private func normalizedModelInfo(_ model: ModelInfo, for providerType: ProviderType?) -> ModelInfo {
+        guard providerType == .fireworks else { return model }
+        return normalizedFireworksModelInfo(model)
+    }
+
+    private func supportsImageGenerationModel(providerType: ProviderType?, lowerModelID: String) -> Bool {
+        switch providerType {
+        case .xai:
+            return Self.xAIImageGenerationModelIDs.contains(lowerModelID)
+        case .gemini, .vertexai:
+            return Self.geminiImageGenerationModelIDs.contains(lowerModelID)
+        case .openai, .openaiWebSocket, .codexAppServer, .openaiCompatible, .cloudflareAIGateway, .openrouter, .anthropic, .perplexity, .groq, .cohere, .mistral, .deepinfra, .deepseek, .fireworks, .cerebras, .none:
+            return false
+        }
+    }
+
+    private func supportsVideoGenerationModel(providerType: ProviderType?, lowerModelID: String) -> Bool {
+        switch providerType {
+        case .xai:
+            return Self.xAIVideoGenerationModelIDs.contains(lowerModelID)
+        case .gemini, .vertexai:
+            return Self.googleVideoGenerationModelIDs.contains(lowerModelID)
+        default:
+            return false
+        }
+    }
+
+    private func supportsNativePDFForThread(
+        providerType: ProviderType?,
+        lowerModelID: String,
+        supportsMediaGenerationControl: Bool,
+        resolvedModelSettings: ResolvedModelSettings?
+    ) -> Bool {
+        guard !supportsMediaGenerationControl else { return false }
+        guard let providerType else { return false }
+
+        switch providerType {
+        case .openai, .openaiWebSocket, .anthropic, .perplexity, .xai, .gemini, .vertexai:
+            break
+        case .codexAppServer, .openaiCompatible, .cloudflareAIGateway, .openrouter, .groq, .cohere, .mistral, .deepinfra, .deepseek, .fireworks, .cerebras:
+            return false
+        }
+
+        if resolvedModelSettings?.capabilities.contains(.nativePDF) == true {
+            return true
+        }
+
+        return JinModelSupport.supportsNativePDF(providerType: providerType, modelID: lowerModelID)
+    }
+
+    private func buildUserMessageParts(
+        messageText: String,
+        attachments: [DraftAttachment],
+        remoteVideoURL: URL?,
+        profile: MessagePreparationProfile
     ) async throws -> [ContentPart] {
         var parts: [ContentPart] = []
         parts.reserveCapacity(attachments.count + (messageText.isEmpty ? 0 : 1) + (remoteVideoURL == nil ? 0 : 1))
@@ -2715,9 +3464,9 @@ struct ChatView: View {
 
         let pdfCount = attachments.filter(\.isPDF).count
 
-        let requestedMode = resolvedPDFProcessingMode
-        if pdfCount > 0, requestedMode == .native, !supportsNativePDF {
-            throw PDFProcessingError.nativePDFNotSupported(modelName: currentModelName)
+        let requestedMode = profile.pdfProcessingMode
+        if pdfCount > 0, requestedMode == .native, !profile.supportsNativePDF {
+            throw PDFProcessingError.nativePDFNotSupported(modelName: profile.modelName)
         }
 
         let mistralClient: MistralOCRClient?
@@ -2771,6 +3520,7 @@ struct ChatView: View {
                 pdfOrdinal += 1
                 let prepared = try await preparedContentForPDF(
                     attachment,
+                    profile: profile,
                     requestedMode: requestedMode,
                     totalPDFCount: pdfCount,
                     pdfOrdinal: pdfOrdinal,
@@ -2849,13 +3599,14 @@ struct ChatView: View {
 
     private func preparedContentForPDF(
         _ attachment: DraftAttachment,
+        profile: MessagePreparationProfile,
         requestedMode: PDFProcessingMode,
         totalPDFCount: Int,
         pdfOrdinal: Int,
         mistralClient: MistralOCRClient?,
         deepSeekClient: DeepInfraDeepSeekOCRClient?
     ) async throws -> PreparedPDFContent {
-        let shouldSendNativePDF = supportsNativePDF && requestedMode == .native
+        let shouldSendNativePDF = profile.supportsNativePDF && requestedMode == .native
         guard !shouldSendNativePDF else {
             return PreparedPDFContent(extractedText: nil, additionalParts: [])
         }
@@ -2893,7 +3644,7 @@ struct ChatView: View {
                 throw PDFProcessingError.fileReadFailed(filename: attachment.filename)
             }
 
-            let includeImageBase64 = supportsVision
+            let includeImageBase64 = profile.supportsVision
             let response = try await mistralClient.ocrPDF(data, includeImageBase64: includeImageBase64)
             let pages = response.pages
                 .sorted { $0.index < $1.index }
@@ -3022,7 +3773,7 @@ struct ChatView: View {
         case .deepSeekOCR:
             guard let deepSeekClient else { throw PDFProcessingError.deepInfraAPIKeyMissing }
 
-            let includePageImages = supportsVision
+            let includePageImages = profile.supportsVision
             let renderedPages = try PDFKitImageRenderer.renderAllPagesAsJPEG(from: attachment.fileURL)
             let totalPages = max(1, renderedPages.count)
 
@@ -3090,7 +3841,7 @@ struct ChatView: View {
             return PreparedPDFContent(extractedText: output, additionalParts: imageParts)
 
         case .native:
-            throw PDFProcessingError.nativePDFNotSupported(modelName: currentModelName)
+            throw PDFProcessingError.nativePDFNotSupported(modelName: profile.modelName)
         }
     }
 
@@ -3105,6 +3856,8 @@ struct ChatView: View {
         let id: UUID
         let role: String
         let timestamp: Date
+        let contextThreadID: UUID?
+        let turnID: UUID?
         let contentData: Data
         let toolCallsData: Data?
         let toolResultsData: Data?
@@ -3114,6 +3867,8 @@ struct ChatView: View {
             id = entity.id
             role = entity.role
             timestamp = entity.timestamp
+            contextThreadID = entity.contextThreadID
+            turnID = entity.turnID
             contentData = entity.contentData
             toolCallsData = entity.toolCallsData
             toolResultsData = entity.toolResultsData
@@ -3141,39 +3896,43 @@ struct ChatView: View {
     }
 
     @MainActor
-    private func startStreamingResponse(triggeredByUserSend: Bool = false) {
+    private func startStreamingResponse(for threadID: UUID, triggeredByUserSend: Bool = false, turnID: UUID? = nil) {
         let conversationID = conversationEntity.id
-        guard !streamingStore.isStreaming(conversationID: conversationID) else { return }
+        guard !streamingStore.isStreaming(conversationID: conversationID, threadID: threadID) else { return }
 
-        // Re-apply model-aware normalization on every send so newly edited model
-        // settings (capabilities/web search/reasoning limits) are reflected in
-        // the outgoing request controls.
-        normalizeControlsForCurrentSelection()
-
-        let providerID = conversationEntity.providerID
-        let modelID = conversationEntity.modelID
-        let modelInfoSnapshot = selectedModelInfo
-        let resolvedModelSettingsSnapshot = resolvedModelSettings
+        guard let thread = sortedModelThreads.first(where: { $0.id == threadID }) else { return }
+        let providerID = thread.providerID
+        let modelID = thread.modelID
+        let providerEntity = providers.first(where: { $0.id == providerID })
+        let providerTypeSnapshot = providerEntity.flatMap { ProviderType(rawValue: $0.typeRaw) } ?? ProviderType(rawValue: providerID)
+        let modelInfoSnapshot = providerEntity?.allModels.first(where: { $0.id == modelID })
+        let resolvedModelSettingsSnapshot = modelInfoSnapshot.map {
+            ModelSettingsResolver.resolve(model: $0, providerType: providerTypeSnapshot)
+        }
         let modelNameSnapshot = modelInfoSnapshot?.name ?? modelID
-        let streamingState = streamingStore.beginSession(conversationID: conversationID, modelLabel: modelNameSnapshot)
+        let streamingState = streamingStore.beginSession(
+            conversationID: conversationID,
+            threadID: threadID,
+            modelLabel: modelNameSnapshot
+        )
         streamingState.reset()
 
-        let providerConfig = providers.first(where: { $0.id == providerID }).flatMap { try? $0.toDomain() }
+        let providerConfig = providerEntity.flatMap { try? $0.toDomain() }
         let messageSnapshots = conversationEntity.messages.map { PersistedMessageSnapshot($0) }
         let assistant = conversationEntity.assistant
         let systemPrompt = resolvedSystemPrompt(
             conversationSystemPrompt: conversationEntity.systemPrompt,
             assistant: assistant
         )
-        var controlsToUse: GenerationControls = (try? JSONDecoder().decode(GenerationControls.self, from: conversationEntity.modelConfigData))
-            ?? controls
+        var controlsToUse: GenerationControls = (try? JSONDecoder().decode(GenerationControls.self, from: thread.modelConfigData))
+            ?? GenerationControls()
         controlsToUse = GenerationControlsResolver.resolvedForRequest(
             base: controlsToUse,
             assistantTemperature: assistant?.temperature,
             assistantMaxOutputTokens: assistant?.maxOutputTokens
         )
         controlsToUse.contextCache = automaticContextCacheControls(
-            providerType: providerType,
+            providerType: providerTypeSnapshot,
             modelID: modelID,
             modelCapabilities: resolvedModelSettingsSnapshot?.capabilities
         )
@@ -3184,7 +3943,12 @@ struct ChatView: View {
         let reservedOutputTokens = max(0, controlsToUse.maxTokens ?? 2048)
         let mcpServerConfigs = resolvedMCPServerConfigs(for: controlsToUse)
         let chatNamingTarget = resolvedChatNamingTarget()
-        let shouldOfferBuiltinSearch = usesBuiltinSearchPlugin
+        let supportsBuiltinSearchPlugin = (resolvedModelSettingsSnapshot?.capabilities.contains(.toolCalling) == true)
+            && webSearchPluginEnabled
+            && webSearchPluginConfigured
+        let supportsNativeSearch = ModelCapabilityRegistry.supportsWebSearch(for: providerTypeSnapshot, modelID: modelID)
+        let shouldOfferBuiltinSearch = supportsBuiltinSearchPlugin
+            && (!supportsNativeSearch || controlsToUse.searchPlugin?.preferJinSearch == true)
 
         responseCompletionNotifier.prepareAuthorizationIfNeededWhileActive()
 
@@ -3199,6 +3963,7 @@ struct ChatView: View {
 
                 let decoder = JSONDecoder()
                 var history = messageSnapshots
+                    .filter { $0.contextThreadID == threadID }
                     .sorted { lhs, rhs in
                         if lhs.timestamp != rhs.timestamp {
                             return lhs.timestamp < rhs.timestamp
@@ -3393,6 +4158,8 @@ struct ChatView: View {
                                 entity.generatedProviderID = providerID
                                 entity.generatedModelID = modelID
                                 entity.generatedModelName = modelNameSnapshot
+                                entity.contextThreadID = threadID
+                                entity.turnID = turnID
                                 entity.conversation = conversationEntity
                                 conversationEntity.messages.append(entity)
                                 conversationEntity.updatedAt = Date()
@@ -3411,7 +4178,7 @@ struct ChatView: View {
                         // to prevent the brief duplicate message flash.
                         if toolCalls.isEmpty {
                             await MainActor.run {
-                                streamingStore.endSession(conversationID: conversationID)
+                                streamingStore.endSession(conversationID: conversationID, threadID: threadID)
                             }
                         }
 
@@ -3561,6 +4328,8 @@ struct ChatView: View {
                     await MainActor.run {
                         do {
                             let entity = try MessageEntity.fromDomain(toolMessage)
+                            entity.contextThreadID = threadID
+                            entity.turnID = turnID
                             entity.conversation = conversationEntity
                             conversationEntity.messages.append(entity)
                             conversationEntity.updatedAt = Date()
@@ -3591,10 +4360,10 @@ struct ChatView: View {
                         replyPreview: previewForNotification
                     )
                 }
-                streamingStore.endSession(conversationID: conversationID)
+                streamingStore.endSession(conversationID: conversationID, threadID: threadID)
             }
         }
-        streamingStore.attachTask(task, conversationID: conversationID)
+        streamingStore.attachTask(task, conversationID: conversationID, threadID: threadID)
     }
 
     private var isChatNamingPluginEnabled: Bool {
@@ -4979,8 +5748,66 @@ struct ChatView: View {
             .map { $0.toConfig() }
     }
 
+    private func ensureModelThreadsInitializedIfNeeded() {
+        var didMutate = false
+
+        if conversationEntity.modelThreads.isEmpty {
+            let controlsData = conversationEntity.modelConfigData
+            let thread = ConversationModelThreadEntity(
+                providerID: conversationEntity.providerID,
+                modelID: conversationEntity.modelID,
+                modelConfigData: controlsData,
+                displayOrder: 0,
+                isSelected: true,
+                isPrimary: true
+            )
+            thread.conversation = conversationEntity
+            conversationEntity.modelThreads.append(thread)
+            conversationEntity.activeThreadID = thread.id
+            activeThreadID = thread.id
+            didMutate = true
+        }
+
+        guard let fallbackThread = activeModelThread ?? sortedModelThreads.first else { return }
+        for message in conversationEntity.messages where message.contextThreadID == nil {
+            message.contextThreadID = fallbackThread.id
+            didMutate = true
+        }
+
+        if let currentActive = conversationEntity.activeThreadID,
+           !sortedModelThreads.contains(where: { $0.id == currentActive }) {
+            conversationEntity.activeThreadID = fallbackThread.id
+            didMutate = true
+        }
+
+        if sortedModelThreads.filter(\.isSelected).isEmpty,
+           let first = sortedModelThreads.first {
+            first.isSelected = true
+            didMutate = true
+        }
+
+        if didMutate {
+            try? modelContext.save()
+        }
+    }
+
+    private func syncActiveThreadSelection() {
+        if let current = activeModelThread {
+            synchronizeLegacyConversationModelFields(with: current)
+            return
+        }
+
+        if let first = sortedModelThreads.first {
+            synchronizeLegacyConversationModelFields(with: first)
+        }
+    }
+
     private func loadControlsFromConversation() {
-        if let decoded = try? JSONDecoder().decode(GenerationControls.self, from: conversationEntity.modelConfigData) {
+        ensureModelThreadsInitializedIfNeeded()
+        syncActiveThreadSelection()
+
+        let controlsData = activeModelThread?.modelConfigData ?? conversationEntity.modelConfigData
+        if let decoded = try? JSONDecoder().decode(GenerationControls.self, from: controlsData) {
             controls = decoded
         } else {
             controls = GenerationControls()
@@ -5112,7 +5939,14 @@ struct ChatView: View {
 
     private func persistControlsToConversation() {
         do {
-            conversationEntity.modelConfigData = try JSONEncoder().encode(controls)
+            let data = try JSONEncoder().encode(controls)
+            if let activeThread = activeModelThread {
+                activeThread.modelConfigData = data
+                activeThread.updatedAt = Date()
+                conversationEntity.modelConfigData = data
+            } else {
+                conversationEntity.modelConfigData = data
+            }
             try modelContext.save()
         } catch {
             errorMessage = error.localizedDescription
