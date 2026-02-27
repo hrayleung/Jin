@@ -284,6 +284,8 @@ var _latestStableBase64 = '';
 var _stableRenderTicket = 0;
 var _latestStreamBase64 = '';
 var _streamRenderTicket = 0;
+var _latestStableText = '';
+var _latestStreamText = '';
 var _shikiReady = false;
 var _shikiRuntimeLoadPromise = null;
 var _mathRuntimeLoadPromise = null;
@@ -1195,6 +1197,60 @@ async function updateContent(base64, options) {
     }
 }
 
+async function updateContentText(text, options) {
+    var ticket = ++_stableRenderTicket;
+    _latestStableText = String(text || '');
+    var renderedText = _latestStableText;
+    var needsCodeHighlight = containsLikelyCodeBlocks(renderedText);
+    var needsMath = containsLikelyMath(renderedText);
+    var deferCodeHighlightUpgrade = shouldDeferCodeHighlightUpgrade(options);
+
+    if (needsMath && _mathReady) {
+        installMathPluginIfPossible(mdState);
+    }
+
+    renderMarkdownContent(mdState, renderedText);
+
+    var rerenderQueued = false;
+    function queueRerenderIfCurrent() {
+        if (rerenderQueued) return;
+        rerenderQueued = true;
+        setTimeout(function() {
+            rerenderQueued = false;
+            if (ticket !== _stableRenderTicket || renderedText !== _latestStableText) {
+                return;
+            }
+            renderMarkdownContent(mdState, renderedText);
+        }, 0);
+    }
+
+    if (needsMath && !mdState.mathInstalled) {
+        ensureMathReady().then(function(ok) {
+            if (!ok) return;
+            if (!installMathPluginIfPossible(mdState)) return;
+            queueRerenderIfCurrent();
+        });
+    }
+
+    if (needsCodeHighlight && !_shikiReady) {
+        var requestHighlightUpgrade = function() {
+            if (ticket !== _stableRenderTicket || renderedText !== _latestStableText) {
+                return;
+            }
+            ensureShikiReady().then(function(ok) {
+                if (!ok) return;
+                queueRerenderIfCurrent();
+            });
+        };
+
+        if (deferCodeHighlightUpgrade) {
+            setTimeout(requestHighlightUpgrade, deferredHighlightDelayMs(renderedText));
+        } else {
+            requestHighlightUpgrade();
+        }
+    }
+}
+
 function measuredHeight() {
     var el = document.getElementById('content');
     if (!el) {
@@ -1228,6 +1284,7 @@ if (contentEl) {
 resizeObserver.observe(document.body);
 
 window.updateWithBase64 = updateContent;
+window.updateWithText = updateContentText;
 
 // Streaming renderer uses the same Shiki code block rendering as stable mode.
 var streamMdState = createMarkdownParserState();
@@ -1287,6 +1344,62 @@ async function updateStreamingContent(base64, options) {
 }
 
 window.updateStreamingWithBase64 = updateStreamingContent;
+
+async function updateStreamingContentText(text, options) {
+    var ticket = ++_streamRenderTicket;
+    _latestStreamText = String(text || '');
+    var renderedText = _latestStreamText;
+    var needsCodeHighlight = containsLikelyCodeBlocks(renderedText);
+    var needsMath = containsLikelyMath(renderedText);
+    var deferCodeHighlightUpgrade = shouldDeferCodeHighlightUpgrade(options);
+
+    if (needsMath && _mathReady) {
+        installMathPluginIfPossible(streamMdState);
+    }
+
+    renderMarkdownContent(streamMdState, renderedText);
+
+    var rerenderQueued = false;
+    function queueRerenderIfCurrent() {
+        if (rerenderQueued) return;
+        rerenderQueued = true;
+        setTimeout(function() {
+            rerenderQueued = false;
+            if (ticket !== _streamRenderTicket || renderedText !== _latestStreamText) {
+                return;
+            }
+            renderMarkdownContent(streamMdState, renderedText);
+        }, 0);
+    }
+
+    if (needsMath && !streamMdState.mathInstalled) {
+        ensureMathReady().then(function(ok) {
+            if (!ok) return;
+            if (!installMathPluginIfPossible(streamMdState)) return;
+            queueRerenderIfCurrent();
+        });
+    }
+
+    if (needsCodeHighlight && !_shikiReady) {
+        var requestHighlightUpgrade = function() {
+            if (ticket !== _streamRenderTicket || renderedText !== _latestStreamText) {
+                return;
+            }
+            ensureShikiReady().then(function(ok) {
+                if (!ok) return;
+                queueRerenderIfCurrent();
+            });
+        };
+
+        if (deferCodeHighlightUpgrade) {
+            setTimeout(requestHighlightUpgrade, deferredHighlightDelayMs(renderedText));
+        } else {
+            requestHighlightUpgrade();
+        }
+    }
+}
+
+window.updateStreamingWithText = updateStreamingContentText;
 </script>
 </body>
 </html>

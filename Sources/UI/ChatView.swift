@@ -3051,6 +3051,45 @@ struct ChatView: View {
         return String(trimmed.prefix(48))
     }
 
+    private struct PersistedMessageSnapshot: Sendable {
+        let id: UUID
+        let role: String
+        let timestamp: Date
+        let contentData: Data
+        let toolCallsData: Data?
+        let toolResultsData: Data?
+        let searchActivitiesData: Data?
+
+        init(_ entity: MessageEntity) {
+            id = entity.id
+            role = entity.role
+            timestamp = entity.timestamp
+            contentData = entity.contentData
+            toolCallsData = entity.toolCallsData
+            toolResultsData = entity.toolResultsData
+            searchActivitiesData = entity.searchActivitiesData
+        }
+
+        func toDomain(using decoder: JSONDecoder) -> Message? {
+            guard let messageRole = MessageRole(rawValue: role) else { return nil }
+            guard let content = try? decoder.decode([ContentPart].self, from: contentData) else { return nil }
+
+            let toolCalls = toolCallsData.flatMap { try? decoder.decode([ToolCall].self, from: $0) }
+            let toolResults = toolResultsData.flatMap { try? decoder.decode([ToolResult].self, from: $0) }
+            let searchActivities = searchActivitiesData.flatMap { try? decoder.decode([SearchActivity].self, from: $0) }
+
+            return Message(
+                id: id,
+                role: messageRole,
+                content: content,
+                toolCalls: toolCalls,
+                toolResults: toolResults,
+                searchActivities: searchActivities,
+                timestamp: timestamp
+            )
+        }
+    }
+
     @MainActor
     private func startStreamingResponse(triggeredByUserSend: Bool = false) {
         let conversationID = conversationEntity.id
@@ -3070,9 +3109,7 @@ struct ChatView: View {
         streamingState.reset()
 
         let providerConfig = providers.first(where: { $0.id == providerID }).flatMap { try? $0.toDomain() }
-        let baseHistory = conversationEntity.messages
-            .sorted(by: { $0.timestamp < $1.timestamp })
-            .compactMap { try? $0.toDomain() }
+        let messageSnapshots = conversationEntity.messages.map { PersistedMessageSnapshot($0) }
         let assistant = conversationEntity.assistant
         let systemPrompt = resolvedSystemPrompt(
             conversationSystemPrompt: conversationEntity.systemPrompt,
@@ -3110,7 +3147,15 @@ struct ChatView: View {
                     throw LLMError.invalidRequest(message: "Provider not found. Configure it in Settings.")
                 }
 
-                var history = baseHistory
+                let decoder = JSONDecoder()
+                var history = messageSnapshots
+                    .sorted { lhs, rhs in
+                        if lhs.timestamp != rhs.timestamp {
+                            return lhs.timestamp < rhs.timestamp
+                        }
+                        return lhs.id.uuidString < rhs.id.uuidString
+                    }
+                    .compactMap { $0.toDomain(using: decoder) }
                 if let systemPrompt, !systemPrompt.isEmpty {
                     history.insert(Message(role: .system, content: [.text(systemPrompt)]), at: 0)
                 }

@@ -1,5 +1,8 @@
 import SwiftUI
 import WebKit
+import os
+
+private let markdownRendererLogger = Logger(subsystem: "com.jin.app", category: "MarkdownRenderer")
 
 private let markdownTemplateURL = JinResourceBundle.url(forResource: "markdown-template", withExtension: "html")
 
@@ -78,13 +81,30 @@ struct MarkdownWebRenderer: View {
         streaming: Bool = false,
         deferCodeHighlightUpgrade: Bool = false
     ) {
-        guard let data = markdown.data(using: .utf8) else { return }
-        let b64 = data.base64EncodedString()
-        let fn = streaming ? "updateStreamingWithBase64" : "updateWithBase64"
-        let optionsLiteral = deferCodeHighlightUpgrade
-            ? "{deferCodeHighlightUpgrade:true}"
-            : "{deferCodeHighlightUpgrade:false}"
-        webView.evaluateJavaScript("window.\(fn)('\(b64)', \(optionsLiteral))", completionHandler: nil)
+        let fn = streaming ? "updateStreamingWithText" : "updateWithText"
+        let options: [String: Any] = ["deferCodeHighlightUpgrade": deferCodeHighlightUpgrade]
+
+        if #available(macOS 11.0, *) {
+            webView.callAsyncJavaScript(
+                "window.\(fn)(markdown, options)",
+                arguments: [
+                    "markdown": markdown,
+                    "options": options
+                ],
+                in: nil,
+                in: .page,
+                completionHandler: nil
+            )
+        } else {
+            // Fallback: base64-encode to avoid string escaping issues.
+            guard let data = markdown.data(using: .utf8) else { return }
+            let b64 = data.base64EncodedString()
+            let legacyFn = streaming ? "updateStreamingWithBase64" : "updateWithBase64"
+            let optionsLiteral = deferCodeHighlightUpgrade
+                ? "{deferCodeHighlightUpgrade:true}"
+                : "{deferCodeHighlightUpgrade:false}"
+            webView.evaluateJavaScript("window.\(legacyFn)('\(b64)', \(optionsLiteral))", completionHandler: nil)
+        }
     }
 }
 
@@ -154,6 +174,8 @@ private struct MarkdownWebRendererRepresentable: NSViewRepresentable {
 
     final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
         private let maxAllowedContentHeight: CGFloat = 200_000
+        private let largeMarkdownLogThreshold = 120_000
+        private let largeMarkdownLogStep = 60_000
 
         weak var webView: MarkdownWKWebView?
         var heightBinding: Binding<CGFloat>?
@@ -172,6 +194,21 @@ private struct MarkdownWebRendererRepresentable: NSViewRepresentable {
         private var isObservingDefaults = false
         private var pendingHeightUpdate: CGFloat?
         private var isHeightUpdateEnqueued = false
+        private var lastLoggedMarkdownCount = 0
+
+        private func logLargeMarkdownIfNeeded(_ markdown: String) {
+            let count = markdown.count
+            guard count >= largeMarkdownLogThreshold else {
+                lastLoggedMarkdownCount = 0
+                return
+            }
+            guard count - lastLoggedMarkdownCount >= largeMarkdownLogStep else { return }
+            lastLoggedMarkdownCount = count
+
+            markdownRendererLogger.notice(
+                "Rendering large markdown payload (chars: \(count, privacy: .public), streaming: \(self.isStreaming, privacy: .public))"
+            )
+        }
 
         func startObservingFontPreferences() {
             guard !isObservingDefaults else { return }
@@ -233,6 +270,8 @@ private struct MarkdownWebRendererRepresentable: NSViewRepresentable {
                     || deferCodeHighlightUpgrade != lastRenderedDeferCodeHighlightUpgrade else {
                 return
             }
+
+            logLargeMarkdownIfNeeded(markdown)
             lastRenderedMarkdown = markdown
             lastRenderedDeferCodeHighlightUpgrade = deferCodeHighlightUpgrade
             MarkdownWebRenderer.sendMarkdown(
