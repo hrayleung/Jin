@@ -3,6 +3,15 @@
     <channel>
         <title>Jin</title>
         <item>
+            <title>0.52</title>
+            <pubDate>Fri, 27 Feb 2026 16:37:18 +0800</pubDate>
+            <link>https://github.com/hrayleung/Jin/releases</link>
+            <sparkle:version>210</sparkle:version>
+            <sparkle:shortVersionString>0.52</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <enclosure url="https://github.com/hrayleung/Jin/releases/download/v0.52/Jin-0.52.zip" length="22541929" type="application/octet-stream" sparkle:edSignature="qlbImAC3LD0AY39Kvc46ELbdbKKp+DEohXtMC7lQLKkC1Dj94enmJCwQKKZIGiWn04gO7wY8cYM10WlUAUETCw=="/>
+        </item>
+        <item>
             <title>0.51</title>
             <pubDate>Thu, 26 Feb 2026 23:14:16 +0800</pubDate>
             <link>https://github.com/hrayleung/Jin/releases</link>
