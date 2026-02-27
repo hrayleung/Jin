@@ -188,6 +188,7 @@ final class AnthropicSearchActivityBuilder {
     let id: String
     let type: String
     private(set) var arguments: [String: AnyCodable]
+    private var argumentsBuffer = ""
 
     init(id: String, type: String, arguments: [String: AnyCodable]) {
         self.id = id
@@ -196,13 +197,15 @@ final class AnthropicSearchActivityBuilder {
     }
 
     func appendArguments(_ delta: String) {
-        guard let data = delta.data(using: .utf8),
+        argumentsBuffer += delta
+        guard let data = argumentsBuffer.data(using: .utf8),
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             return
         }
         for (key, value) in json {
             arguments[key] = AnyCodable(value)
         }
+        argumentsBuffer = ""
     }
 
     func build(status: SearchActivityStatus, outputIndex: Int?) -> SearchActivity? {

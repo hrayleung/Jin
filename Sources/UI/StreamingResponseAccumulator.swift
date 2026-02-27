@@ -5,15 +5,17 @@ import Foundation
 ///
 /// Extracted from ChatView.startStreamingResponse to reduce that function's complexity.
 struct StreamingResponseAccumulator {
-    var assistantPartRefs: [StreamedAssistantPartRef] = []
-    var assistantTextSegments: [String] = []
-    var assistantImageSegments: [ImageContent] = []
-    var assistantVideoSegments: [VideoContent] = []
-    var assistantThinkingSegments: [ThinkingBlockAccumulator] = []
-    var toolCallsByID: [String: ToolCall] = [:]
-    var toolCallOrder: [String] = []
-    var searchActivitiesByID: [String: SearchActivity] = [:]
-    var searchActivityOrder: [String] = []
+    private var assistantPartRefs: [StreamedAssistantPartRef] = []
+    private var assistantTextSegments: [String] = []
+    private var assistantImageSegments: [ImageContent] = []
+    private var assistantVideoSegments: [VideoContent] = []
+    private var assistantThinkingSegments: [ThinkingBlockAccumulator] = []
+    private var toolCallsByID: [String: ToolCall] = [:]
+    private var toolCallOrder: [String] = []
+    private var searchActivitiesByID: [String: SearchActivity] = [:]
+    private var searchActivityOrder: [String] = []
+
+    init() {}
 
     mutating func appendTextDelta(_ delta: String) {
         guard !delta.isEmpty else { return }

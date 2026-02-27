@@ -693,6 +693,74 @@ final class AnthropicAdapterTests: XCTestCase {
         XCTAssertTrue(searchEvents.contains { $0.status == .completed })
     }
 
+    func testAnthropicStreamingReassemblesFragmentedServerToolInputJSONDelta() async throws {
+        let (session, protocolType) = makeMockedURLSession()
+        let networkManager = NetworkManager(urlSession: session)
+
+        let providerConfig = ProviderConfig(
+            id: "anthropic",
+            name: "Anthropic",
+            type: .anthropic,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://example.com/messages")
+
+            let sse = """
+            event: message_start
+            data: {"type":"message_start","message":{"id":"msg_server_tool","type":"message","role":"assistant","model":"claude-sonnet-4-6"}}
+
+            event: content_block_start
+            data: {"type":"content_block_start","index":0,"content_block":{"type":"server_tool_use","id":"srv_1","name":"web_search","input":{"query":"swift structured concurrency"}}}
+
+            event: content_block_delta
+            data: {"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"{\\"url\\":\\"https://example.com/swift\\","}}
+
+            event: content_block_delta
+            data: {"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"\\"result_count\\":3}"}}
+
+            event: content_block_stop
+            data: {"type":"content_block_stop","index":0}
+
+            event: message_stop
+            data: {"type":"message_stop"}
+
+            data: [DONE]
+
+            """
+
+            return (
+                HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                Data(sse.utf8)
+            )
+        }
+
+        let adapter = AnthropicAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hi")])],
+            modelID: "claude-sonnet-4-6",
+            controls: GenerationControls(),
+            tools: [],
+            streaming: true
+        )
+
+        var searchEvents: [SearchActivity] = []
+        for try await event in stream {
+            if case .searchActivity(let activity) = event {
+                searchEvents.append(activity)
+            }
+        }
+
+        let completed = try XCTUnwrap(searchEvents.last(where: { $0.status == .completed }))
+        XCTAssertEqual(completed.id, "srv_1")
+        XCTAssertEqual(completed.arguments["query"]?.value as? String, "swift structured concurrency")
+        XCTAssertEqual(completed.arguments["url"]?.value as? String, "https://example.com/swift")
+        XCTAssertEqual(completed.arguments["result_count"]?.value as? Int, 3)
+    }
+
     func testAnthropicStreamingEmitsWebSearchToolResultURLs() async throws {
         let (session, protocolType) = makeMockedURLSession()
         let networkManager = NetworkManager(urlSession: session)
