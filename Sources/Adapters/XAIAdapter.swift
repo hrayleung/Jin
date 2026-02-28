@@ -875,23 +875,7 @@ actor XAIAdapter: LLMProviderAdapter {
     }
 
     private func supportsWebSearch(modelID: String) -> Bool {
-        if let model = configuredModel(for: modelID) {
-            let resolved = ModelSettingsResolver.resolve(model: model, providerType: providerConfig.type)
-            return resolved.supportsWebSearch
-        }
-
-        return ModelCapabilityRegistry.supportsWebSearch(
-            for: providerConfig.type,
-            modelID: modelID
-        )
-    }
-
-    private func configuredModel(for modelID: String) -> ModelInfo? {
-        if let exact = providerConfig.models.first(where: { $0.id == modelID }) {
-            return exact
-        }
-        let target = modelID.lowercased()
-        return providerConfig.models.first(where: { $0.id.lowercased() == target })
+        modelSupportsWebSearch(providerConfig: providerConfig, modelID: modelID)
     }
 
     private func supportsNativePDF(_ modelID: String) -> Bool {

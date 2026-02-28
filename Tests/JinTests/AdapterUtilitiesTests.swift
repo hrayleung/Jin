@@ -44,7 +44,7 @@ final class AdapterUtilitiesTests: XCTestCase {
         XCTAssertEqual(split.thinking, "think-athink-b")
     }
 
-    func testFindConfiguredModelRequiresExactIDMatch() {
+    func testFindConfiguredModelMatchesExactAndCaseInsensitive() {
         let provider = ProviderConfig(
             id: "p1",
             name: "Provider",
@@ -60,6 +60,9 @@ final class AdapterUtilitiesTests: XCTestCase {
         )
 
         XCTAssertNotNil(findConfiguredModel(in: provider, for: "gpt-4o"))
-        XCTAssertNil(findConfiguredModel(in: provider, for: "GPT-4O"))
+        // Case-insensitive fallback: "GPT-4O" matches "gpt-4o"
+        XCTAssertNotNil(findConfiguredModel(in: provider, for: "GPT-4O"))
+        // No match for completely different ID
+        XCTAssertNil(findConfiguredModel(in: provider, for: "gpt-5"))
     }
 }

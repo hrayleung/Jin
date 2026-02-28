@@ -145,14 +145,18 @@ struct AddProviderView: View {
                     _ = try JSONDecoder().decode(ServiceAccountCredentials.self, from: Data(trimmedServiceAccountJSON.utf8))
                 }
 
+                let isVertexAI = providerType == .vertexai
+                let resolvedAPIKey: String? = isVertexAI ? nil : (trimmedAPIKey.isEmpty ? nil : trimmedAPIKey)
+                let resolvedBaseURL: String? = isVertexAI ? nil : (trimmedBaseURL.isEmpty ? nil : trimmedBaseURL)
+
                 let config = ProviderConfig(
                     id: providerID,
                     name: trimmedName,
                     type: providerType,
                     iconID: trimmedIconID?.isEmpty == false ? trimmedIconID : nil,
-                    apiKey: providerType == .vertexai ? nil : (trimmedAPIKey.isEmpty ? nil : trimmedAPIKey),
-                    serviceAccountJSON: providerType == .vertexai ? trimmedServiceAccountJSON : nil,
-                    baseURL: providerType == .vertexai ? nil : trimmedBaseURL.isEmpty ? nil : trimmedBaseURL
+                    apiKey: resolvedAPIKey,
+                    serviceAccountJSON: isVertexAI ? trimmedServiceAccountJSON : nil,
+                    baseURL: resolvedBaseURL
                 )
 
                 let entity = try ProviderConfigEntity.fromDomain(config)

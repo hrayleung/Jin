@@ -316,9 +316,32 @@ func translateUserContentPartsToOpenAIFormat(
 
 // MARK: - Model Lookup
 
-/// Finds a model in the provider config by exact ID.
+/// Finds a model in the provider config by exact ID, with case-insensitive fallback.
 func findConfiguredModel(in providerConfig: ProviderConfig, for modelID: String) -> ModelInfo? {
-    providerConfig.models.first(where: { $0.id == modelID })
+    if let exact = providerConfig.models.first(where: { $0.id == modelID }) {
+        return exact
+    }
+    let target = modelID.lowercased()
+    return providerConfig.models.first(where: { $0.id.lowercased() == target })
+}
+
+// MARK: - Web Search Support Detection
+
+/// Checks whether a model supports web search based on configured model info or capability registry.
+/// This is the shared implementation used by all adapters that duplicate this logic.
+func modelSupportsWebSearch(
+    providerConfig: ProviderConfig,
+    modelID: String
+) -> Bool {
+    if let model = findConfiguredModel(in: providerConfig, for: modelID) {
+        let resolved = ModelSettingsResolver.resolve(model: model, providerType: providerConfig.type)
+        return resolved.supportsWebSearch
+    }
+
+    return ModelCapabilityRegistry.supportsWebSearch(
+        for: providerConfig.type,
+        modelID: modelID
+    )
 }
 
 // MARK: - Reasoning Support Detection
@@ -405,6 +428,52 @@ func fireworksCanonicalModelID(_ modelID: String) -> String? {
 func isFireworksMiniMaxM2FamilyModel(_ modelID: String) -> Bool {
     guard let canonical = fireworksCanonicalModelID(modelID) else { return false }
     return fireworksMiniMaxM2CanonicalIDs.contains(canonical)
+}
+
+// MARK: - OpenAI Responses API Supported File MIME Types
+
+/// MIME types supported natively by the OpenAI Responses API via `input_file`.
+/// Shared by `OpenAIAdapter` and `OpenAIWebSocketAdapter`.
+let openAISupportedFileMIMETypes: Set<String> = [
+    "application/pdf",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document", // docx
+    "application/msword",                                                        // doc
+    "application/vnd.oasis.opendocument.text",                                  // odt
+    "application/rtf", "text/rtf",                                              // rtf
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",        // xlsx
+    "application/vnd.ms-excel",                                                 // xls
+    "text/csv",                                                                 // csv
+    "text/tab-separated-values",                                                // tsv
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation", // pptx
+    "application/vnd.ms-powerpoint",                                            // ppt
+    "text/plain",                                                               // txt
+    "text/markdown", "text/x-markdown",                                        // md
+    "application/json",                                                         // json
+    "text/html",                                                                // html
+    "application/xml", "text/xml",                                              // xml
+]
+
+// MARK: - OpenAI Audio Model ID Detection
+
+/// Audio input model IDs specific to OpenAI's first-party models.
+/// Shared by `OpenAIAdapter` and `OpenAIWebSocketAdapter`.
+private let openAIAudioInputModelIDs: Set<String> = [
+    "gpt-4o-audio-preview",
+    "gpt-4o-audio-preview-2024-10-01",
+    "gpt-4o-mini-audio-preview",
+    "gpt-4o-mini-audio-preview-2024-12-17",
+    "gpt-4o-realtime-preview",
+    "gpt-4o-realtime-preview-2024-10-01",
+    "gpt-4o-realtime-preview-2024-12-17",
+    "gpt-4o-mini-realtime-preview",
+    "gpt-4o-mini-realtime-preview-2024-12-17",
+    "gpt-realtime",
+    "gpt-realtime-mini",
+]
+
+/// Checks whether an OpenAI model ID (lowercased) supports audio input.
+func isOpenAIAudioInputModelID(_ lowerModelID: String) -> Bool {
+    openAIAudioInputModelIDs.contains(lowerModelID)
 }
 
 // MARK: - OpenAI-Compatible Streaming Dispatch

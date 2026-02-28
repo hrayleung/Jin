@@ -220,15 +220,7 @@ actor PerplexityAdapter: LLMProviderAdapter {
     }
 
     private func supportsWebSearch(modelID: String) -> Bool {
-        if let model = findConfiguredModel(in: providerConfig, for: modelID) {
-            let resolved = ModelSettingsResolver.resolve(model: model, providerType: providerConfig.type)
-            return resolved.supportsWebSearch
-        }
-
-        return ModelCapabilityRegistry.supportsWebSearch(
-            for: providerConfig.type,
-            modelID: modelID
-        )
+        modelSupportsWebSearch(providerConfig: providerConfig, modelID: modelID)
     }
 
     private func mapReasoningEffort(_ reasoning: ReasoningControls?) -> String? {
