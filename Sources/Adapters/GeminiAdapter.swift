@@ -12,44 +12,7 @@ import Foundation
 actor GeminiAdapter: LLMProviderAdapter {
     let providerConfig: ProviderConfig
     let capabilities: ModelCapability = [.streaming, .toolCalling, .vision, .audio, .reasoning, .promptCaching, .nativePDF, .imageGeneration, .videoGeneration]
-    private static let gemini3ModelIDs: Set<String> = [
-        "gemini-3",
-        "gemini-3-pro",
-        "gemini-3-pro-preview",
-        "gemini-3.1-pro-preview",
-        "gemini-3.1-flash-image-preview",
-        "gemini-3-flash-preview",
-        "gemini-3-pro-image-preview",
-    ]
-    private static let geminiImageGenerationModelIDs: Set<String> = [
-        "gemini-3-pro-image-preview",
-        "gemini-3.1-flash-image-preview",
-        "gemini-2.5-flash-image",
-    ]
-    private static let geminiKnownModelIDs: Set<String> = [
-        "gemini-3",
-        "gemini-3-pro",
-        "gemini-3-pro-preview",
-        "gemini-3.1-pro-preview",
-        "gemini-3.1-flash-image-preview",
-        "gemini-3-flash-preview",
-        "gemini-3-pro-image-preview",
-        "gemini-2.5",
-        "gemini-2.5-pro",
-        "gemini-2.5-flash",
-        "gemini-2.5-flash-lite",
-        "gemini-2.5-flash-image",
-        "gemini-2.0-flash",
-        "gemini-2.0-flash-lite",
-    ]
-    private static let nativePDFModelIDs: Set<String> = [
-        "gemini-3",
-        "gemini-3-pro",
-        "gemini-3-pro-preview",
-        "gemini-3.1-pro-preview",
-        "gemini-3-flash-preview",
-        "gemini-3.1-flash-image-preview",
-    ]
+    // Model ID sets are shared with VertexAIAdapter via GeminiModelConstants.
 
     private let networkManager: NetworkManager
     private let apiKey: String
@@ -457,15 +420,15 @@ actor GeminiAdapter: LLMProviderAdapter {
     }
 
     private func supportsNativePDF(_ modelID: String) -> Bool {
-        Self.nativePDFModelIDs.contains(modelID.lowercased())
+        GeminiModelConstants.supportsNativePDF(modelID)
     }
 
     private func isGemini3Model(_ modelID: String) -> Bool {
-        Self.gemini3ModelIDs.contains(modelID.lowercased())
+        GeminiModelConstants.isGemini3Model(modelID)
     }
 
     private func isImageGenerationModel(_ modelID: String) -> Bool {
-        Self.geminiImageGenerationModelIDs.contains(modelID.lowercased())
+        GeminiModelConstants.isImageGenerationModel(modelID)
     }
 
     private func isVideoGenerationModel(_ modelID: String) -> Bool {
@@ -624,23 +587,7 @@ actor GeminiAdapter: LLMProviderAdapter {
     }
 
     private func supportsWebSearch(_ modelID: String) -> Bool {
-        if let model = configuredModel(for: modelID) {
-            let resolved = ModelSettingsResolver.resolve(model: model, providerType: providerConfig.type)
-            return resolved.supportsWebSearch
-        }
-
-        return ModelCapabilityRegistry.supportsWebSearch(
-            for: providerConfig.type,
-            modelID: modelID
-        )
-    }
-
-    private func configuredModel(for modelID: String) -> ModelInfo? {
-        if let exact = providerConfig.models.first(where: { $0.id == modelID }) {
-            return exact
-        }
-        let target = modelID.lowercased()
-        return providerConfig.models.first(where: { $0.id.lowercased() == target })
+        modelSupportsWebSearch(providerConfig: providerConfig, modelID: modelID)
     }
 
     private func supportsImageSize(_ modelID: String) -> Bool {
@@ -1060,7 +1007,7 @@ actor GeminiAdapter: LLMProviderAdapter {
         }
 
         let isImageModel = isImageGenerationModel(id)
-        let isGeminiModel = Self.geminiKnownModelIDs.contains(lower)
+        let isGeminiModel = GeminiModelConstants.knownModelIDs.contains(lower)
 
         if supportsGenerateContent && !isImageModel {
             caps.insert(.toolCalling)

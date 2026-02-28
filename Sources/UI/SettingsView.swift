@@ -173,59 +173,36 @@ struct SettingsView: View {
         }
     }
 
-    private var animatedSelectedSection: Binding<SettingsSection?> {
+    /// Creates a Binding that wraps writes in the settings motion animation.
+    private func animatedBinding<T>(_ value: Binding<T>) -> Binding<T> {
         Binding(
-            get: { selectedSection },
+            get: { value.wrappedValue },
             set: { newValue in
                 withAnimation(settingsMotionAnimation) {
-                    selectedSection = newValue
+                    value.wrappedValue = newValue
                 }
             }
         )
+    }
+
+    private var animatedSelectedSection: Binding<SettingsSection?> {
+        animatedBinding($selectedSection)
     }
 
     private var animatedSelectedProviderID: Binding<String?> {
-        Binding(
-            get: { selectedProviderID },
-            set: { newValue in
-                withAnimation(settingsMotionAnimation) {
-                    selectedProviderID = newValue
-                }
-            }
-        )
+        animatedBinding($selectedProviderID)
     }
 
     private var animatedSelectedServerID: Binding<String?> {
-        Binding(
-            get: { selectedServerID },
-            set: { newValue in
-                withAnimation(settingsMotionAnimation) {
-                    selectedServerID = newValue
-                }
-            }
-        )
+        animatedBinding($selectedServerID)
     }
 
     private var animatedSelectedPluginID: Binding<String?> {
-        Binding(
-            get: { selectedPluginID },
-            set: { newValue in
-                withAnimation(settingsMotionAnimation) {
-                    selectedPluginID = newValue
-                }
-            }
-        )
+        animatedBinding($selectedPluginID)
     }
 
     private var animatedSelectedGeneralCategory: Binding<GeneralSettingsCategory?> {
-        Binding(
-            get: { selectedGeneralCategory },
-            set: { newValue in
-                withAnimation(settingsMotionAnimation) {
-                    selectedGeneralCategory = newValue
-                }
-            }
-        )
+        animatedBinding($selectedGeneralCategory)
     }
 
     var body: some View {

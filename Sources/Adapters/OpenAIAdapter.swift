@@ -282,61 +282,14 @@ actor OpenAIAdapter: LLMProviderAdapter {
         JinModelSupport.supportsNativePDF(providerType: .openai, modelID: modelID)
     }
 
-    // MIME types supported natively by OpenAI Responses API via input_file
-    private static let openAISupportedFileMIMETypes: Set<String> = [
-        "application/pdf",
-        "application/vnd.openxmlformats-officedocument.wordprocessingml.document", // docx
-        "application/msword",                                                        // doc
-        "application/vnd.oasis.opendocument.text",                                  // odt
-        "application/rtf", "text/rtf",                                              // rtf
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",        // xlsx
-        "application/vnd.ms-excel",                                                 // xls
-        "text/csv",                                                                 // csv
-        "text/tab-separated-values",                                                // tsv
-        "application/vnd.openxmlformats-officedocument.presentationml.presentation", // pptx
-        "application/vnd.ms-powerpoint",                                            // ppt
-        "text/plain",                                                               // txt
-        "text/markdown", "text/x-markdown",                                        // md
-        "application/json",                                                         // json
-        "text/html",                                                                // html
-        "application/xml", "text/xml",                                              // xml
-    ]
+    // Shared MIME type set defined in AdapterUtilities.swift
 
     private func supportsWebSearch(_ modelID: String) -> Bool {
-        if let model = configuredModel(for: modelID) {
-            let resolved = ModelSettingsResolver.resolve(model: model, providerType: providerConfig.type)
-            return resolved.supportsWebSearch
-        }
-
-        return ModelCapabilityRegistry.supportsWebSearch(
-            for: providerConfig.type,
-            modelID: modelID
-        )
-    }
-
-    private func configuredModel(for modelID: String) -> ModelInfo? {
-        if let exact = providerConfig.models.first(where: { $0.id == modelID }) {
-            return exact
-        }
-        let target = modelID.lowercased()
-        return providerConfig.models.first(where: { $0.id.lowercased() == target })
+        modelSupportsWebSearch(providerConfig: providerConfig, modelID: modelID)
     }
 
     private func supportsAudioInputModelID(_ lowerModelID: String) -> Bool {
-        let audioInputModelIDs: Set<String> = [
-            "gpt-4o-audio-preview",
-            "gpt-4o-audio-preview-2024-10-01",
-            "gpt-4o-mini-audio-preview",
-            "gpt-4o-mini-audio-preview-2024-12-17",
-            "gpt-4o-realtime-preview",
-            "gpt-4o-realtime-preview-2024-10-01",
-            "gpt-4o-realtime-preview-2024-12-17",
-            "gpt-4o-mini-realtime-preview",
-            "gpt-4o-mini-realtime-preview-2024-12-17",
-            "gpt-realtime",
-            "gpt-realtime-mini",
-        ]
-        return audioInputModelIDs.contains(lowerModelID)
+        isOpenAIAudioInputModelID(lowerModelID)
     }
 
     private func shouldRouteToChatCompletionsForAudio(messages: [Message], modelID: String) -> Bool {
@@ -484,10 +437,11 @@ actor OpenAIAdapter: LLMProviderAdapter {
             return nil
 
         case .file(let file):
+            let normalizedFileMIMEType = normalizedMIMEType(file.mimeType)
             let shouldAllowNativeFileUpload =
                 supportsNativeFileInput &&
-                Self.openAISupportedFileMIMETypes.contains(file.mimeType) &&
-                (file.mimeType != "application/pdf" || allowNativePDF)
+                openAISupportedFileMIMETypes.contains(normalizedFileMIMEType) &&
+                (normalizedFileMIMEType != "application/pdf" || allowNativePDF)
 
             if shouldAllowNativeFileUpload {
                 // Remote URL: use file_url directly (Responses API supports this)
@@ -512,7 +466,7 @@ actor OpenAIAdapter: LLMProviderAdapter {
                     return [
                         "type": "input_file",
                         "filename": file.filename,
-                        "file_data": "data:\(file.mimeType);base64,\(fileData.base64EncodedString())"
+                        "file_data": "data:\(normalizedFileMIMEType);base64,\(fileData.base64EncodedString())"
                     ]
                 }
             }
