@@ -39,7 +39,7 @@ final class OpenAIAdapterPromptCachingTests: XCTestCase {
                 "usage": [
                     "input_tokens": 12,
                     "output_tokens": 3,
-                    "prompt_tokens_details": [
+                    "input_tokens_details": [
                         "cached_tokens": 8
                     ],
                     "output_tokens_details": [
@@ -78,6 +78,63 @@ final class OpenAIAdapterPromptCachingTests: XCTestCase {
         XCTAssertEqual(finalUsage?.outputTokens, 3)
         XCTAssertEqual(finalUsage?.thinkingTokens, 1)
         XCTAssertEqual(finalUsage?.cachedTokens, 8)
+    }
+
+    func testOpenAIAdapterParsesLegacyPromptTokensDetailsForCachedTokens() async throws {
+        let (session, protocolType) = makeOpenAIMockedURLSession()
+        let networkManager = NetworkManager(urlSession: session)
+
+        let providerConfig = ProviderConfig(
+            id: "openai",
+            name: "OpenAI",
+            type: .openai,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://example.com/responses")
+
+            let response: [String: Any] = [
+                "id": "resp_legacy_cached_tokens",
+                "output": [
+                    [
+                        "type": "message",
+                        "content": [
+                            ["type": "output_text", "text": "ok"]
+                        ]
+                    ]
+                ],
+                "usage": [
+                    "input_tokens": 7,
+                    "output_tokens": 2,
+                    "prompt_tokens_details": [
+                        "cached_tokens": 5
+                    ]
+                ]
+            ]
+
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = OpenAIAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hi")])],
+            modelID: "gpt-5.2",
+            controls: GenerationControls(),
+            tools: [],
+            streaming: false
+        )
+
+        var finalUsage: Usage?
+        for try await event in stream {
+            if case .messageEnd(let usage) = event {
+                finalUsage = usage
+            }
+        }
+
+        XCTAssertEqual(finalUsage?.cachedTokens, 5)
     }
 
     func testOpenAIAdapterClampsUnsupportedXHighEffortToHigh() async throws {
@@ -401,6 +458,71 @@ final class OpenAIAdapterPromptCachingTests: XCTestCase {
         XCTAssertEqual(sources.first?.title, "Google AI Studio")
     }
 
+    func testOpenAIAdapterStreamingHandlesCompletedEventWithoutUsage() async throws {
+        let (session, protocolType) = makeOpenAIMockedURLSession()
+        let networkManager = NetworkManager(urlSession: session)
+
+        let providerConfig = ProviderConfig(
+            id: "openai",
+            name: "OpenAI",
+            type: .openai,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://example.com/responses")
+
+            let sse = """
+            event: response.created
+            data: {"type":"response.created","response":{"id":"resp_no_usage_1"}}
+
+            event: response.output_text.delta
+            data: {"type":"response.output_text.delta","delta":"ok"}
+
+            event: response.completed
+            data: {"type":"response.completed","response":{"id":"resp_no_usage_1"}}
+
+            data: [DONE]
+
+            """
+
+            return (
+                HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                Data(sse.utf8)
+            )
+        }
+
+        let adapter = OpenAIAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hi")])],
+            modelID: "gpt-5.2",
+            controls: GenerationControls(),
+            tools: [],
+            streaming: true
+        )
+
+        var sawTextDelta = false
+        var sawMessageEndWithoutUsage = false
+        for try await event in stream {
+            switch event {
+            case .contentDelta(.text(let text)):
+                if text == "ok" {
+                    sawTextDelta = true
+                }
+            case .messageEnd(let usage):
+                if usage == nil {
+                    sawMessageEndWithoutUsage = true
+                }
+            default:
+                break
+            }
+        }
+
+        XCTAssertTrue(sawTextDelta)
+        XCTAssertTrue(sawMessageEndWithoutUsage)
+    }
+
     func testOpenAIAdapterCitationSearchActivityCarriesSnippetFromAnnotationOffsets() async throws {
         let (session, protocolType) = makeOpenAIMockedURLSession()
         let networkManager = NetworkManager(urlSession: session)
@@ -540,6 +662,72 @@ final class OpenAIAdapterPromptCachingTests: XCTestCase {
         XCTAssertEqual(sources.first?.url, "https://openai.com/index/introducing-web-search")
         XCTAssertEqual(sources.first?.title, "OpenAI Web Search")
         XCTAssertTrue((sources.first?.snippet ?? "").contains("structured web search"))
+    }
+
+    func testOpenAIAdapterStreamingSkipsMalformedEventsInsteadOfFailing() async throws {
+        let (session, protocolType) = makeOpenAIMockedURLSession()
+        let networkManager = NetworkManager(urlSession: session)
+
+        let providerConfig = ProviderConfig(
+            id: "openai",
+            name: "OpenAI",
+            type: .openai,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://example.com/responses")
+
+            let sse = """
+            event: response.created
+            data: {"type":"response.created","response":{"id":"resp_malformed_1"}}
+
+            event: response.output_item.done
+            data: {"type":"response.output_item.done","output_index":0}
+
+            event: response.output_text.delta
+            data: {"type":"response.output_text.delta","delta":"ok"}
+
+            event: response.completed
+            data: {"type":"response.completed","response":{"id":"resp_malformed_1","usage":{"input_tokens":2,"output_tokens":1}}}
+
+            data: [DONE]
+
+            """
+
+            return (
+                HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                Data(sse.utf8)
+            )
+        }
+
+        let adapter = OpenAIAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hi")])],
+            modelID: "gpt-5.2",
+            controls: GenerationControls(),
+            tools: [],
+            streaming: true
+        )
+
+        var sawText = false
+        var sawMessageEnd = false
+        for try await event in stream {
+            switch event {
+            case .contentDelta(.text(let text)):
+                if text == "ok" {
+                    sawText = true
+                }
+            case .messageEnd:
+                sawMessageEnd = true
+            default:
+                break
+            }
+        }
+
+        XCTAssertTrue(sawText)
+        XCTAssertTrue(sawMessageEnd)
     }
 }
 
