@@ -1403,7 +1403,7 @@ final class XAIAdapterMediaTests: XCTestCase {
                 "usage": [
                     "input_tokens": 10,
                     "output_tokens": 4,
-                    "prompt_tokens_details": [
+                    "input_tokens_details": [
                         "cached_tokens": 6
                     ]
                 ]

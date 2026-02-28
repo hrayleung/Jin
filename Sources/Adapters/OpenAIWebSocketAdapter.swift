@@ -129,23 +129,30 @@ actor OpenAIWebSocketAdapter: LLMProviderAdapter {
                             continue
                         }
 
-                        if let streamEvent = try parseSSEEvent(
-                            type: eventType,
-                            data: jsonString,
-                            functionCallsByItemID: &functionCallsByItemID
-                        ) {
-                            if case .messageStart(let id) = streamEvent {
-                                previousResponseID = id
-                            }
+                        let isTerminalEvent = isTerminalResponseEventType(eventType)
 
-                            continuation.yield(streamEvent)
+                        do {
+                            if let streamEvent = try parseSSEEvent(
+                                type: eventType,
+                                data: jsonString,
+                                functionCallsByItemID: &functionCallsByItemID
+                            ) {
+                                if case .messageStart(let id) = streamEvent {
+                                    previousResponseID = id
+                                }
+
+                                continuation.yield(streamEvent)
+                            }
+                        } catch is DecodingError {
+                            // Be resilient to provider-side schema drift in individual events.
+                            // Skip malformed events instead of aborting the whole response stream.
+                            if isTerminalEvent {
+                                break
+                            }
+                            continue
                         }
 
-                        if eventType == "response.completed"
-                            || eventType == "response.failed"
-                            || eventType == "response.canceled"
-                            || eventType == "response.cancelled"
-                            || eventType == "error" {
+                        if isTerminalEvent {
                             break
                         }
                     }
@@ -799,6 +806,14 @@ actor OpenAIWebSocketAdapter: LLMProviderAdapter {
         return type
     }
 
+    private func isTerminalResponseEventType(_ eventType: String) -> Bool {
+        eventType == "response.completed"
+            || eventType == "response.failed"
+            || eventType == "response.canceled"
+            || eventType == "response.cancelled"
+            || eventType == "error"
+    }
+
     private func parseSSEEvent(
         type: String,
         data: String,
@@ -906,13 +921,7 @@ actor OpenAIWebSocketAdapter: LLMProviderAdapter {
 
         case "response.completed":
             let event = try decoder.decode(ResponsesAPICompletedEvent.self, from: jsonData)
-            let usage = Usage(
-                inputTokens: event.response.usage.inputTokens,
-                outputTokens: event.response.usage.outputTokens,
-                thinkingTokens: event.response.usage.outputTokensDetails?.reasoningTokens,
-                cachedTokens: event.response.usage.promptTokensDetails?.cachedTokens
-            )
-            return .messageEnd(usage: usage)
+            return .messageEnd(usage: event.response.toUsage())
 
         case "response.failed":
             if let errorEvent = try? decoder.decode(ResponsesAPIFailedEvent.self, from: jsonData),

@@ -79,12 +79,18 @@ actor OpenAIAdapter: LLMProviderAdapter {
                     for try await event in sseStream {
                         switch event {
                         case .event(let type, let data):
-                            if let streamEvent = try parseSSEEvent(
-                                type: type,
-                                data: data,
-                                functionCallsByItemID: &functionCallsByItemID
-                            ) {
-                                continuation.yield(streamEvent)
+                            do {
+                                if let streamEvent = try parseSSEEvent(
+                                    type: type,
+                                    data: data,
+                                    functionCallsByItemID: &functionCallsByItemID
+                                ) {
+                                    continuation.yield(streamEvent)
+                                }
+                            } catch is DecodingError {
+                                // Be resilient to provider-side schema drift in individual events.
+                                // Skip malformed events instead of aborting the whole response stream.
+                                continue
                             }
                         case .done:
                             continuation.yield(.messageEnd(usage: nil))
@@ -699,13 +705,7 @@ actor OpenAIAdapter: LLMProviderAdapter {
 
         case "response.completed":
             let event = try decoder.decode(ResponsesAPICompletedEvent.self, from: jsonData)
-            let usage = Usage(
-                inputTokens: event.response.usage.inputTokens,
-                outputTokens: event.response.usage.outputTokens,
-                thinkingTokens: event.response.usage.outputTokensDetails?.reasoningTokens,
-                cachedTokens: event.response.usage.promptTokensDetails?.cachedTokens
-            )
-            return .messageEnd(usage: usage)
+            return .messageEnd(usage: event.response.toUsage())
 
         case "response.failed":
             if let errorEvent = try? decoder.decode(ResponsesAPIFailedEvent.self, from: jsonData),

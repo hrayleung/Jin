@@ -45,17 +45,23 @@ actor AnthropicAdapter: LLMProviderAdapter {
                     for try await event in sseStream {
                         switch event {
                         case .event(_, let data):
-                            if let streamEvent = try parseJSONLine(
-                                data,
-                                currentMessageID: &currentMessageID,
-                                currentBlockIndex: &currentBlockIndex,
-                                currentToolUse: &currentToolUse,
-                                currentServerToolUse: &currentServerToolUse,
-                                currentContentBlockType: &currentContentBlockType,
-                                currentThinkingSignature: &currentThinkingSignature,
-                                usageAccumulator: &usageAccumulator
-                            ) {
-                                continuation.yield(streamEvent)
+                            do {
+                                if let streamEvent = try parseJSONLine(
+                                    data,
+                                    currentMessageID: &currentMessageID,
+                                    currentBlockIndex: &currentBlockIndex,
+                                    currentToolUse: &currentToolUse,
+                                    currentServerToolUse: &currentServerToolUse,
+                                    currentContentBlockType: &currentContentBlockType,
+                                    currentThinkingSignature: &currentThinkingSignature,
+                                    usageAccumulator: &usageAccumulator
+                                ) {
+                                    continuation.yield(streamEvent)
+                                }
+                            } catch is DecodingError {
+                                // Be resilient to provider-side schema drift in individual events.
+                                // Skip malformed events instead of aborting the whole response stream.
+                                continue
                             }
                         case .done:
                             continuation.yield(.messageEnd(usage: usageAccumulator.toUsage()))

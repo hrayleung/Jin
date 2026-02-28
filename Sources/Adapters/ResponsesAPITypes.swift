@@ -11,6 +11,35 @@ struct ResponsesAPIFunctionCallState {
     var argumentsBuffer: String = ""
 }
 
+struct ResponsesAPIUsageInfo: Codable {
+    let inputTokens: Int?
+    let outputTokens: Int?
+    let outputTokensDetails: OutputTokensDetails?
+    let inputTokensDetails: InputTokensDetails?
+
+    struct OutputTokensDetails: Codable {
+        let reasoningTokens: Int?
+    }
+
+    struct InputTokensDetails: Codable {
+        let cachedTokens: Int?
+    }
+
+    var cachedTokens: Int? {
+        inputTokensDetails?.cachedTokens
+    }
+
+    func toUsage() -> Usage? {
+        guard let inputTokens, let outputTokens else { return nil }
+        return Usage(
+            inputTokens: inputTokens,
+            outputTokens: outputTokens,
+            thinkingTokens: outputTokensDetails?.reasoningTokens,
+            cachedTokens: cachedTokens
+        )
+    }
+}
+
 // MARK: - Streaming Event Types
 
 struct ResponsesAPICreatedEvent: Codable {
@@ -50,21 +79,10 @@ struct ResponsesAPICompletedEvent: Codable {
         let id: String?
         let citations: [String]?
         let output: [ResponsesAPIOutputItem]?
-        let usage: UsageInfo
+        let usage: ResponsesAPIUsageInfo?
 
-        struct UsageInfo: Codable {
-            let inputTokens: Int
-            let outputTokens: Int
-            let outputTokensDetails: OutputTokensDetails?
-            let promptTokensDetails: PromptTokensDetails?
-
-            struct OutputTokensDetails: Codable {
-                let reasoningTokens: Int?
-            }
-
-            struct PromptTokensDetails: Codable {
-                let cachedTokens: Int?
-            }
+        func toUsage() -> Usage? {
+            usage?.toUsage()
         }
     }
 }
@@ -210,22 +228,7 @@ struct ResponsesAPIResponse: Codable {
     let id: String
     let output: [ResponsesAPIOutputItem]
     let citations: [String]?
-    let usage: UsageInfo?
-
-    struct UsageInfo: Codable {
-        let inputTokens: Int
-        let outputTokens: Int
-        let outputTokensDetails: OutputTokensDetails?
-        let promptTokensDetails: PromptTokensDetails?
-
-        struct OutputTokensDetails: Codable {
-            let reasoningTokens: Int?
-        }
-
-        struct PromptTokensDetails: Codable {
-            let cachedTokens: Int?
-        }
-    }
+    let usage: ResponsesAPIUsageInfo?
 
     var outputTextParts: [String] {
         output.flatMap { item in
@@ -363,13 +366,7 @@ struct ResponsesAPIResponse: Codable {
     }
 
     func toUsage() -> Usage? {
-        guard let usage else { return nil }
-        return Usage(
-            inputTokens: usage.inputTokens,
-            outputTokens: usage.outputTokens,
-            thinkingTokens: usage.outputTokensDetails?.reasoningTokens,
-            cachedTokens: usage.promptTokensDetails?.cachedTokens
-        )
+        usage?.toUsage()
     }
 }
 

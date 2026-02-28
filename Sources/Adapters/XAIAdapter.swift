@@ -1469,13 +1469,7 @@ actor XAIAdapter: LLMProviderAdapter {
 
         case "response.completed":
             let event = try decoder.decode(ResponsesAPICompletedEvent.self, from: jsonData)
-            let usage = Usage(
-                inputTokens: event.response.usage.inputTokens,
-                outputTokens: event.response.usage.outputTokens,
-                thinkingTokens: event.response.usage.outputTokensDetails?.reasoningTokens,
-                cachedTokens: event.response.usage.promptTokensDetails?.cachedTokens
-            )
-            return .messageEnd(usage: usage)
+            return .messageEnd(usage: event.response.toUsage())
 
         case "response.failed":
             if let errorEvent = try? decoder.decode(ResponsesAPIFailedEvent.self, from: jsonData),
@@ -1689,4 +1683,3 @@ actor XAIAdapter: LLMProviderAdapter {
 }
 
 // Response types are defined in XAIAdapterResponseTypes.swift
-
