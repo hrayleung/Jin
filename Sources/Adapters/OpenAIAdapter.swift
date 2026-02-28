@@ -437,10 +437,11 @@ actor OpenAIAdapter: LLMProviderAdapter {
             return nil
 
         case .file(let file):
+            let normalizedFileMIMEType = normalizedMIMEType(file.mimeType)
             let shouldAllowNativeFileUpload =
                 supportsNativeFileInput &&
-                openAISupportedFileMIMETypes.contains(file.mimeType) &&
-                (file.mimeType != "application/pdf" || allowNativePDF)
+                openAISupportedFileMIMETypes.contains(normalizedFileMIMEType) &&
+                (normalizedFileMIMEType != "application/pdf" || allowNativePDF)
 
             if shouldAllowNativeFileUpload {
                 // Remote URL: use file_url directly (Responses API supports this)
@@ -465,7 +466,7 @@ actor OpenAIAdapter: LLMProviderAdapter {
                     return [
                         "type": "input_file",
                         "filename": file.filename,
-                        "file_data": "data:\(file.mimeType);base64,\(fileData.base64EncodedString())"
+                        "file_data": "data:\(normalizedFileMIMEType);base64,\(fileData.base64EncodedString())"
                     ]
                 }
             }

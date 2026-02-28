@@ -34,6 +34,11 @@ func normalizedTrimmedString(_ value: String?) -> String? {
     return trimmed.isEmpty ? nil : trimmed
 }
 
+/// Returns a trimmed, lowercased MIME type for stable comparisons.
+func normalizedMIMEType(_ mimeType: String) -> String {
+    mimeType.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+}
+
 // MARK: - JSON Encoding / Decoding
 
 /// Encodes a dictionary of `AnyCodable` values to a JSON string.

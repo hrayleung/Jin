@@ -65,4 +65,60 @@ final class AdapterUtilitiesTests: XCTestCase {
         // No match for completely different ID
         XCTAssertNil(findConfiguredModel(in: provider, for: "gpt-5"))
     }
+
+    func testFindConfiguredModelReturnsConfiguredMetadataOverRegistryDefaults() {
+        let provider = ProviderConfig(
+            id: "p1",
+            name: "Provider",
+            type: .openai,
+            models: [
+                ModelInfo(
+                    id: "gpt-4o",
+                    name: "Custom GPT-4o",
+                    capabilities: [.audio],
+                    contextWindow: 4_096
+                )
+            ]
+        )
+
+        let configured = findConfiguredModel(in: provider, for: "gpt-4o")
+        XCTAssertEqual(configured?.contextWindow, 4_096)
+        XCTAssertEqual(configured?.capabilities, [.audio])
+    }
+
+    func testModelSupportsWebSearchUsesConfiguredOverrideWhenModelExists() {
+        let provider = ProviderConfig(
+            id: "p1",
+            name: "Provider",
+            type: .openai,
+            models: [
+                ModelInfo(
+                    id: "gpt-4o",
+                    name: "GPT-4o",
+                    capabilities: [.streaming, .toolCalling, .vision],
+                    contextWindow: 128_000,
+                    overrides: ModelOverrides(webSearchSupported: false)
+                )
+            ]
+        )
+
+        XCTAssertFalse(modelSupportsWebSearch(providerConfig: provider, modelID: "gpt-4o"))
+    }
+
+    func testModelSupportsWebSearchFallsBackToRegistryForLegacyIDOnlyScenario() {
+        let provider = ProviderConfig(
+            id: "p1",
+            name: "Provider",
+            type: .openai,
+            models: []
+        )
+
+        XCTAssertTrue(modelSupportsWebSearch(providerConfig: provider, modelID: "gpt-4o"))
+    }
+
+    func testNormalizedMIMETypeTrimsAndLowercasesForSetMembership() {
+        let normalized = normalizedMIMEType(" Application/PDF \n")
+        XCTAssertEqual(normalized, "application/pdf")
+        XCTAssertTrue(openAISupportedFileMIMETypes.contains(normalized))
+    }
 }
