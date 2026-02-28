@@ -711,6 +711,9 @@ struct ChatView: View {
                     assistantModelLabel: entity.role == "assistant"
                         ? (entity.generatedModelName ?? entity.generatedModelID ?? fallbackModelLabel)
                         : nil,
+                    assistantProviderIconID: entity.role == "assistant"
+                        ? providerIconID(for: entity.generatedProviderID ?? "")
+                        : nil,
                     copyText: copyableText(from: message),
                     canEditUserMessage: entity.role == "user"
                         && message.content.contains(where: { part in
@@ -2912,6 +2915,9 @@ struct ChatView: View {
                     searchActivities: message.searchActivities ?? [],
                     assistantModelLabel: entity.role == "assistant"
                         ? (entity.generatedModelName ?? entity.generatedModelID ?? currentModelName)
+                        : nil,
+                    assistantProviderIconID: entity.role == "assistant"
+                        ? providerIconID(for: entity.generatedProviderID ?? "")
                         : nil,
                     copyText: copyableText(from: message),
                     canEditUserMessage: entity.role == "user"

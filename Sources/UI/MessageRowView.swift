@@ -153,6 +153,7 @@ struct MessageRenderItem: Identifiable {
     let toolCalls: [ToolCall]
     let searchActivities: [SearchActivity]
     let assistantModelLabel: String?
+    let assistantProviderIconID: String?
     let copyText: String
     let canEditUserMessage: Bool
 
@@ -293,7 +294,7 @@ struct MessageRow: View {
         } else {
             HStack(spacing: JinSpacing.small - 2) {
                 if !isTool {
-                    ProviderBadgeIcon(iconID: providerIconID)
+                    ProviderBadgeIcon(iconID: item.assistantProviderIconID ?? providerIconID)
                 }
 
                 if isTool {
