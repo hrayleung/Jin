@@ -80,63 +80,6 @@ final class OpenAIAdapterPromptCachingTests: XCTestCase {
         XCTAssertEqual(finalUsage?.cachedTokens, 8)
     }
 
-    func testOpenAIAdapterParsesLegacyPromptTokensDetailsForCachedTokens() async throws {
-        let (session, protocolType) = makeOpenAIMockedURLSession()
-        let networkManager = NetworkManager(urlSession: session)
-
-        let providerConfig = ProviderConfig(
-            id: "openai",
-            name: "OpenAI",
-            type: .openai,
-            apiKey: "ignored",
-            baseURL: "https://example.com"
-        )
-
-        protocolType.requestHandler = { request in
-            XCTAssertEqual(request.url?.absoluteString, "https://example.com/responses")
-
-            let response: [String: Any] = [
-                "id": "resp_legacy_cached_tokens",
-                "output": [
-                    [
-                        "type": "message",
-                        "content": [
-                            ["type": "output_text", "text": "ok"]
-                        ]
-                    ]
-                ],
-                "usage": [
-                    "input_tokens": 7,
-                    "output_tokens": 2,
-                    "prompt_tokens_details": [
-                        "cached_tokens": 5
-                    ]
-                ]
-            ]
-
-            let data = try JSONSerialization.data(withJSONObject: response)
-            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
-        }
-
-        let adapter = OpenAIAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
-        let stream = try await adapter.sendMessage(
-            messages: [Message(role: .user, content: [.text("hi")])],
-            modelID: "gpt-5.2",
-            controls: GenerationControls(),
-            tools: [],
-            streaming: false
-        )
-
-        var finalUsage: Usage?
-        for try await event in stream {
-            if case .messageEnd(let usage) = event {
-                finalUsage = usage
-            }
-        }
-
-        XCTAssertEqual(finalUsage?.cachedTokens, 5)
-    }
-
     func testOpenAIAdapterClampsUnsupportedXHighEffortToHigh() async throws {
         let (session, protocolType) = makeOpenAIMockedURLSession()
         let networkManager = NetworkManager(urlSession: session)
@@ -364,7 +307,7 @@ final class OpenAIAdapterPromptCachingTests: XCTestCase {
             data: {"type":"response.output_text.delta","delta":"Answer"}
 
             event: response.completed
-            data: {"type":"response.completed","response":{"usage":{"input_tokens":3,"output_tokens":2,"output_tokens_details":{"reasoning_tokens":0},"prompt_tokens_details":{"cached_tokens":0}}}}
+            data: {"type":"response.completed","response":{"usage":{"input_tokens":3,"output_tokens":2,"output_tokens_details":{"reasoning_tokens":0},"input_tokens_details":{"cached_tokens":0}}}}
 
             data: [DONE]
 

@@ -16,7 +16,6 @@ struct ResponsesAPIUsageInfo: Codable {
     let outputTokens: Int?
     let outputTokensDetails: OutputTokensDetails?
     let inputTokensDetails: InputTokensDetails?
-    let promptTokensDetails: PromptTokensDetails?
 
     struct OutputTokensDetails: Codable {
         let reasoningTokens: Int?
@@ -26,13 +25,8 @@ struct ResponsesAPIUsageInfo: Codable {
         let cachedTokens: Int?
     }
 
-    /// Backward compatibility for providers that still emit `prompt_tokens_details`.
-    struct PromptTokensDetails: Codable {
-        let cachedTokens: Int?
-    }
-
     var cachedTokens: Int? {
-        inputTokensDetails?.cachedTokens ?? promptTokensDetails?.cachedTokens
+        inputTokensDetails?.cachedTokens
     }
 
     func toUsage() -> Usage? {
