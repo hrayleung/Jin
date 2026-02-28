@@ -13,6 +13,12 @@ private struct MCPToolTimelineEntry: Identifiable {
     }
 }
 
+private struct MCPCompactStatusStyle {
+    let text: String
+    let icon: String
+    let color: Color
+}
+
 struct MCPToolTimelineView: View {
     let toolCalls: [ToolCall]
     let toolResultsByCallID: [String: ToolResult]
@@ -87,11 +93,15 @@ struct MCPToolTimelineView: View {
                         .scaleEffect(0.5)
                 }
 
-                if let compactStatusText {
-                    Text(compactStatusText)
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
+                if let compactStatusStyle {
+                    HStack(spacing: 4) {
+                        Image(systemName: compactStatusStyle.icon)
+                            .font(.system(size: 10, weight: .semibold))
+                        Text(compactStatusStyle.text)
+                            .font(.caption2.weight(.semibold))
+                    }
+                    .foregroundStyle(compactStatusStyle.color)
+                    .lineLimit(1)
                 }
 
                 Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
@@ -253,20 +263,32 @@ struct MCPToolTimelineView: View {
         return entries.count == 1 ? "Tool" : "Tools"
     }
 
-    private var compactStatusText: String? {
+    private var compactStatusStyle: MCPCompactStatusStyle? {
         if runningCount > 0 {
             return nil
         }
 
         if errorCount > 0 {
             if successCount > 0 {
-                return "\(summaryCountText(successCount, singular: "ok", plural: "ok")) / \(summaryCountText(errorCount, singular: "failed", plural: "failed"))"
+                return MCPCompactStatusStyle(
+                    text: "\(summaryCountText(successCount, singular: "ok", plural: "ok")) / \(summaryCountText(errorCount, singular: "failed", plural: "failed"))",
+                    icon: "xmark.circle",
+                    color: Color(nsColor: .systemOrange).opacity(0.95)
+                )
             }
-            return summaryCountText(errorCount, singular: "failed", plural: "failed")
+            return MCPCompactStatusStyle(
+                text: summaryCountText(errorCount, singular: "failed", plural: "failed"),
+                icon: "xmark.circle",
+                color: Color(nsColor: .systemOrange).opacity(0.95)
+            )
         }
 
         if successCount > 0 {
-            return successCount == 1 ? "Succeeded" : "All succeeded"
+            return MCPCompactStatusStyle(
+                text: successCount == 1 ? "Succeeded" : "All succeeded",
+                icon: "checkmark.circle",
+                color: Color(nsColor: .systemGreen).opacity(0.88)
+            )
         }
 
         return nil
