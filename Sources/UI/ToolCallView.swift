@@ -20,6 +20,13 @@ struct ToolCallView: View {
     @State private var isExpanded = false
     @State private var isRunningPulse = false
 
+    private struct StatusVisualStyle {
+        let accent: Color
+        let text: Color
+        let nodeBackground: Color
+        let nodeBorder: Color
+    }
+
     init(
         toolCall: ToolCall,
         toolResult: ToolResult?,
@@ -118,15 +125,21 @@ struct ToolCallView: View {
 
     @ViewBuilder
     private func statusNode(status: ToolCallExecutionStatus) -> some View {
+        let style = statusStyle(for: status)
+
         ZStack {
             Circle()
-                .fill(statusColor(for: status).opacity(status == .running ? 0.18 : 0.14))
+                .fill(style.nodeBackground)
                 .frame(width: 16, height: 16)
+                .overlay(
+                    Circle()
+                        .stroke(style.nodeBorder, lineWidth: 0.75)
+                )
 
             switch status {
             case .running:
                 Circle()
-                    .fill(statusColor(for: status))
+                    .fill(style.accent)
                     .frame(width: 6, height: 6)
                     .scaleEffect(isRunningPulse ? 1.4 : 0.85)
                     .opacity(isRunningPulse ? 0.35 : 1)
@@ -136,12 +149,12 @@ struct ToolCallView: View {
                     )
             case .success:
                 Image(systemName: "checkmark")
-                    .font(.system(size: 9, weight: .bold))
-                    .foregroundStyle(statusColor(for: status))
+                    .font(.system(size: 8.5, weight: .semibold))
+                    .foregroundStyle(style.accent)
             case .error:
                 Image(systemName: "xmark")
-                    .font(.system(size: 9, weight: .bold))
-                    .foregroundStyle(statusColor(for: status))
+                    .font(.system(size: 8.5, weight: .semibold))
+                    .foregroundStyle(style.accent)
             }
         }
     }
@@ -150,21 +163,22 @@ struct ToolCallView: View {
 
     @ViewBuilder
     private var expandedContent: some View {
-        VStack(alignment: .leading, spacing: JinSpacing.small) {
+        VStack(alignment: .leading, spacing: JinSpacing.medium) {
             ToolCallCodeBlockView(
                 title: "Arguments",
-                text: formattedArgumentsJSON ?? "{}"
+                text: formattedArgumentsJSON ?? "{}",
+                showsCopyButton: true
             )
 
             if let toolResult {
                 ToolCallCodeBlockView(
                     title: toolResult.isError ? "Error" : "Output",
-                    text: toolResult.content
+                    text: toolResult.content,
+                    showsCopyButton: true
                 )
             } else {
                 Text("Waiting for tool result...")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .jinInfoCallout()
             }
 
             if let signature = toolCall.signature, !signature.isEmpty {
@@ -179,7 +193,7 @@ struct ToolCallView: View {
     @ViewBuilder
     private var statusPill: some View {
         let status = resolvedStatus
-        let foreground = statusColor(for: status)
+        let style = statusStyle(for: status)
 
         HStack(spacing: 6) {
             statusPillGlyph(for: status)
@@ -191,25 +205,28 @@ struct ToolCallView: View {
                     .foregroundStyle(.secondary)
             }
         }
-        .font(.caption2)
-        .jinTagStyle(foreground: foreground)
+        .font(.caption2.weight(.semibold))
+        .foregroundStyle(style.text)
+        .lineLimit(1)
     }
 
     @ViewBuilder
     private func statusPillGlyph(for status: ToolCallExecutionStatus) -> some View {
+        let style = statusStyle(for: status)
+
         switch status {
         case .running:
             Circle()
-                .fill(statusColor(for: status))
-                .frame(width: 5, height: 5)
+                .fill(style.accent)
+                .frame(width: 4.5, height: 4.5)
         case .success:
-            Image(systemName: "checkmark.circle.fill")
+            Image(systemName: "checkmark.circle")
                 .font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(statusColor(for: status))
+                .foregroundStyle(style.accent)
         case .error:
-            Image(systemName: "xmark.circle.fill")
+            Image(systemName: "xmark.circle")
                 .font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(statusColor(for: status))
+                .foregroundStyle(style.accent)
         }
     }
 
@@ -287,16 +304,34 @@ struct ToolCallView: View {
     private func statusLabel(for status: ToolCallExecutionStatus) -> String {
         switch status {
         case .running: return "Running"
-        case .success: return "Success"
-        case .error: return "Error"
+        case .success: return "Done"
+        case .error: return "Failed"
         }
     }
 
-    private func statusColor(for status: ToolCallExecutionStatus) -> Color {
+    private func statusStyle(for status: ToolCallExecutionStatus) -> StatusVisualStyle {
         switch status {
-        case .running: return .secondary
-        case .success: return Color(nsColor: .systemTeal)
-        case .error: return .orange
+        case .running:
+            return StatusVisualStyle(
+                accent: .secondary,
+                text: .secondary,
+                nodeBackground: Color.primary.opacity(0.08),
+                nodeBorder: JinSemanticColor.separator.opacity(0.72)
+            )
+        case .success:
+            return StatusVisualStyle(
+                accent: Color(nsColor: .systemGreen).opacity(0.88),
+                text: Color(nsColor: .systemGreen).opacity(0.88),
+                nodeBackground: Color(nsColor: .systemGreen).opacity(0.11),
+                nodeBorder: Color(nsColor: .systemGreen).opacity(0.26)
+            )
+        case .error:
+            return StatusVisualStyle(
+                accent: Color(nsColor: .systemOrange).opacity(0.95),
+                text: Color(nsColor: .systemOrange).opacity(0.95),
+                nodeBackground: Color(nsColor: .systemOrange).opacity(0.14),
+                nodeBorder: Color(nsColor: .systemOrange).opacity(0.36)
+            )
         }
     }
 
@@ -322,12 +357,32 @@ struct ToolCallView: View {
 struct ToolCallCodeBlockView: View {
     let title: String
     let text: String
+    var showsCopyButton: Bool = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: JinSpacing.small - 2) {
-            Text(title)
-                .font(.caption)
-                .foregroundStyle(.secondary)
+        VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                Text(title)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                Spacer(minLength: 0)
+                if showsCopyButton {
+                    CopyToPasteboardButton(
+                        text: text,
+                        helpText: "Copy \(title.lowercased())",
+                        copiedHelpText: "\(title) copied",
+                        useProminentStyle: false
+                    )
+                }
+            }
+            .padding(.horizontal, JinSpacing.medium - 2)
+            .padding(.vertical, JinSpacing.xSmall)
+            .background(JinSemanticColor.subtleSurfaceStrong)
+            .overlay(alignment: .bottom) {
+                Rectangle()
+                    .fill(JinSemanticColor.separator.opacity(0.55))
+                    .frame(height: JinStrokeWidth.hairline)
+            }
 
             ScrollView {
                 Text(text)
@@ -336,9 +391,15 @@ struct ToolCallCodeBlockView: View {
                     .textSelection(.enabled)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .frame(maxHeight: 160)
-            .padding(JinSpacing.medium - 2)
-            .jinSurface(.neutral, cornerRadius: JinRadius.small)
+            .frame(maxHeight: 168)
+            .padding(.horizontal, JinSpacing.medium - 2)
+            .padding(.vertical, JinSpacing.small)
+            .background(JinSemanticColor.raisedSurface)
         }
+        .clipShape(RoundedRectangle(cornerRadius: JinRadius.small, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: JinRadius.small, style: .continuous)
+                .stroke(JinSemanticColor.separator.opacity(0.75), lineWidth: JinStrokeWidth.hairline)
+        )
     }
 }
