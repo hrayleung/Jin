@@ -38,7 +38,6 @@ struct ContentView: View {
     @State private var didBootstrapDefaults = false
     @State private var didBootstrapAssistants = false
     @State private var searchText = ""
-    @State private var isSidebarSearchPresented = false
     @State private var isAssistantInspectorPresented = false
     @State private var assistantContextMenuTargetID: String?
     @State private var assistantPendingDeletion: AssistantEntity?
@@ -63,40 +62,57 @@ struct ContentView: View {
     @AppStorage(AppPreferenceKeys.newChatFixedMCPEnabled) private var newChatFixedMCPEnabled = true
     @AppStorage(AppPreferenceKeys.newChatFixedMCPUseAllServers) private var newChatFixedMCPUseAllServers = true
     @AppStorage(AppPreferenceKeys.newChatFixedMCPServerIDsJSON) private var newChatFixedMCPServerIDsJSON = "[]"
+    @FocusState private var isSidebarSearchFieldFocused: Bool
 
     private let conversationTitleGenerator = ConversationTitleGenerator()
 
     var body: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
-            List(selection: $selectedConversation) {
-                assistantsSection
-                chatsSection
-            }
-            .listStyle(.sidebar)
-            .searchable(text: $searchText, isPresented: $isSidebarSearchPresented, placement: .sidebar, prompt: "Search chats")
-            .navigationSplitViewColumnWidth(min: 240, ideal: 280, max: 340)
-            .navigationTitle("Chats")
-            .navigationSubtitle(selectedAssistant?.displayName ?? "Default")
-            .toolbar {
-                ToolbarItemGroup(placement: .primaryAction) {
-                    Button(action: createNewConversation) {
-                        Label("New Chat", systemImage: "square.and.pencil")
-                    }
-                    .keyboardShortcut(shortcutsStore.keyboardShortcut(for: .newChat))
+            VStack(spacing: 0) {
+                SidebarHeaderView(
+                    assistantDisplayName: selectedAssistant?.displayName ?? "Default",
+                    onNewChat: createNewConversation,
+                    onHideSidebar: toggleSidebarVisibility,
+                    shortcutsStore: shortcutsStore
+                )
 
-                    SettingsLink {
-                        Label("Settings", systemImage: "gearshape")
-                    }
-                    .keyboardShortcut(",", modifiers: [.command])
+                HStack(spacing: JinSpacing.xSmall) {
+                    Image(systemName: "magnifyingglass")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(.secondary)
+
+                    TextField("Search chats", text: $searchText)
+                        .textFieldStyle(.plain)
+                        .focused($isSidebarSearchFieldFocused)
+                        .accessibilityLabel("Search chats")
                 }
+                .padding(.horizontal, JinSpacing.medium)
+                .padding(.vertical, JinSpacing.small)
+                .background(
+                    RoundedRectangle(cornerRadius: JinRadius.large, style: .continuous)
+                        .fill(JinSemanticColor.surface)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: JinRadius.large, style: .continuous)
+                        .stroke(JinSemanticColor.separator.opacity(0.45), lineWidth: JinStrokeWidth.hairline)
+                )
+                .padding(.horizontal, JinSpacing.medium)
+                .padding(.top, JinSpacing.small)
+                .padding(.bottom, JinSpacing.small)
+
+                List(selection: $selectedConversation) {
+                    assistantsSection
+                    chatsSection
+                }
+                .listStyle(.sidebar)
+                .frame(maxHeight: .infinity)
             }
+            .frame(maxHeight: .infinity)
+            .ignoresSafeArea(edges: .top)
+            .navigationSplitViewColumnWidth(min: 240, ideal: 280, max: 340)
+            .navigationTitle("")
             .scrollContentBackground(.hidden)
             .background(JinSemanticColor.sidebarSurface)
-            .overlay(alignment: .trailing) {
-                Rectangle()
-                    .fill(JinSemanticColor.separator.opacity(0.45))
-                    .frame(width: JinStrokeWidth.hairline)
-            }
         } detail: {
             VStack(spacing: 0) {
                 if ttsPlaybackManager.state != .idle,
@@ -122,29 +138,58 @@ struct ContentView: View {
                         isAssistantInspectorPresented: $isAssistantInspectorPresented,
                         onPersistConversationIfNeeded: {
                             persistConversationIfNeeded(conversation)
-                        }
+                        },
+                        isSidebarHidden: !isSidebarVisible,
+                        onToggleSidebar: toggleSidebarVisibility
                     )
                         .id(conversation.id)
                         .background(JinSemanticColor.detailSurface)
                         .environmentObject(ttsPlaybackManager)
                 } else {
                     noConversationSelectedView
-                    .toolbar {
-                        ToolbarItem(placement: .primaryAction) {
-                            Button {
-                                openAssistantSettings()
-                            } label: {
-                                Label("Assistant Settings", systemImage: "slider.horizontal.3")
+                        .overlay(alignment: .topLeading) {
+                            if !isSidebarVisible {
+                                Button(action: toggleSidebarVisibility) {
+                                    Image(systemName: "sidebar.leading")
+                                        .font(.system(size: 13, weight: .medium))
+                                        .foregroundStyle(.secondary)
+                                }
+                                .buttonStyle(.plain)
+                                .help("Show Sidebar")
+                                .padding(JinSpacing.medium)
                             }
+                        }
+                        .overlay(alignment: .topTrailing) {
+                            Button(action: openAssistantSettings) {
+                                Image(systemName: "slider.horizontal.3")
+                                    .font(.system(size: 13, weight: .medium))
+                                    .foregroundStyle(.secondary)
+                            }
+                            .buttonStyle(.plain)
                             .help("Assistant Settings")
                             .keyboardShortcut(shortcutsStore.keyboardShortcut(for: .openAssistantSettings))
+                            .padding(JinSpacing.medium)
                         }
-                    }
-                    .background(JinSemanticColor.detailSurface)
+                        .background(JinSemanticColor.detailSurface)
                 }
             }
             .animation(.easeInOut(duration: 0.2), value: ttsPlaybackManager.state != .idle)
+            .navigationTitle("")
+            .overlay(alignment: .leading) {
+                LinearGradient(
+                    stops: [
+                        .init(color: .black.opacity(0.1), location: 0),
+                        .init(color: .black.opacity(0.04), location: 0.35),
+                        .init(color: .clear, location: 1)
+                    ],
+                    startPoint: .leading,
+                    endPoint: .trailing
+                )
+                .frame(width: 20)
+                .allowsHitTesting(false)
+            }
         }
+        .modifier(HideWindowToolbarModifier())
         .task {
             bootstrapDefaultProvidersIfNeeded()
             bootstrapDefaultAssistantsIfNeeded()
@@ -259,7 +304,9 @@ struct ContentView: View {
         if !isSidebarVisible {
             columnVisibility = .all
         }
-        isSidebarSearchPresented = true
+        DispatchQueue.main.async {
+            isSidebarSearchFieldFocused = true
+        }
     }
 
     private func openAssistantSettings() {

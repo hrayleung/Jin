@@ -18,6 +18,8 @@ struct ChatView: View {
     let onRequestDeleteConversation: () -> Void
     @Binding var isAssistantInspectorPresented: Bool
     var onPersistConversationIfNeeded: () -> Void = {}
+    var isSidebarHidden: Bool = false
+    var onToggleSidebar: (() -> Void)? = nil
     @Query private var providers: [ProviderConfigEntity]
     @Query private var mcpServers: [MCPServerConfigEntity]
 
@@ -915,34 +917,60 @@ struct ChatView: View {
     }
 
     var body: some View {
-        ZStack(alignment: .bottom) {
-            // Message list
-            GeometryReader { geometry in
-                if selectedModelThreads.count > 1 {
-                    multiModelChatView(geometry: geometry)
-                } else {
-                    ScrollViewReader { proxy in
-                        chatScrollView(geometry: geometry, proxy: proxy)
+        VStack(spacing: 0) {
+            detailHeaderBar
+            ZStack(alignment: .bottom) {
+                // Message list
+                GeometryReader { geometry in
+                    if selectedModelThreads.count > 1 {
+                        multiModelChatView(geometry: geometry)
+                    } else {
+                        ScrollViewReader { proxy in
+                            chatScrollView(geometry: geometry, proxy: proxy)
+                        }
                     }
                 }
-            }
 
-            // Floating Composer
-            composerOverlay
-                .padding(.horizontal, 16)
-                .padding(.bottom, 16)
-                .background {
-                    GeometryReader { geo in
-                        Color.clear.preference(key: ComposerHeightPreferenceKey.self, value: geo.size.height)
+                // Floating Composer
+                composerOverlay
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 16)
+                    .background {
+                        GeometryReader { geo in
+                            Color.clear.preference(key: ComposerHeightPreferenceKey.self, value: geo.size.height)
+                        }
                     }
-                }
-        }
-        .onPreferenceChange(ComposerHeightPreferenceKey.self) { newValue in
-            if abs(composerHeight - newValue) > 0.5 {
-                composerHeight = newValue
             }
-        }
-        .background(JinSemanticColor.detailSurface)
+            .onPreferenceChange(ComposerHeightPreferenceKey.self) { newValue in
+                if abs(composerHeight - newValue) > 0.5 {
+                    composerHeight = newValue
+                }
+            }
+            .background(JinSemanticColor.detailSurface)
+            .overlay {
+                if isExpandedComposerPresented {
+                    ExpandedComposerOverlay(
+                        messageText: $messageText,
+                        remoteVideoURLText: $remoteVideoInputURLText,
+                        draftAttachments: $draftAttachments,
+                        isPresented: $isExpandedComposerPresented,
+                        isComposerDropTargeted: $isComposerDropTargeted,
+                        isBusy: isBusy,
+                        canSendDraft: canSendDraft,
+                        showsRemoteVideoURLField: supportsExplicitRemoteVideoURLInput,
+                        onSend: {
+                            isExpandedComposerPresented = false
+                            sendMessage()
+                        },
+                        onDropFileURLs: handleDroppedFileURLs,
+                        onDropImages: handleDroppedImages,
+                        onRemoveAttachment: removeDraftAttachment
+                    )
+                    .transition(.opacity.combined(with: .scale(scale: 0.96, anchor: .bottom)))
+                }
+            }
+            .animation(.easeInOut(duration: 0.2), value: isExpandedComposerPresented)
+        } // end VStack
         .onDrop(of: [.fileURL, .image, .data], isTargeted: $isFullPageDropTargeted) { providers in
             handleDrop(providers)
         }
@@ -964,82 +992,6 @@ struct ChatView: View {
                 }
                 .allowsHitTesting(false)
             }
-        }
-        .overlay {
-            if isExpandedComposerPresented {
-                ExpandedComposerOverlay(
-                    messageText: $messageText,
-                    remoteVideoURLText: $remoteVideoInputURLText,
-                    draftAttachments: $draftAttachments,
-                    isPresented: $isExpandedComposerPresented,
-                    isComposerDropTargeted: $isComposerDropTargeted,
-                    isBusy: isBusy,
-                    canSendDraft: canSendDraft,
-                    showsRemoteVideoURLField: supportsExplicitRemoteVideoURLInput,
-                    onSend: {
-                        isExpandedComposerPresented = false
-                        sendMessage()
-                    },
-                    onDropFileURLs: handleDroppedFileURLs,
-                    onDropImages: handleDroppedImages,
-                    onRemoveAttachment: removeDraftAttachment
-                )
-                .transition(.opacity.combined(with: .scale(scale: 0.96, anchor: .bottom)))
-            }
-        }
-        .animation(.easeInOut(duration: 0.2), value: isExpandedComposerPresented)
-        .toolbarBackground(JinSemanticColor.detailSurface, for: .windowToolbar)
-        .navigationTitle(conversationEntity.title)
-        .navigationSubtitle(currentModelName)
-        .toolbar {
-            ToolbarItem(placement: .primaryAction) {
-                modelPickerButton
-            }
-            .jinHideSharedBackgroundIfAvailable()
-
-            ToolbarItem(placement: .primaryAction) {
-                selectedModelsToolbar
-            }
-            .jinHideSharedBackgroundIfAvailable()
-
-            ToolbarItem(placement: .primaryAction) {
-                let isStarred = conversationEntity.isStarred == true
-                Button {
-                    conversationEntity.isStarred = !isStarred
-                    try? modelContext.save()
-                } label: {
-                    Image(systemName: isStarred ? "star.fill" : "star")
-                        .font(.system(size: 14))
-                        .foregroundStyle(isStarred ? Color.orange : Color.primary)
-                        .frame(width: 28, height: 28)
-                }
-                .help(isStarred ? "Unstar chat" : "Star chat")
-            }
-            .jinHideSharedBackgroundIfAvailable()
-
-            ToolbarItem(placement: .primaryAction) {
-                Button {
-                    isAssistantInspectorPresented = true
-                } label: {
-                    Image(systemName: "slider.horizontal.3")
-                        .font(.system(size: 14))
-                        .frame(width: 28, height: 28)
-                }
-                .help("Assistant Settings")
-            }
-            .jinHideSharedBackgroundIfAvailable()
-
-            ToolbarItem(placement: .primaryAction) {
-                Button(role: .destructive) {
-                    onRequestDeleteConversation()
-                } label: {
-                    Image(systemName: "trash")
-                        .font(.system(size: 14))
-                        .frame(width: 28, height: 28)
-                }
-                .help("Delete chat")
-            }
-            .jinHideSharedBackgroundIfAvailable()
         }
         .onAppear {
             isComposerFocused = true
@@ -2496,6 +2448,41 @@ struct ChatView: View {
         }
     }
 
+    private var detailHeaderBar: some View {
+        HStack(spacing: JinSpacing.small) {
+            if isSidebarHidden, let onToggleSidebar {
+                Button(action: onToggleSidebar) {
+                    Image(systemName: "sidebar.leading")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .help("Show Sidebar")
+            }
+
+            modelPickerButton
+
+            if secondaryToolbarThreads.isEmpty {
+                Spacer(minLength: 0)
+            } else {
+                selectedModelsToolbar
+            }
+
+            addModelButton
+
+            detailHeaderActions
+        }
+        .padding(.horizontal, JinSpacing.medium)
+        .padding(.vertical, JinSpacing.small)
+        .frame(minHeight: 38)
+        .background(JinSemanticColor.detailSurface)
+        .overlay(alignment: .bottom) {
+            Rectangle()
+                .fill(JinSemanticColor.separator.opacity(0.45))
+                .frame(height: JinStrokeWidth.hairline)
+        }
+    }
+
     private var modelPickerButton: some View {
         Button {
             isModelPickerPresented = true
@@ -2507,6 +2494,8 @@ struct ChatView: View {
                 Text(currentModelName)
                     .font(.callout)
                     .fontWeight(.medium)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
 
                 Image(systemName: "chevron.down")
                     .font(.caption2)
@@ -2534,82 +2523,124 @@ struct ChatView: View {
         )
     }
 
+    private var detailHeaderActions: some View {
+        HStack(spacing: JinSpacing.xSmall) {
+            let isStarred = conversationEntity.isStarred == true
+            Button {
+                conversationEntity.isStarred = !isStarred
+                try? modelContext.save()
+            } label: {
+                Image(systemName: isStarred ? "star.fill" : "star")
+                    .font(.system(size: JinControlMetrics.iconButtonGlyphSize, weight: .semibold))
+                    .foregroundStyle(isStarred ? Color.orange : Color.primary)
+            }
+            .buttonStyle(JinIconButtonStyle())
+            .help(isStarred ? "Unstar chat" : "Star chat")
+
+            Button {
+                isAssistantInspectorPresented = true
+            } label: {
+                Image(systemName: "slider.horizontal.3")
+                    .font(.system(size: JinControlMetrics.iconButtonGlyphSize, weight: .semibold))
+            }
+            .buttonStyle(JinIconButtonStyle())
+            .help("Assistant Settings")
+
+            Button(role: .destructive) {
+                onRequestDeleteConversation()
+            } label: {
+                Image(systemName: "trash")
+                    .font(.system(size: JinControlMetrics.iconButtonGlyphSize, weight: .semibold))
+            }
+            .buttonStyle(JinIconButtonStyle())
+            .help("Delete chat")
+        }
+        .fixedSize(horizontal: true, vertical: false)
+    }
+
+    private var addModelButton: some View {
+        Button {
+            isAddModelPickerPresented = true
+        } label: {
+            Image(systemName: "plus.circle")
+                .font(.system(size: 14, weight: .regular))
+                .foregroundStyle(.secondary)
+        }
+        .buttonStyle(.plain)
+        .help("Add model")
+        .popover(isPresented: $isAddModelPickerPresented, arrowEdge: .bottom) {
+            modelPickerPopoverContent { providerID, modelID in
+                addOrActivateThread(providerID: providerID, modelID: modelID)
+                isAddModelPickerPresented = false
+            }
+        }
+    }
+
     private var selectedModelsToolbar: some View {
-        HStack(spacing: 6) {
-            ForEach(secondaryToolbarThreads) { thread in
-                HStack(spacing: 4) {
-                    Button {
-                        toggleThreadSelection(thread)
-                    } label: {
-                        HStack(spacing: 4) {
-                            ProviderIconView(iconID: providerIconID(for: thread.providerID), size: 10)
-                                .frame(width: 10, height: 10)
-                            Text(toolbarThreadLabel(thread))
-                                .font(.caption2)
-                                .lineLimit(1)
-                            Image(systemName: thread.isSelected ? "checkmark.circle.fill" : "circle")
-                                .font(.system(size: 10, weight: .semibold))
-                                .foregroundStyle(thread.isSelected ? Color.accentColor : Color.secondary)
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 6) {
+                ForEach(secondaryToolbarThreads) { thread in
+                    HStack(spacing: 4) {
+                        Button {
+                            toggleThreadSelection(thread)
+                        } label: {
+                            HStack(spacing: 4) {
+                                ProviderIconView(iconID: providerIconID(for: thread.providerID), size: 10)
+                                    .frame(width: 10, height: 10)
+                                Text(toolbarThreadLabel(thread))
+                                    .font(.caption2)
+                                    .lineLimit(1)
+                                Image(systemName: thread.isSelected ? "checkmark.circle.fill" : "circle")
+                                    .font(.system(size: 10, weight: .semibold))
+                                    .foregroundStyle(thread.isSelected ? Color.accentColor : Color.secondary)
+                            }
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 3)
+                            .background(
+                                Capsule(style: .circular)
+                                    .fill(thread.isSelected ? Color.accentColor.opacity(0.2) : JinSemanticColor.surface)
+                            )
+                            .overlay(
+                                Capsule(style: .circular)
+                                    .stroke(
+                                        isActiveThread(thread) ? Color.accentColor.opacity(0.75) : JinSemanticColor.separator.opacity(0.45),
+                                        lineWidth: isActiveThread(thread) ? JinStrokeWidth.emphasized : JinStrokeWidth.hairline
+                                    )
+                            )
                         }
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 3)
-                        .background(
-                            Capsule(style: .circular)
-                                .fill(thread.isSelected ? Color.accentColor.opacity(0.2) : JinSemanticColor.surface)
-                        )
-                        .overlay(
-                            Capsule(style: .circular)
-                                .stroke(
-                                    isActiveThread(thread) ? Color.accentColor.opacity(0.75) : JinSemanticColor.separator.opacity(0.45),
-                                    lineWidth: isActiveThread(thread) ? JinStrokeWidth.emphasized : JinStrokeWidth.hairline
-                                )
-                        )
-                    }
-                    .buttonStyle(.plain)
-                    .help(thread.isSelected ? "Selected for next send" : "Click to include this model")
-                    .contextMenu {
-                        Button("Set as input target") {
-                            activateThread(thread)
+                        .buttonStyle(.plain)
+                        .help(thread.isSelected ? "Selected for next send" : "Click to include this model")
+                        .contextMenu {
+                            Button("Set as input target") {
+                                activateThread(thread)
+                            }
+
+                            if sortedModelThreads.count > 1 {
+                                Divider()
+                                Button("Remove from this chat", role: .destructive) {
+                                    removeModelThread(thread)
+                                }
+                            }
                         }
 
                         if sortedModelThreads.count > 1 {
-                            Divider()
-                            Button("Remove from this chat", role: .destructive) {
+                            Button {
                                 removeModelThread(thread)
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
                             }
+                            .buttonStyle(.plain)
+                            .help("Remove model from this chat")
                         }
-                    }
-
-                    if sortedModelThreads.count > 1 {
-                        Button {
-                            removeModelThread(thread)
-                        } label: {
-                            Image(systemName: "xmark.circle.fill")
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
-                        }
-                        .buttonStyle(.plain)
-                        .help("Remove model from this chat")
                     }
                 }
             }
-
-            Button {
-                isAddModelPickerPresented = true
-            } label: {
-                Image(systemName: "plus.circle")
-                    .font(.system(size: 14, weight: .regular))
-                    .foregroundStyle(.secondary)
-            }
-            .buttonStyle(.plain)
-            .help("Add model")
-            .popover(isPresented: $isAddModelPickerPresented, arrowEdge: .bottom) {
-                modelPickerPopoverContent { providerID, modelID in
-                    addOrActivateThread(providerID: providerID, modelID: modelID)
-                    isAddModelPickerPresented = false
-                }
-            }
+            .padding(.vertical, 1)
         }
+        .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
+        .frame(maxWidth: .infinity, alignment: .trailing)
     }
 
     private func toolbarThreadLabel(_ thread: ConversationModelThreadEntity) -> String {
