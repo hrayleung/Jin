@@ -235,6 +235,11 @@ struct DroppableTextEditor: NSViewRepresentable {
                 return onDropImages(images)
             }
 
+            let inferredFileURLs = readFileURLsFromURLAndTextRepresentations(from: pasteboard)
+            if !inferredFileURLs.isEmpty {
+                return onDropFileURLs(inferredFileURLs)
+            }
+
             if allowFilePromises, handleFilePromises(in: pasteboard) {
                 return true
             }
@@ -257,30 +262,13 @@ struct DroppableTextEditor: NSViewRepresentable {
             queue.qualityOfService = .userInitiated
             queue.maxConcurrentOperationCount = 1
 
-            let lock = NSLock()
-            var promisedFileURLs: [URL] = []
-            var completedCount = 0
-
             let handler = onDropFileURLs
 
             for receiver in receivers {
-                var didComplete = false
                 receiver.receivePromisedFiles(atDestination: destinationDir, options: [:], operationQueue: queue) { url, error in
-                    lock.lock()
-                    defer { lock.unlock() }
-
-                    guard !didComplete else { return }
-                    didComplete = true
-                    completedCount += 1
-
-                    if error == nil {
-                        promisedFileURLs.append(url)
-                    }
-
-                    if completedCount == receivers.count, !promisedFileURLs.isEmpty {
-                        DispatchQueue.main.async { [promisedFileURLs] in
-                            _ = handler(promisedFileURLs)
-                        }
+                    guard error == nil else { return }
+                    DispatchQueue.main.async {
+                        _ = handler([url])
                     }
                 }
             }
@@ -294,6 +282,55 @@ struct DroppableTextEditor: NSViewRepresentable {
                 options: [.urlReadingFileURLsOnly: true]
             ) as? [NSURL] ?? []).map { $0 as URL }
             return urls
+        }
+
+        private func readFileURLsFromURLAndTextRepresentations(from pasteboard: NSPasteboard) -> [URL] {
+            var result: [URL] = []
+            var seen = Set<String>()
+
+            func append(_ url: URL) {
+                guard url.isFileURL else { return }
+                let key = url.standardizedFileURL.path
+                guard seen.insert(key).inserted else { return }
+                result.append(url)
+            }
+
+            let allURLs = (pasteboard.readObjects(forClasses: [NSURL.self], options: nil) as? [NSURL] ?? [])
+                .map { $0 as URL }
+            for url in allURLs {
+                append(url)
+            }
+
+            var textValues: [String] = []
+            if let value = pasteboard.string(forType: .string) {
+                textValues.append(value)
+            }
+            if let value = pasteboard.string(forType: .URL) {
+                textValues.append(value)
+            }
+            if let value = pasteboard.string(forType: .fileURL) {
+                textValues.append(value)
+            }
+
+            if let items = pasteboard.pasteboardItems {
+                for item in items {
+                    for type in item.types {
+                        guard let utType = UTType(type.rawValue),
+                              utType.conforms(to: .text),
+                              let text = item.string(forType: type) else { continue }
+                        textValues.append(text)
+                    }
+                }
+            }
+
+            for value in textValues {
+                let parsed = AttachmentImportPipeline.parseDroppedString(value)
+                for url in parsed.fileURLs {
+                    append(url)
+                }
+            }
+
+            return result
         }
 
         private func readImages(from pasteboard: NSPasteboard) -> [NSImage] {
@@ -488,12 +525,28 @@ final class DroppableNSTextView: NSTextView {
     }
 
     override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
-        onDragTargetedChanged?(true)
-        return .copy
+        let prefersDefaultHandling = shouldUseDefaultTextDropHandling(for: sender)
+        onDragTargetedChanged?(prefersDefaultHandling)
+        return prefersDefaultHandling ? .copy : []
+    }
+
+    override func draggingUpdated(_ sender: NSDraggingInfo) -> NSDragOperation {
+        let prefersDefaultHandling = shouldUseDefaultTextDropHandling(for: sender)
+        onDragTargetedChanged?(prefersDefaultHandling)
+        return prefersDefaultHandling ? .copy : []
+    }
+
+    override func prepareForDragOperation(_ sender: NSDraggingInfo) -> Bool {
+        shouldUseDefaultTextDropHandling(for: sender)
     }
 
     override func draggingExited(_ sender: NSDraggingInfo?) {
         onDragTargetedChanged?(false)
+    }
+
+    override func draggingEnded(_ sender: NSDraggingInfo) {
+        onDragTargetedChanged?(false)
+        super.draggingEnded(sender)
     }
 
     override func concludeDragOperation(_ sender: NSDraggingInfo?) {
@@ -507,6 +560,39 @@ final class DroppableNSTextView: NSTextView {
             return true
         }
 
-        return super.performDragOperation(sender)
+        if shouldUseDefaultTextDropHandling(for: sender) {
+            return super.performDragOperation(sender)
+        }
+
+        // Let parent SwiftUI `.onDrop` handlers process non-text payloads.
+        return false
+    }
+
+    private func shouldUseDefaultTextDropHandling(for draggingInfo: NSDraggingInfo) -> Bool {
+        let pasteboard = draggingInfo.draggingPasteboard
+        let urls = (pasteboard.readObjects(forClasses: [NSURL.self], options: nil) as? [NSURL] ?? [])
+            .map { $0 as URL }
+        if urls.contains(where: \.isFileURL) {
+            return false
+        }
+
+        for type in pasteboard.types ?? [] {
+            let raw = type.rawValue.lowercased()
+            if raw.contains("filepromise") || raw.contains("promised-file") || raw.contains("nsfilespromise") {
+                return false
+            }
+
+            guard let utType = UTType(type.rawValue) else { continue }
+            if utType.conforms(to: .image) {
+                return false
+            }
+            if (utType.conforms(to: .data) || utType.conforms(to: .content) || utType.conforms(to: .item))
+                && !utType.conforms(to: .text)
+                && !utType.conforms(to: .url) {
+                return false
+            }
+        }
+
+        return true
     }
 }

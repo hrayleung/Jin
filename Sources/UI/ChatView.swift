@@ -971,7 +971,7 @@ struct ChatView: View {
             }
             .animation(.easeInOut(duration: 0.2), value: isExpandedComposerPresented)
         } // end VStack
-        .onDrop(of: [.fileURL, .image, .data], isTargeted: $isFullPageDropTargeted) { providers in
+        .onDrop(of: [.fileURL, .url, .text, .image, .data, .item], isTargeted: $isFullPageDropTargeted) { providers in
             handleDrop(providers)
         }
         .overlay {
@@ -1327,8 +1327,20 @@ struct ChatView: View {
         return true
     }
 
+    private static func persistDroppedFileRepresentation(_ temporaryURL: URL) throws -> URL {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("JinDroppedFiles", isDirectory: true)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+
+        let filename = temporaryURL.lastPathComponent.isEmpty ? "Attachment" : temporaryURL.lastPathComponent
+        let stableURL = dir.appendingPathComponent("\(UUID().uuidString)-\(filename)")
+        try FileManager.default.copyItem(at: temporaryURL, to: stableURL)
+        return stableURL
+    }
+
     private func handleDrop(_ providers: [NSItemProvider]) -> Bool {
         guard !providers.isEmpty else { return false }
+        isFullPageDropTargeted = false
 
         if isBusy {
             errorMessage = "Stop generating (or wait for PDF processing) to attach files."
@@ -1349,8 +1361,6 @@ struct ChatView: View {
                 didScheduleWork = true
                 group.enter()
                 provider.loadItem(forTypeIdentifier: UTType.fileURL.identifier, options: nil) { item, error in
-                    defer { group.leave() }
-
                     if let url = AttachmentImportPipeline.urlFromItemProviderItem(item) {
                         lock.lock()
                         if url.isFileURL {
@@ -1359,6 +1369,38 @@ struct ChatView: View {
                             droppedTextChunks.append(url.absoluteString)
                         }
                         lock.unlock()
+                        group.leave()
+                        return
+                    }
+
+                    if let representationTypeID = AttachmentImportPipeline.preferredFileRepresentationTypeIdentifier(from: provider.registeredTypeIdentifiers) {
+                        provider.loadFileRepresentation(forTypeIdentifier: representationTypeID) { url, fallbackError in
+                            defer { group.leave() }
+
+                            guard let url else {
+                                if let fallbackError {
+                                    lock.lock()
+                                    errors.append(fallbackError.localizedDescription)
+                                    lock.unlock()
+                                } else if let error {
+                                    lock.lock()
+                                    errors.append(error.localizedDescription)
+                                    lock.unlock()
+                                }
+                                return
+                            }
+
+                            do {
+                                let stableURL = try Self.persistDroppedFileRepresentation(url)
+                                lock.lock()
+                                droppedFileURLs.append(stableURL)
+                                lock.unlock()
+                            } catch {
+                                lock.lock()
+                                errors.append(error.localizedDescription)
+                                lock.unlock()
+                            }
+                        }
                         return
                     }
 
@@ -1367,6 +1409,8 @@ struct ChatView: View {
                         errors.append(error.localizedDescription)
                         lock.unlock()
                     }
+
+                    group.leave()
                 }
                 continue
             }
@@ -1450,16 +1494,13 @@ struct ChatView: View {
                 continue
             }
 
-            // Fallback: handle file-promise or generic data providers (e.g. PDFs
-            // dragged from a browser) that don't advertise fileURL / NSImage / NSString.
-            let dataTypeID = provider.registeredTypeIdentifiers.first {
-                guard let ut = UTType($0) else { return false }
-                return ut.conforms(to: .data)
-            }
-            if let dataTypeID {
+            // Fallback: handle file promises or generic file-backed providers
+            // that don't expose URL/image/text objects directly.
+            let representationTypeID = AttachmentImportPipeline.preferredFileRepresentationTypeIdentifier(from: provider.registeredTypeIdentifiers)
+            if let representationTypeID {
                 didScheduleWork = true
                 group.enter()
-                provider.loadFileRepresentation(forTypeIdentifier: dataTypeID) { url, error in
+                provider.loadFileRepresentation(forTypeIdentifier: representationTypeID) { url, error in
                     defer { group.leave() }
 
                     guard let url else {
@@ -1471,17 +1512,8 @@ struct ChatView: View {
                         return
                     }
 
-                    // loadFileRepresentation provides a temporary file that is
-                    // deleted after this callback returns — copy it somewhere stable.
-                    let dir = FileManager.default.temporaryDirectory
-                        .appendingPathComponent("JinDroppedFiles", isDirectory: true)
-                    try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-
-                    let stableURL = dir.appendingPathComponent(url.lastPathComponent)
-                    try? FileManager.default.removeItem(at: stableURL)
-
                     do {
-                        try FileManager.default.copyItem(at: url, to: stableURL)
+                        let stableURL = try Self.persistDroppedFileRepresentation(url)
                         lock.lock()
                         droppedFileURLs.append(stableURL)
                         lock.unlock()
@@ -1495,15 +1527,32 @@ struct ChatView: View {
             }
         }
 
-        guard didScheduleWork else { return false }
+        guard didScheduleWork else { return true }
 
-        group.notify(queue: .main) {
+        let finalizeLock = NSLock()
+        var didFinalize = false
+
+        let finalize: () -> Void = {
+            finalizeLock.lock()
+            guard !didFinalize else {
+                finalizeLock.unlock()
+                return
+            }
+            didFinalize = true
+            finalizeLock.unlock()
+
+            lock.lock()
             let uniqueFileURLs = Array(Set(droppedFileURLs))
+            let textChunks = droppedTextChunks
+            let dropErrors = errors
+            lock.unlock()
+
+            isFullPageDropTargeted = false
 
             if !uniqueFileURLs.isEmpty {
                 Task { await importAttachments(from: uniqueFileURLs) }
-            } else if !droppedTextChunks.isEmpty {
-                let insertion = droppedTextChunks
+            } else if !textChunks.isEmpty {
+                let insertion = textChunks
                     .joined(separator: "\n")
                     .trimmingCharacters(in: .whitespacesAndNewlines)
                 if !insertion.isEmpty {
@@ -1516,11 +1565,14 @@ struct ChatView: View {
                 }
             }
 
-            if !errors.isEmpty {
-                errorMessage = errors.joined(separator: "\n")
+            if !dropErrors.isEmpty {
+                errorMessage = dropErrors.joined(separator: "\n")
                 showingError = true
             }
         }
+
+        group.notify(queue: .main, execute: finalize)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.25, execute: finalize)
 
         return true
     }
