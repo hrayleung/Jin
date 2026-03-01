@@ -138,6 +138,39 @@ enum AttachmentImportPipeline {
         return nil
     }
 
+    /// Select a type identifier that is most likely to expose a dropped file
+    /// through `NSItemProvider.loadFileRepresentation`.
+    static func preferredFileRepresentationTypeIdentifier(from identifiers: [String]) -> String? {
+        guard !identifiers.isEmpty else { return nil }
+
+        if let promiseIdentifier = identifiers.first(where: { identifier in
+            let lower = identifier.lowercased()
+            return lower.contains("filepromise")
+                || lower.contains("promised-file")
+                || lower.contains("nsfilespromise")
+        }) {
+            return promiseIdentifier
+        }
+
+        for identifier in identifiers {
+            guard let type = UTType(identifier) else { continue }
+            if type.conforms(to: .text) || type.conforms(to: .url) { continue }
+            if type.conforms(to: .data) || type.conforms(to: .content) {
+                return identifier
+            }
+        }
+
+        for identifier in identifiers {
+            guard let type = UTType(identifier) else { continue }
+            if type.conforms(to: .text) || type.conforms(to: .url) { continue }
+            if type.conforms(to: .item) {
+                return identifier
+            }
+        }
+
+        return nil
+    }
+
     nonisolated static func completionNotificationPreview(from parts: [ContentPart]) -> String? {
         let text = parts.compactMap { part -> String? in
             if case .text(let value) = part {

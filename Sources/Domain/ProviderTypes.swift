@@ -281,7 +281,7 @@ struct Conversation: Identifiable, Codable {
 }
 
 /// Token usage statistics.
-struct Usage: Codable {
+struct Usage: Codable, Equatable, Sendable {
     let inputTokens: Int
     let outputTokens: Int
     let thinkingTokens: Int?

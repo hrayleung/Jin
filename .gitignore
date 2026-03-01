@@ -48,3 +48,6 @@ response.json
 *.tmp
 *.temp
 tmp/sparkle-derived-data/
+
+# Codex local skills/config
+.agents/
