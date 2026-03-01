@@ -65,6 +65,7 @@ struct ChatNamingPluginSettingsView: View {
 
     private var providerOptions: [ProviderOption] {
         providers
+            .filter(\.isEnabled)
             .compactMap { provider in
                 let models = provider.enabledModels
                 guard !models.isEmpty else {
