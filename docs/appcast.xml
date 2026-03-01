@@ -3,6 +3,15 @@
     <channel>
         <title>Jin</title>
         <item>
+            <title>0.61</title>
+            <pubDate>Sun, 01 Mar 2026 23:22:14 +0800</pubDate>
+            <link>https://github.com/hrayleung/Jin/releases</link>
+            <sparkle:version>235</sparkle:version>
+            <sparkle:shortVersionString>0.61</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <enclosure url="https://github.com/hrayleung/Jin/releases/download/v0.61/Jin-0.61.zip" length="22966772" type="application/octet-stream" sparkle:edSignature="9JUoqeIY851QuaXayUw7LL1N4roc13v+tfcIuD1QnQ5MxowDxVu4WqeYyMHEFozGUz7A9wY0xbZL6VDsnx0IDA=="/>
+        </item>
+        <item>
             <title>0.6</title>
             <pubDate>Sun, 01 Mar 2026 22:30:47 +0800</pubDate>
             <link>https://github.com/hrayleung/Jin/releases</link>
@@ -82,15 +91,6 @@
             <sparkle:shortVersionString>0.52</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
             <enclosure url="https://github.com/hrayleung/Jin/releases/download/v0.52/Jin-0.52.zip" length="22541929" type="application/octet-stream" sparkle:edSignature="qlbImAC3LD0AY39Kvc46ELbdbKKp+DEohXtMC7lQLKkC1Dj94enmJCwQKKZIGiWn04gO7wY8cYM10WlUAUETCw=="/>
-        </item>
-        <item>
-            <title>0.51</title>
-            <pubDate>Thu, 26 Feb 2026 23:14:16 +0800</pubDate>
-            <link>https://github.com/hrayleung/Jin/releases</link>
-            <sparkle:version>205</sparkle:version>
-            <sparkle:shortVersionString>0.51</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <enclosure url="https://github.com/hrayleung/Jin/releases/download/v0.51/Jin-0.51.zip" length="22604248" type="application/octet-stream" sparkle:edSignature="/NzeV7irwfVuFZK/jBzbuQbUPgsDnnH78alc5bxZjbeviLorbh6MhNwOGj+6e21dra6wZb/q8DcyEzw8na6FBA=="/>
         </item>
     </channel>
 </rss>
