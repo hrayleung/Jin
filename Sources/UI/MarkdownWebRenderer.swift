@@ -306,6 +306,9 @@ private struct MarkdownWebRendererRepresentable: NSViewRepresentable {
 
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
             isReady = true
+            if let markdownWebView = webView as? MarkdownWKWebView {
+                markdownWebView.scheduleDragPassthroughRefresh()
+            }
             _ = applyFontUpdateIfNeeded(
                 appFontFamily: appFontFamily,
                 codeFontFamily: codeFontFamily,
@@ -391,12 +394,17 @@ final class MarkdownWKWebView: WKWebView {
 
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
-        disableDragDestinationRecursively()
+        scheduleDragPassthroughRefresh()
     }
 
     override func layout() {
         super.layout()
         disableDragDestinationRecursively()
+    }
+
+    override func didAddSubview(_ subview: NSView) {
+        super.didAddSubview(subview)
+        disableDragDestinationRecursively(startingAt: subview)
     }
 
     override func registerForDraggedTypes(_ newTypes: [NSPasteboard.PasteboardType]) {
@@ -455,8 +463,23 @@ final class MarkdownWKWebView: WKWebView {
         nextResponder?.flagsChanged(with: event)
     }
 
+    func scheduleDragPassthroughRefresh() {
+        // WK internals can add/refresh content subviews asynchronously after
+        // navigation commits; refresh a few times to keep drag pass-through.
+        let delays: [TimeInterval] = [0, 0.05, 0.2, 0.6]
+        for delay in delays {
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+                self?.disableDragDestinationRecursively()
+            }
+        }
+    }
+
     private func disableDragDestinationRecursively() {
-        var queue: [NSView] = [self]
+        disableDragDestinationRecursively(startingAt: self)
+    }
+
+    private func disableDragDestinationRecursively(startingAt root: NSView) {
+        var queue: [NSView] = [root]
         while !queue.isEmpty {
             let view = queue.removeFirst()
             view.unregisterDraggedTypes()
