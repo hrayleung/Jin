@@ -1351,7 +1351,7 @@ struct ChatView: View {
 
     private func handleDroppedTextChunks(_ textChunks: [String]) -> Bool {
         if isBusy {
-            errorMessage = "Stop generating (or wait for PDF processing) to attach files."
+            errorMessage = "Stop generating (or wait for PDF processing) to drop text."
             showingError = true
             return true
         }
@@ -1574,7 +1574,7 @@ struct ChatView: View {
             }
         }
 
-        guard didScheduleWork else { return true }
+        guard didScheduleWork else { return false }
 
         let finalizeLock = NSLock()
         var didFinalize = false
@@ -1598,7 +1598,8 @@ struct ChatView: View {
 
             if !uniqueFileURLs.isEmpty {
                 Task { await importAttachments(from: uniqueFileURLs) }
-            } else if !textChunks.isEmpty {
+            }
+            if !textChunks.isEmpty {
                 appendTextChunksToComposer(textChunks)
             }
 
