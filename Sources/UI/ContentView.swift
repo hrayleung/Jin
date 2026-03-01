@@ -105,7 +105,10 @@ struct ContentView: View {
                     chatsSection
                 }
                 .listStyle(.sidebar)
+                .frame(maxHeight: .infinity)
             }
+            .frame(maxHeight: .infinity)
+            .ignoresSafeArea(edges: .top)
             .navigationSplitViewColumnWidth(min: 240, ideal: 280, max: 340)
             .navigationTitle("")
             .scrollContentBackground(.hidden)

@@ -2450,10 +2450,8 @@ struct ChatView: View {
 
     private var detailHeaderBar: some View {
         HStack(spacing: JinSpacing.small) {
-            if isSidebarHidden {
-                Button {
-                    onToggleSidebar?()
-                } label: {
+            if isSidebarHidden, let onToggleSidebar {
+                Button(action: onToggleSidebar) {
                     Image(systemName: "sidebar.leading")
                         .font(.system(size: 13, weight: .medium))
                         .foregroundStyle(.secondary)
