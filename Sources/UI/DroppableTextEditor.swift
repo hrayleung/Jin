@@ -263,14 +263,24 @@ struct DroppableTextEditor: NSViewRepresentable {
             queue.maxConcurrentOperationCount = 1
 
             let handler = onDropFileURLs
+            let group = DispatchGroup()
+            let lock = NSLock()
+            var resolvedURLs: [URL] = []
 
             for receiver in receivers {
+                group.enter()
                 receiver.receivePromisedFiles(atDestination: destinationDir, options: [:], operationQueue: queue) { url, error in
+                    defer { group.leave() }
                     guard error == nil else { return }
-                    DispatchQueue.main.async {
-                        _ = handler([url])
-                    }
+                    lock.lock()
+                    resolvedURLs.append(url)
+                    lock.unlock()
                 }
+            }
+
+            group.notify(queue: .main) {
+                guard !resolvedURLs.isEmpty else { return }
+                _ = handler(resolvedURLs)
             }
 
             return true

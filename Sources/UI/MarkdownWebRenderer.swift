@@ -37,6 +37,25 @@ private func fontUpdateJavaScript(bodyCSS: String, codeCSS: String, fontSizeCSS:
     + "document.documentElement.style.setProperty('--body-font-size',\"\(fontSizeCSS)px\");"
 }
 
+/// Per-window drop forwarding reference. Each ChatView creates one and
+/// injects it into the environment so that all MarkdownWKWebView instances
+/// within that window forward drops to the correct attachment pipeline.
+final class DropForwarderRef {
+    var onDragTargetChanged: ((Bool) -> Void)?
+    var onPerformDrop: ((NSDraggingInfo) -> Bool)?
+}
+
+private struct DropForwarderRefKey: EnvironmentKey {
+    static let defaultValue: DropForwarderRef? = nil
+}
+
+extension EnvironmentValues {
+    var dropForwarderRef: DropForwarderRef? {
+        get { self[DropForwarderRefKey.self] }
+        set { self[DropForwarderRefKey.self] = newValue }
+    }
+}
+
 struct MarkdownWebRenderer: View {
     let markdownText: String
     var isStreaming: Bool = false
@@ -114,6 +133,7 @@ private struct MarkdownWebRendererRepresentable: NSViewRepresentable {
     let deferCodeHighlightUpgrade: Bool
     @Binding var contentHeight: CGFloat
     let appFontFamily: String
+    @Environment(\.dropForwarderRef) private var dropForwarderRef
     let codeFontFamily: String
 
     func makeCoordinator() -> Coordinator { Coordinator() }
@@ -142,6 +162,7 @@ private struct MarkdownWebRendererRepresentable: NSViewRepresentable {
         webView.navigationDelegate = context.coordinator
         webView.setValue(false, forKey: "drawsBackground")
         webView.setContentHuggingPriority(.required, for: .vertical)
+        webView.dropForwarderRef = dropForwarderRef
 
         context.coordinator.webView = webView
         context.coordinator.heightBinding = $contentHeight
@@ -157,6 +178,7 @@ private struct MarkdownWebRendererRepresentable: NSViewRepresentable {
     }
 
     func updateNSView(_ webView: MarkdownWKWebView, context: Context) {
+        webView.dropForwarderRef = dropForwarderRef
         context.coordinator.heightBinding = $contentHeight
         context.coordinator.currentMarkdown = markdownText
         context.coordinator.isStreaming = isStreaming
@@ -393,49 +415,43 @@ private struct MarkdownWebRendererRepresentable: NSViewRepresentable {
 final class MarkdownWKWebView: WKWebView {
     var contentHeight: CGFloat = 0
 
-    // Drop forwarding — set by ChatView so files dropped onto rendered
-    // markdown messages are routed to the same attachment pipeline.
-    // WKWebView internally re-registers drag types via private APIs
-    // (bypassing any registerForDraggedTypes override), so instead of
-    // fighting it, we accept the drags and forward them.
-    nonisolated(unsafe) static var dropForwarder: DropForwarder?
-
-    struct DropForwarder {
-        let onDragTargetChanged: (Bool) -> Void
-        let onPerformDrop: (NSDraggingInfo) -> Bool
-    }
+    // Drop forwarding — set per-instance via the SwiftUI environment so
+    // each window's WKWebView instances forward drops to the correct
+    // ChatView's attachment pipeline. Using a weak reference avoids
+    // retaining stale state if the ChatView is torn down.
+    weak var dropForwarderRef: DropForwarderRef?
 
     override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
-        guard Self.dropForwarder != nil else { return [] }
-        Self.dropForwarder?.onDragTargetChanged(true)
+        guard dropForwarderRef != nil else { return [] }
+        dropForwarderRef?.onDragTargetChanged?(true)
         return .copy
     }
 
     override func draggingUpdated(_ sender: NSDraggingInfo) -> NSDragOperation {
-        Self.dropForwarder != nil ? .copy : []
+        dropForwarderRef != nil ? .copy : []
     }
 
     override func draggingExited(_ sender: NSDraggingInfo?) {
-        Self.dropForwarder?.onDragTargetChanged(false)
+        dropForwarderRef?.onDragTargetChanged?(false)
     }
 
     override func prepareForDragOperation(_ sender: NSDraggingInfo) -> Bool {
-        Self.dropForwarder != nil
+        dropForwarderRef != nil
     }
 
     override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
-        Self.dropForwarder?.onDragTargetChanged(false)
-        return Self.dropForwarder?.onPerformDrop(sender) ?? false
+        dropForwarderRef?.onDragTargetChanged?(false)
+        return dropForwarderRef?.onPerformDrop?(sender) ?? false
     }
 
     override func draggingEnded(_ sender: NSDraggingInfo) {
-        Self.dropForwarder?.onDragTargetChanged(false)
+        dropForwarderRef?.onDragTargetChanged?(false)
         // Intentionally do NOT call super — WKWebView's default
         // implementation sends drag data to the WebContent process.
     }
 
     override func concludeDragOperation(_ sender: NSDraggingInfo?) {
-        Self.dropForwarder?.onDragTargetChanged(false)
+        dropForwarderRef?.onDragTargetChanged?(false)
         // Intentionally do NOT call super — prevents WKWebView
         // from finalizing the drop in the WebContent process.
     }

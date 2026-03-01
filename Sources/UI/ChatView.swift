@@ -33,6 +33,7 @@ struct ChatView: View {
     @State private var isFileImporterPresented = false
     @State private var isComposerDropTargeted = false
     @State private var isFullPageDropTargeted = false
+    @State private var dropForwarderRef = DropForwarderRef()
     @State private var isComposerFocused = false
     @State private var editingUserMessageID: UUID?
     @State private var editingUserMessageText = ""
@@ -971,6 +972,7 @@ struct ChatView: View {
             }
             .animation(.easeInOut(duration: 0.2), value: isExpandedComposerPresented)
         } // end VStack
+        .environment(\.dropForwarderRef, dropForwarderRef)
         .onDrop(of: [.fileURL, .url, .text, .image, .data, .item], isTargeted: $isFullPageDropTargeted) { providers in
             handleDrop(providers)
         }
@@ -1284,10 +1286,8 @@ struct ChatView: View {
             onDropImages: handleDroppedImages,
             onDropTextChunks: handleDroppedTextChunks
         )
-        MarkdownWKWebView.dropForwarder = .init(
-            onDragTargetChanged: { isTargeted in coordinator.setDropTargeted(isTargeted) },
-            onPerformDrop: { draggingInfo in coordinator.performDrop(draggingInfo) }
-        )
+        dropForwarderRef.onDragTargetChanged = { isTargeted in coordinator.setDropTargeted(isTargeted) }
+        dropForwarderRef.onPerformDrop = { draggingInfo in coordinator.performDrop(draggingInfo) }
     }
 
     private func handleDroppedFileURLs(_ urls: [URL]) -> Bool {
@@ -1614,7 +1614,6 @@ struct ChatView: View {
         }
 
         group.notify(queue: .main, execute: finalize)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.25, execute: finalize)
 
         return true
     }
