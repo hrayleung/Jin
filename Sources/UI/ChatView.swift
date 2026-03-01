@@ -975,26 +975,27 @@ struct ChatView: View {
             handleDrop(providers)
         }
         .overlay {
-            if isFullPageDropTargeted {
-                ZStack {
-                    Color.accentColor.opacity(0.08)
-                        .ignoresSafeArea()
-                    VStack(spacing: 8) {
-                        Image(systemName: "arrow.down.doc")
-                            .font(.system(size: 32, weight: .light))
-                            .foregroundStyle(.secondary)
-                        Text("Drop to attach")
-                            .font(.headline)
-                            .foregroundStyle(.secondary)
-                    }
-                    .padding(24)
-                    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: JinRadius.large, style: .continuous))
+            ZStack {
+                Color.accentColor.opacity(0.08)
+                    .ignoresSafeArea()
+                VStack(spacing: 8) {
+                    Image(systemName: "arrow.down.doc")
+                        .font(.system(size: 32, weight: .light))
+                        .foregroundStyle(.secondary)
+                    Text("Drop to attach")
+                        .font(.headline)
+                        .foregroundStyle(.secondary)
                 }
-                .allowsHitTesting(false)
+                .padding(24)
+                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: JinRadius.large, style: .continuous))
             }
+            .allowsHitTesting(false)
+            .opacity(isFullPageDropTargeted ? 1 : 0)
+            .animation(.easeInOut(duration: 0.15), value: isFullPageDropTargeted)
         }
         .onAppear {
             isComposerFocused = true
+            installWKWebViewDropForwarder()
             ensureModelThreadsInitializedIfNeeded()
             syncActiveThreadSelection()
             loadControlsFromConversation()
@@ -1269,6 +1270,26 @@ struct ChatView: View {
         try? FileManager.default.removeItem(at: attachment.fileURL)
     }
 
+    /// Install a static drop forwarder on MarkdownWKWebView so files
+    /// dropped directly onto rendered markdown messages are routed to the
+    /// same attachment pipeline used by the SwiftUI `.onDrop` handler.
+    /// WKWebView internally re-registers drag types via private APIs,
+    /// making it impossible to prevent it from claiming drags. Instead of
+    /// fighting it, we accept the drags at the WKWebView level and
+    /// forward them here.
+    private func installWKWebViewDropForwarder() {
+        let coordinator = FileDropCaptureView.Coordinator(
+            isDropTargeted: $isFullPageDropTargeted,
+            onDropFileURLs: handleDroppedFileURLs,
+            onDropImages: handleDroppedImages,
+            onDropTextChunks: handleDroppedTextChunks
+        )
+        MarkdownWKWebView.dropForwarder = .init(
+            onDragTargetChanged: { isTargeted in coordinator.setDropTargeted(isTargeted) },
+            onPerformDrop: { draggingInfo in coordinator.performDrop(draggingInfo) }
+        )
+    }
+
     private func handleDroppedFileURLs(_ urls: [URL]) -> Bool {
         var seen = Set<URL>()
         let uniqueURLs = urls.filter { seen.insert($0).inserted }
@@ -1324,6 +1345,27 @@ struct ChatView: View {
     private func handleComposerCancel() -> Bool {
         guard isBusy else { return false }
         sendMessage()
+        return true
+    }
+
+    private func handleDroppedTextChunks(_ textChunks: [String]) -> Bool {
+        let insertion = textChunks
+            .joined(separator: "\n")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !insertion.isEmpty else { return false }
+
+        if isBusy {
+            errorMessage = "Stop generating (or wait for PDF processing) to attach files."
+            showingError = true
+            return true
+        }
+
+        if messageText.isEmpty {
+            messageText = insertion
+        } else {
+            let separator = messageText.hasSuffix("\n") ? "" : "\n"
+            messageText += separator + insertion
+        }
         return true
     }
 
