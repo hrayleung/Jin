@@ -81,10 +81,12 @@ struct ContentView: View {
                         .font(.system(size: 13, weight: .medium))
                         .foregroundStyle(.secondary)
 
-                    TextField("Search chats", text: $searchText)
-                        .textFieldStyle(.plain)
-                        .focused($isSidebarSearchFieldFocused)
-                        .accessibilityLabel("Search chats")
+                    TextField(text: $searchText, prompt: Text("Search chats")) {
+                        EmptyView()
+                    }
+                    .textFieldStyle(.plain)
+                    .focused($isSidebarSearchFieldFocused)
+                    .accessibilityLabel("Search chats")
                 }
                 .padding(.horizontal, JinSpacing.medium)
                 .padding(.vertical, JinSpacing.small)
