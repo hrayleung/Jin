@@ -209,6 +209,7 @@ final class MessageEntity {
     var toolCallsData: Data?
     var toolResultsData: Data?
     var searchActivitiesData: Data?
+    var responseMetricsData: Data?
     var thinkingVisible: Bool
     // Snapshot of the model used to generate this message (primarily for assistant replies).
     var generatedProviderID: String?
@@ -227,6 +228,7 @@ final class MessageEntity {
         toolCallsData: Data? = nil,
         toolResultsData: Data? = nil,
         searchActivitiesData: Data? = nil,
+        responseMetricsData: Data? = nil,
         generatedProviderID: String? = nil,
         generatedModelID: String? = nil,
         generatedModelName: String? = nil,
@@ -241,10 +243,25 @@ final class MessageEntity {
         self.toolCallsData = toolCallsData
         self.toolResultsData = toolResultsData
         self.searchActivitiesData = searchActivitiesData
+        self.responseMetricsData = responseMetricsData
         self.generatedProviderID = generatedProviderID
         self.generatedModelID = generatedModelID
         self.generatedModelName = generatedModelName
         self.thinkingVisible = thinkingVisible
+    }
+
+    var responseMetrics: ResponseMetrics? {
+        get {
+            guard let responseMetricsData else { return nil }
+            return try? JSONDecoder().decode(ResponseMetrics.self, from: responseMetricsData)
+        }
+        set {
+            if let newValue {
+                responseMetricsData = try? JSONEncoder().encode(newValue)
+            } else {
+                responseMetricsData = nil
+            }
+        }
     }
 
     /// Convert to domain model

@@ -38,6 +38,17 @@ final class AttachmentImportPipelineDropTypeTests: XCTestCase {
         XCTAssertNil(result)
     }
 
+    func testPreferredFileRepresentationTypeIdentifierSkipsRichTextSubtype() {
+        let identifiers = [
+            UTType.rtf.identifier,
+            UTType.pdf.identifier
+        ]
+
+        let result = AttachmentImportPipeline.preferredFileRepresentationTypeIdentifier(from: identifiers)
+
+        XCTAssertEqual(result, UTType.pdf.identifier)
+    }
+
     func testPreferredFileRepresentationTypeIdentifierFallsBackToItemType() {
         let identifiers = [
             UTType.item.identifier

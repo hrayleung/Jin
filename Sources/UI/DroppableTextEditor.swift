@@ -230,14 +230,14 @@ struct DroppableTextEditor: NSViewRepresentable {
                 return onDropFileURLs(fileURLs)
             }
 
-            let images = readImages(from: pasteboard)
-            if !images.isEmpty {
-                return onDropImages(images)
-            }
-
             let inferredFileURLs = readFileURLsFromURLAndTextRepresentations(from: pasteboard)
             if !inferredFileURLs.isEmpty {
                 return onDropFileURLs(inferredFileURLs)
+            }
+
+            let images = readImages(from: pasteboard)
+            if !images.isEmpty {
+                return onDropImages(images)
             }
 
             if allowFilePromises, handleFilePromises(in: pasteboard) {

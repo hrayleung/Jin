@@ -78,17 +78,17 @@ struct FileDropCaptureView: NSViewRepresentable {
                 return onDropFileURLs(fileURLs)
             }
 
-            let images = readImages(from: pasteboard)
-            if !images.isEmpty {
-                return onDropImages(images)
-            }
-
             let parsedFromText = parseTextValues(from: pasteboard)
             if !parsedFromText.fileURLs.isEmpty {
                 return onDropFileURLs(parsedFromText.fileURLs)
             }
             if !parsedFromText.textChunks.isEmpty {
                 return onDropTextChunks(parsedFromText.textChunks)
+            }
+
+            let images = readImages(from: pasteboard)
+            if !images.isEmpty {
+                return onDropImages(images)
             }
 
             if allowFilePromises, handleFilePromises(in: pasteboard) {

@@ -81,10 +81,12 @@ struct ContentView: View {
                         .font(.system(size: 13, weight: .medium))
                         .foregroundStyle(.secondary)
 
-                    TextField("Search chats", text: $searchText)
-                        .textFieldStyle(.plain)
-                        .focused($isSidebarSearchFieldFocused)
-                        .accessibilityLabel("Search chats")
+                    TextField(text: $searchText, prompt: Text("Search chats")) {
+                        EmptyView()
+                    }
+                    .textFieldStyle(.plain)
+                    .focused($isSidebarSearchFieldFocused)
+                    .accessibilityLabel("Search chats")
                 }
                 .padding(.horizontal, JinSpacing.medium)
                 .padding(.vertical, JinSpacing.small)
@@ -105,7 +107,10 @@ struct ContentView: View {
                     chatsSection
                 }
                 .listStyle(.sidebar)
+                .frame(maxHeight: .infinity)
             }
+            .frame(maxHeight: .infinity)
+            .ignoresSafeArea(edges: .top)
             .navigationSplitViewColumnWidth(min: 240, ideal: 280, max: 340)
             .navigationTitle("")
             .scrollContentBackground(.hidden)

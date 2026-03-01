@@ -152,23 +152,17 @@ enum AttachmentImportPipeline {
             return promiseIdentifier
         }
 
-        let excluded: Set<String> = [
-            UTType.fileURL.identifier,
-            UTType.url.identifier,
-            UTType.text.identifier,
-            UTType.plainText.identifier,
-            UTType.utf8PlainText.identifier
-        ]
-
-        for identifier in identifiers where !excluded.contains(identifier) {
+        for identifier in identifiers {
             guard let type = UTType(identifier) else { continue }
+            if type.conforms(to: .text) || type.conforms(to: .url) { continue }
             if type.conforms(to: .data) || type.conforms(to: .content) {
                 return identifier
             }
         }
 
-        for identifier in identifiers where !excluded.contains(identifier) {
+        for identifier in identifiers {
             guard let type = UTType(identifier) else { continue }
+            if type.conforms(to: .text) || type.conforms(to: .url) { continue }
             if type.conforms(to: .item) {
                 return identifier
             }
