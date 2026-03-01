@@ -4,12 +4,12 @@
         <title>Jin</title>
         <item>
             <title>0.59</title>
-            <pubDate>Sun, 01 Mar 2026 21:02:05 +0800</pubDate>
+            <pubDate>Sun, 01 Mar 2026 21:10:14 +0800</pubDate>
             <link>https://github.com/hrayleung/Jin/releases</link>
-            <sparkle:version>229</sparkle:version>
+            <sparkle:version>231</sparkle:version>
             <sparkle:shortVersionString>0.59</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <enclosure url="https://github.com/hrayleung/Jin/releases/download/v0.59/Jin-0.59.zip" length="22894548" type="application/octet-stream" sparkle:edSignature="IouS5wTNBy7QNCViQloyXDZFM6StF5C/L7XlAJKiiZ603ZZbOmlFW4UVH39wf0ONM1vTAwYJ40rgYPuYmlTkCg=="/>
+            <enclosure url="https://github.com/hrayleung/Jin/releases/download/v0.59/Jin-0.59.zip" length="22950105" type="application/octet-stream" sparkle:edSignature="4ejQYAoPBxH4unZpSnoXvGZRWk5rLbNDeORjaJQa5oH44UZewGVh9qfmDnlVHZ+srQ7U4SkgnBbKf6XB9E45Bw=="/>
         </item>
         <item>
             <title>0.58</title>
@@ -82,15 +82,6 @@
             <sparkle:shortVersionString>0.51</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
             <enclosure url="https://github.com/hrayleung/Jin/releases/download/v0.51/Jin-0.51.zip" length="22604248" type="application/octet-stream" sparkle:edSignature="/NzeV7irwfVuFZK/jBzbuQbUPgsDnnH78alc5bxZjbeviLorbh6MhNwOGj+6e21dra6wZb/q8DcyEzw8na6FBA=="/>
-        </item>
-        <item>
-            <title>0.5</title>
-            <pubDate>Thu, 26 Feb 2026 13:37:13 +0800</pubDate>
-            <link>https://github.com/hrayleung/Jin/releases</link>
-            <sparkle:version>199</sparkle:version>
-            <sparkle:shortVersionString>0.5</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <enclosure url="https://github.com/hrayleung/Jin/releases/download/v0.5/Jin-0.5.zip" length="22541710" type="application/octet-stream" sparkle:edSignature="3FJRuv9jqVDtsvcroM1o3lxs5YpCiDmgR7/8Rm1nWlPZrICNhFr4GFij+bPVQzOylnvuk7TTAM7Z1Y1GVigGAQ=="/>
         </item>
     </channel>
 </rss>
