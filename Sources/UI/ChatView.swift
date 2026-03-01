@@ -716,6 +716,7 @@ struct ChatView: View {
                     assistantProviderIconID: entity.role == "assistant"
                         ? providerIconID(for: entity.generatedProviderID ?? "")
                         : nil,
+                    responseMetrics: entity.responseMetrics,
                     copyText: copyableText(from: message),
                     canEditUserMessage: entity.role == "user"
                         && message.content.contains(where: { part in
@@ -2950,6 +2951,7 @@ struct ChatView: View {
                     assistantProviderIconID: entity.role == "assistant"
                         ? providerIconID(for: entity.generatedProviderID ?? "")
                         : nil,
+                    responseMetrics: entity.responseMetrics,
                     copyText: copyableText(from: message),
                     canEditUserMessage: entity.role == "user"
                         && message.content.contains(where: { part in
@@ -4064,6 +4066,8 @@ struct ChatView: View {
                     try Task.checkCancellation()
 
                     var accumulator = StreamingResponseAccumulator()
+                    var metricsCollector = StreamingResponseMetricsCollector()
+                    metricsCollector.begin(at: Date())
 
                     await MainActor.run {
                         streamingState.reset()
@@ -4113,6 +4117,8 @@ struct ChatView: View {
 
                     for try await event in stream {
                         try Task.checkCancellation()
+                        let eventTimestamp = Date()
+                        metricsCollector.observe(event: event, at: eventTimestamp)
 
                         switch event {
                         case .messageStart:
@@ -4177,10 +4183,12 @@ struct ChatView: View {
                     }
 
                     await flushStreamingUI(force: true)
+                    metricsCollector.end(at: Date())
 
                     let toolCalls = accumulator.buildToolCalls()
                     let assistantParts = accumulator.buildAssistantParts()
                     let searchActivities = accumulator.buildSearchActivities()
+                    let responseMetrics = metricsCollector.metrics
                     var persistedAssistantMessageID: UUID?
                     if !assistantParts.isEmpty || !toolCalls.isEmpty || !searchActivities.isEmpty {
                         let persistedParts = await AttachmentImportPipeline.persistImagesToDisk(assistantParts)
@@ -4202,6 +4210,7 @@ struct ChatView: View {
                                 entity.generatedModelName = modelNameSnapshot
                                 entity.contextThreadID = threadID
                                 entity.turnID = turnID
+                                entity.responseMetrics = responseMetrics
                                 entity.conversation = conversationEntity
                                 conversationEntity.messages.append(entity)
                                 conversationEntity.updatedAt = Date()

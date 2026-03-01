@@ -3,6 +3,7 @@ import AppKit
 import AVFoundation
 import AVKit
 import CryptoKit
+import Foundation
 
 // MARK: - Video Helpers
 
@@ -154,6 +155,7 @@ struct MessageRenderItem: Identifiable {
     let searchActivities: [SearchActivity]
     let assistantModelLabel: String?
     let assistantProviderIconID: String?
+    let responseMetrics: ResponseMetrics?
     let copyText: String
     let canEditUserMessage: Bool
 
@@ -191,6 +193,7 @@ struct MessageRow: View {
     let onSubmitUserEdit: (UUID) -> Void
     let onCancelUserEdit: () -> Void
     let onActivate: (() -> Void)?
+    @State private var isResponseMetricsPopoverPresented = false
 
     var body: some View {
         let isUser = item.isUser
@@ -267,7 +270,8 @@ struct MessageRow: View {
                             isEditingUserMessage: isEditingUserMessage,
                             showsCopyButton: showsCopyButton,
                             copyText: copyText,
-                            canEditUserMessage: canEditUserMessage
+                            canEditUserMessage: canEditUserMessage,
+                            responseMetrics: item.responseMetrics
                         )
                         .padding(.top, 2)
                     }
@@ -322,13 +326,31 @@ struct MessageRow: View {
     }
 
     @ViewBuilder
-    private func footerView(isUser: Bool, isAssistant: Bool, isEditingUserMessage: Bool, showsCopyButton: Bool, copyText: String, canEditUserMessage: Bool) -> some View {
+    private func footerView(
+        isUser: Bool,
+        isAssistant: Bool,
+        isEditingUserMessage: Bool,
+        showsCopyButton: Bool,
+        copyText: String,
+        canEditUserMessage: Bool,
+        responseMetrics: ResponseMetrics?
+    ) -> some View {
         if isAssistant {
             HStack(spacing: JinSpacing.small) {
                 if showsCopyButton {
                     CopyToPasteboardButton(text: copyText, helpText: "Copy message", useProminentStyle: false)
                         .accessibilityLabel("Copy message")
                         .disabled(!actionsEnabled)
+                }
+
+                if let responseMetrics {
+                    actionIconButton(systemName: "gauge", helpText: "Response metrics") {
+                        isResponseMetricsPopoverPresented.toggle()
+                    }
+                    .popover(isPresented: $isResponseMetricsPopoverPresented, arrowEdge: .top) {
+                        ResponseMetricsPopover(metrics: responseMetrics)
+                    }
+                    .disabled(!actionsEnabled)
                 }
 
                 if textToSpeechEnabled {
@@ -474,6 +496,51 @@ struct MessageRow: View {
         if isTool { return .tool }
         if isUser { return .accent }
         return .neutral
+    }
+}
+
+private struct ResponseMetricsPopover: View {
+    let metrics: ResponseMetrics
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: JinSpacing.small) {
+            metricRow(title: "Input tokens", value: formattedTokens(metrics.usage?.inputTokens))
+            metricRow(title: "Output tokens", value: formattedTokens(metrics.usage?.outputTokens))
+            metricRow(title: "Time to first token", value: formattedSeconds(metrics.timeToFirstTokenSeconds))
+            metricRow(title: "Duration", value: formattedSeconds(metrics.durationSeconds))
+            metricRow(title: "Output speed", value: formattedSpeed(metrics.outputTokensPerSecond))
+        }
+        .padding(.vertical, JinSpacing.small)
+        .padding(.horizontal, JinSpacing.medium)
+        .frame(minWidth: 260, alignment: .leading)
+    }
+
+    @ViewBuilder
+    private func metricRow(title: String, value: String) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: JinSpacing.large) {
+            Text(title)
+                .foregroundStyle(.secondary)
+            Spacer(minLength: 0)
+            Text(value)
+                .monospacedDigit()
+                .foregroundStyle(.primary)
+        }
+        .font(.callout)
+    }
+
+    private func formattedTokens(_ value: Int?) -> String {
+        guard let value else { return "--" }
+        return value.formatted(.number.grouping(.automatic))
+    }
+
+    private func formattedSeconds(_ value: Double?) -> String {
+        guard let value else { return "--" }
+        return String(format: "%.1fs", value)
+    }
+
+    private func formattedSpeed(_ value: Double?) -> String {
+        guard let value else { return "--" }
+        return String(format: "%.1fT/s", value)
     }
 }
 
