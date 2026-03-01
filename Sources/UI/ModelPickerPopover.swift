@@ -125,9 +125,11 @@ struct ModelPickerPopover: View {
     }
 
     private var filteredSections: [ProviderSection] {
-        let providersSorted = providers.sorted { lhs, rhs in
-            lhs.name.localizedStandardCompare(rhs.name) == .orderedAscending
-        }
+        let providersSorted = providers
+            .filter(\.isEnabled)
+            .sorted { lhs, rhs in
+                lhs.name.localizedStandardCompare(rhs.name) == .orderedAscending
+            }
 
         let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
 

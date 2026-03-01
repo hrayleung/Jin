@@ -24,7 +24,7 @@ struct DefaultsSettingsView: View {
 
                 if newChatModelMode == .fixed {
                     Picker("Provider", selection: $newChatFixedProviderID) {
-                        ForEach(providers, id: \.id) { provider in
+                        ForEach(providers.filter(\.isEnabled), id: \.id) { provider in
                             Text(provider.name).tag(provider.id)
                         }
                     }

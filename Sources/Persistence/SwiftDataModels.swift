@@ -321,6 +321,7 @@ final class ProviderConfigEntity {
     var apiKeyKeychainID: String?
     var baseURL: String?
     var modelsData: Data // Codable [ModelInfo]
+    var isEnabled: Bool = true
 
     init(
         id: String,
@@ -331,7 +332,8 @@ final class ProviderConfigEntity {
         serviceAccountJSON: String? = nil,
         apiKeyKeychainID: String? = nil,
         baseURL: String? = nil,
-        modelsData: Data
+        modelsData: Data,
+        isEnabled: Bool = true
     ) {
         self.id = id
         self.name = name
@@ -342,6 +344,7 @@ final class ProviderConfigEntity {
         self.apiKeyKeychainID = apiKeyKeychainID
         self.baseURL = baseURL
         self.modelsData = modelsData
+        self.isEnabled = isEnabled
     }
 
     /// Convert to domain model
@@ -362,7 +365,8 @@ final class ProviderConfigEntity {
             apiKey: apiKey,
             serviceAccountJSON: serviceAccountJSON,
             baseURL: baseURL,
-            models: models
+            models: models,
+            isEnabled: isEnabled
         )
     }
 
@@ -380,7 +384,8 @@ final class ProviderConfigEntity {
             serviceAccountJSON: config.serviceAccountJSON,
             apiKeyKeychainID: config.authModeHint,
             baseURL: config.baseURL,
-            modelsData: modelsData
+            modelsData: modelsData,
+            isEnabled: config.isEnabled
         )
     }
 }

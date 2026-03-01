@@ -41,6 +41,16 @@ struct ProviderConfigFormView: View {
     var body: some View {
         Form {
             Section("Configuration") {
+                Toggle(isOn: Binding(
+                    get: { provider.isEnabled },
+                    set: { newValue in
+                        provider.isEnabled = newValue
+                        try? modelContext.save()
+                    }
+                )) {
+                    Text("Enabled")
+                }
+
                 TextField("Name", text: $provider.name)
                     .onChange(of: provider.name) { _, _ in try? modelContext.save() }
 

@@ -435,6 +435,7 @@ struct SettingsView: View {
                     ProviderIconView(iconID: provider.resolvedProviderIconID, fallbackSystemName: "network", size: 14)
                         .frame(width: 20, height: 20)
                         .jinSurface(.outlined, cornerRadius: JinRadius.small)
+                        .opacity(provider.isEnabled ? 1 : 0.4)
 
                     VStack(alignment: .leading, spacing: 2) {
                         Text(provider.name)
@@ -444,11 +445,25 @@ struct SettingsView: View {
                             .font(.system(.caption, design: .default))
                             .foregroundColor(.secondary)
                     }
+                    .opacity(provider.isEnabled ? 1 : 0.4)
+
                     Spacer()
                 }
                 .padding(.vertical, JinSpacing.xSmall)
             }
             .contextMenu {
+                Button {
+                    provider.isEnabled.toggle()
+                    try? modelContext.save()
+                } label: {
+                    Label(
+                        provider.isEnabled ? "Disable Provider" : "Enable Provider",
+                        systemImage: provider.isEnabled ? "xmark.circle" : "checkmark.circle"
+                    )
+                }
+
+                Divider()
+
                 Button(role: .destructive) {
                     requestDeleteProvider(provider)
                 } label: {

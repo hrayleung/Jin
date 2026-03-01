@@ -132,6 +132,7 @@ struct ProviderConfig: Identifiable, Codable {
     var serviceAccountJSON: String?
     var baseURL: String?
     var models: [ModelInfo]
+    var isEnabled: Bool
 
     init(
         id: String,
@@ -142,7 +143,8 @@ struct ProviderConfig: Identifiable, Codable {
         apiKey: String? = nil,
         serviceAccountJSON: String? = nil,
         baseURL: String? = nil,
-        models: [ModelInfo] = []
+        models: [ModelInfo] = [],
+        isEnabled: Bool = true
     ) {
         self.id = id
         self.name = name
@@ -153,6 +155,7 @@ struct ProviderConfig: Identifiable, Codable {
         self.serviceAccountJSON = serviceAccountJSON
         self.baseURL = baseURL
         self.models = models
+        self.isEnabled = isEnabled
     }
 }
 
