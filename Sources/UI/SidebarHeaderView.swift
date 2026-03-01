@@ -24,14 +24,14 @@ struct SidebarHeaderView: View {
                 Image(systemName: "sidebar.leading")
                     .font(.system(size: JinControlMetrics.iconButtonGlyphSize, weight: .semibold))
             }
-            .buttonStyle(JinIconButtonStyle())
+            .buttonStyle(JinIconButtonStyle(showBackground: false))
             .help("Hide Sidebar")
 
             Button(action: onNewChat) {
                 Image(systemName: "square.and.pencil")
                     .font(.system(size: JinControlMetrics.iconButtonGlyphSize, weight: .semibold))
             }
-            .buttonStyle(JinIconButtonStyle())
+            .buttonStyle(JinIconButtonStyle(showBackground: false))
             .keyboardShortcut(shortcutsStore.keyboardShortcut(for: .newChat))
             .help("New Chat")
 
@@ -39,7 +39,7 @@ struct SidebarHeaderView: View {
                 Image(systemName: "gearshape")
                     .font(.system(size: JinControlMetrics.iconButtonGlyphSize, weight: .semibold))
             }
-            .buttonStyle(JinIconButtonStyle())
+            .buttonStyle(JinIconButtonStyle(showBackground: false))
             .keyboardShortcut(",", modifiers: [.command])
             .help("Settings")
         }
