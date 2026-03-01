@@ -381,9 +381,22 @@ final class MarkdownWKWebView: WKWebView {
 
     override func viewDidMoveToSuperview() {
         super.viewDidMoveToSuperview()
-        // Clear any drag types registered during init so drag events pass
-        // through to the parent SwiftUI .onDrop handler on ChatView.
-        unregisterDraggedTypes()
+        // Keep this subtree out of drag-destination resolution so outer
+        // SwiftUI `.onDrop` handlers can detect hovering consistently.
+        disableDragDestinationRecursively()
+        DispatchQueue.main.async { [weak self] in
+            self?.disableDragDestinationRecursively()
+        }
+    }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        disableDragDestinationRecursively()
+    }
+
+    override func layout() {
+        super.layout()
+        disableDragDestinationRecursively()
     }
 
     override func registerForDraggedTypes(_ newTypes: [NSPasteboard.PasteboardType]) {
@@ -391,6 +404,30 @@ final class MarkdownWKWebView: WKWebView {
         // content loads, which silently intercepts drag events that should
         // reach ChatView's .onDrop handler. Blocking re-registration ensures
         // drag-and-drop pass-through remains stable.
+    }
+
+    override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
+        []
+    }
+
+    override func draggingUpdated(_ sender: NSDraggingInfo) -> NSDragOperation {
+        []
+    }
+
+    override func draggingExited(_ sender: NSDraggingInfo?) {
+        super.draggingExited(sender)
+    }
+
+    override func prepareForDragOperation(_ sender: NSDraggingInfo) -> Bool {
+        false
+    }
+
+    override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
+        false
+    }
+
+    override func concludeDragOperation(_ sender: NSDraggingInfo?) {
+        super.concludeDragOperation(sender)
     }
 
     override var intrinsicContentSize: NSSize {
@@ -416,5 +453,14 @@ final class MarkdownWKWebView: WKWebView {
 
     override func flagsChanged(with event: NSEvent) {
         nextResponder?.flagsChanged(with: event)
+    }
+
+    private func disableDragDestinationRecursively() {
+        var queue: [NSView] = [self]
+        while !queue.isEmpty {
+            let view = queue.removeFirst()
+            view.unregisterDraggedTypes()
+            queue.append(contentsOf: view.subviews)
+        }
     }
 }
