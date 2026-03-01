@@ -21,7 +21,6 @@ struct HideWindowToolbarModifier: ViewModifier {
 
     private final class ToolbarObservingView: NSView {
         private var windowObservation: NSKeyValueObservation?
-        private var toolbarObservation: NSKeyValueObservation?
 
         override func viewDidMoveToWindow() {
             super.viewDidMoveToWindow()
@@ -39,6 +38,7 @@ struct HideWindowToolbarModifier: ViewModifier {
             guard let window else { return }
             window.titlebarAppearsTransparent = true
             window.titleVisibility = .hidden
+            window.title = ""
             if let toolbar = window.toolbar {
                 toolbar.isVisible = false
             }
