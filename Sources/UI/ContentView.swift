@@ -1,5 +1,8 @@
 import SwiftUI
 import SwiftData
+#if os(macOS)
+import AppKit
+#endif
 
 enum AssistantSidebarLayout: String {
     case list
@@ -63,11 +66,10 @@ struct ContentView: View {
     @AppStorage(AppPreferenceKeys.newChatFixedMCPUseAllServers) private var newChatFixedMCPUseAllServers = true
     @AppStorage(AppPreferenceKeys.newChatFixedMCPServerIDsJSON) private var newChatFixedMCPServerIDsJSON = "[]"
     @FocusState private var isSidebarSearchFieldFocused: Bool
-
     private let conversationTitleGenerator = ConversationTitleGenerator()
 
     var body: some View {
-        NavigationSplitView(columnVisibility: $columnVisibility) {
+            NavigationSplitView(columnVisibility: $columnVisibility) {
             VStack(spacing: 0) {
                 SidebarHeaderView(
                     assistantDisplayName: selectedAssistant?.displayName ?? "Default",
@@ -107,14 +109,15 @@ struct ContentView: View {
                     chatsSection
                 }
                 .listStyle(.sidebar)
+                .contentMargins(.vertical, 0, for: .scrollContent)
                 .frame(maxHeight: .infinity)
             }
-            .frame(maxHeight: .infinity)
-            .ignoresSafeArea(edges: .top)
+            .frame(maxHeight: .infinity, alignment: .top)
             .navigationSplitViewColumnWidth(min: 240, ideal: 280, max: 340)
-            .navigationTitle("")
             .scrollContentBackground(.hidden)
-            .background(JinSemanticColor.sidebarSurface)
+            .background {
+                JinSemanticColor.sidebarSurface.ignoresSafeArea()
+            }
         } detail: {
             VStack(spacing: 0) {
                 if ttsPlaybackManager.state != .idle,
@@ -175,8 +178,8 @@ struct ContentView: View {
                         .background(JinSemanticColor.detailSurface)
                 }
             }
+            .background { JinSemanticColor.detailSurface.ignoresSafeArea() }
             .animation(.easeInOut(duration: 0.2), value: ttsPlaybackManager.state != .idle)
-            .navigationTitle("")
             .overlay(alignment: .leading) {
                 LinearGradient(
                     stops: [
@@ -191,76 +194,76 @@ struct ContentView: View {
                 .allowsHitTesting(false)
             }
         }
-        .modifier(HideWindowToolbarModifier())
-        .task {
-            bootstrapDefaultProvidersIfNeeded()
-            bootstrapDefaultAssistantsIfNeeded()
-            await updateManager.checkForUpdatesOnLaunchIfNeeded()
-        }
-        .sheet(isPresented: $isAssistantInspectorPresented) {
-            if let selectedAssistant {
-                AssistantInspectorView(
-                    assistant: selectedAssistant
+            .modifier(HideWindowToolbarModifier())
+            .task {
+                bootstrapDefaultProvidersIfNeeded()
+                bootstrapDefaultAssistantsIfNeeded()
+                await updateManager.checkForUpdatesOnLaunchIfNeeded()
+            }
+            .sheet(isPresented: $isAssistantInspectorPresented) {
+                if let selectedAssistant {
+                    AssistantInspectorView(
+                        assistant: selectedAssistant
+                    )
+                }
+            }
+            .confirmationDialog(
+                "Delete assistant?",
+                isPresented: $showingDeleteAssistantConfirmation,
+                presenting: assistantPendingDeletion
+            ) { assistant in
+                Button("Delete", role: .destructive) {
+                    deleteAssistant(assistant)
+                }
+            } message: { assistant in
+                Text("This will permanently delete “\(assistant.displayName)” and all of its chats.")
+            }
+            .confirmationDialog(
+                "Delete chat?",
+                isPresented: $showingDeleteConversationConfirmation,
+                presenting: conversationPendingDeletion
+            ) { conversation in
+                Button("Delete", role: .destructive) {
+                    deleteConversation(conversation)
+                }
+            } message: { conversation in
+                Text("This will permanently delete “\(conversation.title)”.")
+            }
+            .alert("Rename Chat", isPresented: $showingRenameConversationAlert, presenting: conversationPendingRename) { _ in
+                TextField("Chat title", text: $renameConversationDraftTitle)
+                Button("Cancel", role: .cancel) {
+                    conversationPendingRename = nil
+                }
+                Button("Save") {
+                    applyManualConversationRename()
+                }
+                .disabled(renameConversationDraftTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            } message: { _ in
+                Text("Enter a new title for this chat.")
+            }
+            .alert("Title Regeneration Failed", isPresented: $showingTitleRegenerationError) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(titleRegenerationErrorMessage)
+            }
+            .focusedSceneValue(
+                \.workspaceActions,
+                WorkspaceFocusedActions(
+                    isSidebarVisible: isSidebarVisible,
+                    canRenameSelectedChat: selectedConversation != nil,
+                    canToggleSelectedChatStar: selectedConversation != nil,
+                    canDeleteSelectedChat: selectedConversation != nil,
+                    selectedChatIsStarred: selectedConversation?.isStarred == true,
+                    toggleSidebar: toggleSidebarVisibility,
+                    focusChatSearch: focusChatSearch,
+                    createNewChat: createNewConversation,
+                    createAssistant: createAssistant,
+                    openAssistantSettings: openAssistantSettings,
+                    renameSelectedChat: requestRenameSelectedConversation,
+                    toggleSelectedChatStar: toggleSelectedConversationStar,
+                    deleteSelectedChat: requestDeleteSelectedConversation
                 )
-            }
-        }
-        .confirmationDialog(
-            "Delete assistant?",
-            isPresented: $showingDeleteAssistantConfirmation,
-            presenting: assistantPendingDeletion
-        ) { assistant in
-            Button("Delete", role: .destructive) {
-                deleteAssistant(assistant)
-            }
-        } message: { assistant in
-            Text("This will permanently delete “\(assistant.displayName)” and all of its chats.")
-        }
-        .confirmationDialog(
-            "Delete chat?",
-            isPresented: $showingDeleteConversationConfirmation,
-            presenting: conversationPendingDeletion
-        ) { conversation in
-            Button("Delete", role: .destructive) {
-                deleteConversation(conversation)
-            }
-        } message: { conversation in
-            Text("This will permanently delete “\(conversation.title)”.")
-        }
-        .alert("Rename Chat", isPresented: $showingRenameConversationAlert, presenting: conversationPendingRename) { _ in
-            TextField("Chat title", text: $renameConversationDraftTitle)
-            Button("Cancel", role: .cancel) {
-                conversationPendingRename = nil
-            }
-            Button("Save") {
-                applyManualConversationRename()
-            }
-            .disabled(renameConversationDraftTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-        } message: { _ in
-            Text("Enter a new title for this chat.")
-        }
-        .alert("Title Regeneration Failed", isPresented: $showingTitleRegenerationError) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text(titleRegenerationErrorMessage)
-        }
-        .focusedSceneValue(
-            \.workspaceActions,
-            WorkspaceFocusedActions(
-                isSidebarVisible: isSidebarVisible,
-                canRenameSelectedChat: selectedConversation != nil,
-                canToggleSelectedChatStar: selectedConversation != nil,
-                canDeleteSelectedChat: selectedConversation != nil,
-                selectedChatIsStarred: selectedConversation?.isStarred == true,
-                toggleSidebar: toggleSidebarVisibility,
-                focusChatSearch: focusChatSearch,
-                createNewChat: createNewConversation,
-                createAssistant: createAssistant,
-                openAssistantSettings: openAssistantSettings,
-                renameSelectedChat: requestRenameSelectedConversation,
-                toggleSelectedChatStar: toggleSelectedConversationStar,
-                deleteSelectedChat: requestDeleteSelectedConversation
             )
-        )
     }
 
     private var noConversationSelectedView: some View {
@@ -949,6 +952,7 @@ struct ContentView: View {
         }
     }
 }
+
 
 // MARK: - Sidebar Sections
 
