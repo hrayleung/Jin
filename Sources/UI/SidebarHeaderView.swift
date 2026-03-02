@@ -5,7 +5,6 @@ struct SidebarHeaderView: View {
     let onNewChat: () -> Void
     let onHideSidebar: () -> Void
     let shortcutsStore: AppShortcutsStore
-    let titleBarClearance: CGFloat
 
     var body: some View {
         HStack(spacing: JinSpacing.small) {
@@ -44,7 +43,6 @@ struct SidebarHeaderView: View {
             .keyboardShortcut(",", modifiers: [.command])
             .help("Settings")
         }
-        .padding(.top, titleBarClearance)
         .padding(.horizontal, JinSpacing.medium)
         .padding(.vertical, JinSpacing.small)
         .frame(minHeight: 38)

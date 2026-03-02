@@ -66,20 +66,16 @@ struct ContentView: View {
     @AppStorage(AppPreferenceKeys.newChatFixedMCPUseAllServers) private var newChatFixedMCPUseAllServers = true
     @AppStorage(AppPreferenceKeys.newChatFixedMCPServerIDsJSON) private var newChatFixedMCPServerIDsJSON = "[]"
     @FocusState private var isSidebarSearchFieldFocused: Bool
-    @State private var windowChromeMetrics = WindowChromeMetrics()
-
     private let conversationTitleGenerator = ConversationTitleGenerator()
 
     var body: some View {
-        GeometryReader { geometry in
             NavigationSplitView(columnVisibility: $columnVisibility) {
             VStack(spacing: 0) {
                 SidebarHeaderView(
                     assistantDisplayName: selectedAssistant?.displayName ?? "Default",
                     onNewChat: createNewConversation,
                     onHideSidebar: toggleSidebarVisibility,
-                    shortcutsStore: shortcutsStore,
-                    titleBarClearance: windowChromeMetrics.sidebarTopClearance
+                    shortcutsStore: shortcutsStore
                 )
 
                 HStack(spacing: JinSpacing.xSmall) {
@@ -149,8 +145,7 @@ struct ContentView: View {
                             persistConversationIfNeeded(conversation)
                         },
                         isSidebarHidden: !isSidebarVisible,
-                        onToggleSidebar: toggleSidebarVisibility,
-                        headerTopClearance: windowChromeMetrics.detailTopClearance
+                        onToggleSidebar: toggleSidebarVisibility
                     )
                         .id(conversation.id)
                         .background(JinSemanticColor.detailSurface)
@@ -167,7 +162,6 @@ struct ContentView: View {
                                 .buttonStyle(.plain)
                                 .help("Show Sidebar")
                                 .padding(JinSpacing.medium)
-                                .padding(.top, windowChromeMetrics.detailTopClearance)
                             }
                         }
                         .overlay(alignment: .topTrailing) {
@@ -180,11 +174,11 @@ struct ContentView: View {
                             .help("Assistant Settings")
                             .keyboardShortcut(shortcutsStore.keyboardShortcut(for: .openAssistantSettings))
                             .padding(JinSpacing.medium)
-                            .padding(.top, windowChromeMetrics.detailTopClearance)
                         }
                         .background(JinSemanticColor.detailSurface)
                 }
             }
+            .background { JinSemanticColor.detailSurface.ignoresSafeArea() }
             .animation(.easeInOut(duration: 0.2), value: ttsPlaybackManager.state != .idle)
             .overlay(alignment: .leading) {
                 LinearGradient(
@@ -200,12 +194,6 @@ struct ContentView: View {
                 .allowsHitTesting(false)
             }
         }
-            // Keep split content flush with the top by compensating exactly for observed AppKit chrome.
-            .padding(
-                .top,
-                -max(geometry.safeAreaInsets.top, windowChromeMetrics.topReservedInset)
-            )
-            .ignoresSafeArea(edges: .top)
             .modifier(HideWindowToolbarModifier())
             .task {
                 bootstrapDefaultProvidersIfNeeded()
@@ -276,16 +264,6 @@ struct ContentView: View {
                     deleteSelectedChat: requestDeleteSelectedConversation
                 )
             )
-#if os(macOS)
-            .background(
-                WindowChromeObserver { metrics in
-                    if windowChromeMetrics != metrics {
-                        windowChromeMetrics = metrics
-                    }
-                }
-            )
-#endif
-        }
     }
 
     private var noConversationSelectedView: some View {
@@ -975,119 +953,6 @@ struct ContentView: View {
     }
 }
 
-#if os(macOS)
-private struct WindowChromeMetrics: Equatable {
-    var topReservedInset: CGFloat = 0
-    var sidebarTopClearance: CGFloat = 0
-    var detailTopClearance: CGFloat = 0
-}
-
-private struct WindowChromeObserver: NSViewRepresentable {
-    let onMetricsChange: (WindowChromeMetrics) -> Void
-
-    func makeNSView(context: Context) -> NSView {
-        let view = WindowObserverView()
-        view.onMetricsChange = onMetricsChange
-        return view
-    }
-
-    func updateNSView(_ nsView: NSView, context: Context) {
-        guard let view = nsView as? WindowObserverView else { return }
-        view.onMetricsChange = onMetricsChange
-        view.refreshObservationIfNeeded()
-        view.publishMetrics()
-    }
-
-    private final class WindowObserverView: NSView {
-        var onMetricsChange: ((WindowChromeMetrics) -> Void)?
-        private weak var observedWindow: NSWindow?
-        private var observers: [NSObjectProtocol] = []
-        private var lastMetrics = WindowChromeMetrics()
-
-        override func viewDidMoveToWindow() {
-            super.viewDidMoveToWindow()
-            refreshObservationIfNeeded()
-            publishMetrics()
-        }
-
-        deinit {
-            removeObservers()
-        }
-
-        func refreshObservationIfNeeded() {
-            guard observedWindow !== window else { return }
-            removeObservers()
-            observedWindow = window
-            guard let window else { return }
-
-            let center = NotificationCenter.default
-            let notifications: [NSNotification.Name] = [
-                NSWindow.didEnterFullScreenNotification,
-                NSWindow.didExitFullScreenNotification,
-                NSWindow.didBecomeKeyNotification,
-                NSWindow.didResignKeyNotification,
-                NSWindow.didResizeNotification,
-                NSWindow.didMoveNotification,
-                NSWindow.didMiniaturizeNotification,
-                NSWindow.didDeminiaturizeNotification
-            ]
-
-            observers = notifications.map { name in
-                center.addObserver(forName: name, object: window, queue: .main) { [weak self] _ in
-                    self?.publishMetrics()
-                }
-            }
-        }
-
-        func publishMetrics() {
-            guard let window = observedWindow else { return }
-            let metrics = Self.computeMetrics(for: window)
-            guard metrics != lastMetrics else { return }
-            lastMetrics = metrics
-            onMetricsChange?(metrics)
-        }
-
-        private static func computeMetrics(for window: NSWindow) -> WindowChromeMetrics {
-            let topReservedInset = max(0, window.frame.maxY - window.contentLayoutRect.maxY)
-            guard let contentView = window.contentView,
-                  let closeButton = window.standardWindowButton(.closeButton),
-                  !closeButton.isHidden,
-                  closeButton.alphaValue > 0.01 else {
-                return WindowChromeMetrics(
-                    topReservedInset: round(topReservedInset * 2) / 2,
-                    sidebarTopClearance: 0,
-                    detailTopClearance: 0
-                )
-            }
-
-            let buttonFrame = closeButton.convert(closeButton.bounds, to: contentView)
-            let buttonBottomFromTop: CGFloat
-            if contentView.isFlipped {
-                buttonBottomFromTop = buttonFrame.maxY
-            } else {
-                buttonBottomFromTop = contentView.bounds.height - buttonFrame.minY
-            }
-
-            // Keep one small visual buffer below traffic-light controls.
-            let sidebarTopClearance = max(0, buttonBottomFromTop + 2)
-            // Detail header doesn't overlap traffic lights, so just restore split offset in windowed mode.
-            let detailTopClearance = max(0, topReservedInset + 2)
-
-            return WindowChromeMetrics(
-                topReservedInset: round(topReservedInset * 2) / 2,
-                sidebarTopClearance: round(sidebarTopClearance * 2) / 2,
-                detailTopClearance: round(detailTopClearance * 2) / 2
-            )
-        }
-
-        private func removeObservers() {
-            let center = NotificationCenter.default
-            observers.forEach { center.removeObserver($0) }
-            observers.removeAll()
-        }
-    }
-}
-#endif
 
 // MARK: - Sidebar Sections
 
