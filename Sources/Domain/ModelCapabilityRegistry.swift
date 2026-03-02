@@ -93,7 +93,7 @@ enum ModelCapabilityRegistry {
             return .gemini
         case .codexAppServer, .openaiCompatible, .cloudflareAIGateway, .openrouter,
              .groq, .cohere, .mistral, .deepinfra, .xai, .deepseek,
-             .fireworks, .cerebras, .perplexity, .none:
+             .fireworks, .cerebras, .sambanova, .perplexity, .none:
             return .openAICompatible
         }
     }
@@ -206,7 +206,8 @@ enum ModelCapabilityRegistry {
         case .vertexai:
             return supportsGoogleSearch(lowerModelID: lower, providerType: .vertexai)
         case .codexAppServer, .openaiCompatible, .cloudflareAIGateway, .groq,
-             .cohere, .mistral, .deepinfra, .deepseek, .fireworks, .cerebras, .none:
+             .cohere, .mistral, .deepinfra, .deepseek, .fireworks, .cerebras,
+             .sambanova, .none:
             return false
         }
     }

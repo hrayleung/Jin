@@ -63,6 +63,8 @@ actor ProviderManager {
             return FireworksAdapter(providerConfig: config, apiKey: apiKey, networkManager: networkManager)
         case .cerebras:
             return CerebrasAdapter(providerConfig: config, apiKey: apiKey, networkManager: networkManager)
+        case .sambanova:
+            return SambaNovaAdapter(providerConfig: config, apiKey: apiKey, networkManager: networkManager)
         case .gemini:
             return GeminiAdapter(providerConfig: config, apiKey: apiKey, networkManager: networkManager)
         case .vertexai:

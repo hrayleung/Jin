@@ -239,6 +239,8 @@ enum LobeProviderIconCatalog {
             return "Fireworks"
         case .cerebras:
             return "Cerebras"
+        case .sambanova:
+            return "SambaNova"
         case .gemini:
             return "AiStudio"
         case .vertexai:

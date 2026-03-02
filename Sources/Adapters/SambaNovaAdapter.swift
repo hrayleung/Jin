@@ -1,0 +1,332 @@
+import Foundation
+
+/// SambaNova Cloud provider adapter (OpenAI-compatible Chat Completions API)
+///
+/// Docs:
+/// - Base URL: https://api.sambanova.ai/v1
+/// - Endpoint: POST /v1/chat/completions
+/// - Models: `MiniMax-M2.5`, `DeepSeek-V3.2`, `gpt-oss-120b`, ...
+///
+/// SambaNova-specific parameters:
+/// - `chat_template_kwargs: {"enable_thinking": true/false}` — toggles reasoning for
+///    DeepSeek-V3.1 and Qwen3 models.
+/// - `chat_template_kwargs: {"thinking": true/false}` — toggles reasoning for DeepSeek-V3.2.
+/// - `reasoning_effort: "low"/"medium"/"high"` — controls reasoning depth for gpt-oss-120b.
+/// - Reasoning content is returned in `<think>` tags within content deltas.
+actor SambaNovaAdapter: LLMProviderAdapter {
+    let providerConfig: ProviderConfig
+    let capabilities: ModelCapability = [.streaming, .toolCalling, .vision, .reasoning]
+
+    private let networkManager: NetworkManager
+    private let apiKey: String
+
+    init(providerConfig: ProviderConfig, apiKey: String, networkManager: NetworkManager = NetworkManager()) {
+        self.providerConfig = providerConfig
+        self.apiKey = apiKey
+        self.networkManager = networkManager
+    }
+
+    func sendMessage(
+        messages: [Message],
+        modelID: String,
+        controls: GenerationControls,
+        tools: [ToolDefinition],
+        streaming: Bool
+    ) async throws -> AsyncThrowingStream<StreamEvent, Error> {
+        let request = try buildRequest(
+            messages: messages,
+            modelID: modelID,
+            controls: controls,
+            tools: tools,
+            streaming: streaming
+        )
+
+        return try await sendOpenAICompatibleMessage(
+            request: request,
+            streaming: streaming,
+            reasoningField: .reasoningOrReasoningContent,
+            networkManager: networkManager
+        )
+    }
+
+    func validateAPIKey(_ key: String) async throws -> Bool {
+        var request = URLRequest(url: try validatedURL("\(baseURLRoot)/v1/models"))
+        request.httpMethod = "GET"
+        request.addValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
+        request.addValue("application/json", forHTTPHeaderField: "Accept")
+        request.addValue("Jin", forHTTPHeaderField: "User-Agent")
+
+        do {
+            _ = try await networkManager.sendRequest(request)
+            return true
+        } catch {
+            return false
+        }
+    }
+
+    func fetchAvailableModels() async throws -> [ModelInfo] {
+        var request = URLRequest(url: try validatedURL("\(baseURLRoot)/v1/models"))
+        request.httpMethod = "GET"
+        request.addValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        request.addValue("application/json", forHTTPHeaderField: "Accept")
+        request.addValue("Jin", forHTTPHeaderField: "User-Agent")
+
+        let (data, _) = try await networkManager.sendRequest(request)
+        let response = try JSONDecoder().decode(OpenAIModelsResponse.self, from: data)
+        return response.data.map { makeModelInfo(id: $0.id) }
+    }
+
+    func translateTools(_ tools: [ToolDefinition]) -> Any {
+        tools.map(translateToolToOpenAIFormat)
+    }
+
+    // MARK: - Private
+
+    private var baseURLRoot: String {
+        let raw = (providerConfig.baseURL ?? "https://api.sambanova.ai")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return stripTrailingV1(raw)
+    }
+
+    private func buildRequest(
+        messages: [Message],
+        modelID: String,
+        controls: GenerationControls,
+        tools: [ToolDefinition],
+        streaming: Bool
+    ) throws -> URLRequest {
+        var request = URLRequest(url: try validatedURL("\(baseURLRoot)/v1/chat/completions"))
+        request.httpMethod = "POST"
+        request.addValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.addValue("application/json", forHTTPHeaderField: "Accept")
+        request.addValue("Jin", forHTTPHeaderField: "User-Agent")
+
+        let lower = modelID.lowercased()
+
+        var body: [String: Any] = [
+            "model": modelID,
+            "messages": translateMessages(messages, modelID: modelID),
+            "stream": streaming
+        ]
+
+        if streaming {
+            body["stream_options"] = ["include_usage": true]
+        }
+
+        // Temperature and top_p — omit for always-on reasoning models (DeepSeek-R1 family).
+        let isAlwaysOnReasoningModel = lower.contains("deepseek-r1")
+        if !isAlwaysOnReasoningModel {
+            if let temperature = controls.temperature {
+                body["temperature"] = temperature
+            }
+            if let topP = controls.topP {
+                body["top_p"] = topP
+            }
+        }
+
+        if let maxTokens = controls.maxTokens {
+            body["max_tokens"] = maxTokens
+        }
+
+        // Reasoning controls — provider-specific handling.
+        applyReasoningControls(to: &body, controls: controls, modelID: modelID, lowerModelID: lower)
+
+        if !tools.isEmpty, let functionTools = translateTools(tools) as? [[String: Any]] {
+            body["tools"] = functionTools
+        }
+
+        for (key, value) in controls.providerSpecific {
+            body[key] = value.value
+        }
+
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        return request
+    }
+
+    /// Applies reasoning controls specific to each SambaNova model family.
+    ///
+    /// - gpt-oss-120b: Uses OpenAI-style `reasoning_effort` ("low"/"medium"/"high").
+    /// - DeepSeek-V3.1 / V3.2 / Qwen3: Uses `chat_template_kwargs: {"enable_thinking": bool}`.
+    /// - DeepSeek-R1 family: Always-on thinking, no toggle needed.
+    private func applyReasoningControls(
+        to body: inout [String: Any],
+        controls: GenerationControls,
+        modelID: String,
+        lowerModelID: String
+    ) {
+        guard let reasoning = controls.reasoning else { return }
+
+        if lowerModelID == "gpt-oss-120b" {
+            // gpt-oss-120b uses reasoning_effort.
+            if reasoning.enabled == false {
+                // No way to fully disable reasoning on gpt-oss-120b, use lowest effort.
+                body["reasoning_effort"] = "low"
+            } else if let effort = reasoning.effort {
+                body["reasoning_effort"] = mapReasoningEffort(effort)
+            }
+            return
+        }
+
+        if lowerModelID.contains("deepseek-v3.2") {
+            // DeepSeek-V3.2 uses "thinking" key in its chat template (different from V3.1).
+            let enableThinking = reasoning.enabled != false
+            body["chat_template_kwargs"] = ["thinking": enableThinking]
+            return
+        }
+
+        if usesThinkingTemplateKwargs(lowerModelID) {
+            // DeepSeek-V3.1, Qwen3 use chat_template_kwargs to toggle thinking.
+            let enableThinking = reasoning.enabled != false
+            body["chat_template_kwargs"] = ["enable_thinking": enableThinking]
+            return
+        }
+
+        // DeepSeek-R1 family: always-on thinking, no explicit control needed.
+    }
+
+    /// Returns true for models that use `chat_template_kwargs: {"enable_thinking": ...}`.
+    /// Note: DeepSeek-V3.2 uses a different key ("thinking") and is handled before this check.
+    private func usesThinkingTemplateKwargs(_ lowerModelID: String) -> Bool {
+        lowerModelID.contains("deepseek-v3.1")
+            || lowerModelID.hasPrefix("qwen3")
+    }
+
+    private func mapReasoningEffort(_ effort: ReasoningEffort) -> String {
+        switch effort {
+        case .none, .minimal, .low:
+            return "low"
+        case .medium:
+            return "medium"
+        case .high, .xhigh:
+            return "high"
+        }
+    }
+
+    // MARK: - Message Translation
+
+    private func translateMessages(_ messages: [Message], modelID: String) -> [[String: Any]] {
+        let supportsVision = modelSupportsVision(modelID)
+        return translateMessagesToOpenAIFormat(messages) { message in
+            self.translateNonToolMessage(message, supportsVision: supportsVision)
+        }
+    }
+
+    private func translateNonToolMessage(_ message: Message, supportsVision: Bool) -> [String: Any] {
+        let split = splitContentParts(
+            message.content,
+            separator: "\n",
+            includeImages: supportsVision,
+            imageUnsupportedMessage: supportsVision
+                ? nil
+                : "[Image attachment omitted: this model does not support vision]"
+        )
+
+        var dict: [String: Any] = [
+            "role": message.role.rawValue
+        ]
+
+        switch message.role {
+        case .system:
+            dict["content"] = split.visible
+
+        case .user:
+            if supportsVision, split.hasRichUserContent {
+                dict["content"] = translateUserContentPartsToOpenAIFormat(message.content)
+            } else {
+                dict["content"] = split.visible
+            }
+
+        case .assistant:
+            let hasToolCalls = (message.toolCalls?.isEmpty == false)
+
+            // Re-inject prior thinking using <think> tags so the model can follow its chain of thought.
+            let combinedContent: String
+            if !split.thinking.isEmpty {
+                if split.visible.isEmpty {
+                    combinedContent = "<think>\(split.thinking)</think>"
+                } else {
+                    combinedContent = "<think>\(split.thinking)</think>\n\(split.visible)"
+                }
+            } else {
+                combinedContent = split.visible
+            }
+
+            dict["content"] = combinedContent.isEmpty ? (hasToolCalls ? NSNull() : "") : combinedContent
+
+            if let toolCalls = message.toolCalls, !toolCalls.isEmpty {
+                dict["tool_calls"] = translateToolCallsToOpenAIFormat(toolCalls)
+            }
+
+        case .tool:
+            dict["content"] = ""
+        }
+
+        return dict
+    }
+
+    // MARK: - Model Info
+
+    /// Checks whether a model supports vision based on known model IDs.
+    private func modelSupportsVision(_ modelID: String) -> Bool {
+        let lower = modelID.lowercased()
+        return lower.contains("minimax-m2.5")
+            || lower.contains("maverick")
+    }
+
+    private func makeModelInfo(id: String) -> ModelInfo {
+        // Prefer catalog entry if available.
+        let catalogInfo = ModelCatalog.modelInfo(for: id, provider: .sambanova, name: id)
+        if catalogInfo.capabilities != [.streaming, .toolCalling] || catalogInfo.contextWindow != 128_000 {
+            return catalogInfo
+        }
+
+        // Fallback heuristics for unknown models returned by the API.
+        let lower = id.lowercased()
+        var caps: ModelCapability = [.streaming, .toolCalling]
+        var contextWindow = 131_000
+        var reasoningConfig: ModelReasoningConfig?
+
+        if lower.contains("deepseek-r1") {
+            // R1-0528 supports function calling on SambaNova; older distill variants may not.
+            if lower.contains("r1-0528") {
+                caps = [.streaming, .toolCalling, .reasoning]
+            } else {
+                caps = [.streaming, .reasoning]
+            }
+            reasoningConfig = ModelReasoningConfig(type: .toggle)
+        } else if lower.contains("deepseek-v3.1") || lower.contains("deepseek-v3.2") {
+            caps.insert(.reasoning)
+            reasoningConfig = ModelReasoningConfig(type: .toggle)
+        } else if lower.contains("qwen3") {
+            caps.insert(.reasoning)
+            reasoningConfig = ModelReasoningConfig(type: .toggle)
+        } else if lower == "gpt-oss-120b" {
+            caps.insert(.reasoning)
+            reasoningConfig = ModelReasoningConfig(type: .effort, defaultEffort: .medium)
+        } else if lower.contains("minimax-m2.5") {
+            caps.insert(.vision)
+            contextWindow = 163_000
+        } else if lower.contains("maverick") {
+            caps.insert(.vision)
+        }
+
+        if lower.contains("8b-instruct") {
+            contextWindow = 16_000
+        } else if lower.contains("deepseek-v3.2") {
+            contextWindow = 8_000
+        } else if lower.contains("qwen3-32b") {
+            contextWindow = 32_000
+        } else if lower.contains("qwen3-235b") {
+            contextWindow = 65_000
+        }
+
+        return ModelInfo(
+            id: id,
+            name: id,
+            capabilities: caps,
+            contextWindow: contextWindow,
+            reasoningConfig: reasoningConfig
+        )
+    }
+}
