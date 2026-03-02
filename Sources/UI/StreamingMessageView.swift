@@ -73,24 +73,10 @@ struct StreamingMessageView: View {
                         }
 
                         if !state.thinkingChunks.isEmpty {
-                            DisclosureGroup(isExpanded: .constant(true)) {
-                                ChunkedTextView(
-                                    chunks: state.thinkingChunks,
-                                    font: chatCodeFont,
-                                    allowsTextSelection: false
-                                )
-                                    .foregroundStyle(.secondary)
-                                    .padding(JinSpacing.small)
-                                    .background(JinSemanticColor.textSurface)
-                                    .clipShape(RoundedRectangle(cornerRadius: JinRadius.small, style: .continuous))
-                            } label: {
-                                HStack {
-                                    ProgressView().scaleEffect(0.5)
-                                    Text("Thinking...")
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                }
-                            }
+                            StreamingThinkingBlockView(
+                                chunks: state.thinkingChunks,
+                                codeFont: chatCodeFont
+                            )
                         }
 
                         if !state.textChunks.isEmpty {

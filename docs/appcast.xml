@@ -3,6 +3,15 @@
     <channel>
         <title>Jin</title>
         <item>
+            <title>0.62</title>
+            <pubDate>Mon, 02 Mar 2026 18:06:42 +0800</pubDate>
+            <link>https://github.com/hrayleung/Jin/releases</link>
+            <sparkle:version>237</sparkle:version>
+            <sparkle:shortVersionString>0.62</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <enclosure url="https://github.com/hrayleung/Jin/releases/download/v0.62/Jin-0.62.zip" length="23003093" type="application/octet-stream" sparkle:edSignature="mAjHU4EdettMEp/CFb0LBVsiqmGXbR8F17z45+r7GMjWPI+/7KodAA5zcvKTC/UqOtF6lE0BZWFkldlmjuk/BQ=="/>
+        </item>
+        <item>
             <title>0.61</title>
             <pubDate>Sun, 01 Mar 2026 23:22:14 +0800</pubDate>
             <link>https://github.com/hrayleung/Jin/releases</link>
@@ -82,15 +91,6 @@
             <sparkle:shortVersionString>0.53</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
             <enclosure url="https://github.com/hrayleung/Jin/releases/download/v0.53/Jin-0.53.zip" length="22558167" type="application/octet-stream" sparkle:edSignature="zdNqTVzeEe8kUaw6N8LmoMc29Zyh3UmAUCf8TrilB/iRgoOaXp7d7NKwrZ8IKqSSATO4/eNJJVMg6dAZO9MuDg=="/>
-        </item>
-        <item>
-            <title>0.52</title>
-            <pubDate>Fri, 27 Feb 2026 16:37:18 +0800</pubDate>
-            <link>https://github.com/hrayleung/Jin/releases</link>
-            <sparkle:version>210</sparkle:version>
-            <sparkle:shortVersionString>0.52</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <enclosure url="https://github.com/hrayleung/Jin/releases/download/v0.52/Jin-0.52.zip" length="22541929" type="application/octet-stream" sparkle:edSignature="qlbImAC3LD0AY39Kvc46ELbdbKKp+DEohXtMC7lQLKkC1Dj94enmJCwQKKZIGiWn04gO7wY8cYM10WlUAUETCw=="/>
         </item>
     </channel>
 </rss>
