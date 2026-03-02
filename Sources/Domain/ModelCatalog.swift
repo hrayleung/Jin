@@ -129,6 +129,7 @@ enum ModelCatalog {
         .perplexity: perplexityRecords,
         .xai: xAIRecords,
         .deepseek: deepSeekRecords,
+        .zhipuCodingPlan: zhipuCodingPlanRecords,
         .fireworks: fireworksRecords,
         .cerebras: cerebrasRecords,
         .gemini: geminiRecords,
@@ -622,6 +623,21 @@ extension ModelCatalog {
                capabilities: [.streaming, .toolCalling],
                contextWindow: 128_000,
                reasoningConfig: nil,
+               isFullySupported: true, isSeeded: true),
+    ]
+
+    // MARK: Zhipu Coding Plan
+
+    private static let zhipuCodingPlanRecords: [Record] = [
+        Record(id: "glm-5", displayName: "GLM-5",
+               capabilities: [.streaming, .toolCalling, .reasoning, .promptCaching],
+               contextWindow: 200_000,
+               reasoningConfig: ModelReasoningConfig(type: .toggle),
+               isFullySupported: true, isSeeded: true),
+        Record(id: "glm-4.7", displayName: "GLM-4.7",
+               capabilities: [.streaming, .toolCalling, .reasoning, .promptCaching],
+               contextWindow: 200_000,
+               reasoningConfig: ModelReasoningConfig(type: .toggle),
                isFullySupported: true, isSeeded: true),
     ]
 

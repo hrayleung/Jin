@@ -235,6 +235,8 @@ enum LobeProviderIconCatalog {
             return "XAI"
         case .deepseek:
             return "DeepSeek"
+        case .zhipuCodingPlan:
+            return "Zhipu"
         case .fireworks:
             return "Fireworks"
         case .cerebras:

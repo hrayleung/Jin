@@ -22,6 +22,7 @@ enum DefaultProviderSeeds {
             deepInfra,
             xAI,
             deepSeek,
+            zhipuCodingPlan,
             fireworks,
             gemini,
             vertexAI,
@@ -170,6 +171,17 @@ enum DefaultProviderSeeds {
             iconID: LobeProviderIconCatalog.defaultIconID(for: .deepseek),
             baseURL: ProviderType.deepseek.defaultBaseURL,
             models: ModelCatalog.seededModels(for: .deepseek)
+        )
+    }
+
+    static var zhipuCodingPlan: ProviderConfig {
+        ProviderConfig(
+            id: "zhipu-coding-plan",
+            name: "Zhipu Coding Plan",
+            type: .zhipuCodingPlan,
+            iconID: LobeProviderIconCatalog.defaultIconID(for: .zhipuCodingPlan),
+            baseURL: ProviderType.zhipuCodingPlan.defaultBaseURL,
+            models: ModelCatalog.seededModels(for: .zhipuCodingPlan)
         )
     }
 

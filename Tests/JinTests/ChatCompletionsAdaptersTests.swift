@@ -1735,6 +1735,84 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         for try await _ in stream {}
     }
 
+    func testZhipuCodingPlanAdapterUsesDedicatedEndpointAndThinkingPayload() async throws {
+        let (session, protocolType) = makeMockedURLSession()
+        let networkManager = NetworkManager(urlSession: session)
+
+        let providerConfig = ProviderConfig(
+            id: "zhipu-coding-plan",
+            name: "Zhipu Coding Plan",
+            type: .zhipuCodingPlan,
+            apiKey: "ignored",
+            baseURL: "https://open.bigmodel.cn/api/coding/paas/v4",
+            models: ModelCatalog.seededModels(for: .zhipuCodingPlan)
+        )
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://open.bigmodel.cn/api/coding/paas/v4/chat/completions")
+            XCTAssertEqual(request.httpMethod, "POST")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer test-key")
+
+            let body = try XCTUnwrap(requestBodyData(request))
+            let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+            let root = try XCTUnwrap(json)
+            XCTAssertEqual(root["model"] as? String, "glm-5")
+
+            let thinking = try XCTUnwrap(root["thinking"] as? [String: Any])
+            XCTAssertEqual(thinking["type"] as? String, "enabled")
+            XCTAssertNil(root["reasoning"])
+
+            let messages = try XCTUnwrap(root["messages"] as? [[String: Any]])
+            XCTAssertEqual(messages.count, 3)
+            XCTAssertEqual(messages[1]["role"] as? String, "assistant")
+            XCTAssertEqual(messages[1]["reasoning_content"] as? String, "previous-think")
+            XCTAssertNil(messages[1]["reasoning"])
+
+            let response: [String: Any] = [
+                "id": "cmpl_zhipu",
+                "choices": [
+                    [
+                        "message": [
+                            "role": "assistant",
+                            "content": "OK",
+                            "reasoning_content": "new-think"
+                        ],
+                        "finish_reason": "stop"
+                    ]
+                ]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = OpenAICompatibleAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let messages: [Message] = [
+            Message(role: .user, content: [.text("first")]),
+            Message(role: .assistant, content: [.text("answer"), .thinking(ThinkingBlock(text: "previous-think"))]),
+            Message(role: .user, content: [.text("second")]),
+        ]
+        let stream = try await adapter.sendMessage(
+            messages: messages,
+            modelID: "glm-5",
+            controls: GenerationControls(reasoning: ReasoningControls(enabled: true, effort: .high)),
+            tools: [],
+            streaming: false
+        )
+
+        var events: [StreamEvent] = []
+        for try await event in stream {
+            events.append(event)
+        }
+
+        XCTAssertEqual(events.count, 4)
+        guard case .messageStart = events[0] else { return XCTFail("Expected messageStart") }
+        guard case .thinkingDelta(.thinking(let reasoning, _)) = events[1] else { return XCTFail("Expected thinkingDelta") }
+        XCTAssertEqual(reasoning, "new-think")
+        guard case .contentDelta(.text(let content)) = events[2] else { return XCTFail("Expected contentDelta") }
+        XCTAssertEqual(content, "OK")
+        guard case .messageEnd = events[3] else { return XCTFail("Expected messageEnd") }
+    }
+
     func testCohereAdapterBuildsChatRequestAndParsesToolCalls() async throws {
         let (session, protocolType) = makeMockedURLSession()
         let networkManager = NetworkManager(urlSession: session)

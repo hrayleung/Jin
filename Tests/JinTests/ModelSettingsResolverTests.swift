@@ -145,6 +145,23 @@ final class ModelSettingsResolverTests: XCTestCase {
         )
     }
 
+    func testZhipuCodingPlanUsesOpenAICompatibleRequestShapeAndCatalogReasoningFallback() {
+        let legacyModel = ModelInfo(
+            id: "glm-5",
+            name: "GLM-5",
+            capabilities: [.streaming, .toolCalling, .reasoning],
+            contextWindow: 128_000,
+            reasoningConfig: nil,
+            isEnabled: true
+        )
+
+        let resolved = ModelSettingsResolver.resolve(model: legacyModel, providerType: .zhipuCodingPlan)
+
+        XCTAssertEqual(resolved.requestShape, .openAICompatible)
+        XCTAssertEqual(resolved.contextWindow, 200_000)
+        XCTAssertEqual(resolved.reasoningConfig?.type, .toggle)
+    }
+
     func testOpenRouterDefaultReasoningConfigRecognizesGeminiAndClaudeModelIDs() {
         let gemini = ModelCapabilityRegistry.defaultReasoningConfig(
             for: .openrouter,

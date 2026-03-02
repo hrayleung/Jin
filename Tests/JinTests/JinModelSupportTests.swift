@@ -43,6 +43,12 @@ final class JinModelSupportTests: XCTestCase {
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .fireworks, modelID: "accounts/fireworks/models/minimax-m2p5"))
     }
 
+    func testZhipuCodingPlanUsesExactMatchForFullySupportedTag() {
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .zhipuCodingPlan, modelID: "glm-5"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .zhipuCodingPlan, modelID: "glm-4.7"))
+        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .zhipuCodingPlan, modelID: "glm-4.7-custom"))
+    }
+
     func testOpenRouterGoogleGeminiPreviewIsMarkedAsFullySupported() {
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .openrouter, modelID: "google/gemini-3-pro-preview"))
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .openrouter, modelID: "google/gemini-3.1-pro-preview"))

@@ -68,6 +68,7 @@ enum ProviderType: String, Codable, CaseIterable {
     case deepinfra
     case xai
     case deepseek
+    case zhipuCodingPlan
     case fireworks
     case cerebras
     case gemini
@@ -89,6 +90,7 @@ enum ProviderType: String, Codable, CaseIterable {
         case .deepinfra: return "DeepInfra"
         case .xai: return "xAI"
         case .deepseek: return "DeepSeek"
+        case .zhipuCodingPlan: return "Zhipu Coding Plan"
         case .fireworks: return "Fireworks"
         case .cerebras: return "Cerebras"
         case .gemini: return "Gemini (AI Studio)"
@@ -112,6 +114,7 @@ enum ProviderType: String, Codable, CaseIterable {
         case .deepinfra: return "https://api.deepinfra.com/v1/openai"
         case .xai: return "https://api.x.ai/v1"
         case .deepseek: return "https://api.deepseek.com/v1"
+        case .zhipuCodingPlan: return "https://open.bigmodel.cn/api/coding/paas/v4"
         case .fireworks: return "https://api.fireworks.ai/inference/v1"
         case .cerebras: return "https://api.cerebras.ai/v1"
         case .gemini: return "https://generativelanguage.googleapis.com/v1beta"

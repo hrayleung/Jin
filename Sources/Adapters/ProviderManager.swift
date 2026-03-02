@@ -45,7 +45,7 @@ actor ProviderManager {
             return OpenAIWebSocketAdapter(providerConfig: config, apiKey: apiKey, networkManager: networkManager)
         case .codexAppServer:
             return CodexAppServerAdapter(providerConfig: config, apiKey: apiKey, networkManager: networkManager)
-        case .openaiCompatible, .cloudflareAIGateway, .groq, .mistral, .deepinfra:
+        case .openaiCompatible, .cloudflareAIGateway, .groq, .mistral, .deepinfra, .zhipuCodingPlan:
             return OpenAICompatibleAdapter(providerConfig: config, apiKey: apiKey, networkManager: networkManager)
         case .openrouter:
             return OpenRouterAdapter(providerConfig: config, apiKey: apiKey, networkManager: networkManager)

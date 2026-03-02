@@ -604,6 +604,8 @@ struct ContentView: View {
                 return "grok-4-1-fast"
             case "deepseek":
                 return "deepseek-chat"
+            case "zhipu-coding-plan":
+                return "glm-5"
             case "vertexai":
                 return "gemini-3-pro-preview"
             default:
@@ -628,6 +630,12 @@ struct ContentView: View {
         }
         if providerID == "deepseek", let deepseekChat = models.first(where: { $0.id == "deepseek-chat" }) {
             return deepseekChat.id
+        }
+        if providerID == "zhipu-coding-plan", let glm5 = models.first(where: { $0.id.lowercased() == "glm-5" }) {
+            return glm5.id
+        }
+        if providerID == "zhipu-coding-plan", let glm47 = models.first(where: { $0.id.lowercased() == "glm-4.7" }) {
+            return glm47.id
         }
         if providerID == "vertexai", let gemini3Pro = models.first(where: { $0.id == "gemini-3-pro-preview" }) {
             return gemini3Pro.id

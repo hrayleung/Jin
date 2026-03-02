@@ -53,6 +53,34 @@ final class ModelCatalogTests: XCTestCase {
         XCTAssertTrue(realtime.capabilities.contains(.audio))
     }
 
+    func testZhipuCodingPlanExactModelMetadataAndUnknownFallback() {
+        let glm5 = ModelCatalog.modelInfo(
+            for: "glm-5",
+            provider: .zhipuCodingPlan
+        )
+        XCTAssertEqual(glm5.contextWindow, 200_000)
+        XCTAssertTrue(glm5.capabilities.contains(.streaming))
+        XCTAssertTrue(glm5.capabilities.contains(.toolCalling))
+        XCTAssertTrue(glm5.capabilities.contains(.reasoning))
+        XCTAssertTrue(glm5.capabilities.contains(.promptCaching))
+        XCTAssertEqual(glm5.reasoningConfig?.type, .toggle)
+
+        let glm47 = ModelCatalog.modelInfo(
+            for: "GLM-4.7",
+            provider: .zhipuCodingPlan
+        )
+        XCTAssertEqual(glm47.contextWindow, 200_000)
+        XCTAssertEqual(glm47.reasoningConfig?.type, .toggle)
+
+        let unknown = ModelCatalog.modelInfo(
+            for: "glm-4.7-custom",
+            provider: .zhipuCodingPlan
+        )
+        XCTAssertEqual(unknown.capabilities, [.streaming, .toolCalling])
+        XCTAssertEqual(unknown.contextWindow, 128_000)
+        XCTAssertNil(unknown.reasoningConfig)
+    }
+
     func testNanoBanana2CatalogMetadataUsesExactIDs() {
         let proImage = ModelCatalog.modelInfo(
             for: "gemini-3-pro-image-preview",
