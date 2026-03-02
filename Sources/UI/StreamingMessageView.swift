@@ -75,7 +75,8 @@ struct StreamingMessageView: View {
                         if !state.thinkingChunks.isEmpty {
                             StreamingThinkingBlockView(
                                 chunks: state.thinkingChunks,
-                                codeFont: chatCodeFont
+                                codeFont: chatCodeFont,
+                                isThinkingComplete: state.isThinkingComplete
                             )
                         }
 
@@ -135,6 +136,7 @@ final class StreamingMessageState: ObservableObject {
     @Published private(set) var toolResultsByCallID: [String: ToolResult] = [:]
     @Published private(set) var renderTick: Int = 0
     @Published private(set) var hasVisibleText: Bool = false
+    @Published private(set) var isThinkingComplete: Bool = false
 
     private var textStorage = ""
     private var thinkingStorage = ""
@@ -155,6 +157,7 @@ final class StreamingMessageState: ObservableObject {
         searchActivitiesByID = [:]
         searchActivityOrder = []
         hasVisibleText = false
+        isThinkingComplete = false
         renderTick = 0
     }
 
@@ -166,6 +169,9 @@ final class StreamingMessageState: ObservableObject {
             if !hasVisibleText,
                textDelta.rangeOfCharacter(from: CharacterSet.whitespacesAndNewlines.inverted) != nil {
                 hasVisibleText = true
+            }
+            if !isThinkingComplete, !thinkingChunks.isEmpty {
+                isThinkingComplete = true
             }
             appendDelta(textDelta, to: &textChunks, maxChunkSize: Self.maxChunkSize)
             didMutate = true
@@ -190,6 +196,12 @@ final class StreamingMessageState: ObservableObject {
     func appendThinkingDelta(_ delta: String) {
         guard !delta.isEmpty else { return }
         appendDeltas(textDelta: "", thinkingDelta: delta)
+    }
+
+    func markThinkingComplete() {
+        guard !isThinkingComplete, !thinkingChunks.isEmpty else { return }
+        isThinkingComplete = true
+        renderTick &+= 1
     }
 
     func upsertSearchActivity(_ activity: SearchActivity) {
