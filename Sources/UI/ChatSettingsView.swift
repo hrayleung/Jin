@@ -4,6 +4,14 @@ struct ChatSettingsView: View {
     @EnvironmentObject private var responseCompletionNotifier: ResponseCompletionNotifier
     @AppStorage(AppPreferenceKeys.sendWithCommandEnter) private var sendWithCommandEnter = false
     @AppStorage(AppPreferenceKeys.notifyOnBackgroundResponseCompletion) private var notifyOnBackgroundResponseCompletion = false
+    @AppStorage(AppPreferenceKeys.thinkingBlockDisplayMode) private var thinkingDisplayModeRaw = ThinkingBlockDisplayMode.expanded.rawValue
+
+    private var thinkingDisplayMode: Binding<ThinkingBlockDisplayMode> {
+        Binding(
+            get: { ThinkingBlockDisplayMode(rawValue: thinkingDisplayModeRaw) ?? .expanded },
+            set: { thinkingDisplayModeRaw = $0.rawValue }
+        )
+    }
 
     var body: some View {
         Form {
@@ -11,6 +19,17 @@ struct ChatSettingsView: View {
                 Toggle("Use \u{2318}Return to send", isOn: $sendWithCommandEnter)
 
                 Text(sendBehaviorDescription)
+                    .jinInfoCallout()
+            }
+
+            Section("Thinking Blocks") {
+                Picker("Display Mode", selection: thinkingDisplayMode) {
+                    ForEach(ThinkingBlockDisplayMode.allCases) { mode in
+                        Text(mode.label).tag(mode)
+                    }
+                }
+
+                Text(currentThinkingModeDescription)
                     .jinInfoCallout()
             }
 
@@ -59,6 +78,11 @@ struct ChatSettingsView: View {
             return "Press Return to insert a new line. Press \u{2318}\u{21A9} to send."
         }
         return "Press Return to send. Press Shift+Return to insert a new line."
+    }
+
+    private var currentThinkingModeDescription: String {
+        let mode = ThinkingBlockDisplayMode(rawValue: thinkingDisplayModeRaw) ?? .expanded
+        return mode.description
     }
 
     private var notificationDescription: String {
