@@ -20,6 +20,7 @@ struct ChatView: View {
     var onPersistConversationIfNeeded: () -> Void = {}
     var isSidebarHidden: Bool = false
     var onToggleSidebar: (() -> Void)? = nil
+    var headerTopClearance: CGFloat = 0
     @Query private var providers: [ProviderConfigEntity]
     @Query private var mcpServers: [MCPServerConfigEntity]
 
@@ -2561,6 +2562,7 @@ struct ChatView: View {
 
             detailHeaderActions
         }
+        .padding(.top, headerTopClearance)
         .padding(.horizontal, JinSpacing.medium)
         .padding(.vertical, JinSpacing.small)
         .frame(minHeight: 38)
