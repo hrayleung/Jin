@@ -25,6 +25,7 @@ enum AppPreferenceKeys {
     static let sendWithCommandEnter = "sendWithCommandEnter"
     static let notifyOnBackgroundResponseCompletion = "notifyOnBackgroundResponseCompletion"
     static let keyboardShortcuts = "keyboardShortcuts.v1"
+    static let thinkingBlockDisplayMode = "thinkingBlockDisplayMode"
 
     // MARK: - Updates
 
@@ -228,6 +229,43 @@ enum ChatNamingMode: String, CaseIterable, Identifiable {
         case .everyRound:
             return "Rename Every Round"
         }
+    }
+}
+
+enum ThinkingBlockDisplayMode: String, CaseIterable, Identifiable {
+    case expanded
+    case collapseOnComplete
+    case alwaysCollapsed
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .expanded: return "Always Expanded"
+        case .collapseOnComplete: return "Collapse After Response"
+        case .alwaysCollapsed: return "Always Collapsed"
+        }
+    }
+
+    var description: String {
+        switch self {
+        case .expanded:
+            return "Thinking blocks stay expanded at all times. You can still collapse them manually."
+        case .collapseOnComplete:
+            return "Thinking blocks are expanded during streaming and automatically collapsed once the response finishes."
+        case .alwaysCollapsed:
+            return "Thinking blocks are collapsed during streaming and after completion. A subtle animation indicates active thinking. Click to expand at any time."
+        }
+    }
+
+    /// Whether thinking content should start expanded for completed (non-streaming) messages.
+    var startsExpandedOnComplete: Bool {
+        self == .expanded
+    }
+
+    /// Whether thinking content should start expanded during streaming.
+    var startsExpandedDuringStreaming: Bool {
+        self != .alwaysCollapsed
     }
 }
 
