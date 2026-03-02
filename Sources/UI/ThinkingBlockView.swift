@@ -56,20 +56,30 @@ struct ThinkingBlockView: View {
 struct StreamingThinkingBlockView: View {
     let chunks: [String]
     let codeFont: Font
+    let isThinkingComplete: Bool
     @State private var isExpanded: Bool
 
-    init(chunks: [String], codeFont: Font) {
+    init(chunks: [String], codeFont: Font, isThinkingComplete: Bool = false) {
         self.chunks = chunks
         self.codeFont = codeFont
+        self.isThinkingComplete = isThinkingComplete
         let mode = Self.resolveDisplayMode()
         _isExpanded = State(initialValue: mode.startsExpandedDuringStreaming)
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            streamingHeaderButton(isExpanded: isExpanded) {
-                withAnimation(.spring(duration: 0.25, bounce: 0.0)) {
-                    isExpanded.toggle()
+            if isThinkingComplete {
+                thinkingHeaderButton(isExpanded: isExpanded) {
+                    withAnimation(.spring(duration: 0.25, bounce: 0.0)) {
+                        isExpanded.toggle()
+                    }
+                }
+            } else {
+                streamingHeaderButton(isExpanded: isExpanded) {
+                    withAnimation(.spring(duration: 0.25, bounce: 0.0)) {
+                        isExpanded.toggle()
+                    }
                 }
             }
 
@@ -88,6 +98,15 @@ struct StreamingThinkingBlockView: View {
                 }
             }
             .clipped()
+        }
+        .onChange(of: isThinkingComplete) { _, complete in
+            guard complete else { return }
+            let mode = Self.resolveDisplayMode()
+            if mode == .collapseOnComplete {
+                withAnimation(.spring(duration: 0.25, bounce: 0.0)) {
+                    isExpanded = false
+                }
+            }
         }
     }
 

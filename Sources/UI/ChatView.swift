@@ -4262,7 +4262,9 @@ struct ChatView: View {
                                 streamingState.upsertSearchActivity(activity)
                             }
                         case .messageEnd:
-                            break
+                            await MainActor.run {
+                                streamingState.markThinkingComplete()
+                            }
                         case .error(let err):
                             throw err
                         }
