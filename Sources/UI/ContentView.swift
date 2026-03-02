@@ -104,7 +104,7 @@ struct ContentView: View {
                 .padding(.top, JinSpacing.small)
                 .padding(.bottom, JinSpacing.small)
 
-                List(selection: $selectedConversation) {
+                List(selection: conversationListSelectionBinding) {
                     assistantsSection
                     chatsSection
                 }
@@ -194,7 +194,8 @@ struct ContentView: View {
                 .allowsHitTesting(false)
             }
         }
-            .modifier(HideWindowToolbarModifier())
+            .toolbar(removing: .sidebarToggle)
+            .hideWindowToolbarCompat()
             .task {
                 bootstrapDefaultProvidersIfNeeded()
                 bootstrapDefaultAssistantsIfNeeded()
@@ -297,6 +298,28 @@ struct ContentView: View {
 
     private var isSidebarVisible: Bool {
         columnVisibility != .detailOnly
+    }
+
+    private var conversationListSelectionBinding: Binding<ConversationEntity?> {
+        Binding(
+            get: {
+                guard let selectedConversation else { return nil }
+                return conversations.first(where: { $0.id == selectedConversation.id })
+            },
+            set: { newValue in
+                guard let newValue else {
+                    guard let current = selectedConversation else { return }
+                    // Keep transient in-memory chats selected even though they are
+                    // intentionally absent from the sidebar list.
+                    if conversations.contains(where: { $0.id == current.id }) {
+                        selectedConversation = nil
+                    }
+                    return
+                }
+
+                selectedConversation = newValue
+            }
+        )
     }
 
     private func toggleSidebarVisibility() {
@@ -472,7 +495,10 @@ struct ContentView: View {
             regeneratingConversationID = nil
         }
 
-        selectedConversation = nil
+        // NOTE: Do NOT set selectedConversation = nil here.
+        // The caller (createNewConversation) will set it directly to the new
+        // conversation, avoiding a nil intermediate state that causes the
+        // detail view to flicker between noConversationSelectedView and ChatView.
         return conversationID
     }
 
@@ -488,6 +514,11 @@ struct ContentView: View {
         let discardedConversationID = discardSelectedEmptyConversationIfNeeded()
 
         guard let assistant = selectedAssistant ?? assistants.first(where: { $0.id == "default" }) ?? assistants.first else {
+            // If we discarded the old conversation but can't create a new one,
+            // clear the selection to avoid referencing a deleted entity.
+            if discardedConversationID != nil {
+                selectedConversation = nil
+            }
             return
         }
 

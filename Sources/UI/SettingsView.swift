@@ -356,7 +356,7 @@ struct SettingsView: View {
         }
         .navigationSplitViewStyle(.balanced)
         .toolbar(removing: .sidebarToggle)
-        .modifier(HideWindowToolbarModifier())
+        .hideWindowToolbarCompat()
         .frame(minWidth: 900, minHeight: 620)
         .sheet(isPresented: $showingAddProvider) {
             AddProviderView()

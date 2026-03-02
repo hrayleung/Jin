@@ -999,8 +999,9 @@ struct ChatView: View {
         .onAppear {
             isComposerFocused = true
             installWKWebViewDropForwarder()
-            ensureModelThreadsInitializedIfNeeded()
-            syncActiveThreadSelection()
+            // loadControlsFromConversation internally calls ensureModelThreadsInitializedIfNeeded
+            // and syncActiveThreadSelection, so calling them separately is redundant and causes
+            // extra render cycles that make the header flicker.
             loadControlsFromConversation()
             rebuildMessageCaches()
         }
@@ -1012,8 +1013,8 @@ struct ChatView: View {
             isPinnedToBottom = true
             isExpandedComposerPresented = false
             remoteVideoInputURLText = ""
-            ensureModelThreadsInitializedIfNeeded()
-            syncActiveThreadSelection()
+            // loadControlsFromConversation internally calls ensureModelThreadsInitializedIfNeeded
+            // and syncActiveThreadSelection, so calling them separately is redundant.
             loadControlsFromConversation()
             rebuildMessageCaches()
         }
@@ -1110,9 +1111,8 @@ struct ChatView: View {
             )
         }
         .task {
-            ensureModelThreadsInitializedIfNeeded()
-            syncActiveThreadSelection()
-            loadControlsFromConversation()
+            // Chat-local state is already prepared in onAppear / onChange.
+            // Avoid repeating these mutations here to prevent extra render churn.
             await refreshExtensionCredentialsStatus()
         }
         .onReceive(NotificationCenter.default.publisher(for: .pluginCredentialsDidChange)) { _ in
@@ -2801,11 +2801,23 @@ struct ChatView: View {
     }
 
     private func synchronizeLegacyConversationModelFields(with thread: ConversationModelThreadEntity) {
-        conversationEntity.providerID = thread.providerID
-        conversationEntity.modelID = thread.modelID
-        conversationEntity.modelConfigData = thread.modelConfigData
-        conversationEntity.activeThreadID = thread.id
-        activeThreadID = thread.id
+        // Guard against no-op writes to avoid unnecessary SwiftData change
+        // notifications that cause the header bar to re-render and flicker.
+        if conversationEntity.providerID != thread.providerID {
+            conversationEntity.providerID = thread.providerID
+        }
+        if conversationEntity.modelID != thread.modelID {
+            conversationEntity.modelID = thread.modelID
+        }
+        if conversationEntity.modelConfigData != thread.modelConfigData {
+            conversationEntity.modelConfigData = thread.modelConfigData
+        }
+        if conversationEntity.activeThreadID != thread.id {
+            conversationEntity.activeThreadID = thread.id
+        }
+        if activeThreadID != thread.id {
+            activeThreadID = thread.id
+        }
     }
 
     private func activateThread(_ thread: ConversationModelThreadEntity) {
