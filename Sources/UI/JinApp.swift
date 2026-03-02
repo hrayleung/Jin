@@ -62,6 +62,7 @@ struct JinApp: App {
                     AppIconManager.apply(appIconVariant)
                 }
         }
+        .windowStyle(.hiddenTitleBar)
         .modelContainer(modelContainer)
         .commands {
             ChatCommands(shortcutsStore: shortcutsStore)

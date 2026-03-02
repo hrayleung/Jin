@@ -36,11 +36,17 @@ struct HideWindowToolbarModifier: ViewModifier {
 
         func hideToolbar() {
             guard let window else { return }
+            // Merge the title-bar region into app content so custom sidebar chrome can sit flush at the top.
+            window.styleMask.insert(.fullSizeContentView)
             window.titlebarAppearsTransparent = true
             window.titleVisibility = .hidden
             window.title = ""
-            if let toolbar = window.toolbar {
-                toolbar.isVisible = false
+            window.isMovableByWindowBackground = true
+            // Ensure AppKit doesn't keep an extra top content border when entering full screen.
+            window.setContentBorderThickness(0, for: .minY)
+            // Remove the auto toolbar entirely; hiding it can still reserve top layout space.
+            if window.toolbar != nil {
+                window.toolbar = nil
             }
         }
     }
