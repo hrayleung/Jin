@@ -139,7 +139,8 @@ extension XAIAdapter {
         }
 
         if let url = image.url {
-            if url.isFileURL, let data = try? Data(contentsOf: url) {
+            if url.isFileURL {
+                guard let data = try? Data(contentsOf: url) else { return nil }
                 return "data:\(image.mimeType);base64,\(data.base64EncodedString())"
             }
             return url.absoluteString

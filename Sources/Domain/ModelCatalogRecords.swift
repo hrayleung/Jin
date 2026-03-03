@@ -9,8 +9,16 @@ extension ModelCatalog {
     static let lookup: [ProviderType: [String: Record]] = {
         var result: [ProviderType: [String: Record]] = [:]
         for (provider, records) in orderedRecords {
-            result[provider] = Dictionary(records.map { ($0.id.lowercased(), $0) },
-                                          uniquingKeysWith: { first, _ in first })
+            var providerLookup: [String: Record] = [:]
+            for record in records {
+                let key = record.id.lowercased()
+                precondition(
+                    providerLookup[key] == nil,
+                    "Duplicate model ID '\(record.id)' in catalog for provider \(provider)"
+                )
+                providerLookup[key] = record
+            }
+            result[provider] = providerLookup
         }
         return result
     }()

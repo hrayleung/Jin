@@ -141,6 +141,24 @@ final class XAIAdapterMediaTests: XCTestCase {
         XCTAssertEqual(imageURLs, ["https://cdn.example.com/generated-pro.png"])
     }
 
+    func testXAIImageURLStringReturnsNilForUnreadableLocalFileURL() async {
+        let providerConfig = ProviderConfig(
+            id: "x",
+            name: "xAI",
+            type: .xai,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        let adapter = XAIAdapter(providerConfig: providerConfig, apiKey: "test-key")
+        let missingURL = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent("jin-missing-\(UUID().uuidString).png")
+        let image = ImageContent(mimeType: "image/png", data: nil, url: missingURL)
+
+        let resolved = await adapter.imageURLString(image)
+        XCTAssertNil(resolved)
+    }
+
     func testXAIImageGenerationParsesBase64ImageResponse() async throws {
         let (session, protocolType) = makeMockedURLSession()
         let networkManager = NetworkManager(urlSession: session)
