@@ -15,17 +15,9 @@ struct MistralOCRPluginSettingsView: View {
 
     var body: some View {
         Form {
-            Section("Mistral OCR") {
-                Text("Used to OCR PDFs when your selected model does not support native PDF reading, or when you choose OCR in the chat composer.")
-                    .jinInfoCallout()
-            }
-
             Section("API Key") {
                 SecureField("API Key", text: $apiKey)
                     .textContentType(.password)
-
-                Text("Stored locally on this device and saved automatically while you type.")
-                    .jinInfoCallout()
 
                 HStack(spacing: 12) {
                     Button("Test Connection") {

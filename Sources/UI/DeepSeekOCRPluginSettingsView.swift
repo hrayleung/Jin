@@ -15,17 +15,9 @@ struct DeepSeekOCRPluginSettingsView: View {
 
     var body: some View {
         Form {
-            Section("DeepSeek OCR (DeepInfra)") {
-                Text("Used to OCR PDFs via DeepInfra-hosted DeepSeek-OCR when your selected model does not support native PDF reading, or when you choose DeepSeek OCR in the chat composer.")
-                    .jinInfoCallout()
-            }
-
             Section("API Key") {
                 SecureField("API Key", text: $apiKey)
                     .textContentType(.password)
-
-                Text("Stored locally on this device and saved automatically while you type.")
-                    .jinInfoCallout()
 
                 HStack(spacing: 12) {
                     Button("Test Connection") { testConnection() }

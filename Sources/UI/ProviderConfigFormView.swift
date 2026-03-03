@@ -79,7 +79,6 @@ struct ProviderConfigFormView: View {
                         .buttonStyle(.borderless)
                         .font(.caption)
                     }
-                    .help("Default endpoint is pre-filled. Change only if you know what you’re doing.")
 
                     if providerType == .cerebras {
                         let base = (provider.baseURL ?? defaultBaseURL).lowercased()
@@ -87,25 +86,10 @@ struct ProviderConfigFormView: View {
                             Text("Warning: cerebras-sandbox.net is the web sandbox and is Cloudflare-protected. Use the API endpoint https://api.cerebras.ai/v1 instead.")
                                 .font(.caption)
                                 .foregroundStyle(.orange)
-                        } else if !base.contains("api.cerebras.ai") {
-                            Text("Tip: Cerebras OpenAI-compatible base URL is https://api.cerebras.ai/v1.")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
                         }
                     }
 
-                    if providerType == .zhipuCodingPlan {
-                        let base = (provider.baseURL ?? defaultBaseURL).lowercased()
-                        if !base.contains("/api/coding/paas/v4") {
-                            Text("Tip: Zhipu Coding Plan endpoint is https://open.bigmodel.cn/api/coding/paas/v4 (dedicated path for coding plan).")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
                 }
-
-                Text("Credentials are stored locally in your app database.")
-                    .jinInfoCallout()
 
                 switch providerType {
                 case .codexAppServer:
@@ -121,26 +105,6 @@ struct ProviderConfigFormView: View {
                 case .none:
                     Text("Unknown provider type")
                         .foregroundColor(.secondary)
-                }
-
-                if providerType == .openaiWebSocket {
-                    Text("Uses OpenAI Responses API WebSocket mode for long-running, tool-call-heavy workflows. This transport is sequential (no multiplexing): one response at a time per connection.")
-                        .jinInfoCallout()
-                }
-
-                if providerType == .cloudflareAIGateway {
-                    Text("Recommended: use a Cloudflare API Token (BYOK mode). Fill in `{account_id}` and `{gateway_slug}`, keep the `/compat` Base URL, configure upstream provider keys in AI Gateway, then use model IDs like `openai/gpt-5` or `anthropic/claude-sonnet-4.5`.")
-                        .jinInfoCallout()
-                }
-
-                if providerType == .zhipuCodingPlan {
-                    Text("Coding Plan uses a dedicated OpenAI-compatible endpoint path: `https://open.bigmodel.cn/api/coding/paas/v4`. Recommended models: `glm-5`, `glm-4.7`.")
-                        .jinInfoCallout()
-                }
-
-                if providerType == .codexAppServer {
-                    Text("You can start/stop `codex app-server` here. Choose one auth mode only: API Key, ChatGPT Account, or Local Codex Auth file. Recommended stable runtime: `codex` 0.107.0+.")
-                        .jinInfoCallout()
                 }
 
                 if providerType == .openrouter {
@@ -692,10 +656,6 @@ struct ProviderConfigFormView: View {
                 }
                 .buttonStyle(.borderless)
             }
-
-            Text("Save named folders and pick them quickly from the chat cwd control.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
 
             if codexWorkingDirectoryPresets.isEmpty {
                 Text("No presets configured.")
