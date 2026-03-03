@@ -18,7 +18,12 @@ enum ModelSettingsResolver {
     static func resolve(model: ModelInfo, providerType: ProviderType?) -> ResolvedModelSettings {
         let overrides = model.overrides
 
-        let capabilities = overrides?.capabilities ?? model.capabilities
+        let inferredCapabilities = inferredCapabilities(
+            for: providerType,
+            modelID: model.id,
+            fallback: model.capabilities
+        )
+        let capabilities = overrides?.capabilities ?? inferredCapabilities
         let inferredContextWindow = inferredContextWindow(
             for: providerType,
             modelID: model.id,
@@ -85,6 +90,9 @@ enum ModelSettingsResolver {
         if providerType == .fireworks {
             return !isFireworksMiniMaxM2FamilyModel(modelID)
         }
+        if providerType == .sambanova {
+            return !isSambaNovaAlwaysOnReasoningModel(modelID)
+        }
         return true
     }
 
@@ -98,6 +106,15 @@ enum ModelSettingsResolver {
         return ModelCatalog.entry(for: modelID, provider: providerType)?.contextWindow ?? fallback
     }
 
+    private static func inferredCapabilities(
+        for providerType: ProviderType?,
+        modelID: String,
+        fallback: ModelCapability
+    ) -> ModelCapability {
+        guard let providerType else { return fallback }
+        return ModelCatalog.entry(for: modelID, provider: providerType)?.capabilities ?? fallback
+    }
+
     private static func inferredReasoningConfig(
         for providerType: ProviderType?,
         modelID: String,
@@ -108,6 +125,18 @@ enum ModelSettingsResolver {
             return fallback
         }
         return entry.reasoningConfig
+    }
+
+    /// Exact-ID allowlist for SambaNova models where reasoning cannot be disabled.
+    /// Keep this strict to avoid misclassifying unknown models by substring.
+    private static let sambaNovaAlwaysOnReasoningModelIDs: Set<String> = [
+        "gpt-oss-120b",
+        "deepseek-r1-0528",
+        "deepseek-r1-distill-llama-70b",
+    ]
+
+    private static func isSambaNovaAlwaysOnReasoningModel(_ modelID: String) -> Bool {
+        sambaNovaAlwaysOnReasoningModelIDs.contains(modelID.lowercased())
     }
 
 }

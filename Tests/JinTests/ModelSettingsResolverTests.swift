@@ -368,6 +368,60 @@ final class ModelSettingsResolverTests: XCTestCase {
         XCTAssertFalse(resolved.reasoningCanDisable)
     }
 
+    func testSambaNovaAlwaysOnReasoningModelsCannotDisableByDefault() {
+        let gptOSS = ModelInfo(
+            id: "gpt-oss-120b",
+            name: "GPT OSS 120B",
+            capabilities: [.streaming, .toolCalling, .reasoning],
+            contextWindow: 131_000,
+            reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+            isEnabled: true
+        )
+        let r1 = ModelInfo(
+            id: "DeepSeek-R1-0528",
+            name: "DeepSeek R1 0528",
+            capabilities: [.streaming, .toolCalling, .reasoning],
+            contextWindow: 131_000,
+            reasoningConfig: ModelReasoningConfig(type: .toggle),
+            isEnabled: true
+        )
+        let r1Distill = ModelInfo(
+            id: "DeepSeek-R1-Distill-Llama-70B",
+            name: "DeepSeek R1 Distill",
+            capabilities: [.streaming, .toolCalling, .reasoning],
+            contextWindow: 131_000,
+            reasoningConfig: ModelReasoningConfig(type: .toggle),
+            isEnabled: true
+        )
+        let v31 = ModelInfo(
+            id: "DeepSeek-V3.1",
+            name: "DeepSeek V3.1",
+            capabilities: [.streaming, .toolCalling, .reasoning],
+            contextWindow: 131_000,
+            reasoningConfig: ModelReasoningConfig(type: .toggle),
+            isEnabled: true
+        )
+
+        XCTAssertFalse(ModelSettingsResolver.resolve(model: gptOSS, providerType: .sambanova).reasoningCanDisable)
+        XCTAssertFalse(ModelSettingsResolver.resolve(model: r1, providerType: .sambanova).reasoningCanDisable)
+        XCTAssertFalse(ModelSettingsResolver.resolve(model: r1Distill, providerType: .sambanova).reasoningCanDisable)
+        XCTAssertTrue(ModelSettingsResolver.resolve(model: v31, providerType: .sambanova).reasoningCanDisable)
+    }
+
+    func testSambaNovaNearMatchDeepSeekR1ModelCanStillDisableReasoning() {
+        let unknownNearMatch = ModelInfo(
+            id: "custom-deepseek-r1-proxy",
+            name: "Custom DeepSeek R1 Proxy",
+            capabilities: [.streaming, .toolCalling, .reasoning],
+            contextWindow: 131_000,
+            reasoningConfig: ModelReasoningConfig(type: .toggle),
+            isEnabled: true
+        )
+
+        let resolved = ModelSettingsResolver.resolve(model: unknownNearMatch, providerType: .sambanova)
+        XCTAssertTrue(resolved.reasoningCanDisable)
+    }
+
     func testResolverInfersGemini31ContextWindowForLegacyStoredModel() {
         let legacyModel = ModelInfo(
             id: "gemini-3.1-pro-preview",

@@ -2041,6 +2041,9 @@ struct ChatView: View {
     }
 
     private var isReasoningEnabled: Bool {
+        if reasoningMustRemainEnabled {
+            return true
+        }
         if providerType == .fireworks, isFireworksMiniMaxM2FamilyModel(conversationEntity.modelID) {
             return true
         }
@@ -2082,10 +2085,11 @@ struct ChatView: View {
 
     private var supportsReasoningDisableToggle: Bool {
         guard supportsReasoningControl else { return false }
-        if resolvedModelSettings?.reasoningCanDisable == false {
-            return false
-        }
-        return true
+        return !reasoningMustRemainEnabled
+    }
+
+    private var reasoningMustRemainEnabled: Bool {
+        resolvedModelSettings?.reasoningCanDisable == false
     }
 
     private var supportsNativeWebSearchControl: Bool {
@@ -2976,7 +2980,6 @@ struct ChatView: View {
         case .sambanova:
             return models.first(where: { $0.id == "MiniMax-M2.5" })?.id
                 ?? models.first(where: { $0.id == "gpt-oss-120b" })?.id
-                ?? models.first(where: { $0.id == "DeepSeek-V3.2" })?.id
         case .gemini:
             for preferredID in Self.geminiPreferredModelOrder {
                 if let exact = models.first(where: { $0.id.lowercased() == preferredID }) {
@@ -6100,10 +6103,11 @@ struct ChatView: View {
     }
 
     private func setReasoningOff() {
-        if providerType == .fireworks, isFireworksMiniMaxM2FamilyModel(conversationEntity.modelID) {
+        if reasoningMustRemainEnabled {
             updateReasoning { reasoning in
                 reasoning.enabled = true
-                if reasoning.effort == nil || reasoning.effort == ReasoningEffort.none {
+                if selectedReasoningConfig?.type == .effort,
+                   (reasoning.effort == nil || reasoning.effort == ReasoningEffort.none) {
                     reasoning.effort = selectedReasoningConfig?.defaultEffort ?? .medium
                 }
             }
@@ -6462,6 +6466,8 @@ struct ChatView: View {
         } else if !supportsReasoningControl {
             controls.reasoning = nil
         }
+
+        enforceReasoningAlwaysOnIfRequired()
     }
 
     private func normalizeEffortBasedReasoning(config: ModelReasoningConfig) {
@@ -6469,21 +6475,6 @@ struct ChatView: View {
            controls.reasoning?.enabled == true,
            controls.reasoning?.effort == nil {
             updateReasoning { $0.effort = config.defaultEffort ?? .medium }
-        }
-
-        if providerType == .fireworks, isFireworksMiniMaxM2FamilyModel(conversationEntity.modelID) {
-            if controls.reasoning == nil {
-                controls.reasoning = ReasoningControls(
-                    enabled: true,
-                    effort: config.defaultEffort ?? .medium,
-                    budgetTokens: nil,
-                    summary: nil
-                )
-            }
-            controls.reasoning?.enabled = true
-            if controls.reasoning?.effort == nil || controls.reasoning?.effort == ReasoningEffort.none {
-                controls.reasoning?.effort = config.defaultEffort ?? .medium
-            }
         }
 
         if providerType != .anthropic {
@@ -6515,6 +6506,20 @@ struct ChatView: View {
         controls.reasoning?.effort = nil
         controls.reasoning?.budgetTokens = nil
         controls.reasoning?.summary = nil
+    }
+
+    private func enforceReasoningAlwaysOnIfRequired() {
+        guard reasoningMustRemainEnabled else { return }
+        if controls.reasoning == nil {
+            controls.reasoning = ReasoningControls(enabled: true)
+        } else {
+            controls.reasoning?.enabled = true
+        }
+
+        if selectedReasoningConfig?.type == .effort,
+           controls.reasoning?.effort == nil || controls.reasoning?.effort == ReasoningEffort.none {
+            controls.reasoning?.effort = selectedReasoningConfig?.defaultEffort ?? .medium
+        }
     }
 
     private func normalizeReasoningEffortLimits() {

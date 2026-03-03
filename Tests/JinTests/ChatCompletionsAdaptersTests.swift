@@ -319,6 +319,256 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         XCTAssertEqual(other.contextWindow, 128000)
     }
 
+    func testSambaNovaAdapterMapsReasoningOffToLowEffortForGptOss() async throws {
+        let (session, protocolType) = makeMockedURLSession()
+        let networkManager = NetworkManager(urlSession: session)
+
+        let providerConfig = ProviderConfig(
+            id: "sn",
+            name: "SambaNova",
+            type: .sambanova,
+            apiKey: "ignored",
+            baseURL: "https://example.com/v1"
+        )
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://example.com/v1/chat/completions")
+            let body = try XCTUnwrap(requestBodyData(request))
+            let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+            let root = try XCTUnwrap(json)
+            XCTAssertEqual(root["model"] as? String, "gpt-oss-120b")
+            XCTAssertEqual(root["reasoning_effort"] as? String, "low")
+            XCTAssertNil(root["chat_template_kwargs"])
+
+            let response: [String: Any] = [
+                "id": "cmpl_sn_gpt_oss",
+                "choices": [
+                    [
+                        "message": [
+                            "role": "assistant",
+                            "content": "OK"
+                        ],
+                        "finish_reason": "stop"
+                    ]
+                ]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = SambaNovaAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hi")])],
+            modelID: "gpt-oss-120b",
+            controls: GenerationControls(reasoning: ReasoningControls(enabled: false)),
+            tools: [],
+            streaming: false
+        )
+
+        for try await _ in stream {}
+    }
+
+    func testSambaNovaAdapterUsesEnableThinkingToggleForDeepSeekV31() async throws {
+        let (session, protocolType) = makeMockedURLSession()
+        let networkManager = NetworkManager(urlSession: session)
+
+        let providerConfig = ProviderConfig(
+            id: "sn",
+            name: "SambaNova",
+            type: .sambanova,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://example.com/v1/chat/completions")
+            let body = try XCTUnwrap(requestBodyData(request))
+            let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+            let root = try XCTUnwrap(json)
+            XCTAssertEqual(root["model"] as? String, "DeepSeek-V3.1")
+            XCTAssertNil(root["reasoning_effort"])
+            let template = try XCTUnwrap(root["chat_template_kwargs"] as? [String: Any])
+            XCTAssertEqual(template["enable_thinking"] as? Bool, false)
+
+            let response: [String: Any] = [
+                "id": "cmpl_sn_v31",
+                "choices": [
+                    [
+                        "message": [
+                            "role": "assistant",
+                            "content": "OK"
+                        ],
+                        "finish_reason": "stop"
+                    ]
+                ]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = SambaNovaAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hi")])],
+            modelID: "DeepSeek-V3.1",
+            controls: GenerationControls(
+                temperature: 0.6,
+                topP: 0.9,
+                reasoning: ReasoningControls(enabled: false)
+            ),
+            tools: [],
+            streaming: false
+        )
+
+        for try await _ in stream {}
+    }
+
+    func testSambaNovaAdapterOmitsReasoningToggleForDeepSeekR1Family() async throws {
+        let (session, protocolType) = makeMockedURLSession()
+        let networkManager = NetworkManager(urlSession: session)
+
+        let providerConfig = ProviderConfig(
+            id: "sn",
+            name: "SambaNova",
+            type: .sambanova,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://example.com/v1/chat/completions")
+            let body = try XCTUnwrap(requestBodyData(request))
+            let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+            let root = try XCTUnwrap(json)
+            XCTAssertEqual(root["model"] as? String, "DeepSeek-R1-Distill-Llama-70B")
+            XCTAssertNil(root["chat_template_kwargs"])
+            XCTAssertNil(root["reasoning_effort"])
+            XCTAssertNil(root["temperature"])
+            XCTAssertNil(root["top_p"])
+
+            let response: [String: Any] = [
+                "id": "cmpl_sn_r1",
+                "choices": [
+                    [
+                        "message": [
+                            "role": "assistant",
+                            "content": "OK"
+                        ],
+                        "finish_reason": "stop"
+                    ]
+                ]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = SambaNovaAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hi")])],
+            modelID: "DeepSeek-R1-Distill-Llama-70B",
+            controls: GenerationControls(
+                temperature: 0.6,
+                topP: 0.9,
+                reasoning: ReasoningControls(enabled: false)
+            ),
+            tools: [],
+            streaming: false
+        )
+
+        for try await _ in stream {}
+    }
+
+    func testSambaNovaAdapterFetchModelsMarksDeepSeekR1DistillAsToolCallable() async throws {
+        let (session, protocolType) = makeMockedURLSession()
+        let networkManager = NetworkManager(urlSession: session)
+
+        let providerConfig = ProviderConfig(
+            id: "sn",
+            name: "SambaNova",
+            type: .sambanova,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://example.com/v1/models")
+            let response: [String: Any] = [
+                "data": [
+                    ["id": "DeepSeek-R1-Distill-Llama-70B"]
+                ]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = SambaNovaAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let models = try await adapter.fetchAvailableModels()
+        let r1Distill = try XCTUnwrap(models.first)
+        XCTAssertEqual(r1Distill.id, "DeepSeek-R1-Distill-Llama-70B")
+        XCTAssertEqual(r1Distill.name, "DeepSeek R1 Distill Llama 70B")
+        XCTAssertTrue(r1Distill.capabilities.contains(.toolCalling))
+        XCTAssertTrue(r1Distill.capabilities.contains(.reasoning))
+    }
+
+    func testSambaNovaAdapterFetchModelsUsesCatalogDisplayNameForKnownModel() async throws {
+        let (session, protocolType) = makeMockedURLSession()
+        let networkManager = NetworkManager(urlSession: session)
+
+        let providerConfig = ProviderConfig(
+            id: "sn",
+            name: "SambaNova",
+            type: .sambanova,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://example.com/v1/models")
+            let response: [String: Any] = [
+                "data": [
+                    ["id": "MiniMax-M2.5"]
+                ]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = SambaNovaAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let models = try await adapter.fetchAvailableModels()
+        let miniMax = try XCTUnwrap(models.first)
+        XCTAssertEqual(miniMax.id, "MiniMax-M2.5")
+        XCTAssertEqual(miniMax.name, "MiniMax M2.5")
+    }
+
+    func testSambaNovaAdapterFetchModelsSkipsDeepSeekV32() async throws {
+        let (session, protocolType) = makeMockedURLSession()
+        let networkManager = NetworkManager(urlSession: session)
+
+        let providerConfig = ProviderConfig(
+            id: "sn",
+            name: "SambaNova",
+            type: .sambanova,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://example.com/v1/models")
+            let response: [String: Any] = [
+                "data": [
+                    ["id": "DeepSeek-V3.2"],
+                    ["id": "DeepSeek-V3.1"],
+                ]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = SambaNovaAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let models = try await adapter.fetchAvailableModels()
+        XCTAssertFalse(models.contains(where: { $0.id.caseInsensitiveCompare("DeepSeek-V3.2") == .orderedSame }))
+        XCTAssertTrue(models.contains(where: { $0.id == "DeepSeek-V3.1" }))
+    }
+
     func testOpenAIAdapterFetchModelsAddsNativePDFForVisionFamilies() async throws {
         let (session, protocolType) = makeMockedURLSession()
         let networkManager = NetworkManager(urlSession: session)

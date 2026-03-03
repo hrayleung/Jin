@@ -5,12 +5,11 @@ import Foundation
 /// Docs:
 /// - Base URL: https://api.sambanova.ai/v1
 /// - Endpoint: POST /v1/chat/completions
-/// - Models: `MiniMax-M2.5`, `DeepSeek-V3.2`, `gpt-oss-120b`, ...
+/// - Models: `MiniMax-M2.5`, `DeepSeek-V3.1`, `gpt-oss-120b`, ...
 ///
 /// SambaNova-specific parameters:
 /// - `chat_template_kwargs: {"enable_thinking": true/false}` — toggles reasoning for
 ///    DeepSeek-V3.1 and Qwen3 models.
-/// - `chat_template_kwargs: {"thinking": true/false}` — toggles reasoning for DeepSeek-V3.2.
 /// - `reasoning_effort: "low"/"medium"/"high"` — controls reasoning depth for gpt-oss-120b.
 /// - Reasoning content is returned in `<think>` tags within content deltas.
 actor SambaNovaAdapter: LLMProviderAdapter {
@@ -73,7 +72,10 @@ actor SambaNovaAdapter: LLMProviderAdapter {
 
         let (data, _) = try await networkManager.sendRequest(request)
         let response = try JSONDecoder().decode(OpenAIModelsResponse.self, from: data)
-        return response.data.map { makeModelInfo(id: $0.id) }
+        return response.data
+            .map(\.id)
+            .filter { $0.caseInsensitiveCompare("DeepSeek-V3.2") != .orderedSame }
+            .map { makeModelInfo(id: $0) }
     }
 
     func translateTools(_ tools: [ToolDefinition]) -> Any {
@@ -147,7 +149,7 @@ actor SambaNovaAdapter: LLMProviderAdapter {
     /// Applies reasoning controls specific to each SambaNova model family.
     ///
     /// - gpt-oss-120b: Uses OpenAI-style `reasoning_effort` ("low"/"medium"/"high").
-    /// - DeepSeek-V3.1 / V3.2 / Qwen3: Uses `chat_template_kwargs: {"enable_thinking": bool}`.
+    /// - DeepSeek-V3.1 / Qwen3: Uses `chat_template_kwargs: {"enable_thinking": bool}`.
     /// - DeepSeek-R1 family: Always-on thinking, no toggle needed.
     private func applyReasoningControls(
         to body: inout [String: Any],
@@ -168,13 +170,6 @@ actor SambaNovaAdapter: LLMProviderAdapter {
             return
         }
 
-        if lowerModelID.contains("deepseek-v3.2") {
-            // DeepSeek-V3.2 uses "thinking" key in its chat template (different from V3.1).
-            let enableThinking = reasoning.enabled != false
-            body["chat_template_kwargs"] = ["thinking": enableThinking]
-            return
-        }
-
         if usesThinkingTemplateKwargs(lowerModelID) {
             // DeepSeek-V3.1, Qwen3 use chat_template_kwargs to toggle thinking.
             let enableThinking = reasoning.enabled != false
@@ -186,7 +181,6 @@ actor SambaNovaAdapter: LLMProviderAdapter {
     }
 
     /// Returns true for models that use `chat_template_kwargs: {"enable_thinking": ...}`.
-    /// Note: DeepSeek-V3.2 uses a different key ("thinking") and is handled before this check.
     private func usesThinkingTemplateKwargs(_ lowerModelID: String) -> Bool {
         lowerModelID.contains("deepseek-v3.1")
             || lowerModelID.hasPrefix("qwen3")
@@ -275,10 +269,9 @@ actor SambaNovaAdapter: LLMProviderAdapter {
     }
 
     private func makeModelInfo(id: String) -> ModelInfo {
-        // Prefer catalog entry if available.
-        let catalogInfo = ModelCatalog.modelInfo(for: id, provider: .sambanova, name: id)
-        if catalogInfo.capabilities != [.streaming, .toolCalling] || catalogInfo.contextWindow != 128_000 {
-            return catalogInfo
+        // Prefer exact catalog metadata whenever the model ID is known.
+        if ModelCatalog.entry(for: id, provider: .sambanova) != nil {
+            return ModelCatalog.modelInfo(for: id, provider: .sambanova)
         }
 
         // Fallback heuristics for unknown models returned by the API.
@@ -288,14 +281,10 @@ actor SambaNovaAdapter: LLMProviderAdapter {
         var reasoningConfig: ModelReasoningConfig?
 
         if lower.contains("deepseek-r1") {
-            // R1-0528 supports function calling on SambaNova; older distill variants may not.
-            if lower.contains("r1-0528") {
-                caps = [.streaming, .toolCalling, .reasoning]
-            } else {
-                caps = [.streaming, .reasoning]
-            }
+            // DeepSeek-R1 variants expose tool calling on SambaNova, but reliability can vary.
+            caps = [.streaming, .toolCalling, .reasoning]
             reasoningConfig = ModelReasoningConfig(type: .toggle)
-        } else if lower.contains("deepseek-v3.1") || lower.contains("deepseek-v3.2") {
+        } else if lower.contains("deepseek-v3.1") {
             caps.insert(.reasoning)
             reasoningConfig = ModelReasoningConfig(type: .toggle)
         } else if lower.contains("qwen3") {
@@ -313,8 +302,6 @@ actor SambaNovaAdapter: LLMProviderAdapter {
 
         if lower.contains("8b-instruct") {
             contextWindow = 16_000
-        } else if lower.contains("deepseek-v3.2") {
-            contextWindow = 8_000
         } else if lower.contains("qwen3-32b") {
             contextWindow = 32_000
         } else if lower.contains("qwen3-235b") {
