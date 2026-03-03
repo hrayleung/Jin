@@ -190,6 +190,7 @@ struct Message: Identifiable, Codable {
     let toolCalls: [ToolCall]?
     let toolResults: [ToolResult]?
     let searchActivities: [SearchActivity]?
+    let codexToolActivities: [CodexToolActivity]?
     let timestamp: Date
 
     init(
@@ -199,6 +200,7 @@ struct Message: Identifiable, Codable {
         toolCalls: [ToolCall]? = nil,
         toolResults: [ToolResult]? = nil,
         searchActivities: [SearchActivity]? = nil,
+        codexToolActivities: [CodexToolActivity]? = nil,
         timestamp: Date = Date()
     ) {
         self.id = id
@@ -207,6 +209,7 @@ struct Message: Identifiable, Codable {
         self.toolCalls = toolCalls
         self.toolResults = toolResults
         self.searchActivities = searchActivities
+        self.codexToolActivities = codexToolActivities
         self.timestamp = timestamp
     }
 }

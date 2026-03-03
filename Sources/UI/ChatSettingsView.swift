@@ -5,11 +5,19 @@ struct ChatSettingsView: View {
     @AppStorage(AppPreferenceKeys.sendWithCommandEnter) private var sendWithCommandEnter = false
     @AppStorage(AppPreferenceKeys.notifyOnBackgroundResponseCompletion) private var notifyOnBackgroundResponseCompletion = false
     @AppStorage(AppPreferenceKeys.thinkingBlockDisplayMode) private var thinkingDisplayModeRaw = ThinkingBlockDisplayMode.expanded.rawValue
+    @AppStorage(AppPreferenceKeys.codexToolDisplayMode) private var codexToolDisplayModeRaw = CodexToolDisplayMode.expanded.rawValue
 
     private var thinkingDisplayMode: Binding<ThinkingBlockDisplayMode> {
         Binding(
             get: { ThinkingBlockDisplayMode(rawValue: thinkingDisplayModeRaw) ?? .expanded },
             set: { thinkingDisplayModeRaw = $0.rawValue }
+        )
+    }
+
+    private var codexToolDisplayMode: Binding<CodexToolDisplayMode> {
+        Binding(
+            get: { CodexToolDisplayMode(rawValue: codexToolDisplayModeRaw) ?? .expanded },
+            set: { codexToolDisplayModeRaw = $0.rawValue }
         )
     }
 
@@ -30,6 +38,17 @@ struct ChatSettingsView: View {
                 }
 
                 Text(currentThinkingModeDescription)
+                    .jinInfoCallout()
+            }
+
+            Section("Codex Tool Activities") {
+                Picker("Display Mode", selection: codexToolDisplayMode) {
+                    ForEach(CodexToolDisplayMode.allCases) { mode in
+                        Text(mode.label).tag(mode)
+                    }
+                }
+
+                Text(currentCodexToolModeDescription)
                     .jinInfoCallout()
             }
 
@@ -82,6 +101,11 @@ struct ChatSettingsView: View {
 
     private var currentThinkingModeDescription: String {
         let mode = ThinkingBlockDisplayMode(rawValue: thinkingDisplayModeRaw) ?? .expanded
+        return mode.description
+    }
+
+    private var currentCodexToolModeDescription: String {
+        let mode = CodexToolDisplayMode(rawValue: codexToolDisplayModeRaw) ?? .expanded
         return mode.description
     }
 

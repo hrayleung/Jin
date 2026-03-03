@@ -14,6 +14,8 @@ struct StreamingResponseAccumulator {
     private var toolCallOrder: [String] = []
     private var searchActivitiesByID: [String: SearchActivity] = [:]
     private var searchActivityOrder: [String] = []
+    private var codexToolActivitiesByID: [String: CodexToolActivity] = [:]
+    private var codexToolActivityOrder: [String] = []
 
     init() {}
 
@@ -126,6 +128,19 @@ struct StreamingResponseAccumulator {
 
     func buildSearchActivities() -> [SearchActivity] {
         searchActivityOrder.compactMap { searchActivitiesByID[$0] }
+    }
+
+    mutating func upsertCodexToolActivity(_ activity: CodexToolActivity) {
+        if let existing = codexToolActivitiesByID[activity.id] {
+            codexToolActivitiesByID[activity.id] = existing.merged(with: activity)
+        } else {
+            codexToolActivityOrder.append(activity.id)
+            codexToolActivitiesByID[activity.id] = activity
+        }
+    }
+
+    func buildCodexToolActivities() -> [CodexToolActivity] {
+        codexToolActivityOrder.compactMap { codexToolActivitiesByID[$0] }
     }
 
     func buildToolCalls() -> [ToolCall] {

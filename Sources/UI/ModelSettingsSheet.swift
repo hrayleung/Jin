@@ -128,6 +128,7 @@ struct ModelSettingsSheet: View {
                                     contextWindow: model.contextWindow,
                                     reasoningConfig: model.reasoningConfig,
                                     overrides: nil,
+                                    catalogMetadata: model.catalogMetadata,
                                     isEnabled: model.isEnabled
                                 )
                             )
@@ -275,6 +276,7 @@ struct ModelSettingsSheet: View {
                 contextWindow: model.contextWindow,
                 reasoningConfig: model.reasoningConfig,
                 overrides: finalOverrides,
+                catalogMetadata: model.catalogMetadata,
                 isEnabled: model.isEnabled
             )
         )

@@ -209,6 +209,7 @@ final class MessageEntity {
     var toolCallsData: Data?
     var toolResultsData: Data?
     var searchActivitiesData: Data?
+    var codexToolActivitiesData: Data?
     var responseMetricsData: Data?
     var thinkingVisible: Bool
     // Snapshot of the model used to generate this message (primarily for assistant replies).
@@ -228,6 +229,7 @@ final class MessageEntity {
         toolCallsData: Data? = nil,
         toolResultsData: Data? = nil,
         searchActivitiesData: Data? = nil,
+        codexToolActivitiesData: Data? = nil,
         responseMetricsData: Data? = nil,
         generatedProviderID: String? = nil,
         generatedModelID: String? = nil,
@@ -243,6 +245,7 @@ final class MessageEntity {
         self.toolCallsData = toolCallsData
         self.toolResultsData = toolResultsData
         self.searchActivitiesData = searchActivitiesData
+        self.codexToolActivitiesData = codexToolActivitiesData
         self.responseMetricsData = responseMetricsData
         self.generatedProviderID = generatedProviderID
         self.generatedModelID = generatedModelID
@@ -276,6 +279,7 @@ final class MessageEntity {
         let toolCalls = try toolCallsData.flatMap { try decoder.decode([ToolCall].self, from: $0) }
         let toolResults = try toolResultsData.flatMap { try decoder.decode([ToolResult].self, from: $0) }
         let searchActivities = try searchActivitiesData.flatMap { try decoder.decode([SearchActivity].self, from: $0) }
+        let codexToolActivities = try codexToolActivitiesData.flatMap { try decoder.decode([CodexToolActivity].self, from: $0) }
 
         return Message(
             id: id,
@@ -284,6 +288,7 @@ final class MessageEntity {
             toolCalls: toolCalls,
             toolResults: toolResults,
             searchActivities: searchActivities,
+            codexToolActivities: codexToolActivities,
             timestamp: timestamp
         )
     }
@@ -295,6 +300,7 @@ final class MessageEntity {
         let toolCallsData = try message.toolCalls.map { try encoder.encode($0) }
         let toolResultsData = try message.toolResults.map { try encoder.encode($0) }
         let searchActivitiesData = try message.searchActivities.map { try encoder.encode($0) }
+        let codexToolActivitiesData = try message.codexToolActivities.map { try encoder.encode($0) }
 
         return MessageEntity(
             id: message.id,
@@ -303,7 +309,8 @@ final class MessageEntity {
             contentData: contentData,
             toolCallsData: toolCallsData,
             toolResultsData: toolResultsData,
-            searchActivitiesData: searchActivitiesData
+            searchActivitiesData: searchActivitiesData,
+            codexToolActivitiesData: codexToolActivitiesData
         )
     }
 }

@@ -52,6 +52,31 @@ struct ModelOverrides: Codable, Equatable {
     }
 }
 
+/// Optional provider-returned model catalog metadata.
+/// This is informational (for example upgrade nudges or limited-availability notes),
+/// and should not be treated as manual user overrides.
+struct ModelCatalogMetadata: Codable, Equatable {
+    var availabilityMessage: String?
+    var upgradeTargetModelID: String?
+    var upgradeMessage: String?
+
+    init(
+        availabilityMessage: String? = nil,
+        upgradeTargetModelID: String? = nil,
+        upgradeMessage: String? = nil
+    ) {
+        self.availabilityMessage = availabilityMessage
+        self.upgradeTargetModelID = upgradeTargetModelID
+        self.upgradeMessage = upgradeMessage
+    }
+
+    var isEmpty: Bool {
+        availabilityMessage?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty != false
+            && upgradeTargetModelID?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty != false
+            && upgradeMessage?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty != false
+    }
+}
+
 /// Provider type.
 enum ProviderType: String, Codable, CaseIterable {
     case openai
@@ -176,10 +201,11 @@ struct ModelInfo: Identifiable, Codable {
     let contextWindow: Int
     let reasoningConfig: ModelReasoningConfig?
     var overrides: ModelOverrides?
+    var catalogMetadata: ModelCatalogMetadata?
     var isEnabled: Bool
 
     enum CodingKeys: String, CodingKey {
-        case id, name, capabilities, contextWindow, reasoningConfig, overrides, isEnabled
+        case id, name, capabilities, contextWindow, reasoningConfig, overrides, catalogMetadata, isEnabled
     }
 
     init(
@@ -189,6 +215,7 @@ struct ModelInfo: Identifiable, Codable {
         contextWindow: Int,
         reasoningConfig: ModelReasoningConfig? = nil,
         overrides: ModelOverrides? = nil,
+        catalogMetadata: ModelCatalogMetadata? = nil,
         isEnabled: Bool = true
     ) {
         self.id = id
@@ -197,6 +224,7 @@ struct ModelInfo: Identifiable, Codable {
         self.contextWindow = contextWindow
         self.reasoningConfig = reasoningConfig
         self.overrides = overrides
+        self.catalogMetadata = catalogMetadata
         self.isEnabled = isEnabled
     }
 
@@ -208,6 +236,7 @@ struct ModelInfo: Identifiable, Codable {
         contextWindow = try container.decode(Int.self, forKey: .contextWindow)
         reasoningConfig = try container.decodeIfPresent(ModelReasoningConfig.self, forKey: .reasoningConfig)
         overrides = try container.decodeIfPresent(ModelOverrides.self, forKey: .overrides)
+        catalogMetadata = try container.decodeIfPresent(ModelCatalogMetadata.self, forKey: .catalogMetadata)
         isEnabled = try container.decodeIfPresent(Bool.self, forKey: .isEnabled) ?? true
     }
 
@@ -219,6 +248,7 @@ struct ModelInfo: Identifiable, Codable {
         try container.encode(contextWindow, forKey: .contextWindow)
         try container.encode(reasoningConfig, forKey: .reasoningConfig)
         try container.encodeIfPresent(overrides, forKey: .overrides)
+        try container.encodeIfPresent(catalogMetadata, forKey: .catalogMetadata)
         try container.encode(isEnabled, forKey: .isEnabled)
     }
 }

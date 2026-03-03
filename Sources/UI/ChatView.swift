@@ -63,6 +63,10 @@ struct ChatView: View {
     @State private var showingThinkingBudgetSheet = false
     @State private var thinkingBudgetDraft = ""
     @State private var maxTokensDraft = ""
+    @State private var showingCodexWorkingDirectorySheet = false
+    @State private var codexWorkingDirectoryDraft = ""
+    @State private var codexWorkingDirectoryDraftError: String?
+    @State private var codexWorkingDirectoryPresets: [CodexWorkingDirectoryPreset] = []
 
     @State private var showingContextCacheSheet = false
     @State private var showingAnthropicWebSearchSheet = false
@@ -373,6 +377,18 @@ struct ChatView: View {
                 }
                 .menuStyle(.borderlessButton)
                 .help(mcpToolsHelpText)
+            }
+
+            if supportsCodexWorkingDirectoryControl {
+                Button { openCodexWorkingDirectoryEditor() } label: {
+                    controlIconLabel(
+                        systemName: "folder",
+                        isActive: codexWorkingDirectory != nil,
+                        badgeText: codexWorkingDirectoryBadgeText
+                    )
+                }
+                .buttonStyle(.plain)
+                .help(codexWorkingDirectoryHelpText)
             }
 
             if supportsImageGenerationControl {
@@ -711,6 +727,7 @@ struct ChatView: View {
                     renderedContentParts: renderedParts,
                     toolCalls: message.toolCalls ?? [],
                     searchActivities: message.searchActivities ?? [],
+                    codexToolActivities: message.codexToolActivities ?? [],
                     assistantModelLabel: entity.role == "assistant"
                         ? (entity.generatedModelName ?? entity.generatedModelID ?? fallbackModelLabel)
                         : nil,
@@ -1110,6 +1127,24 @@ struct ChatView: View {
                 onSave: { applyImageGenerationDraft() }
             )
         }
+        .sheet(isPresented: $showingCodexWorkingDirectorySheet) {
+            CodexWorkingDirectorySheetView(
+                draft: $codexWorkingDirectoryDraft,
+                draftError: $codexWorkingDirectoryDraftError,
+                presets: codexWorkingDirectoryPresets,
+                onChooseDirectory: { pickCodexWorkingDirectory() },
+                onSelectPreset: { preset in
+                    codexWorkingDirectoryDraft = preset.path
+                    codexWorkingDirectoryDraftError = nil
+                },
+                onResetToDefault: {
+                    codexWorkingDirectoryDraft = ""
+                    codexWorkingDirectoryDraftError = nil
+                },
+                onCancel: { showingCodexWorkingDirectorySheet = false },
+                onSave: { applyCodexWorkingDirectoryDraft() }
+            )
+        }
         .task {
             // Chat-local state is already prepared in onAppear / onChange.
             // Avoid repeating these mutations here to prevent extra render churn.
@@ -1118,6 +1153,11 @@ struct ChatView: View {
         .onReceive(NotificationCenter.default.publisher(for: .pluginCredentialsDidChange)) { _ in
             Task {
                 await refreshExtensionCredentialsStatus()
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .codexWorkingDirectoryPresetsDidChange)) { _ in
+            Task { @MainActor in
+                codexWorkingDirectoryPresets = CodexWorkingDirectoryPresetsStore.load()
             }
         }
         .focusedSceneValue(
@@ -1721,6 +1761,7 @@ struct ChatView: View {
             contextWindow: contextWindow,
             reasoningConfig: reasoningConfig,
             overrides: model.overrides,
+            catalogMetadata: model.catalogMetadata,
             isEnabled: model.isEnabled
         )
     }
@@ -2296,6 +2337,10 @@ struct ChatView: View {
         return resolvedModelSettings?.capabilities.contains(.toolCalling) == true
     }
 
+    private var supportsCodexWorkingDirectoryControl: Bool {
+        providerType == .codexAppServer
+    }
+
     private var reasoningHelpText: String {
         guard supportsReasoningControl else { return "Reasoning: Not supported" }
         switch providerType {
@@ -2322,6 +2367,14 @@ struct ChatView: View {
         let count = selectedMCPServerIDs.count
         if count == 0 { return "MCP Tools: On (no servers)" }
         return "MCP Tools: On (\(count) server\(count == 1 ? "" : "s"))"
+    }
+
+    private var codexWorkingDirectoryHelpText: String {
+        guard supportsCodexWorkingDirectoryControl else { return "Working Directory: Not supported" }
+        guard let codexWorkingDirectory else {
+            return "Working Directory: app-server default"
+        }
+        return "Working Directory: \(codexWorkingDirectory)"
     }
 
     private var contextCacheHelpText: String {
@@ -2439,6 +2492,23 @@ struct ChatView: View {
         let count = selectedMCPServerIDs.count
         guard count > 0 else { return nil }
         return count > 99 ? "99+" : "\(count)"
+    }
+
+    private var codexWorkingDirectoryBadgeText: String? {
+        codexWorkingDirectory == nil ? nil : "WD"
+    }
+
+    private var codexWorkingDirectory: String? {
+        if let path = trimmedCodexWorkingDirectoryValue(for: "codex_cwd") {
+            return path
+        }
+        return trimmedCodexWorkingDirectoryValue(for: "cwd")
+    }
+
+    private func trimmedCodexWorkingDirectoryValue(for key: String) -> String? {
+        guard let raw = controls.providerSpecific[key]?.value as? String else { return nil }
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
     }
 
     private var contextCacheLabel: String {
@@ -3078,6 +3148,7 @@ struct ChatView: View {
                     renderedContentParts: renderedParts,
                     toolCalls: message.toolCalls ?? [],
                     searchActivities: message.searchActivities ?? [],
+                    codexToolActivities: message.codexToolActivities ?? [],
                     assistantModelLabel: entity.role == "assistant"
                         ? (entity.generatedModelName ?? entity.generatedModelID ?? currentModelName)
                         : nil,
@@ -4117,6 +4188,7 @@ struct ChatView: View {
             modelID: modelID,
             modelCapabilities: resolvedModelSettingsSnapshot?.capabilities
         )
+        Self.sanitizeProviderSpecificForProvider(providerTypeSnapshot, controls: &controlsToUse)
 
         let shouldTruncateMessages = assistant?.truncateMessages ?? false
         let maxHistoryMessages = assistant?.maxHistoryMessages
@@ -4195,6 +4267,7 @@ struct ChatView: View {
                 )
                 history = optimizedContextCache.messages
                 requestControls = optimizedContextCache.controls
+                Self.sanitizeProviderSpecificForProvider(providerType, controls: &requestControls)
 
                 var iteration = 0
                 let maxToolIterations = 8
@@ -4310,6 +4383,11 @@ struct ChatView: View {
                             await MainActor.run {
                                 streamingState.upsertSearchActivity(activity)
                             }
+                        case .codexToolActivity(let activity):
+                            accumulator.upsertCodexToolActivity(activity)
+                            await MainActor.run {
+                                streamingState.upsertCodexToolActivity(activity)
+                            }
                         case .messageEnd:
                             await MainActor.run {
                                 streamingState.markThinkingComplete()
@@ -4327,15 +4405,17 @@ struct ChatView: View {
                     let toolCalls = accumulator.buildToolCalls()
                     let assistantParts = accumulator.buildAssistantParts()
                     let searchActivities = accumulator.buildSearchActivities()
+                    let codexToolActivities = accumulator.buildCodexToolActivities()
                     let responseMetrics = metricsCollector.metrics
                     var persistedAssistantMessageID: UUID?
-                    if !assistantParts.isEmpty || !toolCalls.isEmpty || !searchActivities.isEmpty {
+                    if !assistantParts.isEmpty || !toolCalls.isEmpty || !searchActivities.isEmpty || !codexToolActivities.isEmpty {
                         let persistedParts = await AttachmentImportPipeline.persistImagesToDisk(assistantParts)
                         let assistantMessage = Message(
                             role: .assistant,
                             content: persistedParts,
                             toolCalls: toolCalls.isEmpty ? nil : toolCalls,
-                            searchActivities: searchActivities.isEmpty ? nil : searchActivities
+                            searchActivities: searchActivities.isEmpty ? nil : searchActivities,
+                            codexToolActivities: codexToolActivities.isEmpty ? nil : codexToolActivities
                         )
                         if let preview = AttachmentImportPipeline.completionNotificationPreview(from: persistedParts) {
                             completionPreview = preview
@@ -5573,6 +5653,59 @@ struct ChatView: View {
         showingImageGenerationSheet = true
     }
 
+    private func openCodexWorkingDirectoryEditor() {
+        codexWorkingDirectoryDraft = codexWorkingDirectory ?? ""
+        codexWorkingDirectoryDraftError = nil
+        codexWorkingDirectoryPresets = CodexWorkingDirectoryPresetsStore.load()
+        showingCodexWorkingDirectorySheet = true
+    }
+
+    private func pickCodexWorkingDirectory() {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.allowsMultipleSelection = false
+        panel.canCreateDirectories = false
+        panel.prompt = "Select"
+        panel.message = "Choose a working directory to send as Codex `cwd`."
+
+        if let existing = normalizedCodexWorkingDirectoryPath(from: codexWorkingDirectoryDraft) {
+            panel.directoryURL = URL(fileURLWithPath: existing, isDirectory: true)
+        }
+
+        guard panel.runModal() == .OK, let selectedURL = panel.url else { return }
+        codexWorkingDirectoryDraft = selectedURL.path
+        codexWorkingDirectoryDraftError = nil
+    }
+
+    private func applyCodexWorkingDirectoryDraft() {
+        let trimmed = codexWorkingDirectoryDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty {
+            controls.providerSpecific.removeValue(forKey: "codex_cwd")
+            controls.providerSpecific.removeValue(forKey: "cwd")
+            persistControlsToConversation()
+            codexWorkingDirectoryDraftError = nil
+            showingCodexWorkingDirectorySheet = false
+            return
+        }
+
+        guard let normalized = normalizedCodexWorkingDirectoryPath(from: trimmed) else {
+            codexWorkingDirectoryDraftError = "Choose an existing local folder (absolute path or ~/path)."
+            return
+        }
+
+        controls.providerSpecific["codex_cwd"] = AnyCodable(normalized)
+        controls.providerSpecific.removeValue(forKey: "cwd")
+        persistControlsToConversation()
+        codexWorkingDirectoryDraft = normalized
+        codexWorkingDirectoryDraftError = nil
+        showingCodexWorkingDirectorySheet = false
+    }
+
+    private func normalizedCodexWorkingDirectoryPath(from raw: String) -> String? {
+        CodexWorkingDirectoryPresetsStore.normalizedDirectoryPath(from: raw, requireExistingDirectory: true)
+    }
+
     private var isImageGenerationDraftValid: Bool {
         let seedText = imageGenerationSeedDraft.trimmingCharacters(in: .whitespacesAndNewlines)
         if !seedText.isEmpty, Int(seedText) == nil {
@@ -6468,6 +6601,7 @@ struct ChatView: View {
         normalizeReasoningEffortLimits()
         normalizeVertexAIGenerationConfig()
         normalizeFireworksProviderSpecific()
+        normalizeCodexProviderSpecific()
         normalizeWebSearchControls()
         normalizeSearchPluginControls()
         normalizeContextCacheControls()
@@ -6639,6 +6773,45 @@ struct ChatView: View {
             }
         } else if controls.providerSpecific["reasoning_history"] != nil {
             controls.providerSpecific.removeValue(forKey: "reasoning_history")
+        }
+    }
+
+    private func normalizeCodexProviderSpecific() {
+        guard providerType == .codexAppServer else {
+            Self.sanitizeProviderSpecificForProvider(providerType, controls: &controls)
+            return
+        }
+
+        if let legacy = trimmedCodexWorkingDirectoryValue(for: "cwd"), controls.providerSpecific["codex_cwd"] == nil {
+            controls.providerSpecific["codex_cwd"] = AnyCodable(legacy)
+        }
+        if controls.providerSpecific["cwd"] != nil {
+            controls.providerSpecific.removeValue(forKey: "cwd")
+        }
+
+        guard let raw = controls.providerSpecific["codex_cwd"]?.value as? String else {
+            if controls.providerSpecific["codex_cwd"] != nil {
+                controls.providerSpecific.removeValue(forKey: "codex_cwd")
+            }
+            return
+        }
+
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty {
+            controls.providerSpecific.removeValue(forKey: "codex_cwd")
+        } else if trimmed != raw {
+            controls.providerSpecific["codex_cwd"] = AnyCodable(trimmed)
+        }
+    }
+
+    nonisolated private static func sanitizeProviderSpecificForProvider(_ providerType: ProviderType?, controls: inout GenerationControls) {
+        guard providerType != .codexAppServer else { return }
+
+        let codexKeys = controls.providerSpecific.keys.filter { key in
+            key == "cwd" || key.hasPrefix("codex_")
+        }
+        for key in codexKeys {
+            controls.providerSpecific.removeValue(forKey: key)
         }
     }
 

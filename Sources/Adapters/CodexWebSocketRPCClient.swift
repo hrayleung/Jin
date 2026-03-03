@@ -3,6 +3,8 @@ import Network
 
 /// JSON-RPC client over WebSocket for communicating with Codex App Server.
 actor CodexWebSocketRPCClient {
+    private static let connectTimeoutSeconds: TimeInterval = 8
+
     private let url: URL
     private var connection: NWConnection?
     private let queue = DispatchQueue(label: "jin.codex.websocket")
@@ -26,35 +28,74 @@ actor CodexWebSocketRPCClient {
         let connection = NWConnection(to: .url(url), using: parameters)
         self.connection = connection
 
-        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-            let gate = ContinuationResumeGate()
-            connection.stateUpdateHandler = { state in
-                switch state {
-                case .ready:
+        do {
+            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+                let gate = ContinuationResumeGate()
+                let timeout = DispatchWorkItem {
                     gate.resumeOnce {
-                        continuation.resume()
-                    }
-                case .failed(let error):
-                    gate.resumeOnce {
-                        continuation.resume(throwing: LLMError.networkError(underlying: error))
-                    }
-                case .cancelled:
-                    gate.resumeOnce {
+                        // Keep timeout scoped strictly to the connect phase.
+                        connection.cancel()
                         continuation.resume(
                             throwing: LLMError.networkError(
                                 underlying: NSError(
                                     domain: "CodexWebSocket",
-                                    code: -1,
-                                    userInfo: [NSLocalizedDescriptionKey: "WebSocket connection was cancelled."]
+                                    code: Int(ETIMEDOUT),
+                                    userInfo: [
+                                        NSLocalizedDescriptionKey: "Connection timed out while connecting to Codex App Server."
+                                    ]
                                 )
                             )
                         )
                     }
-                default:
-                    break
                 }
+                queue.asyncAfter(
+                    deadline: .now() + Self.connectTimeoutSeconds,
+                    execute: timeout
+                )
+
+                connection.stateUpdateHandler = { state in
+                    switch state {
+                    case .ready:
+                        timeout.cancel()
+                        gate.resumeOnce {
+                            continuation.resume()
+                        }
+                    case .failed(let error):
+                        timeout.cancel()
+                        Task { await self.clearConnectionIfCurrent(connection) }
+                        gate.resumeOnce {
+                            continuation.resume(throwing: LLMError.networkError(underlying: error))
+                        }
+                    case .cancelled:
+                        timeout.cancel()
+                        Task { await self.clearConnectionIfCurrent(connection) }
+                        gate.resumeOnce {
+                            continuation.resume(
+                                throwing: LLMError.networkError(
+                                    underlying: NSError(
+                                        domain: "CodexWebSocket",
+                                        code: -1,
+                                        userInfo: [NSLocalizedDescriptionKey: "WebSocket connection was cancelled."]
+                                    )
+                                )
+                            )
+                        }
+                    default:
+                        break
+                    }
+                }
+                connection.start(queue: queue)
             }
-            connection.start(queue: queue)
+        } catch {
+            connection.cancel()
+            self.connection = nil
+            throw error
+        }
+    }
+
+    private func clearConnectionIfCurrent(_ candidate: NWConnection) {
+        if let current = connection, current === candidate {
+            connection = nil
         }
     }
 
@@ -181,6 +222,7 @@ actor CodexWebSocketRPCClient {
 final class CodexStreamState: @unchecked Sendable {
     var didEmitMessageStart = false
     var didEmitAssistantText = false
+    var assistantTextBuffer = ""
     var didEmitMessageEnd = false
     var didCompleteTurn = false
     var activeTurnID: String?

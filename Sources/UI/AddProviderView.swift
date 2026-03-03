@@ -15,6 +15,7 @@ struct AddProviderView: View {
     @State private var apiKey = ""
     @State private var serviceAccountJSON = ""
 
+    @State private var isKeyVisible = false
     @State private var isSaving = false
     @State private var saveError: String?
 
@@ -62,7 +63,7 @@ struct AddProviderView: View {
                 }
 
                 if providerType == .codexAppServer {
-                    Text("Codex App Server expects a running `codex app-server --listen ws://127.0.0.1:4500` process.")
+                    Text("Codex App Server expects a running `codex app-server --listen ws://127.0.0.1:4500` process. Recommended stable runtime: `codex` 0.107.0+.")
                         .jinInfoCallout()
                 }
 
@@ -84,7 +85,25 @@ struct AddProviderView: View {
                 switch providerType {
                 case .codexAppServer:
                     VStack(alignment: .leading, spacing: 6) {
-                        SecureField("API Key (Optional)", text: $apiKey)
+                        HStack(spacing: 8) {
+                            Group {
+                                if isKeyVisible {
+                                    TextField("API Key (Optional)", text: $apiKey)
+                                } else {
+                                    SecureField("API Key (Optional)", text: $apiKey)
+                                }
+                            }
+                            Button {
+                                isKeyVisible.toggle()
+                            } label: {
+                                Image(systemName: isKeyVisible ? "eye.slash" : "eye")
+                                    .foregroundStyle(.secondary)
+                                    .frame(width: 22, height: 22)
+                            }
+                            .buttonStyle(.plain)
+                            .help(isKeyVisible ? "Hide API key" : "Show API key")
+                            .disabled(apiKey.isEmpty)
+                        }
                         Text("Leave blank to use ChatGPT account login in provider settings.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
@@ -92,7 +111,25 @@ struct AddProviderView: View {
                 case .openai, .openaiWebSocket, .openaiCompatible, .cloudflareAIGateway, .openrouter,
                      .anthropic, .perplexity, .groq, .cohere, .mistral, .deepinfra, .together, .xai,
                      .deepseek, .zhipuCodingPlan, .fireworks, .cerebras, .sambanova, .gemini:
-                    SecureField("API Key", text: $apiKey)
+                    HStack(spacing: 8) {
+                        Group {
+                            if isKeyVisible {
+                                TextField("API Key", text: $apiKey)
+                            } else {
+                                SecureField("API Key", text: $apiKey)
+                            }
+                        }
+                        Button {
+                            isKeyVisible.toggle()
+                        } label: {
+                            Image(systemName: isKeyVisible ? "eye.slash" : "eye")
+                                .foregroundStyle(.secondary)
+                                .frame(width: 22, height: 22)
+                        }
+                        .buttonStyle(.plain)
+                        .help(isKeyVisible ? "Hide API key" : "Show API key")
+                        .disabled(apiKey.isEmpty)
+                    }
                 case .vertexai:
                     TextEditor(text: $serviceAccountJSON)
                         .frame(minHeight: 100)
@@ -227,6 +264,8 @@ struct AddMCPServerView: View {
     @State private var authHeaderValue = ""
     @State private var headerPairs: [EnvironmentVariablePair] = []
     @State private var httpStreaming = true
+    @State private var isBearerTokenVisible = false
+    @State private var isHeaderValueVisible = false
 
     @State private var runToolsAutomatically = true
     @State private var isEnabled = true
@@ -342,13 +381,51 @@ struct AddMCPServerView: View {
                         case .none:
                             EmptyView()
                         case .bearerToken:
-                            SecureField("Bearer token", text: $bearerToken)
-                                .font(.system(.body, design: .monospaced))
+                            HStack(spacing: 8) {
+                                Group {
+                                    if isBearerTokenVisible {
+                                        TextField("Bearer token", text: $bearerToken)
+                                            .font(.system(.body, design: .monospaced))
+                                    } else {
+                                        SecureField("Bearer token", text: $bearerToken)
+                                            .font(.system(.body, design: .monospaced))
+                                    }
+                                }
+                                Button {
+                                    isBearerTokenVisible.toggle()
+                                } label: {
+                                    Image(systemName: isBearerTokenVisible ? "eye.slash" : "eye")
+                                        .foregroundStyle(.secondary)
+                                        .frame(width: 22, height: 22)
+                                }
+                                .buttonStyle(.plain)
+                                .help(isBearerTokenVisible ? "Hide token" : "Show token")
+                                .disabled(bearerToken.isEmpty)
+                            }
                         case .customHeader:
                             TextField("Header name", text: $authHeaderName)
                                 .font(.system(.body, design: .monospaced))
-                            SecureField("Header value", text: $authHeaderValue)
-                                .font(.system(.body, design: .monospaced))
+                            HStack(spacing: 8) {
+                                Group {
+                                    if isHeaderValueVisible {
+                                        TextField("Header value", text: $authHeaderValue)
+                                            .font(.system(.body, design: .monospaced))
+                                    } else {
+                                        SecureField("Header value", text: $authHeaderValue)
+                                            .font(.system(.body, design: .monospaced))
+                                    }
+                                }
+                                Button {
+                                    isHeaderValueVisible.toggle()
+                                } label: {
+                                    Image(systemName: isHeaderValueVisible ? "eye.slash" : "eye")
+                                        .foregroundStyle(.secondary)
+                                        .frame(width: 22, height: 22)
+                                }
+                                .buttonStyle(.plain)
+                                .help(isHeaderValueVisible ? "Hide value" : "Show value")
+                                .disabled(authHeaderValue.isEmpty)
+                            }
                         }
 
                         if let authError = httpAuthenticationValidationError {

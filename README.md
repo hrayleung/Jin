@@ -25,7 +25,7 @@ OpenAI · OpenAI (WebSocket) · Anthropic · Gemini (AI Studio) · Vertex AI · 
 
 Configure providers in **Settings > Providers**. Use **Fetch Models** to pull the latest model list, or add models manually.
 
-For **Codex App Server (Beta)**, run `codex app-server --listen ws://127.0.0.1:4500` (or launch it from provider settings). Auth supports API key, ChatGPT account, or Local Codex (`auth.json` from `$CODEX_HOME` or `~/.codex`).
+For **Codex App Server (Beta)**, run `codex app-server --listen ws://127.0.0.1:4500` (or launch it from provider settings). Auth supports API key, ChatGPT account, or Local Codex (`auth.json` from `$CODEX_HOME` or `~/.codex`). Recommended runtime: stable `codex` **0.107.0+**.
 
 ### Included Models
 

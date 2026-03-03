@@ -29,7 +29,8 @@ struct JinApp: App {
         UserDefaults.standard.register(defaults: [
             AppPreferenceKeys.notifyOnBackgroundResponseCompletion: true,
             AppPreferenceKeys.updateAutoCheckOnLaunch: true,
-            AppPreferenceKeys.updateAllowPreRelease: false
+            AppPreferenceKeys.updateAllowPreRelease: false,
+            AppPreferenceKeys.codexWorkingDirectoryPresetsJSON: "[]"
         ])
         _updateManager = StateObject(wrappedValue: SparkleUpdateManager())
         do {
@@ -231,6 +232,7 @@ struct JinApp: App {
                     contextWindow: model.contextWindow,
                     reasoningConfig: model.reasoningConfig,
                     overrides: existing?.overrides,
+                    catalogMetadata: model.catalogMetadata,
                     isEnabled: existing?.isEnabled ?? true
                 )
             )

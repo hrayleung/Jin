@@ -27,7 +27,12 @@ final class JinAppModelRefreshMergeTests: XCTestCase {
                 id: "gpt-4.1",
                 name: "GPT-4.1 refreshed",
                 capabilities: [.streaming, .toolCalling],
-                contextWindow: 256_000
+                contextWindow: 256_000,
+                catalogMetadata: ModelCatalogMetadata(
+                    availabilityMessage: "Limited runs",
+                    upgradeTargetModelID: "gpt-4.2",
+                    upgradeMessage: "Upgrade available"
+                )
             ),
         ]
 
@@ -41,6 +46,9 @@ final class JinAppModelRefreshMergeTests: XCTestCase {
         XCTAssertEqual(model.contextWindow, 256_000)
         XCTAssertFalse(model.isEnabled)
         XCTAssertEqual(model.overrides?.contextWindow, 64_000)
+        XCTAssertEqual(model.catalogMetadata?.upgradeTargetModelID, "gpt-4.2")
+        XCTAssertEqual(model.catalogMetadata?.availabilityMessage, "Limited runs")
+        XCTAssertEqual(model.catalogMetadata?.upgradeMessage, "Upgrade available")
     }
 
     func testMergeRefreshedModelsDeduplicatesLatestProviderPayload() {
