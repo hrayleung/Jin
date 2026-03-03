@@ -19,21 +19,13 @@ Conversation-first: fast, focused, and minimal.
 
 ## Supported Providers
 
-Jin supports 18 provider types:
+Jin supports 21 provider types:
 
-OpenAI · OpenAI (WebSocket) · Anthropic · Gemini (AI Studio) · Vertex AI · xAI · DeepSeek · Mistral · Cohere · Groq · Perplexity · Fireworks · Cerebras · DeepInfra · OpenRouter · OpenAI Compatible · Cloudflare AI Gateway · Codex App Server (Beta)
+OpenAI · OpenAI (WebSocket) · Anthropic · Gemini (AI Studio) · Vertex AI · xAI · DeepSeek · Zhipu Coding Plan · Together AI · SambaNova · Mistral · Cohere · Groq · Perplexity · Fireworks · Cerebras · DeepInfra · OpenRouter · OpenAI Compatible · Cloudflare AI Gateway · Codex App Server (Beta)
 
-Most providers are pre-configured on first launch; you can add the remaining types via **Settings > Providers > Add Provider**. Use **Fetch Models** in provider settings to pull the latest available models, or add models manually.
+Configure providers in **Settings > Providers**. Use **Fetch Models** to pull the latest model list, or add models manually.
 
-For **Codex App Server (Beta)**, models run on the server side, so Jin does not need per-model client adaptation.
-
-### Provider setup notes
-
-- **Vertex AI** uses a Google Cloud service account JSON (not an API key). Optional `location` in the JSON defaults to `global`.
-- **Cloudflare AI Gateway** expects the `/compat` endpoint. Replace `{account_id}` and `{gateway_slug}` in the Base URL, then use compound model IDs like `openai/gpt-5` or `anthropic/claude-sonnet-4-6`.
-- **Codex App Server (Beta)** expects a running `codex app-server --listen ws://127.0.0.1:4500` process (or launch from provider settings). Auth can be an API key, a ChatGPT account, or Local Codex (reads `auth.json` from `$CODEX_HOME` or `~/.codex`).
-- **OpenAI Compatible** expects OpenAI-style endpoints: `GET /v1/models` and `POST /v1/chat/completions`.
-- **OpenAI (WebSocket)** keeps a persistent connection to `/v1/responses`; only one response can be in flight per connection.
+For **Codex App Server (Beta)**, run `codex app-server --listen ws://127.0.0.1:4500` (or launch it from provider settings). Auth supports API key, ChatGPT account, or Local Codex (`auth.json` from `$CODEX_HOME` or `~/.codex`).
 
 ### Included Models
 
@@ -44,10 +36,13 @@ These models are ready to use out of the box once you've configured provider cre
 | OpenAI | `gpt-5.2`, `gpt-5.2-2025-12-11`, `gpt-5.3-codex`, `gpt-4o` |
 | OpenAI (WebSocket) | `gpt-5.2`, `gpt-5.2-2025-12-11`, `gpt-5.3-codex`, `gpt-4o` |
 | Anthropic | `claude-opus-4-6`, `claude-sonnet-4-6`, `claude-opus-4-5-20251101`, `claude-sonnet-4-5-20250929`, `claude-haiku-4-5-20251001` |
-| Gemini (AI Studio) | `gemini-3-pro-preview`, `gemini-3.1-pro-preview`, `gemini-3-pro-image-preview`, `gemini-3-flash-preview`, `gemini-2.5-flash-image` |
-| Vertex AI | `gemini-3-pro-preview`, `gemini-3.1-pro-preview`, `gemini-3-pro-image-preview`, `gemini-3-flash-preview`, `gemini-2.5-pro`, `gemini-2.5-flash-image` |
+| Gemini (AI Studio) | `gemini-3-pro-preview`, `gemini-3.1-pro-preview`, `gemini-3-pro-image-preview`, `gemini-3.1-flash-image-preview`, `gemini-3-flash-preview`, `gemini-2.5-flash-image` |
+| Vertex AI | `gemini-3-pro-preview`, `gemini-3.1-pro-preview`, `gemini-3-pro-image-preview`, `gemini-3.1-flash-image-preview`, `gemini-3-flash-preview`, `gemini-2.5-pro`, `gemini-2.5-flash-image` |
 | xAI | `grok-4-1-fast`, `grok-4-1`, `grok-imagine-image`, `grok-imagine-image-pro`, `grok-2-image-1212`, `grok-imagine-video` |
 | DeepSeek | `deepseek-chat`, `deepseek-reasoner`, `deepseek-v3.2-exp` |
+| Zhipu Coding Plan | `glm-5`, `glm-4.7` |
+| Together AI | `Qwen/Qwen3.5-397B-A17B`, `MiniMaxAI/MiniMax-M2.5`, `zai-org/GLM-5`, `Qwen/Qwen3-Coder-Next-FP8`, `moonshotai/Kimi-K2.5` |
+| SambaNova | `MiniMax-M2.5`, `gpt-oss-120b` |
 | Perplexity | `sonar`, `sonar-pro`, `sonar-reasoning-pro`, `sonar-deep-research` |
 | Fireworks | `fireworks/glm-5`, `fireworks/minimax-m2p5`, `fireworks/kimi-k2p5`, `fireworks/glm-4p7` |
 | Codex App Server (Beta) | `gpt-5.1-codex` (default seed), plus models exposed by your server (server-side execution; no per-model client adaptation required) |
