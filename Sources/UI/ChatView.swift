@@ -1156,7 +1156,9 @@ struct ChatView: View {
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: .codexWorkingDirectoryPresetsDidChange)) { _ in
-            codexWorkingDirectoryPresets = CodexWorkingDirectoryPresetsStore.load()
+            Task { @MainActor in
+                codexWorkingDirectoryPresets = CodexWorkingDirectoryPresetsStore.load()
+            }
         }
         .focusedSceneValue(
             \.chatActions,

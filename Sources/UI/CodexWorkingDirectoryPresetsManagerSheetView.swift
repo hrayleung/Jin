@@ -136,7 +136,7 @@ private struct CodexWorkingDirectoryPresetEditorSheetView: View {
                 VStack(alignment: .leading, spacing: JinSpacing.small) {
                     Text("Preset Name")
                         .font(.headline)
-                    TextField("e.g. Jin App Server", text: $nameDraft)
+                    TextField(text: $nameDraft, prompt: Text("e.g. Jin App Server")) { EmptyView() }
                         .textFieldStyle(.roundedBorder)
                 }
                 .padding(JinSpacing.large)
@@ -146,7 +146,7 @@ private struct CodexWorkingDirectoryPresetEditorSheetView: View {
                     Text("Working Directory Path")
                         .font(.headline)
                     HStack(spacing: JinSpacing.small) {
-                        TextField("e.g. ~/projects/jin", text: $pathDraft)
+                        TextField(text: $pathDraft, prompt: Text("e.g. ~/projects/jin")) { EmptyView() }
                             .textFieldStyle(.roundedBorder)
                             .font(.system(.body, design: .monospaced))
                         Button("Choose Folder…") { chooseFolder() }

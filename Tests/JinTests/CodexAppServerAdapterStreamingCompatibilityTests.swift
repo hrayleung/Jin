@@ -178,6 +178,33 @@ final class CodexAppServerAdapterStreamingCompatibilityTests: XCTestCase {
         XCTAssertEqual(activity.arguments["query"]?.value as? String, "swift codex app server")
     }
 
+    func testSearchActivityFromDynamicToolCallFallbackIDIncludesSequenceSuffix() throws {
+        let payload: [String: Any] = [
+            "item": [
+                "type": "dynamicToolCall",
+                "name": "web_search",
+                "sequenceNumber": 3,
+                "arguments": [
+                    "query": "jin release notes"
+                ]
+            ],
+            "turnId": "turn-seq"
+        ]
+
+        let params = try makeJSONObject(payload)
+        let item = try XCTUnwrap(params.object(at: ["item"]))
+        let activity = try XCTUnwrap(
+            CodexAppServerAdapter.searchActivityFromDynamicToolCall(
+                item: item,
+                method: "item/updated",
+                params: params,
+                fallbackTurnID: nil
+            )
+        )
+
+        XCTAssertEqual(activity.id, "codex_dynamic_search_turn-seq_web_search_seq3")
+    }
+
     func testSearchActivityFromCodexItemParsesWebSearchThreadItemLifecycle() throws {
         let itemPayload: [String: Any] = [
             "id": "ws-1",

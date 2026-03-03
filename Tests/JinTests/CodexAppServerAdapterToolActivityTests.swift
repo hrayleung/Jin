@@ -150,6 +150,30 @@ final class CodexAppServerAdapterToolActivityTests: XCTestCase {
         XCTAssertNil(activity, "Browser search tools should be excluded from codex tool activities")
     }
 
+    func testCodexToolActivityDoesNotTreatResearchToolAsWebSearch() throws {
+        let payload: [String: Any] = [
+            "item": [
+                "id": "tool-rs-6",
+                "type": "dynamicToolCall",
+                "name": "research_notes",
+                "status": "completed"
+            ],
+            "turnId": "turn-6"
+        ]
+
+        let params = try makeJSONObject(payload)
+        let item = try XCTUnwrap(params.object(at: ["item"]))
+        let activity = CodexAppServerAdapter.codexToolActivityFromDynamicToolCall(
+            item: item,
+            method: "item/completed",
+            params: params,
+            fallbackTurnID: nil
+        )
+
+        XCTAssertNotNil(activity, "Non-web search tools should remain in codex tool activities")
+        XCTAssertEqual(activity?.toolName, "research_notes")
+    }
+
     // MARK: - Status Derivation
 
     func testCodexToolActivityStatusFromMethodStarted() throws {
@@ -577,6 +601,30 @@ final class CodexAppServerAdapterToolActivityTests: XCTestCase {
         )
 
         XCTAssertEqual(activity.id, "codex_tool_turn-42_runcommand")
+    }
+
+    func testCodexToolActivityGeneratesFallbackIDWithSequenceSuffixWhenAvailable() throws {
+        let payload: [String: Any] = [
+            "item": [
+                "type": "dynamicToolCall",
+                "name": "RunCommand",
+                "sequenceNumber": 7
+            ],
+            "turnId": "turn-42"
+        ]
+
+        let params = try makeJSONObject(payload)
+        let item = try XCTUnwrap(params.object(at: ["item"]))
+        let activity = try XCTUnwrap(
+            CodexAppServerAdapter.codexToolActivityFromDynamicToolCall(
+                item: item,
+                method: "item/started",
+                params: params,
+                fallbackTurnID: nil
+            )
+        )
+
+        XCTAssertEqual(activity.id, "codex_tool_turn-42_runcommand_seq7")
     }
 
     // MARK: - Helpers

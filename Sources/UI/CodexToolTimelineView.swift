@@ -313,6 +313,8 @@ private struct CodexToolEntryView: View {
                             .font(.caption.weight(.semibold))
                             .foregroundStyle(.secondary)
                     }
+                    .accessibilityLabel(isExpanded ? "Collapse tool details" : "Expand tool details")
+                    .accessibilityHint("Shows or hides details for this tool activity")
                     .buttonStyle(JinIconButtonStyle())
                 }
 
@@ -541,6 +543,7 @@ private struct CodexToolEntryView: View {
 
     private func toolIconName(_ name: String) -> String {
         let lower = name.lowercased()
+        let tokens = lower.split(whereSeparator: { !$0.isLetter && !$0.isNumber })
         // Shell / command execution
         if lower.contains("shell") || lower.contains("command") || lower.contains("exec")
             || lower.contains("bash") || lower.contains("terminal")
@@ -567,7 +570,7 @@ private struct CodexToolEntryView: View {
         }
         // Search / grep
         if lower.contains("search") || lower.contains("grep") || lower.contains("find")
-            || lower.contains("ripgrep") || lower.contains("rg") {
+            || lower.contains("ripgrep") || tokens.contains(where: { $0 == "rg" }) {
             return "magnifyingglass"
         }
         // List / directory
