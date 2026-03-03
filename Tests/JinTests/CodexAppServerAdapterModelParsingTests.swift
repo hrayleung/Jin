@@ -22,7 +22,7 @@ final class CodexAppServerAdapterModelParsingTests: XCTestCase {
             ]
         ]
 
-        let object = try makeJSONObject(payload)
+        let object = try TestJSONHelpers.makeJSONObject(payload)
         let modelInfo = try XCTUnwrap(CodexAppServerAdapter.makeModelInfo(from: object))
 
         XCTAssertEqual(modelInfo.id, "gpt-5.3-codex")
@@ -46,7 +46,7 @@ final class CodexAppServerAdapterModelParsingTests: XCTestCase {
             "context_length": 123_456
         ]
 
-        let object = try makeJSONObject(payload)
+        let object = try TestJSONHelpers.makeJSONObject(payload)
         let modelInfo = try XCTUnwrap(CodexAppServerAdapter.makeModelInfo(from: object))
 
         XCTAssertEqual(modelInfo.id, "openai/gpt-5.2-codex")
@@ -60,15 +60,7 @@ final class CodexAppServerAdapterModelParsingTests: XCTestCase {
             "displayName": "Missing ID"
         ]
 
-        let object = try makeJSONObject(payload)
+        let object = try TestJSONHelpers.makeJSONObject(payload)
         XCTAssertNil(CodexAppServerAdapter.makeModelInfo(from: object))
-    }
-
-    private func makeJSONObject(_ payload: [String: Any]) throws -> [String: JSONValue] {
-        guard case .object(let object) = try JSONValue(any: payload) else {
-            XCTFail("Expected object payload")
-            return [:]
-        }
-        return object
     }
 }
