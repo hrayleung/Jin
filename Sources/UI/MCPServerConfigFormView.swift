@@ -21,6 +21,9 @@ struct MCPServerConfigFormView: View {
     @State private var headerPairs: [EnvironmentVariablePair] = []
     @State private var httpStreaming = true
 
+    @State private var isBearerTokenVisible = false
+    @State private var isHeaderValueVisible = false
+
     @State private var disabledTools: Set<String> = []
 
     @State private var verifying = false
@@ -163,13 +166,51 @@ struct MCPServerConfigFormView: View {
                 case .none:
                     EmptyView()
                 case .bearerToken:
-                    SecureField("Bearer token", text: $bearerToken)
-                        .font(.system(.body, design: .monospaced))
+                    HStack(spacing: 8) {
+                        Group {
+                            if isBearerTokenVisible {
+                                TextField("Bearer token", text: $bearerToken)
+                                    .font(.system(.body, design: .monospaced))
+                            } else {
+                                SecureField("Bearer token", text: $bearerToken)
+                                    .font(.system(.body, design: .monospaced))
+                            }
+                        }
+                        Button {
+                            isBearerTokenVisible.toggle()
+                        } label: {
+                            Image(systemName: isBearerTokenVisible ? "eye.slash" : "eye")
+                                .foregroundStyle(.secondary)
+                                .frame(width: 22, height: 22)
+                        }
+                        .buttonStyle(.plain)
+                        .help(isBearerTokenVisible ? "Hide token" : "Show token")
+                        .disabled(bearerToken.isEmpty)
+                    }
                 case .customHeader:
                     TextField("Header name", text: $authHeaderName)
                         .font(.system(.body, design: .monospaced))
-                    SecureField("Header value", text: $authHeaderValue)
-                        .font(.system(.body, design: .monospaced))
+                    HStack(spacing: 8) {
+                        Group {
+                            if isHeaderValueVisible {
+                                TextField("Header value", text: $authHeaderValue)
+                                    .font(.system(.body, design: .monospaced))
+                            } else {
+                                SecureField("Header value", text: $authHeaderValue)
+                                    .font(.system(.body, design: .monospaced))
+                            }
+                        }
+                        Button {
+                            isHeaderValueVisible.toggle()
+                        } label: {
+                            Image(systemName: isHeaderValueVisible ? "eye.slash" : "eye")
+                                .foregroundStyle(.secondary)
+                                .frame(width: 22, height: 22)
+                        }
+                        .buttonStyle(.plain)
+                        .help(isHeaderValueVisible ? "Hide value" : "Show value")
+                        .disabled(authHeaderValue.isEmpty)
+                    }
                 }
 
                 if let authError = httpAuthenticationValidationError {
