@@ -76,6 +76,11 @@ struct AddProviderView: View {
                         .jinInfoCallout()
                 }
 
+                if providerType == .zhipuCodingPlan {
+                    Text("Use the dedicated Coding Plan endpoint: `https://open.bigmodel.cn/api/coding/paas/v4` (not the generic `/api/paas/v4`). Recommended model IDs: `glm-5`, `glm-4.7`.")
+                        .jinInfoCallout()
+                }
+
                 switch providerType {
                 case .codexAppServer:
                     VStack(alignment: .leading, spacing: 6) {
@@ -84,7 +89,9 @@ struct AddProviderView: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
-                case .openai, .openaiWebSocket, .openaiCompatible, .cloudflareAIGateway, .openrouter, .anthropic, .perplexity, .groq, .cohere, .mistral, .deepinfra, .xai, .deepseek, .fireworks, .cerebras, .sambanova, .gemini:
+                case .openai, .openaiWebSocket, .openaiCompatible, .cloudflareAIGateway, .openrouter,
+                     .anthropic, .perplexity, .groq, .cohere, .mistral, .deepinfra, .together, .xai,
+                     .deepseek, .zhipuCodingPlan, .fireworks, .cerebras, .sambanova, .gemini:
                     SecureField("API Key", text: $apiKey)
                 case .vertexai:
                     TextEditor(text: $serviceAccountJSON)
@@ -181,7 +188,9 @@ struct AddProviderView: View {
         switch providerType {
         case .codexAppServer:
             return false
-        case .openai, .openaiWebSocket, .openaiCompatible, .cloudflareAIGateway, .openrouter, .anthropic, .perplexity, .groq, .cohere, .mistral, .deepinfra, .xai, .deepseek, .fireworks, .cerebras, .sambanova, .gemini:
+        case .openai, .openaiWebSocket, .openaiCompatible, .cloudflareAIGateway, .openrouter,
+             .anthropic, .perplexity, .groq, .cohere, .mistral, .deepinfra, .together, .xai, .deepseek,
+             .zhipuCodingPlan, .fireworks, .cerebras, .sambanova, .gemini:
             return apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         case .vertexai:
             return serviceAccountJSON.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty

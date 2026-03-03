@@ -90,6 +90,15 @@ struct ProviderConfigFormView: View {
                                 .foregroundStyle(.secondary)
                         }
                     }
+
+                    if providerType == .zhipuCodingPlan {
+                        let base = (provider.baseURL ?? defaultBaseURL).lowercased()
+                        if !base.contains("/api/coding/paas/v4") {
+                            Text("Tip: Zhipu Coding Plan endpoint is https://open.bigmodel.cn/api/coding/paas/v4 (dedicated path for coding plan).")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
                 }
 
                 Text("Credentials are stored locally in your app database.")
@@ -99,7 +108,9 @@ struct ProviderConfigFormView: View {
                 case .codexAppServer:
                     codexServerSection
                     codexAuthSection
-                case .openai, .openaiWebSocket, .openaiCompatible, .cloudflareAIGateway, .openrouter, .anthropic, .perplexity, .groq, .cohere, .mistral, .deepinfra, .xai, .deepseek, .fireworks, .cerebras, .sambanova, .gemini:
+                case .openai, .openaiWebSocket, .openaiCompatible, .cloudflareAIGateway, .openrouter,
+                     .anthropic, .perplexity, .groq, .cohere, .mistral, .deepinfra, .together, .xai,
+                     .deepseek, .zhipuCodingPlan, .fireworks, .cerebras, .sambanova, .gemini:
                     apiKeyField
                 case .vertexai:
                     vertexAISection
@@ -115,6 +126,11 @@ struct ProviderConfigFormView: View {
 
                 if providerType == .cloudflareAIGateway {
                     Text("Recommended: use a Cloudflare API Token (BYOK mode). Fill in `{account_id}` and `{gateway_slug}`, keep the `/compat` Base URL, configure upstream provider keys in AI Gateway, then use model IDs like `openai/gpt-5` or `anthropic/claude-sonnet-4.5`.")
+                        .jinInfoCallout()
+                }
+
+                if providerType == .zhipuCodingPlan {
+                    Text("Coding Plan uses a dedicated OpenAI-compatible endpoint path: `https://open.bigmodel.cn/api/coding/paas/v4`. Recommended models: `glm-5`, `glm-4.7`.")
                         .jinInfoCallout()
                 }
 
@@ -1039,7 +1055,9 @@ struct ProviderConfigFormView: View {
                 codexAccount = nil
                 codexRateLimit = nil
                 codexPendingLoginID = nil
-            case .openai, .openaiWebSocket, .openaiCompatible, .cloudflareAIGateway, .openrouter, .anthropic, .perplexity, .groq, .cohere, .mistral, .deepinfra, .xai, .deepseek, .fireworks, .cerebras, .sambanova, .gemini:
+            case .openai, .openaiWebSocket, .openaiCompatible, .cloudflareAIGateway, .openrouter,
+                 .anthropic, .perplexity, .groq, .cohere, .mistral, .deepinfra, .together, .xai,
+                 .deepseek, .zhipuCodingPlan, .fireworks, .cerebras, .sambanova, .gemini:
                 apiKey = provider.apiKey ?? ""
             case .vertexai:
                 serviceAccountJSON = provider.serviceAccountJSON ?? ""
@@ -1352,7 +1370,9 @@ struct ProviderConfigFormView: View {
                 try? modelContext.save()
             }
 
-        case .openai, .openaiWebSocket, .openaiCompatible, .cloudflareAIGateway, .openrouter, .anthropic, .perplexity, .groq, .cohere, .mistral, .deepinfra, .xai, .deepseek, .fireworks, .cerebras, .sambanova, .gemini:
+        case .openai, .openaiWebSocket, .openaiCompatible, .cloudflareAIGateway, .openrouter,
+             .anthropic, .perplexity, .groq, .cohere, .mistral, .deepinfra, .together, .xai, .deepseek,
+             .zhipuCodingPlan, .fireworks, .cerebras, .sambanova, .gemini:
             let key = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
             await MainActor.run {
                 provider.apiKeyKeychainID = nil
@@ -1427,7 +1447,9 @@ struct ProviderConfigFormView: View {
                 return CodexLocalAuthStore.loadAPIKey() == nil || testStatus == .testing
             }
             return testStatus == .testing || codexAuthStatus == .working
-        case .openai, .openaiWebSocket, .openaiCompatible, .cloudflareAIGateway, .openrouter, .anthropic, .perplexity, .groq, .cohere, .mistral, .deepinfra, .xai, .deepseek, .fireworks, .cerebras, .sambanova, .gemini:
+        case .openai, .openaiWebSocket, .openaiCompatible, .cloudflareAIGateway, .openrouter,
+             .anthropic, .perplexity, .groq, .cohere, .mistral, .deepinfra, .together, .xai, .deepseek,
+             .zhipuCodingPlan, .fireworks, .cerebras, .sambanova, .gemini:
             return apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || testStatus == .testing
         case .vertexai:
             return serviceAccountJSON.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || testStatus == .testing
@@ -1447,7 +1469,9 @@ struct ProviderConfigFormView: View {
                 return CodexLocalAuthStore.loadAPIKey() == nil
             }
             return codexAuthStatus == .working
-        case .openai, .openaiWebSocket, .openaiCompatible, .cloudflareAIGateway, .openrouter, .anthropic, .perplexity, .groq, .cohere, .mistral, .deepinfra, .xai, .deepseek, .fireworks, .cerebras, .sambanova, .gemini:
+        case .openai, .openaiWebSocket, .openaiCompatible, .cloudflareAIGateway, .openrouter,
+             .anthropic, .perplexity, .groq, .cohere, .mistral, .deepinfra, .together, .xai, .deepseek,
+             .zhipuCodingPlan, .fireworks, .cerebras, .sambanova, .gemini:
             return apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         case .vertexai:
             return serviceAccountJSON.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty

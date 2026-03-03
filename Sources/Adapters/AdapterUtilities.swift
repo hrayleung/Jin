@@ -357,6 +357,9 @@ func modelSupportsReasoning(
     modelID: String
 ) -> Bool {
     guard let model = findConfiguredModel(in: providerConfig, for: modelID) else {
+        if let catalogReasoning = ModelCatalog.entry(for: modelID, provider: providerConfig.type)?.reasoningConfig {
+            return catalogReasoning.type != .none
+        }
         return ModelCapabilityRegistry.defaultReasoningConfig(
             for: providerConfig.type,
             modelID: modelID

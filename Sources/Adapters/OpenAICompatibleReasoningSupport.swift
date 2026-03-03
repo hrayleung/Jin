@@ -48,6 +48,14 @@ enum OpenAICompatibleReasoningSupport {
         modelID: String,
         requestShape: ModelRequestShape
     ) -> Bool {
+        if providerConfig.type == .zhipuCodingPlan {
+            let isDisabled = !reasoning.enabled || reasoning.effort == ReasoningEffort.none
+            body["thinking"] = [
+                "type": isDisabled ? "disabled" : "enabled"
+            ]
+            return false
+        }
+
         if reasoning.enabled == false || (reasoning.effort ?? ReasoningEffort.none) == ReasoningEffort.none {
             body["reasoning"] = ["effort": "none"]
             return false

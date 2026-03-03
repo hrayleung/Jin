@@ -36,4 +36,9 @@ final class ModelCapabilityRegistryTests: XCTestCase {
         XCTAssertFalse(ModelCapabilityRegistry.supportsWebSearch(for: .openrouter, modelID: "google/veo-3"))
         XCTAssertFalse(ModelCapabilityRegistry.supportsWebSearch(for: .openrouter, modelID: "google/gemini-2.0-flash-lite"))
     }
+
+    func testTogetherWebSearchDefaultsToDisabled() {
+        XCTAssertFalse(ModelCapabilityRegistry.supportsWebSearch(for: .together, modelID: "moonshotai/Kimi-K2.5"))
+        XCTAssertFalse(ModelCapabilityRegistry.supportsWebSearch(for: .together, modelID: "zai-org/GLM-5"))
+    }
 }

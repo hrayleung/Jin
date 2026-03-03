@@ -127,8 +127,10 @@ enum ModelCatalog {
         .cloudflareAIGateway: cloudflareAIGatewayRecords,
         .anthropic: anthropicRecords,
         .perplexity: perplexityRecords,
+        .together: togetherRecords,
         .xai: xAIRecords,
         .deepseek: deepSeekRecords,
+        .zhipuCodingPlan: zhipuCodingPlanRecords,
         .fireworks: fireworksRecords,
         .cerebras: cerebrasRecords,
         .sambanova: sambaNovaRecords,
@@ -559,6 +561,37 @@ extension ModelCatalog {
                isFullySupported: true, isSeeded: false),
     ]
 
+    // MARK: Together AI
+
+    private static let togetherRecords: [Record] = [
+        // Seeded
+        Record(id: "Qwen/Qwen3.5-397B-A17B", displayName: "Qwen3.5 397B A17B",
+               capabilities: [.streaming, .toolCalling],
+               contextWindow: 262_144,
+               reasoningConfig: nil,
+               isFullySupported: true, isSeeded: true),
+        Record(id: "MiniMaxAI/MiniMax-M2.5", displayName: "MiniMax M2.5",
+               capabilities: [.streaming, .toolCalling],
+               contextWindow: 228_700,
+               reasoningConfig: nil,
+               isFullySupported: true, isSeeded: true),
+        Record(id: "zai-org/GLM-5", displayName: "GLM-5",
+               capabilities: [.streaming, .toolCalling, .reasoning],
+               contextWindow: 202_752,
+               reasoningConfig: ModelReasoningConfig(type: .toggle),
+               isFullySupported: true, isSeeded: true),
+        Record(id: "Qwen/Qwen3-Coder-Next-FP8", displayName: "Qwen3 Coder Next",
+               capabilities: [.streaming, .toolCalling],
+               contextWindow: 262_144,
+               reasoningConfig: nil,
+               isFullySupported: true, isSeeded: true),
+        Record(id: "moonshotai/Kimi-K2.5", displayName: "Kimi K2.5",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               contextWindow: 262_144,
+               reasoningConfig: ModelReasoningConfig(type: .toggle),
+               isFullySupported: true, isSeeded: true),
+    ]
+
     // MARK: xAI
 
     private static let xAIRecords: [Record] = [
@@ -623,6 +656,21 @@ extension ModelCatalog {
                capabilities: [.streaming, .toolCalling],
                contextWindow: 128_000,
                reasoningConfig: nil,
+               isFullySupported: true, isSeeded: true),
+    ]
+
+    // MARK: Zhipu Coding Plan
+
+    private static let zhipuCodingPlanRecords: [Record] = [
+        Record(id: "glm-5", displayName: "GLM-5",
+               capabilities: [.streaming, .toolCalling, .reasoning, .promptCaching],
+               contextWindow: 200_000,
+               reasoningConfig: ModelReasoningConfig(type: .toggle),
+               isFullySupported: true, isSeeded: true),
+        Record(id: "glm-4.7", displayName: "GLM-4.7",
+               capabilities: [.streaming, .toolCalling, .reasoning, .promptCaching],
+               contextWindow: 200_000,
+               reasoningConfig: ModelReasoningConfig(type: .toggle),
                isFullySupported: true, isSeeded: true),
     ]
 

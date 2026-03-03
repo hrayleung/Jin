@@ -1,13 +1,13 @@
 import Foundation
 
-/// Generic OpenAI-compatible provider adapter (Chat Completions API).
+/// Together AI provider adapter (OpenAI-compatible Chat Completions API).
 ///
-/// Expected endpoints:
+/// Endpoints:
 /// - GET  /models
 /// - POST /chat/completions
-actor OpenAICompatibleAdapter: LLMProviderAdapter {
+actor TogetherAdapter: LLMProviderAdapter {
     let providerConfig: ProviderConfig
-    let capabilities: ModelCapability = [.streaming, .toolCalling, .vision, .audio, .reasoning]
+    let capabilities: ModelCapability = [.streaming, .toolCalling, .vision, .reasoning]
 
     private let networkManager: NetworkManager
     private let apiKey: String
@@ -25,12 +25,6 @@ actor OpenAICompatibleAdapter: LLMProviderAdapter {
         tools: [ToolDefinition],
         streaming: Bool
     ) async throws -> AsyncThrowingStream<StreamEvent, Error> {
-        if providerConfig.type == .mistral, isMistralTranscriptionOnlyModelID(modelID.lowercased()) {
-            throw LLMError.invalidRequest(
-                message: "Model \(modelID) is transcription-only on Mistral /v1/audio/transcriptions. Use voxtral-mini-latest or voxtral-small-latest for chat."
-            )
-        }
-
         let request = try buildRequest(
             messages: messages,
             modelID: modelID,
@@ -56,6 +50,10 @@ actor OpenAICompatibleAdapter: LLMProviderAdapter {
         do {
             _ = try await networkManager.sendRequest(request)
             return true
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch let error as URLError where error.code == .cancelled {
+            throw CancellationError()
         } catch {
             return false
         }
@@ -68,8 +66,18 @@ actor OpenAICompatibleAdapter: LLMProviderAdapter {
         request.addValue("application/json", forHTTPHeaderField: "Accept")
 
         let (data, _) = try await networkManager.sendRequest(request)
-        let response = try JSONDecoder().decode(OpenAIModelsResponse.self, from: data)
-        return response.data.map { makeModelInfo(id: $0.id) }
+        let decoder = JSONDecoder()
+
+        if let models = try? decoder.decode([TogetherModelInfo].self, from: data) {
+            return models.map(makeModelInfo(from:))
+        }
+
+        // Compatibility fallback when a proxy returns OpenAI's `data` shape.
+        if let openAIModels = try? decoder.decode(OpenAIModelsResponse.self, from: data) {
+            return openAIModels.data.map { makeModelInfo(id: $0.id, displayName: nil) }
+        }
+
+        throw LLMError.decodingError(message: "Together /models response could not be decoded.")
     }
 
     func translateTools(_ tools: [ToolDefinition]) -> Any {
@@ -79,17 +87,13 @@ actor OpenAICompatibleAdapter: LLMProviderAdapter {
     // MARK: - Private
 
     private var baseURL: String {
-        let raw = (providerConfig.baseURL ?? providerConfig.type.defaultBaseURL ?? "https://api.openai.com/v1")
+        let raw = (providerConfig.baseURL ?? ProviderType.together.defaultBaseURL ?? "https://api.together.xyz/v1")
             .trimmingCharacters(in: .whitespacesAndNewlines)
-        let trimmed = normalizedCloudflareGatewayBaseURL(from: raw.hasSuffix("/") ? String(raw.dropLast()) : raw)
+        let trimmed = raw.hasSuffix("/") ? String(raw.dropLast()) : raw
         let lower = trimmed.lowercased()
 
-        if lower.hasSuffix("/api/v1") || lower.hasSuffix("/v1") {
+        if lower.hasSuffix("/v1") {
             return trimmed
-        }
-
-        if lower.hasSuffix("/api") {
-            return "\(trimmed)/v1"
         }
 
         if let url = URL(string: trimmed), url.path.isEmpty || url.path == "/" {
@@ -97,18 +101,6 @@ actor OpenAICompatibleAdapter: LLMProviderAdapter {
         }
 
         return trimmed
-    }
-
-    private func normalizedCloudflareGatewayBaseURL(from value: String) -> String {
-        guard providerConfig.type == .cloudflareAIGateway else { return value }
-
-        let lower = value.lowercased()
-        if lower.hasSuffix("/{provider}") {
-            let prefix = value.dropLast("/{provider}".count)
-            return "\(prefix)/compat"
-        }
-
-        return value
     }
 
     private func buildRequest(
@@ -123,7 +115,6 @@ actor OpenAICompatibleAdapter: LLMProviderAdapter {
         request.addValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
         request.addValue("application/json", forHTTPHeaderField: "Content-Type")
         request.addValue("application/json", forHTTPHeaderField: "Accept")
-        applyCloudflareGatewayCacheHeaders(to: &request, controls: controls)
 
         var body: [String: Any] = [
             "model": modelID,
@@ -131,27 +122,17 @@ actor OpenAICompatibleAdapter: LLMProviderAdapter {
             "stream": streaming
         ]
 
-        let requestShape = ModelCapabilityRegistry.requestShape(for: providerConfig.type, modelID: modelID)
-        let shouldOmitSamplingControls = OpenAICompatibleReasoningSupport.applyReasoning(
-            to: &body,
-            controls: controls,
-            providerConfig: providerConfig,
-            modelID: modelID,
-            requestShape: requestShape
-        )
-
-        if !shouldOmitSamplingControls {
-            if let temperature = controls.temperature {
-                body["temperature"] = temperature
-            }
-            if let topP = controls.topP {
-                body["top_p"] = topP
-            }
+        if let temperature = controls.temperature {
+            body["temperature"] = temperature
         }
-
+        if let topP = controls.topP {
+            body["top_p"] = topP
+        }
         if let maxTokens = controls.maxTokens {
             body["max_tokens"] = maxTokens
         }
+
+        applyReasoning(to: &body, controls: controls, modelID: modelID)
 
         if !tools.isEmpty, let functionTools = translateTools(tools) as? [[String: Any]] {
             body["tools"] = functionTools
@@ -165,27 +146,43 @@ actor OpenAICompatibleAdapter: LLMProviderAdapter {
         return request
     }
 
-    private func applyCloudflareGatewayCacheHeaders(to request: inout URLRequest, controls: GenerationControls) {
-        guard providerConfig.type == .cloudflareAIGateway else { return }
+    private func applyReasoning(to body: inout [String: Any], controls: GenerationControls, modelID: String) {
+        guard modelSupportsReasoning(providerConfig: providerConfig, modelID: modelID) else { return }
+        guard let reasoning = controls.reasoning else { return }
 
-        if controls.contextCache?.mode == .off {
-            request.setValue("true", forHTTPHeaderField: "cf-aig-skip-cache")
-            return
+        switch resolvedReasoningType(for: modelID) {
+        case .toggle:
+            body["reasoning"] = ["enabled": reasoning.enabled]
+
+        case .effort:
+            guard reasoning.enabled else { return }
+            let effort = reasoning.effort ?? .medium
+            switch effort {
+            case .none, .minimal, .low:
+                body["reasoning_effort"] = "low"
+            case .medium:
+                body["reasoning_effort"] = "medium"
+            case .high, .xhigh:
+                body["reasoning_effort"] = "high"
+            }
+
+        case .budget, .none, .noneSet:
+            break
         }
-
-        let ttlSeconds = cloudflareGatewayCacheTTLSeconds(from: controls.contextCache?.ttl)
-        request.setValue(String(ttlSeconds), forHTTPHeaderField: "cf-aig-cache-ttl")
     }
 
-    private func cloudflareGatewayCacheTTLSeconds(from ttl: ContextCacheTTL?) -> Int {
-        switch ttl {
-        case .hour1:
-            return 3_600
-        case .customSeconds(let seconds):
-            return max(1, seconds)
-        case .providerDefault, .minutes5, .none:
-            return 300
+    private func resolvedReasoningType(for modelID: String) -> TogetherReasoningType {
+        if let configuredModel = findConfiguredModel(in: providerConfig, for: modelID) {
+            let resolved = ModelSettingsResolver.resolve(model: configuredModel, providerType: providerConfig.type)
+            guard let reasoningType = resolved.reasoningConfig?.type else { return .noneSet }
+            return TogetherReasoningType(reasoningType)
         }
+
+        if let catalogType = ModelCatalog.entry(for: modelID, provider: .together)?.reasoningConfig?.type {
+            return TogetherReasoningType(catalogType)
+        }
+
+        return .noneSet
     }
 
     private func translateMessages(_ messages: [Message]) -> [[String: Any]] {
@@ -193,12 +190,7 @@ actor OpenAICompatibleAdapter: LLMProviderAdapter {
     }
 
     private func translateNonToolMessage(_ message: Message) -> [String: Any] {
-        let split = splitContentParts(
-            message.content,
-            separator: "\n",
-            includeImages: true,
-            includeAudio: true
-        )
+        let split = splitContentParts(message.content, separator: "\n", includeImages: true, includeAudio: true)
 
         var dict: [String: Any] = [
             "role": message.role.rawValue
@@ -211,11 +203,7 @@ actor OpenAICompatibleAdapter: LLMProviderAdapter {
         case .assistant:
             dict["content"] = split.visible
             if let thinking = split.thinkingOrNil {
-                if providerConfig.type == .zhipuCodingPlan {
-                    dict["reasoning_content"] = thinking
-                } else {
-                    dict["reasoning"] = thinking
-                }
+                dict["reasoning"] = thinking
             }
 
             if let toolCalls = message.toolCalls, !toolCalls.isEmpty {
@@ -224,10 +212,7 @@ actor OpenAICompatibleAdapter: LLMProviderAdapter {
 
         case .user:
             if split.hasRichUserContent {
-                dict["content"] = translateUserContentPartsToOpenAIFormat(
-                    message.content,
-                    audioPartBuilder: mistralAudioPartBuilder
-                )
+                dict["content"] = translateUserContentPartsToOpenAIFormat(message.content)
             } else {
                 dict["content"] = split.visible
             }
@@ -239,23 +224,44 @@ actor OpenAICompatibleAdapter: LLMProviderAdapter {
         return dict
     }
 
-    /// Mistral Voxtral expects a raw base64 string for `input_audio`, not the standard OpenAI format.
-    private func mistralAudioPartBuilder(_ audio: AudioContent) -> [String: Any]? {
-        if providerConfig.type == .mistral {
-            guard let payloadData = resolveAudioData(audio) else { return nil }
-            return [
-                "type": "input_audio",
-                "input_audio": payloadData.base64EncodedString()
-            ]
+    private func makeModelInfo(from model: TogetherModelInfo) -> ModelInfo {
+        makeModelInfo(id: model.id, displayName: model.displayName)
+    }
+
+    private func makeModelInfo(id: String, displayName: String?) -> ModelInfo {
+        ModelCatalog.modelInfo(for: id, provider: .together, name: displayName ?? id)
+    }
+}
+
+private struct TogetherModelInfo: Decodable {
+    let id: String
+    let type: String?
+    let displayName: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case type
+        case displayName = "display_name"
+    }
+}
+
+private enum TogetherReasoningType {
+    case toggle
+    case effort
+    case budget
+    case none
+    case noneSet
+
+    init(_ raw: ReasoningConfigType) {
+        switch raw {
+        case .toggle:
+            self = .toggle
+        case .effort:
+            self = .effort
+        case .budget:
+            self = .budget
+        case .none:
+            self = .none
         }
-        return openAIInputAudioPart(audio)
-    }
-
-    private func makeModelInfo(id: String) -> ModelInfo {
-        ModelCatalog.modelInfo(for: id, provider: providerConfig.type, name: id)
-    }
-
-    private func isMistralTranscriptionOnlyModelID(_ lowerModelID: String) -> Bool {
-        lowerModelID == "voxtral-mini-2602" || lowerModelID.contains("transcribe")
     }
 }

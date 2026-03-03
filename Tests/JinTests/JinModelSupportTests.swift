@@ -43,6 +43,21 @@ final class JinModelSupportTests: XCTestCase {
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .fireworks, modelID: "accounts/fireworks/models/minimax-m2p5"))
     }
 
+    func testZhipuCodingPlanUsesExactMatchForFullySupportedTag() {
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .zhipuCodingPlan, modelID: "glm-5"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .zhipuCodingPlan, modelID: "glm-4.7"))
+        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .zhipuCodingPlan, modelID: "glm-4.7-custom"))
+    }
+
+    func testTogetherLatestFiveModelsAreMarkedAsFullySupported() {
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .together, modelID: "Qwen/Qwen3.5-397B-A17B"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .together, modelID: "MiniMaxAI/MiniMax-M2.5"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .together, modelID: "zai-org/GLM-5"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .together, modelID: "Qwen/Qwen3-Coder-Next-FP8"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .together, modelID: "moonshotai/Kimi-K2.5"))
+        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .together, modelID: "moonshotai/Kimi-K2.5-custom"))
+    }
+
     func testOpenRouterGoogleGeminiPreviewIsMarkedAsFullySupported() {
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .openrouter, modelID: "google/gemini-3-pro-preview"))
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .openrouter, modelID: "google/gemini-3.1-pro-preview"))
