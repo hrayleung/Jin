@@ -511,3 +511,31 @@ func sendOpenAICompatibleMessage(
         reasoningField: reasoningField
     )
 }
+
+// MARK: - Deep Merge
+
+func deepMergeDictionary(into base: inout [String: Any], additional: [String: Any]) {
+    for (key, value) in additional {
+        if var baseDict = base[key] as? [String: Any],
+           let addDict = value as? [String: Any] {
+            deepMergeDictionary(into: &baseDict, additional: addDict)
+            base[key] = baseDict
+            continue
+        }
+        base[key] = value
+    }
+}
+
+// MARK: - Unsupported Video Input Notice
+
+func unsupportedVideoInputNotice(_ video: VideoContent, providerName: String, apiName: String = "chat API") -> String {
+    let detail: String
+    if let url = video.url {
+        detail = url.isFileURL ? url.lastPathComponent : url.absoluteString
+    } else if let data = video.data {
+        detail = "\(data.count) bytes"
+    } else {
+        detail = "no media payload"
+    }
+    return "Video attachment omitted (\(video.mimeType), \(detail)): \(providerName) \(apiName) does not support native video input in Jin yet."
+}
