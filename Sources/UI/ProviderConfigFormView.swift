@@ -15,6 +15,9 @@ struct ProviderConfigFormView: View {
     @State private var codexPendingLoginID: String?
     @State private var codexAuthTask: Task<Void, Never>?
     @State private var codexServerLaunchError: String?
+    @State private var codexWorkingDirectoryPresets: [CodexWorkingDirectoryPreset] = []
+    @State private var codexWorkingDirectoryPresetsDraft: [CodexWorkingDirectoryPreset] = []
+    @State private var showingCodexWorkingDirectoryPresetsSheet = false
     @State private var showingAPIKey = false
     @State private var hasLoadedCredentials = false
     @State private var credentialSaveError: String?
@@ -108,6 +111,7 @@ struct ProviderConfigFormView: View {
                 case .codexAppServer:
                     codexServerSection
                     codexAuthSection
+                    codexWorkingDirectoryPresetsSection
                 case .openai, .openaiWebSocket, .openaiCompatible, .cloudflareAIGateway, .openrouter,
                      .anthropic, .perplexity, .groq, .cohere, .mistral, .deepinfra, .together, .xai,
                      .deepseek, .zhipuCodingPlan, .fireworks, .cerebras, .sambanova, .gemini:
@@ -135,7 +139,7 @@ struct ProviderConfigFormView: View {
                 }
 
                 if providerType == .codexAppServer {
-                    Text("You can start/stop `codex app-server` here. Choose one auth mode only: API Key, ChatGPT Account, or Local Codex Auth file.")
+                    Text("You can start/stop `codex app-server` here. Choose one auth mode only: API Key, ChatGPT Account, or Local Codex Auth file. Recommended stable runtime: `codex` 0.107.0+.")
                         .jinInfoCallout()
                 }
 
@@ -328,6 +332,11 @@ struct ProviderConfigFormView: View {
         .task {
             await loadCredentials()
             await MainActor.run {
+                if providerType == .codexAppServer {
+                    loadCodexWorkingDirectoryPresets()
+                } else {
+                    codexWorkingDirectoryPresets = []
+                }
                 hasLoadedCredentials = true
             }
             if providerType == .openrouter {
@@ -361,6 +370,17 @@ struct ProviderConfigFormView: View {
             credentialSaveTask?.cancel()
             openRouterUsageTask?.cancel()
             codexAuthTask?.cancel()
+        }
+        .sheet(isPresented: $showingCodexWorkingDirectoryPresetsSheet) {
+            CodexWorkingDirectoryPresetsManagerSheetView(
+                presets: $codexWorkingDirectoryPresetsDraft,
+                onCancel: { showingCodexWorkingDirectoryPresetsSheet = false },
+                onSave: {
+                    codexWorkingDirectoryPresets = codexWorkingDirectoryPresetsDraft
+                    persistCodexWorkingDirectoryPresets()
+                    showingCodexWorkingDirectoryPresetsSheet = false
+                }
+            )
         }
         .sheet(isPresented: $showingAddModel) {
                 AddModelSheet(
@@ -657,6 +677,55 @@ struct ProviderConfigFormView: View {
                 codexLocalAuthSection
             }
         }
+    }
+
+    private var codexWorkingDirectoryPresetsSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: JinSpacing.small) {
+                Label("Working Directory Presets", systemImage: "folder.badge.gearshape")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Spacer(minLength: 0)
+                Button("Manage…") {
+                    codexWorkingDirectoryPresetsDraft = codexWorkingDirectoryPresets
+                    showingCodexWorkingDirectoryPresetsSheet = true
+                }
+                .buttonStyle(.borderless)
+            }
+
+            Text("Save named folders and pick them quickly from the chat cwd control.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            if codexWorkingDirectoryPresets.isEmpty {
+                Text("No presets configured.")
+                    .jinInfoCallout()
+            } else {
+                VStack(alignment: .leading, spacing: JinSpacing.small) {
+                    Text("\(codexWorkingDirectoryPresets.count) preset(s) available in chat.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: JinSpacing.xSmall) {
+                            ForEach(codexWorkingDirectoryPresets.prefix(4)) { preset in
+                                Text(preset.name)
+                                    .font(.caption.weight(.medium))
+                                    .padding(.horizontal, JinSpacing.small)
+                                    .padding(.vertical, 4)
+                                    .jinSurface(.outlined, cornerRadius: JinRadius.small)
+                            }
+                            if codexWorkingDirectoryPresets.count > 4 {
+                                Text("+\(codexWorkingDirectoryPresets.count - 4) more")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        .padding(.vertical, 4)
     }
 
     private var codexLocalAuthSection: some View {
@@ -1003,6 +1072,7 @@ struct ProviderConfigFormView: View {
                 contextWindow: model.contextWindow,
                 reasoningConfig: model.reasoningConfig,
                 overrides: model.overrides,
+                catalogMetadata: model.catalogMetadata,
                 isEnabled: enabled
             )
         }
@@ -1036,6 +1106,15 @@ struct ProviderConfigFormView: View {
         updatedModels.remove(at: index)
         setModels(updatedModels)
         modelPendingDeletion = nil
+    }
+
+    private func loadCodexWorkingDirectoryPresets() {
+        codexWorkingDirectoryPresets = CodexWorkingDirectoryPresetsStore.load()
+    }
+
+    private func persistCodexWorkingDirectoryPresets() {
+        CodexWorkingDirectoryPresetsStore.save(codexWorkingDirectoryPresets)
+        codexWorkingDirectoryPresets = CodexWorkingDirectoryPresetsStore.load()
     }
 
     // MARK: - Actions

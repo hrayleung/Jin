@@ -62,7 +62,7 @@ struct AddProviderView: View {
                 }
 
                 if providerType == .codexAppServer {
-                    Text("Codex App Server expects a running `codex app-server --listen ws://127.0.0.1:4500` process.")
+                    Text("Codex App Server expects a running `codex app-server --listen ws://127.0.0.1:4500` process. Recommended stable runtime: `codex` 0.107.0+.")
                         .jinInfoCallout()
                 }
 
