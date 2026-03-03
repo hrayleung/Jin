@@ -398,9 +398,10 @@ final class XAIAdapterMediaTests: XCTestCase {
 
             XCTAssertEqual(root["model"] as? String, "grok-imagine-image")
             XCTAssertEqual(root["prompt"] as? String, "Make this dreamy")
-            XCTAssertEqual(root["aspect_ratio"] as? String, "16:9")
+            XCTAssertNil(root["aspect_ratio"])
             XCTAssertEqual(root["response_format"] as? String, "b64_json")
-            XCTAssertNotNil(root["image_url"] as? String)
+            let image = try XCTUnwrap(root["image"] as? [String: Any])
+            XCTAssertNotNil(image["url"] as? String)
 
             let expected = Data([0x89, 0x50, 0x4e, 0x47])
 
@@ -482,7 +483,8 @@ final class XAIAdapterMediaTests: XCTestCase {
             XCTAssertTrue(prompt.contains("japan style"))
             XCTAssertEqual(root["response_format"] as? String, "b64_json")
 
-            let imageURL = try XCTUnwrap(root["image_url"] as? String)
+            let image = try XCTUnwrap(root["image"] as? [String: Any])
+            let imageURL = try XCTUnwrap(image["url"] as? String)
             XCTAssertTrue(imageURL.hasPrefix("data:image/png;base64,"))
             XCTAssertTrue(imageURL.contains(priorImage.base64EncodedString()))
 
@@ -563,7 +565,8 @@ final class XAIAdapterMediaTests: XCTestCase {
             XCTAssertTrue(prompt.contains("Apply this new edit now:"))
             XCTAssertTrue(prompt.contains("more realistic"))
 
-            let imageURL = try XCTUnwrap(root["image_url"] as? String)
+            let image = try XCTUnwrap(root["image"] as? [String: Any])
+            let imageURL = try XCTUnwrap(image["url"] as? String)
             XCTAssertTrue(imageURL.hasPrefix("data:image/png;base64,"))
             XCTAssertTrue(imageURL.contains(priorEditedImage.base64EncodedString()))
 
@@ -641,7 +644,8 @@ final class XAIAdapterMediaTests: XCTestCase {
             let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
             let root = try XCTUnwrap(json)
 
-            let imageURL = try XCTUnwrap(root["image_url"] as? String)
+            let image = try XCTUnwrap(root["image"] as? [String: Any])
+            let imageURL = try XCTUnwrap(image["url"] as? String)
             XCTAssertTrue(imageURL.hasPrefix("data:image/png;base64,"))
             XCTAssertTrue(imageURL.contains(assistantEdit.base64EncodedString()))
             XCTAssertFalse(imageURL.contains(originalUpload.base64EncodedString()))
