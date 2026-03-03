@@ -33,7 +33,6 @@ struct ChatSettingsView: View {
                         Text(mode.label).tag(mode)
                     }
                 }
-
             }
 
             Section("Codex Tool Activities") {
@@ -42,7 +41,6 @@ struct ChatSettingsView: View {
                         Text(mode.label).tag(mode)
                     }
                 }
-
             }
 
             Section("Notifications") {

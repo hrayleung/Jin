@@ -62,7 +62,7 @@ struct CodexWorkingDirectorySheetView: View {
                     Text("Working Directory")
                         .font(.headline)
 
-                    TextField("e.g. ~/projects/my-repo", text: $draft)
+                    TextField(text: $draft, prompt: Text("e.g. ~/projects/my-repo")) { EmptyView() }
                         .textFieldStyle(.roundedBorder)
                         .font(.system(.body, design: .monospaced))
 

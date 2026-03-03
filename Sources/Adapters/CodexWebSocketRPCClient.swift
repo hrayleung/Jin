@@ -62,11 +62,13 @@ actor CodexWebSocketRPCClient {
                         }
                     case .failed(let error):
                         timeout.cancel()
+                        Task { await self.clearConnectionIfCurrent(connection) }
                         gate.resumeOnce {
                             continuation.resume(throwing: LLMError.networkError(underlying: error))
                         }
                     case .cancelled:
                         timeout.cancel()
+                        Task { await self.clearConnectionIfCurrent(connection) }
                         gate.resumeOnce {
                             continuation.resume(
                                 throwing: LLMError.networkError(
@@ -88,6 +90,12 @@ actor CodexWebSocketRPCClient {
             connection.cancel()
             self.connection = nil
             throw error
+        }
+    }
+
+    private func clearConnectionIfCurrent(_ candidate: NWConnection) {
+        if let current = connection, current === candidate {
+            connection = nil
         }
     }
 

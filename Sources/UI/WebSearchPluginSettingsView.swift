@@ -21,6 +21,12 @@ struct WebSearchPluginSettingsView: View {
     @AppStorage(AppPreferenceKeys.pluginWebSearchTavilySearchDepth) private var tavilySearchDepth = "basic"
     @AppStorage(AppPreferenceKeys.pluginWebSearchTavilyTopic) private var tavilyTopic = "general"
 
+    @State private var isExaKeyVisible = false
+    @State private var isBraveKeyVisible = false
+    @State private var isJinaKeyVisible = false
+    @State private var isFirecrawlKeyVisible = false
+    @State private var isTavilyKeyVisible = false
+
     private let recencyChoices: [(label: String, value: Int)] = [
         ("Any time", 0),
         ("Past day", 1),
@@ -119,17 +125,36 @@ struct WebSearchPluginSettingsView: View {
 
     private var apiKeysSection: some View {
         Section("API Keys") {
-            SecureField("Exa API Key", text: $exaAPIKey)
-                .textContentType(.password)
-            SecureField("Brave API Key", text: $braveAPIKey)
-                .textContentType(.password)
-            SecureField("Jina API Key", text: $jinaAPIKey)
-                .textContentType(.password)
-            SecureField("Firecrawl API Key", text: $firecrawlAPIKey)
-                .textContentType(.password)
-            SecureField("Tavily API Key", text: $tavilyAPIKey)
-                .textContentType(.password)
+            apiKeyRow(label: "Exa API Key", text: $exaAPIKey, isVisible: $isExaKeyVisible)
+            apiKeyRow(label: "Brave API Key", text: $braveAPIKey, isVisible: $isBraveKeyVisible)
+            apiKeyRow(label: "Jina API Key", text: $jinaAPIKey, isVisible: $isJinaKeyVisible)
+            apiKeyRow(label: "Firecrawl API Key", text: $firecrawlAPIKey, isVisible: $isFirecrawlKeyVisible)
+            apiKeyRow(label: "Tavily API Key", text: $tavilyAPIKey, isVisible: $isTavilyKeyVisible)
 
+        }
+    }
+
+    private func apiKeyRow(label: String, text: Binding<String>, isVisible: Binding<Bool>) -> some View {
+        HStack(spacing: 8) {
+            Group {
+                if isVisible.wrappedValue {
+                    TextField(label, text: text)
+                        .textContentType(.password)
+                } else {
+                    SecureField(label, text: text)
+                        .textContentType(.password)
+                }
+            }
+            Button {
+                isVisible.wrappedValue.toggle()
+            } label: {
+                Image(systemName: isVisible.wrappedValue ? "eye.slash" : "eye")
+                    .foregroundStyle(.secondary)
+                    .frame(width: 22, height: 22)
+            }
+            .buttonStyle(.plain)
+            .help(isVisible.wrappedValue ? "Hide API key" : "Show API key")
+            .disabled(text.wrappedValue.isEmpty)
         }
     }
 

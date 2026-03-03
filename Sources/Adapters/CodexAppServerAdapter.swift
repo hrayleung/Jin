@@ -1444,7 +1444,12 @@ actor CodexAppServerAdapter: LLMProviderAdapter {
                 ?? params.string(at: ["turn", "id"])
                 ?? fallbackTurnID
         ) ?? "unknown_turn"
-        return "codex_tool_\(turnID)_\(toolName.lowercased())"
+
+        var fallbackID = "codex_tool_\(turnID)_\(toolName.lowercased())"
+        if let suffix = toolActivityFallbackSuffix(from: item, params: params) {
+            fallbackID += "_\(suffix)"
+        }
+        return fallbackID
     }
 
     private nonisolated static func codexToolActivityStatus(
@@ -1614,15 +1619,41 @@ actor CodexAppServerAdapter: LLMProviderAdapter {
     }
 
     private nonisolated static func isLikelyWebSearchTool(named rawName: String) -> Bool {
-        let name = rawName.lowercased()
-        if name.contains("web_search")
-            || name.contains("websearch")
-            || name.contains("search_web")
-            || name.contains("browser.search")
-            || name.contains("browser_search") {
+        let normalized = rawName
+            .lowercased()
+            .replacingOccurrences(of: "-", with: "_")
+        let canonical = normalized.replacingOccurrences(of: ".", with: "_")
+
+        let knownNames: Set<String> = [
+            "web_search",
+            "websearch",
+            "search_web",
+            "browser.search",
+            "browser_search"
+        ]
+        if knownNames.contains(normalized) || knownNames.contains(canonical) {
             return true
         }
-        return name.contains("search") || name.contains("browse")
+
+        let tokens = Set(
+            canonical
+                .split(whereSeparator: { !$0.isLetter && !$0.isNumber })
+                .map(String.init)
+        )
+
+        if tokens.contains("websearch") {
+            return true
+        }
+        if tokens.contains("browser") && (tokens.contains("search") || tokens.contains("browse")) {
+            return true
+        }
+        if tokens.contains("web") && (tokens.contains("search") || tokens.contains("browse")) {
+            return true
+        }
+        if tokens.contains("search") && tokens.contains("engine") {
+            return true
+        }
+        return false
     }
 
     private nonisolated static func dynamicToolCallID(
@@ -1645,7 +1676,31 @@ actor CodexAppServerAdapter: LLMProviderAdapter {
                 ?? params.string(at: ["turn", "id"])
                 ?? fallbackTurnID
         ) ?? "unknown_turn"
-        return "codex_dynamic_search_\(turnID)_\(toolName.lowercased())"
+
+        var fallbackID = "codex_dynamic_search_\(turnID)_\(toolName.lowercased())"
+        if let suffix = toolActivityFallbackSuffix(from: item, params: params) {
+            fallbackID += "_\(suffix)"
+        }
+        return fallbackID
+    }
+
+    private nonisolated static func toolActivityFallbackSuffix(
+        from item: [String: JSONValue],
+        params: [String: JSONValue]
+    ) -> String? {
+        if let sequence = item.int(at: ["sequenceNumber"]) ?? params.int(at: ["sequenceNumber"]) {
+            return "seq\(sequence)"
+        }
+        if let outputIndex = item.int(at: ["outputIndex"]) ?? params.int(at: ["outputIndex"]) {
+            return "out\(outputIndex)"
+        }
+        if let callIndex = item.int(at: ["callIndex"])
+            ?? params.int(at: ["callIndex"])
+            ?? item.int(at: ["index"])
+            ?? params.int(at: ["index"]) {
+            return "idx\(callIndex)"
+        }
+        return nil
     }
 
     private nonisolated static func dynamicToolCallSearchStatus(

@@ -1156,7 +1156,9 @@ struct ChatView: View {
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: .codexWorkingDirectoryPresetsDidChange)) { _ in
-            codexWorkingDirectoryPresets = CodexWorkingDirectoryPresetsStore.load()
+            Task { @MainActor in
+                codexWorkingDirectoryPresets = CodexWorkingDirectoryPresetsStore.load()
+            }
         }
         .focusedSceneValue(
             \.chatActions,
@@ -5070,6 +5072,7 @@ struct ChatView: View {
     private func menuItemLabel(_ title: String, isSelected: Bool) -> some View {
         HStack {
             Text(title)
+                .fixedSize()
             if isSelected {
                 Spacer()
                 Image(systemName: "checkmark")
@@ -5578,7 +5581,7 @@ struct ChatView: View {
 
         Menu("Duration") {
             Button { updateXAIVideoGeneration { $0.duration = nil } } label: {
-                menuItemLabel("Default", isSelected: controls.xaiVideoGeneration?.duration == nil)
+                menuItemLabel("Default (8s)", isSelected: controls.xaiVideoGeneration?.duration == nil)
             }
             ForEach([3, 5, 8, 10, 15], id: \.self) { seconds in
                 Button { updateXAIVideoGeneration { $0.duration = seconds } } label: {

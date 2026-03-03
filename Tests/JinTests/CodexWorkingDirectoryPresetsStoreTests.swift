@@ -43,7 +43,8 @@ final class CodexWorkingDirectoryPresetsStoreTests: XCTestCase {
             CodexWorkingDirectoryPreset(name: "   ", path: "/tmp/fallback")
         ])
 
-        defaults.set(String(decoding: encoded, as: UTF8.self), forKey: AppPreferenceKeys.codexWorkingDirectoryPresetsJSON)
+        let raw = try XCTUnwrap(String(data: encoded, encoding: .utf8))
+        defaults.set(raw, forKey: AppPreferenceKeys.codexWorkingDirectoryPresetsJSON)
         let loaded = CodexWorkingDirectoryPresetsStore.load(defaults: defaults)
 
         XCTAssertEqual(loaded.count, 2)

@@ -2,6 +2,7 @@ import SwiftUI
 
 struct DeepSeekOCRPluginSettingsView: View {
     @State private var apiKey = ""
+    @State private var isKeyVisible = false
     @State private var isTesting = false
     @State private var statusMessage: String?
     @State private var statusIsError = false
@@ -16,8 +17,27 @@ struct DeepSeekOCRPluginSettingsView: View {
     var body: some View {
         Form {
             Section("API Key") {
-                SecureField("API Key", text: $apiKey)
-                    .textContentType(.password)
+                HStack(spacing: 8) {
+                    Group {
+                        if isKeyVisible {
+                            TextField("API Key", text: $apiKey)
+                                .textContentType(.password)
+                        } else {
+                            SecureField("API Key", text: $apiKey)
+                                .textContentType(.password)
+                        }
+                    }
+                    Button {
+                        isKeyVisible.toggle()
+                    } label: {
+                        Image(systemName: isKeyVisible ? "eye.slash" : "eye")
+                            .foregroundStyle(.secondary)
+                            .frame(width: 22, height: 22)
+                    }
+                    .buttonStyle(.plain)
+                    .help(isKeyVisible ? "Hide API key" : "Show API key")
+                    .disabled(apiKey.isEmpty)
+                }
 
                 HStack(spacing: 12) {
                     Button("Test Connection") { testConnection() }

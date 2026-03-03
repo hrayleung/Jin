@@ -19,7 +19,7 @@ final class CodexAppServerAdapterStreamingCompatibilityTests: XCTestCase {
             ]
         ]
 
-        let item = try makeJSONObject(payload)
+        let item = try TestJSONHelpers.makeJSONObject(payload)
         XCTAssertEqual(CodexAppServerAdapter.parseAgentMessageText(from: item), "Hello world")
     }
 
@@ -61,7 +61,7 @@ final class CodexAppServerAdapterStreamingCompatibilityTests: XCTestCase {
             "turnId": "turn-1"
         ]
 
-        let params = try makeJSONObject(payload)
+        let params = try TestJSONHelpers.makeJSONObject(payload)
         let item = try XCTUnwrap(params.object(at: ["item"]))
         let activity = try XCTUnwrap(
             CodexAppServerAdapter.searchActivityFromDynamicToolCall(
@@ -103,7 +103,7 @@ final class CodexAppServerAdapterStreamingCompatibilityTests: XCTestCase {
             "turnId": "turn-2"
         ]
 
-        let params = try makeJSONObject(payload)
+        let params = try TestJSONHelpers.makeJSONObject(payload)
         let item = try XCTUnwrap(params.object(at: ["item"]))
         let activity = try XCTUnwrap(
             CodexAppServerAdapter.searchActivityFromDynamicToolCall(
@@ -137,7 +137,7 @@ final class CodexAppServerAdapterStreamingCompatibilityTests: XCTestCase {
             "turnId": "turn-3"
         ]
 
-        let params = try makeJSONObject(payload)
+        let params = try TestJSONHelpers.makeJSONObject(payload)
         let item = try XCTUnwrap(params.object(at: ["item"]))
         let activity = CodexAppServerAdapter.searchActivityFromDynamicToolCall(
             item: item,
@@ -163,7 +163,7 @@ final class CodexAppServerAdapterStreamingCompatibilityTests: XCTestCase {
             "turnId": "turn-4"
         ]
 
-        let params = try makeJSONObject(payload)
+        let params = try TestJSONHelpers.makeJSONObject(payload)
         let item = try XCTUnwrap(params.object(at: ["item"]))
         let activity = try XCTUnwrap(
             CodexAppServerAdapter.searchActivityFromDynamicToolCall(
@@ -178,6 +178,33 @@ final class CodexAppServerAdapterStreamingCompatibilityTests: XCTestCase {
         XCTAssertEqual(activity.arguments["query"]?.value as? String, "swift codex app server")
     }
 
+    func testSearchActivityFromDynamicToolCallFallbackIDIncludesSequenceSuffix() throws {
+        let payload: [String: Any] = [
+            "item": [
+                "type": "dynamicToolCall",
+                "name": "web_search",
+                "sequenceNumber": 3,
+                "arguments": [
+                    "query": "jin release notes"
+                ]
+            ],
+            "turnId": "turn-seq"
+        ]
+
+        let params = try TestJSONHelpers.makeJSONObject(payload)
+        let item = try XCTUnwrap(params.object(at: ["item"]))
+        let activity = try XCTUnwrap(
+            CodexAppServerAdapter.searchActivityFromDynamicToolCall(
+                item: item,
+                method: "item/updated",
+                params: params,
+                fallbackTurnID: nil
+            )
+        )
+
+        XCTAssertEqual(activity.id, "codex_dynamic_search_turn-seq_web_search_seq3")
+    }
+
     func testSearchActivityFromCodexItemParsesWebSearchThreadItemLifecycle() throws {
         let itemPayload: [String: Any] = [
             "id": "ws-1",
@@ -188,7 +215,7 @@ final class CodexAppServerAdapterStreamingCompatibilityTests: XCTestCase {
                 "queries": ["us news", "us headlines"]
             ]
         ]
-        let params = try makeJSONObject([
+        let params = try TestJSONHelpers.makeJSONObject([
             "item": itemPayload,
             "turnId": "turn-5"
         ])
@@ -216,13 +243,5 @@ final class CodexAppServerAdapterStreamingCompatibilityTests: XCTestCase {
         )
         XCTAssertEqual(completed.id, "ws-1")
         XCTAssertEqual(completed.status, .completed)
-    }
-
-    private func makeJSONObject(_ payload: [String: Any]) throws -> [String: JSONValue] {
-        guard case .object(let object) = try JSONValue(any: payload) else {
-            XCTFail("Expected object payload")
-            return [:]
-        }
-        return object
     }
 }

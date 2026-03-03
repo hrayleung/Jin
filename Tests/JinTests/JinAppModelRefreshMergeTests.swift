@@ -48,6 +48,7 @@ final class JinAppModelRefreshMergeTests: XCTestCase {
         XCTAssertEqual(model.overrides?.contextWindow, 64_000)
         XCTAssertEqual(model.catalogMetadata?.upgradeTargetModelID, "gpt-4.2")
         XCTAssertEqual(model.catalogMetadata?.availabilityMessage, "Limited runs")
+        XCTAssertEqual(model.catalogMetadata?.upgradeMessage, "Upgrade available")
     }
 
     func testMergeRefreshedModelsDeduplicatesLatestProviderPayload() {

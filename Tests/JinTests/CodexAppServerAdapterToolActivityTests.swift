@@ -19,7 +19,7 @@ final class CodexAppServerAdapterToolActivityTests: XCTestCase {
             "turnId": "turn-1"
         ]
 
-        let params = try makeJSONObject(payload)
+        let params = try TestJSONHelpers.makeJSONObject(payload)
         let item = try XCTUnwrap(params.object(at: ["item"]))
         let activity = try XCTUnwrap(
             CodexAppServerAdapter.codexToolActivityFromDynamicToolCall(
@@ -50,7 +50,7 @@ final class CodexAppServerAdapterToolActivityTests: XCTestCase {
             "turnId": "turn-2"
         ]
 
-        let params = try makeJSONObject(payload)
+        let params = try TestJSONHelpers.makeJSONObject(payload)
         let item = try XCTUnwrap(params.object(at: ["item"]))
         let activity = try XCTUnwrap(
             CodexAppServerAdapter.codexToolActivityFromDynamicToolCall(
@@ -82,7 +82,7 @@ final class CodexAppServerAdapterToolActivityTests: XCTestCase {
             "turnId": "turn-3"
         ]
 
-        let params = try makeJSONObject(payload)
+        let params = try TestJSONHelpers.makeJSONObject(payload)
         let item = try XCTUnwrap(params.object(at: ["item"]))
         let activity = try XCTUnwrap(
             CodexAppServerAdapter.codexToolActivityFromDynamicToolCall(
@@ -115,7 +115,7 @@ final class CodexAppServerAdapterToolActivityTests: XCTestCase {
             "turnId": "turn-4"
         ]
 
-        let params = try makeJSONObject(payload)
+        let params = try TestJSONHelpers.makeJSONObject(payload)
         let item = try XCTUnwrap(params.object(at: ["item"]))
         let activity = CodexAppServerAdapter.codexToolActivityFromDynamicToolCall(
             item: item,
@@ -138,7 +138,7 @@ final class CodexAppServerAdapterToolActivityTests: XCTestCase {
             "turnId": "turn-5"
         ]
 
-        let params = try makeJSONObject(payload)
+        let params = try TestJSONHelpers.makeJSONObject(payload)
         let item = try XCTUnwrap(params.object(at: ["item"]))
         let activity = CodexAppServerAdapter.codexToolActivityFromDynamicToolCall(
             item: item,
@@ -148,6 +148,30 @@ final class CodexAppServerAdapterToolActivityTests: XCTestCase {
         )
 
         XCTAssertNil(activity, "Browser search tools should be excluded from codex tool activities")
+    }
+
+    func testCodexToolActivityDoesNotTreatResearchToolAsWebSearch() throws {
+        let payload: [String: Any] = [
+            "item": [
+                "id": "tool-rs-6",
+                "type": "dynamicToolCall",
+                "name": "research_notes",
+                "status": "completed"
+            ],
+            "turnId": "turn-6"
+        ]
+
+        let params = try TestJSONHelpers.makeJSONObject(payload)
+        let item = try XCTUnwrap(params.object(at: ["item"]))
+        let activity = CodexAppServerAdapter.codexToolActivityFromDynamicToolCall(
+            item: item,
+            method: "item/completed",
+            params: params,
+            fallbackTurnID: nil
+        )
+
+        XCTAssertNotNil(activity, "Non-web search tools should remain in codex tool activities")
+        XCTAssertEqual(activity?.toolName, "research_notes")
     }
 
     // MARK: - Status Derivation
@@ -162,7 +186,7 @@ final class CodexAppServerAdapterToolActivityTests: XCTestCase {
             "turnId": "turn-s1"
         ]
 
-        let params = try makeJSONObject(payload)
+        let params = try TestJSONHelpers.makeJSONObject(payload)
         let item = try XCTUnwrap(params.object(at: ["item"]))
         let activity = try XCTUnwrap(
             CodexAppServerAdapter.codexToolActivityFromDynamicToolCall(
@@ -186,7 +210,7 @@ final class CodexAppServerAdapterToolActivityTests: XCTestCase {
             "turnId": "turn-s2"
         ]
 
-        let params = try makeJSONObject(payload)
+        let params = try TestJSONHelpers.makeJSONObject(payload)
         let item = try XCTUnwrap(params.object(at: ["item"]))
         let activity = try XCTUnwrap(
             CodexAppServerAdapter.codexToolActivityFromDynamicToolCall(
@@ -210,7 +234,7 @@ final class CodexAppServerAdapterToolActivityTests: XCTestCase {
             "turnId": "turn-s3"
         ]
 
-        let params = try makeJSONObject(payload)
+        let params = try TestJSONHelpers.makeJSONObject(payload)
         let item = try XCTUnwrap(params.object(at: ["item"]))
         let activity = try XCTUnwrap(
             CodexAppServerAdapter.codexToolActivityFromDynamicToolCall(
@@ -237,7 +261,7 @@ final class CodexAppServerAdapterToolActivityTests: XCTestCase {
             "turnId": "turn-a1"
         ]
 
-        let params = try makeJSONObject(payload)
+        let params = try TestJSONHelpers.makeJSONObject(payload)
         let item = try XCTUnwrap(params.object(at: ["item"]))
         let activity = try XCTUnwrap(
             CodexAppServerAdapter.codexToolActivityFromDynamicToolCall(
@@ -265,7 +289,7 @@ final class CodexAppServerAdapterToolActivityTests: XCTestCase {
             "turnId": "turn-a2"
         ]
 
-        let params = try makeJSONObject(payload)
+        let params = try TestJSONHelpers.makeJSONObject(payload)
         let item = try XCTUnwrap(params.object(at: ["item"]))
         let activity = try XCTUnwrap(
             CodexAppServerAdapter.codexToolActivityFromDynamicToolCall(
@@ -288,7 +312,7 @@ final class CodexAppServerAdapterToolActivityTests: XCTestCase {
             "type": "webSearch",
             "query": "swift news"
         ]
-        let item = try makeJSONObject(payload)
+        let item = try TestJSONHelpers.makeJSONObject(payload)
 
         let activity = CodexAppServerAdapter.codexToolActivityFromCodexItem(
             item: item,
@@ -313,7 +337,7 @@ final class CodexAppServerAdapterToolActivityTests: XCTestCase {
             "turnId": "turn-d1"
         ]
 
-        let params = try makeJSONObject(payload)
+        let params = try TestJSONHelpers.makeJSONObject(payload)
         let item = try XCTUnwrap(params.object(at: ["item"]))
         let activity = try XCTUnwrap(
             CodexAppServerAdapter.codexToolActivityFromCodexItem(
@@ -339,7 +363,7 @@ final class CodexAppServerAdapterToolActivityTests: XCTestCase {
             "status": "inProgress"
         ]
 
-        let item = try makeJSONObject(payload)
+        let item = try TestJSONHelpers.makeJSONObject(payload)
         let activity = try XCTUnwrap(
             CodexAppServerAdapter.codexToolActivityFromCodexItem(
                 item: item,
@@ -366,7 +390,7 @@ final class CodexAppServerAdapterToolActivityTests: XCTestCase {
             "aggregatedOutput": "# Hello World"
         ]
 
-        let item = try makeJSONObject(payload)
+        let item = try TestJSONHelpers.makeJSONObject(payload)
         let activity = try XCTUnwrap(
             CodexAppServerAdapter.codexToolActivityFromCodexItem(
                 item: item,
@@ -398,7 +422,7 @@ final class CodexAppServerAdapterToolActivityTests: XCTestCase {
             "status": "inProgress"
         ]
 
-        let item = try makeJSONObject(payload)
+        let item = try TestJSONHelpers.makeJSONObject(payload)
         let activity = try XCTUnwrap(
             CodexAppServerAdapter.codexToolActivityFromCodexItem(
                 item: item,
@@ -432,7 +456,7 @@ final class CodexAppServerAdapterToolActivityTests: XCTestCase {
             ]
         ]
 
-        let item = try makeJSONObject(payload)
+        let item = try TestJSONHelpers.makeJSONObject(payload)
         let activity = try XCTUnwrap(
             CodexAppServerAdapter.codexToolActivityFromCodexItem(
                 item: item,
@@ -456,7 +480,7 @@ final class CodexAppServerAdapterToolActivityTests: XCTestCase {
             "message": ["content": [["type": "output_text", "text": "Hello"]]]
         ]
 
-        let item = try makeJSONObject(payload)
+        let item = try TestJSONHelpers.makeJSONObject(payload)
         let activity = CodexAppServerAdapter.codexToolActivityFromCodexItem(
             item: item,
             method: "item/started",
@@ -473,7 +497,7 @@ final class CodexAppServerAdapterToolActivityTests: XCTestCase {
             "type": "reasoning"
         ]
 
-        let item = try makeJSONObject(payload)
+        let item = try TestJSONHelpers.makeJSONObject(payload)
         let activity = CodexAppServerAdapter.codexToolActivityFromCodexItem(
             item: item,
             method: "item/started",
@@ -542,7 +566,7 @@ final class CodexAppServerAdapterToolActivityTests: XCTestCase {
             "turnId": "turn-id1"
         ]
 
-        let params = try makeJSONObject(payload)
+        let params = try TestJSONHelpers.makeJSONObject(payload)
         let item = try XCTUnwrap(params.object(at: ["item"]))
         let activity = try XCTUnwrap(
             CodexAppServerAdapter.codexToolActivityFromDynamicToolCall(
@@ -565,7 +589,7 @@ final class CodexAppServerAdapterToolActivityTests: XCTestCase {
             "turnId": "turn-42"
         ]
 
-        let params = try makeJSONObject(payload)
+        let params = try TestJSONHelpers.makeJSONObject(payload)
         let item = try XCTUnwrap(params.object(at: ["item"]))
         let activity = try XCTUnwrap(
             CodexAppServerAdapter.codexToolActivityFromDynamicToolCall(
@@ -579,13 +603,27 @@ final class CodexAppServerAdapterToolActivityTests: XCTestCase {
         XCTAssertEqual(activity.id, "codex_tool_turn-42_runcommand")
     }
 
-    // MARK: - Helpers
+    func testCodexToolActivityGeneratesFallbackIDWithSequenceSuffixWhenAvailable() throws {
+        let payload: [String: Any] = [
+            "item": [
+                "type": "dynamicToolCall",
+                "name": "RunCommand",
+                "sequenceNumber": 7
+            ],
+            "turnId": "turn-42"
+        ]
 
-    private func makeJSONObject(_ payload: [String: Any]) throws -> [String: JSONValue] {
-        guard case .object(let object) = try JSONValue(any: payload) else {
-            XCTFail("Expected object payload")
-            return [:]
-        }
-        return object
+        let params = try TestJSONHelpers.makeJSONObject(payload)
+        let item = try XCTUnwrap(params.object(at: ["item"]))
+        let activity = try XCTUnwrap(
+            CodexAppServerAdapter.codexToolActivityFromDynamicToolCall(
+                item: item,
+                method: "item/started",
+                params: params,
+                fallbackTurnID: nil
+            )
+        )
+
+        XCTAssertEqual(activity.id, "codex_tool_turn-42_runcommand_seq7")
     }
 }

@@ -453,19 +453,24 @@ struct ProviderConfigFormView: View {
     // MARK: - API Key Section
 
     private var apiKeyField: some View {
-        HStack {
-            if showingAPIKey {
-                TextField("API Key", text: $apiKey)
-            } else {
-                SecureField("API Key", text: $apiKey)
+        HStack(spacing: 8) {
+            Group {
+                if showingAPIKey {
+                    TextField("API Key", text: $apiKey)
+                } else {
+                    SecureField("API Key", text: $apiKey)
+                }
             }
-
-            Button(action: { showingAPIKey.toggle() }) {
+            Button {
+                showingAPIKey.toggle()
+            } label: {
                 Image(systemName: showingAPIKey ? "eye.slash" : "eye")
                     .foregroundStyle(.secondary)
-                    .frame(width: 20, height: 20)
+                    .frame(width: 22, height: 22)
             }
-            .buttonStyle(JinIconButtonStyle())
+            .buttonStyle(.plain)
+            .help(showingAPIKey ? "Hide API key" : "Show API key")
+            .disabled(apiKey.isEmpty)
         }
     }
 
