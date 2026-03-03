@@ -40,11 +40,6 @@ struct CloudflareR2UploadPluginSettingsView: View {
 
     var body: some View {
         Form {
-            Section("Cloudflare R2 Upload") {
-                Text("Uploads local video attachments to your Cloudflare R2 bucket and passes the generated public URL to providers that require remote video input.")
-                    .jinInfoCallout()
-            }
-
             Section("Credentials") {
                 TextField("Account ID", text: $accountID)
                     .font(.system(.body, design: .monospaced))
@@ -77,8 +72,6 @@ struct CloudflareR2UploadPluginSettingsView: View {
                     .disabled(secretAccessKey.isEmpty)
                 }
 
-                Text("Credentials are stored locally on this device and saved automatically while you type.")
-                    .jinInfoCallout()
             }
 
             Section("Storage") {

@@ -10,11 +10,6 @@ struct ChatNamingPluginSettingsView: View {
 
     var body: some View {
         Form {
-            Section("Chat Naming") {
-                Text("Use a selected model to automatically generate concise chat titles.")
-                    .jinInfoCallout()
-            }
-
             Section("Behavior") {
                 Picker("Rename Mode", selection: $chatNamingMode) {
                     ForEach(ChatNamingMode.allCases) { mode in

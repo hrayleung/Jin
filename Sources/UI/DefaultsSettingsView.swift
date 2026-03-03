@@ -46,9 +46,6 @@ struct DefaultsSettingsView: View {
                             ensureValidFixedModelSelection()
                         }
                     }
-                } else {
-                    Text("New chats will start with the model from your most recently used chat.")
-                        .jinInfoCallout()
                 }
             }
 
@@ -91,9 +88,6 @@ struct DefaultsSettingsView: View {
                             }
                         }
                     }
-                } else {
-                    Text("New chats will copy MCP Tools settings from your most recently used chat.")
-                        .jinInfoCallout()
                 }
             }
         }

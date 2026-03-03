@@ -96,7 +96,6 @@ struct MCPServerConfigFormView: View {
                 .font(.system(.body, design: .monospaced))
                 .textSelection(.enabled)
                 .onChange(of: server.id) { _, _ in try? modelContext.save() }
-                .help("Keep this short to avoid tool name length limits (e.g. \u{201C}exa\u{201D}).")
 
             Toggle("Enabled", isOn: $server.isEnabled)
                 .onChange(of: server.isEnabled) { _, _ in try? modelContext.save() }
@@ -114,12 +113,6 @@ struct MCPServerConfigFormView: View {
 
                 TextField("Arguments", text: $argsText)
                     .font(.system(.body, design: .monospaced))
-                    .help("Space-separated. For complex quoting, prefer wrapping with a shell script.")
-
-                if shouldShowNodeIsolationNote {
-                    Text("For Node launchers (`npx`, `npm`, `pnpm`, `yarn`, `bunx`, `bun`), Jin isolates npm HOME/cache under Application Support to avoid ~/.npmrc permission/prefix issues.")
-                        .jinInfoCallout()
-                }
 
                 if isFirecrawlMCP && !hasFirecrawlAPIKey {
                     Text("Firecrawl MCP requires `FIRECRAWL_API_KEY` in Environment variables, otherwise initialize may never return.")
@@ -467,13 +460,6 @@ struct MCPServerConfigFormView: View {
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         guard let data = try? encoder.encode(schema) else { return nil }
         return String(data: data, encoding: .utf8)
-    }
-
-    private var shouldShowNodeIsolationNote: Bool {
-        let trimmed = command.trimmingCharacters(in: .whitespacesAndNewlines)
-        let parsedCommand = (try? CommandLineTokenizer.tokenize(trimmed))?.first ?? trimmed
-        let base = (parsedCommand as NSString).lastPathComponent.lowercased()
-        return ["npx", "npm", "pnpm", "yarn", "bunx", "bun"].contains(base)
     }
 
     private var isFirecrawlMCP: Bool {

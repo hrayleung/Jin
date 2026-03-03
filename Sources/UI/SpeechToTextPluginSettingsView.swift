@@ -61,11 +61,6 @@ struct SpeechToTextPluginSettingsView: View {
 
     var body: some View {
         Form {
-            Section("Speech to Text") {
-                Text("Adds a microphone button to the chat composer so you can dictate messages.")
-                    .jinInfoCallout()
-            }
-
             Section("Provider") {
                 Picker("Provider", selection: $providerRaw) {
                     ForEach(SpeechToTextProvider.allCases) { provider in
@@ -83,9 +78,6 @@ struct SpeechToTextPluginSettingsView: View {
                 Toggle("Add recording as file", isOn: $addRecordingAsFile)
                     .help("Attach microphone recordings as audio files for models that support audio input instead of transcribing.")
 
-                Text("If the selected chat model does not support audio input, recordings will use transcription instead.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
             }
 
             Section("API Key") {
@@ -111,10 +103,6 @@ struct SpeechToTextPluginSettingsView: View {
                     .help(isKeyVisible ? "Hide API key" : "Show API key")
                     .disabled(apiKey.isEmpty)
                 }
-
-                Text("Stored locally on this device and saved automatically while you type.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
 
                 HStack(spacing: 12) {
                     Button("Test Connection") { testConnection() }
@@ -209,13 +197,11 @@ struct SpeechToTextPluginSettingsView: View {
                     TextField("Model", text: $groqModel)
                         .font(.system(.body, design: .monospaced))
                         .textFieldStyle(.roundedBorder)
-                        .help("Recommended: whisper-large-v3-turbo")
 
                     Toggle("Translate to English", isOn: $groqTranslateToEnglish)
 
                     TextField("Language (optional)", text: $groqLanguage)
                         .font(.system(.body, design: .monospaced))
-                        .help("Only supported by whisper-large-v3.")
 
                     TextField("Prompt (optional)", text: $groqPrompt)
 
@@ -250,7 +236,6 @@ struct SpeechToTextPluginSettingsView: View {
                     TextField("Model", text: $mistralModel)
                         .font(.system(.body, design: .monospaced))
                         .textFieldStyle(.roundedBorder)
-                        .help("Recommended: voxtral-mini-latest (transcription endpoint)")
 
                     TextField("Language (optional)", text: $mistralLanguage)
                         .font(.system(.body, design: .monospaced))

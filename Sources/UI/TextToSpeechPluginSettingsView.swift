@@ -63,11 +63,6 @@ struct TextToSpeechPluginSettingsView: View {
 
     var body: some View {
         Form {
-            Section("Text to Speech") {
-                Text("Adds a speaker button to assistant messages so you can play responses aloud.")
-                    .jinInfoCallout()
-            }
-
             Section("Provider") {
                 Picker("Provider", selection: $providerRaw) {
                     ForEach(TextToSpeechProvider.allCases) { provider in
@@ -106,10 +101,6 @@ struct TextToSpeechPluginSettingsView: View {
                     .help(isKeyVisible ? "Hide API key" : "Show API key")
                     .disabled(apiKey.isEmpty)
                 }
-
-                Text("Stored locally on this device and saved automatically while you type.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
 
                 HStack(spacing: 12) {
                     Button("Test Connection") { testConnection() }
@@ -221,13 +212,6 @@ struct TextToSpeechPluginSettingsView: View {
                     }
                     .pickerStyle(.menu)
 
-                    Text("Note: Orpheus limits each request to 200 characters. Jin will chunk long messages automatically.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-
-                    Text("Tip: Orpheus supports vocal directions like `[cheerful]` or `[sighs]` inline in your text.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
                 }
 
             case .elevenlabs:
@@ -276,7 +260,6 @@ struct TextToSpeechPluginSettingsView: View {
                     .pickerStyle(.menu)
 
                     Stepper("Optimize latency: \(elevenLabsOptimizeStreamingLatency)", value: $elevenLabsOptimizeStreamingLatency, in: 0...4)
-                        .help("Higher values reduce latency but may lower audio quality.")
 
                     Toggle("Enable logging", isOn: $elevenLabsEnableLogging)
 

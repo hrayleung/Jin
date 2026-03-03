@@ -76,8 +76,6 @@ struct WebSearchPluginSettingsView: View {
     private var formContent: some View {
         Form {
             Section("Built-in Web Search") {
-                Text("Expose Exa / Brave / Jina / Firecrawl / Tavily as built-in tools, so models without provider-native web search can still use the Web Search toggle in chat.")
-                    .jinInfoCallout()
                 Toggle("Enable plugin", isOn: $pluginEnabled)
             }
 
@@ -133,8 +131,6 @@ struct WebSearchPluginSettingsView: View {
             apiKeyRow(label: "Firecrawl API Key", text: $firecrawlAPIKey, isVisible: $isFirecrawlKeyVisible)
             apiKeyRow(label: "Tavily API Key", text: $tavilyAPIKey, isVisible: $isTavilyKeyVisible)
 
-            Text("Keys are stored locally on this device and used only for tool calls.")
-                .jinInfoCallout()
         }
     }
 
