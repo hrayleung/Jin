@@ -141,6 +141,24 @@ final class XAIAdapterMediaTests: XCTestCase {
         XCTAssertEqual(imageURLs, ["https://cdn.example.com/generated-pro.png"])
     }
 
+    func testXAIImageURLStringReturnsNilForUnreadableLocalFileURL() async {
+        let providerConfig = ProviderConfig(
+            id: "x",
+            name: "xAI",
+            type: .xai,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        let adapter = XAIAdapter(providerConfig: providerConfig, apiKey: "test-key")
+        let missingURL = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent("jin-missing-\(UUID().uuidString).png")
+        let image = ImageContent(mimeType: "image/png", data: nil, url: missingURL)
+
+        let resolved = await adapter.imageURLString(image)
+        XCTAssertNil(resolved)
+    }
+
     func testXAIImageGenerationParsesBase64ImageResponse() async throws {
         let (session, protocolType) = makeMockedURLSession()
         let networkManager = NetworkManager(urlSession: session)
@@ -926,6 +944,64 @@ final class XAIAdapterMediaTests: XCTestCase {
         let savedData = try Data(contentsOf: localURL)
         XCTAssertEqual(savedData, fakeVideoBytes)
         try? FileManager.default.removeItem(at: localURL)
+    }
+
+    func testXAIVideoGenerationFailsFastAfterConsecutiveDecodeFailures() async throws {
+        let (session, protocolType) = makeMockedURLSession()
+        let networkManager = NetworkManager(urlSession: session)
+
+        let providerConfig = ProviderConfig(
+            id: "x",
+            name: "xAI",
+            type: .xai,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        var requestCount = 0
+        protocolType.requestHandler = { request in
+            requestCount += 1
+
+            if requestCount == 1 {
+                let response: [String: Any] = ["request_id": "vid_decode_fail_fast_1"]
+                let data = try JSONSerialization.data(withJSONObject: response)
+                return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+            } else {
+                // Force Codable decode failure and avoid raw status/state fallback.
+                let response: [String: Any] = [
+                    "status": ["pending"],
+                    "details": ["marker": "poll_\(requestCount)"],
+                ]
+                let data = try JSONSerialization.data(withJSONObject: response)
+                return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+            }
+        }
+
+        let adapter = XAIAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("A drifting cloudscape")])],
+            modelID: "grok-imagine-video",
+            controls: GenerationControls(),
+            tools: [],
+            streaming: false
+        )
+
+        var caughtError: Error?
+        do {
+            for try await _ in stream {}
+        } catch {
+            caughtError = error
+        }
+
+        XCTAssertEqual(requestCount, 6)
+
+        let llmError = try XCTUnwrap(caughtError as? LLMError)
+        guard case .decodingError(let message) = llmError else {
+            return XCTFail("Expected LLMError.decodingError, got \(llmError)")
+        }
+        XCTAssertTrue(message.contains("5 consecutive attempts"))
+        XCTAssertTrue(message.contains("poll_6"))
     }
 
     func testXAIVideoGenerationHandlesExpiredStatus() async throws {

@@ -5,6 +5,11 @@ import Foundation
 /// - Chat models use the Responses API (`/responses`).
 /// - Image models use `/images/generations` + `/images/edits`.
 /// - Video models use `/videos/generations` (text/image) and `/videos/edits` (video edit), both async.
+///
+/// Media helpers are in `XAIMediaHelpers.swift`.
+/// Video generation is in `XAIVideoGeneration.swift`.
+/// Citation resolution is in `XAICitationResolver.swift`.
+/// Response types are in `XAIAdapterResponseTypes.swift`.
 actor XAIAdapter: LLMProviderAdapter {
     let providerConfig: ProviderConfig
     let capabilities: ModelCapability = [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .imageGeneration, .videoGeneration]
@@ -16,21 +21,21 @@ actor XAIAdapter: LLMProviderAdapter {
         "grok-4-1-fast-reasoning",
         "grok-4-1212",
     ]
-    private static let imageGenerationModelIDs: Set<String> = [
+    static let imageGenerationModelIDs: Set<String> = [
         "grok-imagine-image",
         "grok-imagine-image-pro",
         "grok-2-image-1212",
     ]
-    private static let videoGenerationModelIDs: Set<String> = [
+    static let videoGenerationModelIDs: Set<String> = [
         "grok-imagine-video",
     ]
     private static let reasoningEffortModelIDs: Set<String> = [
         "grok-3-mini",
     ]
 
-    private let networkManager: NetworkManager
-    private let r2Uploader: CloudflareR2Uploader
-    private let apiKey: String
+    let networkManager: NetworkManager
+    let r2Uploader: CloudflareR2Uploader
+    let apiKey: String
 
     init(
         providerConfig: ProviderConfig,
@@ -111,7 +116,7 @@ actor XAIAdapter: LLMProviderAdapter {
 
     // MARK: - Private
 
-    private var baseURL: String {
+    var baseURL: String {
         providerConfig.baseURL ?? "https://api.x.ai/v1"
     }
 
@@ -293,7 +298,7 @@ actor XAIAdapter: LLMProviderAdapter {
         return request
     }
 
-    // MARK: - Image generation
+    // MARK: - Image Generation
 
     private func makeImageGenerationStream(
         messages: [Message],
@@ -347,408 +352,6 @@ actor XAIAdapter: LLMProviderAdapter {
         }
     }
 
-    // MARK: - Video generation
-
-    private func makeVideoGenerationStream(
-        messages: [Message],
-        modelID: String,
-        controls: GenerationControls
-    ) throws -> AsyncThrowingStream<StreamEvent, Error> {
-        let videoInput = videoInputForVideoGeneration(from: messages)
-        let imageURL = imageURLForImageGeneration(from: messages)
-        let isVideoToVideo = videoInput != nil
-        let isImageToVideo = !isVideoToVideo && imageURL?.isEmpty == false
-        let prompt = try mediaPrompt(
-            from: messages,
-            mode: isVideoToVideo ? .video : (isImageToVideo ? .image : .none)
-        )
-
-        return AsyncThrowingStream { continuation in
-            let task = Task {
-                do {
-                    let resolvedVideoURL = try await resolvedVideoURL(for: videoInput)
-
-                    // 1. Submit generation request
-                    let startRequest = try buildVideoGenerationRequest(
-                        modelID: modelID,
-                        prompt: prompt,
-                        imageURL: isImageToVideo ? imageURL : nil,
-                        videoURL: isVideoToVideo ? resolvedVideoURL : nil,
-                        controls: controls
-                    )
-                    let (startData, _) = try await networkManager.sendRequest(startRequest)
-                    let decoder = JSONDecoder()
-                    decoder.keyDecodingStrategy = .convertFromSnakeCase
-                    let startResponse = try decoder.decode(XAIVideoStartResponse.self, from: startData)
-
-                    if let apiError = startResponse.error {
-                        throw LLMError.providerError(
-                            code: apiError.code ?? "video_generation_error",
-                            message: apiError.message
-                        )
-                    }
-
-                    guard let requestID = startResponse.resolvedID, !requestID.isEmpty else {
-                        let raw = String(data: startData, encoding: .utf8) ?? "(non-UTF-8 data)"
-                        throw LLMError.decodingError(
-                            message: "xAI video generation did not return a request ID. Response: \(String(raw.prefix(500)))"
-                        )
-                    }
-
-                    continuation.yield(.messageStart(id: requestID))
-
-                    // 2. Poll until done or expired
-                    let pollIntervalNanoseconds: UInt64 = 3_000_000_000 // 3 seconds
-                    let maxAttempts = 200 // ~10 minutes at 3s intervals
-                    var firstPollSnapshot: String?
-                    var lastPollSnapshot: String?
-                    var consecutiveDecodeFailures = 0
-                    let maxConsecutiveDecodeFailures = 5
-
-                    for attempt in 0..<maxAttempts {
-                        try Task.checkCancellation()
-
-                        if attempt > 0 {
-                            try await Task.sleep(nanoseconds: pollIntervalNanoseconds)
-                        }
-
-                        var pollRequest = URLRequest(url: try validatedURL("\(baseURL)/videos/\(requestID)"))
-                        pollRequest.httpMethod = "GET"
-                        pollRequest.addValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-
-                        // Use sendRawRequest so non-2xx responses (e.g. 404 expired, 500 failed)
-                        // are handled by resolveVideoStatus instead of throwing.
-                        let (pollData, pollHTTPResponse) = try await networkManager.sendRawRequest(pollRequest)
-                        let rawBody = String(data: pollData, encoding: .utf8) ?? "(non-UTF-8)"
-                        let snapshot = "HTTP \(pollHTTPResponse.statusCode): \(String(rawBody.prefix(800)))"
-                        lastPollSnapshot = snapshot
-                        if firstPollSnapshot == nil { firstPollSnapshot = snapshot }
-
-                        // Try Codable decoding first
-                        let statusResponse = try? decoder.decode(XAIVideoStatusResponse.self, from: pollData)
-
-                        // Check for API errors
-                        if let apiError = statusResponse?.error {
-                            throw LLMError.providerError(
-                                code: apiError.code ?? "video_poll_error",
-                                message: apiError.message
-                            )
-                        }
-
-                        // Also parse raw JSON for fallback field inspection
-                        let rawJSON = try? JSONSerialization.jsonObject(with: pollData) as? [String: Any]
-
-                        // Resolve status from multiple sources
-                        let status = resolveVideoStatus(
-                            codable: statusResponse,
-                            rawJSON: rawJSON,
-                            httpStatus: pollHTTPResponse.statusCode
-                        )
-
-                        switch status {
-                        case .done:
-                            // Terminal — reset counter, extract video.
-                            consecutiveDecodeFailures = 0
-                            guard let videoURL = extractVideoURL(codable: statusResponse, rawJSON: rawJSON) else {
-                                throw LLMError.decodingError(
-                                    message: "xAI video generation completed but no video URL found. Response: \(String(rawBody.prefix(500)))"
-                                )
-                            }
-
-                            let (localURL, mimeType) = try await downloadVideoToLocal(from: videoURL)
-                            let video = VideoContent(mimeType: mimeType, data: nil, url: localURL)
-                            continuation.yield(.contentDelta(.video(video)))
-                            continuation.yield(.messageEnd(usage: nil))
-                            continuation.finish()
-                            return
-
-                        case .expired:
-                            throw LLMError.providerError(
-                                code: "video_generation_expired",
-                                message: "Video generation request expired before completing."
-                            )
-
-                        case .failed(let message):
-                            throw LLMError.providerError(
-                                code: "video_generation_failed",
-                                message: message ?? "Video generation failed on the server."
-                            )
-
-                        case .pending:
-                            // Only count decode failures for polls that resolved
-                            // to .pending via the default fallback (no real signal).
-                            // If Codable decoded fine or rawJSON had a status/state
-                            // key, the response format is healthy.
-                            if statusResponse == nil
-                                && pollHTTPResponse.statusCode >= 200
-                                && pollHTTPResponse.statusCode < 300 {
-                                let rawHasStatusSignal: Bool = {
-                                    guard let json = rawJSON else { return false }
-                                    for key in ["status", "state"] {
-                                        if json[key] is String { return true }
-                                    }
-                                    return false
-                                }()
-                                if !rawHasStatusSignal {
-                                    consecutiveDecodeFailures += 1
-                                    if consecutiveDecodeFailures >= maxConsecutiveDecodeFailures {
-                                        throw LLMError.decodingError(
-                                            message: "xAI video poll response could not be decoded after \(maxConsecutiveDecodeFailures) consecutive attempts. Last response: \(String(rawBody.prefix(500)))"
-                                        )
-                                    }
-                                } else {
-                                    consecutiveDecodeFailures = 0
-                                }
-                            } else {
-                                consecutiveDecodeFailures = 0
-                            }
-                            continue
-                        }
-                    }
-
-                    throw LLMError.providerError(
-                        code: "video_generation_timeout",
-                        message: "Video generation timed out after polling for ~10 minutes.\n\nFirst poll: \(firstPollSnapshot ?? "nil")\n\nLast poll: \(lastPollSnapshot ?? "nil")"
-                    )
-                } catch {
-                    continuation.finish(throwing: error)
-                }
-            }
-
-            continuation.onTermination = { @Sendable _ in
-                task.cancel()
-            }
-        }
-    }
-
-    // MARK: - Video Poll Response Helpers
-
-    private enum VideoPollStatus {
-        case pending
-        case done
-        case expired
-        case failed(String?)
-    }
-
-    /// Resolve poll status from Codable model, raw JSON, and HTTP status code.
-    private func resolveVideoStatus(
-        codable: XAIVideoStatusResponse?,
-        rawJSON: [String: Any]?,
-        httpStatus: Int
-    ) -> VideoPollStatus {
-        // 1. Check Codable status field
-        if let status = codable?.status?.lowercased(),
-           let resolved = classifyVideoStatusString(status) {
-            return resolved
-        }
-
-        // 2. Check raw JSON for status/state fields
-        if let json = rawJSON {
-            for key in ["status", "state"] {
-                if let val = json[key] as? String,
-                   let resolved = classifyVideoStatusString(val.lowercased(), failureMessage: extractFailureMessage(from: json)) {
-                    return resolved
-                }
-            }
-
-            // 3. If a video URL exists anywhere in the response, treat as done
-            if extractVideoURL(codable: codable, rawJSON: rawJSON) != nil {
-                return .done
-            }
-        }
-
-        // 4. Use HTTP status code as a signal for non-2xx responses
-        if httpStatus == 404 || httpStatus == 410 {
-            return .expired
-        }
-        if httpStatus >= 500 {
-            let message = extractFailureMessage(from: rawJSON)
-            return .failed(message ?? "Server error (HTTP \(httpStatus))")
-        }
-        if httpStatus >= 400 {
-            let message = extractFailureMessage(from: rawJSON)
-            return .failed(message ?? "HTTP \(httpStatus)")
-        }
-
-        // 5. Default to pending
-        return .pending
-    }
-
-    /// Map a lowercased status string to a VideoPollStatus, returning nil if unrecognized.
-    private func classifyVideoStatusString(_ status: String, failureMessage: String? = nil) -> VideoPollStatus? {
-        switch status {
-        case "done", "complete", "completed", "success":
-            return .done
-        case "expired":
-            return .expired
-        case "failed", "error":
-            return .failed(failureMessage)
-        case "pending", "in_progress", "processing", "queued":
-            return .pending
-        default:
-            return nil
-        }
-    }
-
-    private func extractFailureMessage(from json: [String: Any]?) -> String? {
-        guard let json else { return nil }
-
-        if let message = nonEmptyMessage(json["message"]) {
-            return message
-        }
-        if let errorText = nonEmptyMessage(json["error"]) {
-            return errorText
-        }
-
-        if let errorObject = json["error"] as? [String: Any] {
-            if let message = nonEmptyMessage(errorObject["message"]) {
-                return message
-            }
-            if let detail = nonEmptyMessage(errorObject["detail"]) {
-                return detail
-            }
-            if let reason = nonEmptyMessage(errorObject["reason"]) {
-                return reason
-            }
-        }
-
-        if let errors = json["errors"] as? [[String: Any]] {
-            for item in errors {
-                if let nested = extractFailureMessage(from: item) {
-                    return nested
-                }
-            }
-        }
-
-        for nestedKey in ["response", "data", "result"] {
-            if let nested = extractFailureMessage(from: json[nestedKey] as? [String: Any]) {
-                return nested
-            }
-        }
-
-        return nil
-    }
-
-    private func nonEmptyMessage(_ value: Any?) -> String? {
-        guard let text = value as? String else { return nil }
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? nil : trimmed
-    }
-
-    /// Extract video URL from multiple possible locations in the response.
-    private func extractVideoURL(codable: XAIVideoStatusResponse?, rawJSON: [String: Any]?) -> URL? {
-        // Codable path: video.url or result.url
-        if let urlString = codable?.resolvedVideo?.url, let url = URL(string: urlString) {
-            return url
-        }
-
-        guard let json = rawJSON else { return nil }
-
-        // {"video": {"url": "..."}}
-        if let video = json["video"] as? [String: Any],
-           let urlString = video["url"] as? String,
-           let url = URL(string: urlString) {
-            return url
-        }
-
-        // {"response": {"video": {"url": "..."}}} (SDK-style nested response)
-        if let response = json["response"] as? [String: Any],
-           let video = response["video"] as? [String: Any],
-           let urlString = video["url"] as? String,
-           let url = URL(string: urlString) {
-            return url
-        }
-
-        // {"result": {"video": {"url": "..."}}}
-        if let result = json["result"] as? [String: Any] {
-            if let video = result["video"] as? [String: Any],
-               let urlString = video["url"] as? String,
-               let url = URL(string: urlString) {
-                return url
-            }
-            if let urlString = result["url"] as? String, let url = URL(string: urlString) {
-                return url
-            }
-        }
-
-        // {"data": {"video": {"url": "..."}}}
-        if let data = json["data"] as? [String: Any],
-           let video = data["video"] as? [String: Any],
-           let urlString = video["url"] as? String,
-           let url = URL(string: urlString) {
-            return url
-        }
-
-        // {"url": "..."} at top level (only if it looks like a video URL)
-        if let urlString = json["url"] as? String,
-           let url = URL(string: urlString),
-           urlString.contains("video") || urlString.contains(".mp4") || urlString.contains("vidgen") {
-            return url
-        }
-
-        return nil
-    }
-
-    private func buildVideoGenerationRequest(
-        modelID: String,
-        prompt: String,
-        imageURL: String?,
-        videoURL: String?,
-        controls: GenerationControls
-    ) throws -> URLRequest {
-        let isVideoEdit = videoURL?.isEmpty == false
-        let endpoint = isVideoEdit ? "videos/edits" : "videos/generations"
-
-        var request = URLRequest(url: try validatedURL("\(baseURL)/\(endpoint)"))
-        request.httpMethod = "POST"
-        request.addValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
-
-        let videoControls = controls.xaiVideoGeneration
-
-        var body: [String: Any] = [
-            "model": modelID,
-            "prompt": prompt
-        ]
-
-        // xAI docs: duration/aspect_ratio/resolution are unsupported for video editing.
-        if !isVideoEdit {
-            if let duration = videoControls?.duration {
-                body["duration"] = min(max(duration, 1), 15)
-            }
-            if let aspectRatio = videoControls?.aspectRatio {
-                let supportedVideoRatios: Set<XAIAspectRatio> = [
-                    .ratio1x1, .ratio16x9, .ratio9x16, .ratio4x3, .ratio3x4, .ratio3x2, .ratio2x3
-                ]
-                if supportedVideoRatios.contains(aspectRatio) {
-                    body["aspect_ratio"] = aspectRatio.rawValue
-                }
-            }
-            if let resolution = videoControls?.resolution {
-                body["resolution"] = resolution.rawValue
-            }
-        }
-
-        if let videoURL, !videoURL.isEmpty {
-            body["video"] = ["url": videoURL]
-        } else if let imageURL, !imageURL.isEmpty {
-            body["image"] = ["url": imageURL]
-        }
-
-        applyProviderSpecificOverrides(controls: controls, body: &body)
-
-        request.httpBody = try JSONSerialization.data(withJSONObject: body)
-        return request
-    }
-
-    private func downloadVideoToLocal(from url: URL) async throws -> (URL, String) {
-        let result = try await VideoAttachmentUtility.downloadToLocal(
-            from: url,
-            networkManager: networkManager
-        )
-        return (result.localURL, result.mimeType)
-    }
-
     private func buildImageGenerationRequest(
         modelID: String,
         prompt: String,
@@ -776,7 +379,6 @@ actor XAIAdapter: LLMProviderAdapter {
             body["image_url"] = imageURL
         }
 
-        // xAI currently uses `aspect_ratio`; map older persisted `size` values for compatibility.
         if let aspectRatio = imageControls?.aspectRatio ?? imageControls?.size?.mappedAspectRatio {
             body["aspect_ratio"] = aspectRatio.rawValue
         }
@@ -792,7 +394,7 @@ actor XAIAdapter: LLMProviderAdapter {
         return request
     }
 
-    // MARK: - Capability/model inference
+    // MARK: - Capability / Model Inference
 
     private func inferCapabilities(for model: XAIModelData) -> ModelCapability {
         let lowerID = model.id.lowercased()
@@ -835,29 +437,29 @@ actor XAIAdapter: LLMProviderAdapter {
         return caps
     }
 
-    private func isImageGenerationModel(_ modelID: String) -> Bool {
+    func isImageGenerationModel(_ modelID: String) -> Bool {
         if providerConfig.models.first(where: { $0.id == modelID })?.capabilities.contains(.imageGeneration) == true {
             return true
         }
         return isImageGenerationModelID(modelID.lowercased())
     }
 
-    private func isImageGenerationModelID(_ lowerModelID: String) -> Bool {
+    func isImageGenerationModelID(_ lowerModelID: String) -> Bool {
         Self.imageGenerationModelIDs.contains(lowerModelID)
     }
 
-    private func isVideoGenerationModel(_ modelID: String) -> Bool {
+    func isVideoGenerationModel(_ modelID: String) -> Bool {
         if providerConfig.models.first(where: { $0.id == modelID })?.capabilities.contains(.videoGeneration) == true {
             return true
         }
         return isVideoGenerationModelID(modelID.lowercased())
     }
 
-    private func isVideoGenerationModelID(_ lowerModelID: String) -> Bool {
+    func isVideoGenerationModelID(_ lowerModelID: String) -> Bool {
         Self.videoGenerationModelIDs.contains(lowerModelID)
     }
 
-    // MARK: - Shared helpers
+    // MARK: - Shared Helpers
 
     private func mapReasoningEffort(_ effort: ReasoningEffort) -> String {
         switch effort {
@@ -882,355 +484,13 @@ actor XAIAdapter: LLMProviderAdapter {
         JinModelSupport.supportsNativePDF(providerType: .xai, modelID: modelID)
     }
 
-    private enum MediaEditMode {
-        case none
-        case image
-        case video
-    }
-
-    private func mediaPrompt(from messages: [Message], mode: MediaEditMode) throws -> String {
-        let userPrompts = userTextPrompts(from: messages)
-        guard let latest = userPrompts.last else {
-            throw LLMError.invalidRequest(message: "xAI media generation requires a text prompt.")
-        }
-
-        guard mode != .none else {
-            return latest
-        }
-
-        let recentPrompts = Array(userPrompts.suffix(6))
-        let originalPrompt = recentPrompts.first ?? latest
-        let latestPrompt = recentPrompts.last ?? latest
-        let priorEdits = Array(recentPrompts.dropFirst().dropLast())
-
-        if mode == .image, userPrompts.count < 2 {
-            return latest
-        }
-
-        if mode == .image,
-           priorEdits.isEmpty,
-           originalPrompt.caseInsensitiveCompare(latestPrompt) == .orderedSame {
-            return latest
-        }
-
-        let continuityInstruction: String = switch mode {
-        case .image:
-            "Keep the main subject, composition, and scene continuity unless explicitly changed."
-        case .video:
-            "Keep the main subject, composition, camera motion, and timing continuity unless explicitly changed."
-        case .none:
-            ""
-        }
-
-        let mediaLabel: String = switch mode {
-        case .image: "image"
-        case .video: "video"
-        case .none: "media"
-        }
-
-        var lines: [String] = [
-            "Edit the provided input \(mediaLabel).",
-            continuityInstruction,
-            "",
-            "Original request:",
-            originalPrompt
-        ]
-
-        if !priorEdits.isEmpty {
-            lines.append("")
-            lines.append("Edits already applied:")
-            for (idx, edit) in priorEdits.enumerated() {
-                lines.append("\(idx + 1). \(edit)")
-            }
-        }
-
-        lines.append("")
-        lines.append("Apply this new edit now:")
-        lines.append(latestPrompt)
-
-        return lines.joined(separator: "\n")
-    }
-
-    private func userTextPrompts(from messages: [Message]) -> [String] {
-        messages.compactMap { message in
-            guard message.role == .user else { return nil }
-
-            let text = message.content.compactMap { part -> String? in
-                guard case .text(let value) = part else { return nil }
-                let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-                return trimmed.isEmpty ? nil : trimmed
-            }
-            .joined(separator: "\n\n")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-
-            return text.isEmpty ? nil : text
-        }
-    }
-
-    private func imageURLForImageGeneration(from messages: [Message]) -> String? {
-        // If the latest user turn includes an image, prefer that explicit input.
-        if let latestUserImageURL = latestUserImageURL(from: messages) {
-            return latestUserImageURL
-        }
-
-        // Otherwise, continue editing from the latest assistant-generated image.
-        if let assistantImageURL = firstImageURLString(from: messages, roles: [.assistant]) {
-            return assistantImageURL
-        }
-
-        // Finally, fall back to any older user-provided image in history.
-        return firstImageURLString(from: messages, roles: [.user])
-    }
-
-    private func latestUserImageURL(from messages: [Message]) -> String? {
-        guard let latestUserMessage = messages.reversed().first(where: { $0.role == .user }) else {
-            return nil
-        }
-        return firstImageURLString(in: latestUserMessage)
-    }
-
-    private func firstImageURLString(in message: Message) -> String? {
-        for part in message.content {
-            if case .image(let image) = part,
-               let urlString = imageURLString(image) {
-                return urlString
-            }
-        }
-        return nil
-    }
-
-    private func firstImageURLString(from messages: [Message], roles: [MessageRole]) -> String? {
-        let roleSet = Set(roles)
-
-        for message in messages.reversed() where roleSet.contains(message.role) {
-            if let urlString = firstImageURLString(in: message) {
-                return urlString
-            }
-        }
-        return nil
-    }
-
-    private func videoInputForVideoGeneration(from messages: [Message]) -> VideoContent? {
-        // If the latest user turn includes a video, prefer that explicit input.
-        if let latestUserVideo = latestUserVideoInput(from: messages) {
-            return latestUserVideo
-        }
-
-        // If the latest user prompt includes a remote video URL, use that as input.
-        if let latestUserRemoteVideo = latestUserMentionedRemoteVideoInput(from: messages) {
-            return latestUserRemoteVideo
-        }
-
-        // Otherwise, continue editing from the latest assistant-generated video.
-        if let assistantVideo = firstVideoInput(from: messages, roles: [.assistant]) {
-            return assistantVideo
-        }
-
-        // Then fall back to any older user-provided video attachment in history.
-        if let olderUserVideo = firstVideoInput(from: messages, roles: [.user]) {
-            return olderUserVideo
-        }
-
-        // Finally, fall back to any older user prompt that included a remote video URL.
-        return firstMentionedRemoteVideoInput(from: messages, roles: [.user])
-    }
-
-    private func latestUserVideoInput(from messages: [Message]) -> VideoContent? {
-        guard let latestUserMessage = messages.reversed().first(where: { $0.role == .user }) else {
-            return nil
-        }
-        return firstVideoInput(in: latestUserMessage)
-    }
-
-    private func firstVideoInput(in message: Message) -> VideoContent? {
-        for part in message.content {
-            if case .video(let video) = part {
-                return video
-            }
-        }
-        return nil
-    }
-
-    private func firstVideoInput(from messages: [Message], roles: [MessageRole]) -> VideoContent? {
-        let roleSet = Set(roles)
-
-        for message in messages.reversed() where roleSet.contains(message.role) {
-            if let video = firstVideoInput(in: message) {
-                return video
-            }
-        }
-        return nil
-    }
-
-    private func latestUserMentionedRemoteVideoInput(from messages: [Message]) -> VideoContent? {
-        guard let latestUserMessage = messages.reversed().first(where: { $0.role == .user }) else {
-            return nil
-        }
-        return firstMentionedRemoteVideoInput(in: latestUserMessage)
-    }
-
-    private func firstMentionedRemoteVideoInput(from messages: [Message], roles: [MessageRole]) -> VideoContent? {
-        let roleSet = Set(roles)
-
-        for message in messages.reversed() where roleSet.contains(message.role) {
-            if let video = firstMentionedRemoteVideoInput(in: message) {
-                return video
-            }
-        }
-        return nil
-    }
-
-    private func firstMentionedRemoteVideoInput(in message: Message) -> VideoContent? {
-        for part in message.content {
-            guard case .text(let text) = part,
-                  let url = firstRemoteVideoURLMention(in: text) else {
-                continue
-            }
-
-            let inferred = VideoAttachmentUtility.resolveVideoFormat(contentType: nil, url: url)
-            return VideoContent(mimeType: inferred.mimeType, data: nil, url: url)
-        }
-        return nil
-    }
-
-    private func firstRemoteVideoURLMention(in text: String) -> URL? {
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return nil }
-
-        let range = NSRange(trimmed.startIndex..<trimmed.endIndex, in: trimmed)
-        guard let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue) else {
-            return nil
-        }
-
-        for match in detector.matches(in: trimmed, options: [], range: range) {
-            guard let url = match.url,
-                  isHTTPRemoteURL(url),
-                  looksLikeVideoRemoteURL(url) else {
-                continue
-            }
-            return url
-        }
-
-        return nil
-    }
-
-    private func resolvedVideoURL(for video: VideoContent?) async throws -> String? {
-        guard let video else { return nil }
-
-        if let remote = remoteVideoURLString(video) {
-            return remote
-        }
-
-        let r2PluginEnabled = await r2Uploader.isPluginEnabled()
-        guard r2PluginEnabled else {
-            throw LLMError.invalidRequest(
-                message: "xAI local video input requires Cloudflare R2 Upload. Enable Settings → Plugins → Cloudflare R2 Upload and configure it, or attach a public HTTPS video URL."
-            )
-        }
-
-        do {
-            let uploadedURL = try await r2Uploader.uploadVideo(video)
-            return uploadedURL.absoluteString
-        } catch let error as CloudflareR2UploaderError {
-            throw LLMError.invalidRequest(
-                message: "\(error.localizedDescription)\n\nOpen Settings → Plugins → Cloudflare R2 Upload to complete the configuration."
-            )
-        } catch {
-            throw error
-        }
-    }
-
-    private func remoteVideoURLString(_ video: VideoContent) -> String? {
-        guard let url = video.url, isHTTPRemoteURL(url) else {
-            return nil
-        }
-        return url.absoluteString
-    }
-
-    private func isHTTPRemoteURL(_ url: URL) -> Bool {
-        guard !url.isFileURL,
-              let scheme = url.scheme?.lowercased(),
-              scheme == "http" || scheme == "https" else {
-            return false
-        }
-        return true
-    }
-
-    private func looksLikeVideoRemoteURL(_ url: URL) -> Bool {
-        let ext = url.pathExtension.lowercased()
-        let knownVideoExtensions: Set<String> = [
-            "mp4", "m4v", "mov", "webm", "avi", "mkv",
-            "mpeg", "mpg", "wmv", "flv", "3gp", "3gpp"
-        ]
-        if knownVideoExtensions.contains(ext) {
-            return true
-        }
-
-        let lower = url.absoluteString.lowercased()
-        let markers = [
-            ".mp4", ".m4v", ".mov", ".webm", ".avi", ".mkv",
-            ".mpeg", ".mpg", ".wmv", ".flv", ".3gp", ".3gpp",
-            "/video", "-video", "_video", "video="
-        ]
-        return markers.contains { lower.contains($0) }
-    }
-
-    private func imageURLString(_ image: ImageContent) -> String? {
-        if let data = image.data {
-            return "data:\(image.mimeType);base64,\(data.base64EncodedString())"
-        }
-
-        if let url = image.url {
-            if url.isFileURL, let data = try? Data(contentsOf: url) {
-                return "data:\(image.mimeType);base64,\(data.base64EncodedString())"
-            }
-            return url.absoluteString
-        }
-
-        return nil
-    }
-
-    private func resolveImageOutputs(from items: [XAIMediaItem]) -> [ImageContent] {
-        var out: [ImageContent] = []
-        out.reserveCapacity(items.count)
-
-        for item in items {
-            if let b64 = item.b64JSON,
-               let data = Data(base64Encoded: b64) {
-                out.append(ImageContent(mimeType: item.mimeType ?? "image/png", data: data, url: nil))
-                continue
-            }
-
-            if let rawURL = item.resolvedURL,
-               let url = URL(string: rawURL) {
-                let mime = item.mimeType ?? inferImageMIMEType(from: url) ?? "image/png"
-                out.append(ImageContent(mimeType: mime, data: nil, url: url))
-            }
-        }
-
-        return out
-    }
-
-    private func inferImageMIMEType(from url: URL) -> String? {
-        switch url.pathExtension.lowercased() {
-        case "jpg", "jpeg":
-            return "image/jpeg"
-        case "png":
-            return "image/png"
-        case "webp":
-            return "image/webp"
-        case "gif":
-            return "image/gif"
-        default:
-            return nil
-        }
-    }
-
-    private func applyProviderSpecificOverrides(controls: GenerationControls, body: inout [String: Any]) {
+    func applyProviderSpecificOverrides(controls: GenerationControls, body: inout [String: Any]) {
         for (key, value) in controls.providerSpecific {
             body[key] = value.value
         }
     }
+
+    // MARK: - Input Translation
 
     private func translateInput(_ messages: [Message], supportsNativePDF: Bool) -> [[String: Any]] {
         var items: [[String: Any]] = []
@@ -1370,18 +630,6 @@ actor XAIAdapter: LLMProviderAdapter {
         }
     }
 
-    private func unsupportedVideoInputNotice(_ video: VideoContent, providerName: String) -> String {
-        let detail: String
-        if let url = video.url {
-            detail = url.isFileURL ? url.lastPathComponent : url.absoluteString
-        } else if let data = video.data {
-            detail = "\(data.count) bytes"
-        } else {
-            detail = "no media payload"
-        }
-        return "Video attachment omitted (\(video.mimeType), \(detail)): \(providerName) chat API does not support native video input in Jin yet."
-    }
-
     private func translateSingleTool(_ tool: ToolDefinition) -> [String: Any] {
         [
             "type": "function",
@@ -1394,6 +642,8 @@ actor XAIAdapter: LLMProviderAdapter {
             ]
         ]
     }
+
+    // MARK: - SSE Parsing
 
     private func parseSSEEvent(
         type: String,
@@ -1466,204 +716,4 @@ actor XAIAdapter: LLMProviderAdapter {
             return nil
         }
     }
-
-    private struct CitationSourceCandidate {
-        let url: String
-        let title: String?
-        let snippet: String?
-    }
-
-    private func citationSearchActivity(sources: [CitationSourceCandidate]?, responseID: String) -> SearchActivity? {
-        citationSearchActivity(sources: sources, responseID: Optional(responseID))
-    }
-
-    private func citationCandidates(
-        citations: [String]?,
-        output: [ResponsesAPIOutputItem]?,
-        fallbackText: String?
-    ) -> [CitationSourceCandidate]? {
-        let inlineCandidates = inlineCitationCandidates(from: output)
-        if !inlineCandidates.isEmpty {
-            return inlineCandidates
-        }
-
-        if let citations, !citations.isEmpty {
-            let normalized = normalizedCitationCandidates(fromURLs: citations)
-            if !normalized.isEmpty {
-                return normalized
-            }
-        }
-
-        guard let fallbackText, !fallbackText.isEmpty else {
-            return nil
-        }
-
-        let urls = markdownCitationURLs(from: fallbackText)
-        let normalized = normalizedCitationCandidates(fromURLs: urls)
-        return normalized.isEmpty ? nil : normalized
-    }
-
-    private func inlineCitationCandidates(from output: [ResponsesAPIOutputItem]?) -> [CitationSourceCandidate] {
-        guard let output else { return [] }
-
-        var ordered: [CitationSourceCandidate] = []
-        var indexByURLKey: [String: Int] = [:]
-
-        for item in output where item.type == "message" {
-            for content in item.content ?? [] where content.type == "output_text" {
-                for annotation in content.annotations ?? [] where annotation.type == "url_citation" {
-                    guard let rawURL = annotation.url?.trimmingCharacters(in: .whitespacesAndNewlines),
-                          !rawURL.isEmpty,
-                          let url = URL(string: rawURL),
-                          let scheme = url.scheme?.lowercased(),
-                          scheme == "http" || scheme == "https" else {
-                        continue
-                    }
-
-                    let canonical = url.absoluteString
-                    let key = canonical.lowercased()
-                    let title = normalizedCitationTitle(annotation.title)
-                    let snippet = citationPreviewSnippet(
-                        text: content.text,
-                        startIndex: annotation.startIndex,
-                        endIndex: annotation.endIndex
-                    )
-
-                    if let existingIndex = indexByURLKey[key] {
-                        let existing = ordered[existingIndex]
-                        ordered[existingIndex] = CitationSourceCandidate(
-                            url: existing.url,
-                            title: existing.title ?? title,
-                            snippet: preferredSnippet(existing: existing.snippet, candidate: snippet)
-                        )
-                        continue
-                    }
-
-                    indexByURLKey[key] = ordered.count
-                    ordered.append(
-                        CitationSourceCandidate(
-                            url: canonical,
-                            title: title,
-                            snippet: snippet
-                        )
-                    )
-                }
-            }
-        }
-
-        return ordered
-    }
-
-    private func normalizedCitationCandidates(fromURLs urls: [String]) -> [CitationSourceCandidate] {
-        guard !urls.isEmpty else { return [] }
-
-        var seen: Set<String> = []
-        var out: [CitationSourceCandidate] = []
-        out.reserveCapacity(urls.count)
-
-        for raw in urls {
-            let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !trimmed.isEmpty else { continue }
-            guard let url = URL(string: trimmed),
-                  let scheme = url.scheme?.lowercased(),
-                  scheme == "http" || scheme == "https" else {
-                continue
-            }
-
-            let canonical = url.absoluteString
-            let dedupeKey = canonical.lowercased()
-            guard seen.insert(dedupeKey).inserted else { continue }
-            out.append(
-                CitationSourceCandidate(
-                    url: canonical,
-                    title: nil,
-                    snippet: nil
-                )
-            )
-        }
-
-        return out
-    }
-
-    private func markdownCitationURLs(from text: String) -> [String] {
-        guard !text.isEmpty else { return [] }
-
-        let pattern = #"\[\[\d+\]\]\((https?://[^)\s]+)\)|\[\d+\]\((https?://[^)\s]+)\)"#
-        guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else {
-            return []
-        }
-
-        let range = NSRange(text.startIndex..<text.endIndex, in: text)
-        var urls: [String] = []
-        urls.reserveCapacity(4)
-
-        regex.enumerateMatches(in: text, options: [], range: range) { match, _, _ in
-            guard let match else { return }
-
-            for group in [1, 2] {
-                let groupRange = match.range(at: group)
-                guard groupRange.location != NSNotFound,
-                      let swiftRange = Range(groupRange, in: text) else {
-                    continue
-                }
-                urls.append(String(text[swiftRange]))
-                break
-            }
-        }
-
-        return urls
-    }
-
-    private func citationSearchActivity(sources: [CitationSourceCandidate]?, responseID: String?) -> SearchActivity? {
-        guard let sources, !sources.isEmpty else { return nil }
-
-        let payloads: [[String: Any]] = sources.map { source in
-            var payload: [String: Any] = [
-                "type": "url_citation",
-                "url": source.url
-            ]
-            if let title = source.title {
-                payload["title"] = title
-            }
-            if let snippet = source.snippet {
-                payload["snippet"] = snippet
-            }
-            return payload
-        }
-
-        var arguments: [String: AnyCodable] = [
-            "sources": AnyCodable(payloads)
-        ]
-        if let first = sources.first {
-            arguments["url"] = AnyCodable(first.url)
-            if let title = first.title {
-                arguments["title"] = AnyCodable(title)
-            }
-        }
-
-        return SearchActivity(
-            id: "\(responseID ?? UUID().uuidString):citations",
-            type: "url_citation",
-            status: .completed,
-            arguments: arguments
-        )
-    }
-
-    private func normalizedCitationTitle(_ raw: String?) -> String? {
-        guard let raw else { return nil }
-        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return nil }
-        if trimmed.range(of: #"^\d+$"#, options: .regularExpression) != nil {
-            return nil
-        }
-        return trimmed
-    }
-
-    private func preferredSnippet(existing: String?, candidate: String?) -> String? {
-        guard let candidate else { return existing }
-        guard let existing else { return candidate }
-        return candidate.count > existing.count ? candidate : existing
-    }
 }
-
-// Response types are defined in XAIAdapterResponseTypes.swift

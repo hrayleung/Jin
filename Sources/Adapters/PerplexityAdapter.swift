@@ -164,7 +164,7 @@ actor PerplexityAdapter: LLMProviderAdapter {
         }
 
         if !controls.providerSpecific.isEmpty {
-            deepMerge(into: &body, additional: controls.providerSpecific.mapValues { $0.value })
+            deepMergeDictionary(into: &body, additional: controls.providerSpecific.mapValues { $0.value })
         }
 
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
@@ -241,15 +241,4 @@ actor PerplexityAdapter: LLMProviderAdapter {
         }
     }
 
-    private func deepMerge(into base: inout [String: Any], additional: [String: Any]) {
-        for (key, value) in additional {
-            if var existingDict = base[key] as? [String: Any],
-               let newDict = value as? [String: Any] {
-                deepMerge(into: &existingDict, additional: newDict)
-                base[key] = existingDict
-            } else {
-                base[key] = value
-            }
-        }
-    }
 }

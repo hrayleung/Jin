@@ -14,8 +14,8 @@ actor GeminiAdapter: LLMProviderAdapter {
     let capabilities: ModelCapability = [.streaming, .toolCalling, .vision, .audio, .reasoning, .promptCaching, .nativePDF, .imageGeneration, .videoGeneration]
     // Model ID sets are shared with VertexAIAdapter via GeminiModelConstants.
 
-    private let networkManager: NetworkManager
-    private let apiKey: String
+    let networkManager: NetworkManager
+    let apiKey: String
 
     init(providerConfig: ProviderConfig, apiKey: String, networkManager: NetworkManager = NetworkManager()) {
         self.providerConfig = providerConfig
@@ -322,7 +322,7 @@ actor GeminiAdapter: LLMProviderAdapter {
 
     // MARK: - Private
 
-    private var baseURL: String {
+    var baseURL: String {
         providerConfig.baseURL ?? ProviderType.gemini.defaultBaseURL ?? "https://generativelanguage.googleapis.com/v1beta"
     }
 
@@ -382,7 +382,7 @@ actor GeminiAdapter: LLMProviderAdapter {
         }
 
         if !controls.providerSpecific.isEmpty {
-            deepMerge(into: &body, additional: controls.providerSpecific.mapValues { $0.value })
+            deepMergeDictionary(into: &body, additional: controls.providerSpecific.mapValues { $0.value })
         }
 
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
@@ -403,7 +403,7 @@ actor GeminiAdapter: LLMProviderAdapter {
         return text.isEmpty ? nil : text
     }
 
-    private func modelIDForPath(_ modelID: String) -> String {
+    func modelIDForPath(_ modelID: String) -> String {
         let trimmed = modelID.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmed.lowercased().hasPrefix("models/") {
             return String(trimmed.dropFirst("models/".count))
@@ -419,166 +419,20 @@ actor GeminiAdapter: LLMProviderAdapter {
         return "cachedContents/\(trimmed)"
     }
 
-    private func supportsNativePDF(_ modelID: String) -> Bool {
+    func supportsNativePDF(_ modelID: String) -> Bool {
         GeminiModelConstants.supportsNativePDF(modelID)
     }
 
-    private func isGemini3Model(_ modelID: String) -> Bool {
+    func isGemini3Model(_ modelID: String) -> Bool {
         GeminiModelConstants.isGemini3Model(modelID)
     }
 
-    private func isImageGenerationModel(_ modelID: String) -> Bool {
+    func isImageGenerationModel(_ modelID: String) -> Bool {
         GeminiModelConstants.isImageGenerationModel(modelID)
     }
 
-    private func isVideoGenerationModel(_ modelID: String) -> Bool {
+    func isVideoGenerationModel(_ modelID: String) -> Bool {
         GoogleVideoGenerationCore.isVideoGenerationModel(modelID)
-    }
-
-    // MARK: - Video Generation (Veo)
-
-    private func makeVideoGenerationStream(
-        messages: [Message],
-        modelID: String,
-        controls: GenerationControls
-    ) throws -> AsyncThrowingStream<StreamEvent, Error> {
-        guard let prompt = GoogleVideoGenerationCore.extractPrompt(from: messages) else {
-            throw LLMError.invalidRequest(message: "Video generation requires a text prompt.")
-        }
-
-        let imageInput = GoogleVideoGenerationCore.extractImageInput(from: messages)
-        let videoControls = controls.googleVideoGeneration
-
-        return AsyncThrowingStream { continuation in
-            let task = Task {
-                do {
-                    // 1. Build and submit the generation request
-                    let modelPath = modelIDForPath(modelID)
-                    let endpoint = "\(baseURL)/models/\(modelPath):predictLongRunning"
-                    var request = URLRequest(url: try validatedURL(endpoint))
-                    request.httpMethod = "POST"
-                    request.addValue(apiKey, forHTTPHeaderField: "x-goog-api-key")
-                    request.addValue("application/json", forHTTPHeaderField: "Content-Type")
-
-                    var instance: [String: Any] = ["prompt": prompt]
-
-                    if let image = imageInput,
-                       let base64 = GoogleVideoGenerationCore.imageToBase64(image) {
-                        instance["image"] = [
-                            "inlineData": [
-                                "mimeType": image.mimeType,
-                                "data": base64
-                            ]
-                        ]
-                    }
-
-                    let parameters = GoogleVideoGenerationCore.buildGeminiParameters(
-                        controls: videoControls,
-                        modelID: modelID
-                    )
-
-                    let body: [String: Any] = [
-                        "instances": [instance],
-                        "parameters": parameters
-                    ]
-                    request.httpBody = try JSONSerialization.data(withJSONObject: body)
-
-                    let (startData, _) = try await networkManager.sendRequest(request)
-                    let rawStart = try? JSONSerialization.jsonObject(with: startData) as? [String: Any]
-                    guard let operationName = rawStart?["name"] as? String, !operationName.isEmpty else {
-                        let raw = String(data: startData, encoding: .utf8) ?? "(non-UTF-8)"
-                        throw LLMError.decodingError(
-                            message: "Gemini video generation did not return an operation name. Response: \(String(raw.prefix(500)))"
-                        )
-                    }
-
-                    continuation.yield(.messageStart(id: operationName))
-
-                    // 2. Poll until done
-                    let pollIntervalNanoseconds: UInt64 = 10_000_000_000 // 10 seconds
-                    let maxAttempts = 60 // ~10 minutes at 10s intervals
-
-                    for attempt in 0..<maxAttempts {
-                        try Task.checkCancellation()
-
-                        if attempt > 0 {
-                            try await Task.sleep(nanoseconds: pollIntervalNanoseconds)
-                        }
-
-                        var pollRequest = URLRequest(url: try validatedURL("\(baseURL)/\(operationName)"))
-                        pollRequest.httpMethod = "GET"
-                        pollRequest.addValue(apiKey, forHTTPHeaderField: "x-goog-api-key")
-
-                        let (pollData, pollResponse) = try await networkManager.sendRawRequest(pollRequest)
-                        let pollJSON = try? JSONSerialization.jsonObject(with: pollData) as? [String: Any]
-
-                        // Check for error in operation
-                        if let error = pollJSON?["error"] as? [String: Any] {
-                            let message = error["message"] as? String ?? "Video generation failed."
-                            throw LLMError.providerError(code: "video_generation_failed", message: message)
-                        }
-
-                        // Non-2xx HTTP means something went wrong
-                        if pollResponse.statusCode >= 400 {
-                            let raw = String(data: pollData, encoding: .utf8) ?? "(non-UTF-8)"
-                            throw LLMError.providerError(
-                                code: "video_poll_error",
-                                message: "Polling returned HTTP \(pollResponse.statusCode): \(String(raw.prefix(500)))"
-                            )
-                        }
-
-                        let done = pollJSON?["done"] as? Bool ?? false
-                        guard done else { continue }
-
-                        // 3. Extract video URI from response
-                        guard let response = pollJSON?["response"] as? [String: Any],
-                              let generateVideoResponse = response["generateVideoResponse"] as? [String: Any],
-                              let generatedSamples = generateVideoResponse["generatedSamples"] as? [[String: Any]],
-                              let firstSample = generatedSamples.first,
-                              let video = firstSample["video"] as? [String: Any],
-                              let uriString = video["uri"] as? String,
-                              !uriString.isEmpty else {
-                            let raw = String(data: pollData, encoding: .utf8) ?? "(non-UTF-8)"
-                            throw LLMError.decodingError(
-                                message: "Gemini video generation completed but no video URI found. Response: \(String(raw.prefix(500)))"
-                            )
-                        }
-
-                        // 4. Download the video (append API key for authentication)
-                        var downloadComponents = URLComponents(string: uriString)
-                        var queryItems = downloadComponents?.queryItems ?? []
-                        queryItems.append(URLQueryItem(name: "key", value: apiKey))
-                        downloadComponents?.queryItems = queryItems
-
-                        guard let downloadURL = downloadComponents?.url else {
-                            throw LLMError.decodingError(message: "Invalid video download URI: \(uriString)")
-                        }
-
-                        let (localURL, mimeType) = try await VideoAttachmentUtility.downloadToLocal(
-                            from: downloadURL,
-                            networkManager: networkManager
-                        )
-
-                        let videoContent = VideoContent(mimeType: mimeType, data: nil, url: localURL)
-                        continuation.yield(.contentDelta(.video(videoContent)))
-                        continuation.yield(.messageEnd(usage: nil))
-                        continuation.finish()
-                        return
-                    }
-
-                    throw LLMError.providerError(
-                        code: "video_generation_timeout",
-                        message: "Gemini video generation timed out after polling for ~10 minutes."
-                    )
-                } catch {
-                    continuation.finish(throwing: error)
-                }
-            }
-
-            continuation.onTermination = { @Sendable _ in
-                task.cancel()
-            }
-        }
     }
 
     private func supportsFunctionCalling(_ modelID: String) -> Bool {
@@ -605,19 +459,16 @@ actor GeminiAdapter: LLMProviderAdapter {
         return true
     }
 
-    private func supportsThinking(_ modelID: String) -> Bool {
-        // Gemini 2.5 Flash Image does not support thinking.
+    func supportsThinking(_ modelID: String) -> Bool {
         modelID.lowercased() != "gemini-2.5-flash-image"
     }
 
-    private func supportsThinkingConfig(_ modelID: String) -> Bool {
-        // Gemini 3 Pro Image is a thinking model, but does not support public
-        // thinkingConfig controls (for example thinkingLevel) in requests.
+    func supportsThinkingConfig(_ modelID: String) -> Bool {
         let lower = modelID.lowercased()
         return supportsThinking(modelID) && lower != "gemini-3-pro-image-preview"
     }
 
-    private func supportsThinkingLevel(_ modelID: String) -> Bool {
+    func supportsThinkingLevel(_ modelID: String) -> Bool {
         supportsThinkingConfig(modelID)
     }
 
@@ -718,187 +569,7 @@ actor GeminiAdapter: LLMProviderAdapter {
         }
     }
 
-    private func translateContents(_ messages: [Message], supportsNativePDF: Bool) -> [[String: Any]] {
-        var out: [[String: Any]] = []
-        out.reserveCapacity(messages.count + 4)
-
-        for message in messages where message.role != .system {
-            switch message.role {
-            case .system:
-                continue
-            case .tool:
-                if let toolResults = message.toolResults, !toolResults.isEmpty {
-                    out.append(translateToolResults(toolResults))
-                }
-            case .user, .assistant:
-                out.append(translateNonToolMessage(message, supportsNativePDF: supportsNativePDF))
-
-                // Some providers/users serialize tool results inline on non-tool messages; handle defensively.
-                if let toolResults = message.toolResults, !toolResults.isEmpty {
-                    out.append(translateToolResults(toolResults))
-                }
-            }
-        }
-
-        return out
-    }
-
-    private func translateNonToolMessage(_ message: Message, supportsNativePDF: Bool) -> [String: Any] {
-        let role: String = (message.role == .assistant) ? "model" : "user"
-
-        var parts: [[String: Any]] = []
-
-        // Preserve thoughts first for model turns to keep tool calling stable when thought signatures are enabled.
-        if message.role == .assistant {
-            for part in message.content {
-                if case .thinking(let thinking) = part {
-                    var dict: [String: Any] = [
-                        "text": thinking.text,
-                        "thought": true
-                    ]
-                    if let signature = thinking.signature {
-                        dict["thoughtSignature"] = signature
-                    }
-                    parts.append(dict)
-                }
-            }
-        }
-
-        // User-visible content (text/images/files).
-        for part in message.content {
-            switch part {
-            case .text(let text):
-                parts.append(["text": text])
-
-            case .image(let image):
-                if let inline = inlineDataPart(mimeType: image.mimeType, data: image.data, url: image.url) {
-                    parts.append(inline)
-                }
-
-            case .video(let video):
-                if let inline = inlineDataPart(mimeType: video.mimeType, data: video.data, url: video.url) {
-                    parts.append(inline)
-                }
-
-            case .audio(let audio):
-                if let inline = inlineDataPart(mimeType: audio.mimeType, data: audio.data, url: audio.url) {
-                    parts.append(inline)
-                }
-
-            case .file(let file):
-                // Native PDF support for Gemini 3 series.
-                if supportsNativePDF, file.mimeType == "application/pdf" {
-                    let pdfData: Data?
-                    if let data = file.data {
-                        pdfData = data
-                    } else if let url = file.url, url.isFileURL {
-                        pdfData = try? Data(contentsOf: url)
-                    } else {
-                        pdfData = nil
-                    }
-
-                    if let pdfData {
-                        parts.append([
-                            "inlineData": [
-                                "mimeType": "application/pdf",
-                                "data": pdfData.base64EncodedString()
-                            ]
-                        ])
-                        continue
-                    }
-                }
-
-                // Fallback to text extraction.
-                let text = AttachmentPromptRenderer.fallbackText(for: file)
-                parts.append(["text": text])
-
-            case .thinking, .redactedThinking:
-                continue
-            }
-        }
-
-        // Function calls (model output) are appended to model turns.
-        if message.role == .assistant, let toolCalls = message.toolCalls {
-            for call in toolCalls {
-                var part: [String: Any] = [
-                    "functionCall": [
-                        "name": call.name,
-                        "args": call.arguments.mapValues { $0.value }
-                    ]
-                ]
-                if let signature = call.signature {
-                    part["thoughtSignature"] = signature
-                }
-                parts.append(part)
-            }
-        }
-
-        if parts.isEmpty {
-            parts.append(["text": ""])
-        }
-
-        return [
-            "role": role,
-            "parts": parts
-        ]
-    }
-
-    private func translateToolResults(_ results: [ToolResult]) -> [String: Any] {
-        var parts: [[String: Any]] = []
-        parts.reserveCapacity(results.count)
-
-        for result in results {
-            guard let toolName = result.toolName, !toolName.isEmpty else { continue }
-
-            var part: [String: Any] = [
-                "functionResponse": [
-                    "name": toolName,
-                    "response": [
-                        "content": result.content
-                    ]
-                ]
-            ]
-
-            if let signature = result.signature {
-                part["thoughtSignature"] = signature
-            }
-
-            parts.append(part)
-        }
-
-        if parts.isEmpty {
-            parts.append(["text": ""])
-        }
-
-        return [
-            "role": "user",
-            "parts": parts
-        ]
-    }
-
-    private func inlineDataPart(mimeType: String, data: Data?, url: URL?) -> [String: Any]? {
-        if let data {
-            return [
-                "inlineData": [
-                    "mimeType": mimeType,
-                    "data": data.base64EncodedString()
-                ]
-            ]
-        }
-
-        if let url {
-            if url.isFileURL, let data = try? Data(contentsOf: url) {
-                return [
-                    "inlineData": [
-                        "mimeType": mimeType,
-                        "data": data.base64EncodedString()
-                    ]
-                ]
-            }
-        }
-
-        return nil
-    }
+    // Content translation, event parsing, and model info building are in GeminiContentTranslation.swift
 
     private func translateSingleTool(_ tool: ToolDefinition) -> [String: Any] {
         [
@@ -912,177 +583,8 @@ actor GeminiAdapter: LLMProviderAdapter {
         ]
     }
 
-    private func events(from part: GeminiGenerateContentResponse.Part) -> [StreamEvent] {
-        var out: [StreamEvent] = []
-
-        if part.thought == true {
-            let text = part.text ?? ""
-            let signature = part.thoughtSignature
-            if !text.isEmpty || signature != nil {
-                out.append(.thinkingDelta(.thinking(textDelta: text, signature: signature)))
-            }
-        } else if let text = part.text, !text.isEmpty {
-            out.append(.contentDelta(.text(text)))
-        }
-
-        if let inline = part.inlineData,
-           let base64 = inline.data,
-           let data = Data(base64Encoded: base64) {
-            let mimeType = inline.mimeType ?? "image/png"
-            if mimeType.lowercased().hasPrefix("image/") {
-                out.append(.contentDelta(.image(ImageContent(mimeType: mimeType, data: data))))
-            }
-        }
-
-        if let functionCall = part.functionCall {
-            let toolCall = ToolCall(
-                id: UUID().uuidString,
-                name: functionCall.name,
-                arguments: functionCall.args ?? [:],
-                signature: part.thoughtSignature
-            )
-            out.append(.toolCallStart(toolCall))
-            out.append(.toolCallEnd(toolCall))
-        }
-
-        return out
-    }
-
-    private func searchActivities(from grounding: GeminiGenerateContentResponse.GroundingMetadata?) -> [StreamEvent] {
-        GoogleGroundingSearchActivities.events(
-            from: grounding.map(toSharedGrounding),
-            searchPrefix: "gemini-search",
-            openPrefix: "gemini-open",
-            searchURLPrefix: "gemini-search-url"
-        )
-    }
-
-    private func candidateGroundingMetadata(in candidates: [GeminiGenerateContentResponse.Candidate]?) -> GeminiGenerateContentResponse.GroundingMetadata? {
-        guard let candidates else { return nil }
-        for candidate in candidates {
-            if let grounding = candidate.groundingMetadata {
-                return grounding
-            }
-        }
-        return nil
-    }
-
-    private func toSharedGrounding(_ g: GeminiGenerateContentResponse.GroundingMetadata) -> GoogleGroundingSearchActivities.GroundingMetadata {
-        GoogleGroundingSearchActivities.GroundingMetadata(
-            webSearchQueries: g.webSearchQueries,
-            retrievalQueries: g.retrievalQueries,
-            groundingChunks: g.groundingChunks?.map {
-                .init(webURI: $0.web?.uri, webTitle: $0.web?.title)
-            },
-            groundingSupports: g.groundingSupports?.map {
-                .init(segmentText: $0.segment?.text, groundingChunkIndices: $0.groundingChunkIndices)
-            },
-            searchEntryPoint: g.searchEntryPoint.map {
-                .init(sdkBlob: $0.sdkBlob)
-            }
-        )
-    }
-
-    private func isCandidateContentFiltered(_ candidate: GeminiGenerateContentResponse.Candidate) -> Bool {
-        // Gemini can signal blocks via finishReason. Treat safety/blocked as filtered.
-        let reason = (candidate.finishReason ?? "").uppercased()
-        if reason == "SAFETY" || reason == "BLOCKED" || reason == "PROHIBITED_CONTENT" {
-            return true
-        }
-        return false
-    }
-
-    private func makeModelInfo(from model: GeminiListModelsResponse.GeminiModel) -> ModelInfo {
-        let id = model.id
-        let lower = id.lowercased()
-        let methods = Set(model.supportedGenerationMethods?.map { $0.lowercased() } ?? [])
-
-        var caps: ModelCapability = []
-
-        let supportsGenerateContent = methods.contains("generatecontent") || methods.contains("streamgeneratecontent") || methods.isEmpty
-        let supportsStream = methods.contains("streamgeneratecontent") || methods.isEmpty
-
-        if supportsStream {
-            caps.insert(.streaming)
-        }
-
-        let isImageModel = isImageGenerationModel(id)
-        let isGeminiModel = GeminiModelConstants.knownModelIDs.contains(lower)
-
-        if supportsGenerateContent && !isImageModel {
-            caps.insert(.toolCalling)
-        }
-
-        if isGeminiModel || isImageModel {
-            caps.insert(.vision)
-        }
-
-        if supportsGenerateContent && isGeminiModel && !isImageModel {
-            caps.insert(.audio)
-        }
-
-        var reasoningConfig: ModelReasoningConfig?
-        if supportsThinking(id) && isGeminiModel {
-            caps.insert(.reasoning)
-            if lower == "gemini-3.1-flash-image-preview" {
-                reasoningConfig = ModelReasoningConfig(type: .effort, defaultEffort: .minimal)
-            } else if supportsThinkingConfig(id) {
-                reasoningConfig = ModelReasoningConfig(type: .effort, defaultEffort: .high)
-            } else {
-                reasoningConfig = nil
-            }
-        }
-
-        if supportsNativePDF(id) {
-            caps.insert(.nativePDF)
-        }
-
-        if !isImageModel {
-            caps.insert(.promptCaching)
-        }
-
-        if isImageModel {
-            caps.insert(.imageGeneration)
-        }
-
-        if isVideoGenerationModel(id) {
-            caps.insert(.videoGeneration)
-        }
-
-        let contextWindow: Int
-        if let inputTokenLimit = model.inputTokenLimit {
-            contextWindow = inputTokenLimit
-        } else if lower == "gemini-3-pro-image-preview" {
-            contextWindow = 65_536
-        } else if lower == "gemini-3.1-flash-image-preview" {
-            contextWindow = 131_072
-        } else if lower == "gemini-2.5-flash-image" {
-            contextWindow = 32_768
-        } else {
-            contextWindow = 1_048_576
-        }
-
-        return ModelInfo(
-            id: id,
-            name: model.displayName ?? id,
-            capabilities: caps,
-            contextWindow: contextWindow,
-            reasoningConfig: reasoningConfig,
-            isEnabled: true
-        )
-    }
-
-    private func deepMerge(into base: inout [String: Any], additional: [String: Any]) {
-        for (key, value) in additional {
-            if var baseDict = base[key] as? [String: Any],
-               let addDict = value as? [String: Any] {
-                deepMerge(into: &baseDict, additional: addDict)
-                base[key] = baseDict
-                continue
-            }
-            base[key] = value
-        }
-    }
 }
 
-// DTOs are defined in GeminiAdapterResponseTypes.swift
+// Content translation, event parsing, model info: GeminiContentTranslation.swift
+// Video generation: GeminiVideoGeneration.swift
+// DTOs: GeminiAdapterResponseTypes.swift
