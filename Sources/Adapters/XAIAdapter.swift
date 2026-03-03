@@ -358,7 +358,8 @@ actor XAIAdapter: LLMProviderAdapter {
         imageURL: String?,
         controls: GenerationControls
     ) throws -> URLRequest {
-        let endpoint = (imageURL?.isEmpty == false) ? "images/edits" : "images/generations"
+        let isImageEdit = imageURL?.isEmpty == false
+        let endpoint = isImageEdit ? "images/edits" : "images/generations"
 
         var request = URLRequest(url: try validatedURL("\(baseURL)/\(endpoint)"))
         request.httpMethod = "POST"
@@ -376,10 +377,11 @@ actor XAIAdapter: LLMProviderAdapter {
             body["n"] = min(max(count, 1), 10)
         }
         if let imageURL, !imageURL.isEmpty {
-            body["image_url"] = imageURL
+            body["image"] = ["url": imageURL]
         }
 
-        if let aspectRatio = imageControls?.aspectRatio ?? imageControls?.size?.mappedAspectRatio {
+        if !isImageEdit,
+           let aspectRatio = imageControls?.aspectRatio ?? imageControls?.size?.mappedAspectRatio {
             body["aspect_ratio"] = aspectRatio.rawValue
         }
 
