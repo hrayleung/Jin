@@ -55,6 +55,8 @@ actor ProviderManager {
             return PerplexityAdapter(providerConfig: config, apiKey: apiKey, networkManager: networkManager)
         case .cohere:
             return CohereAdapter(providerConfig: config, apiKey: apiKey, networkManager: networkManager)
+        case .together:
+            return TogetherAdapter(providerConfig: config, apiKey: apiKey, networkManager: networkManager)
         case .xai:
             return XAIAdapter(providerConfig: config, apiKey: apiKey, networkManager: networkManager)
         case .deepseek:

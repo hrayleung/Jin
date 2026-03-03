@@ -66,6 +66,7 @@ enum ProviderType: String, Codable, CaseIterable {
     case cohere
     case mistral
     case deepinfra
+    case together
     case xai
     case deepseek
     case zhipuCodingPlan
@@ -88,6 +89,7 @@ enum ProviderType: String, Codable, CaseIterable {
         case .cohere: return "Cohere"
         case .mistral: return "Mistral"
         case .deepinfra: return "DeepInfra"
+        case .together: return "Together AI"
         case .xai: return "xAI"
         case .deepseek: return "DeepSeek"
         case .zhipuCodingPlan: return "Zhipu Coding Plan"
@@ -112,6 +114,7 @@ enum ProviderType: String, Codable, CaseIterable {
         case .cohere: return "https://api.cohere.com/v2"
         case .mistral: return "https://api.mistral.ai/v1"
         case .deepinfra: return "https://api.deepinfra.com/v1/openai"
+        case .together: return "https://api.together.xyz/v1"
         case .xai: return "https://api.x.ai/v1"
         case .deepseek: return "https://api.deepseek.com/v1"
         case .zhipuCodingPlan: return "https://open.bigmodel.cn/api/coding/paas/v4"

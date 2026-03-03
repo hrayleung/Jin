@@ -637,6 +637,8 @@ struct ContentView: View {
                 return "deepseek-chat"
             case "zhipu-coding-plan":
                 return "glm-5"
+            case "together":
+                return "moonshotai/Kimi-K2.5"
             case "vertexai":
                 return "gemini-3-pro-preview"
             default:
@@ -667,6 +669,12 @@ struct ContentView: View {
         }
         if providerID == "zhipu-coding-plan", let glm47 = models.first(where: { $0.id.lowercased() == "glm-4.7" }) {
             return glm47.id
+        }
+        if providerID == "together", let kimiK2p5 = models.first(where: { $0.id == "moonshotai/Kimi-K2.5" }) {
+            return kimiK2p5.id
+        }
+        if providerID == "together", let glm5 = models.first(where: { $0.id == "zai-org/GLM-5" }) {
+            return glm5.id
         }
         if providerID == "vertexai", let gemini3Pro = models.first(where: { $0.id == "gemini-3-pro-preview" }) {
             return gemini3Pro.id

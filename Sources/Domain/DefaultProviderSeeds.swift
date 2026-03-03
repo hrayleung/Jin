@@ -20,6 +20,7 @@ enum DefaultProviderSeeds {
             mistral,
             perplexity,
             deepInfra,
+            together,
             xAI,
             deepSeek,
             zhipuCodingPlan,
@@ -149,6 +150,17 @@ enum DefaultProviderSeeds {
             iconID: LobeProviderIconCatalog.defaultIconID(for: .deepinfra),
             baseURL: ProviderType.deepinfra.defaultBaseURL,
             models: []
+        )
+    }
+
+    static var together: ProviderConfig {
+        ProviderConfig(
+            id: "together",
+            name: "Together AI",
+            type: .together,
+            iconID: LobeProviderIconCatalog.defaultIconID(for: .together),
+            baseURL: ProviderType.together.defaultBaseURL,
+            models: ModelCatalog.seededModels(for: .together)
         )
     }
 

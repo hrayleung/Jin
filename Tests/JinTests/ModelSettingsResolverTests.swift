@@ -162,6 +162,22 @@ final class ModelSettingsResolverTests: XCTestCase {
         XCTAssertEqual(resolved.reasoningConfig?.type, .toggle)
     }
 
+    func testTogetherUsesOpenAICompatibleRequestShape() {
+        let model = ModelInfo(
+            id: "zai-org/GLM-5",
+            name: "GLM-5",
+            capabilities: [.streaming, .toolCalling, .reasoning],
+            contextWindow: 128_000,
+            reasoningConfig: nil,
+            isEnabled: true
+        )
+
+        XCTAssertEqual(
+            ModelSettingsResolver.resolve(model: model, providerType: .together).requestShape,
+            .openAICompatible
+        )
+    }
+
     func testOpenRouterDefaultReasoningConfigRecognizesGeminiAndClaudeModelIDs() {
         let gemini = ModelCapabilityRegistry.defaultReasoningConfig(
             for: .openrouter,
@@ -490,6 +506,34 @@ final class ModelSettingsResolverTests: XCTestCase {
             ModelSettingsResolver.resolve(model: xaiProLegacy, providerType: .xai).contextWindow,
             32_768
         )
+    }
+
+    func testResolverInfersContextWindowAndReasoningForKnownLegacyTogetherModels() {
+        let kimiLegacy = ModelInfo(
+            id: "moonshotai/Kimi-K2.5",
+            name: "Kimi K2.5",
+            capabilities: [.streaming, .toolCalling],
+            contextWindow: 128_000,
+            reasoningConfig: nil,
+            isEnabled: true
+        )
+
+        let resolvedKimi = ModelSettingsResolver.resolve(model: kimiLegacy, providerType: .together)
+        XCTAssertEqual(resolvedKimi.contextWindow, 262_144)
+        XCTAssertEqual(resolvedKimi.reasoningConfig?.type, .toggle)
+
+        let glmLegacy = ModelInfo(
+            id: "zai-org/GLM-5",
+            name: "GLM-5",
+            capabilities: [.streaming, .toolCalling],
+            contextWindow: 128_000,
+            reasoningConfig: nil,
+            isEnabled: true
+        )
+
+        let resolvedGLM = ModelSettingsResolver.resolve(model: glmLegacy, providerType: .together)
+        XCTAssertEqual(resolvedGLM.contextWindow, 202_752)
+        XCTAssertEqual(resolvedGLM.reasoningConfig?.type, .toggle)
     }
 
     func testOpenRouterWebSearchDefaultsByModelFamily() {

@@ -1535,6 +1535,173 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         XCTAssertEqual(models.map(\.id), ["foo-chat", "foo-reasoning"])
         XCTAssertTrue(models.allSatisfy(\.isEnabled))
     }
+
+    func testTogetherAdapterFetchModelsUsesArrayShapeWithoutFilteringByModelType() async throws {
+        let (session, protocolType) = makeMockedURLSession()
+        let networkManager = NetworkManager(urlSession: session)
+
+        let providerConfig = ProviderConfig(
+            id: "together",
+            name: "Together AI",
+            type: .together,
+            apiKey: "ignored",
+            baseURL: "https://api.together.xyz"
+        )
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://api.together.xyz/v1/models")
+            XCTAssertEqual(request.httpMethod, "GET")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer test-key")
+
+            let payload: [[String: Any]] = [
+                [
+                    "id": "moonshotai/Kimi-K2.5",
+                    "type": "chat",
+                    "display_name": "Kimi K2.5",
+                ],
+                [
+                    "id": "Qwen/Qwen3-Coder-Next-FP8",
+                    "type": "code",
+                    "display_name": "Qwen3 Coder Next",
+                ],
+                [
+                    "id": "black-forest-labs/flux",
+                    "type": "image",
+                    "display_name": "FLUX",
+                ],
+            ]
+
+            let data = try JSONSerialization.data(withJSONObject: payload)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = TogetherAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let models = try await adapter.fetchAvailableModels()
+
+        XCTAssertEqual(
+            models.map(\.id),
+            ["moonshotai/Kimi-K2.5", "Qwen/Qwen3-Coder-Next-FP8", "black-forest-labs/flux"]
+        )
+        XCTAssertEqual(models[0].contextWindow, 262_144)
+        XCTAssertTrue(models[0].capabilities.contains(.vision))
+        XCTAssertTrue(models[0].capabilities.contains(.reasoning))
+        XCTAssertEqual(models[2].capabilities, [.streaming, .toolCalling])
+    }
+
+    func testTogetherAdapterAppliesReasoningTogglePayloadForToggleModels() async throws {
+        let (session, protocolType) = makeMockedURLSession()
+        let networkManager = NetworkManager(urlSession: session)
+
+        let providerConfig = ProviderConfig(
+            id: "together",
+            name: "Together AI",
+            type: .together,
+            apiKey: "ignored",
+            baseURL: "https://api.together.xyz/v1"
+        )
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://api.together.xyz/v1/chat/completions")
+
+            let body = try XCTUnwrap(requestBodyData(request))
+            let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+            let root = try XCTUnwrap(json)
+            let reasoning = try XCTUnwrap(root["reasoning"] as? [String: Any])
+            XCTAssertEqual(reasoning["enabled"] as? Bool, false)
+            XCTAssertNil(root["reasoning_effort"])
+
+            let response: [String: Any] = [
+                "id": "cmpl_together_toggle",
+                "choices": [
+                    [
+                        "message": [
+                            "role": "assistant",
+                            "content": "OK",
+                        ],
+                        "finish_reason": "stop",
+                    ],
+                ],
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = TogetherAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hello")])],
+            modelID: "zai-org/GLM-5",
+            controls: GenerationControls(reasoning: ReasoningControls(enabled: false)),
+            tools: [],
+            streaming: false
+        )
+
+        for try await _ in stream {}
+    }
+
+    func testTogetherAdapterEncodesInputAudioInUserContent() async throws {
+        let (session, protocolType) = makeMockedURLSession()
+        let networkManager = NetworkManager(urlSession: session)
+
+        let providerConfig = ProviderConfig(
+            id: "together",
+            name: "Together AI",
+            type: .together,
+            apiKey: "ignored",
+            baseURL: "https://api.together.xyz/v1"
+        )
+
+        let audioData = Data([0x01, 0x02, 0x03, 0x04])
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://api.together.xyz/v1/chat/completions")
+
+            let body = try XCTUnwrap(requestBodyData(request))
+            let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+            let root = try XCTUnwrap(json)
+            let messages = try XCTUnwrap(root["messages"] as? [[String: Any]])
+            let first = try XCTUnwrap(messages.first)
+            let content = try XCTUnwrap(first["content"] as? [[String: Any]])
+            let audioPart = try XCTUnwrap(content.first(where: { ($0["type"] as? String) == "input_audio" }))
+            let inputAudio = try XCTUnwrap(audioPart["input_audio"] as? [String: Any])
+
+            XCTAssertEqual(inputAudio["format"] as? String, "wav")
+            XCTAssertEqual(inputAudio["data"] as? String, audioData.base64EncodedString())
+
+            let response: [String: Any] = [
+                "id": "cmpl_together_audio",
+                "choices": [
+                    [
+                        "message": [
+                            "role": "assistant",
+                            "content": "OK",
+                        ],
+                        "finish_reason": "stop",
+                    ],
+                ],
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = TogetherAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [
+                Message(
+                    role: .user,
+                    content: [
+                        .text("Please transcribe this clip."),
+                        .audio(AudioContent(mimeType: "audio/wav", data: audioData)),
+                    ]
+                )
+            ],
+            modelID: "qwen3-asr-4b",
+            controls: GenerationControls(),
+            tools: [],
+            streaming: false
+        )
+
+        for try await _ in stream {}
+    }
+
     func testOpenRouterAdapterNormalizesRootBaseURLForKeyValidation() async throws {
         let (session, protocolType) = makeMockedURLSession()
         let networkManager = NetworkManager(urlSession: session)

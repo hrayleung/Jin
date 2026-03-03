@@ -231,6 +231,8 @@ enum LobeProviderIconCatalog {
             return "Mistral"
         case .deepinfra:
             return "DeepInfra"
+        case .together:
+            return "Together"
         case .xai:
             return "XAI"
         case .deepseek:

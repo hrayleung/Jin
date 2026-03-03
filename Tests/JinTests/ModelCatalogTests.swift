@@ -113,4 +113,33 @@ final class ModelCatalogTests: XCTestCase {
         XCTAssertFalse(vertex.capabilities.contains(.toolCalling))
         XCTAssertNil(vertex.reasoningConfig)
     }
+
+    func testTogetherCatalogMetadataUsesExactIDs() {
+        let kimi = ModelCatalog.modelInfo(
+            for: "moonshotai/Kimi-K2.5",
+            provider: .together
+        )
+        XCTAssertEqual(kimi.contextWindow, 262_144)
+        XCTAssertTrue(kimi.capabilities.contains(.vision))
+        XCTAssertTrue(kimi.capabilities.contains(.reasoning))
+        XCTAssertEqual(kimi.reasoningConfig?.type, .toggle)
+
+        let glm5 = ModelCatalog.modelInfo(
+            for: "zai-org/GLM-5",
+            provider: .together
+        )
+        XCTAssertEqual(glm5.contextWindow, 202_752)
+        XCTAssertTrue(glm5.capabilities.contains(.reasoning))
+        XCTAssertEqual(glm5.reasoningConfig?.type, .toggle)
+    }
+
+    func testUnknownTogetherModelUsesConservativeFallback() {
+        let unknown = ModelCatalog.modelInfo(
+            for: "Qwen/Qwen3.5-397B-A17B-custom",
+            provider: .together
+        )
+        XCTAssertEqual(unknown.capabilities, [.streaming, .toolCalling])
+        XCTAssertEqual(unknown.contextWindow, 128_000)
+        XCTAssertNil(unknown.reasoningConfig)
+    }
 }

@@ -18,7 +18,12 @@ enum ModelSettingsResolver {
     static func resolve(model: ModelInfo, providerType: ProviderType?) -> ResolvedModelSettings {
         let overrides = model.overrides
 
-        let capabilities = overrides?.capabilities ?? model.capabilities
+        let inferredCapabilities = inferredCapabilities(
+            for: providerType,
+            modelID: model.id,
+            fallback: model.capabilities
+        )
+        let capabilities = overrides?.capabilities ?? inferredCapabilities
         let inferredContextWindow = inferredContextWindow(
             for: providerType,
             modelID: model.id,
@@ -96,6 +101,15 @@ enum ModelSettingsResolver {
     private static func inferredContextWindow(for providerType: ProviderType?, modelID: String, fallback: Int) -> Int {
         guard let providerType else { return fallback }
         return ModelCatalog.entry(for: modelID, provider: providerType)?.contextWindow ?? fallback
+    }
+
+    private static func inferredCapabilities(
+        for providerType: ProviderType?,
+        modelID: String,
+        fallback: ModelCapability
+    ) -> ModelCapability {
+        guard let providerType else { return fallback }
+        return ModelCatalog.entry(for: modelID, provider: providerType)?.capabilities ?? fallback
     }
 
     private static func inferredReasoningConfig(
