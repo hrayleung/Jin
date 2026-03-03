@@ -50,6 +50,10 @@ actor TogetherAdapter: LLMProviderAdapter {
         do {
             _ = try await networkManager.sendRequest(request)
             return true
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch let error as URLError where error.code == .cancelled {
+            throw CancellationError()
         } catch {
             return false
         }
