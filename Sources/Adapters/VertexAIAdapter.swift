@@ -516,6 +516,8 @@ actor VertexAIAdapter: LLMProviderAdapter {
             caps.insert(.reasoning)
             if GeminiModelConstants.gemini25TextModelIDs.contains(lower) {
                 reasoningConfig = ModelReasoningConfig(type: .budget, defaultBudget: 2048)
+            } else if lower == "gemini-3.1-flash-lite-preview" {
+                reasoningConfig = ModelReasoningConfig(type: .effort, defaultEffort: .minimal)
             } else if supportsThinkingConfig(id) {
                 reasoningConfig = ModelReasoningConfig(type: .effort, defaultEffort: .medium)
             } else {
