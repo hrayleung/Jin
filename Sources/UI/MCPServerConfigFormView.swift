@@ -38,11 +38,20 @@ struct MCPServerConfigFormView: View {
         Form {
             if let configError {
                 Section {
-                    Text(configError)
-                        .font(.system(.caption, design: .monospaced))
-                        .textSelection(.enabled)
-                        .jinInlineErrorText()
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                    HStack {
+                        Text(configError)
+                            .font(.system(.caption, design: .monospaced))
+                            .textSelection(.enabled)
+                            .jinInlineErrorText()
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        Button {
+                            self.configError = nil
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .foregroundStyle(.secondary)
+                        }
+                        .buttonStyle(.plain)
+                    }
                 }
             }
 
@@ -379,7 +388,7 @@ struct MCPServerConfigFormView: View {
         do {
             disabledTools = try server.disabledTools()
         } catch {
-            configError = "Failed to load disabled tools: \(error.localizedDescription)"
+            configError = "Failed to load disabled tools (defaulting to all enabled): \(error.localizedDescription)"
             disabledTools = []
         }
         persistTransport()
