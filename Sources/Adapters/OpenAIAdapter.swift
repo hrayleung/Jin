@@ -175,9 +175,13 @@ actor OpenAIAdapter: LLMProviderAdapter {
 
         let reasoningEffort = (controls.reasoning?.enabled == true) ? controls.reasoning?.effort : nil
         let reasoningEnabled = (reasoningEffort ?? .none) != .none
+        let supportsSamplingParameters = supportsOpenAIResponsesSamplingParameters(
+            modelID: modelID,
+            reasoningEnabled: reasoningEnabled
+        )
 
-        // When reasoning is enabled, the Responses API rejects temperature/top_p.
-        if !reasoningEnabled {
+        // Responses API sampling controls are limited for GPT-5 family models.
+        if supportsSamplingParameters {
             if let temperature = controls.temperature {
                 body["temperature"] = temperature
             }
@@ -223,6 +227,9 @@ actor OpenAIAdapter: LLMProviderAdapter {
 
         for (key, value) in controls.providerSpecific {
             guard key != "prompt_cache_min_tokens" else {
+                continue
+            }
+            if !supportsSamplingParameters, key == "temperature" || key == "top_p" {
                 continue
             }
             body[key] = value.value

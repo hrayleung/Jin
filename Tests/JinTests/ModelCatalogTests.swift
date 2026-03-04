@@ -53,6 +53,32 @@ final class ModelCatalogTests: XCTestCase {
         XCTAssertTrue(realtime.capabilities.contains(.audio))
     }
 
+    func testOpenAIGPT53ChatLatestUsesExactCatalogMetadata() {
+        let model = ModelCatalog.modelInfo(
+            for: "gpt-5.3-chat-latest",
+            provider: .openai
+        )
+        XCTAssertEqual(model.contextWindow, 128_000)
+        XCTAssertTrue(model.capabilities.contains(.streaming))
+        XCTAssertTrue(model.capabilities.contains(.toolCalling))
+        XCTAssertTrue(model.capabilities.contains(.vision))
+        XCTAssertTrue(model.capabilities.contains(.promptCaching))
+        XCTAssertFalse(model.capabilities.contains(.reasoning))
+        XCTAssertFalse(model.capabilities.contains(.nativePDF))
+        XCTAssertNil(model.reasoningConfig)
+
+        let cloudflareModel = ModelCatalog.modelInfo(
+            for: "openai/gpt-5.3-chat-latest",
+            provider: .cloudflareAIGateway
+        )
+        XCTAssertEqual(cloudflareModel.contextWindow, 128_000)
+        XCTAssertTrue(cloudflareModel.capabilities.contains(.vision))
+        XCTAssertTrue(cloudflareModel.capabilities.contains(.promptCaching))
+        XCTAssertFalse(cloudflareModel.capabilities.contains(.reasoning))
+        XCTAssertFalse(cloudflareModel.capabilities.contains(.nativePDF))
+        XCTAssertNil(cloudflareModel.reasoningConfig)
+    }
+
     func testZhipuCodingPlanExactModelMetadataAndUnknownFallback() {
         let glm5 = ModelCatalog.modelInfo(
             for: "glm-5",

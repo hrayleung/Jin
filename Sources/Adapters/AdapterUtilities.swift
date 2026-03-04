@@ -357,7 +357,11 @@ func modelSupportsReasoning(
     modelID: String
 ) -> Bool {
     guard let model = findConfiguredModel(in: providerConfig, for: modelID) else {
-        if let catalogReasoning = ModelCatalog.entry(for: modelID, provider: providerConfig.type)?.reasoningConfig {
+        if let catalogEntry = ModelCatalog.entry(for: modelID, provider: providerConfig.type) {
+            guard catalogEntry.capabilities.contains(.reasoning),
+                  let catalogReasoning = catalogEntry.reasoningConfig else {
+                return false
+            }
             return catalogReasoning.type != .none
         }
         return ModelCapabilityRegistry.defaultReasoningConfig(
@@ -482,6 +486,38 @@ private let openAIAudioInputModelIDs: Set<String> = [
 /// Checks whether an OpenAI model ID (lowercased) supports audio input.
 func isOpenAIAudioInputModelID(_ lowerModelID: String) -> Bool {
     openAIAudioInputModelIDs.contains(lowerModelID)
+}
+
+// MARK: - OpenAI Responses Sampling Parameter Support
+
+/// GPT-5 family models generally reject `temperature` / `top_p` on Responses API.
+/// Per OpenAI docs, these are only accepted on GPT-5.2 / GPT-5.1 when reasoning is disabled.
+/// Keep this conservative to avoid `400 invalid_request_error` for unsupported models.
+private let openAIResponsesSamplingAllowedModelIDs: Set<String> = [
+    "gpt-5.2",
+    "gpt-5.2-2025-12-11",
+    "gpt-5.1",
+]
+
+func supportsOpenAIResponsesSamplingParameters(modelID: String, reasoningEnabled: Bool) -> Bool {
+    let lower = modelID.lowercased()
+    let canonical: String
+    if lower.hasPrefix("openai/") {
+        canonical = String(lower.dropFirst("openai/".count))
+    } else {
+        canonical = lower
+    }
+
+    // Preserve prior behavior for non-GPT-5 models.
+    guard canonical.contains("gpt-5") else {
+        return true
+    }
+
+    guard !reasoningEnabled else {
+        return false
+    }
+
+    return openAIResponsesSamplingAllowedModelIDs.contains(canonical)
 }
 
 // MARK: - OpenAI-Compatible Streaming Dispatch
