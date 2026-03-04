@@ -278,6 +278,7 @@ struct MCPServerConfigFormView: View {
                                 isEnabled: Binding(
                                     get: { !disabledTools.contains(tool.name) },
                                     set: { isEnabled in
+                                        let previous = disabledTools
                                         if isEnabled {
                                             disabledTools.remove(tool.name)
                                         } else {
@@ -287,6 +288,7 @@ struct MCPServerConfigFormView: View {
                                             try server.setDisabledTools(disabledTools)
                                             try modelContext.save()
                                         } catch {
+                                            disabledTools = previous
                                             configError = "Failed to save tool settings: \(error.localizedDescription)"
                                         }
                                     }
@@ -456,11 +458,19 @@ struct MCPServerConfigFormView: View {
 
         server.lifecycleRaw = MCPLifecyclePolicy.persistent.rawValue
         server.isLongRunning = true
-        try? modelContext.save()
+        do {
+            try modelContext.save()
+        } catch {
+            configError = "Failed to persist server settings: \(error.localizedDescription)"
+        }
     }
 
     private func verifyTools() {
         persistTransport()
+        if configError != nil {
+            verifyError = configError
+            return
+        }
         if hasTransportValidationError {
             verifyError = "Fix transport validation errors before verification."
             return

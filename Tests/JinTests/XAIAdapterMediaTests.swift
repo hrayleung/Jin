@@ -158,8 +158,13 @@ final class XAIAdapterMediaTests: XCTestCase {
         do {
             _ = try await adapter.imageURLString(image)
             XCTFail("Expected imageURLString to throw for missing file")
+        } catch let error as LLMError {
+            guard case .invalidRequest(let message) = error else {
+                return XCTFail("Expected LLMError.invalidRequest, got \(error)")
+            }
+            XCTAssertTrue(message.contains("Failed to read attachment"))
         } catch {
-            XCTAssertTrue(error.localizedDescription.contains("Failed to read attachment"))
+            XCTFail("Unexpected error type: \(error)")
         }
     }
 
