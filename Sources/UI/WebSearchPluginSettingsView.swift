@@ -11,6 +11,7 @@ struct WebSearchPluginSettingsView: View {
     @AppStorage(AppPreferenceKeys.pluginWebSearchJinaAPIKey) private var jinaAPIKey = ""
     @AppStorage(AppPreferenceKeys.pluginWebSearchFirecrawlAPIKey) private var firecrawlAPIKey = ""
     @AppStorage(AppPreferenceKeys.pluginWebSearchTavilyAPIKey) private var tavilyAPIKey = ""
+    @AppStorage(AppPreferenceKeys.pluginWebSearchPerplexityAPIKey) private var perplexityAPIKey = ""
 
     @AppStorage(AppPreferenceKeys.pluginWebSearchExaSearchType) private var exaSearchTypeRaw = ""
     @AppStorage(AppPreferenceKeys.pluginWebSearchBraveCountry) private var braveCountry = ""
@@ -26,6 +27,9 @@ struct WebSearchPluginSettingsView: View {
     @State private var isJinaKeyVisible = false
     @State private var isFirecrawlKeyVisible = false
     @State private var isTavilyKeyVisible = false
+    @State private var isPerplexityKeyVisible = false
+    @State private var credentialEditorProviderRaw = SearchPluginProvider.exa.rawValue
+    @State private var hasInitializedCredentialEditorProvider = false
 
     private let recencyChoices: [(label: String, value: Int)] = [
         ("Any time", 0),
@@ -38,14 +42,14 @@ struct WebSearchPluginSettingsView: View {
         SearchPluginProvider(rawValue: defaultProviderRaw) ?? .exa
     }
 
-    private var configuredProviderBadges: [String] {
-        var out: [String] = []
-        if !exaAPIKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { out.append(SearchPluginProvider.exa.displayName) }
-        if !braveAPIKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { out.append(SearchPluginProvider.brave.displayName) }
-        if !jinaAPIKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { out.append(SearchPluginProvider.jina.displayName) }
-        if !firecrawlAPIKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { out.append(SearchPluginProvider.firecrawl.displayName) }
-        if !tavilyAPIKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { out.append(SearchPluginProvider.tavily.displayName) }
-        return out
+    private var credentialEditorProvider: SearchPluginProvider {
+        SearchPluginProvider(rawValue: credentialEditorProviderRaw) ?? .exa
+    }
+
+    private var configuredProviders: [SearchPluginProvider] {
+        SearchPluginProvider.allCases.filter { provider in
+            !apiKeyBinding(for: provider).wrappedValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        }
     }
 
     var body: some View {
@@ -58,6 +62,9 @@ struct WebSearchPluginSettingsView: View {
             .onChange(of: firecrawlExtractContent) { _, _ in notifyCredentialsChanged() }
             .onChange(of: tavilySearchDepth) { _, _ in notifyCredentialsChanged() }
             .onChange(of: tavilyTopic) { _, _ in notifyCredentialsChanged() }
+            .onAppear {
+                initializeCredentialEditorProviderIfNeeded()
+            }
     }
 
     private var formContentWithAPIKeyObservers: some View {
@@ -71,6 +78,7 @@ struct WebSearchPluginSettingsView: View {
             .onChange(of: jinaAPIKey) { _, _ in notifyCredentialsChanged() }
             .onChange(of: firecrawlAPIKey) { _, _ in notifyCredentialsChanged() }
             .onChange(of: tavilyAPIKey) { _, _ in notifyCredentialsChanged() }
+            .onChange(of: perplexityAPIKey) { _, _ in notifyCredentialsChanged() }
     }
 
     private var formContent: some View {
@@ -81,14 +89,10 @@ struct WebSearchPluginSettingsView: View {
 
             defaultsSection
 
-            apiKeysSection
+            providerCredentialsSection
 
             Section("Provider Advanced") {
                 providerAdvancedContent()
-            }
-
-            Section("Configured Providers") {
-                configuredProvidersContent
             }
         }
         .formStyle(.grouped)
@@ -123,14 +127,54 @@ struct WebSearchPluginSettingsView: View {
         }
     }
 
-    private var apiKeysSection: some View {
-        Section("API Keys") {
-            apiKeyRow(label: "Exa API Key", text: $exaAPIKey, isVisible: $isExaKeyVisible)
-            apiKeyRow(label: "Brave API Key", text: $braveAPIKey, isVisible: $isBraveKeyVisible)
-            apiKeyRow(label: "Jina API Key", text: $jinaAPIKey, isVisible: $isJinaKeyVisible)
-            apiKeyRow(label: "Firecrawl API Key", text: $firecrawlAPIKey, isVisible: $isFirecrawlKeyVisible)
-            apiKeyRow(label: "Tavily API Key", text: $tavilyAPIKey, isVisible: $isTavilyKeyVisible)
+    private var providerCredentialsSection: some View {
+        Section("Provider Credentials") {
+            Picker("Edit provider", selection: $credentialEditorProviderRaw) {
+                ForEach(SearchPluginProvider.allCases) { provider in
+                    Text(provider.displayName).tag(provider.rawValue)
+                }
+            }
 
+            apiKeyRow(
+                label: "\(credentialEditorProvider.displayName) API Key",
+                text: apiKeyBinding(for: credentialEditorProvider),
+                isVisible: keyVisibilityBinding(for: credentialEditorProvider)
+            )
+
+            HStack(spacing: 8) {
+                Text(apiKeyBinding(for: credentialEditorProvider).wrappedValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                    ? "Not configured"
+                    : "Configured"
+                )
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+                Spacer()
+
+                if !apiKeyBinding(for: credentialEditorProvider).wrappedValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    Button("Clear", role: .destructive) {
+                        apiKeyBinding(for: credentialEditorProvider).wrappedValue = ""
+                        keyVisibilityBinding(for: credentialEditorProvider).wrappedValue = false
+                    }
+                    .font(.caption)
+                }
+            }
+
+            Text("Only providers with configured API keys are available in chat.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            LabeledContent("Configured") {
+                Text("\(configuredProviders.count)/\(SearchPluginProvider.allCases.count)")
+                    .foregroundStyle(.secondary)
+            }
+
+            if !configuredProviders.isEmpty {
+                Text(configuredProviders.map(\.displayName).joined(separator: " · "))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
     }
 
@@ -155,19 +199,6 @@ struct WebSearchPluginSettingsView: View {
             .buttonStyle(.plain)
             .help(isVisible.wrappedValue ? "Hide API key" : "Show API key")
             .disabled(text.wrappedValue.isEmpty)
-        }
-    }
-
-    @ViewBuilder
-    private var configuredProvidersContent: some View {
-        if configuredProviderBadges.isEmpty {
-            Text("No provider keys set yet.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-        } else {
-            Text(configuredProviderBadges.joined(separator: " • "))
-                .font(.caption)
-                .foregroundStyle(.secondary)
         }
     }
 
@@ -210,7 +241,56 @@ struct WebSearchPluginSettingsView: View {
                 Text("News").tag("news")
                 Text("Finance").tag("finance")
             }
+        case .perplexity:
+            Text("Perplexity Search currently has no plugin-specific options.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
         }
+    }
+
+    private func apiKeyBinding(for provider: SearchPluginProvider) -> Binding<String> {
+        switch provider {
+        case .exa:
+            return $exaAPIKey
+        case .brave:
+            return $braveAPIKey
+        case .jina:
+            return $jinaAPIKey
+        case .firecrawl:
+            return $firecrawlAPIKey
+        case .tavily:
+            return $tavilyAPIKey
+        case .perplexity:
+            return $perplexityAPIKey
+        }
+    }
+
+    private func keyVisibilityBinding(for provider: SearchPluginProvider) -> Binding<Bool> {
+        switch provider {
+        case .exa:
+            return $isExaKeyVisible
+        case .brave:
+            return $isBraveKeyVisible
+        case .jina:
+            return $isJinaKeyVisible
+        case .firecrawl:
+            return $isFirecrawlKeyVisible
+        case .tavily:
+            return $isTavilyKeyVisible
+        case .perplexity:
+            return $isPerplexityKeyVisible
+        }
+    }
+
+    private func initializeCredentialEditorProviderIfNeeded() {
+        guard !hasInitializedCredentialEditorProvider else { return }
+        hasInitializedCredentialEditorProvider = true
+
+        if let firstConfigured = configuredProviders.first {
+            credentialEditorProviderRaw = firstConfigured.rawValue
+            return
+        }
+        credentialEditorProviderRaw = defaultProvider.rawValue
     }
 
     private func notifyCredentialsChanged() {

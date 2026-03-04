@@ -101,6 +101,8 @@ actor BuiltinSearchToolHub {
             output = try await searchFirecrawl(resolved, route: route)
         case .tavily:
             output = try await searchTavily(resolved, route: route)
+        case .perplexity:
+            output = try await searchPerplexity(resolved, route: route)
         }
 
         let text = prettyJSONString(from: output)
@@ -607,6 +609,77 @@ actor BuiltinSearchToolHub {
         )
     }
 
+    // MARK: - Perplexity Search API
+
+    private func searchPerplexity(_ args: ResolvedArguments, route: ToolRoute) async throws -> BuiltinSearchToolOutput {
+        if args.maxResults == 0 {
+            return BuiltinSearchToolOutput(
+                provider: .perplexity,
+                query: args.query,
+                resultCount: 0,
+                results: []
+            )
+        }
+
+        var request = URLRequest(url: try validatedURL("https://api.perplexity.ai/search"))
+        request.httpMethod = "POST"
+        request.addValue("Bearer \(route.apiKey)", forHTTPHeaderField: "Authorization")
+        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.addValue("application/json", forHTTPHeaderField: "Accept")
+
+        // Per official Search API docs, max_results range is 1...20.
+        let clampedMax = clamp(args.maxResults, min: 1, max: 20)
+        var body: [String: Any] = [
+            "query": args.query,
+            "max_results": clampedMax
+        ]
+
+        if let recencyDays = args.recencyDays {
+            body["search_recency_filter"] = perplexityRecencyFilter(recencyDays: recencyDays)
+        }
+
+        let domainFilter = perplexitySearchDomainFilter(
+            includeDomains: args.includeDomains,
+            excludeDomains: args.excludeDomains
+        )
+        if !domainFilter.isEmpty {
+            body["search_domain_filter"] = domainFilter
+        }
+
+        if args.includeRawContent {
+            // Keep provider default page budget to avoid unnecessary cost/latency spikes.
+            body["max_tokens_per_page"] = 4_096
+        }
+
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        let (data, _) = try await networkManager.sendRequest(request)
+        let json = try parseJSONObject(data)
+
+        let rows = parseArray(json["results"]).prefix(clampedMax).compactMap { item -> SearchCitationRow? in
+            guard let url = firstString(in: item, keys: ["url", "link"]) else { return nil }
+            let title = firstString(in: item, keys: ["title"]) ?? URL(string: url)?.host ?? url
+            let snippet = firstString(in: item, keys: ["snippet", "content", "text", "summary"])
+            let publishedAt = firstString(
+                in: item,
+                keys: ["date", "last_updated", "published_date", "publishedDate", "published_at", "published"]
+            )
+            return SearchCitationRow(
+                title: title,
+                url: url,
+                snippet: snippet.map { String($0.prefix(500)) },
+                publishedAt: publishedAt,
+                source: urlHost(url)
+            )
+        }
+
+        return BuiltinSearchToolOutput(
+            provider: .perplexity,
+            query: args.query,
+            resultCount: rows.count,
+            results: rows
+        )
+    }
+
     // MARK: - Helpers
 
     private func parseJSON(_ data: Data) throws -> Any {
@@ -777,6 +850,30 @@ actor BuiltinSearchToolHub {
         default:
             return "year"
         }
+    }
+
+    private func perplexityRecencyFilter(recencyDays: Int) -> String {
+        switch recencyDays {
+        case ...1:
+            return "day"
+        case ...7:
+            return "week"
+        case ...31:
+            return "month"
+        default:
+            return "year"
+        }
+    }
+
+    private func perplexitySearchDomainFilter(includeDomains: [String], excludeDomains: [String]) -> [String] {
+        let include = includeDomains.compactMap(normalizedTrimmedString)
+        if !include.isEmpty {
+            // Perplexity Search API allows either include-only or exclude-only filters.
+            return Array(include.prefix(20))
+        }
+
+        let exclude = excludeDomains.compactMap(normalizedTrimmedString).map { "-\($0)" }
+        return Array(exclude.prefix(20))
     }
 
     private var tavilyDateFormatter: DateFormatter {

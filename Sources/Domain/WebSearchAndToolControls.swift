@@ -81,6 +81,7 @@ enum SearchPluginProvider: String, Codable, CaseIterable, Identifiable, Sendable
     case jina
     case firecrawl
     case tavily
+    case perplexity
 
     var id: String { rawValue }
 
@@ -91,16 +92,18 @@ enum SearchPluginProvider: String, Codable, CaseIterable, Identifiable, Sendable
         case .jina: return "Jina Search"
         case .firecrawl: return "Firecrawl"
         case .tavily: return "Tavily"
+        case .perplexity: return "Perplexity Search"
         }
     }
 
     var shortBadge: String {
         switch self {
-        case .exa: return "Exa"
-        case .brave: return "Br"
-        case .jina: return "Jina"
+        case .exa: return "EXA"
+        case .brave: return "BR"
+        case .jina: return "JINA"
         case .firecrawl: return "FC"
-        case .tavily: return "Tv"
+        case .tavily: return "TV"
+        case .perplexity: return "PPLX"
         }
     }
 }

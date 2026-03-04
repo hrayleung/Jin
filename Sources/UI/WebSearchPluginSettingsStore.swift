@@ -22,6 +22,7 @@ struct WebSearchPluginSettings: Sendable {
     var firecrawlExtractContent: Bool
 
     var tavilyAPIKey: String
+    var perplexityAPIKey: String
     var tavilySearchDepth: String?  // "basic" | "fast" | "advanced" | "ultra-fast"
     var tavilyTopic: String?        // "general" | "news" | "finance"
 
@@ -37,6 +38,8 @@ struct WebSearchPluginSettings: Sendable {
             return firecrawlAPIKey
         case .tavily:
             return tavilyAPIKey
+        case .perplexity:
+            return perplexityAPIKey
         }
     }
 
@@ -86,6 +89,7 @@ enum WebSearchPluginSettingsStore {
             jinaReadPages: defaults.object(forKey: AppPreferenceKeys.pluginWebSearchJinaReadPages) as? Bool ?? true,
             firecrawlExtractContent: defaults.object(forKey: AppPreferenceKeys.pluginWebSearchFirecrawlExtractContent) as? Bool ?? true,
             tavilyAPIKey: trimmed(defaults.string(forKey: AppPreferenceKeys.pluginWebSearchTavilyAPIKey)) ?? "",
+            perplexityAPIKey: trimmed(defaults.string(forKey: AppPreferenceKeys.pluginWebSearchPerplexityAPIKey)) ?? "",
             tavilySearchDepth: tavilySearchDepth,
             tavilyTopic: tavilyTopic
         )

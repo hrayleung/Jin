@@ -62,6 +62,7 @@ enum AppPreferenceKeys {
     static let pluginWebSearchJinaReadPages = "pluginWebSearchJinaReadPages"
     static let pluginWebSearchFirecrawlExtractContent = "pluginWebSearchFirecrawlExtractContent"
     static let pluginWebSearchTavilyAPIKey = "pluginWebSearchTavilyAPIKey"
+    static let pluginWebSearchPerplexityAPIKey = "pluginWebSearchPerplexityAPIKey"
     static let pluginWebSearchTavilySearchDepth = "pluginWebSearchTavilySearchDepth"
     static let pluginWebSearchTavilyTopic = "pluginWebSearchTavilyTopic"
 
