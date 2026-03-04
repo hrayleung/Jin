@@ -689,6 +689,7 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
 
         XCTAssertEqual(try XCTUnwrap(byID["gemini-3-pro-image-preview"]).contextWindow, 65_536)
         XCTAssertEqual(try XCTUnwrap(byID["gemini-3.1-flash-image-preview"]).contextWindow, 131_072)
+        XCTAssertEqual(try XCTUnwrap(byID["gemini-3.1-flash-lite-preview"]).contextWindow, 1_048_576)
         XCTAssertEqual(try XCTUnwrap(byID["gemini-2.5-flash-image"]).contextWindow, 32_768)
     }
 

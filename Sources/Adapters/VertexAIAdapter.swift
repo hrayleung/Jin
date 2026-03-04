@@ -217,6 +217,7 @@ actor VertexAIAdapter: LLMProviderAdapter {
         ("gemini-3-flash-preview", "Gemini 3 Flash Preview", 1_048_576),
         ("gemini-3-pro-image-preview", "Gemini 3 Pro Image Preview", 65_536),
         ("gemini-3.1-flash-image-preview", "Gemini 3.1 Flash Image Preview", 131_072),
+        ("gemini-3.1-flash-lite-preview", "Gemini 3.1 Flash-Lite Preview", 1_048_576),
         // Gemini 2.5
         ("gemini-2.5-pro", "Gemini 2.5 Pro", 1_048_576),
         ("gemini-2.5-flash", "Gemini 2.5 Flash", 1_048_576),
