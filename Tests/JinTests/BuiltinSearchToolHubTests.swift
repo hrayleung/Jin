@@ -119,6 +119,38 @@ final class BuiltinSearchToolHubTests: XCTestCase {
         XCTAssertEqual(routes.provider(for: tool.name), .perplexity)
     }
 
+    func testPerplexitySearchReturnsEmptyResultWhenMaxResultsIsZero() async throws {
+        configurePluginDefaults(defaultProvider: .perplexity, perplexityKey: "pplx-key")
+
+        let controls = GenerationControls(
+            webSearch: WebSearchControls(enabled: true),
+            searchPlugin: SearchPluginControls(provider: .perplexity, maxResults: 0)
+        )
+
+        let (definitions, routes) = await BuiltinSearchToolHub.shared.toolDefinitions(
+            for: controls,
+            useBuiltinSearch: true,
+            defaults: defaults
+        )
+
+        let tool = try XCTUnwrap(definitions.first)
+        let result = try await BuiltinSearchToolHub.shared.executeTool(
+            functionName: tool.name,
+            arguments: [
+                "query": AnyCodable("swift")
+            ],
+            routes: routes
+        )
+
+        XCTAssertFalse(result.isError)
+        let data = Data(result.text.utf8)
+        let json = try XCTUnwrap(try JSONSerialization.jsonObject(with: data) as? [String: Any])
+        XCTAssertEqual(json["provider"] as? String, SearchPluginProvider.perplexity.rawValue)
+        XCTAssertEqual(json["resultCount"] as? Int, 0)
+        let rows = try XCTUnwrap(json["results"] as? [[String: Any]])
+        XCTAssertTrue(rows.isEmpty)
+    }
+
     private func configurePluginDefaults(
         defaultProvider: SearchPluginProvider,
         exaKey: String = "",

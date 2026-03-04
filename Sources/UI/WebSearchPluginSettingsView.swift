@@ -182,7 +182,9 @@ struct WebSearchPluginSettingsView: View {
         HStack(spacing: 8) {
             Group {
                 if isVisible.wrappedValue {
-                    TextField(label, text: text)
+                    TextField(text: text, prompt: Text(label)) {
+                        EmptyView()
+                    }
                         .textContentType(.password)
                 } else {
                     SecureField(label, text: text)

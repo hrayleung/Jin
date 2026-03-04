@@ -638,6 +638,12 @@ actor BuiltinSearchToolHub {
             body["search_recency_filter"] = perplexityRecencyFilter(recencyDays: recencyDays)
         }
 
+        if !args.includeDomains.isEmpty && !args.excludeDomains.isEmpty {
+            throw LLMError.invalidRequest(
+                message: "Perplexity supports either `include_domains` or `exclude_domains`, not both."
+            )
+        }
+
         let domainFilter = perplexitySearchDomainFilter(
             includeDomains: args.includeDomains,
             excludeDomains: args.excludeDomains
