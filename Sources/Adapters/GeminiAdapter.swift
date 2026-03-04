@@ -346,7 +346,7 @@ actor GeminiAdapter: LLMProviderAdapter {
         let nativePDFEnabled = allowNativePDF && supportsNativePDF(modelID)
 
         var body: [String: Any] = [
-            "contents": translateContents(messages, supportsNativePDF: nativePDFEnabled),
+            "contents": try translateContents(messages, supportsNativePDF: nativePDFEnabled),
             "generationConfig": buildGenerationConfig(controls, modelID: modelID)
         ]
 

@@ -127,7 +127,7 @@ actor PerplexityAdapter: LLMProviderAdapter {
 
         var body: [String: Any] = [
             "model": modelID,
-            "messages": translateMessages(messages),
+            "messages": try translateMessages(messages),
             "stream": streaming
         ]
 
@@ -171,11 +171,11 @@ actor PerplexityAdapter: LLMProviderAdapter {
         return request
     }
 
-    private func translateMessages(_ messages: [Message]) -> [[String: Any]] {
-        translateMessagesToOpenAIFormat(messages, translateNonToolMessage: translateNonToolMessage)
+    private func translateMessages(_ messages: [Message]) throws -> [[String: Any]] {
+        try translateMessagesToOpenAIFormat(messages, translateNonToolMessage: translateNonToolMessage)
     }
 
-    private func translateNonToolMessage(_ message: Message) -> [String: Any] {
+    private func translateNonToolMessage(_ message: Message) throws -> [String: Any] {
         let split = splitContentParts(message.content, separator: "\n", includeImages: true)
 
         var dict: [String: Any] = [
@@ -198,7 +198,7 @@ actor PerplexityAdapter: LLMProviderAdapter {
 
         case .user:
             if split.hasRichUserContent {
-                dict["content"] = translateUserContentPartsToOpenAIFormat(message.content, audioPartBuilder: nil)
+                dict["content"] = try translateUserContentPartsToOpenAIFormat(message.content, audioPartBuilder: nil)
             } else {
                 dict["content"] = split.visible
             }

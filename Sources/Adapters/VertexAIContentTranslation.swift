@@ -4,7 +4,7 @@ extension VertexAIAdapter {
 
     // MARK: - Content Translation
 
-    func translateMessage(_ message: Message, supportsNativePDF: Bool) -> [String: Any] {
+    func translateMessage(_ message: Message, supportsNativePDF: Bool) throws -> [String: Any] {
         let role: String = (message.role == .assistant) ? "model" : "user"
 
         var parts: [[String: Any]] = []
@@ -37,7 +37,8 @@ extension VertexAIAdapter {
                                 "data": data.base64EncodedString()
                             ]
                         ])
-                    } else if let url = image.url, url.isFileURL, let data = try? Data(contentsOf: url) {
+                    } else if let url = image.url, url.isFileURL {
+                        let data = try resolveFileData(from: url)
                         parts.append([
                             "inlineData": [
                                 "mimeType": image.mimeType,
@@ -53,7 +54,8 @@ extension VertexAIAdapter {
                                 "data": data.base64EncodedString()
                             ]
                         ])
-                    } else if let url = video.url, url.isFileURL, let data = try? Data(contentsOf: url) {
+                    } else if let url = video.url, url.isFileURL {
+                        let data = try resolveFileData(from: url)
                         parts.append([
                             "inlineData": [
                                 "mimeType": video.mimeType,
@@ -69,7 +71,8 @@ extension VertexAIAdapter {
                                 "data": data.base64EncodedString()
                             ]
                         ])
-                    } else if let url = audio.url, url.isFileURL, let data = try? Data(contentsOf: url) {
+                    } else if let url = audio.url, url.isFileURL {
+                        let data = try resolveFileData(from: url)
                         parts.append([
                             "inlineData": [
                                 "mimeType": audio.mimeType,
@@ -83,7 +86,7 @@ extension VertexAIAdapter {
                         if let data = file.data {
                             pdfData = data
                         } else if let url = file.url, url.isFileURL {
-                            pdfData = try? Data(contentsOf: url)
+                            pdfData = try resolveFileData(from: url)
                         } else {
                             pdfData = nil
                         }

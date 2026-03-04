@@ -23,7 +23,7 @@ final class MCPServerConfigEntityDomainMappingTests: XCTestCase {
             isLongRunning: true
         )
 
-        let config = entity.toConfig()
+        let config = try entity.toConfig()
         XCTAssertEqual(config.id, "remote")
         XCTAssertEqual(config.transport, transport)
         XCTAssertEqual(config.lifecycle, .persistent)
@@ -49,7 +49,7 @@ final class MCPServerConfigEntityDomainMappingTests: XCTestCase {
             isLongRunning: true
         )
 
-        entity.setTransport(transport)
+        try entity.setTransport(transport)
 
         XCTAssertEqual(entity.transportKind, .stdio)
         XCTAssertEqual(entity.command, "npx")

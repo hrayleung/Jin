@@ -4,7 +4,7 @@ extension GeminiAdapter {
 
     // MARK: - Content Translation
 
-    func translateContents(_ messages: [Message], supportsNativePDF: Bool) -> [[String: Any]] {
+    func translateContents(_ messages: [Message], supportsNativePDF: Bool) throws -> [[String: Any]] {
         var out: [[String: Any]] = []
         out.reserveCapacity(messages.count + 4)
 
@@ -17,7 +17,7 @@ extension GeminiAdapter {
                     out.append(translateToolResults(toolResults))
                 }
             case .user, .assistant:
-                out.append(translateNonToolMessage(message, supportsNativePDF: supportsNativePDF))
+                out.append(try translateNonToolMessage(message, supportsNativePDF: supportsNativePDF))
 
                 if let toolResults = message.toolResults, !toolResults.isEmpty {
                     out.append(translateToolResults(toolResults))
@@ -28,7 +28,7 @@ extension GeminiAdapter {
         return out
     }
 
-    private func translateNonToolMessage(_ message: Message, supportsNativePDF: Bool) -> [String: Any] {
+    private func translateNonToolMessage(_ message: Message, supportsNativePDF: Bool) throws -> [String: Any] {
         let role: String = (message.role == .assistant) ? "model" : "user"
 
         var parts: [[String: Any]] = []
@@ -54,17 +54,17 @@ extension GeminiAdapter {
                 parts.append(["text": text])
 
             case .image(let image):
-                if let inline = inlineDataPart(mimeType: image.mimeType, data: image.data, url: image.url) {
+                if let inline = try inlineDataPart(mimeType: image.mimeType, data: image.data, url: image.url) {
                     parts.append(inline)
                 }
 
             case .video(let video):
-                if let inline = inlineDataPart(mimeType: video.mimeType, data: video.data, url: video.url) {
+                if let inline = try inlineDataPart(mimeType: video.mimeType, data: video.data, url: video.url) {
                     parts.append(inline)
                 }
 
             case .audio(let audio):
-                if let inline = inlineDataPart(mimeType: audio.mimeType, data: audio.data, url: audio.url) {
+                if let inline = try inlineDataPart(mimeType: audio.mimeType, data: audio.data, url: audio.url) {
                     parts.append(inline)
                 }
 
@@ -74,7 +74,7 @@ extension GeminiAdapter {
                     if let data = file.data {
                         pdfData = data
                     } else if let url = file.url, url.isFileURL {
-                        pdfData = try? Data(contentsOf: url)
+                        pdfData = try resolveFileData(from: url)
                     } else {
                         pdfData = nil
                     }
@@ -156,7 +156,7 @@ extension GeminiAdapter {
         ]
     }
 
-    func inlineDataPart(mimeType: String, data: Data?, url: URL?) -> [String: Any]? {
+    func inlineDataPart(mimeType: String, data: Data?, url: URL?) throws -> [String: Any]? {
         if let data {
             return [
                 "inlineData": [
@@ -166,15 +166,14 @@ extension GeminiAdapter {
             ]
         }
 
-        if let url {
-            if url.isFileURL, let data = try? Data(contentsOf: url) {
-                return [
-                    "inlineData": [
-                        "mimeType": mimeType,
-                        "data": data.base64EncodedString()
-                    ]
+        if let url, url.isFileURL {
+            let data = try resolveFileData(from: url)
+            return [
+                "inlineData": [
+                    "mimeType": mimeType,
+                    "data": data.base64EncodedString()
                 ]
-            }
+            ]
         }
 
         return nil

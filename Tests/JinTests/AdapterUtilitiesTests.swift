@@ -145,4 +145,61 @@ final class AdapterUtilitiesTests: XCTestCase {
         XCTAssertEqual(normalized, "application/pdf")
         XCTAssertTrue(openAISupportedFileMIMETypes.contains(normalized))
     }
+
+    // MARK: - resolveFileData
+
+    func testResolveFileDataThrowsForMissingFile() {
+        let missingURL = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("jin-test-missing-\(UUID().uuidString).png")
+
+        XCTAssertThrowsError(try resolveFileData(from: missingURL)) { error in
+            guard case .invalidRequest(let message) = error as? LLMError else {
+                return XCTFail("Expected LLMError.invalidRequest, got \(error)")
+            }
+            XCTAssertTrue(message.contains("Failed to read attachment"))
+            XCTAssertTrue(message.contains(missingURL.lastPathComponent))
+        }
+    }
+
+    func testResolveFileDataSucceedsForReadableFile() throws {
+        let tmpURL = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("jin-test-readable-\(UUID().uuidString).txt")
+        let content = Data("hello".utf8)
+        try content.write(to: tmpURL)
+        defer { try? FileManager.default.removeItem(at: tmpURL) }
+
+        let data = try resolveFileData(from: tmpURL)
+        XCTAssertEqual(data, content)
+    }
+
+    // MARK: - Attachment translation throws (not silent drop)
+
+    func testImageToURLStringThrowsForUnreadableLocalFile() {
+        let missingURL = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("jin-test-missing-\(UUID().uuidString).jpg")
+        let image = ImageContent(mimeType: "image/jpeg", data: nil, url: missingURL)
+
+        XCTAssertThrowsError(try imageToURLString(image)) { error in
+            guard case .invalidRequest(let message) = error as? LLMError else {
+                return XCTFail("Expected LLMError.invalidRequest, got \(error)")
+            }
+            XCTAssertTrue(message.contains("Failed to read attachment"))
+        }
+    }
+
+    func testTranslateUserContentPartsThrowsForUnreadableImageAttachment() {
+        let missingURL = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("jin-test-missing-\(UUID().uuidString).png")
+        let parts: [ContentPart] = [
+            .text("describe this image"),
+            .image(ImageContent(mimeType: "image/png", data: nil, url: missingURL))
+        ]
+
+        XCTAssertThrowsError(try translateUserContentPartsToOpenAIFormat(parts)) { error in
+            guard case .invalidRequest(let message) = error as? LLMError else {
+                return XCTFail("Expected LLMError.invalidRequest, got \(error)")
+            }
+            XCTAssertTrue(message.contains("Failed to read attachment"))
+        }
+    }
 }

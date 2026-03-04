@@ -119,7 +119,7 @@ actor OpenRouterAdapter: LLMProviderAdapter {
 
         var body: [String: Any] = [
             "model": modelID,
-            "messages": translateMessages(messages),
+            "messages": try translateMessages(messages),
             "stream": streaming
         ]
 
@@ -162,11 +162,11 @@ actor OpenRouterAdapter: LLMProviderAdapter {
         return request
     }
 
-    private func translateMessages(_ messages: [Message]) -> [[String: Any]] {
-        translateMessagesToOpenAIFormat(messages, translateNonToolMessage: translateNonToolMessage)
+    private func translateMessages(_ messages: [Message]) throws -> [[String: Any]] {
+        try translateMessagesToOpenAIFormat(messages, translateNonToolMessage: translateNonToolMessage)
     }
 
-    private func translateNonToolMessage(_ message: Message) -> [String: Any] {
+    private func translateNonToolMessage(_ message: Message) throws -> [String: Any] {
         let split = splitContentParts(message.content, includeImages: true, includeAudio: true)
 
         var dict: [String: Any] = [
@@ -179,7 +179,7 @@ actor OpenRouterAdapter: LLMProviderAdapter {
 
         case .user:
             if split.hasRichUserContent {
-                dict["content"] = translateUserContentPartsToOpenAIFormat(message.content)
+                dict["content"] = try translateUserContentPartsToOpenAIFormat(message.content)
             } else {
                 dict["content"] = split.visible
             }

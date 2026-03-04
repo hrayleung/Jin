@@ -31,10 +31,21 @@ struct MCPServerConfigFormView: View {
     @State private var tools: [MCPToolInfo] = []
     @State private var schemaPresentedTool: MCPToolInfo?
 
+    @State private var configError: String?
     @State private var loading = false
 
     var body: some View {
         Form {
+            if let configError {
+                Section {
+                    Text(configError)
+                        .font(.system(.caption, design: .monospaced))
+                        .textSelection(.enabled)
+                        .jinInlineErrorText()
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+
             serverSection
 
             if transportKind == .stdio {
@@ -272,8 +283,12 @@ struct MCPServerConfigFormView: View {
                                         } else {
                                             disabledTools.insert(tool.name)
                                         }
-                                        server.setDisabledTools(disabledTools)
-                                        try? modelContext.save()
+                                        do {
+                                            try server.setDisabledTools(disabledTools)
+                                            try modelContext.save()
+                                        } catch {
+                                            configError = "Failed to save tool settings: \(error.localizedDescription)"
+                                        }
                                     }
                                 ),
                                 viewSchema: {
@@ -359,7 +374,12 @@ struct MCPServerConfigFormView: View {
             argsError = nil
         }
 
-        disabledTools = server.disabledTools()
+        do {
+            disabledTools = try server.disabledTools()
+        } catch {
+            configError = "Failed to load disabled tools: \(error.localizedDescription)"
+            disabledTools = []
+        }
         persistTransport()
     }
 
@@ -390,7 +410,13 @@ struct MCPServerConfigFormView: View {
                     env: env
                 )
             )
-            server.setTransport(transport)
+            do {
+                try server.setTransport(transport)
+                configError = nil
+            } catch {
+                configError = "Failed to save transport config: \(error.localizedDescription)"
+                return
+            }
             endpointError = nil
 
         case .http:
@@ -417,7 +443,13 @@ struct MCPServerConfigFormView: View {
                     additionalHeaders: headers
                 )
             )
-            server.setTransport(transport)
+            do {
+                try server.setTransport(transport)
+                configError = nil
+            } catch {
+                configError = "Failed to save transport config: \(error.localizedDescription)"
+                return
+            }
             argsError = nil
             endpointError = nil
         }
@@ -437,7 +469,14 @@ struct MCPServerConfigFormView: View {
         verifying = true
         verifyError = nil
 
-        let config = server.toConfig()
+        let config: MCPServerConfig
+        do {
+            config = try server.toConfig()
+        } catch {
+            verifyError = "Failed to load MCP server config: \(error.localizedDescription)"
+            verifying = false
+            return
+        }
 
         Task {
             do {

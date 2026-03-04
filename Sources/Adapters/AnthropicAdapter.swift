@@ -62,6 +62,10 @@ actor AnthropicAdapter: LLMProviderAdapter {
                                 // Be resilient to provider-side schema drift in individual events.
                                 // Skip malformed events instead of aborting the whole response stream.
                                 continue
+                            } catch is LLMError {
+                                // Malformed tool call arguments or similar event-level issue.
+                                // Skip the broken event rather than killing the entire stream.
+                                continue
                             }
                         case .done:
                             continuation.yield(.messageEnd(usage: usageAccumulator.toUsage()))
@@ -354,16 +358,18 @@ actor AnthropicAdapter: LLMProviderAdapter {
             request.addValue(betaHeader, forHTTPHeaderField: "anthropic-beta")
         }
 
-        let translatedMessages = normalizedMessages
-            .filter { $0.role != .system }
-            .map { message -> [String: Any] in
-                return translateMessage(
-                    message,
-                    supportsNativePDF: supportsNativePDF,
-                    cacheControl: blockCacheControl,
-                    cacheStrategy: cacheStrategy
-                )
-            }
+        let nonSystemMessages = normalizedMessages.filter { $0.role != .system }
+        var translatedMessages: [[String: Any]] = []
+        translatedMessages.reserveCapacity(nonSystemMessages.count)
+        for message in nonSystemMessages {
+            let translated = try translateMessage(
+                message,
+                supportsNativePDF: supportsNativePDF,
+                cacheControl: blockCacheControl,
+                cacheStrategy: cacheStrategy
+            )
+            translatedMessages.append(translated)
+        }
 
         try AnthropicRequestPreflight.validate(messages: translatedMessages)
 
@@ -530,7 +536,7 @@ actor AnthropicAdapter: LLMProviderAdapter {
         supportsNativePDF: Bool,
         cacheControl: [String: Any]?,
         cacheStrategy: ContextCacheStrategy
-    ) -> [String: Any] {
+    ) throws -> [String: Any] {
         var content: [[String: Any]] = []
 
         func maybeApplyCache(to block: inout [String: Any]) {
@@ -548,7 +554,7 @@ actor AnthropicAdapter: LLMProviderAdapter {
 
         appendToolResultBlocks(from: message, to: &content, applyCache: maybeApplyCache)
         appendThinkingBlocks(from: message, to: &content)
-        appendUserFacingBlocks(from: message, supportsNativePDF: supportsNativePDF, to: &content, applyCache: maybeApplyCache)
+        try appendUserFacingBlocks(from: message, supportsNativePDF: supportsNativePDF, to: &content, applyCache: maybeApplyCache)
         appendToolUseBlocks(from: message, to: &content)
 
         return [
@@ -607,7 +613,7 @@ actor AnthropicAdapter: LLMProviderAdapter {
         supportsNativePDF: Bool,
         to content: inout [[String: Any]],
         applyCache: (inout [String: Any]) -> Void
-    ) {
+    ) throws {
         guard message.role != .tool else { return }
         for part in message.content {
             switch part {
@@ -616,11 +622,11 @@ actor AnthropicAdapter: LLMProviderAdapter {
                 applyCache(&block)
                 content.append(block)
             case .image(let image):
-                if let imageBlock = translateImageBlock(image) {
+                if let imageBlock = try translateImageBlock(image) {
                     content.append(imageBlock)
                 }
             case .file(let file):
-                translateFileBlock(file, supportsNativePDF: supportsNativePDF, to: &content, applyCache: applyCache)
+                try translateFileBlock(file, supportsNativePDF: supportsNativePDF, to: &content, applyCache: applyCache)
             case .video(let video):
                 var block: [String: Any] = [
                     "type": "text",
@@ -634,12 +640,12 @@ actor AnthropicAdapter: LLMProviderAdapter {
         }
     }
 
-    private func translateImageBlock(_ image: ImageContent) -> [String: Any]? {
+    private func translateImageBlock(_ image: ImageContent) throws -> [String: Any]? {
         let data: Data?
         if let existing = image.data {
             data = existing
         } else if let url = image.url, url.isFileURL {
-            data = try? Data(contentsOf: url)
+            data = try resolveFileData(from: url)
         } else {
             data = nil
         }
@@ -659,13 +665,13 @@ actor AnthropicAdapter: LLMProviderAdapter {
         supportsNativePDF: Bool,
         to content: inout [[String: Any]],
         applyCache: (inout [String: Any]) -> Void
-    ) {
+    ) throws {
         if supportsNativePDF && file.mimeType == "application/pdf" {
             let pdfData: Data?
             if let data = file.data {
                 pdfData = data
             } else if let url = file.url, url.isFileURL {
-                pdfData = try? Data(contentsOf: url)
+                pdfData = try resolveFileData(from: url)
             } else {
                 pdfData = nil
             }

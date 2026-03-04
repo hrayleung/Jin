@@ -91,7 +91,7 @@ actor FireworksAdapter: LLMProviderAdapter {
 
         var body: [String: Any] = [
             "model": modelID,
-            "messages": translateMessages(messages),
+            "messages": try translateMessages(messages),
             "stream": streaming
         ]
 
@@ -145,11 +145,11 @@ actor FireworksAdapter: LLMProviderAdapter {
         return request
     }
 
-    private func translateMessages(_ messages: [Message]) -> [[String: Any]] {
-        translateMessagesToOpenAIFormat(messages, translateNonToolMessage: translateNonToolMessage)
+    private func translateMessages(_ messages: [Message]) throws -> [[String: Any]] {
+        try translateMessagesToOpenAIFormat(messages, translateNonToolMessage: translateNonToolMessage)
     }
 
-    private func translateNonToolMessage(_ message: Message) -> [String: Any] {
+    private func translateNonToolMessage(_ message: Message) throws -> [String: Any] {
         let split = splitContentParts(message.content, includeImages: true, includeAudio: true)
 
         var dict: [String: Any] = [
@@ -162,7 +162,7 @@ actor FireworksAdapter: LLMProviderAdapter {
 
         case .user:
             if split.hasRichUserContent {
-                dict["content"] = translateUserContentPartsToOpenAIFormat(
+                dict["content"] = try translateUserContentPartsToOpenAIFormat(
                     message.content,
                     audioPartBuilder: fireworksInputAudioPart
                 )
@@ -195,8 +195,8 @@ actor FireworksAdapter: LLMProviderAdapter {
 
     // MARK: - Fireworks Audio
 
-    private func fireworksInputAudioPart(_ audio: AudioContent) -> [String: Any]? {
-        guard let payloadData = resolveAudioData(audio) else {
+    private func fireworksInputAudioPart(_ audio: AudioContent) throws -> [String: Any]? {
+        guard let payloadData = try resolveAudioData(audio) else {
             return nil
         }
 

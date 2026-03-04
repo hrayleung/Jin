@@ -3344,7 +3344,7 @@ struct ChatView: View {
         let decoder = JSONDecoder()
         let encoder = JSONEncoder()
 
-        let originalContent: [ContentPart] = (try? decoder.decode([ContentPart].self, from: entity.contentData)) ?? []
+        let originalContent = try decoder.decode([ContentPart].self, from: entity.contentData)
         var newContent: [ContentPart] = []
         newContent.reserveCapacity(max(1, originalContent.count))
 
@@ -3570,7 +3570,7 @@ struct ChatView: View {
 
         for thread in threads {
             try Task.checkCancellation()
-            let profile = messagePreparationProfile(for: thread)
+            let profile = try messagePreparationProfile(for: thread)
             if profile.supportsMediaGenerationControl && messageText.isEmpty {
                 let mediaType = profile.supportsVideoGenerationControl ? "Video" : "Image"
                 throw LLMError.invalidRequest(message: "\(mediaType) generation models require a text prompt. (\(profile.modelName))")
@@ -3588,7 +3588,7 @@ struct ChatView: View {
         return preparedMessages
     }
 
-    private func messagePreparationProfile(for thread: ConversationModelThreadEntity) -> MessagePreparationProfile {
+    private func messagePreparationProfile(for thread: ConversationModelThreadEntity) throws -> MessagePreparationProfile {
         let providerTypeSnapshot = providerType(forProviderID: thread.providerID)
         let lowerModelID = thread.modelID.lowercased()
         let providerEntity = providers.first(where: { $0.id == thread.providerID })
@@ -3612,7 +3612,12 @@ struct ChatView: View {
         let supportsVision = (resolvedModelSettings?.capabilities.contains(.vision) == true)
             || supportsImageGenerationControl
             || supportsVideoGenerationControl
-        let controls = (try? JSONDecoder().decode(GenerationControls.self, from: thread.modelConfigData)) ?? GenerationControls()
+        let controls: GenerationControls
+        do {
+            controls = try JSONDecoder().decode(GenerationControls.self, from: thread.modelConfigData)
+        } catch {
+            throw LLMError.decodingError(message: "Failed to load conversation settings: \(error.localizedDescription)")
+        }
         let pdfMode = resolvedPDFProcessingMode(for: controls, supportsNativePDF: nativePDFSupported)
         let modelName = modelInfo?.name ?? thread.modelID
 
@@ -4119,15 +4124,34 @@ struct ChatView: View {
         )
         streamingState.reset()
 
-        let providerConfig = providerEntity.flatMap { try? $0.toDomain() }
+        let providerConfig: ProviderConfig?
+        if let entity = providerEntity {
+            do {
+                providerConfig = try entity.toDomain()
+            } catch {
+                errorMessage = "Failed to load provider configuration: \(error.localizedDescription)"
+                showingError = true
+                streamingStore.endSession(conversationID: conversationID, threadID: threadID)
+                return
+            }
+        } else {
+            providerConfig = nil
+        }
         let messageSnapshots = conversationEntity.messages.map { PersistedMessageSnapshot($0) }
         let assistant = conversationEntity.assistant
         let systemPrompt = resolvedSystemPrompt(
             conversationSystemPrompt: conversationEntity.systemPrompt,
             assistant: assistant
         )
-        var controlsToUse: GenerationControls = (try? JSONDecoder().decode(GenerationControls.self, from: thread.modelConfigData))
-            ?? GenerationControls()
+        var controlsToUse: GenerationControls
+        do {
+            controlsToUse = try JSONDecoder().decode(GenerationControls.self, from: thread.modelConfigData)
+        } catch {
+            errorMessage = "Failed to load conversation settings: \(error.localizedDescription)"
+            showingError = true
+            streamingStore.endSession(conversationID: conversationID, threadID: threadID)
+            return
+        }
         controlsToUse = GenerationControlsResolver.resolvedForRequest(
             base: controlsToUse,
             assistantTemperature: assistant?.temperature,
@@ -4144,7 +4168,15 @@ struct ChatView: View {
         let maxHistoryMessages = assistant?.maxHistoryMessages
         let modelContextWindow = resolvedModelSettingsSnapshot?.contextWindow ?? 128000
         let reservedOutputTokens = max(0, controlsToUse.maxTokens ?? 2048)
-        let mcpServerConfigs = resolvedMCPServerConfigs(for: controlsToUse)
+        let mcpServerConfigs: [MCPServerConfig]
+        do {
+            mcpServerConfigs = try resolvedMCPServerConfigs(for: controlsToUse)
+        } catch {
+            errorMessage = "Failed to load MCP server configs: \(error.localizedDescription)"
+            showingError = true
+            streamingStore.endSession(conversationID: conversationID, threadID: threadID)
+            return
+        }
         let chatNamingTarget = resolvedChatNamingTarget()
         let supportsBuiltinSearchPlugin = (resolvedModelSettingsSnapshot?.capabilities.contains(.toolCalling) == true)
             && webSearchPluginEnabled
@@ -5904,7 +5936,7 @@ struct ChatView: View {
         persistControlsToConversation()
     }
 
-    private func resolvedMCPServerConfigs(for controlsToUse: GenerationControls) -> [MCPServerConfig] {
+    private func resolvedMCPServerConfigs(for controlsToUse: GenerationControls) throws -> [MCPServerConfig] {
         guard supportsMCPToolsControl else { return [] }
         guard controlsToUse.mcpTools?.enabled == true else { return [] }
 
@@ -5917,9 +5949,9 @@ struct ChatView: View {
         let selectedIDs = allowlist.map(Set.init) ?? eligibleIDs
         let resolvedIDs = selectedIDs.intersection(eligibleIDs)
 
-        return eligibleServers
+        return try eligibleServers
             .filter { resolvedIDs.contains($0.id) }
-            .map { $0.toConfig() }
+            .map { try $0.toConfig() }
     }
 
     private func ensureModelThreadsInitializedIfNeeded() {

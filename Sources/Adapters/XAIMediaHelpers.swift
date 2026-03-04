@@ -93,54 +93,54 @@ extension XAIAdapter {
 
     // MARK: - Image URL Extraction
 
-    func imageURLForImageGeneration(from messages: [Message]) -> String? {
-        if let latestUserImageURL = latestUserImageURL(from: messages) {
+    func imageURLForImageGeneration(from messages: [Message]) throws -> String? {
+        if let latestUserImageURL = try latestUserImageURL(from: messages) {
             return latestUserImageURL
         }
 
-        if let assistantImageURL = firstImageURLString(from: messages, roles: [.assistant]) {
+        if let assistantImageURL = try firstImageURLString(from: messages, roles: [.assistant]) {
             return assistantImageURL
         }
 
-        return firstImageURLString(from: messages, roles: [.user])
+        return try firstImageURLString(from: messages, roles: [.user])
     }
 
-    private func latestUserImageURL(from messages: [Message]) -> String? {
+    private func latestUserImageURL(from messages: [Message]) throws -> String? {
         guard let latestUserMessage = messages.reversed().first(where: { $0.role == .user }) else {
             return nil
         }
-        return firstImageURLString(in: latestUserMessage)
+        return try firstImageURLString(in: latestUserMessage)
     }
 
-    private func firstImageURLString(in message: Message) -> String? {
+    private func firstImageURLString(in message: Message) throws -> String? {
         for part in message.content {
             if case .image(let image) = part,
-               let urlString = imageURLString(image) {
+               let urlString = try imageURLString(image) {
                 return urlString
             }
         }
         return nil
     }
 
-    private func firstImageURLString(from messages: [Message], roles: [MessageRole]) -> String? {
+    private func firstImageURLString(from messages: [Message], roles: [MessageRole]) throws -> String? {
         let roleSet = Set(roles)
 
         for message in messages.reversed() where roleSet.contains(message.role) {
-            if let urlString = firstImageURLString(in: message) {
+            if let urlString = try firstImageURLString(in: message) {
                 return urlString
             }
         }
         return nil
     }
 
-    func imageURLString(_ image: ImageContent) -> String? {
+    func imageURLString(_ image: ImageContent) throws -> String? {
         if let data = image.data {
             return "data:\(image.mimeType);base64,\(data.base64EncodedString())"
         }
 
         if let url = image.url {
             if url.isFileURL {
-                guard let data = try? Data(contentsOf: url) else { return nil }
+                let data = try resolveFileData(from: url)
                 return "data:\(image.mimeType);base64,\(data.base64EncodedString())"
             }
             return url.absoluteString

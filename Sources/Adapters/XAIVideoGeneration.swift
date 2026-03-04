@@ -10,7 +10,7 @@ extension XAIAdapter {
         controls: GenerationControls
     ) throws -> AsyncThrowingStream<StreamEvent, Error> {
         let videoInput = videoInputForVideoGeneration(from: messages)
-        let imageURL = imageURLForImageGeneration(from: messages)
+        let imageURL = try imageURLForImageGeneration(from: messages)
         let isVideoToVideo = videoInput != nil
         let isImageToVideo = !isVideoToVideo && imageURL?.isEmpty == false
         let prompt = try mediaPrompt(

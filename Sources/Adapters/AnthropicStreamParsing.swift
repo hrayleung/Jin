@@ -129,8 +129,9 @@ extension AnthropicAdapter {
             }
             currentContentBlockType = nil
 
-            if let toolUse = currentToolUse, let toolCall = toolUse.build() {
+            if let toolUse = currentToolUse {
                 self.currentToolCleanup(currentToolUse: &currentToolUse, currentServerToolUse: &currentServerToolUse)
+                let toolCall = try toolUse.build()
                 return .toolCallEnd(toolCall)
             }
 

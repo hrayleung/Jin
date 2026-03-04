@@ -341,7 +341,7 @@ actor OpenAIWebSocketAdapter: LLMProviderAdapter {
 
         var body: [String: Any] = [
             "model": modelID,
-            "input": translateInput(
+            "input": try translateInput(
                 messages,
                 supportsNativeFileInput: supportsNativeFileInput,
                 allowNativePDF: allowNativePDF
