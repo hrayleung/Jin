@@ -4,6 +4,15 @@
         <title>Jin</title>
         <item>
             <title>0.65</title>
+            <pubDate>Wed, 04 Mar 2026 13:15:33 +0800</pubDate>
+            <link>https://github.com/hrayleung/Jin/releases</link>
+            <sparkle:version>257</sparkle:version>
+            <sparkle:shortVersionString>0.65</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <enclosure url="https://github.com/hrayleung/Jin/releases/download/v0.65/Jin-0.65.zip" length="23577274" type="application/octet-stream" sparkle:edSignature="0x+c/JznXaKRg8vhDQ5CJp2GG9ctiPjCvotndfuMmIuVVJIQyuxDjbrTqEKe+jBqJ+MqVfQVgqzmeVId/7KsAw=="/>
+        </item>
+        <item>
+            <title>0.65</title>
             <pubDate>Wed, 04 Mar 2026 12:07:01 +0800</pubDate>
             <link>https://github.com/hrayleung/Jin/releases</link>
             <sparkle:version>253</sparkle:version>
@@ -82,15 +91,6 @@
             <sparkle:shortVersionString>0.57</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
             <enclosure url="https://github.com/hrayleung/Jin/releases/download/v0.57/Jin-0.57.zip" length="22810526" type="application/octet-stream" sparkle:edSignature="IAIh+zT5vgACZqmWkpefz8MJdTs4fyL7v6FwAn9QPwdhvxoZGbmZRDE4kGZIk52Bt6VW6JSkQhmLi27W313OCA=="/>
-        </item>
-        <item>
-            <title>0.56</title>
-            <pubDate>Sat, 28 Feb 2026 16:54:43 +0800</pubDate>
-            <link>https://github.com/hrayleung/Jin/releases</link>
-            <sparkle:version>220</sparkle:version>
-            <sparkle:shortVersionString>0.56</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <enclosure url="https://github.com/hrayleung/Jin/releases/download/v0.56/Jin-0.56.zip" length="22802473" type="application/octet-stream" sparkle:edSignature="lN7jslfly6aRRg/sYQFfntniTc4g/9BfLVdE1HQ71FlDeIsMUKBGKJgvENK+1I0GjK0S3JjmNkrjv7dADyo1CA=="/>
         </item>
     </channel>
 </rss>
