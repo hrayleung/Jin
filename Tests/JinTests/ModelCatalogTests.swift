@@ -39,6 +39,41 @@ final class ModelCatalogTests: XCTestCase {
         XCTAssertNil(unknown.reasoningConfig)
     }
 
+    func testVercelAIGatewayRequiresExactIDMatches() {
+        let known = ModelCatalog.modelInfo(
+            for: "anthropic/claude-sonnet-4.6",
+            provider: .vercelAIGateway
+        )
+        XCTAssertTrue(known.capabilities.contains(.reasoning))
+        XCTAssertTrue(known.capabilities.contains(.vision))
+
+        let unknown = ModelCatalog.modelInfo(
+            for: "anthropic/claude-sonnet-4.6-custom",
+            provider: .vercelAIGateway
+        )
+        XCTAssertEqual(unknown.capabilities, [.streaming, .toolCalling])
+        XCTAssertEqual(unknown.contextWindow, 128_000)
+        XCTAssertNil(unknown.reasoningConfig)
+    }
+
+    func testVercelAIGatewayCatalogUsesExactProviderPrefixedIDs() {
+        let gpt = ModelCatalog.modelInfo(
+            for: "openai/gpt-5.3-codex",
+            provider: .vercelAIGateway
+        )
+        XCTAssertEqual(gpt.contextWindow, 400_000)
+        XCTAssertTrue(gpt.capabilities.contains(.reasoning))
+        XCTAssertTrue(gpt.capabilities.contains(.promptCaching))
+
+        let kimi = ModelCatalog.modelInfo(
+            for: "moonshotai/kimi-k2.5",
+            provider: .vercelAIGateway
+        )
+        XCTAssertEqual(kimi.contextWindow, 256_000)
+        XCTAssertTrue(kimi.capabilities.contains(.vision))
+        XCTAssertTrue(kimi.capabilities.contains(.reasoning))
+    }
+
     func testOpenAIAudioModelsAreCatalogBackedByExactIDs() {
         let audioPreview = ModelCatalog.modelInfo(
             for: "gpt-4o-audio-preview",

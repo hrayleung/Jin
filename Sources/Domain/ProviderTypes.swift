@@ -59,6 +59,7 @@ enum ProviderType: String, Codable, CaseIterable {
     case codexAppServer
     case openaiCompatible
     case cloudflareAIGateway
+    case vercelAIGateway
     case openrouter
     case anthropic
     case perplexity
@@ -83,6 +84,7 @@ enum ProviderType: String, Codable, CaseIterable {
         case .codexAppServer: return "Codex App Server (Beta)"
         case .openaiCompatible: return "OpenAI Compatible"
         case .cloudflareAIGateway: return "Cloudflare AI Gateway"
+        case .vercelAIGateway: return "Vercel AI Gateway"
         case .openrouter: return "OpenRouter"
         case .anthropic: return "Anthropic"
         case .perplexity: return "Perplexity"
@@ -109,6 +111,7 @@ enum ProviderType: String, Codable, CaseIterable {
         case .codexAppServer: return "ws://127.0.0.1:4500"
         case .openaiCompatible: return "https://api.openai.com/v1"
         case .cloudflareAIGateway: return "https://gateway.ai.cloudflare.com/v1/{account_id}/{gateway_slug}/compat"
+        case .vercelAIGateway: return "https://ai-gateway.vercel.sh/v1"
         case .openrouter: return "https://openrouter.ai/api/v1"
         case .anthropic: return "https://api.anthropic.com/v1"
         case .perplexity: return "https://api.perplexity.ai"

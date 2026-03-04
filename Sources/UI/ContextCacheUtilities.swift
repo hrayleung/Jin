@@ -248,7 +248,7 @@ enum ContextCacheUtilities {
                 adjustedMessages = prepared.messages
                 adjustedControls = prepared.controls
             }
-        case .xai, .codexAppServer, .openaiCompatible, .cloudflareAIGateway, .openrouter,
+        case .xai, .codexAppServer, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter,
              .perplexity, .groq, .cohere, .mistral, .deepinfra, .together, .deepseek,
              .zhipuCodingPlan, .fireworks, .cerebras, .sambanova:
             break

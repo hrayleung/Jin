@@ -96,7 +96,7 @@ struct ProviderConfigFormView: View {
                     codexServerSection
                     codexAuthSection
                     codexWorkingDirectoryPresetsSection
-                case .openai, .openaiWebSocket, .openaiCompatible, .cloudflareAIGateway, .openrouter,
+                case .openai, .openaiWebSocket, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter,
                      .anthropic, .perplexity, .groq, .cohere, .mistral, .deepinfra, .together, .xai,
                      .deepseek, .zhipuCodingPlan, .fireworks, .cerebras, .sambanova, .gemini:
                     apiKeyField
@@ -1099,7 +1099,7 @@ struct ProviderConfigFormView: View {
                 codexAccount = nil
                 codexRateLimit = nil
                 codexPendingLoginID = nil
-            case .openai, .openaiWebSocket, .openaiCompatible, .cloudflareAIGateway, .openrouter,
+            case .openai, .openaiWebSocket, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter,
                  .anthropic, .perplexity, .groq, .cohere, .mistral, .deepinfra, .together, .xai,
                  .deepseek, .zhipuCodingPlan, .fireworks, .cerebras, .sambanova, .gemini:
                 apiKey = provider.apiKey ?? ""
@@ -1414,7 +1414,7 @@ struct ProviderConfigFormView: View {
                 try? modelContext.save()
             }
 
-        case .openai, .openaiWebSocket, .openaiCompatible, .cloudflareAIGateway, .openrouter,
+        case .openai, .openaiWebSocket, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter,
              .anthropic, .perplexity, .groq, .cohere, .mistral, .deepinfra, .together, .xai, .deepseek,
              .zhipuCodingPlan, .fireworks, .cerebras, .sambanova, .gemini:
             let key = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -1491,7 +1491,7 @@ struct ProviderConfigFormView: View {
                 return CodexLocalAuthStore.loadAPIKey() == nil || testStatus == .testing
             }
             return testStatus == .testing || codexAuthStatus == .working
-        case .openai, .openaiWebSocket, .openaiCompatible, .cloudflareAIGateway, .openrouter,
+        case .openai, .openaiWebSocket, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter,
              .anthropic, .perplexity, .groq, .cohere, .mistral, .deepinfra, .together, .xai, .deepseek,
              .zhipuCodingPlan, .fireworks, .cerebras, .sambanova, .gemini:
             return apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || testStatus == .testing
@@ -1513,7 +1513,7 @@ struct ProviderConfigFormView: View {
                 return CodexLocalAuthStore.loadAPIKey() == nil
             }
             return codexAuthStatus == .working
-        case .openai, .openaiWebSocket, .openaiCompatible, .cloudflareAIGateway, .openrouter,
+        case .openai, .openaiWebSocket, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter,
              .anthropic, .perplexity, .groq, .cohere, .mistral, .deepinfra, .together, .xai, .deepseek,
              .zhipuCodingPlan, .fireworks, .cerebras, .sambanova, .gemini:
             return apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty

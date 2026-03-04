@@ -15,6 +15,7 @@ enum DefaultProviderSeeds {
             groq,
             openRouter,
             cloudflareAIGateway,
+            vercelAIGateway,
             anthropic,
             cohere,
             mistral,
@@ -95,6 +96,17 @@ enum DefaultProviderSeeds {
             type: .cloudflareAIGateway,
             iconID: LobeProviderIconCatalog.defaultIconID(for: .cloudflareAIGateway),
             baseURL: ProviderType.cloudflareAIGateway.defaultBaseURL,
+            models: []
+        )
+    }
+
+    static var vercelAIGateway: ProviderConfig {
+        ProviderConfig(
+            id: "vercel-ai-gateway",
+            name: "Vercel AI Gateway",
+            type: .vercelAIGateway,
+            iconID: LobeProviderIconCatalog.defaultIconID(for: .vercelAIGateway),
+            baseURL: ProviderType.vercelAIGateway.defaultBaseURL,
             models: []
         )
     }

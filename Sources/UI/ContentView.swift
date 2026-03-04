@@ -639,6 +639,8 @@ struct ContentView: View {
                 return "glm-5"
             case "together":
                 return "moonshotai/Kimi-K2.5"
+            case "vercel-ai-gateway":
+                return "openai/gpt-5.2"
             case "vertexai":
                 return "gemini-3-pro-preview"
             default:
@@ -648,6 +650,12 @@ struct ContentView: View {
 
         if providerID == "openai", let gpt52 = models.first(where: { $0.id == "gpt-5.2" }) {
             return gpt52.id
+        }
+        if providerID == "vercel-ai-gateway", let gpt52 = models.first(where: { $0.id == "openai/gpt-5.2" }) {
+            return gpt52.id
+        }
+        if providerID == "vercel-ai-gateway", let gpt5 = models.first(where: { $0.id == "openai/gpt-5" }) {
+            return gpt5.id
         }
         if providerID == "anthropic", let opus46 = models.first(where: { $0.id == "claude-opus-4-6" }) {
             return opus46.id
@@ -679,7 +687,17 @@ struct ContentView: View {
         if providerID == "vertexai", let gemini3Pro = models.first(where: { $0.id == "gemini-3-pro-preview" }) {
             return gemini3Pro.id
         }
-        return models.first?.id ?? (providerID == "anthropic" ? "claude-opus-4-6" : "gpt-5.2")
+        if let first = models.first?.id {
+            return first
+        }
+
+        if providerID == "anthropic" {
+            return "claude-opus-4-6"
+        }
+        if providerID == "vercel-ai-gateway" {
+            return "openai/gpt-5.2"
+        }
+        return "gpt-5.2"
     }
 
     private var filteredConversations: [ConversationEntity] {

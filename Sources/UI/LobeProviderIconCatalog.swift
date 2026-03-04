@@ -217,6 +217,8 @@ enum LobeProviderIconCatalog {
             return "OpenAI"
         case .cloudflareAIGateway:
             return "Cloudflare"
+        case .vercelAIGateway:
+            return "Vercel"
         case .openrouter:
             return "OpenRouter"
         case .anthropic:

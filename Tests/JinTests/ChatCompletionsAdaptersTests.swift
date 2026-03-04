@@ -1786,6 +1786,108 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         XCTAssertTrue(models.allSatisfy(\.isEnabled))
     }
 
+    func testOpenAICompatibleAdapterFetchModelsForVercelUsesCatalogWhenKnown() async throws {
+        let (session, protocolType) = makeMockedURLSession()
+        let networkManager = NetworkManager(urlSession: session)
+
+        let providerConfig = ProviderConfig(
+            id: "vercel",
+            name: "Vercel AI Gateway",
+            type: .vercelAIGateway,
+            apiKey: "ignored",
+            baseURL: "https://ai-gateway.vercel.sh"
+        )
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://ai-gateway.vercel.sh/v1/models")
+            XCTAssertEqual(request.httpMethod, "GET")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer test-key")
+
+            let payload: [String: Any] = [
+                "data": [
+                    [
+                        "id": "openai/gpt-5.2",
+                        "name": "GPT 5.2 (Gateway)",
+                        "context_window": 400_000,
+                        "max_tokens": 128_000,
+                        "type": "language",
+                        "tags": ["tool-use", "reasoning", "vision", "implicit-caching"],
+                    ],
+                ],
+            ]
+            let data = try JSONSerialization.data(withJSONObject: payload)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = OpenAICompatibleAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let models = try await adapter.fetchAvailableModels()
+        let model = try XCTUnwrap(models.first)
+
+        XCTAssertEqual(model.id, "openai/gpt-5.2")
+        XCTAssertEqual(model.name, "GPT-5.2")
+        XCTAssertEqual(model.contextWindow, 400_000)
+        XCTAssertTrue(model.capabilities.contains(.reasoning))
+        XCTAssertTrue(model.capabilities.contains(.promptCaching))
+        XCTAssertEqual(model.reasoningConfig?.type, .effort)
+    }
+
+    func testOpenAICompatibleAdapterFetchModelsForVercelDerivesConservativeMetadataWhenUnknown() async throws {
+        let (session, protocolType) = makeMockedURLSession()
+        let networkManager = NetworkManager(urlSession: session)
+
+        let providerConfig = ProviderConfig(
+            id: "vercel",
+            name: "Vercel AI Gateway",
+            type: .vercelAIGateway,
+            apiKey: "ignored",
+            baseURL: "https://ai-gateway.vercel.sh/v1"
+        )
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://ai-gateway.vercel.sh/v1/models")
+
+            let payload: [String: Any] = [
+                "data": [
+                    [
+                        "id": "example/unknown-thinking-model",
+                        "context_window": 321_000,
+                        "type": "language",
+                        "tags": ["reasoning", "implicit-caching"],
+                    ],
+                    [
+                        "id": "example/unknown-image-model",
+                        "name": "Unknown Image",
+                        "context_window": 8_192,
+                        "type": "image",
+                        "tags": ["image-generation"],
+                    ],
+                ],
+            ]
+            let data = try JSONSerialization.data(withJSONObject: payload)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = OpenAICompatibleAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let models = try await adapter.fetchAvailableModels()
+
+        XCTAssertEqual(models.map(\.id), ["example/unknown-thinking-model", "example/unknown-image-model"])
+
+        let thinking = try XCTUnwrap(models.first(where: { $0.id == "example/unknown-thinking-model" }))
+        XCTAssertEqual(thinking.name, "example/unknown-thinking-model")
+        XCTAssertEqual(thinking.contextWindow, 321_000)
+        XCTAssertTrue(thinking.capabilities.contains(.streaming))
+        XCTAssertTrue(thinking.capabilities.contains(.toolCalling))
+        XCTAssertTrue(thinking.capabilities.contains(.reasoning))
+        XCTAssertTrue(thinking.capabilities.contains(.promptCaching))
+        XCTAssertEqual(thinking.reasoningConfig?.type, .effort)
+
+        let image = try XCTUnwrap(models.first(where: { $0.id == "example/unknown-image-model" }))
+        XCTAssertEqual(image.name, "Unknown Image")
+        XCTAssertEqual(image.contextWindow, 8_192)
+        XCTAssertEqual(image.capabilities, [.imageGeneration])
+        XCTAssertNil(image.reasoningConfig)
+    }
+
     func testTogetherAdapterFetchModelsUsesArrayShapeWithoutFilteringByModelType() async throws {
         let (session, protocolType) = makeMockedURLSession()
         let networkManager = NetworkManager(urlSession: session)

@@ -145,6 +145,34 @@ final class ModelSettingsResolverTests: XCTestCase {
         )
     }
 
+    func testVercelAIGatewayUsesOpenAICompatibleRequestShape() {
+        let claudeModel = ModelInfo(
+            id: "anthropic/claude-sonnet-4.6",
+            name: "Claude Sonnet 4.6",
+            capabilities: [.streaming],
+            contextWindow: 128_000,
+            reasoningConfig: nil,
+            isEnabled: true
+        )
+        let gptModel = ModelInfo(
+            id: "openai/gpt-5.2",
+            name: "GPT-5.2",
+            capabilities: [.streaming],
+            contextWindow: 128_000,
+            reasoningConfig: nil,
+            isEnabled: true
+        )
+
+        XCTAssertEqual(
+            ModelSettingsResolver.resolve(model: claudeModel, providerType: .vercelAIGateway).requestShape,
+            .openAICompatible
+        )
+        XCTAssertEqual(
+            ModelSettingsResolver.resolve(model: gptModel, providerType: .vercelAIGateway).requestShape,
+            .openAICompatible
+        )
+    }
+
     func testZhipuCodingPlanUsesOpenAICompatibleRequestShapeAndCatalogReasoningFallback() {
         let legacyModel = ModelInfo(
             id: "glm-5",

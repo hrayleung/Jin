@@ -69,7 +69,7 @@ actor OpenAICompatibleAdapter: LLMProviderAdapter {
 
         let (data, _) = try await networkManager.sendRequest(request)
         let response = try JSONDecoder().decode(OpenAIModelsResponse.self, from: data)
-        return response.data.map { makeModelInfo(id: $0.id) }
+        return response.data.map(makeModelInfo(from:))
     }
 
     func translateTools(_ tools: [ToolDefinition]) -> Any {
@@ -251,8 +251,94 @@ actor OpenAICompatibleAdapter: LLMProviderAdapter {
         return openAIInputAudioPart(audio)
     }
 
+    private func makeModelInfo(from model: OpenAIModelsResponse.Model) -> ModelInfo {
+        if providerConfig.type == .vercelAIGateway {
+            return makeVercelModelInfo(from: model)
+        }
+        return makeModelInfo(id: model.id)
+    }
+
     private func makeModelInfo(id: String) -> ModelInfo {
         ModelCatalog.modelInfo(for: id, provider: providerConfig.type, name: id)
+    }
+
+    private func makeVercelModelInfo(from model: OpenAIModelsResponse.Model) -> ModelInfo {
+        let modelID = model.id
+        let displayName = trimmedNonEmpty(model.name) ?? modelID
+
+        if let entry = ModelCatalog.entry(for: modelID, provider: .vercelAIGateway) {
+            return ModelInfo(
+                id: modelID,
+                name: entry.displayName,
+                capabilities: entry.capabilities,
+                contextWindow: entry.contextWindow,
+                reasoningConfig: entry.reasoningConfig
+            )
+        }
+
+        var capabilities = derivedVercelCapabilities(from: model)
+        let contextWindow = max(1, model.contextWindow ?? 128_000)
+        var reasoningConfig = ModelCapabilityRegistry.defaultReasoningConfig(
+            for: .vercelAIGateway,
+            modelID: modelID
+        )
+        if !capabilities.contains(.reasoning) {
+            reasoningConfig = nil
+        }
+
+        if capabilities.contains(.imageGeneration) || capabilities.contains(.videoGeneration) {
+            // Media-generation models exposed through the gateway are not guaranteed
+            // to support OpenAI function-calling semantics for MCP/tools.
+            capabilities.remove(.toolCalling)
+            capabilities.remove(.audio)
+        }
+
+        return ModelInfo(
+            id: modelID,
+            name: displayName,
+            capabilities: capabilities,
+            contextWindow: contextWindow,
+            reasoningConfig: reasoningConfig
+        )
+    }
+
+    private func derivedVercelCapabilities(from model: OpenAIModelsResponse.Model) -> ModelCapability {
+        let lowerType = model.type?.lowercased()
+        let lowerTags = Set((model.tags ?? []).map { $0.lowercased() })
+
+        if lowerType == "image" {
+            return [.imageGeneration]
+        }
+
+        if lowerType == "video" {
+            return [.videoGeneration]
+        }
+
+        var capabilities: ModelCapability = [.streaming, .toolCalling]
+
+        if lowerTags.contains("reasoning") {
+            capabilities.insert(.reasoning)
+        }
+        if lowerTags.contains("vision") || lowerTags.contains("image-generation") {
+            capabilities.insert(.vision)
+        }
+        if lowerTags.contains("implicit-caching") {
+            capabilities.insert(.promptCaching)
+        }
+        if lowerTags.contains("image-generation") {
+            capabilities.insert(.imageGeneration)
+        }
+        if lowerTags.contains("video-generation") {
+            capabilities.insert(.videoGeneration)
+        }
+
+        return capabilities
+    }
+
+    private func trimmedNonEmpty(_ value: String?) -> String? {
+        guard let value else { return nil }
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
     }
 
     private func isMistralTranscriptionOnlyModelID(_ lowerModelID: String) -> Bool {

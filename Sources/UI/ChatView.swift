@@ -1772,7 +1772,7 @@ struct ChatView: View {
             return Self.xAIImageGenerationModelIDs.contains(lowerModelID)
         case .gemini, .vertexai:
             return Self.geminiImageGenerationModelIDs.contains(lowerModelID)
-        case .openai, .openaiWebSocket, .codexAppServer, .openaiCompatible, .cloudflareAIGateway,
+        case .openai, .openaiWebSocket, .codexAppServer, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway,
              .openrouter, .anthropic, .perplexity, .groq, .cohere, .mistral, .deepinfra, .together,
              .deepseek, .zhipuCodingPlan, .fireworks, .cerebras, .sambanova, .none:
             return false
@@ -1797,7 +1797,7 @@ struct ChatView: View {
         switch providerType {
         case .openai, .openaiWebSocket, .anthropic, .perplexity, .xai, .gemini, .vertexai:
             break
-        case .codexAppServer, .openaiCompatible, .cloudflareAIGateway, .openrouter, .groq,
+        case .codexAppServer, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter, .groq,
              .cohere, .mistral, .deepinfra, .together, .deepseek, .zhipuCodingPlan,
              .fireworks, .cerebras, .sambanova:
             return false
@@ -1836,7 +1836,7 @@ struct ChatView: View {
             return Self.mistralAudioInputModelIDs.contains(lowerModelID)
         case .gemini, .vertexai:
             return Self.geminiAudioInputModelIDs.contains(lowerModelID)
-        case .openrouter, .openaiCompatible, .cloudflareAIGateway, .deepinfra, .together:
+        case .openrouter, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .deepinfra, .together:
             return Self.compatibleAudioInputModelIDs.contains(lowerModelID)
         case .fireworks:
             return Self.fireworksAudioInputModelIDs.contains(lowerModelID)
@@ -2101,7 +2101,7 @@ struct ChatView: View {
         switch providerType {
         case .perplexity:
             return controls.webSearch?.enabled ?? true
-        case .openai, .openaiWebSocket, .codexAppServer, .openaiCompatible, .cloudflareAIGateway,
+        case .openai, .openaiWebSocket, .codexAppServer, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway,
              .openrouter, .anthropic, .groq, .cohere, .mistral, .deepinfra, .together, .xai,
              .deepseek, .zhipuCodingPlan, .fireworks, .cerebras, .sambanova, .gemini, .vertexai, .none:
             return controls.webSearch?.enabled == true
@@ -2203,7 +2203,7 @@ struct ChatView: View {
         switch providerType {
         case .gemini, .vertexai:
             return true
-        case .openai, .openaiWebSocket, .codexAppServer, .openaiCompatible, .cloudflareAIGateway,
+        case .openai, .openaiWebSocket, .codexAppServer, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway,
              .openrouter, .anthropic, .perplexity, .groq, .cohere, .mistral, .deepinfra, .together,
              .xai, .deepseek, .zhipuCodingPlan, .fireworks, .cerebras, .sambanova, .none:
             return false
@@ -2218,7 +2218,7 @@ struct ChatView: View {
         switch providerType {
         case .openai, .openaiWebSocket, .anthropic, .xai:
             return true
-        case .codexAppServer, .openaiCompatible, .cloudflareAIGateway, .openrouter, .perplexity,
+        case .codexAppServer, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter, .perplexity,
              .groq, .cohere, .mistral, .deepinfra, .together, .gemini, .vertexai, .deepseek,
              .zhipuCodingPlan, .fireworks, .cerebras, .sambanova, .none:
             return false
@@ -2239,7 +2239,7 @@ struct ChatView: View {
             return "OpenAI uses prompt cache hints. A stable key and retention hint can improve reuse across similar prompts."
         case .xai:
             return "xAI supports prompt cache hints and optional conversation scoping for continuity across related turns."
-        case .codexAppServer, .openaiCompatible, .cloudflareAIGateway, .openrouter, .perplexity,
+        case .codexAppServer, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter, .perplexity,
              .groq, .cohere, .mistral, .deepinfra, .together, .deepseek, .zhipuCodingPlan,
              .fireworks, .cerebras, .sambanova, .none:
             return "Context cache controls are only available for providers with native prompt caching support."
@@ -2254,7 +2254,7 @@ struct ChatView: View {
             return "Use a stable cache key when your prompt prefix is consistent."
         case .anthropic:
             return "For best results, keep system prompts and tool descriptions stable so Anthropic can reuse cacheable blocks."
-        case .codexAppServer, .openaiCompatible, .cloudflareAIGateway, .openrouter, .perplexity,
+        case .codexAppServer, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter, .perplexity,
              .groq, .cohere, .mistral, .deepinfra, .together, .deepseek, .zhipuCodingPlan,
              .fireworks, .cerebras, .sambanova, .none:
             return "Use explicit mode for Gemini/Vertex cached content resources. Other providers use implicit cache hints."
@@ -2296,7 +2296,7 @@ struct ChatView: View {
             return ContextCacheControls(mode: .implicit)
         case .cloudflareAIGateway:
             return ContextCacheControls(mode: .implicit, ttl: .minutes5)
-        case .codexAppServer, .openaiCompatible, .openrouter, .perplexity, .groq, .cohere,
+        case .codexAppServer, .openaiCompatible, .vercelAIGateway, .openrouter, .perplexity, .groq, .cohere,
              .mistral, .deepinfra, .together, .deepseek, .zhipuCodingPlan, .fireworks,
              .cerebras, .sambanova:
             return nil
@@ -2348,7 +2348,7 @@ struct ChatView: View {
             return "Thinking: \(reasoningLabel)"
         case .perplexity:
             return "Reasoning: \(reasoningLabel)"
-        case .openai, .openaiWebSocket, .codexAppServer, .openaiCompatible, .cloudflareAIGateway,
+        case .openai, .openaiWebSocket, .codexAppServer, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway,
              .openrouter, .groq, .cohere, .mistral, .deepinfra, .together, .xai, .deepseek,
              .zhipuCodingPlan, .fireworks, .cerebras, .sambanova, .none:
             return "Reasoning: \(reasoningLabel)"
@@ -2399,7 +2399,7 @@ struct ChatView: View {
             return (controls.webSearch?.contextSize ?? .low).displayName
         case .xai:
             return webSearchSourcesLabel
-        case .codexAppServer, .openaiCompatible, .cloudflareAIGateway, .openrouter, .anthropic,
+        case .codexAppServer, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter, .anthropic,
              .groq, .cohere, .mistral, .deepinfra, .together, .gemini, .vertexai, .deepseek,
              .zhipuCodingPlan, .fireworks, .cerebras, .sambanova, .none:
             return "On"
@@ -2480,7 +2480,7 @@ struct ChatView: View {
             return "On"
         case .anthropic:
             return "On"
-        case .codexAppServer, .openaiCompatible, .cloudflareAIGateway, .openrouter, .groq,
+        case .codexAppServer, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter, .groq,
              .cohere, .mistral, .deepinfra, .together, .gemini, .vertexai, .deepseek,
              .zhipuCodingPlan, .fireworks, .cerebras, .sambanova, .none:
             return "On"
@@ -3095,7 +3095,7 @@ struct ChatView: View {
                 }
             }
             return nil
-        case .codexAppServer, .openaiCompatible, .cloudflareAIGateway, .openrouter, .groq, .cohere, .mistral, .deepinfra, .together, .xai, .vertexai:
+        case .codexAppServer, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter, .groq, .cohere, .mistral, .deepinfra, .together, .xai, .vertexai:
             return nil
         }
     }
@@ -3653,7 +3653,7 @@ struct ChatView: View {
             return Self.xAIImageGenerationModelIDs.contains(lowerModelID)
         case .gemini, .vertexai:
             return Self.geminiImageGenerationModelIDs.contains(lowerModelID)
-        case .openai, .openaiWebSocket, .codexAppServer, .openaiCompatible, .cloudflareAIGateway,
+        case .openai, .openaiWebSocket, .codexAppServer, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway,
              .openrouter, .anthropic, .perplexity, .groq, .cohere, .mistral, .deepinfra, .together,
              .deepseek, .zhipuCodingPlan, .fireworks, .cerebras, .sambanova, .none:
             return false
@@ -3683,7 +3683,7 @@ struct ChatView: View {
         switch providerType {
         case .openai, .openaiWebSocket, .anthropic, .perplexity, .xai, .gemini, .vertexai:
             break
-        case .codexAppServer, .openaiCompatible, .cloudflareAIGateway, .openrouter, .groq,
+        case .codexAppServer, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter, .groq,
              .cohere, .mistral, .deepinfra, .together, .deepseek, .zhipuCodingPlan,
              .fireworks, .cerebras, .sambanova:
             return false
@@ -5276,7 +5276,7 @@ struct ChatView: View {
                     Button("Configure\u{2026}") {
                         openAnthropicWebSearchEditor()
                     }
-                case .codexAppServer, .openaiCompatible, .cloudflareAIGateway, .openrouter, .groq,
+                case .codexAppServer, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter, .groq,
                      .cohere, .mistral, .deepinfra, .together, .gemini, .vertexai, .deepseek,
                      .zhipuCodingPlan, .fireworks, .cerebras, .sambanova, .none:
                     EmptyView()
@@ -6556,7 +6556,7 @@ struct ChatView: View {
             return WebSearchControls(enabled: true, contextSize: nil, sources: [.web])
         case .anthropic:
             return WebSearchControls(enabled: true)
-        case .codexAppServer, .openaiCompatible, .cloudflareAIGateway, .openrouter, .groq,
+        case .codexAppServer, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter, .groq,
              .cohere, .mistral, .deepinfra, .together, .gemini, .vertexai, .deepseek,
              .zhipuCodingPlan, .fireworks, .cerebras, .sambanova, .none:
             return WebSearchControls(enabled: true, contextSize: nil, sources: nil)
@@ -6584,7 +6584,7 @@ struct ChatView: View {
             controls.webSearch?.contextSize = nil
             controls.webSearch?.sources = nil
             normalizeAnthropicDomainFilters()
-        case .codexAppServer, .openaiCompatible, .cloudflareAIGateway, .openrouter, .groq,
+        case .codexAppServer, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter, .groq,
              .cohere, .mistral, .deepinfra, .together, .gemini, .vertexai, .deepseek,
              .zhipuCodingPlan, .fireworks, .cerebras, .sambanova, .none:
             controls.webSearch?.contextSize = nil
