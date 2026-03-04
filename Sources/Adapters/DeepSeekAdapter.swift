@@ -43,12 +43,7 @@ actor DeepSeekAdapter: LLMProviderAdapter {
     }
 
     func validateAPIKey(_ key: String) async throws -> Bool {
-        var request = URLRequest(url: try validatedURL("\(baseURLRoot)/v1/models"))
-        request.httpMethod = "GET"
-        request.addValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
-        request.addValue("application/json", forHTTPHeaderField: "Accept")
-        request.addValue("Jin", forHTTPHeaderField: "User-Agent")
-
+        let request = makeGETRequest(url: try validatedURL("\(baseURLRoot)/v1/models"), apiKey: key)
         do {
             _ = try await networkManager.sendRequest(request)
             return true
@@ -58,12 +53,7 @@ actor DeepSeekAdapter: LLMProviderAdapter {
     }
 
     func fetchAvailableModels() async throws -> [ModelInfo] {
-        var request = URLRequest(url: try validatedURL("\(baseURLRoot)/v1/models"))
-        request.httpMethod = "GET"
-        request.addValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-        request.addValue("application/json", forHTTPHeaderField: "Accept")
-        request.addValue("Jin", forHTTPHeaderField: "User-Agent")
-
+        let request = makeGETRequest(url: try validatedURL("\(baseURLRoot)/v1/models"), apiKey: apiKey)
         let (data, _) = try await networkManager.sendRequest(request)
         let response = try JSONDecoder().decode(OpenAIModelsResponse.self, from: data)
         return response.data.map { makeModelInfo(id: $0.id) }
@@ -102,13 +92,6 @@ actor DeepSeekAdapter: LLMProviderAdapter {
         tools: [ToolDefinition],
         streaming: Bool
     ) throws -> URLRequest {
-        var request = URLRequest(url: try chatCompletionsURL(for: modelID))
-        request.httpMethod = "POST"
-        request.addValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.addValue("application/json", forHTTPHeaderField: "Accept")
-        request.addValue("Jin", forHTTPHeaderField: "User-Agent")
-
         var body: [String: Any] = [
             "model": modelID,
             "messages": translateMessages(messages),
@@ -145,8 +128,11 @@ actor DeepSeekAdapter: LLMProviderAdapter {
             body[key] = value.value
         }
 
-        request.httpBody = try JSONSerialization.data(withJSONObject: body)
-        return request
+        return try makeAuthorizedJSONRequest(
+            url: chatCompletionsURL(for: modelID),
+            apiKey: apiKey,
+            body: body
+        )
     }
 
     private func translateMessages(_ messages: [Message]) -> [[String: Any]] {

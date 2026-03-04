@@ -49,12 +49,7 @@ actor SambaNovaAdapter: LLMProviderAdapter {
     }
 
     func validateAPIKey(_ key: String) async throws -> Bool {
-        var request = URLRequest(url: try validatedURL("\(baseURLRoot)/v1/models"))
-        request.httpMethod = "GET"
-        request.addValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
-        request.addValue("application/json", forHTTPHeaderField: "Accept")
-        request.addValue("Jin", forHTTPHeaderField: "User-Agent")
-
+        let request = makeGETRequest(url: try validatedURL("\(baseURLRoot)/v1/models"), apiKey: key)
         do {
             _ = try await networkManager.sendRequest(request)
             return true
@@ -64,12 +59,7 @@ actor SambaNovaAdapter: LLMProviderAdapter {
     }
 
     func fetchAvailableModels() async throws -> [ModelInfo] {
-        var request = URLRequest(url: try validatedURL("\(baseURLRoot)/v1/models"))
-        request.httpMethod = "GET"
-        request.addValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-        request.addValue("application/json", forHTTPHeaderField: "Accept")
-        request.addValue("Jin", forHTTPHeaderField: "User-Agent")
-
+        let request = makeGETRequest(url: try validatedURL("\(baseURLRoot)/v1/models"), apiKey: apiKey)
         let (data, _) = try await networkManager.sendRequest(request)
         let response = try JSONDecoder().decode(OpenAIModelsResponse.self, from: data)
         return response.data
@@ -97,13 +87,6 @@ actor SambaNovaAdapter: LLMProviderAdapter {
         tools: [ToolDefinition],
         streaming: Bool
     ) throws -> URLRequest {
-        var request = URLRequest(url: try validatedURL("\(baseURLRoot)/v1/chat/completions"))
-        request.httpMethod = "POST"
-        request.addValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.addValue("application/json", forHTTPHeaderField: "Accept")
-        request.addValue("Jin", forHTTPHeaderField: "User-Agent")
-
         let lower = modelID.lowercased()
 
         var body: [String: Any] = [
@@ -142,8 +125,11 @@ actor SambaNovaAdapter: LLMProviderAdapter {
             body[key] = value.value
         }
 
-        request.httpBody = try JSONSerialization.data(withJSONObject: body)
-        return request
+        return try makeAuthorizedJSONRequest(
+            url: validatedURL("\(baseURLRoot)/v1/chat/completions"),
+            apiKey: apiKey,
+            body: body
+        )
     }
 
     /// Applies reasoning controls specific to each SambaNova model family.

@@ -3525,15 +3525,6 @@ struct ChatView: View {
                         )
                     }
                 }
-            } catch is CancellationError {
-                await MainActor.run {
-                    isPreparingToSend = false
-                    prepareToSendStatus = nil
-                    prepareToSendTask = nil
-                    messageText = messageTextSnapshot
-                    remoteVideoInputURLText = remoteVideoURLTextSnapshot
-                    draftAttachments = attachmentsSnapshot
-                }
             } catch {
                 await MainActor.run {
                     isPreparingToSend = false
@@ -3542,8 +3533,10 @@ struct ChatView: View {
                     messageText = messageTextSnapshot
                     remoteVideoInputURLText = remoteVideoURLTextSnapshot
                     draftAttachments = attachmentsSnapshot
-                    errorMessage = error.localizedDescription
-                    showingError = true
+                    if !(error is CancellationError) {
+                        errorMessage = error.localizedDescription
+                        showingError = true
+                    }
                 }
             }
         }
@@ -4104,49 +4097,6 @@ struct ChatView: View {
         return String(trimmed.prefix(48))
     }
 
-    private struct PersistedMessageSnapshot: Sendable {
-        let id: UUID
-        let role: String
-        let timestamp: Date
-        let contextThreadID: UUID?
-        let turnID: UUID?
-        let contentData: Data
-        let toolCallsData: Data?
-        let toolResultsData: Data?
-        let searchActivitiesData: Data?
-
-        init(_ entity: MessageEntity) {
-            id = entity.id
-            role = entity.role
-            timestamp = entity.timestamp
-            contextThreadID = entity.contextThreadID
-            turnID = entity.turnID
-            contentData = entity.contentData
-            toolCallsData = entity.toolCallsData
-            toolResultsData = entity.toolResultsData
-            searchActivitiesData = entity.searchActivitiesData
-        }
-
-        func toDomain(using decoder: JSONDecoder) -> Message? {
-            guard let messageRole = MessageRole(rawValue: role) else { return nil }
-            guard let content = try? decoder.decode([ContentPart].self, from: contentData) else { return nil }
-
-            let toolCalls = toolCallsData.flatMap { try? decoder.decode([ToolCall].self, from: $0) }
-            let toolResults = toolResultsData.flatMap { try? decoder.decode([ToolResult].self, from: $0) }
-            let searchActivities = searchActivitiesData.flatMap { try? decoder.decode([SearchActivity].self, from: $0) }
-
-            return Message(
-                id: id,
-                role: messageRole,
-                content: content,
-                toolCalls: toolCalls,
-                toolResults: toolResults,
-                searchActivities: searchActivities,
-                timestamp: timestamp
-            )
-        }
-    }
-
     @MainActor
     private func startStreamingResponse(for threadID: UUID, triggeredByUserSend: Bool = false, turnID: UUID? = nil) {
         let conversationID = conversationEntity.id
@@ -4357,7 +4307,7 @@ struct ChatView: View {
                         case .toolCallStart(let call):
                             accumulator.upsertToolCall(call)
                             if builtinRoutes.contains(functionName: call.name),
-                               let searchActivity = makeSearchActivityForToolCallStart(
+                               let searchActivity = ToolSearchActivityFactory.activityForToolCallStart(
                                    call: call,
                                    providerOverride: builtinRoutes.provider(for: call.name)
                                ) {
@@ -4508,7 +4458,7 @@ struct ChatView: View {
                                 )
                             }
                             let duration = Date().timeIntervalSince(callStart)
-                            let normalizedContent = normalizedToolResultContent(
+                            let normalizedContent = ToolSearchActivityFactory.normalizedToolResultContent(
                                 result.text,
                                 toolName: call.name,
                                 isError: result.isError
@@ -4533,7 +4483,7 @@ struct ChatView: View {
                             }
 
                             if builtinRoutes.contains(functionName: call.name),
-                               let activity = makeSearchActivityFromToolResult(
+                               let activity = ToolSearchActivityFactory.activityFromToolResult(
                                 call: call,
                                 toolResultText: result.text,
                                 isError: result.isError,
@@ -4546,7 +4496,7 @@ struct ChatView: View {
                             }
                         } catch {
                             let duration = Date().timeIntervalSince(callStart)
-                            let normalizedError = normalizedToolResultContent(
+                            let normalizedError = ToolSearchActivityFactory.normalizedToolResultContent(
                                 error.localizedDescription,
                                 toolName: call.name,
                                 isError: true
@@ -4567,7 +4517,7 @@ struct ChatView: View {
                             toolOutputLines.append("Tool \(call.name) failed:\n\(llmErrorContent)")
 
                             if builtinRoutes.contains(functionName: call.name),
-                               let activity = makeSearchActivityFromToolResult(
+                               let activity = ToolSearchActivityFactory.activityFromToolResult(
                                 call: call,
                                 toolResultText: llmErrorContent,
                                 isError: true,
@@ -4727,110 +4677,6 @@ struct ChatView: View {
 
         guard let text else { return "New Chat" }
         return makeConversationTitle(from: text)
-    }
-
-    nonisolated private func normalizedToolResultContent(_ text: String, toolName: String, isError: Bool) -> String {
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !trimmed.isEmpty {
-            return trimmed
-        }
-
-        if isError {
-            return "Tool \(toolName) failed without details"
-        }
-        return "Tool \(toolName) returned no output"
-    }
-
-    nonisolated private func makeSearchActivityForToolCallStart(
-        call: ToolCall,
-        providerOverride: SearchPluginProvider?
-    ) -> SearchActivity? {
-        guard isSearchToolName(call.name) else { return nil }
-
-        var args: [String: AnyCodable] = [:]
-        let query = (call.arguments["query"]?.value as? String)
-            ?? (call.arguments["q"]?.value as? String)
-            ?? ""
-        let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !trimmedQuery.isEmpty {
-            args["query"] = AnyCodable(trimmedQuery)
-        }
-
-        if let providerOverride {
-            args["provider"] = AnyCodable(providerOverride.rawValue)
-        }
-
-        return SearchActivity(
-            id: "tool-search-\(call.id)",
-            type: "tool_web_search",
-            status: .searching,
-            arguments: args
-        )
-    }
-
-    nonisolated private func makeSearchActivityFromToolResult(
-        call: ToolCall,
-        toolResultText: String,
-        isError: Bool,
-        providerOverride: SearchPluginProvider?
-    ) -> SearchActivity? {
-        guard isSearchToolName(call.name) else { return nil }
-
-        let decoder = JSONDecoder()
-        var query = ""
-        var sources: [[String: Any]] = []
-        var providerRaw = providerOverride?.rawValue
-
-        if let data = toolResultText.data(using: .utf8),
-           let payload = try? decoder.decode(BuiltinToolActivityPayload.self, from: data) {
-            query = payload.query
-            providerRaw = providerRaw ?? payload.provider.rawValue
-            sources = payload.results.map { row in
-                var item: [String: Any] = [
-                    "url": row.url,
-                    "title": row.title
-                ]
-                if let snippet = row.snippet {
-                    item["snippet"] = snippet
-                }
-                if let publishedAt = row.publishedAt {
-                    item["published_at"] = publishedAt
-                }
-                if let source = row.source {
-                    item["source"] = source
-                }
-                return item
-            }
-        } else {
-            query = (call.arguments["query"]?.value as? String)
-                ?? (call.arguments["q"]?.value as? String)
-                ?? ""
-        }
-
-        var args: [String: AnyCodable] = [:]
-        if !query.isEmpty {
-            args["query"] = AnyCodable(query)
-        }
-        if !sources.isEmpty {
-            args["sources"] = AnyCodable(sources)
-        }
-        if let providerRaw, !providerRaw.isEmpty {
-            args["provider"] = AnyCodable(providerRaw)
-        }
-
-        return SearchActivity(
-            id: "tool-search-\(call.id)",
-            type: "tool_web_search",
-            status: isError ? .failed : .completed,
-            arguments: args
-        )
-    }
-
-    nonisolated private func isSearchToolName(_ toolName: String) -> Bool {
-        let normalizedName = toolName.lowercased()
-        return normalizedName.contains("search")
-            || normalizedName.contains("web_lookup")
-            || normalizedName.contains("web_search")
     }
 
     @MainActor
@@ -7024,18 +6870,4 @@ struct ChatView: View {
             }
         )
     }
-}
-
-private struct BuiltinToolActivityPayload: Decodable {
-    let provider: SearchPluginProvider
-    let query: String
-    let results: [BuiltinToolActivityPayloadRow]
-}
-
-private struct BuiltinToolActivityPayloadRow: Decodable {
-    let title: String
-    let url: String
-    let snippet: String?
-    let publishedAt: String?
-    let source: String?
 }

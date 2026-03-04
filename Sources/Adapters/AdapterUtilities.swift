@@ -1,5 +1,9 @@
 import Foundation
 
+// MARK: - Shared Constants
+
+let jinUserAgent = "Jin"
+
 // MARK: - URL Validation
 
 /// Constructs a URL from a string, throwing `LLMError.invalidRequest` instead of crashing
@@ -574,4 +578,33 @@ func unsupportedVideoInputNotice(_ video: VideoContent, providerName: String, ap
         detail = "no media payload"
     }
     return "Video attachment omitted (\(video.mimeType), \(detail)): \(providerName) \(apiName) does not support native video input in Jin yet."
+}
+
+// MARK: - Request Builder Helpers
+
+func makeAuthorizedJSONRequest(
+    url: URL,
+    method: String = "POST",
+    apiKey: String,
+    body: [String: Any]? = nil
+) throws -> URLRequest {
+    var request = URLRequest(url: url)
+    request.httpMethod = method
+    request.addValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+    request.addValue("application/json", forHTTPHeaderField: "Content-Type")
+    request.addValue("application/json", forHTTPHeaderField: "Accept")
+    request.addValue(jinUserAgent, forHTTPHeaderField: "User-Agent")
+    if let body {
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+    }
+    return request
+}
+
+func makeGETRequest(url: URL, apiKey: String) -> URLRequest {
+    var request = URLRequest(url: url)
+    request.httpMethod = "GET"
+    request.addValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+    request.addValue("application/json", forHTTPHeaderField: "Accept")
+    request.addValue(jinUserAgent, forHTTPHeaderField: "User-Agent")
+    return request
 }
