@@ -116,6 +116,30 @@ final class AdapterUtilitiesTests: XCTestCase {
         XCTAssertTrue(modelSupportsWebSearch(providerConfig: provider, modelID: "gpt-4o"))
     }
 
+    func testModelSupportsReasoningUsesCatalogMetadataForKnownOpenAIModels() {
+        let provider = ProviderConfig(
+            id: "p1",
+            name: "Provider",
+            type: .openai,
+            models: []
+        )
+
+        XCTAssertTrue(modelSupportsReasoning(providerConfig: provider, modelID: "gpt-5.2"))
+        XCTAssertFalse(modelSupportsReasoning(providerConfig: provider, modelID: "gpt-5.3-chat-latest"))
+    }
+
+    func testOpenAIResponsesSamplingParametersSupportForGPT5Families() {
+        XCTAssertTrue(supportsOpenAIResponsesSamplingParameters(modelID: "gpt-4o", reasoningEnabled: false))
+
+        XCTAssertTrue(supportsOpenAIResponsesSamplingParameters(modelID: "gpt-5.2", reasoningEnabled: false))
+        XCTAssertTrue(supportsOpenAIResponsesSamplingParameters(modelID: "openai/gpt-5.2-2025-12-11", reasoningEnabled: false))
+        XCTAssertFalse(supportsOpenAIResponsesSamplingParameters(modelID: "gpt-5.2", reasoningEnabled: true))
+
+        XCTAssertFalse(supportsOpenAIResponsesSamplingParameters(modelID: "gpt-5.3-chat-latest", reasoningEnabled: false))
+        XCTAssertFalse(supportsOpenAIResponsesSamplingParameters(modelID: "gpt-5.3-codex", reasoningEnabled: false))
+        XCTAssertFalse(supportsOpenAIResponsesSamplingParameters(modelID: "gpt-5", reasoningEnabled: false))
+    }
+
     func testNormalizedMIMETypeTrimsAndLowercasesForSetMembership() {
         let normalized = normalizedMIMEType(" Application/PDF \n")
         XCTAssertEqual(normalized, "application/pdf")

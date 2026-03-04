@@ -269,6 +269,39 @@ final class ModelSettingsResolverTests: XCTestCase {
         )
     }
 
+    func testOpenAIGPT53ChatLatestCatalogMetadataKeepsReasoningDisabled() {
+        let model = ModelCatalog.modelInfo(
+            for: "gpt-5.3-chat-latest",
+            provider: .openai
+        )
+
+        let resolved = ModelSettingsResolver.resolve(model: model, providerType: .openai)
+        XCTAssertFalse(resolved.capabilities.contains(.reasoning))
+        XCTAssertNil(resolved.reasoningConfig)
+        XCTAssertFalse(resolved.supportsOpenAIStyleExtremeEffort)
+    }
+
+    func testResolverAppliesCatalogMetadataForLegacyOpenAIGPT53ChatLatestModel() {
+        let legacyModel = ModelInfo(
+            id: "gpt-5.3-chat-latest",
+            name: "GPT-5.3 Chat Latest",
+            capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .nativePDF],
+            contextWindow: 400_000,
+            reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+            isEnabled: true
+        )
+
+        let resolved = ModelSettingsResolver.resolve(model: legacyModel, providerType: .openai)
+        XCTAssertEqual(resolved.contextWindow, 128_000)
+        XCTAssertTrue(resolved.capabilities.contains(.streaming))
+        XCTAssertTrue(resolved.capabilities.contains(.toolCalling))
+        XCTAssertTrue(resolved.capabilities.contains(.vision))
+        XCTAssertTrue(resolved.capabilities.contains(.promptCaching))
+        XCTAssertFalse(resolved.capabilities.contains(.reasoning))
+        XCTAssertFalse(resolved.capabilities.contains(.nativePDF))
+        XCTAssertNil(resolved.reasoningConfig)
+    }
+
     func testGeminiAndVertexReasoningEffortSupportMatchesGemini3Families() {
         XCTAssertEqual(
             ModelCapabilityRegistry.supportedReasoningEfforts(for: .gemini, modelID: "gemini-3-pro-preview"),
