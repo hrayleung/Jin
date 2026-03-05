@@ -224,7 +224,7 @@ struct SettingsView: View {
                     .fill(JinSemanticColor.separator.opacity(0.45))
                     .frame(width: JinStrokeWidth.hairline)
             }
-            .navigationSplitViewColumnWidth(min: 170, ideal: 190, max: 220)
+            .navigationSplitViewColumnWidth(min: 190, ideal: 200, max: 220)
             .searchable(text: $searchText, placement: .sidebar, prompt: "Search settings")
 
         } content: {
@@ -255,7 +255,7 @@ struct SettingsView: View {
                     .fill(JinSemanticColor.separator.opacity(0.4))
                     .frame(width: JinStrokeWidth.hairline)
             }
-            .navigationSplitViewColumnWidth(min: 220, ideal: 280, max: 340)
+            .navigationSplitViewColumnWidth(min: 220, ideal: 240, max: 240)
 
         } detail: {
             // Column 3: Configuration / Detail
@@ -352,9 +352,10 @@ struct SettingsView: View {
                     .ignoresSafeArea()
             }
             .toolbarBackground(JinSemanticColor.detailSurface, for: .windowToolbar)
-            .navigationSplitViewColumnWidth(min: 500, ideal: 640)
+            .navigationSplitViewColumnWidth(min: 420, ideal: 520, max: 620)
         }
         .navigationSplitViewStyle(.balanced)
+        .navigationTitle("")
         .toolbar(removing: .sidebarToggle)
         .hideWindowToolbarCompat()
         .frame(minWidth: 900, minHeight: 620)
@@ -494,16 +495,10 @@ struct SettingsView: View {
                         .frame(width: 20, height: 20)
                         .jinSurface(.outlined, cornerRadius: JinRadius.small)
 
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(category.label)
-                            .font(.system(.body, design: .default))
-                            .fontWeight(.medium)
-                            .lineLimit(1)
-                        Text(category.subtitle)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(2)
-                    }
+                    Text(category.label)
+                        .font(.system(.body, design: .default))
+                        .fontWeight(.medium)
+                        .lineLimit(1)
                 }
                 .padding(.vertical, JinSpacing.xSmall)
             }

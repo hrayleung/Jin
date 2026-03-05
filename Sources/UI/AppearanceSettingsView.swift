@@ -13,14 +13,15 @@ struct AppearanceSettingsView: View {
     var body: some View {
         Form {
             Section {
-                HStack(spacing: 20) {
-                    Spacer()
-                    ForEach(AppIconVariant.allCases) { variant in
-                        appIconButton(for: variant)
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 16) {
+                        ForEach(AppIconVariant.allCases) { variant in
+                            appIconButton(for: variant)
+                        }
                     }
-                    Spacer()
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.vertical, 12)
                 }
-                .padding(.vertical, 12)
             } header: {
                 Text("App Icon")
             }
