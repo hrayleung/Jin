@@ -164,7 +164,7 @@ Jin uses [Sparkle](https://github.com/sparkle-project/Sparkle) for in-app update
 - The appcast lives at `docs/appcast.xml` (published via GitHub Pages for the upstream repo).
 - CI packaging/signing is in `.github/workflows/ci-cd.yml` (Build + notarized DMG on `v*` tags).
 
-Maintainers: see `docs/sparkle-update.md` for the recommended `generate_appcast` signing workflow and release checklist.
+
 
 ## Contributing
 
