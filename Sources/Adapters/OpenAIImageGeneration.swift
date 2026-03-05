@@ -124,9 +124,9 @@ extension OpenAIAdapter {
             body["n"] = min(max(count, 1), 10)
         }
 
-        // Image input for edits (only when the model actually supports editing)
+        // Image input for edits — JSON schema expects `images` array of objects
         if isImageEdit, let imageURL, !imageURL.isEmpty {
-            body["image"] = imageURL
+            body["images"] = [["image_url": imageURL]]
         }
 
         // Size
