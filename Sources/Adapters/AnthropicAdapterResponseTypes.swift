@@ -171,10 +171,16 @@ final class AnthropicToolCallBuilder {
         argumentsBuffer += delta
     }
 
-    func build() -> ToolCall? {
-        guard let data = argumentsBuffer.data(using: .utf8),
-              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            return nil
+    func build() throws -> ToolCall {
+        guard let data = argumentsBuffer.data(using: .utf8) else {
+            throw LLMError.decodingError(
+                message: "Tool call \"\(name)\" has non-UTF-8 arguments."
+            )
+        }
+        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            throw LLMError.decodingError(
+                message: "Tool call \"\(name)\" has invalid JSON arguments: \(String(argumentsBuffer.prefix(200)))"
+            )
         }
 
         let arguments = json.mapValues { AnyCodable($0) }

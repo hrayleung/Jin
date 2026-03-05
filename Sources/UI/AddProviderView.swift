@@ -659,7 +659,12 @@ struct AddMCPServerView: View {
             runToolsAutomatically: runToolsAutomatically,
             isLongRunning: true
         )
-        server.setTransport(transport)
+        do {
+            try server.setTransport(transport)
+        } catch {
+            importError = "Failed to save transport config: \(error.localizedDescription)"
+            return
+        }
 
         modelContext.insert(server)
         dismiss()

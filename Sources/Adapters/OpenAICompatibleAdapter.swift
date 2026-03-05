@@ -127,7 +127,7 @@ actor OpenAICompatibleAdapter: LLMProviderAdapter {
 
         var body: [String: Any] = [
             "model": modelID,
-            "messages": translateMessages(messages),
+            "messages": try translateMessages(messages),
             "stream": streaming
         ]
 
@@ -188,11 +188,11 @@ actor OpenAICompatibleAdapter: LLMProviderAdapter {
         }
     }
 
-    private func translateMessages(_ messages: [Message]) -> [[String: Any]] {
-        translateMessagesToOpenAIFormat(messages, translateNonToolMessage: translateNonToolMessage)
+    private func translateMessages(_ messages: [Message]) throws -> [[String: Any]] {
+        try translateMessagesToOpenAIFormat(messages, translateNonToolMessage: translateNonToolMessage)
     }
 
-    private func translateNonToolMessage(_ message: Message) -> [String: Any] {
+    private func translateNonToolMessage(_ message: Message) throws -> [String: Any] {
         let split = splitContentParts(
             message.content,
             separator: "\n",
@@ -224,7 +224,7 @@ actor OpenAICompatibleAdapter: LLMProviderAdapter {
 
         case .user:
             if split.hasRichUserContent {
-                dict["content"] = translateUserContentPartsToOpenAIFormat(
+                dict["content"] = try translateUserContentPartsToOpenAIFormat(
                     message.content,
                     audioPartBuilder: mistralAudioPartBuilder
                 )
@@ -240,15 +240,15 @@ actor OpenAICompatibleAdapter: LLMProviderAdapter {
     }
 
     /// Mistral Voxtral expects a raw base64 string for `input_audio`, not the standard OpenAI format.
-    private func mistralAudioPartBuilder(_ audio: AudioContent) -> [String: Any]? {
+    private func mistralAudioPartBuilder(_ audio: AudioContent) throws -> [String: Any]? {
         if providerConfig.type == .mistral {
-            guard let payloadData = resolveAudioData(audio) else { return nil }
+            guard let payloadData = try resolveAudioData(audio) else { return nil }
             return [
                 "type": "input_audio",
                 "input_audio": payloadData.base64EncodedString()
             ]
         }
-        return openAIInputAudioPart(audio)
+        return try openAIInputAudioPart(audio)
     }
 
     private func makeModelInfo(from model: OpenAIModelsResponse.Model) -> ModelInfo {

@@ -141,7 +141,7 @@ final class XAIAdapterMediaTests: XCTestCase {
         XCTAssertEqual(imageURLs, ["https://cdn.example.com/generated-pro.png"])
     }
 
-    func testXAIImageURLStringReturnsNilForUnreadableLocalFileURL() async {
+    func testXAIImageURLStringThrowsForUnreadableLocalFileURL() async {
         let providerConfig = ProviderConfig(
             id: "x",
             name: "xAI",
@@ -155,8 +155,17 @@ final class XAIAdapterMediaTests: XCTestCase {
             .appendingPathComponent("jin-missing-\(UUID().uuidString).png")
         let image = ImageContent(mimeType: "image/png", data: nil, url: missingURL)
 
-        let resolved = await adapter.imageURLString(image)
-        XCTAssertNil(resolved)
+        do {
+            _ = try await adapter.imageURLString(image)
+            XCTFail("Expected imageURLString to throw for missing file")
+        } catch let error as LLMError {
+            guard case .invalidRequest(let message) = error else {
+                return XCTFail("Expected LLMError.invalidRequest, got \(error)")
+            }
+            XCTAssertTrue(message.contains("Failed to read attachment"))
+        } catch {
+            XCTFail("Unexpected error type: \(error)")
+        }
     }
 
     func testXAIImageGenerationParsesBase64ImageResponse() async throws {

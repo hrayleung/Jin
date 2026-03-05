@@ -105,6 +105,7 @@ struct JinApp: App {
             }
         }
 
+        var seedFailed = false
         func seedServer(
             id: String,
             name: String,
@@ -112,19 +113,24 @@ struct JinApp: App {
             isEnabled: Bool = false,
             runToolsAutomatically: Bool = true
         ) {
-            let transportData = (try? JSONEncoder().encode(transport)) ?? Data()
-            let server = MCPServerConfigEntity(
-                id: id,
-                name: name,
-                transportKindRaw: transport.kind.rawValue,
-                transportData: transportData,
-                lifecycleRaw: MCPLifecyclePolicy.persistent.rawValue,
-                isEnabled: isEnabled,
-                runToolsAutomatically: runToolsAutomatically,
-                isLongRunning: true
-            )
-            server.setTransport(transport)
-            context.insert(server)
+            do {
+                let transportData = try JSONEncoder().encode(transport)
+                let server = MCPServerConfigEntity(
+                    id: id,
+                    name: name,
+                    transportKindRaw: transport.kind.rawValue,
+                    transportData: transportData,
+                    lifecycleRaw: MCPLifecyclePolicy.persistent.rawValue,
+                    isEnabled: isEnabled,
+                    runToolsAutomatically: runToolsAutomatically,
+                    isLongRunning: true
+                )
+                try server.setTransport(transport)
+                context.insert(server)
+            } catch {
+                seedFailed = true
+                assertionFailure("Failed to seed MCP server \"\(id)\": \(error)")
+            }
         }
 
         seedServer(
@@ -154,8 +160,13 @@ struct JinApp: App {
             )
         }
 
-        try? context.save()
-        defaults.set(mcpSchemaVersion, forKey: mcpSchemaVersionPreferenceKey)
+        guard !seedFailed else { return }
+        do {
+            try context.save()
+            defaults.set(mcpSchemaVersion, forKey: mcpSchemaVersionPreferenceKey)
+        } catch {
+            assertionFailure("Failed to save MCP schema migration: \(error)")
+        }
     }
 
     private func updateProviderModelsIfNeeded() {

@@ -108,8 +108,8 @@ func translateToolCallsToOpenAIFormat(_ calls: [ToolCall]) -> [[String: Any]] {
 /// Used by most OpenAI-compatible adapters.
 func translateMessagesToOpenAIFormat(
     _ messages: [Message],
-    translateNonToolMessage: (Message) -> [String: Any]
-) -> [[String: Any]] {
+    translateNonToolMessage: (Message) throws -> [String: Any]
+) rethrows -> [[String: Any]] {
     var out: [[String: Any]] = []
     out.reserveCapacity(messages.count + 4)
 
@@ -127,7 +127,7 @@ func translateMessagesToOpenAIFormat(
             }
 
         case .system, .user, .assistant:
-            out.append(translateNonToolMessage(message))
+            out.append(try translateNonToolMessage(message))
 
             if let toolResults = message.toolResults {
                 for result in toolResults {
@@ -144,16 +144,32 @@ func translateMessagesToOpenAIFormat(
     return out
 }
 
+// MARK: - File Data Resolution
+
+/// Reads file data from a URL, throwing a descriptive `LLMError` on failure.
+/// Use this instead of `try? Data(contentsOf: url)` in adapter code paths where
+/// a silent failure would cause user-visible data loss (e.g., dropped attachments).
+func resolveFileData(from url: URL) throws -> Data {
+    do {
+        return try Data(contentsOf: url)
+    } catch {
+        throw LLMError.invalidRequest(
+            message: "Failed to read attachment \"\(url.lastPathComponent)\": \(error.localizedDescription)"
+        )
+    }
+}
+
 // MARK: - Image URL Encoding
 
 /// Converts an `ImageContent` to a data URI or remote URL string.
 /// Shared by adapters that support vision (OpenAICompatible, OpenRouter, Fireworks, Perplexity).
-func imageToURLString(_ image: ImageContent) -> String? {
+func imageToURLString(_ image: ImageContent) throws -> String? {
     if let data = image.data {
         return "data:\(image.mimeType);base64,\(data.base64EncodedString())"
     }
     if let url = image.url {
-        if url.isFileURL, let data = try? Data(contentsOf: url) {
+        if url.isFileURL {
+            let data = try resolveFileData(from: url)
             return "data:\(image.mimeType);base64,\(data.base64EncodedString())"
         }
         return url.absoluteString
@@ -164,12 +180,12 @@ func imageToURLString(_ image: ImageContent) -> String? {
 // MARK: - Audio Input Encoding
 
 /// Resolves the raw audio data from an `AudioContent`, reading from disk if needed.
-func resolveAudioData(_ audio: AudioContent) -> Data? {
+func resolveAudioData(_ audio: AudioContent) throws -> Data? {
     if let data = audio.data {
         return data
     }
     if let url = audio.url, url.isFileURL {
-        return try? Data(contentsOf: url)
+        return try resolveFileData(from: url)
     }
     return nil
 }
@@ -189,8 +205,8 @@ func openAIInputAudioFormat(mimeType: String) -> String? {
 
 /// Builds an OpenAI-format `input_audio` content part dictionary.
 /// Returns nil if audio data cannot be resolved or format is unsupported.
-func openAIInputAudioPart(_ audio: AudioContent) -> [String: Any]? {
-    guard let payloadData = resolveAudioData(audio),
+func openAIInputAudioPart(_ audio: AudioContent) throws -> [String: Any]? {
+    guard let payloadData = try resolveAudioData(audio),
           let format = openAIInputAudioFormat(mimeType: audio.mimeType) else {
         return nil
     }
@@ -281,8 +297,8 @@ func splitContentParts(
 /// Used by adapters that support vision and/or audio input.
 func translateUserContentPartsToOpenAIFormat(
     _ parts: [ContentPart],
-    audioPartBuilder: ((AudioContent) -> [String: Any]?)? = openAIInputAudioPart
-) -> [[String: Any]] {
+    audioPartBuilder: ((AudioContent) throws -> [String: Any]?)? = openAIInputAudioPart
+) throws -> [[String: Any]] {
     var out: [[String: Any]] = []
     out.reserveCapacity(parts.count)
 
@@ -295,7 +311,7 @@ func translateUserContentPartsToOpenAIFormat(
             ])
 
         case .image(let image):
-            if let urlString = imageToURLString(image) {
+            if let urlString = try imageToURLString(image) {
                 out.append([
                     "type": "image_url",
                     "image_url": [
@@ -311,7 +327,7 @@ func translateUserContentPartsToOpenAIFormat(
             ])
 
         case .audio(let audio):
-            if let builder = audioPartBuilder, let inputAudio = builder(audio) {
+            if let builder = audioPartBuilder, let inputAudio = try builder(audio) {
                 out.append(inputAudio)
             }
 

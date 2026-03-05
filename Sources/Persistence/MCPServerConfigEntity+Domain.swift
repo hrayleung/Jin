@@ -1,7 +1,7 @@
 import Foundation
 
 extension MCPServerConfigEntity {
-    func toConfig() -> MCPServerConfig {
+    func toConfig() throws -> MCPServerConfig {
         let transport = transportConfig()
         let lifecycle = MCPLifecyclePolicy(rawValue: lifecycleRaw) ?? (isLongRunning ? .persistent : .ephemeral)
 
@@ -12,19 +12,19 @@ extension MCPServerConfigEntity {
             runToolsAutomatically: runToolsAutomatically,
             lifecycle: lifecycle,
             transport: transport,
-            disabledTools: disabledTools()
+            disabledTools: try disabledTools()
         )
     }
 
-    func apply(config: MCPServerConfig) {
+    func apply(config: MCPServerConfig) throws {
         id = config.id
         name = config.name
         isEnabled = config.isEnabled
         runToolsAutomatically = config.runToolsAutomatically
         lifecycleRaw = config.lifecycle.rawValue
         isLongRunning = config.lifecycle.isPersistent
-        setTransport(config.transport)
-        setDisabledTools(config.disabledTools)
+        try setTransport(config.transport)
+        try setDisabledTools(config.disabledTools)
     }
 
     var transportKind: MCPTransportKind {
@@ -45,17 +45,17 @@ extension MCPServerConfigEntity {
         }
     }
 
-    func setTransport(_ transport: MCPTransportConfig) {
+    func setTransport(_ transport: MCPTransportConfig) throws {
         let encoder = JSONEncoder()
         transportKindRaw = transport.kind.rawValue
-        transportData = (try? encoder.encode(transport)) ?? Data()
+        transportData = try encoder.encode(transport)
 
         // Keep legacy stdio fields in sync for temporary compatibility with stale code paths.
         switch transport {
         case .stdio(let stdio):
             command = stdio.command
-            argsData = (try? encoder.encode(stdio.args)) ?? Data()
-            envData = stdio.env.isEmpty ? nil : (try? encoder.encode(stdio.env))
+            argsData = try encoder.encode(stdio.args)
+            envData = stdio.env.isEmpty ? nil : try encoder.encode(stdio.env)
         case .http:
             command = ""
             argsData = Data()
@@ -63,16 +63,15 @@ extension MCPServerConfigEntity {
         }
     }
 
-    func disabledTools() -> Set<String> {
-        disabledToolsData
-            .flatMap { try? JSONDecoder().decode([String].self, from: $0) }
-            .map(Set.init)
-            ?? []
+    func disabledTools() throws -> Set<String> {
+        guard let data = disabledToolsData else { return [] }
+        let decoded = try JSONDecoder().decode([String].self, from: data)
+        return Set(decoded)
     }
 
-    func setDisabledTools(_ disabled: Set<String>) {
+    func setDisabledTools(_ disabled: Set<String>) throws {
         let sorted = disabled.sorted()
-        disabledToolsData = sorted.isEmpty ? nil : (try? JSONEncoder().encode(sorted))
+        disabledToolsData = sorted.isEmpty ? nil : try JSONEncoder().encode(sorted)
     }
 
     private func decodedTransport() -> MCPTransportConfig? {

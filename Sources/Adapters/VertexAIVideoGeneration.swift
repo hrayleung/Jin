@@ -29,7 +29,7 @@ extension VertexAIAdapter {
                     var instance: [String: Any] = ["prompt": prompt]
 
                     if let image = imageInput,
-                       let base64 = GoogleVideoGenerationCore.imageToBase64(image) {
+                       let base64 = try GoogleVideoGenerationCore.imageToBase64(image) {
                         instance["image"] = [
                             "bytesBase64Encoded": base64,
                             "mimeType": image.mimeType
@@ -80,10 +80,15 @@ extension VertexAIAdapter {
                         pollRequest.httpBody = try JSONSerialization.data(withJSONObject: pollBody)
 
                         let (pollData, pollResponse) = try await networkManager.sendRawRequest(pollRequest)
-                        let pollJSON = try? JSONSerialization.jsonObject(with: pollData) as? [String: Any]
+                        guard let pollJSON = try? JSONSerialization.jsonObject(with: pollData) as? [String: Any] else {
+                            let raw = String(data: pollData, encoding: .utf8) ?? "(non-UTF-8)"
+                            throw LLMError.decodingError(
+                                message: "Vertex AI video poll returned non-JSON response: \(String(raw.prefix(500)))"
+                            )
+                        }
 
                         // Check for error in operation
-                        if let error = pollJSON?["error"] as? [String: Any] {
+                        if let error = pollJSON["error"] as? [String: Any] {
                             let message = error["message"] as? String ?? "Video generation failed."
                             throw LLMError.providerError(code: "video_generation_failed", message: message)
                         }
@@ -97,11 +102,11 @@ extension VertexAIAdapter {
                             )
                         }
 
-                        let done = pollJSON?["done"] as? Bool ?? false
+                        let done = pollJSON["done"] as? Bool ?? false
                         guard done else { continue }
 
                         // 3. Extract video from response
-                        guard let response = pollJSON?["response"] as? [String: Any] else {
+                        guard let response = pollJSON["response"] as? [String: Any] else {
                             let raw = String(data: pollData, encoding: .utf8) ?? "(non-UTF-8)"
                             throw LLMError.decodingError(
                                 message: "Vertex AI video generation completed but no response found. Response: \(String(raw.prefix(500)))"

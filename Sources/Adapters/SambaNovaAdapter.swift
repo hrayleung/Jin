@@ -91,7 +91,7 @@ actor SambaNovaAdapter: LLMProviderAdapter {
 
         var body: [String: Any] = [
             "model": modelID,
-            "messages": translateMessages(messages, modelID: modelID),
+            "messages": try translateMessages(messages, modelID: modelID),
             "stream": streaming
         ]
 
@@ -185,14 +185,14 @@ actor SambaNovaAdapter: LLMProviderAdapter {
 
     // MARK: - Message Translation
 
-    private func translateMessages(_ messages: [Message], modelID: String) -> [[String: Any]] {
+    private func translateMessages(_ messages: [Message], modelID: String) throws -> [[String: Any]] {
         let supportsVision = modelSupportsVision(modelID)
-        return translateMessagesToOpenAIFormat(messages) { message in
-            self.translateNonToolMessage(message, supportsVision: supportsVision)
+        return try translateMessagesToOpenAIFormat(messages) { message in
+            try self.translateNonToolMessage(message, supportsVision: supportsVision)
         }
     }
 
-    private func translateNonToolMessage(_ message: Message, supportsVision: Bool) -> [String: Any] {
+    private func translateNonToolMessage(_ message: Message, supportsVision: Bool) throws -> [String: Any] {
         let split = splitContentParts(
             message.content,
             separator: "\n",
@@ -212,7 +212,7 @@ actor SambaNovaAdapter: LLMProviderAdapter {
 
         case .user:
             if supportsVision, split.hasRichUserContent {
-                dict["content"] = translateUserContentPartsToOpenAIFormat(message.content)
+                dict["content"] = try translateUserContentPartsToOpenAIFormat(message.content)
             } else {
                 dict["content"] = split.visible
             }

@@ -126,12 +126,12 @@ enum GoogleVideoGenerationCore {
     }
 
     /// Encodes an ImageContent to base64 string.
-    static func imageToBase64(_ image: ImageContent) -> String? {
+    static func imageToBase64(_ image: ImageContent) throws -> String? {
         if let data = image.data {
             return data.base64EncodedString()
         }
-        if let url = image.url, url.isFileURL,
-           let data = try? Data(contentsOf: url) {
+        if let url = image.url, url.isFileURL {
+            let data = try resolveFileData(from: url)
             return data.base64EncodedString()
         }
         return nil

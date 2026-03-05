@@ -27,7 +27,7 @@ extension GeminiAdapter {
                     var instance: [String: Any] = ["prompt": prompt]
 
                     if let image = imageInput,
-                       let base64 = GoogleVideoGenerationCore.imageToBase64(image) {
+                       let base64 = try GoogleVideoGenerationCore.imageToBase64(image) {
                         instance["image"] = [
                             "inlineData": [
                                 "mimeType": image.mimeType,
@@ -92,9 +92,14 @@ extension GeminiAdapter {
             pollRequest.addValue(apiKey, forHTTPHeaderField: "x-goog-api-key")
 
             let (pollData, pollResponse) = try await networkManager.sendRawRequest(pollRequest)
-            let pollJSON = try? JSONSerialization.jsonObject(with: pollData) as? [String: Any]
+            guard let pollJSON = try? JSONSerialization.jsonObject(with: pollData) as? [String: Any] else {
+                let raw = String(data: pollData, encoding: .utf8) ?? "(non-UTF-8)"
+                throw LLMError.decodingError(
+                    message: "Gemini video poll returned non-JSON response: \(String(raw.prefix(500)))"
+                )
+            }
 
-            if let error = pollJSON?["error"] as? [String: Any] {
+            if let error = pollJSON["error"] as? [String: Any] {
                 let message = error["message"] as? String ?? "Video generation failed."
                 throw LLMError.providerError(code: "video_generation_failed", message: message)
             }
@@ -107,10 +112,10 @@ extension GeminiAdapter {
                 )
             }
 
-            let done = pollJSON?["done"] as? Bool ?? false
+            let done = pollJSON["done"] as? Bool ?? false
             guard done else { continue }
 
-            guard let response = pollJSON?["response"] as? [String: Any],
+            guard let response = pollJSON["response"] as? [String: Any],
                   let generateVideoResponse = response["generateVideoResponse"] as? [String: Any],
                   let generatedSamples = generateVideoResponse["generatedSamples"] as? [[String: Any]],
                   let firstSample = generatedSamples.first,

@@ -234,7 +234,7 @@ actor XAIAdapter: LLMProviderAdapter {
 
         var body: [String: Any] = [
             "model": modelID,
-            "input": translateInput(messages, supportsNativePDF: nativePDFEnabled),
+            "input": try translateInput(messages, supportsNativePDF: nativePDFEnabled),
             "stream": streaming
         ]
 
@@ -305,7 +305,7 @@ actor XAIAdapter: LLMProviderAdapter {
         modelID: String,
         controls: GenerationControls
     ) throws -> AsyncThrowingStream<StreamEvent, Error> {
-        let imageURL = imageURLForImageGeneration(from: messages)
+        let imageURL = try imageURLForImageGeneration(from: messages)
         let prompt = try mediaPrompt(
             from: messages,
             mode: imageURL?.isEmpty == false ? .image : .none
@@ -494,7 +494,7 @@ actor XAIAdapter: LLMProviderAdapter {
 
     // MARK: - Input Translation
 
-    private func translateInput(_ messages: [Message], supportsNativePDF: Bool) -> [[String: Any]] {
+    private func translateInput(_ messages: [Message], supportsNativePDF: Bool) throws -> [[String: Any]] {
         var items: [[String: Any]] = []
 
         for message in messages {
@@ -511,7 +511,7 @@ actor XAIAdapter: LLMProviderAdapter {
                 }
 
             case .system, .user, .assistant:
-                if let translated = translateMessage(message, supportsNativePDF: supportsNativePDF) {
+                if let translated = try translateMessage(message, supportsNativePDF: supportsNativePDF) {
                     items.append(translated)
                 }
 
@@ -534,8 +534,13 @@ actor XAIAdapter: LLMProviderAdapter {
         return items
     }
 
-    private func translateMessage(_ message: Message, supportsNativePDF: Bool) -> [String: Any]? {
-        let content = message.content.compactMap { translateContentPart($0, supportsNativePDF: supportsNativePDF) }
+    private func translateMessage(_ message: Message, supportsNativePDF: Bool) throws -> [String: Any]? {
+        var content: [[String: Any]] = []
+        for part in message.content {
+            if let translated = try translateContentPart(part, supportsNativePDF: supportsNativePDF) {
+                content.append(translated)
+            }
+        }
 
         guard !content.isEmpty else { return nil }
 
@@ -566,7 +571,7 @@ actor XAIAdapter: LLMProviderAdapter {
         return "Tool returned no output"
     }
 
-    private func translateContentPart(_ part: ContentPart, supportsNativePDF: Bool) -> [String: Any]? {
+    private func translateContentPart(_ part: ContentPart, supportsNativePDF: Bool) throws -> [String: Any]? {
         switch part {
         case .text(let text):
             return [
@@ -582,7 +587,8 @@ actor XAIAdapter: LLMProviderAdapter {
                 ]
             }
             if let url = image.url {
-                if url.isFileURL, let data = try? Data(contentsOf: url) {
+                if url.isFileURL {
+                    let data = try resolveFileData(from: url)
                     return [
                         "type": "input_image",
                         "image_url": "data:\(image.mimeType);base64,\(data.base64EncodedString())"
@@ -601,7 +607,7 @@ actor XAIAdapter: LLMProviderAdapter {
                 if let data = file.data {
                     pdfData = data
                 } else if let url = file.url, url.isFileURL {
-                    pdfData = try? Data(contentsOf: url)
+                    pdfData = try resolveFileData(from: url)
                 } else {
                     pdfData = nil
                 }

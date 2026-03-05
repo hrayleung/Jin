@@ -8,7 +8,7 @@ extension OpenAIWebSocketAdapter {
         _ messages: [Message],
         supportsNativeFileInput: Bool,
         allowNativePDF: Bool
-    ) -> [[String: Any]] {
+    ) throws -> [[String: Any]] {
         var items: [[String: Any]] = []
 
         for message in messages {
@@ -25,7 +25,7 @@ extension OpenAIWebSocketAdapter {
                 }
 
             case .system, .user, .assistant:
-                if let translated = translateMessage(
+                if let translated = try translateMessage(
                     message,
                     supportsNativeFileInput: supportsNativeFileInput,
                     allowNativePDF: allowNativePDF
@@ -56,14 +56,17 @@ extension OpenAIWebSocketAdapter {
         _ message: Message,
         supportsNativeFileInput: Bool,
         allowNativePDF: Bool
-    ) -> [String: Any]? {
-        let content = message.content.compactMap { part in
-            translateContentPart(
+    ) throws -> [String: Any]? {
+        var content: [[String: Any]] = []
+        for part in message.content {
+            if let translated = try translateContentPart(
                 part,
                 role: message.role,
                 supportsNativeFileInput: supportsNativeFileInput,
                 allowNativePDF: allowNativePDF
-            )
+            ) {
+                content.append(translated)
+            }
         }
 
         guard !content.isEmpty else { return nil }
@@ -100,7 +103,7 @@ extension OpenAIWebSocketAdapter {
         role: MessageRole,
         supportsNativeFileInput: Bool,
         allowNativePDF: Bool
-    ) -> [String: Any]? {
+    ) throws -> [String: Any]? {
         switch part {
         case .text(let text):
             // OpenAI Responses API: assistant uses output_text, others use input_text
@@ -118,7 +121,8 @@ extension OpenAIWebSocketAdapter {
                 ]
             }
             if let url = image.url {
-                if url.isFileURL, let data = try? Data(contentsOf: url) {
+                if url.isFileURL {
+                    let data = try resolveFileData(from: url)
                     return [
                         "type": "input_image",
                         "image_url": "data:\(image.mimeType);base64,\(data.base64EncodedString())"
@@ -152,7 +156,7 @@ extension OpenAIWebSocketAdapter {
                 if let data = file.data {
                     fileData = data
                 } else if let url = file.url, url.isFileURL {
-                    fileData = try? Data(contentsOf: url)
+                    fileData = try resolveFileData(from: url)
                 } else {
                     fileData = nil
                 }
@@ -183,19 +187,19 @@ extension OpenAIWebSocketAdapter {
 
         case .audio(let audio):
             guard role == .user else { return nil }
-            return openAIInputAudioPart(audio)
+            return try openAIInputAudioPart(audio)
 
         case .thinking, .redactedThinking:
             return nil
         }
     }
 
-    func openAIInputAudioPart(_ audio: AudioContent) -> [String: Any]? {
+    func openAIInputAudioPart(_ audio: AudioContent) throws -> [String: Any]? {
         let payloadData: Data?
         if let data = audio.data {
             payloadData = data
         } else if let url = audio.url, url.isFileURL {
-            payloadData = try? Data(contentsOf: url)
+            payloadData = try resolveFileData(from: url)
         } else {
             payloadData = nil
         }

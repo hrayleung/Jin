@@ -31,10 +31,30 @@ struct MCPServerConfigFormView: View {
     @State private var tools: [MCPToolInfo] = []
     @State private var schemaPresentedTool: MCPToolInfo?
 
+    @State private var configError: String?
     @State private var loading = false
 
     var body: some View {
         Form {
+            if let configError {
+                Section {
+                    HStack {
+                        Text(configError)
+                            .font(.system(.caption, design: .monospaced))
+                            .textSelection(.enabled)
+                            .jinInlineErrorText()
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        Button {
+                            self.configError = nil
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .foregroundStyle(.secondary)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+
             serverSection
 
             if transportKind == .stdio {
@@ -267,13 +287,19 @@ struct MCPServerConfigFormView: View {
                                 isEnabled: Binding(
                                     get: { !disabledTools.contains(tool.name) },
                                     set: { isEnabled in
+                                        let previous = disabledTools
                                         if isEnabled {
                                             disabledTools.remove(tool.name)
                                         } else {
                                             disabledTools.insert(tool.name)
                                         }
-                                        server.setDisabledTools(disabledTools)
-                                        try? modelContext.save()
+                                        do {
+                                            try server.setDisabledTools(disabledTools)
+                                            try modelContext.save()
+                                        } catch {
+                                            disabledTools = previous
+                                            configError = "Failed to save tool settings: \(error.localizedDescription)"
+                                        }
                                     }
                                 ),
                                 viewSchema: {
@@ -359,7 +385,12 @@ struct MCPServerConfigFormView: View {
             argsError = nil
         }
 
-        disabledTools = server.disabledTools()
+        do {
+            disabledTools = try server.disabledTools()
+        } catch {
+            configError = "Failed to load disabled tools (defaulting to all enabled): \(error.localizedDescription)"
+            disabledTools = []
+        }
         persistTransport()
     }
 
@@ -390,7 +421,13 @@ struct MCPServerConfigFormView: View {
                     env: env
                 )
             )
-            server.setTransport(transport)
+            do {
+                try server.setTransport(transport)
+                configError = nil
+            } catch {
+                configError = "Failed to save transport config: \(error.localizedDescription)"
+                return
+            }
             endpointError = nil
 
         case .http:
@@ -417,18 +454,32 @@ struct MCPServerConfigFormView: View {
                     additionalHeaders: headers
                 )
             )
-            server.setTransport(transport)
+            do {
+                try server.setTransport(transport)
+                configError = nil
+            } catch {
+                configError = "Failed to save transport config: \(error.localizedDescription)"
+                return
+            }
             argsError = nil
             endpointError = nil
         }
 
         server.lifecycleRaw = MCPLifecyclePolicy.persistent.rawValue
         server.isLongRunning = true
-        try? modelContext.save()
+        do {
+            try modelContext.save()
+        } catch {
+            configError = "Failed to persist server settings: \(error.localizedDescription)"
+        }
     }
 
     private func verifyTools() {
         persistTransport()
+        if configError != nil {
+            verifyError = configError
+            return
+        }
         if hasTransportValidationError {
             verifyError = "Fix transport validation errors before verification."
             return
@@ -437,7 +488,14 @@ struct MCPServerConfigFormView: View {
         verifying = true
         verifyError = nil
 
-        let config = server.toConfig()
+        let config: MCPServerConfig
+        do {
+            config = try server.toConfig()
+        } catch {
+            verifyError = "Failed to load MCP server config: \(error.localizedDescription)"
+            verifying = false
+            return
+        }
 
         Task {
             do {

@@ -379,7 +379,7 @@ actor VertexAIAdapter: LLMProviderAdapter {
         let supportsNativePDF = allowNativePDF && self.supportsNativePDF(modelID)
 
         var body: [String: Any] = [
-            "contents": messages.filter { $0.role != .system }.map { translateMessage($0, supportsNativePDF: supportsNativePDF) },
+            "contents": try messages.filter { $0.role != .system }.map { try translateMessage($0, supportsNativePDF: supportsNativePDF) },
             "generationConfig": buildGenerationConfig(controls, modelID: modelID)
         ]
 
