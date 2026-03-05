@@ -102,7 +102,12 @@ enum OpenAIImageQuality: String, Codable, CaseIterable {
     case standard
     case hd
 
-    var displayName: String { rawValue.capitalized }
+    var displayName: String {
+        switch self {
+        case .hd: return "HD"
+        default: return rawValue.capitalized
+        }
+    }
 
     /// Quality options for GPT Image models.
     static let gptImageQualities: [OpenAIImageQuality] = [.auto, .low, .medium, .high]

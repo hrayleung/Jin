@@ -5421,13 +5421,13 @@ struct ChatView: View {
             }
         }
 
-        Menu("Quality") {
-            let qualities: [OpenAIImageQuality] = isGPTImageModel
-                ? OpenAIImageQuality.gptImageQualities
-                : isDallE3 ? OpenAIImageQuality.dallE3Qualities
-                : []
+        let qualities: [OpenAIImageQuality] = isGPTImageModel
+            ? OpenAIImageQuality.gptImageQualities
+            : isDallE3 ? OpenAIImageQuality.dallE3Qualities
+            : []
 
-            if !qualities.isEmpty {
+        if !qualities.isEmpty {
+            Menu("Quality") {
                 Button { updateOpenAIImageGeneration { $0.quality = nil } } label: {
                     menuItemLabel("Default", isSelected: controls.openaiImageGeneration?.quality == nil)
                 }
@@ -6980,7 +6980,8 @@ struct ChatView: View {
             if providerType == .openai || providerType == .openaiWebSocket {
                 controls.imageGeneration = nil
                 controls.xaiImageGeneration = nil
-                if let openaiImage = controls.openaiImageGeneration {
+                if var openaiImage = controls.openaiImageGeneration {
+                    normalizeOpenAIImageControls(&openaiImage)
                     controls.openaiImageGeneration = openaiImage.isEmpty ? nil : openaiImage
                 }
             } else if providerType == .xai {
@@ -7020,6 +7021,60 @@ struct ChatView: View {
             controls.imageGeneration = nil
             controls.xaiImageGeneration = nil
             controls.openaiImageGeneration = nil
+        }
+    }
+
+    /// Prune model-incompatible fields from OpenAI image generation controls.
+    ///
+    /// Different OpenAI image models support different parameter subsets:
+    /// - GPT Image models: all params except `style`
+    /// - DALL-E 3: `size`, `quality` (standard/hd), `style` only
+    /// - DALL-E 2: `size` only (quality must be `standard`)
+    private func normalizeOpenAIImageControls(_ controls: inout OpenAIImageGenerationControls) {
+        let isGPTImage = lowerModelID.hasPrefix("gpt-image")
+        let isDallE3 = lowerModelID.hasPrefix("dall-e-3")
+        let isDallE2 = lowerModelID.hasPrefix("dall-e-2")
+
+        if isGPTImage {
+            // GPT Image models don't support style
+            controls.style = nil
+        } else if isDallE3 {
+            // DALL-E 3: no GPT-image-specific params, no input fidelity
+            controls.background = nil
+            controls.outputFormat = nil
+            controls.outputCompression = nil
+            controls.moderation = nil
+            controls.inputFidelity = nil
+            // quality must be standard or hd
+            if let quality = controls.quality, quality != .standard && quality != .hd {
+                controls.quality = nil
+            }
+        } else if isDallE2 {
+            // DALL-E 2: minimal params
+            controls.background = nil
+            controls.outputFormat = nil
+            controls.outputCompression = nil
+            controls.moderation = nil
+            controls.inputFidelity = nil
+            controls.style = nil
+            // quality must be standard
+            if let quality = controls.quality, quality != .standard {
+                controls.quality = nil
+            }
+            // size must be dall-e-2 compatible
+            if let size = controls.size, !OpenAIImageSize.dallE2Sizes.contains(size) {
+                controls.size = nil
+            }
+        }
+
+        // input_fidelity is only for gpt-image-1
+        if lowerModelID != "gpt-image-1" {
+            controls.inputFidelity = nil
+        }
+
+        // Clear compression if format doesn't support it
+        if controls.outputFormat == nil || controls.outputFormat == .png {
+            controls.outputCompression = nil
         }
     }
 
