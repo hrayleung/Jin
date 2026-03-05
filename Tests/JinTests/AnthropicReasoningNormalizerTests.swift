@@ -17,7 +17,20 @@ final class AnthropicReasoningNormalizerTests: XCTestCase {
 
         XCTAssertNil(reasoning.budgetTokens, "budget_tokens must be nil on 4.6")
         XCTAssertEqual(reasoning.effort, .high, "effort should default to high")
-        XCTAssertNotNil(maxTokens, "maxTokens should be resolved")
+        XCTAssertEqual(maxTokens, 128_000, "Opus 4.6 should resolve to model max when unset")
+    }
+
+    func testOpus46VersionedModelIDResolvesMaxTokensToModelLimit() {
+        var reasoning = ReasoningControls(enabled: true, budgetTokens: 4096)
+        var maxTokens: Int? = nil
+
+        AnthropicReasoningNormalizer.normalize(
+            reasoning: &reasoning,
+            maxTokens: &maxTokens,
+            modelID: "claude-opus-4-6-20260128"
+        )
+
+        XCTAssertEqual(maxTokens, 128_000, "Versioned Opus 4.6 IDs should resolve to 128k max output")
     }
 
     func testOpus46PreservesExplicitEffort() {

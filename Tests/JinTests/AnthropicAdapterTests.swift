@@ -1352,6 +1352,62 @@ final class AnthropicAdapterTests: XCTestCase {
         for try await _ in stream {}
     }
 
+    func testAnthropicPreservesValidRedactedThinkingBlocks() async throws {
+        let (session, protocolType) = makeMockedURLSession()
+        let networkManager = NetworkManager(urlSession: session)
+
+        let providerConfig = ProviderConfig(
+            id: "anthropic",
+            name: "Anthropic",
+            type: .anthropic,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        protocolType.requestHandler = { request in
+            let body = try XCTUnwrap(requestBodyData(request))
+            let root = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: Any])
+            let messages = try XCTUnwrap(root["messages"] as? [[String: Any]])
+
+            let assistantMsg = try XCTUnwrap(messages.first { $0["role"] as? String == "assistant" })
+            let content = try XCTUnwrap(assistantMsg["content"] as? [[String: Any]])
+
+            let redactedBlocks = content.filter { $0["type"] as? String == "redacted_thinking" }
+            XCTAssertEqual(redactedBlocks.count, 1, "Valid Anthropic redacted thinking blocks should be preserved")
+            XCTAssertEqual(redactedBlocks.first?["data"] as? String, "opaque-anthropic-redacted")
+
+            let response = Data("data: [DONE]\n\n".utf8)
+            return (
+                HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                response
+            )
+        }
+
+        let adapter = AnthropicAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+
+        let messages: [Message] = [
+            Message(role: .user, content: [.text("hi")]),
+            Message(role: .assistant, content: [
+                .redactedThinking(RedactedThinkingBlock(
+                    data: "opaque-anthropic-redacted",
+                    provider: ProviderType.anthropic.rawValue
+                )),
+                .text("visible")
+            ]),
+            Message(role: .user, content: [.text("follow up")])
+        ]
+
+        let stream = try await adapter.sendMessage(
+            messages: messages,
+            modelID: "claude-opus-4-6",
+            controls: GenerationControls(reasoning: ReasoningControls(enabled: true)),
+            tools: [],
+            streaming: true
+        )
+
+        for try await _ in stream {}
+    }
+
     func testAnthropicMixedProviderThinkingBlocksOnlyKeepsAnthropicOnes() async throws {
         let (session, protocolType) = makeMockedURLSession()
         let networkManager = NetworkManager(urlSession: session)
