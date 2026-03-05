@@ -19,47 +19,50 @@ Conversation-first: fast, focused, and minimal.
 
 ## Supported Providers
 
-Jin supports 21 provider types:
+Jin supports 22 provider types:
 
-OpenAI · OpenAI (WebSocket) · Anthropic · Gemini (AI Studio) · Vertex AI · xAI · DeepSeek · Zhipu Coding Plan · Together AI · SambaNova · Mistral · Cohere · Groq · Perplexity · Fireworks · Cerebras · DeepInfra · OpenRouter · OpenAI Compatible · Cloudflare AI Gateway · Codex App Server (Beta)
+OpenAI · OpenAI (WebSocket) · Anthropic · Gemini (AI Studio) · Vertex AI · xAI · DeepSeek · Zhipu Coding Plan · Together AI · SambaNova · Mistral · Cohere · Groq · Perplexity · Fireworks · Cerebras · DeepInfra · OpenRouter · OpenAI Compatible · Cloudflare AI Gateway · Vercel AI Gateway · Codex App Server (Beta)
 
 Configure providers in **Settings > Providers**. Use **Fetch Models** to pull the latest model list, or add models manually.
 
 For **Codex App Server (Beta)**, run `codex app-server --listen ws://127.0.0.1:4500` (or launch it from provider settings). Auth supports API key, ChatGPT account, or Local Codex (`auth.json` from `$CODEX_HOME` or `~/.codex`). Recommended runtime: stable `codex` **0.107.0+**.
 
-### Included Models
+### Supported Models
 
-These models are ready to use out of the box once you've configured provider credentials. You can also add any other model manually or via **Fetch Models**.
+★ = seeded (appears in the model picker on first launch). All other listed models are catalog-recognized — they work with full capability metadata when added manually or fetched via **Fetch Models**. Unlisted model IDs fall back to conservative capability defaults.
 
 | Provider | Models |
 |----------|--------|
-| OpenAI | `gpt-5.2`, `gpt-5.2-2025-12-11`, `gpt-5.3-codex`, `gpt-4o` |
-| OpenAI (WebSocket) | `gpt-5.2`, `gpt-5.2-2025-12-11`, `gpt-5.3-codex`, `gpt-4o` |
-| Anthropic | `claude-opus-4-6`, `claude-sonnet-4-6`, `claude-opus-4-5-20251101`, `claude-sonnet-4-5-20250929`, `claude-haiku-4-5-20251001` |
-| Gemini (AI Studio) | `gemini-3-pro-preview`, `gemini-3.1-pro-preview`, `gemini-3-pro-image-preview`, `gemini-3.1-flash-image-preview`, `gemini-3-flash-preview`, `gemini-3.1-flash-lite-preview`, `gemini-2.5-flash-image` |
-| Vertex AI | `gemini-3-pro-preview`, `gemini-3.1-pro-preview`, `gemini-3-pro-image-preview`, `gemini-3.1-flash-image-preview`, `gemini-3-flash-preview`, `gemini-3.1-flash-lite-preview`, `gemini-2.5-pro`, `gemini-2.5-flash-image` |
-| xAI | `grok-4-1-fast`, `grok-4-1`, `grok-imagine-image`, `grok-imagine-image-pro`, `grok-2-image-1212`, `grok-imagine-video` |
-| DeepSeek | `deepseek-chat`, `deepseek-reasoner`, `deepseek-v3.2-exp` |
-| Zhipu Coding Plan | `glm-5`, `glm-4.7` |
-| Together AI | `Qwen/Qwen3.5-397B-A17B`, `MiniMaxAI/MiniMax-M2.5`, `zai-org/GLM-5`, `Qwen/Qwen3-Coder-Next-FP8`, `moonshotai/Kimi-K2.5` |
-| SambaNova | `MiniMax-M2.5`, `gpt-oss-120b` |
-| Perplexity | `sonar`, `sonar-pro`, `sonar-reasoning-pro`, `sonar-deep-research` |
-| Fireworks | `fireworks/glm-5`, `fireworks/minimax-m2p5`, `fireworks/kimi-k2p5`, `fireworks/glm-4p7` |
-| Codex App Server (Beta) | `gpt-5.1-codex` (default seed), plus models exposed by your server (server-side execution; no per-model client adaptation required) |
-| Groq, Cohere, Mistral, DeepInfra, OpenRouter, OpenAI Compatible, Cloudflare AI Gateway, Cerebras | Use **Fetch Models** or add manually |
-
-Note: this list reflects seeded models that are preloaded for quick start. Additional catalog-known models can be accepted when added manually (for example unseeded OpenAI variants), and manually entered models fall back to conservative defaults when capabilities are unknown.
+| OpenAI | `gpt-5.2`★, `gpt-5.2-2025-12-11`★, `gpt-5.3-codex`★, `gpt-4o`★, `gpt-image-1.5`★, `gpt-image-1`★, `gpt-5`, `gpt-5.3-chat-latest`, `o3`, `o4`, `gpt-image-1-mini`, `dall-e-3` |
+| OpenAI (WebSocket) | `gpt-5.2`★, `gpt-5.2-2025-12-11`★, `gpt-5.3-codex`★, `gpt-4o`★, `gpt-image-1.5`★, `gpt-image-1`★, `gpt-5`, `gpt-5.3-chat-latest`, `o3`, `o4`, `gpt-image-1-mini`, `dall-e-3` |
+| Anthropic | `claude-opus-4-6`★, `claude-sonnet-4-6`★, `claude-opus-4-5-20251101`★, `claude-sonnet-4-5-20250929`★, `claude-haiku-4-5-20251001`★, `claude-opus-4`, `claude-sonnet-4`, `claude-haiku-4` |
+| Gemini (AI Studio) | `gemini-3-pro-preview`★, `gemini-3.1-pro-preview`★, `gemini-3-pro-image-preview`★, `gemini-3.1-flash-image-preview`★, `gemini-3-flash-preview`★, `gemini-3.1-flash-lite-preview`★, `gemini-2.5-flash-image`★, `gemini-3`, `veo-2`, `veo-3` |
+| Vertex AI | `gemini-3-pro-preview`★, `gemini-3.1-pro-preview`★, `gemini-3-pro-image-preview`★, `gemini-3.1-flash-image-preview`★, `gemini-3-flash-preview`★, `gemini-3.1-flash-lite-preview`★, `gemini-2.5-pro`★, `gemini-2.5-flash-image`★, `gemini-3`, `gemini-2.5`, `veo-2`, `veo-3` |
+| xAI | `grok-4-1-fast`★, `grok-4-1`★, `grok-imagine-image`★, `grok-imagine-image-pro`★, `grok-2-image-1212`★, `grok-imagine-video`★, `grok-4-1-fast-non-reasoning`, `grok-4-1-fast-reasoning` |
+| DeepSeek | `deepseek-chat`★, `deepseek-reasoner`★, `deepseek-v3.2-exp`★ |
+| Zhipu Coding Plan | `glm-5`★, `glm-4.7`★ |
+| Together AI | `Qwen/Qwen3.5-397B-A17B`★, `MiniMaxAI/MiniMax-M2.5`★, `zai-org/GLM-5`★, `Qwen/Qwen3-Coder-Next-FP8`★, `moonshotai/Kimi-K2.5`★ |
+| SambaNova | `MiniMax-M2.5`★, `gpt-oss-120b`★, `DeepSeek-R1-0528`, `DeepSeek-V3-0324`, `DeepSeek-V3.1` |
+| Perplexity | `sonar`★, `sonar-pro`★, `sonar-reasoning-pro`★, `sonar-deep-research`★, `sonar-reasoning` |
+| Fireworks | `fireworks/glm-5`★, `fireworks/minimax-m2p5`★, `fireworks/kimi-k2p5`★, `fireworks/glm-4p7`★; alternate IDs: `accounts/fireworks/models/glm-5`, `accounts/fireworks/models/minimax-m2p5`, `accounts/fireworks/models/kimi-k2p5`, `accounts/fireworks/models/glm-4p7` |
+| Cerebras | `zai-glm-4.7` |
+| Cloudflare AI Gateway | **openai/** `gpt-5` · `gpt-5.2` · `gpt-5.2-2025-12-11` · `gpt-5.3-codex` · `gpt-5.3-chat-latest` · `gpt-4o` · `o3` · `o4` · **anthropic/** `claude-opus-4-6` · `claude-sonnet-4-6` · `claude-opus-4-5-20251101` · `claude-sonnet-4-5-20250929` · `claude-haiku-4-5-20251001` · `claude-opus-4` · `claude-sonnet-4` · `claude-haiku-4` · **grok/** `grok-4-1-fast` · `grok-4-1` · `grok-4-1-fast-non-reasoning` · `grok-4-1-fast-reasoning` · **deepseek/** `deepseek-chat` · `deepseek-reasoner` · `deepseek-v3.2-exp` · **cerebras/** `zai-glm-4.7` · **perplexity/** `sonar-pro` · `sonar-reasoning` · `sonar-reasoning-pro` · `sonar-deep-research` · **google-vertex-ai/google/** `gemini-3` · `gemini-3-pro-preview` · `gemini-3.1-pro-preview` · `gemini-3-flash-preview` · `gemini-2.5` · `gemini-2.5-pro` · **google-ai-studio/** `gemini-3` · `gemini-3-pro-preview` · `gemini-3.1-pro-preview` · `gemini-3-flash-preview` |
+| Vercel AI Gateway | **openai/** `gpt-5` · `gpt-5.2` · `gpt-5.3-codex` · `gpt-4o` · `o3` · `gpt-oss-120b` · **anthropic/** `claude-opus-4.6` · `claude-sonnet-4.6` · `claude-opus-4.5` · `claude-sonnet-4.5` · `claude-haiku-4.5` · `claude-opus-4` · `claude-sonnet-4` · **xai/** `grok-4.1-fast-non-reasoning` · `grok-4.1-fast-reasoning` · **perplexity/** `sonar-pro` · `sonar-reasoning` · `sonar-reasoning-pro` · **google/** `gemini-3-pro-preview` · `gemini-3.1-pro-preview` · `gemini-2.5-pro` · `gemini-3.1-flash-image-preview` · `gemini-2.5-flash-image` · **zai/** `glm-5` · `glm-4.7` · **minimax/** `minimax-m2.5` · **moonshotai/** `kimi-k2.5` |
+| OpenRouter | `google/gemini-3-pro-preview`, `google/gemini-3.1-pro-preview` |
+| Codex App Server (Beta) | `gpt-5.1-codex`★ (default seed), plus models exposed by your server (server-side execution; no per-model client adaptation required) |
+| Groq, Cohere, Mistral, DeepInfra, OpenAI Compatible | Use **Fetch Models** or add manually |
 
 ## Features
 
 - **Multi-provider chat** — Switch between providers and models within the same workspace
 - **Parallel multi-model chat** — Ask up to 3 models in one chat, with side-by-side responses and independent per-model context
 - **Multimodal conversations** — Text, images, files, audio, and generated media in one thread
+- **Markdown, code & LaTeX rendering** — Syntax-highlighted code blocks with copy support, full markdown rendering, and inline/block LaTeX math in responses
 - **Reasoning models** — Collapsible thinking blocks for models that support extended reasoning, with per-model budget controls
 - **Web search** — Provider-native search plus fallback through built-in search plugins (Exa, Brave, Jina, Firecrawl, Tavily), with in-chat search activity, citations, and source timeline
 - **Context caching** — Model-aware caching controls (mode, TTL, strategy) across supported providers
 - **Tool calling (MCP)** — Connect external tools and data via the Model Context Protocol using persistent or ephemeral servers
-- **Image generation + edits** — Gemini, Vertex AI, and xAI image generation; xAI supports image edit flows by attaching a source image
+- **Image generation + edits** — OpenAI, Gemini, Vertex AI, and xAI image generation; OpenAI (gpt-image-1/1.5) and xAI support image edit flows by attaching a source image
 - **Video generation + edits** — Gemini/Vertex Veo and xAI video flows, with optional public URL input for editable workflows
 - **PDF processing** — Native PDF for supported models, or explicit Mistral/DeepSeek OCR modes and local macOS extraction fallback
 - **Voice** — Speech-to-text (dictation or audio attachment when supported) and text-to-speech from assistant messages
@@ -69,6 +72,14 @@ Note: this list reflects seeded models that are preloaded for quick start. Addit
 
 <p align="center">
   <img src="docs/screenshots/multi-model-chat.png" alt="Parallel multi-model conversation in one chat with side-by-side responses" width="1200" />
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/code-highlight.png" alt="Syntax-highlighted code blocks in a conversation" width="1200" />
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/latex.png" alt="LaTeX math rendering in a conversation" width="1200" />
 </p>
 
 <p align="center">
