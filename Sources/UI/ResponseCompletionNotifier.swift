@@ -97,6 +97,10 @@ final class ResponseCompletionNotifier: ObservableObject {
                 content.interruptionLevel = .active
             }
 
+            if let attachment = makeIconAttachment() {
+                content.attachments = [attachment]
+            }
+
             let request = UNNotificationRequest(
                 identifier: "jin.reply.\(conversationID.uuidString).\(UUID().uuidString)",
                 content: content,
@@ -131,6 +135,15 @@ final class ResponseCompletionNotifier: ObservableObject {
         let alertAllowed = settings.alertSetting == .enabled || settings.alertSetting == .notSupported
         let centerAllowed = settings.notificationCenterSetting == .enabled || settings.notificationCenterSetting == .notSupported
         return alertAllowed || centerAllowed
+    }
+
+    private func makeIconAttachment() -> UNNotificationAttachment? {
+        let rawValue = defaults.string(forKey: AppPreferenceKeys.appIconVariant) ?? AppIconVariant.roseQuartz.rawValue
+        let variant = AppIconVariant(rawValue: rawValue) ?? .roseQuartz
+        guard let url = Bundle.main.url(forResource: variant.thumbnailResourceName, withExtension: "png") else {
+            return nil
+        }
+        return try? UNNotificationAttachment(identifier: "appIcon", url: url, options: nil)
     }
 }
 
