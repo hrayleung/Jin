@@ -3,7 +3,7 @@ import Foundation
 /// OpenAI provider adapter (Responses API WebSocket mode)
 actor OpenAIWebSocketAdapter: LLMProviderAdapter {
     let providerConfig: ProviderConfig
-    let capabilities: ModelCapability = [.streaming, .toolCalling, .vision, .audio, .reasoning, .promptCaching]
+    let capabilities: ModelCapability = [.streaming, .toolCalling, .vision, .audio, .reasoning, .promptCaching, .imageGeneration]
 
     private let networkManager: NetworkManager
     private let apiKey: String
@@ -58,6 +58,32 @@ actor OpenAIWebSocketAdapter: LLMProviderAdapter {
         tools: [ToolDefinition],
         streaming _: Bool
     ) async throws -> AsyncThrowingStream<StreamEvent, Error> {
+        // Route image generation models through the OpenAI HTTP Images API.
+        if isImageGenerationModel(modelID) {
+            let httpAdapter = OpenAIAdapter(
+                providerConfig: ProviderConfig(
+                    id: providerConfig.id,
+                    name: providerConfig.name,
+                    type: .openai,
+                    iconID: providerConfig.iconID,
+                    authModeHint: providerConfig.authModeHint,
+                    apiKey: providerConfig.apiKey,
+                    serviceAccountJSON: providerConfig.serviceAccountJSON,
+                    baseURL: resolvedHTTPBaseURLString(),
+                    models: providerConfig.models
+                ),
+                apiKey: apiKey,
+                networkManager: networkManager
+            )
+            return try await httpAdapter.sendMessage(
+                messages: messages,
+                modelID: modelID,
+                controls: controls,
+                tools: tools,
+                streaming: true
+            )
+        }
+
         // OpenAI currently documents audio input support primarily on Chat Completions.
         // Route audio-bearing requests through the OpenAI-compatible Chat Completions path.
         if shouldRouteToChatCompletionsForAudio(messages: messages, modelID: modelID) {
@@ -483,6 +509,13 @@ actor OpenAIWebSocketAdapter: LLMProviderAdapter {
         case .xhigh:
             return "xhigh"
         }
+    }
+
+    private func isImageGenerationModel(_ modelID: String) -> Bool {
+        if providerConfig.models.first(where: { $0.id == modelID })?.capabilities.contains(.imageGeneration) == true {
+            return true
+        }
+        return OpenAIAdapter.imageGenerationModelIDs.contains(modelID.lowercased())
     }
 
     private func supportsNativePDF(_ modelID: String) -> Bool {
