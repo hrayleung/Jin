@@ -13,6 +13,15 @@ extension OpenAIAdapter {
         "dall-e-3",
     ]
 
+    /// Models that support the `/images/edits` endpoint.
+    /// Note: `dall-e-3` does NOT support image editing.
+    private static let imageEditSupportedModelIDs: Set<String> = [
+        "gpt-image-1",
+        "gpt-image-1.5",
+        "gpt-image-1-mini",
+        "dall-e-2",
+    ]
+
     func isImageGenerationModel(_ modelID: String) -> Bool {
         if providerConfig.models.first(where: { $0.id == modelID })?.capabilities.contains(.imageGeneration) == true {
             return true
@@ -91,7 +100,9 @@ extension OpenAIAdapter {
         imageURL: String?,
         controls: GenerationControls
     ) throws -> URLRequest {
-        let isImageEdit = imageURL?.isEmpty == false
+        let lowerModel = modelID.lowercased()
+        let modelSupportsEdit = Self.imageEditSupportedModelIDs.contains(lowerModel)
+        let isImageEdit = modelSupportsEdit && (imageURL?.isEmpty == false)
         let endpoint = isImageEdit ? "images/edits" : "images/generations"
 
         var request = URLRequest(url: try validatedURL("\(baseURL)/\(endpoint)"))
@@ -100,7 +111,6 @@ extension OpenAIAdapter {
         request.addValue("application/json", forHTTPHeaderField: "Content-Type")
 
         let imageControls = controls.openaiImageGeneration
-        let lowerModel = modelID.lowercased()
         let isGPTImageModel = lowerModel.hasPrefix("gpt-image")
         let isDallE3 = lowerModel.hasPrefix("dall-e-3")
 
@@ -114,8 +124,8 @@ extension OpenAIAdapter {
             body["n"] = min(max(count, 1), 10)
         }
 
-        // Image input for edits
-        if let imageURL, !imageURL.isEmpty {
+        // Image input for edits (only when the model actually supports editing)
+        if isImageEdit, let imageURL, !imageURL.isEmpty {
             body["image"] = imageURL
         }
 
@@ -156,6 +166,12 @@ extension OpenAIAdapter {
             // Moderation
             if let moderation = imageControls?.moderation {
                 body["moderation"] = moderation.rawValue
+            }
+
+            // Input fidelity (gpt-image-1 only, applies to edits)
+            if isImageEdit, lowerModel == "gpt-image-1",
+               let fidelity = imageControls?.inputFidelity {
+                body["input_fidelity"] = fidelity.rawValue
             }
         }
 

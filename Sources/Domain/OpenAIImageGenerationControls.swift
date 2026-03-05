@@ -14,6 +14,8 @@ struct OpenAIImageGenerationControls: Codable {
     var outputFormat: OpenAIImageOutputFormat?
     var outputCompression: Int?
     var moderation: OpenAIImageModeration?
+    /// Controls how closely the model matches input image style/features (gpt-image-1 only).
+    var inputFidelity: OpenAIImageInputFidelity?
     var user: String?
 
     init(
@@ -25,6 +27,7 @@ struct OpenAIImageGenerationControls: Codable {
         outputFormat: OpenAIImageOutputFormat? = nil,
         outputCompression: Int? = nil,
         moderation: OpenAIImageModeration? = nil,
+        inputFidelity: OpenAIImageInputFidelity? = nil,
         user: String? = nil
     ) {
         self.count = count
@@ -35,6 +38,7 @@ struct OpenAIImageGenerationControls: Codable {
         self.outputFormat = outputFormat
         self.outputCompression = outputCompression
         self.moderation = moderation
+        self.inputFidelity = inputFidelity
         self.user = user
     }
 
@@ -47,6 +51,7 @@ struct OpenAIImageGenerationControls: Codable {
             && outputFormat == nil
             && outputCompression == nil
             && moderation == nil
+            && inputFidelity == nil
             && (user?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true)
     }
 }
@@ -146,6 +151,17 @@ enum OpenAIImageOutputFormat: String, Codable, CaseIterable {
 enum OpenAIImageModeration: String, Codable, CaseIterable {
     case auto
     case low
+
+    var displayName: String { rawValue.capitalized }
+}
+
+/// Input fidelity for image edits (gpt-image-1 only).
+///
+/// Controls how much effort the model exerts to match the style and features
+/// (especially facial features) of input images.
+enum OpenAIImageInputFidelity: String, Codable, CaseIterable {
+    case low
+    case high
 
     var displayName: String { rawValue.capitalized }
 }

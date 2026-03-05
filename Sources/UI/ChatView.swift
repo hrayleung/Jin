@@ -5498,6 +5498,20 @@ struct ChatView: View {
                     }
                 }
             }
+
+            // Input fidelity (gpt-image-1 only) — controls style/feature matching for edits
+            if lowerModelID == "gpt-image-1" {
+                Menu("Input Fidelity") {
+                    Button { updateOpenAIImageGeneration { $0.inputFidelity = nil } } label: {
+                        menuItemLabel("Default (Low)", isSelected: controls.openaiImageGeneration?.inputFidelity == nil)
+                    }
+                    ForEach(OpenAIImageInputFidelity.allCases, id: \.self) { fidelity in
+                        Button { updateOpenAIImageGeneration { $0.inputFidelity = fidelity } } label: {
+                            menuItemLabel(fidelity.displayName, isSelected: controls.openaiImageGeneration?.inputFidelity == fidelity)
+                        }
+                    }
+                }
+            }
         }
 
         if isImageGenerationConfigured {

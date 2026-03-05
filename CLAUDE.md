@@ -102,9 +102,9 @@ OpenAI adapter supports image generation via the Images API:
 
 1. `sendMessage()` detects image generation models via `isImageGenerationModel()` (checks `OpenAIAdapter.imageGenerationModelIDs`)
 2. Supported models: `gpt-image-1`, `gpt-image-1.5`, `gpt-image-1-mini`, `dall-e-3`, `dall-e-2`
-3. POST to `/images/generations` (text-to-image) or `/images/edits` (image-to-image)
-4. GPT Image models support: `size`, `quality` (low/medium/high/auto), `background` (transparent/opaque/auto), `output_format` (png/jpeg/webp), `output_compression` (0-100), `moderation` (auto/low)
-5. DALL-E 3 supports: `size`, `quality` (standard/hd), `style` (vivid/natural)
+3. POST to `/images/generations` (text-to-image) or `/images/edits` (image-to-image, **not supported by dall-e-3**)
+4. GPT Image models support: `size`, `quality` (low/medium/high/auto), `background` (transparent/opaque/auto), `output_format` (png/jpeg/webp), `output_compression` (0-100), `moderation` (auto/low), `input_fidelity` (high/low, gpt-image-1 only)
+5. DALL-E 3 supports: `size`, `quality` (standard/hd), `style` (vivid/natural) — generation only, no edits
 6. Response: `{ "data": [{ "b64_json": "...", "url": "...", "revised_prompt": "..." }] }`
 7. Images yielded as `.contentDelta(.image(ImageContent))`; revised prompts yielded as `.contentDelta(.text(...))`
 
