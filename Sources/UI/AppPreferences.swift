@@ -178,6 +178,7 @@ enum AppIconVariant: String, CaseIterable, Identifiable {
     case roseDusk = "B"
     case warmIvory = "C"
     case lavenderMist = "D"
+    case inkCat = "E"
 
     var id: String { rawValue }
 
@@ -191,6 +192,8 @@ enum AppIconVariant: String, CaseIterable, Identifiable {
             return "Warm Ivory"
         case .lavenderMist:
             return "Lavender Mist"
+        case .inkCat:
+            return "Ink Cat"
         }
     }
 
