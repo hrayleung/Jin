@@ -108,6 +108,9 @@ enum AppPreferenceKeys {
     static let ttsElevenLabsStyle = "ttsElevenLabsStyle"
     static let ttsElevenLabsUseSpeakerBoost = "ttsElevenLabsUseSpeakerBoost"
 
+    // Networking / Debug
+    static let networkDebugLoggingEnabled = "networkDebugLoggingEnabled"
+
     // Speech to Text
     static let sttProvider = "sttProvider"
     static let sttAddRecordingAsFile = "sttAddRecordingAsFile"

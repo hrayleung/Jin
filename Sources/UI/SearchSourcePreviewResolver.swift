@@ -114,19 +114,23 @@ actor SearchSourcePreviewResolver {
     private var cacheByURL: [String: CacheEntry] = [:]
     private var inFlightByURL: [String: Task<String?, Never>] = [:]
     private let cacheFileURL: URL?
-    private let session: URLSession
+    private let overrideSession: URLSession?
     private let fileManager: FileManager
     private let now: () -> Date
+
+    private var session: URLSession {
+        overrideSession ?? .shared
+    }
 
     init(
         fileManager: FileManager = .default,
         cacheFileURL: URL? = nil,
-        session: URLSession = .shared,
+        session: URLSession? = nil,
         now: @escaping () -> Date = Date.init
     ) {
         self.fileManager = fileManager
         self.cacheFileURL = cacheFileURL ?? Self.defaultCacheFileURL(fileManager: fileManager)
-        self.session = session
+        self.overrideSession = session
         self.now = now
         cacheByURL = Self.loadCacheFromDisk(
             cacheFileURL: self.cacheFileURL,
@@ -256,7 +260,11 @@ actor SearchSourcePreviewResolver {
         request.setValue("bytes=0-\(Configuration.maxDownloadBytes - 1)", forHTTPHeaderField: "Range")
 
         do {
-            let (data, response) = try await session.data(for: request)
+            let (data, response) = try await NetworkDebugRequestExecutor.data(
+                for: request,
+                mode: "search_preview",
+                session: session
+            )
             guard !Task.isCancelled else { return nil }
             guard let http = response as? HTTPURLResponse else { return nil }
             guard (200..<400).contains(http.statusCode) else { return nil }
@@ -345,7 +353,11 @@ actor SearchSourcePreviewResolver {
         request.setValue(Configuration.userAgent, forHTTPHeaderField: "User-Agent")
 
         do {
-            let (data, response) = try await session.data(for: request)
+            let (data, response) = try await NetworkDebugRequestExecutor.data(
+                for: request,
+                mode: "search_preview_oembed",
+                session: session
+            )
             guard !Task.isCancelled else { return nil }
             guard let http = response as? HTTPURLResponse else { return nil }
             guard (200..<300).contains(http.statusCode) else { return nil }

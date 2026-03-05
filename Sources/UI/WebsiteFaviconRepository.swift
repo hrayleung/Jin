@@ -139,7 +139,10 @@ actor WebsiteFaviconRepository {
         request.setValue(Configuration.userAgent, forHTTPHeaderField: "User-Agent")
 
         do {
-            let (data, response) = try await URLSession.shared.data(for: request)
+            let (data, response) = try await NetworkDebugRequestExecutor.data(
+                for: request,
+                mode: "favicon_fetch"
+            )
             guard let httpResponse = response as? HTTPURLResponse else { return nil }
             guard (200...299).contains(httpResponse.statusCode), !data.isEmpty else { return nil }
 

@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 
 struct ChatSettingsView: View {
     @EnvironmentObject private var responseCompletionNotifier: ResponseCompletionNotifier
@@ -6,6 +7,7 @@ struct ChatSettingsView: View {
     @AppStorage(AppPreferenceKeys.notifyOnBackgroundResponseCompletion) private var notifyOnBackgroundResponseCompletion = false
     @AppStorage(AppPreferenceKeys.thinkingBlockDisplayMode) private var thinkingDisplayModeRaw = ThinkingBlockDisplayMode.expanded.rawValue
     @AppStorage(AppPreferenceKeys.codexToolDisplayMode) private var codexToolDisplayModeRaw = CodexToolDisplayMode.expanded.rawValue
+    @AppStorage(AppPreferenceKeys.networkDebugLoggingEnabled) private var networkDebugLoggingEnabled = false
 
     private var thinkingDisplayMode: Binding<ThinkingBlockDisplayMode> {
         Binding(
@@ -41,6 +43,30 @@ struct ChatSettingsView: View {
                         Text(mode.label).tag(mode)
                     }
                 }
+            }
+
+            Section {
+                Toggle("Enable Network Trace", isOn: $networkDebugLoggingEnabled)
+                Text("JSON logs in time folders.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                HStack(spacing: JinSpacing.small) {
+                    Button("Open Trace Folder") {
+                        let folder = NetworkDebugLogger.logRootDirectoryURL
+                        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+                        NSWorkspace.shared.open(folder)
+                    }
+                    .disabled(!networkDebugLoggingEnabled)
+
+                    Button("Clear Traces") {
+                        Task {
+                            try? await NetworkDebugLogger.shared.clearLogs()
+                        }
+                    }
+                }
+            } header: {
+                Text("Network Trace")
             }
 
             Section("Notifications") {

@@ -2,10 +2,17 @@ import Foundation
 
 /// Network manager for HTTP requests with streaming support
 actor NetworkManager {
-    private let urlSession: URLSession
+    private let overrideSession: URLSession?
 
-    init(urlSession: URLSession = .shared) {
-        self.urlSession = urlSession
+    init(urlSession: URLSession? = nil) {
+        self.overrideSession = urlSession
+    }
+
+    /// Resolves the URLSession to use for each request.
+    /// When an explicit session is provided, it's always used.
+    /// Otherwise, uses the shared URLSession.
+    private var urlSession: URLSession {
+        overrideSession ?? .shared
     }
 
     /// Stream request with custom parser
@@ -17,11 +24,22 @@ actor NetworkManager {
 
         return AsyncThrowingStream { continuation in
             let task = Task {
+                let requestID = await NetworkDebugLogger.shared.beginRequest(request, mode: "stream")
+                var didLogResult = false
                 do {
                     let (bytes, response) = try await urlSession.bytes(for: request)
 
                     guard let httpResponse = response as? HTTPURLResponse else {
-                        throw LLMError.networkError(underlying: URLError(.badServerResponse))
+                        let error = LLMError.networkError(underlying: URLError(.badServerResponse))
+                        await NetworkDebugLogger.shared.endRequest(
+                            requestID: requestID,
+                            response: nil,
+                            responseBody: nil,
+                            responseBodyTruncated: false,
+                            error: error
+                        )
+                        didLogResult = true
+                        throw error
                     }
 
                     // Check for HTTP errors
@@ -29,17 +47,52 @@ actor NetworkManager {
                         let errorData = try await bytes.reduce(into: Data()) { data, byte in
                             data.append(byte)
                         }
-                        throw try parseHTTPError(statusCode: httpResponse.statusCode, data: errorData, headers: httpResponse.allHeaderFields)
+                        let parsedError = try parseHTTPError(
+                            statusCode: httpResponse.statusCode,
+                            data: errorData,
+                            headers: httpResponse.allHeaderFields
+                        )
+                        await NetworkDebugLogger.shared.endRequest(
+                            requestID: requestID,
+                            response: httpResponse,
+                            responseBody: errorData,
+                            responseBodyTruncated: false,
+                            error: parsedError
+                        )
+                        didLogResult = true
+                        throw parsedError
                     }
 
+                    var capturedResponseData = Data()
+
                     for try await byte in bytes {
+                        capturedResponseData.append(byte)
+
                         parserCopy.append(byte)
                         while let event = parserCopy.nextEvent() {
                             continuation.yield(event)
                         }
                     }
+
+                    await NetworkDebugLogger.shared.endRequest(
+                        requestID: requestID,
+                        response: httpResponse,
+                        responseBody: capturedResponseData,
+                        responseBodyTruncated: false,
+                        error: nil
+                    )
+                    didLogResult = true
                     continuation.finish()
                 } catch {
+                    if !didLogResult {
+                        await NetworkDebugLogger.shared.endRequest(
+                            requestID: requestID,
+                            response: nil,
+                            responseBody: nil,
+                            responseBodyTruncated: false,
+                            error: error
+                        )
+                    }
                     continuation.finish(throwing: error)
                 }
             }
@@ -52,29 +105,103 @@ actor NetworkManager {
 
     /// Non-streaming request
     func sendRequest(_ request: URLRequest) async throws -> (Data, HTTPURLResponse) {
-        let (data, response) = try await urlSession.data(for: request)
+        let requestID = await NetworkDebugLogger.shared.beginRequest(request, mode: "data")
+        var didLogResult = false
+        do {
+            let (data, response) = try await urlSession.data(for: request)
 
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw LLMError.networkError(underlying: URLError(.badServerResponse))
+            guard let httpResponse = response as? HTTPURLResponse else {
+                let error = LLMError.networkError(underlying: URLError(.badServerResponse))
+                await NetworkDebugLogger.shared.endRequest(
+                    requestID: requestID,
+                    response: nil,
+                    responseBody: nil,
+                    responseBodyTruncated: false,
+                    error: error
+                )
+                didLogResult = true
+                throw error
+            }
+
+            if httpResponse.statusCode >= 400 {
+                let parsedError = try parseHTTPError(statusCode: httpResponse.statusCode, data: data, headers: httpResponse.allHeaderFields)
+                await NetworkDebugLogger.shared.endRequest(
+                    requestID: requestID,
+                    response: httpResponse,
+                    responseBody: data,
+                    responseBodyTruncated: false,
+                    error: parsedError
+                )
+                didLogResult = true
+                throw parsedError
+            }
+
+            await NetworkDebugLogger.shared.endRequest(
+                requestID: requestID,
+                response: httpResponse,
+                responseBody: data,
+                responseBodyTruncated: false,
+                error: nil
+            )
+            didLogResult = true
+
+            return (data, httpResponse)
+        } catch {
+            if !didLogResult {
+                await NetworkDebugLogger.shared.endRequest(
+                    requestID: requestID,
+                    response: nil,
+                    responseBody: nil,
+                    responseBodyTruncated: false,
+                    error: error
+                )
+            }
+            throw error
         }
-
-        if httpResponse.statusCode >= 400 {
-            throw try parseHTTPError(statusCode: httpResponse.statusCode, data: data, headers: httpResponse.allHeaderFields)
-        }
-
-        return (data, httpResponse)
     }
 
     /// Non-streaming request that returns the response regardless of HTTP status code.
     /// Use this for polling endpoints where non-2xx responses carry meaningful status information.
     func sendRawRequest(_ request: URLRequest) async throws -> (Data, HTTPURLResponse) {
-        let (data, response) = try await urlSession.data(for: request)
+        let requestID = await NetworkDebugLogger.shared.beginRequest(request, mode: "raw")
+        var didLogResult = false
+        do {
+            let (data, response) = try await urlSession.data(for: request)
 
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw LLMError.networkError(underlying: URLError(.badServerResponse))
+            guard let httpResponse = response as? HTTPURLResponse else {
+                let error = LLMError.networkError(underlying: URLError(.badServerResponse))
+                await NetworkDebugLogger.shared.endRequest(
+                    requestID: requestID,
+                    response: nil,
+                    responseBody: nil,
+                    responseBodyTruncated: false,
+                    error: error
+                )
+                didLogResult = true
+                throw error
+            }
+
+            await NetworkDebugLogger.shared.endRequest(
+                requestID: requestID,
+                response: httpResponse,
+                responseBody: data,
+                responseBodyTruncated: false,
+                error: nil
+            )
+            didLogResult = true
+            return (data, httpResponse)
+        } catch {
+            if !didLogResult {
+                await NetworkDebugLogger.shared.endRequest(
+                    requestID: requestID,
+                    response: nil,
+                    responseBody: nil,
+                    responseBodyTruncated: false,
+                    error: error
+                )
+            }
+            throw error
         }
-
-        return (data, httpResponse)
     }
 
     /// Parse HTTP error into LLMError
