@@ -7,7 +7,11 @@ actor OpenAIWebSocketAdapter: LLMProviderAdapter {
 
     private let networkManager: NetworkManager
     private let apiKey: String
-    private let urlSession: URLSession
+    private let overrideSession: URLSession?
+
+    private var urlSession: URLSession {
+        overrideSession ?? .shared
+    }
 
     private var webSocketTask: URLSessionWebSocketTask?
     private var isResponseInFlight = false
@@ -35,12 +39,12 @@ actor OpenAIWebSocketAdapter: LLMProviderAdapter {
         providerConfig: ProviderConfig,
         apiKey: String,
         networkManager: NetworkManager = NetworkManager(),
-        urlSession: URLSession = .shared
+        urlSession: URLSession? = nil
     ) {
         self.providerConfig = providerConfig
         self.apiKey = apiKey
         self.networkManager = networkManager
-        self.urlSession = urlSession
+        self.overrideSession = urlSession
     }
 
     deinit {

@@ -4152,17 +4152,23 @@ struct ChatView: View {
         let supportsNativeSearch = ModelCapabilityRegistry.supportsWebSearch(for: providerTypeSnapshot, modelID: modelID)
         let shouldOfferBuiltinSearch = supportsBuiltinSearchPlugin
             && (!supportsNativeSearch || controlsToUse.searchPlugin?.preferJinSearch == true)
+        let networkLogContext = NetworkDebugLogContext(
+            conversationID: conversationID.uuidString,
+            threadID: threadID.uuidString,
+            turnID: turnID?.uuidString
+        )
 
         responseCompletionNotifier.prepareAuthorizationIfNeededWhileActive()
 
         let task = Task.detached(priority: .userInitiated) {
-            var shouldNotifyCompletion = false
-            var completionPreview: String?
+            await NetworkDebugLogScope.$current.withValue(networkLogContext) {
+                var shouldNotifyCompletion = false
+                var completionPreview: String?
 
-            do {
-                guard let providerConfig else {
-                    throw LLMError.invalidRequest(message: "Provider not found. Configure it in Settings.")
-                }
+                do {
+                    guard let providerConfig else {
+                        throw LLMError.invalidRequest(message: "Provider not found. Configure it in Settings.")
+                    }
 
                 let decoder = JSONDecoder()
                 var history = messageSnapshots
@@ -4198,7 +4204,8 @@ struct ChatView: View {
 
                 let providerManager = ProviderManager()
                 let adapter = try await providerManager.createAdapter(for: providerConfig)
-                let (mcpTools, mcpRoutes) = try await MCPHub.shared.toolDefinitions(for: mcpServerConfigs)
+                let mcpDefinitionsAndRoutes = try await MCPHub.shared.toolDefinitions(for: mcpServerConfigs)
+                let (mcpTools, mcpRoutes) = mcpDefinitionsAndRoutes
                 let (builtinTools, builtinRoutes) = await BuiltinSearchToolHub.shared.toolDefinitions(
                     for: controlsToUse,
                     useBuiltinSearch: shouldOfferBuiltinSearch
@@ -4565,24 +4572,25 @@ struct ChatView: View {
                     history.append(toolMessage)
                     iteration += 1
                 }
-            } catch is CancellationError {
-            } catch {
+                } catch is CancellationError {
+                } catch {
+                    await MainActor.run {
+                        errorMessage = error.localizedDescription
+                        showingError = true
+                    }
+                }
+                let shouldNotifyNow = shouldNotifyCompletion
+                let previewForNotification = completionPreview
                 await MainActor.run {
-                    errorMessage = error.localizedDescription
-                    showingError = true
+                    if shouldNotifyNow {
+                        responseCompletionNotifier.notifyCompletionIfNeeded(
+                            conversationID: conversationID,
+                            conversationTitle: conversationEntity.title,
+                            replyPreview: previewForNotification
+                        )
+                    }
+                    streamingStore.endSession(conversationID: conversationID, threadID: threadID)
                 }
-            }
-            let shouldNotifyNow = shouldNotifyCompletion
-            let previewForNotification = completionPreview
-            await MainActor.run {
-                if shouldNotifyNow {
-                    responseCompletionNotifier.notifyCompletionIfNeeded(
-                        conversationID: conversationID,
-                        conversationTitle: conversationEntity.title,
-                        replyPreview: previewForNotification
-                    )
-                }
-                streamingStore.endSession(conversationID: conversationID, threadID: threadID)
             }
         }
         streamingStore.attachTask(task, conversationID: conversationID, threadID: threadID)

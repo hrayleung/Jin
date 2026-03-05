@@ -169,8 +169,10 @@ actor MCPClient {
         let headers = http.resolvedHeaders()
         httpDiagnostics = HTTPDiagnostics(endpoint: http.endpoint.absoluteString, headerNames: headers.keys.sorted())
 
+        let configuration = httpClientTransportConfiguration()
         let transport = MCP.HTTPClientTransport(
             endpoint: http.endpoint,
+            configuration: configuration,
             streaming: http.streaming,
             requestModifier: { request in
                 var modified = request
@@ -186,6 +188,10 @@ actor MCPClient {
         _ = try await withTimeout(method: "initialize", seconds: handshakeTimeoutSeconds) {
             try await client.connect(transport: transport)
         }
+    }
+
+    private func httpClientTransportConfiguration() -> URLSessionConfiguration {
+        URLSessionConfiguration.default
     }
 
     // MARK: - Process lifecycle (stdio)

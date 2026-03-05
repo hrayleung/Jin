@@ -158,6 +158,7 @@ final class OpenAIWebSocketAdapterTests: XCTestCase {
         XCTAssertEqual(code, "rate_limit")
         XCTAssertEqual(message, "Too many requests")
     }
+
 }
 
 // MARK: - URLProtocol stubbing

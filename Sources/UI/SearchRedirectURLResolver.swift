@@ -74,18 +74,22 @@ actor SearchRedirectURLResolver {
     private var inFlightByRawURL: [String: Task<String?, Never>] = [:]
     private let cacheFileURL: URL?
     private let fileManager: FileManager
-    private let session: URLSession
+    private let overrideSession: URLSession?
     private let now: () -> Date
+
+    private var session: URLSession {
+        overrideSession ?? .shared
+    }
 
     init(
         fileManager: FileManager = .default,
         cacheFileURL: URL? = nil,
-        session: URLSession = .shared,
+        session: URLSession? = nil,
         now: @escaping () -> Date = Date.init
     ) {
         self.fileManager = fileManager
         self.cacheFileURL = cacheFileURL ?? Self.defaultCacheFileURL(fileManager: fileManager)
-        self.session = session
+        self.overrideSession = session
         self.now = now
         cacheByRawURL = Self.loadCacheFromDisk(
             cacheFileURL: self.cacheFileURL,
@@ -238,7 +242,14 @@ actor SearchRedirectURLResolver {
 
     private func followRedirects(using request: URLRequest) async -> URL? {
         do {
-            let (_, response) = try await session.data(for: request)
+            let mode = request.httpMethod?.uppercased() == "HEAD"
+                ? "search_redirect_head"
+                : "search_redirect_get"
+            let (_, response) = try await NetworkDebugRequestExecutor.data(
+                for: request,
+                mode: mode,
+                session: session
+            )
             return response.url
         } catch {
             return nil

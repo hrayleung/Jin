@@ -13,7 +13,12 @@ private func persistVideoToDisk(from url: URL) async -> URL? {
     try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
 
     do {
-        let (data, response) = try await URLSession.shared.data(from: url)
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        let (data, response) = try await NetworkDebugRequestExecutor.data(
+            for: request,
+            mode: "attachment_video_download"
+        )
 
         let contentType = (response as? HTTPURLResponse)?
             .value(forHTTPHeaderField: "Content-Type")?

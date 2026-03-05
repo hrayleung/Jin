@@ -555,7 +555,12 @@ struct TextToSpeechPluginSettingsView: View {
         }
 
         do {
-            let (data, _) = try await URLSession.shared.data(from: url)
+            var request = URLRequest(url: url)
+            request.httpMethod = "GET"
+            let (data, _) = try await NetworkDebugRequestExecutor.data(
+                for: request,
+                mode: "tts_voice_preview"
+            )
             let player = try AVAudioPlayer(data: data)
             player.prepareToPlay()
             await MainActor.run {
