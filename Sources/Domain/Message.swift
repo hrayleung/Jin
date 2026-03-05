@@ -28,6 +28,7 @@ enum ContentPart: Codable {
         case thinking
         case signature
         case redactedData
+        case provider
     }
 
     enum ContentType: String, Codable {
@@ -63,10 +64,12 @@ enum ContentPart: Codable {
         case .thinking:
             let text = try container.decode(String.self, forKey: .thinking)
             let signature = try container.decodeIfPresent(String.self, forKey: .signature)
-            self = .thinking(ThinkingBlock(text: text, signature: signature))
+            let provider = try container.decodeIfPresent(String.self, forKey: .provider)
+            self = .thinking(ThinkingBlock(text: text, signature: signature, provider: provider))
         case .redactedThinking:
             let data = try container.decode(String.self, forKey: .redactedData)
-            self = .redactedThinking(RedactedThinkingBlock(data: data))
+            let provider = try container.decodeIfPresent(String.self, forKey: .provider)
+            self = .redactedThinking(RedactedThinkingBlock(data: data, provider: provider))
         }
     }
 
@@ -93,9 +96,11 @@ enum ContentPart: Codable {
             try container.encode(ContentType.thinking, forKey: .type)
             try container.encode(thinking.text, forKey: .thinking)
             try container.encodeIfPresent(thinking.signature, forKey: .signature)
+            try container.encodeIfPresent(thinking.provider, forKey: .provider)
         case .redactedThinking(let thinking):
             try container.encode(ContentType.redactedThinking, forKey: .type)
             try container.encode(thinking.data, forKey: .redactedData)
+            try container.encodeIfPresent(thinking.provider, forKey: .provider)
         }
     }
 }
@@ -104,19 +109,26 @@ enum ContentPart: Codable {
 struct ThinkingBlock: Codable {
     let text: String
     let signature: String?
+    /// The provider type that originated this thinking block (e.g. "anthropic", "gemini").
+    /// Used to filter out foreign thinking blocks when sending to a specific provider.
+    let provider: String?
 
-    init(text: String, signature: String? = nil) {
+    init(text: String, signature: String? = nil, provider: String? = nil) {
         self.text = text
         self.signature = signature
+        self.provider = provider
     }
 }
 
 /// Provider-redacted reasoning block (e.g., Anthropic redacted_thinking)
 struct RedactedThinkingBlock: Codable {
     let data: String
+    /// The provider type that originated this block.
+    let provider: String?
 
-    init(data: String) {
+    init(data: String, provider: String? = nil) {
         self.data = data
+        self.provider = provider
     }
 }
 

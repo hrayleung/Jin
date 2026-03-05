@@ -83,6 +83,53 @@ final class AnthropicAdapterTests: XCTestCase {
         for try await _ in stream {}
     }
 
+    func testAnthropicOpus46ForcesAdaptiveThinkingEvenWhenBudgetTokensIsSet() async throws {
+        let (session, protocolType) = makeMockedURLSession()
+        let networkManager = NetworkManager(urlSession: session)
+
+        let providerConfig = ProviderConfig(
+            id: "anthropic",
+            name: "Anthropic",
+            type: .anthropic,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        protocolType.requestHandler = { request in
+            let body = try XCTUnwrap(requestBodyData(request))
+            let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+            let root = try XCTUnwrap(json)
+
+            // Even though budgetTokens was set, 4.6 should use adaptive thinking
+            let thinking = try XCTUnwrap(root["thinking"] as? [String: Any])
+            XCTAssertEqual(thinking["type"] as? String, "adaptive")
+            XCTAssertNil(thinking["budget_tokens"], "budget_tokens is deprecated on 4.6 models")
+
+            let response = Data("data: [DONE]\n\n".utf8)
+            return (
+                HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                response
+            )
+        }
+
+        let adapter = AnthropicAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+
+        // Simulate leftover budgetTokens from a model switch (e.g. Opus 4.5 → Opus 4.6)
+        let controls = GenerationControls(
+            reasoning: ReasoningControls(enabled: true, effort: .high, budgetTokens: 8192)
+        )
+
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hi")])],
+            modelID: "claude-opus-4-6",
+            controls: controls,
+            tools: [],
+            streaming: true
+        )
+
+        for try await _ in stream {}
+    }
+
     func testAnthropicOpus46BuildsAdaptiveThinkingAndEffortRequest() async throws {
         let (session, protocolType) = makeMockedURLSession()
         let networkManager = NetworkManager(urlSession: session)
@@ -229,7 +276,7 @@ final class AnthropicAdapterTests: XCTestCase {
         for try await _ in stream {}
     }
 
-    func testAnthropicOpus45BuildsBudgetThinkingWithoutEffortOutputConfig() async throws {
+    func testAnthropicOpus45BuildsBudgetThinkingWithoutEffortWhenNoEffortSet() async throws {
         let (session, protocolType) = makeMockedURLSession()
         let networkManager = NetworkManager(urlSession: session)
 
@@ -266,6 +313,56 @@ final class AnthropicAdapterTests: XCTestCase {
 
         let controls = GenerationControls(
             reasoning: ReasoningControls(enabled: true, budgetTokens: 4096)
+        )
+
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hi")])],
+            modelID: "claude-opus-4-5-20251101",
+            controls: controls,
+            tools: [],
+            streaming: true
+        )
+
+        for try await _ in stream {}
+    }
+
+    func testAnthropicOpus45BuildsBudgetThinkingWithEffortWhenEffortSet() async throws {
+        let (session, protocolType) = makeMockedURLSession()
+        let networkManager = NetworkManager(urlSession: session)
+
+        let providerConfig = ProviderConfig(
+            id: "anthropic",
+            name: "Anthropic",
+            type: .anthropic,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        protocolType.requestHandler = { request in
+            let body = try XCTUnwrap(requestBodyData(request))
+            let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+            let root = try XCTUnwrap(json)
+
+            XCTAssertEqual(root["model"] as? String, "claude-opus-4-5-20251101")
+
+            let thinking = try XCTUnwrap(root["thinking"] as? [String: Any])
+            XCTAssertEqual(thinking["type"] as? String, "enabled")
+            XCTAssertEqual(thinking["budget_tokens"] as? Int, 4096)
+
+            let outputConfig = try XCTUnwrap(root["output_config"] as? [String: Any])
+            XCTAssertEqual(outputConfig["effort"] as? String, "high")
+
+            let response = Data("data: [DONE]\n\n".utf8)
+            return (
+                HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                response
+            )
+        }
+
+        let adapter = AnthropicAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+
+        let controls = GenerationControls(
+            reasoning: ReasoningControls(enabled: true, effort: .high, budgetTokens: 4096)
         )
 
         let stream = try await adapter.sendMessage(
@@ -1025,8 +1122,576 @@ final class AnthropicAdapterTests: XCTestCase {
         XCTAssertFalse(AnthropicModelLimits.supportsMaxEffort(for: "claude-sonnet-4-6"))
 
         XCTAssertFalse(AnthropicModelLimits.supportsAdaptiveThinking(for: "claude-opus-4-5-20251101"))
-        XCTAssertFalse(AnthropicModelLimits.supportsEffort(for: "claude-opus-4-5-20251101"))
+        XCTAssertTrue(AnthropicModelLimits.supportsEffort(for: "claude-opus-4-5-20251101"))
         XCTAssertFalse(AnthropicModelLimits.supportsMaxEffort(for: "claude-opus-4-5-20251101"))
+
+        XCTAssertFalse(AnthropicModelLimits.supportsAdaptiveThinking(for: "claude-opus-4-1-20250805"))
+        XCTAssertTrue(AnthropicModelLimits.supportsEffort(for: "claude-opus-4-1-20250805"))
+        XCTAssertFalse(AnthropicModelLimits.supportsMaxEffort(for: "claude-opus-4-1-20250805"))
+
+        // Sonnet 4.5 and Haiku 4.5 do NOT support effort
+        XCTAssertFalse(AnthropicModelLimits.supportsEffort(for: "claude-sonnet-4-5-20250929"))
+        XCTAssertFalse(AnthropicModelLimits.supportsEffort(for: "claude-haiku-4-5-20251001"))
+    }
+
+    // MARK: - Thinking Block Filtering
+
+    func testAnthropicDropsThinkingBlocksWithNilSignature() async throws {
+        let (session, protocolType) = makeMockedURLSession()
+        let networkManager = NetworkManager(urlSession: session)
+
+        let providerConfig = ProviderConfig(
+            id: "anthropic",
+            name: "Anthropic",
+            type: .anthropic,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        protocolType.requestHandler = { request in
+            let body = try XCTUnwrap(requestBodyData(request))
+            let root = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: Any])
+            let messages = try XCTUnwrap(root["messages"] as? [[String: Any]])
+
+            let assistantMsg = try XCTUnwrap(messages.first { $0["role"] as? String == "assistant" })
+            let content = try XCTUnwrap(assistantMsg["content"] as? [[String: Any]])
+
+            // Thinking block with nil signature should be dropped
+            let thinkingBlocks = content.filter { $0["type"] as? String == "thinking" }
+            XCTAssertTrue(thinkingBlocks.isEmpty, "Thinking blocks without signatures should be dropped")
+
+            // Text block should still be present
+            let textBlocks = content.filter { $0["type"] as? String == "text" }
+            XCTAssertEqual(textBlocks.count, 1)
+
+            let response = Data("data: [DONE]\n\n".utf8)
+            return (
+                HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                response
+            )
+        }
+
+        let adapter = AnthropicAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+
+        // Simulate OpenAI-originated thinking (no signature)
+        let messages: [Message] = [
+            Message(role: .user, content: [.text("hi")]),
+            Message(role: .assistant, content: [
+                .thinking(ThinkingBlock(text: "OpenAI reasoning", signature: nil)),
+                .text("visible response")
+            ]),
+            Message(role: .user, content: [.text("follow up")])
+        ]
+
+        let stream = try await adapter.sendMessage(
+            messages: messages,
+            modelID: "claude-opus-4-6",
+            controls: GenerationControls(reasoning: ReasoningControls(enabled: true)),
+            tools: [],
+            streaming: true
+        )
+
+        for try await _ in stream {}
+    }
+
+    func testAnthropicDropsThinkingBlocksWithEmptySignature() async throws {
+        let (session, protocolType) = makeMockedURLSession()
+        let networkManager = NetworkManager(urlSession: session)
+
+        let providerConfig = ProviderConfig(
+            id: "anthropic",
+            name: "Anthropic",
+            type: .anthropic,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        protocolType.requestHandler = { request in
+            let body = try XCTUnwrap(requestBodyData(request))
+            let root = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: Any])
+            let messages = try XCTUnwrap(root["messages"] as? [[String: Any]])
+
+            let assistantMsg = try XCTUnwrap(messages.first { $0["role"] as? String == "assistant" })
+            let content = try XCTUnwrap(assistantMsg["content"] as? [[String: Any]])
+
+            let thinkingBlocks = content.filter { $0["type"] as? String == "thinking" }
+            XCTAssertTrue(thinkingBlocks.isEmpty, "Thinking blocks with empty signatures should be dropped")
+
+            let response = Data("data: [DONE]\n\n".utf8)
+            return (
+                HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                response
+            )
+        }
+
+        let adapter = AnthropicAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+
+        let messages: [Message] = [
+            Message(role: .user, content: [.text("hi")]),
+            Message(role: .assistant, content: [
+                .thinking(ThinkingBlock(text: "some reasoning", signature: "")),
+                .text("visible")
+            ]),
+            Message(role: .user, content: [.text("follow up")])
+        ]
+
+        let stream = try await adapter.sendMessage(
+            messages: messages,
+            modelID: "claude-opus-4-6",
+            controls: GenerationControls(reasoning: ReasoningControls(enabled: true)),
+            tools: [],
+            streaming: true
+        )
+
+        for try await _ in stream {}
+    }
+
+    func testAnthropicPreservesThinkingBlocksWithValidSignature() async throws {
+        let (session, protocolType) = makeMockedURLSession()
+        let networkManager = NetworkManager(urlSession: session)
+
+        let providerConfig = ProviderConfig(
+            id: "anthropic",
+            name: "Anthropic",
+            type: .anthropic,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        protocolType.requestHandler = { request in
+            let body = try XCTUnwrap(requestBodyData(request))
+            let root = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: Any])
+            let messages = try XCTUnwrap(root["messages"] as? [[String: Any]])
+
+            let assistantMsg = try XCTUnwrap(messages.first { $0["role"] as? String == "assistant" })
+            let content = try XCTUnwrap(assistantMsg["content"] as? [[String: Any]])
+
+            let thinkingBlocks = content.filter { $0["type"] as? String == "thinking" }
+            XCTAssertEqual(thinkingBlocks.count, 1, "Thinking blocks with valid signatures should be preserved")
+            XCTAssertEqual(thinkingBlocks.first?["thinking"] as? String, "Anthropic reasoning")
+            XCTAssertEqual(thinkingBlocks.first?["signature"] as? String, "valid-anthropic-sig")
+
+            let response = Data("data: [DONE]\n\n".utf8)
+            return (
+                HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                response
+            )
+        }
+
+        let adapter = AnthropicAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+
+        let messages: [Message] = [
+            Message(role: .user, content: [.text("hi")]),
+            Message(role: .assistant, content: [
+                .thinking(ThinkingBlock(text: "Anthropic reasoning", signature: "valid-anthropic-sig", provider: "anthropic")),
+                .text("visible")
+            ]),
+            Message(role: .user, content: [.text("follow up")])
+        ]
+
+        let stream = try await adapter.sendMessage(
+            messages: messages,
+            modelID: "claude-opus-4-6",
+            controls: GenerationControls(reasoning: ReasoningControls(enabled: true)),
+            tools: [],
+            streaming: true
+        )
+
+        for try await _ in stream {}
+    }
+
+    func testAnthropicDropsEmptyRedactedThinkingBlocks() async throws {
+        let (session, protocolType) = makeMockedURLSession()
+        let networkManager = NetworkManager(urlSession: session)
+
+        let providerConfig = ProviderConfig(
+            id: "anthropic",
+            name: "Anthropic",
+            type: .anthropic,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        protocolType.requestHandler = { request in
+            let body = try XCTUnwrap(requestBodyData(request))
+            let root = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: Any])
+            let messages = try XCTUnwrap(root["messages"] as? [[String: Any]])
+
+            let assistantMsg = try XCTUnwrap(messages.first { $0["role"] as? String == "assistant" })
+            let content = try XCTUnwrap(assistantMsg["content"] as? [[String: Any]])
+
+            let redactedBlocks = content.filter { $0["type"] as? String == "redacted_thinking" }
+            XCTAssertTrue(redactedBlocks.isEmpty, "Redacted thinking blocks with empty data should be dropped")
+
+            let response = Data("data: [DONE]\n\n".utf8)
+            return (
+                HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                response
+            )
+        }
+
+        let adapter = AnthropicAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+
+        let messages: [Message] = [
+            Message(role: .user, content: [.text("hi")]),
+            Message(role: .assistant, content: [
+                .redactedThinking(RedactedThinkingBlock(data: "")),
+                .text("visible")
+            ]),
+            Message(role: .user, content: [.text("follow up")])
+        ]
+
+        let stream = try await adapter.sendMessage(
+            messages: messages,
+            modelID: "claude-opus-4-6",
+            controls: GenerationControls(reasoning: ReasoningControls(enabled: true)),
+            tools: [],
+            streaming: true
+        )
+
+        for try await _ in stream {}
+    }
+
+    func testAnthropicPreservesValidRedactedThinkingBlocks() async throws {
+        let (session, protocolType) = makeMockedURLSession()
+        let networkManager = NetworkManager(urlSession: session)
+
+        let providerConfig = ProviderConfig(
+            id: "anthropic",
+            name: "Anthropic",
+            type: .anthropic,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        protocolType.requestHandler = { request in
+            let body = try XCTUnwrap(requestBodyData(request))
+            let root = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: Any])
+            let messages = try XCTUnwrap(root["messages"] as? [[String: Any]])
+
+            let assistantMsg = try XCTUnwrap(messages.first { $0["role"] as? String == "assistant" })
+            let content = try XCTUnwrap(assistantMsg["content"] as? [[String: Any]])
+
+            let redactedBlocks = content.filter { $0["type"] as? String == "redacted_thinking" }
+            XCTAssertEqual(redactedBlocks.count, 1, "Valid Anthropic redacted thinking blocks should be preserved")
+            XCTAssertEqual(redactedBlocks.first?["data"] as? String, "opaque-anthropic-redacted")
+
+            let response = Data("data: [DONE]\n\n".utf8)
+            return (
+                HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                response
+            )
+        }
+
+        let adapter = AnthropicAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+
+        let messages: [Message] = [
+            Message(role: .user, content: [.text("hi")]),
+            Message(role: .assistant, content: [
+                .redactedThinking(RedactedThinkingBlock(
+                    data: "opaque-anthropic-redacted",
+                    provider: ProviderType.anthropic.rawValue
+                )),
+                .text("visible")
+            ]),
+            Message(role: .user, content: [.text("follow up")])
+        ]
+
+        let stream = try await adapter.sendMessage(
+            messages: messages,
+            modelID: "claude-opus-4-6",
+            controls: GenerationControls(reasoning: ReasoningControls(enabled: true)),
+            tools: [],
+            streaming: true
+        )
+
+        for try await _ in stream {}
+    }
+
+    func testAnthropicMixedProviderThinkingBlocksOnlyKeepsAnthropicOnes() async throws {
+        let (session, protocolType) = makeMockedURLSession()
+        let networkManager = NetworkManager(urlSession: session)
+
+        let providerConfig = ProviderConfig(
+            id: "anthropic",
+            name: "Anthropic",
+            type: .anthropic,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        protocolType.requestHandler = { request in
+            let body = try XCTUnwrap(requestBodyData(request))
+            let root = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: Any])
+            let messages = try XCTUnwrap(root["messages"] as? [[String: Any]])
+
+            // First assistant message (from OpenAI — no signature) should have thinking dropped
+            let firstAssistant = try XCTUnwrap(messages.first { $0["role"] as? String == "assistant" })
+            let firstContent = try XCTUnwrap(firstAssistant["content"] as? [[String: Any]])
+            let firstThinking = firstContent.filter { $0["type"] as? String == "thinking" }
+            XCTAssertTrue(firstThinking.isEmpty, "OpenAI thinking should be dropped")
+
+            // Second assistant message (from Anthropic — has signature) should keep thinking
+            let assistants = messages.filter { $0["role"] as? String == "assistant" }
+            let secondAssistant = try XCTUnwrap(assistants.last)
+            let secondContent = try XCTUnwrap(secondAssistant["content"] as? [[String: Any]])
+            let secondThinking = secondContent.filter { $0["type"] as? String == "thinking" }
+            XCTAssertEqual(secondThinking.count, 1, "Anthropic thinking should be preserved")
+
+            let response = Data("data: [DONE]\n\n".utf8)
+            return (
+                HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                response
+            )
+        }
+
+        let adapter = AnthropicAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+
+        let messages: [Message] = [
+            Message(role: .user, content: [.text("hi")]),
+            // First response was from OpenAI (no signature)
+            Message(role: .assistant, content: [
+                .thinking(ThinkingBlock(text: "OpenAI reasoning", signature: nil, provider: "openai")),
+                .text("first response")
+            ]),
+            Message(role: .user, content: [.text("switching to anthropic")]),
+            // Second response was from Anthropic (has signature)
+            Message(role: .assistant, content: [
+                .thinking(ThinkingBlock(text: "Anthropic reasoning", signature: "real-sig", provider: "anthropic")),
+                .text("second response")
+            ]),
+            Message(role: .user, content: [.text("follow up")])
+        ]
+
+        let stream = try await adapter.sendMessage(
+            messages: messages,
+            modelID: "claude-opus-4-6",
+            controls: GenerationControls(reasoning: ReasoningControls(enabled: true)),
+            tools: [],
+            streaming: true
+        )
+
+        for try await _ in stream {}
+    }
+
+    func testAnthropicDropsGeminiThinkingBlocksWithForeignSignature() async throws {
+        let (session, protocolType) = makeMockedURLSession()
+        let networkManager = NetworkManager(urlSession: session)
+
+        let providerConfig = ProviderConfig(
+            id: "anthropic",
+            name: "Anthropic",
+            type: .anthropic,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        protocolType.requestHandler = { request in
+            let body = try XCTUnwrap(requestBodyData(request))
+            let root = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: Any])
+            let messages = try XCTUnwrap(root["messages"] as? [[String: Any]])
+
+            for msg in messages where msg["role"] as? String == "assistant" {
+                let content = msg["content"] as? [[String: Any]] ?? []
+                let thinkingBlocks = content.filter { $0["type"] as? String == "thinking" }
+                let redactedBlocks = content.filter { $0["type"] as? String == "redacted_thinking" }
+                XCTAssertTrue(thinkingBlocks.isEmpty, "Gemini thinking with foreign signature should be dropped")
+                XCTAssertTrue(redactedBlocks.isEmpty, "Gemini redacted thinking should be dropped")
+            }
+
+            let response = Data("data: [DONE]\n\n".utf8)
+            return (
+                HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                response
+            )
+        }
+
+        let adapter = AnthropicAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+
+        // Gemini produces thoughtSignature which gets stored as signature
+        let messages: [Message] = [
+            Message(role: .user, content: [.text("hi")]),
+            Message(role: .assistant, content: [
+                .thinking(ThinkingBlock(text: "Gemini reasoning", signature: "gemini-thought-sig-abc123", provider: "gemini")),
+                .redactedThinking(RedactedThinkingBlock(data: "gemini-opaque-data", provider: "gemini")),
+                .text("visible")
+            ]),
+            Message(role: .user, content: [.text("follow up")])
+        ]
+
+        let stream = try await adapter.sendMessage(
+            messages: messages,
+            modelID: "claude-opus-4-6",
+            controls: GenerationControls(reasoning: ReasoningControls(enabled: true)),
+            tools: [],
+            streaming: true
+        )
+
+        for try await _ in stream {}
+    }
+
+    func testAnthropicDropsVertexAIThinkingBlocksWithForeignSignature() async throws {
+        let (session, protocolType) = makeMockedURLSession()
+        let networkManager = NetworkManager(urlSession: session)
+
+        let providerConfig = ProviderConfig(
+            id: "anthropic",
+            name: "Anthropic",
+            type: .anthropic,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        protocolType.requestHandler = { request in
+            let body = try XCTUnwrap(requestBodyData(request))
+            let root = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: Any])
+            let messages = try XCTUnwrap(root["messages"] as? [[String: Any]])
+
+            for msg in messages where msg["role"] as? String == "assistant" {
+                let content = msg["content"] as? [[String: Any]] ?? []
+                let thinkingBlocks = content.filter { $0["type"] as? String == "thinking" }
+                XCTAssertTrue(thinkingBlocks.isEmpty, "Vertex AI thinking with foreign signature should be dropped")
+            }
+
+            let response = Data("data: [DONE]\n\n".utf8)
+            return (
+                HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                response
+            )
+        }
+
+        let adapter = AnthropicAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+
+        let messages: [Message] = [
+            Message(role: .user, content: [.text("hi")]),
+            Message(role: .assistant, content: [
+                .thinking(ThinkingBlock(text: "Vertex reasoning", signature: "vertex-thought-sig-xyz", provider: "vertexai")),
+                .text("visible")
+            ]),
+            Message(role: .user, content: [.text("follow up")])
+        ]
+
+        let stream = try await adapter.sendMessage(
+            messages: messages,
+            modelID: "claude-opus-4-6",
+            controls: GenerationControls(reasoning: ReasoningControls(enabled: true)),
+            tools: [],
+            streaming: true
+        )
+
+        for try await _ in stream {}
+    }
+
+    func testAnthropicDropsThinkingBlocksWithNilProvider() async throws {
+        let (session, protocolType) = makeMockedURLSession()
+        let networkManager = NetworkManager(urlSession: session)
+
+        let providerConfig = ProviderConfig(
+            id: "anthropic",
+            name: "Anthropic",
+            type: .anthropic,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        protocolType.requestHandler = { request in
+            let body = try XCTUnwrap(requestBodyData(request))
+            let root = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: Any])
+            let messages = try XCTUnwrap(root["messages"] as? [[String: Any]])
+
+            let assistantMsg = try XCTUnwrap(messages.first { $0["role"] as? String == "assistant" })
+            let content = try XCTUnwrap(assistantMsg["content"] as? [[String: Any]])
+
+            let thinkingBlocks = content.filter { $0["type"] as? String == "thinking" }
+            XCTAssertTrue(thinkingBlocks.isEmpty, "Pre-tagging thinking blocks (provider=nil) should be dropped")
+
+            let response = Data("data: [DONE]\n\n".utf8)
+            return (
+                HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                response
+            )
+        }
+
+        let adapter = AnthropicAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+
+        // Simulates old persisted data without provider tag
+        let messages: [Message] = [
+            Message(role: .user, content: [.text("hi")]),
+            Message(role: .assistant, content: [
+                .thinking(ThinkingBlock(text: "old thinking", signature: "some-sig", provider: nil)),
+                .text("visible")
+            ]),
+            Message(role: .user, content: [.text("follow up")])
+        ]
+
+        let stream = try await adapter.sendMessage(
+            messages: messages,
+            modelID: "claude-opus-4-6",
+            controls: GenerationControls(reasoning: ReasoningControls(enabled: true)),
+            tools: [],
+            streaming: true
+        )
+
+        for try await _ in stream {}
+    }
+
+    func testAnthropicPassesThroughCorruptedAnthropicSignature() async throws {
+        // Anthropic signatures are opaque — we intentionally do NOT validate format client-side.
+        // If a persisted Anthropic signature is truncated/corrupted, we pass it through and let
+        // the API return a 400. This is the correct behavior: the user sees an error and can
+        // retry (generating fresh thinking blocks). Adding a client-side format heuristic would
+        // risk false positives when Anthropic changes their signature format.
+        let (session, protocolType) = makeMockedURLSession()
+        let networkManager = NetworkManager(urlSession: session)
+
+        let providerConfig = ProviderConfig(
+            id: "anthropic",
+            name: "Anthropic",
+            type: .anthropic,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        protocolType.requestHandler = { request in
+            let body = try XCTUnwrap(requestBodyData(request))
+            let root = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: Any])
+            let messages = try XCTUnwrap(root["messages"] as? [[String: Any]])
+
+            let assistantMsg = try XCTUnwrap(messages.first { $0["role"] as? String == "assistant" })
+            let content = try XCTUnwrap(assistantMsg["content"] as? [[String: Any]])
+
+            // Corrupted signature IS sent through — Anthropic API will reject it
+            let thinkingBlocks = content.filter { $0["type"] as? String == "thinking" }
+            XCTAssertEqual(thinkingBlocks.count, 1, "Corrupted Anthropic signature should be passed through")
+            XCTAssertEqual(thinkingBlocks.first?["signature"] as? String, "trunca")
+
+            let response = Data("data: [DONE]\n\n".utf8)
+            return (
+                HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                response
+            )
+        }
+
+        let adapter = AnthropicAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+
+        let messages: [Message] = [
+            Message(role: .user, content: [.text("hi")]),
+            Message(role: .assistant, content: [
+                .thinking(ThinkingBlock(text: "reasoning", signature: "trunca", provider: "anthropic")),
+                .text("visible")
+            ]),
+            Message(role: .user, content: [.text("follow up")])
+        ]
+
+        let stream = try await adapter.sendMessage(
+            messages: messages,
+            modelID: "claude-opus-4-6",
+            controls: GenerationControls(reasoning: ReasoningControls(enabled: true)),
+            tools: [],
+            streaming: true
+        )
+
+        for try await _ in stream {}
     }
 }
 

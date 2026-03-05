@@ -1061,11 +1061,8 @@ struct ChatView: View {
         }
         .sheet(isPresented: $showingThinkingBudgetSheet) {
             ThinkingBudgetSheetView(
+                usesAdaptiveThinking: anthropicUsesAdaptiveThinking,
                 usesEffortMode: anthropicUsesEffortMode,
-                summaryText: anthropicThinkingSummaryText,
-                footnoteText: anthropicThinkingFootnote,
-                budgetPlaceholder: anthropicBudgetPlaceholder,
-                maxTokensPlaceholder: anthropicMaxTokensPlaceholder,
                 modelID: conversationEntity.modelID,
                 modelMaxOutputTokens: AnthropicModelLimits.maxOutputTokens(for: conversationEntity.modelID),
                 supportsMaxEffort: AnthropicModelLimits.supportsMaxEffort(for: conversationEntity.modelID),
@@ -4257,7 +4254,7 @@ struct ChatView: View {
                 while iteration < maxToolIterations {
                     try Task.checkCancellation()
 
-                    var accumulator = StreamingResponseAccumulator()
+                    var accumulator = StreamingResponseAccumulator(providerType: providerConfig.type)
                     var metricsCollector = StreamingResponseMetricsCollector()
                     metricsCollector.begin(at: Date())
 
@@ -6224,6 +6221,11 @@ struct ChatView: View {
         Int(thinkingBudgetDraft.trimmingCharacters(in: .whitespacesAndNewlines))
     }
 
+    private var anthropicUsesAdaptiveThinking: Bool {
+        guard providerType == .anthropic else { return false }
+        return AnthropicModelLimits.supportsAdaptiveThinking(for: conversationEntity.modelID)
+    }
+
     private var anthropicUsesEffortMode: Bool {
         guard providerType == .anthropic else { return false }
         return AnthropicModelLimits.supportsEffort(for: conversationEntity.modelID)
@@ -6244,8 +6246,12 @@ struct ChatView: View {
                 updateReasoning { reasoning in
                     reasoning.enabled = true
                     reasoning.effort = newValue
-                    reasoning.budgetTokens = nil
                     reasoning.summary = nil
+                    // Only clear budgetTokens for adaptive-only (4.6) models.
+                    // Opus 4.5/4.1 use effort + budget_tokens together.
+                    if anthropicUsesAdaptiveThinking {
+                        reasoning.budgetTokens = nil
+                    }
                 }
                 normalizeAnthropicReasoningAndMaxTokens()
                 persistControlsToConversation()
@@ -6253,33 +6259,8 @@ struct ChatView: View {
         )
     }
 
-    private var anthropicThinkingSummaryText: String {
-        if anthropicUsesEffortMode {
-            return "Claude 4.6 uses adaptive thinking. Choose an effort level, then set a max output limit."
-        }
-        return "Claude 4.5 and earlier use budget-based thinking. Set budget tokens and max output tokens together."
-    }
-
-    private var anthropicThinkingFootnote: String {
-        if anthropicUsesEffortMode {
-            return "Sent as thinking.type=adaptive with output_config.effort."
-        }
-        return "Sent as thinking.type=enabled with budget_tokens."
-    }
-
     private var anthropicDefaultBudgetTokens: Int {
         selectedReasoningConfig?.defaultBudget ?? 1024
-    }
-
-    private var anthropicBudgetPlaceholder: String {
-        "\(anthropicDefaultBudgetTokens)"
-    }
-
-    private var anthropicMaxTokensPlaceholder: String {
-        if let modelMax = AnthropicModelLimits.maxOutputTokens(for: conversationEntity.modelID) {
-            return "\(modelMax)"
-        }
-        return "4096"
     }
 
     private var maxTokensDraftInt: Int? {
@@ -6289,7 +6270,7 @@ struct ChatView: View {
     }
 
     private var isThinkingBudgetDraftValid: Bool {
-        if !anthropicUsesEffortMode {
+        if !anthropicUsesAdaptiveThinking {
             guard let budget = thinkingBudgetDraftInt, budget > 0 else { return false }
         }
         guard providerType == .anthropic else { return true }
@@ -6302,7 +6283,7 @@ struct ChatView: View {
 
     private var thinkingBudgetValidationWarning: String? {
         guard providerType == .anthropic else { return nil }
-        if !anthropicUsesEffortMode {
+        if !anthropicUsesAdaptiveThinking {
             guard let budget = thinkingBudgetDraftInt else { return "Enter an integer token budget (e.g., 4096)." }
 
             if budget <= 0 {
@@ -6328,7 +6309,7 @@ struct ChatView: View {
     }
 
     private func openThinkingBudgetEditor() {
-        if anthropicUsesEffortMode {
+        if anthropicUsesAdaptiveThinking {
             thinkingBudgetDraft = ""
         } else {
             let budget = controls.reasoning?.budgetTokens
@@ -6356,7 +6337,16 @@ struct ChatView: View {
 
         controls.maxTokens = maxTokensDraftInt
 
-        if anthropicUsesEffortMode {
+        if anthropicUsesAdaptiveThinking {
+            normalizeAnthropicReasoningAndMaxTokens()
+        } else if anthropicUsesEffortMode {
+            // Opus 4.5/4.1: apply budget_tokens while preserving the user's effort selection.
+            // Do NOT call setAnthropicThinkingBudget here — it clears effort.
+            guard let budgetTokens = thinkingBudgetDraftInt else { return }
+            updateReasoning { reasoning in
+                reasoning.enabled = true
+                reasoning.budgetTokens = budgetTokens
+            }
             normalizeAnthropicReasoningAndMaxTokens()
         } else {
             guard let budgetTokens = thinkingBudgetDraftInt else { return }
@@ -6377,30 +6367,20 @@ struct ChatView: View {
 
     private func normalizeAnthropicReasoningAndMaxTokens() {
         guard providerType == .anthropic else { return }
+        guard var reasoning = controls.reasoning else { return }
 
-        if controls.reasoning?.enabled == true {
-            if anthropicUsesEffortMode {
-                controls.reasoning?.budgetTokens = nil
-                if controls.reasoning?.effort == nil || controls.reasoning?.effort == ReasoningEffort.none {
-                    controls.reasoning?.effort = selectedReasoningConfig?.defaultEffort ?? .high
-                }
-            } else {
-                controls.reasoning?.effort = nil
-                if controls.reasoning?.budgetTokens == nil {
-                    controls.reasoning?.budgetTokens = anthropicDefaultBudgetTokens
-                }
-            }
-
-            controls.maxTokens = AnthropicModelLimits.resolvedMaxTokens(
-                requested: controls.maxTokens,
-                for: conversationEntity.modelID,
-                fallback: 4096
+        var maxTokens = controls.maxTokens
+        AnthropicReasoningNormalizer.normalize(
+            reasoning: &reasoning,
+            maxTokens: &maxTokens,
+            modelID: conversationEntity.modelID,
+            defaults: .init(
+                effort: selectedReasoningConfig?.defaultEffort ?? .high,
+                budgetTokens: anthropicDefaultBudgetTokens
             )
-        } else {
-            controls.reasoning?.effort = nil
-            controls.reasoning?.budgetTokens = nil
-            controls.maxTokens = nil
-        }
+        )
+        controls.reasoning = reasoning
+        controls.maxTokens = maxTokens
     }
 
     private func setReasoningSummary(_ summary: ReasoningSummary) {

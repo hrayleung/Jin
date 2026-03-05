@@ -30,23 +30,11 @@ enum AnthropicToolUseNormalizer {
                 continue
 
             case .assistant:
-                // Anthropic thinking signatures are opaque and can cause hard failures if a stored
-                // signature is truncated/foreign. Since thinking blocks are not user-visible content,
-                // we omit them from request history and keep only visible content + tool_use/tool_result.
-                let sanitizedContent = message.content.filter { part in
-                    switch part {
-                    case .thinking, .redactedThinking:
-                        return false
-                    default:
-                        return true
-                    }
-                }
-
                 normalized.append(
                     Message(
                         id: message.id,
                         role: .assistant,
-                        content: sanitizedContent,
+                        content: message.content,
                         toolCalls: message.toolCalls,
                         toolResults: nil,
                         timestamp: message.timestamp

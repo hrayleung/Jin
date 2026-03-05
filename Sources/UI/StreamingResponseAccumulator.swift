@@ -17,7 +17,12 @@ struct StreamingResponseAccumulator {
     private var codexToolActivitiesByID: [String: CodexToolActivity] = [:]
     private var codexToolActivityOrder: [String] = []
 
-    init() {}
+    /// The provider type string for tagging thinking blocks (e.g. "anthropic", "gemini").
+    private let providerTypeRawValue: String?
+
+    init(providerType: ProviderType? = nil) {
+        self.providerTypeRawValue = providerType?.rawValue
+    }
 
     mutating func appendTextDelta(_ delta: String) {
         guard !delta.isEmpty else { return }
@@ -117,9 +122,17 @@ struct StreamingResponseAccumulator {
                 parts.append(.video(assistantVideoSegments[idx]))
             case .thinking(let idx):
                 let thinking = assistantThinkingSegments[idx]
-                parts.append(.thinking(ThinkingBlock(text: thinking.text, signature: thinking.signature)))
+                parts.append(.thinking(ThinkingBlock(
+                    text: thinking.text,
+                    signature: thinking.signature,
+                    provider: thinking.provider ?? providerTypeRawValue
+                )))
             case .redacted(let redacted):
-                parts.append(.redactedThinking(redacted))
+                let taggedRedacted = RedactedThinkingBlock(
+                    data: redacted.data,
+                    provider: redacted.provider ?? providerTypeRawValue
+                )
+                parts.append(.redactedThinking(taggedRedacted))
             }
         }
 

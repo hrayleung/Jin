@@ -428,7 +428,8 @@ actor AnthropicAdapter: LLMProviderAdapter {
         }
 
         if !providerSpecificHasThinking {
-            if supportsAdaptiveThinking(modelID), controls.reasoning?.budgetTokens == nil {
+            if supportsAdaptiveThinking(modelID) {
+                // 4.6 models: always adaptive. budget_tokens is deprecated.
                 body["thinking"] = ["type": "adaptive"]
             } else {
                 body["thinking"] = [
@@ -439,8 +440,8 @@ actor AnthropicAdapter: LLMProviderAdapter {
         }
 
         if supportsEffort(modelID),
-           controls.reasoning?.budgetTokens == nil,
-           let effort = controls.reasoning?.effort {
+           let effort = controls.reasoning?.effort,
+           effort != .none {
             mergeOutputConfig(
                 into: &body,
                 additional: ["effort": mapAnthropicEffort(effort, modelID: modelID)]
@@ -589,15 +590,26 @@ actor AnthropicAdapter: LLMProviderAdapter {
         for part in message.content {
             switch part {
             case .thinking(let thinking):
-                var block: [String: Any] = [
-                    "type": "thinking",
-                    "thinking": thinking.text
-                ]
-                if let signature = thinking.signature {
-                    block["signature"] = signature
+                // Only send thinking blocks that originated from Anthropic.
+                // Blocks from other providers (Gemini, OpenAI, etc.) have foreign signatures
+                // or nil signatures that would cause a 400 error from Anthropic.
+                // Blocks with provider == nil are from pre-tagging persisted data — skip them
+                // since we cannot verify their origin.
+                guard thinking.provider == ProviderType.anthropic.rawValue,
+                      let signature = thinking.signature,
+                      !signature.isEmpty else {
+                    continue
                 }
-                content.append(block)
+                content.append([
+                    "type": "thinking",
+                    "thinking": thinking.text,
+                    "signature": signature
+                ])
             case .redactedThinking(let redacted):
+                guard redacted.provider == ProviderType.anthropic.rawValue,
+                      !redacted.data.isEmpty else {
+                    continue
+                }
                 content.append([
                     "type": "redacted_thinking",
                     "data": redacted.data
