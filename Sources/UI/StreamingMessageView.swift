@@ -13,6 +13,7 @@ enum StreamedAssistantPartRef {
 struct ThinkingBlockAccumulator {
     var text: String
     var signature: String?
+    var provider: String?
 }
 
 // MARK: - Streaming Message View

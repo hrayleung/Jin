@@ -7,8 +7,12 @@ enum AnthropicModelLimits {
     }
 
     static func supportsEffort(for modelID: String) -> Bool {
-        // Claude 4.6 models use effort with adaptive thinking.
-        supportsAdaptiveThinking(for: modelID)
+        // Effort works on Opus 4.6, Sonnet 4.6 (with adaptive thinking)
+        // and Opus 4.5, Opus 4.1 (with budget_tokens thinking).
+        let lower = modelID.lowercased()
+        return supportsAdaptiveThinking(for: lower)
+            || isModelFamily(lower, prefix: "claude-opus-4-5")
+            || isModelFamily(lower, prefix: "claude-opus-4-1")
     }
 
     static func supportsMaxEffort(for modelID: String) -> Bool {

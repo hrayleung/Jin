@@ -2,7 +2,7 @@ import XCTest
 @testable import Jin
 
 final class AnthropicToolUseNormalizerTests: XCTestCase {
-    func testStripsThinkingBlocksFromNonToolAssistantMessages() throws {
+    func testPreservesThinkingBlocksInNonToolAssistantMessages() throws {
         let input: [Message] = [
             Message(role: .user, content: [.text("hi")]),
             Message(role: .assistant, content: [
@@ -16,15 +16,21 @@ final class AnthropicToolUseNormalizerTests: XCTestCase {
 
         let assistant = normalized[1]
         XCTAssertEqual(assistant.role, .assistant)
-        XCTAssertEqual(assistant.content.count, 1)
-        if case .text(let text) = assistant.content[0] {
+        XCTAssertEqual(assistant.content.count, 2)
+        if case .thinking(let thinking) = assistant.content[0] {
+            XCTAssertEqual(thinking.text, "secret")
+            XCTAssertEqual(thinking.signature, "sig")
+        } else {
+            XCTFail("Expected thinking block to be preserved")
+        }
+        if case .text(let text) = assistant.content[1] {
             XCTAssertEqual(text, "visible")
         } else {
-            XCTFail("Expected text block after stripping thinking blocks")
+            XCTFail("Expected text block")
         }
     }
 
-    func testStripsThinkingBlocksForToolAssistantMessages() throws {
+    func testPreservesThinkingBlocksForToolAssistantMessages() throws {
         let toolCall = ToolCall(id: "toolu_123", name: "mcp__foo", arguments: [:])
         let input: [Message] = [
             Message(role: .assistant, content: [
@@ -38,11 +44,38 @@ final class AnthropicToolUseNormalizerTests: XCTestCase {
 
         let assistant = normalized[0]
         XCTAssertEqual(assistant.role, .assistant)
-        XCTAssertEqual(assistant.content.count, 1)
-        if case .text(let text) = assistant.content[0] {
+        XCTAssertEqual(assistant.content.count, 2)
+        if case .thinking(let thinking) = assistant.content[0] {
+            XCTAssertEqual(thinking.text, "secret")
+            XCTAssertEqual(thinking.signature, "sig")
+        } else {
+            XCTFail("Expected thinking block to be preserved")
+        }
+        if case .text(let text) = assistant.content[1] {
             XCTAssertEqual(text, "visible")
         } else {
-            XCTFail("Expected text block after stripping thinking blocks")
+            XCTFail("Expected text block")
+        }
+    }
+
+    func testPreservesRedactedThinkingBlocks() throws {
+        let input: [Message] = [
+            Message(role: .user, content: [.text("hi")]),
+            Message(role: .assistant, content: [
+                .redactedThinking(RedactedThinkingBlock(data: "opaque_data")),
+                .text("visible")
+            ]),
+        ]
+
+        let normalized = AnthropicToolUseNormalizer.normalize(input)
+        XCTAssertEqual(normalized.count, 2)
+
+        let assistant = normalized[1]
+        XCTAssertEqual(assistant.content.count, 2)
+        if case .redactedThinking(let redacted) = assistant.content[0] {
+            XCTAssertEqual(redacted.data, "opaque_data")
+        } else {
+            XCTFail("Expected redacted thinking block to be preserved")
         }
     }
 
