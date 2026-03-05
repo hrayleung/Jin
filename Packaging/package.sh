@@ -119,7 +119,7 @@ if [[ "$APP_BUILD_NUMBER" =~ ^[0-9]+$ ]]; then
 fi
 
 echo "Copying app icon variants…"
-for VARIANT in A B C D; do
+for VARIANT in A B C D E; do
   cp "$ROOT/Packaging/AppIcon${VARIANT}.icns" "$APP_BUNDLE/Contents/Resources/AppIcon${VARIANT}.icns"
 done
 
