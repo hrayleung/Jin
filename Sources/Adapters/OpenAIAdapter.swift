@@ -3,10 +3,10 @@ import Foundation
 /// OpenAI provider adapter (Responses API)
 actor OpenAIAdapter: LLMProviderAdapter {
     let providerConfig: ProviderConfig
-    let capabilities: ModelCapability = [.streaming, .toolCalling, .vision, .audio, .reasoning, .promptCaching]
+    let capabilities: ModelCapability = [.streaming, .toolCalling, .vision, .audio, .reasoning, .promptCaching, .imageGeneration]
 
-    private let networkManager: NetworkManager
-    private let apiKey: String
+    let networkManager: NetworkManager
+    let apiKey: String
 
     init(providerConfig: ProviderConfig, apiKey: String, networkManager: NetworkManager = NetworkManager()) {
         self.providerConfig = providerConfig
@@ -21,6 +21,10 @@ actor OpenAIAdapter: LLMProviderAdapter {
         tools: [ToolDefinition],
         streaming: Bool
     ) async throws -> AsyncThrowingStream<StreamEvent, Error> {
+        if isImageGenerationModel(modelID) {
+            return try makeImageGenerationStream(messages: messages, modelID: modelID, controls: controls)
+        }
+
         // OpenAI currently documents audio input support primarily on Chat Completions.
         // Route audio-bearing requests through the OpenAI-compatible Chat Completions path.
         if shouldRouteToChatCompletionsForAudio(messages: messages, modelID: modelID) {
@@ -135,7 +139,7 @@ actor OpenAIAdapter: LLMProviderAdapter {
 
     // MARK: - Private
 
-    private var baseURL: String {
+    var baseURL: String {
         providerConfig.baseURL ?? "https://api.openai.com/v1"
     }
 

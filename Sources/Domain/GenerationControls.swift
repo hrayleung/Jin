@@ -7,6 +7,7 @@ import Foundation
 /// - `ContextCacheControls.swift` -- prompt caching
 /// - `ReasoningControls.swift` -- thinking/reasoning
 /// - `WebSearchAndToolControls.swift` -- web search, MCP tools, PDF processing
+/// - `OpenAIImageGenerationControls.swift` -- OpenAI image generation
 /// - `XAIMediaGenerationControls.swift` -- xAI image/video generation
 /// - `GoogleMediaGenerationControls.swift` -- Gemini/Vertex image/video generation
 /// - `ProviderTypes.swift` -- ProviderType, ProviderConfig, ModelInfo, Usage
@@ -21,6 +22,7 @@ struct GenerationControls: Codable {
     var contextCache: ContextCacheControls?
     var pdfProcessingMode: PDFProcessingMode?
     var imageGeneration: ImageGenerationControls?
+    var openaiImageGeneration: OpenAIImageGenerationControls?
     var xaiImageGeneration: XAIImageGenerationControls?
     var xaiVideoGeneration: XAIVideoGenerationControls?
     var googleVideoGeneration: GoogleVideoGenerationControls?
@@ -37,6 +39,7 @@ struct GenerationControls: Codable {
         contextCache: ContextCacheControls? = nil,
         pdfProcessingMode: PDFProcessingMode? = nil,
         imageGeneration: ImageGenerationControls? = nil,
+        openaiImageGeneration: OpenAIImageGenerationControls? = nil,
         xaiImageGeneration: XAIImageGenerationControls? = nil,
         xaiVideoGeneration: XAIVideoGenerationControls? = nil,
         googleVideoGeneration: GoogleVideoGenerationControls? = nil,
@@ -52,6 +55,7 @@ struct GenerationControls: Codable {
         self.contextCache = contextCache
         self.pdfProcessingMode = pdfProcessingMode
         self.imageGeneration = imageGeneration
+        self.openaiImageGeneration = openaiImageGeneration
         self.xaiImageGeneration = xaiImageGeneration
         self.xaiVideoGeneration = xaiVideoGeneration
         self.googleVideoGeneration = googleVideoGeneration

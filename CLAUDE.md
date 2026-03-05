@@ -72,6 +72,7 @@ All providers implement the `LLMProviderAdapter` protocol (`sendMessage`, `valid
 - `VideoContent` - Video data model (mirrors `ImageContent`): `mimeType`, `data`, `url`
 - `GenerationControls` - Temperature, max tokens, reasoning, web search, MCP tools, image/video generation, PDF processing mode, context cache controls, provider-specific params
 - `ContextCacheControls` - Unified cross-provider cache configuration: mode (off/implicit/explicit), strategy (systemOnly/systemAndTools/prefixWindow), TTL, and provider-specific fields (`cacheKey` for OpenAI, `conversationID` for xAI, `cachedContentName` for Google)
+- `OpenAIImageGenerationControls` - OpenAI image generation params (count, size, quality, style, background, output format/compression, moderation)
 - `XAIImageGenerationControls` / `XAIVideoGenerationControls` - xAI-specific generation params (aspect ratio, duration, resolution)
 - `GoogleVideoGenerationControls` - Google Veo-specific video generation params (duration, aspect ratio, resolution, negative prompt, audio, person generation, seed)
 - `GenerationControlsResolver` - Resolves effective controls from assistant defaults + conversation overrides
@@ -94,6 +95,20 @@ SwiftData entities in `SwiftDataModels.swift`:
 1. `ConversationStreamingStore` (main actor) tracks active streaming sessions by conversation ID
 2. Adapters return `AsyncThrowingStream<StreamEvent, Error>` with events: `.messageStart`, `.contentDelta`, `.thinkingDelta`, `.toolCallStart/Delta/End`, `.messageEnd`, `.error`
 3. Streaming continues in background even when user navigates away
+
+### Image Generation (OpenAI)
+
+OpenAI adapter supports image generation via the Images API:
+
+1. `sendMessage()` detects image generation models via `isImageGenerationModel()` (checks `OpenAIAdapter.imageGenerationModelIDs`)
+2. Supported models: `gpt-image-1`, `gpt-image-1.5`, `gpt-image-1-mini`, `dall-e-3`, `dall-e-2`
+3. POST to `/images/generations` (text-to-image) or `/images/edits` (image-to-image)
+4. GPT Image models support: `size`, `quality` (low/medium/high/auto), `background` (transparent/opaque/auto), `output_format` (png/jpeg/webp), `output_compression` (0-100), `moderation` (auto/low)
+5. DALL-E 3 supports: `size`, `quality` (standard/hd), `style` (vivid/natural)
+6. Response: `{ "data": [{ "b64_json": "...", "url": "...", "revised_prompt": "..." }] }`
+7. Images yielded as `.contentDelta(.image(ImageContent))`; revised prompts yielded as `.contentDelta(.text(...))`
+
+Controls configured via `OpenAIImageGenerationControls` in `GenerationControls.swift`. UI provides per-model menus (size, quality, background, format, compression, moderation).
 
 ### Video Generation (xAI)
 

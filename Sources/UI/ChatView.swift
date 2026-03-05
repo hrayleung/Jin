@@ -1765,11 +1765,13 @@ struct ChatView: View {
 
     private var isImageGenerationModelID: Bool {
         switch providerType {
+        case .openai, .openaiWebSocket:
+            return Self.openAIImageGenerationModelIDs.contains(lowerModelID)
         case .xai:
             return Self.xAIImageGenerationModelIDs.contains(lowerModelID)
         case .gemini, .vertexai:
             return Self.geminiImageGenerationModelIDs.contains(lowerModelID)
-        case .openai, .openaiWebSocket, .codexAppServer, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway,
+        case .codexAppServer, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway,
              .openrouter, .anthropic, .perplexity, .groq, .cohere, .mistral, .deepinfra, .together,
              .deepseek, .zhipuCodingPlan, .fireworks, .cerebras, .sambanova, .none:
             return false
@@ -1896,6 +1898,9 @@ struct ChatView: View {
         if providerType == .xai {
             return !(controls.xaiImageGeneration?.isEmpty ?? true)
         }
+        if providerType == .openai || providerType == .openaiWebSocket {
+            return !(controls.openaiImageGeneration?.isEmpty ?? true)
+        }
         return !(controls.imageGeneration?.isEmpty ?? true)
     }
 
@@ -1907,6 +1912,19 @@ struct ChatView: View {
                 return ratio.displayName
             }
             if let count = controls.xaiImageGeneration?.count, count > 1 {
+                return "x\(count)"
+            }
+            return isImageGenerationConfigured ? "On" : nil
+        }
+
+        if providerType == .openai || providerType == .openaiWebSocket {
+            if let size = controls.openaiImageGeneration?.size {
+                return size.displayName
+            }
+            if let quality = controls.openaiImageGeneration?.quality {
+                return quality.displayName
+            }
+            if let count = controls.openaiImageGeneration?.count, count > 1 {
                 return "x\(count)"
             }
             return isImageGenerationConfigured ? "On" : nil
@@ -1933,6 +1951,16 @@ struct ChatView: View {
             }
             if let count = controls.xaiImageGeneration?.count {
                 return "Image Generation: Count \(count)"
+            }
+            return isImageGenerationConfigured ? "Image Generation: Customized" : "Image Generation: Default"
+        }
+
+        if providerType == .openai || providerType == .openaiWebSocket {
+            if let size = controls.openaiImageGeneration?.size {
+                return "Image Generation: \(size.displayName)"
+            }
+            if let quality = controls.openaiImageGeneration?.quality {
+                return "Image Generation: \(quality.displayName)"
             }
             return isImageGenerationConfigured ? "Image Generation: Customized" : "Image Generation: Default"
         }
@@ -3644,11 +3672,13 @@ struct ChatView: View {
 
     private func supportsImageGenerationModel(providerType: ProviderType?, lowerModelID: String) -> Bool {
         switch providerType {
+        case .openai, .openaiWebSocket:
+            return Self.openAIImageGenerationModelIDs.contains(lowerModelID)
         case .xai:
             return Self.xAIImageGenerationModelIDs.contains(lowerModelID)
         case .gemini, .vertexai:
             return Self.geminiImageGenerationModelIDs.contains(lowerModelID)
-        case .openai, .openaiWebSocket, .codexAppServer, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway,
+        case .codexAppServer, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway,
              .openrouter, .anthropic, .perplexity, .groq, .cohere, .mistral, .deepinfra, .together,
              .deepseek, .zhipuCodingPlan, .fireworks, .cerebras, .sambanova, .none:
             return false
@@ -5332,6 +5362,8 @@ struct ChatView: View {
                     persistControlsToConversation()
                 }
             }
+        } else if providerType == .openai || providerType == .openaiWebSocket {
+            openAIImageGenerationMenuContent
         } else {
             Button("Edit…") {
                 openImageGenerationEditor()
@@ -5345,6 +5377,159 @@ struct ChatView: View {
                 }
             }
         }
+    }
+
+    // MARK: - OpenAI Image Generation Menu
+
+    @ViewBuilder
+    private var openAIImageGenerationMenuContent: some View {
+        let isGPTImageModel = lowerModelID.hasPrefix("gpt-image")
+        let isDallE3 = lowerModelID.hasPrefix("dall-e-3")
+        let isDallE2 = lowerModelID.hasPrefix("dall-e-2")
+
+        Text("OpenAI Image")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+
+        Divider()
+
+        Menu("Count") {
+            Button { updateOpenAIImageGeneration { $0.count = nil } } label: {
+                menuItemLabel("Default (1)", isSelected: controls.openaiImageGeneration?.count == nil)
+            }
+            ForEach([1, 2, 4], id: \.self) { count in
+                Button { updateOpenAIImageGeneration { $0.count = count } } label: {
+                    menuItemLabel("\(count)", isSelected: controls.openaiImageGeneration?.count == count)
+                }
+            }
+        }
+
+        Menu("Size") {
+            let sizes: [OpenAIImageSize] = isGPTImageModel
+                ? OpenAIImageSize.gptImageSizes
+                : isDallE3 ? OpenAIImageSize.dallE3Sizes
+                : isDallE2 ? OpenAIImageSize.dallE2Sizes
+                : OpenAIImageSize.gptImageSizes
+
+            Button { updateOpenAIImageGeneration { $0.size = nil } } label: {
+                menuItemLabel("Default", isSelected: controls.openaiImageGeneration?.size == nil)
+            }
+            ForEach(sizes, id: \.self) { size in
+                Button { updateOpenAIImageGeneration { $0.size = size } } label: {
+                    menuItemLabel(size.displayName, isSelected: controls.openaiImageGeneration?.size == size)
+                }
+            }
+        }
+
+        Menu("Quality") {
+            let qualities: [OpenAIImageQuality] = isGPTImageModel
+                ? OpenAIImageQuality.gptImageQualities
+                : isDallE3 ? OpenAIImageQuality.dallE3Qualities
+                : []
+
+            if !qualities.isEmpty {
+                Button { updateOpenAIImageGeneration { $0.quality = nil } } label: {
+                    menuItemLabel("Default", isSelected: controls.openaiImageGeneration?.quality == nil)
+                }
+                ForEach(qualities, id: \.self) { quality in
+                    Button { updateOpenAIImageGeneration { $0.quality = quality } } label: {
+                        menuItemLabel(quality.displayName, isSelected: controls.openaiImageGeneration?.quality == quality)
+                    }
+                }
+            }
+        }
+
+        if isDallE3 {
+            Menu("Style") {
+                Button { updateOpenAIImageGeneration { $0.style = nil } } label: {
+                    menuItemLabel("Default (Vivid)", isSelected: controls.openaiImageGeneration?.style == nil)
+                }
+                ForEach(OpenAIImageStyle.allCases, id: \.self) { style in
+                    Button { updateOpenAIImageGeneration { $0.style = style } } label: {
+                        menuItemLabel(style.displayName, isSelected: controls.openaiImageGeneration?.style == style)
+                    }
+                }
+            }
+        }
+
+        if isGPTImageModel {
+            Menu("Background") {
+                Button { updateOpenAIImageGeneration { $0.background = nil } } label: {
+                    menuItemLabel("Default (Auto)", isSelected: controls.openaiImageGeneration?.background == nil)
+                }
+                ForEach(OpenAIImageBackground.allCases, id: \.self) { bg in
+                    Button { updateOpenAIImageGeneration { $0.background = bg } } label: {
+                        menuItemLabel(bg.displayName, isSelected: controls.openaiImageGeneration?.background == bg)
+                    }
+                }
+            }
+
+            Menu("Output Format") {
+                Button { updateOpenAIImageGeneration { $0.outputFormat = nil } } label: {
+                    menuItemLabel("Default (PNG)", isSelected: controls.openaiImageGeneration?.outputFormat == nil)
+                }
+                ForEach(OpenAIImageOutputFormat.allCases, id: \.self) { format in
+                    Button { updateOpenAIImageGeneration { $0.outputFormat = format } } label: {
+                        menuItemLabel(format.displayName, isSelected: controls.openaiImageGeneration?.outputFormat == format)
+                    }
+                }
+            }
+
+            if controls.openaiImageGeneration?.outputFormat == .jpeg || controls.openaiImageGeneration?.outputFormat == .webp {
+                Menu("Compression") {
+                    Button { updateOpenAIImageGeneration { $0.outputCompression = nil } } label: {
+                        menuItemLabel("Default (100)", isSelected: controls.openaiImageGeneration?.outputCompression == nil)
+                    }
+                    ForEach([25, 50, 75, 100], id: \.self) { level in
+                        Button { updateOpenAIImageGeneration { $0.outputCompression = level } } label: {
+                            menuItemLabel("\(level)%", isSelected: controls.openaiImageGeneration?.outputCompression == level)
+                        }
+                    }
+                }
+            }
+
+            Menu("Moderation") {
+                Button { updateOpenAIImageGeneration { $0.moderation = nil } } label: {
+                    menuItemLabel("Default (Auto)", isSelected: controls.openaiImageGeneration?.moderation == nil)
+                }
+                ForEach(OpenAIImageModeration.allCases, id: \.self) { mod in
+                    Button { updateOpenAIImageGeneration { $0.moderation = mod } } label: {
+                        menuItemLabel(mod.displayName, isSelected: controls.openaiImageGeneration?.moderation == mod)
+                    }
+                }
+            }
+        }
+
+        if isImageGenerationConfigured {
+            Divider()
+            Button("Reset", role: .destructive) {
+                controls.openaiImageGeneration = nil
+                persistControlsToConversation()
+            }
+        }
+    }
+
+    private func updateOpenAIImageGeneration(_ mutate: (inout OpenAIImageGenerationControls) -> Void) {
+        var draft = controls.openaiImageGeneration ?? OpenAIImageGenerationControls()
+        mutate(&draft)
+
+        // If background is transparent, ensure output format supports transparency
+        if draft.background == .transparent {
+            if let format = draft.outputFormat, format == .jpeg {
+                draft.outputFormat = .png
+            }
+        }
+
+        // Clear compression if format doesn't support it
+        if let format = draft.outputFormat, format == .png {
+            draft.outputCompression = nil
+        }
+        if draft.outputFormat == nil {
+            draft.outputCompression = nil
+        }
+
+        controls.openaiImageGeneration = draft.isEmpty ? nil : draft
+        persistControlsToConversation()
     }
 
     private func updateXAIImageGeneration(_ mutate: (inout XAIImageGenerationControls) -> Void) {
@@ -6778,8 +6963,15 @@ struct ChatView: View {
 
     private func normalizeImageGenerationControls() {
         if supportsImageGenerationControl {
-            if providerType == .xai {
+            if providerType == .openai || providerType == .openaiWebSocket {
                 controls.imageGeneration = nil
+                controls.xaiImageGeneration = nil
+                if let openaiImage = controls.openaiImageGeneration {
+                    controls.openaiImageGeneration = openaiImage.isEmpty ? nil : openaiImage
+                }
+            } else if providerType == .xai {
+                controls.imageGeneration = nil
+                controls.openaiImageGeneration = nil
                 if var xaiImage = controls.xaiImageGeneration {
                     xaiImage.quality = nil
                     xaiImage.style = nil
@@ -6808,10 +7000,12 @@ struct ChatView: View {
                     controls.imageGeneration = nil
                 }
                 controls.xaiImageGeneration = nil
+                controls.openaiImageGeneration = nil
             }
         } else {
             controls.imageGeneration = nil
             controls.xaiImageGeneration = nil
+            controls.openaiImageGeneration = nil
         }
     }
 
