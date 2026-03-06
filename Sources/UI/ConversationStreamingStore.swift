@@ -5,6 +5,8 @@ import SwiftUI
 /// even when the user navigates away, and so the sidebar can show activity.
 @MainActor
 final class ConversationStreamingStore: ObservableObject {
+    private typealias SessionMap = [UUID: Session]
+
     struct Session {
         let conversationID: UUID
         let threadID: UUID
@@ -14,66 +16,55 @@ final class ConversationStreamingStore: ObservableObject {
         var startedAt: Date
     }
 
-    @Published private var sessionsByConversationID: [UUID: [UUID: Session]] = [:]
+    @Published private var sessionsByConversationID: [UUID: SessionMap] = [:]
 
     func isStreaming(conversationID: UUID) -> Bool {
-        !(sessionsByConversationID[conversationID] ?? [:]).isEmpty
+        !sessions(for: conversationID).isEmpty
     }
 
     func isStreaming(conversationID: UUID, threadID: UUID) -> Bool {
-        sessionsByConversationID[conversationID]?[threadID] != nil
+        session(conversationID: conversationID, threadID: threadID) != nil
     }
 
     func streamingState(conversationID: UUID) -> StreamingMessageState? {
-        sessionsByConversationID[conversationID]?
-            .values
-            .sorted(by: { $0.startedAt < $1.startedAt })
-            .last?
-            .state
+        latestSession(in: conversationID)?.state
     }
 
     func streamingState(conversationID: UUID, threadID: UUID) -> StreamingMessageState? {
-        sessionsByConversationID[conversationID]?[threadID]?.state
+        session(conversationID: conversationID, threadID: threadID)?.state
     }
 
     func streamingModelLabel(conversationID: UUID) -> String? {
-        sessionsByConversationID[conversationID]?
-            .values
-            .sorted(by: { $0.startedAt < $1.startedAt })
-            .last?
-            .modelLabel
+        latestSession(in: conversationID)?.modelLabel
     }
 
     func streamingModelLabel(conversationID: UUID, threadID: UUID) -> String? {
-        sessionsByConversationID[conversationID]?[threadID]?.modelLabel
+        session(conversationID: conversationID, threadID: threadID)?.modelLabel
     }
 
     /// Creates (or returns) a streaming session for a conversation thread.
     @discardableResult
     func beginSession(conversationID: UUID, threadID: UUID, modelLabel: String?) -> StreamingMessageState {
-        if let existing = sessionsByConversationID[conversationID]?[threadID] {
+        if let existing = session(conversationID: conversationID, threadID: threadID) {
             // Update label if we have a better one.
             if existing.modelLabel == nil, modelLabel != nil {
-                var updated = existing
-                updated.modelLabel = modelLabel
-                sessionsByConversationID[conversationID]?[threadID] = updated
+                updateSession(conversationID: conversationID, threadID: threadID) { session in
+                    session.modelLabel = modelLabel
+                }
             }
             return existing.state
         }
 
-        let state = StreamingMessageState()
-        let session = Session(
+        let createdSession = Session(
             conversationID: conversationID,
             threadID: threadID,
-            state: state,
+            state: StreamingMessageState(),
             modelLabel: modelLabel,
             task: nil,
             startedAt: Date()
         )
-        var sessions = sessionsByConversationID[conversationID] ?? [:]
-        sessions[threadID] = session
-        sessionsByConversationID[conversationID] = sessions
-        return state
+        storeSession(createdSession)
+        return createdSession.state
     }
 
     /// Backward-compatible helper for single-thread callers.
@@ -83,9 +74,9 @@ final class ConversationStreamingStore: ObservableObject {
     }
 
     func attachTask(_ task: Task<Void, Never>, conversationID: UUID, threadID: UUID) {
-        guard var existing = sessionsByConversationID[conversationID]?[threadID] else { return }
-        existing.task = task
-        sessionsByConversationID[conversationID]?[threadID] = existing
+        updateSession(conversationID: conversationID, threadID: threadID) { session in
+            session.task = task
+        }
     }
 
     func attachTask(_ task: Task<Void, Never>, conversationID: UUID) {
@@ -93,14 +84,13 @@ final class ConversationStreamingStore: ObservableObject {
     }
 
     func cancel(conversationID: UUID) {
-        let sessions = sessionsByConversationID[conversationID] ?? [:]
-        for session in sessions.values {
+        for session in sessions(for: conversationID).values {
             session.task?.cancel()
         }
     }
 
     func cancel(conversationID: UUID, threadID: UUID) {
-        sessionsByConversationID[conversationID]?[threadID]?.task?.cancel()
+        session(conversationID: conversationID, threadID: threadID)?.task?.cancel()
     }
 
     func endSession(conversationID: UUID) {
@@ -108,12 +98,44 @@ final class ConversationStreamingStore: ObservableObject {
     }
 
     func endSession(conversationID: UUID, threadID: UUID) {
-        guard var sessions = sessionsByConversationID[conversationID] else { return }
-        sessions.removeValue(forKey: threadID)
-        if sessions.isEmpty {
+        removeSession(conversationID: conversationID, threadID: threadID)
+    }
+
+    private func sessions(for conversationID: UUID) -> SessionMap {
+        sessionsByConversationID[conversationID] ?? [:]
+    }
+
+    private func session(conversationID: UUID, threadID: UUID) -> Session? {
+        sessionsByConversationID[conversationID]?[threadID]
+    }
+
+    private func latestSession(in conversationID: UUID) -> Session? {
+        sessions(for: conversationID).values.max(by: { $0.startedAt < $1.startedAt })
+    }
+
+    private func updateSession(
+        conversationID: UUID,
+        threadID: UUID,
+        mutate: (inout Session) -> Void
+    ) {
+        guard var existing = session(conversationID: conversationID, threadID: threadID) else { return }
+        mutate(&existing)
+        storeSession(existing)
+    }
+
+    private func storeSession(_ session: Session) {
+        var conversationSessions = sessions(for: session.conversationID)
+        conversationSessions[session.threadID] = session
+        sessionsByConversationID[session.conversationID] = conversationSessions
+    }
+
+    private func removeSession(conversationID: UUID, threadID: UUID) {
+        guard var conversationSessions = sessionsByConversationID[conversationID] else { return }
+        conversationSessions.removeValue(forKey: threadID)
+        if conversationSessions.isEmpty {
             sessionsByConversationID.removeValue(forKey: conversationID)
         } else {
-            sessionsByConversationID[conversationID] = sessions
+            sessionsByConversationID[conversationID] = conversationSessions
         }
     }
 }

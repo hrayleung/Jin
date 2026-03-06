@@ -672,4 +672,5 @@ final class ModelSettingsResolverTests: XCTestCase {
         XCTAssertTrue(ModelSettingsResolver.resolve(model: gpt, providerType: .openrouter).supportsWebSearch)
         XCTAssertFalse(ModelSettingsResolver.resolve(model: unknown, providerType: .openrouter).supportsWebSearch)
     }
+
 }
