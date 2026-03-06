@@ -172,7 +172,7 @@ final class ModelCatalogTests: XCTestCase {
         XCTAssertTrue(vertex.capabilities.contains(.nativePDF))
         XCTAssertTrue(vertex.capabilities.contains(.reasoning))
         XCTAssertFalse(vertex.capabilities.contains(.toolCalling))
-        XCTAssertNil(vertex.reasoningConfig)
+        XCTAssertEqual(vertex.reasoningConfig?.defaultEffort, .minimal)
     }
 
     func testGemini31FlashLiteCatalogMetadata() {
