@@ -36,5 +36,30 @@ final class ConversationStreamingStoreTests: XCTestCase {
         XCTAssertTrue(store.isStreaming(conversationID: conversationID, threadID: threadB))
         XCTAssertTrue(store.isStreaming(conversationID: conversationID))
     }
-}
 
+    func testExistingSessionPromotesFirstNonNilModelLabel() {
+        let store = ConversationStreamingStore()
+        let conversationID = UUID()
+        let threadID = UUID()
+
+        let state = store.beginSession(conversationID: conversationID, threadID: threadID, modelLabel: nil)
+        let reusedState = store.beginSession(conversationID: conversationID, threadID: threadID, modelLabel: "GPT-5")
+        _ = store.beginSession(conversationID: conversationID, threadID: threadID, modelLabel: "Ignored")
+
+        XCTAssertTrue(state === reusedState)
+        XCTAssertEqual(store.streamingModelLabel(conversationID: conversationID, threadID: threadID), "GPT-5")
+    }
+
+    func testConversationLevelAccessorsUseMostRecentSession() {
+        let store = ConversationStreamingStore()
+        let conversationID = UUID()
+
+        let firstState = store.beginSession(conversationID: conversationID, threadID: UUID(), modelLabel: "First")
+        Thread.sleep(forTimeInterval: 0.01)
+        let secondState = store.beginSession(conversationID: conversationID, threadID: UUID(), modelLabel: "Second")
+
+        XCTAssertTrue(store.streamingState(conversationID: conversationID) === secondState)
+        XCTAssertFalse(store.streamingState(conversationID: conversationID) === firstState)
+        XCTAssertEqual(store.streamingModelLabel(conversationID: conversationID), "Second")
+    }
+}

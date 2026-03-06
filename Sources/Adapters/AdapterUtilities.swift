@@ -358,8 +358,7 @@ func modelSupportsWebSearch(
     providerConfig: ProviderConfig,
     modelID: String
 ) -> Bool {
-    if let model = findConfiguredModel(in: providerConfig, for: modelID) {
-        let resolved = ModelSettingsResolver.resolve(model: model, providerType: providerConfig.type)
+    if let resolved = resolvedConfiguredModelSettings(providerConfig: providerConfig, modelID: modelID) {
         return resolved.supportsWebSearch
     }
 
@@ -376,23 +375,48 @@ func modelSupportsReasoning(
     providerConfig: ProviderConfig,
     modelID: String
 ) -> Bool {
-    guard let model = findConfiguredModel(in: providerConfig, for: modelID) else {
-        if let catalogEntry = ModelCatalog.entry(for: modelID, provider: providerConfig.type) {
-            guard catalogEntry.capabilities.contains(.reasoning),
-                  let catalogReasoning = catalogEntry.reasoningConfig else {
-                return false
-            }
-            return catalogReasoning.type != .none
-        }
-        return ModelCapabilityRegistry.defaultReasoningConfig(
-            for: providerConfig.type,
-            modelID: modelID
-        ) != nil
+    if let resolved = resolvedConfiguredModelSettings(providerConfig: providerConfig, modelID: modelID) {
+        return supportsReasoning(resolvedModelSettings: resolved)
     }
 
-    let resolved = ModelSettingsResolver.resolve(model: model, providerType: providerConfig.type)
-    guard resolved.capabilities.contains(.reasoning) else { return false }
-    guard let reasoningConfig = resolved.reasoningConfig else { return false }
+    return supportsReasoning(
+        reasoningConfig: catalogReasoningConfig(providerConfig: providerConfig, modelID: modelID)
+    )
+}
+
+private func resolvedConfiguredModelSettings(
+    providerConfig: ProviderConfig,
+    modelID: String
+) -> ResolvedModelSettings? {
+    guard let model = findConfiguredModel(in: providerConfig, for: modelID) else {
+        return nil
+    }
+
+    return ModelSettingsResolver.resolve(model: model, providerType: providerConfig.type)
+}
+
+private func catalogReasoningConfig(
+    providerConfig: ProviderConfig,
+    modelID: String
+) -> ModelReasoningConfig? {
+    if let catalogEntry = ModelCatalog.entry(for: modelID, provider: providerConfig.type) {
+        guard catalogEntry.capabilities.contains(.reasoning) else { return nil }
+        return catalogEntry.reasoningConfig
+    }
+
+    return ModelCapabilityRegistry.defaultReasoningConfig(
+        for: providerConfig.type,
+        modelID: modelID
+    )
+}
+
+private func supportsReasoning(resolvedModelSettings: ResolvedModelSettings) -> Bool {
+    guard resolvedModelSettings.capabilities.contains(.reasoning) else { return false }
+    return supportsReasoning(reasoningConfig: resolvedModelSettings.reasoningConfig)
+}
+
+private func supportsReasoning(reasoningConfig: ModelReasoningConfig?) -> Bool {
+    guard let reasoningConfig else { return false }
     return reasoningConfig.type != .none
 }
 

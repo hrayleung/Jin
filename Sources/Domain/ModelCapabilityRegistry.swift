@@ -7,6 +7,17 @@ enum ModelRequestShape {
     case gemini
 }
 
+private extension ModelRequestShape {
+    var supportsOpenAIStyleReasoningEffort: Bool {
+        switch self {
+        case .openAICompatible, .openAIResponses:
+            return true
+        case .anthropic, .gemini:
+            return false
+        }
+    }
+}
+
 enum ModelCapabilityRegistry {
     private static let openAIStyleExtremeEffortModelIDs: Set<String> = [
         "gpt-5.4",
@@ -89,7 +100,26 @@ enum ModelCapabilityRegistry {
         .xhigh: 5,
     ]
 
-    static func requestShape(for providerType: ProviderType?, modelID: String) -> ModelRequestShape {
+    private static let defaultReasoningEfforts: [ReasoningEffort] = [.low, .medium, .high]
+    private static let defaultGeminiReasoningEfforts: [ReasoningEffort] = [.minimal, .low, .medium, .high]
+    private static let googleModelPrefixes = [
+        "google/",
+        "google-ai-studio/",
+        "google-vertex-ai/google/",
+    ]
+    private static let searchKeywords = ["search", "sonar", ":online"]
+    private static let reasoningKeywords = ["deepseek-r1", "reasoning", "thinking"]
+    private static let mediaGenerationKeywords = [
+        "-image",
+        "imagen",
+        "veo",
+        "-video",
+        "video-generation",
+        "imagine-image",
+        "imagine-video",
+    ]
+
+    static func requestShape(for providerType: ProviderType?, modelID _: String) -> ModelRequestShape {
         switch providerType {
         case .openai, .openaiWebSocket:
             return .openAIResponses
@@ -105,14 +135,14 @@ enum ModelCapabilityRegistry {
     }
 
     static func supportsOpenAIStyleReasoningEffort(for providerType: ProviderType?, modelID: String) -> Bool {
-        let shape = requestShape(for: providerType, modelID: modelID)
-        return shape == .openAICompatible || shape == .openAIResponses
+        requestShape(for: providerType, modelID: modelID).supportsOpenAIStyleReasoningEffort
     }
 
     static func supportsOpenAIStyleExtremeEffort(for providerType: ProviderType?, modelID: String) -> Bool {
         guard supportsOpenAIStyleReasoningEffort(for: providerType, modelID: modelID) else {
             return false
         }
+
         let canonicalLowerModelID = canonicalOpenAIModelID(lowerModelID: modelID.lowercased())
         return openAIStyleExtremeEffortModelIDs.contains(canonicalLowerModelID)
     }
@@ -121,25 +151,23 @@ enum ModelCapabilityRegistry {
         let lowerModelID = modelID.lowercased()
 
         switch providerType {
-        case .vertexai:
+        case .vertexai, .gemini:
             return supportedGeminiThinkingEfforts(lowerModelID: lowerModelID)
         case .perplexity:
-            return [.minimal, .low, .medium, .high]
-        case .gemini:
-            return supportedGeminiThinkingEfforts(lowerModelID: lowerModelID)
+            return defaultGeminiReasoningEfforts
         default:
             break
         }
 
-        if supportsOpenAIStyleReasoningEffort(for: providerType, modelID: modelID) {
-            var efforts: [ReasoningEffort] = [.low, .medium, .high]
-            if supportsOpenAIStyleExtremeEffort(for: providerType, modelID: modelID) {
-                efforts.append(.xhigh)
-            }
-            return efforts
+        guard supportsOpenAIStyleReasoningEffort(for: providerType, modelID: modelID) else {
+            return defaultReasoningEfforts
         }
 
-        return [.low, .medium, .high]
+        var efforts = defaultReasoningEfforts
+        if supportsOpenAIStyleExtremeEffort(for: providerType, modelID: modelID) {
+            efforts.append(.xhigh)
+        }
+        return efforts
     }
 
     private static func supportedGeminiThinkingEfforts(lowerModelID: String) -> [ReasoningEffort] {
@@ -147,15 +175,15 @@ enum ModelCapabilityRegistry {
             return [.minimal, .high]
         }
         if gemini3FlashEffortModelIDs.contains(lowerModelID) {
-            return [.minimal, .low, .medium, .high]
+            return defaultGeminiReasoningEfforts
         }
         if gemini31ProEffortModelIDs.contains(lowerModelID) {
-            return [.low, .medium, .high]
+            return defaultReasoningEfforts
         }
         if gemini3ProLowHighEffortModelIDs.contains(lowerModelID) {
             return [.low, .high]
         }
-        return [.minimal, .low, .medium, .high]
+        return defaultGeminiReasoningEfforts
     }
 
     static func normalizedReasoningEffort(
@@ -171,6 +199,13 @@ enum ModelCapabilityRegistry {
             return effort
         }
 
+        return closestSupportedEffort(to: effort, in: supportedEfforts)
+    }
+
+    private static func closestSupportedEffort(
+        to effort: ReasoningEffort,
+        in supportedEfforts: [ReasoningEffort]
+    ) -> ReasoningEffort {
         guard let targetRank = reasoningEffortRank[effort] else {
             return supportedEfforts.last ?? effort
         }
@@ -185,32 +220,33 @@ enum ModelCapabilityRegistry {
                     || (distance == currentBest.distance && candidateRank > currentBest.rank) {
                     best = (candidate, distance, candidateRank)
                 }
-            } else {
-                best = (candidate, distance, candidateRank)
+                continue
             }
+
+            best = (candidate, distance, candidateRank)
         }
 
         return best?.effort ?? supportedEfforts.last ?? effort
     }
 
     static func supportsWebSearch(for providerType: ProviderType?, modelID: String) -> Bool {
-        let lower = modelID.lowercased()
+        let lowerModelID = modelID.lowercased()
 
         switch providerType {
         case .openai, .openaiWebSocket:
-            return supportsOpenAIWebSearch(lowerModelID: lower)
+            return supportsOpenAIWebSearch(lowerModelID: lowerModelID)
         case .openrouter:
-            return supportsOpenRouterWebSearch(lowerModelID: lower)
+            return supportsOpenRouterWebSearch(lowerModelID: lowerModelID)
         case .anthropic:
-            return isAnthropicModelID(lower)
+            return isAnthropicModelID(lowerModelID)
         case .perplexity:
             return true
         case .xai:
-            return !isLikelyMediaGenerationModelID(lower)
+            return !isLikelyMediaGenerationModelID(lowerModelID)
         case .gemini:
-            return supportsGoogleSearch(lowerModelID: lower, providerType: .gemini)
+            return supportsGoogleSearch(lowerModelID: lowerModelID, providerType: .gemini)
         case .vertexai:
-            return supportsGoogleSearch(lowerModelID: lower, providerType: .vertexai)
+            return supportsGoogleSearch(lowerModelID: lowerModelID, providerType: .vertexai)
         case .codexAppServer, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .groq,
              .cohere, .mistral, .deepinfra, .together, .deepseek, .zhipuCodingPlan,
              .fireworks, .cerebras, .sambanova, .none:
@@ -219,40 +255,55 @@ enum ModelCapabilityRegistry {
     }
 
     static func defaultReasoningConfig(for providerType: ProviderType?, modelID: String) -> ModelReasoningConfig? {
-        let lower = modelID.lowercased()
+        let lowerModelID = modelID.lowercased()
         let shape = requestShape(for: providerType, modelID: modelID)
+
+        guard isReasoningModelID(lowerModelID, shape: shape) else {
+            return nil
+        }
 
         switch shape {
         case .anthropic:
-            guard isReasoningModelID(lower, shape: shape) else { return nil }
-            if AnthropicModelLimits.supportsAdaptiveThinking(for: lower) {
+            return defaultAnthropicReasoningConfig(lowerModelID: lowerModelID, shape: shape)
+        case .gemini:
+            return defaultGeminiReasoningConfig(lowerModelID: lowerModelID)
+        case .openAICompatible, .openAIResponses:
+            return defaultOpenAIFamilyReasoningConfig(lowerModelID: lowerModelID)
+        }
+    }
+
+    private static func defaultAnthropicReasoningConfig(
+        lowerModelID: String,
+        shape: ModelRequestShape
+    ) -> ModelReasoningConfig {
+        if shape == .anthropic {
+            if AnthropicModelLimits.supportsAdaptiveThinking(for: lowerModelID) {
                 return ModelReasoningConfig(type: .effort, defaultEffort: .high)
             }
             return ModelReasoningConfig(type: .budget, defaultBudget: 2048)
-
-        case .gemini:
-            guard isReasoningModelID(lower, shape: shape) else { return nil }
-            if lower.contains("gemini-3-pro") {
-                return ModelReasoningConfig(type: .effort, defaultEffort: .high)
-            }
-            return ModelReasoningConfig(type: .effort, defaultEffort: .medium)
-
-        case .openAICompatible, .openAIResponses:
-            guard isReasoningModelID(lower, shape: shape) else { return nil }
-            if isGeminiModelID(lower) && !lower.contains("-image") && !lower.contains("imagen") {
-                if lower.contains("gemini-3-pro") {
-                    return ModelReasoningConfig(type: .effort, defaultEffort: .high)
-                }
-                return ModelReasoningConfig(type: .effort, defaultEffort: .medium)
-            }
-            if isAnthropicModelID(lower) {
-                if AnthropicModelLimits.supportsAdaptiveThinking(for: lower) {
-                    return ModelReasoningConfig(type: .effort, defaultEffort: .high)
-                }
-                return ModelReasoningConfig(type: .effort, defaultEffort: .medium)
-            }
-            return ModelReasoningConfig(type: .effort, defaultEffort: .medium)
         }
+
+        if AnthropicModelLimits.supportsAdaptiveThinking(for: lowerModelID) {
+            return ModelReasoningConfig(type: .effort, defaultEffort: .high)
+        }
+        return ModelReasoningConfig(type: .effort, defaultEffort: .medium)
+    }
+
+    private static func defaultGeminiReasoningConfig(lowerModelID: String) -> ModelReasoningConfig {
+        if lowerModelID.contains("gemini-3-pro") {
+            return ModelReasoningConfig(type: .effort, defaultEffort: .high)
+        }
+        return ModelReasoningConfig(type: .effort, defaultEffort: .medium)
+    }
+
+    private static func defaultOpenAIFamilyReasoningConfig(lowerModelID: String) -> ModelReasoningConfig {
+        if isGeminiReasoningModelID(lowerModelID) {
+            return defaultGeminiReasoningConfig(lowerModelID: lowerModelID)
+        }
+        if isAnthropicModelID(lowerModelID) {
+            return defaultAnthropicReasoningConfig(lowerModelID: lowerModelID, shape: .openAICompatible)
+        }
+        return ModelReasoningConfig(type: .effort, defaultEffort: .medium)
     }
 
     private static func isReasoningModelID(_ lowerModelID: String, shape: ModelRequestShape) -> Bool {
@@ -260,37 +311,12 @@ enum ModelCapabilityRegistry {
         case .anthropic:
             return isAnthropicModelID(lowerModelID)
         case .gemini:
-            return isGeminiModelID(lowerModelID)
-                && !lowerModelID.contains("-image")
-                && !lowerModelID.contains("imagen")
+            return isGeminiReasoningModelID(lowerModelID)
         case .openAICompatible, .openAIResponses:
-            if isAnthropicModelID(lowerModelID) {
-                return true
-            }
-
-            if isGeminiModelID(lowerModelID)
-                && !lowerModelID.contains("-image")
-                && !lowerModelID.contains("imagen") {
-                return true
-            }
-
-            if lowerModelID.contains("gpt-5")
-                || lowerModelID.hasPrefix("o1")
-                || lowerModelID.hasPrefix("o3")
-                || lowerModelID.hasPrefix("o4")
-                || lowerModelID.contains("/o1")
-                || lowerModelID.contains("/o3")
-                || lowerModelID.contains("/o4") {
-                return true
-            }
-
-            if lowerModelID.contains("deepseek-r1")
-                || lowerModelID.contains("reasoning")
-                || lowerModelID.contains("thinking") {
-                return true
-            }
-
-            return false
+            return isAnthropicModelID(lowerModelID)
+                || isGeminiReasoningModelID(lowerModelID)
+                || isOpenAIReasoningModelID(lowerModelID)
+                || containsAnyFragment(in: lowerModelID, fragments: reasoningKeywords)
         }
     }
 
@@ -302,24 +328,28 @@ enum ModelCapabilityRegistry {
         lowerModelID.contains("gemini")
     }
 
+    private static func isGeminiReasoningModelID(_ lowerModelID: String) -> Bool {
+        isGeminiModelID(lowerModelID)
+            && !lowerModelID.contains("-image")
+            && !lowerModelID.contains("imagen")
+    }
+
+    private static func isOpenAIReasoningModelID(_ lowerModelID: String) -> Bool {
+        lowerModelID.contains("gpt-5") || hasPrefixOrScopedPrefix(lowerModelID, prefixes: ["o1", "o3", "o4"])
+    }
+
     private static func supportsOpenAIWebSearch(lowerModelID: String) -> Bool {
-        if lowerModelID.hasPrefix("gpt-")
+        guard lowerModelID.hasPrefix("gpt-")
             || lowerModelID.contains("/gpt-")
-            || lowerModelID.hasPrefix("o3")
-            || lowerModelID.hasPrefix("o4")
-            || lowerModelID.contains("/o3")
-            || lowerModelID.contains("/o4") {
-            return !isLikelyMediaGenerationModelID(lowerModelID)
+            || hasPrefixOrScopedPrefix(lowerModelID, prefixes: ["o3", "o4"]) else {
+            return false
         }
 
-        return false
+        return !isLikelyMediaGenerationModelID(lowerModelID)
     }
 
     private static func supportsOpenRouterWebSearch(lowerModelID: String) -> Bool {
-        // Explicitly search-oriented model IDs are generally web-search capable.
-        if lowerModelID.contains("search")
-            || lowerModelID.contains("sonar")
-            || lowerModelID.contains(":online") {
+        if containsAnyFragment(in: lowerModelID, fragments: searchKeywords) {
             return true
         }
 
@@ -345,41 +375,29 @@ enum ModelCapabilityRegistry {
 
     private static func supportsGoogleSearch(lowerModelID: String, providerType: ProviderType?) -> Bool {
         let canonical = canonicalGoogleModelID(lowerModelID: lowerModelID)
+        return googleSearchSupportedModelIDs(for: providerType).contains(canonical)
+    }
 
+    private static func googleSearchSupportedModelIDs(for providerType: ProviderType?) -> Set<String> {
         switch providerType {
         case .gemini:
-            return geminiGoogleSearchSupportedModelIDs.contains(canonical)
+            return geminiGoogleSearchSupportedModelIDs
         case .vertexai:
-            return vertexGoogleSearchSupportedModelIDs.contains(canonical)
+            return vertexGoogleSearchSupportedModelIDs
         default:
-            return proxiedGoogleSearchSupportedModelIDs.contains(canonical)
+            return proxiedGoogleSearchSupportedModelIDs
         }
     }
 
     private static func canonicalGoogleModelID(lowerModelID: String) -> String {
-        if lowerModelID.hasPrefix("google/") {
-            return String(lowerModelID.dropFirst("google/".count))
-        }
-        if lowerModelID.hasPrefix("google-ai-studio/") {
-            return String(lowerModelID.dropFirst("google-ai-studio/".count))
-        }
-        if lowerModelID.hasPrefix("google-vertex-ai/google/") {
-            return String(lowerModelID.dropFirst("google-vertex-ai/google/".count))
+        for prefix in googleModelPrefixes where lowerModelID.hasPrefix(prefix) {
+            return String(lowerModelID.dropFirst(prefix.count))
         }
         return lowerModelID
     }
 
     private static func isLikelyMediaGenerationModelID(_ lowerModelID: String) -> Bool {
-        if lowerModelID.contains("-image")
-            || lowerModelID.contains("imagen")
-            || lowerModelID.contains("veo")
-            || lowerModelID.contains("-video")
-            || lowerModelID.contains("video-generation")
-            || lowerModelID.contains("imagine-image")
-            || lowerModelID.contains("imagine-video") {
-            return true
-        }
-        return false
+        containsAnyFragment(in: lowerModelID, fragments: mediaGenerationKeywords)
     }
 
     private static func canonicalOpenAIModelID(lowerModelID: String) -> String {
@@ -387,6 +405,16 @@ enum ModelCapabilityRegistry {
             return String(lowerModelID.dropFirst("openai/".count))
         }
         return lowerModelID
+    }
+
+    private static func containsAnyFragment(in value: String, fragments: [String]) -> Bool {
+        fragments.contains(where: value.contains)
+    }
+
+    private static func hasPrefixOrScopedPrefix(_ value: String, prefixes: [String]) -> Bool {
+        prefixes.contains { prefix in
+            value.hasPrefix(prefix) || value.contains("/\(prefix)")
+        }
     }
 
     /// Models that support the `web_search_20260209` tool with dynamic filtering.
