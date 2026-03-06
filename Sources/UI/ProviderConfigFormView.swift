@@ -30,6 +30,7 @@ struct ProviderConfigFormView: View {
     @State private var showingDeleteModelConfirmation = false
     @State private var showingKeepFullySupportedModelsConfirmation = false
     @State private var showingKeepEnabledModelsConfirmation = false
+    @State private var fetchedModelsForSelection: [ModelInfo]?
     @State private var modelSearchText = ""
     @State private var editingModel: ModelInfo?
     @State private var modelPendingDeletion: ModelInfo?
@@ -345,6 +346,22 @@ struct ProviderConfigFormView: View {
                     showingCodexWorkingDirectoryPresetsSheet = false
                 }
             )
+        }
+        .sheet(isPresented: Binding(
+            get: { fetchedModelsForSelection != nil },
+            set: { if !$0 { fetchedModelsForSelection = nil } }
+        )) {
+            if let fetched = fetchedModelsForSelection {
+                FetchedModelsSelectionSheet(
+                    fetchedModels: fetched,
+                    existingModelIDs: Set(decodedModels.map(\.id)),
+                    providerType: providerType,
+                    onConfirm: { selectedModels in
+                        let merged = addFetchedModelsToExisting(selectedModels)
+                        setModels(merged)
+                    }
+                )
+            }
         }
         .sheet(isPresented: $showingAddModel) {
                 AddModelSheet(
@@ -1462,10 +1479,12 @@ struct ProviderConfigFormView: View {
                 throw PersistenceError.invalidProviderType(provider.typeRaw)
             }
             let adapter = try await providerManager.createAdapter(for: config)
-            let fetchedModels = try await adapter.fetchAvailableModels()
+            let fetched = try await adapter.fetchAvailableModels()
+            var seenIDs = Set<String>()
+            let deduplicated = fetched.filter { seenIDs.insert($0.id).inserted }
+            let sorted = deduplicated.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
             await MainActor.run {
-                let merged = mergeFetchedModelsWithExisting(fetchedModels)
-                setModels(merged)
+                fetchedModelsForSelection = sorted
             }
         } catch {
             await MainActor.run { modelsError = error.localizedDescription }
@@ -1475,6 +1494,32 @@ struct ProviderConfigFormView: View {
     private func mergeFetchedModelsWithExisting(_ fetchedModels: [ModelInfo]) -> [ModelInfo] {
         let merged = JinApp.mergeRefreshedModels(latestModels: fetchedModels, existingModels: decodedModels)
         return merged.sorted { lhs, rhs in
+            lhs.name.localizedStandardCompare(rhs.name) == .orderedAscending
+        }
+    }
+
+    /// Incrementally adds selected fetched models into the existing list.
+    /// Existing models not in the selection are preserved unchanged.
+    /// Models already present are updated with fresh metadata (preserving overrides/enabled).
+    private func addFetchedModelsToExisting(_ selectedModels: [ModelInfo]) -> [ModelInfo] {
+        let existingByID = decodedModels.reduce(into: [String: ModelInfo]()) { $0[$1.id] = $1 }
+        var resultByID = existingByID
+
+        for model in selectedModels {
+            let existing = existingByID[model.id]
+            resultByID[model.id] = ModelInfo(
+                id: model.id,
+                name: model.name,
+                capabilities: model.capabilities,
+                contextWindow: model.contextWindow,
+                reasoningConfig: model.reasoningConfig,
+                overrides: existing?.overrides,
+                catalogMetadata: model.catalogMetadata,
+                isEnabled: existing?.isEnabled ?? true
+            )
+        }
+
+        return resultByID.values.sorted { lhs, rhs in
             lhs.name.localizedStandardCompare(rhs.name) == .orderedAscending
         }
     }
