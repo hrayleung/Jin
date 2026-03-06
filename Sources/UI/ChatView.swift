@@ -1747,13 +1747,28 @@ struct ChatView: View {
         resolvedModelID: String
     ) {
         guard resolvedModelID != thread.modelID else { return }
-        let previousModelID = thread.modelID
         thread.modelID = resolvedModelID
-        if conversationEntity.activeThreadID == thread.id || conversationEntity.modelID == previousModelID {
+        if conversationEntity.activeThreadID == thread.id {
             conversationEntity.modelID = resolvedModelID
         }
         conversationEntity.updatedAt = Date()
         try? modelContext.save()
+    }
+
+    private func canonicalModelID(for providerID: String, modelID: String) -> String {
+        let providerEntity = providers.first(where: { $0.id == providerID })
+        let providerType = providerEntity.flatMap { ProviderType(rawValue: $0.typeRaw) }
+        return effectiveModelID(
+            for: modelID,
+            providerEntity: providerEntity,
+            providerType: providerType,
+            availableModels: providerEntity?.allModels
+        )
+    }
+
+    private func canonicalizeThreadModelIDIfNeeded(_ thread: ConversationModelThreadEntity) {
+        let resolved = canonicalModelID(for: thread.providerID, modelID: thread.modelID)
+        migrateThreadModelIDIfNeeded(thread, resolvedModelID: resolved)
     }
 
     private func normalizedSelectedModelInfo(_ model: ModelInfo) -> ModelInfo {
@@ -3033,6 +3048,7 @@ struct ChatView: View {
         thread.updatedAt = Date()
         thread.isSelected = true
         synchronizeLegacyConversationModelFields(with: thread)
+        canonicalizeThreadModelIDIfNeeded(thread)
         loadControlsFromConversation()
         normalizeControlsForCurrentSelection()
         rebuildMessageCaches()
@@ -3080,7 +3096,10 @@ struct ChatView: View {
     }
 
     private func addOrActivateThread(providerID: String, modelID: String) {
-        if let existing = sortedModelThreads.first(where: { $0.providerID == providerID && $0.modelID == modelID }) {
+        let resolvedModelID = canonicalModelID(for: providerID, modelID: modelID)
+        if let existing = sortedModelThreads.first(where: {
+            $0.providerID == providerID && canonicalModelID(for: $0.providerID, modelID: $0.modelID) == resolvedModelID
+        }) {
             existing.isSelected = true
             activateThread(existing)
             return
@@ -3096,7 +3115,7 @@ struct ChatView: View {
         let nextOrder = (sortedModelThreads.map(\.displayOrder).max() ?? -1) + 1
         let thread = ConversationModelThreadEntity(
             providerID: providerID,
-            modelID: modelID,
+            modelID: resolvedModelID,
             modelConfigData: encodedControls,
             displayOrder: nextOrder,
             isSelected: true,
@@ -3139,26 +3158,30 @@ struct ChatView: View {
 
     private func setModel(_ modelID: String) {
         guard let thread = activeModelThread else { return }
-        guard modelID != thread.modelID else { return }
-        thread.modelID = modelID
+        let resolvedModelID = canonicalModelID(for: thread.providerID, modelID: modelID)
+        guard resolvedModelID != canonicalModelID(for: thread.providerID, modelID: thread.modelID) else { return }
+        thread.modelID = resolvedModelID
         synchronizeLegacyConversationModelFields(with: thread)
         normalizeControlsForCurrentSelection()
         try? modelContext.save()
     }
 
     private func setProviderAndModel(providerID: String, modelID: String) {
-        if let existing = sortedModelThreads.first(where: { $0.providerID == providerID && $0.modelID == modelID }) {
+        let resolvedModelID = canonicalModelID(for: providerID, modelID: modelID)
+        if let existing = sortedModelThreads.first(where: {
+            $0.providerID == providerID && canonicalModelID(for: $0.providerID, modelID: $0.modelID) == resolvedModelID
+        }) {
             activateThread(existing)
             return
         }
 
         guard let thread = activeModelThread else {
-            addOrActivateThread(providerID: providerID, modelID: modelID)
+            addOrActivateThread(providerID: providerID, modelID: resolvedModelID)
             return
         }
 
         thread.providerID = providerID
-        thread.modelID = modelID
+        thread.modelID = resolvedModelID
         thread.updatedAt = Date()
         synchronizeLegacyConversationModelFields(with: thread)
         normalizeControlsForCurrentSelection()
@@ -6341,6 +6364,10 @@ struct ChatView: View {
     private func loadControlsFromConversation() {
         ensureModelThreadsInitializedIfNeeded()
         syncActiveThreadSelection()
+
+        if let activeThread = activeModelThread {
+            canonicalizeThreadModelIDIfNeeded(activeThread)
+        }
 
         let controlsData = activeModelThread?.modelConfigData ?? conversationEntity.modelConfigData
         if let decoded = try? JSONDecoder().decode(GenerationControls.self, from: controlsData) {

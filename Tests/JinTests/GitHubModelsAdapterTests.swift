@@ -120,6 +120,37 @@ final class GitHubModelsAdapterTests: XCTestCase {
         XCTAssertTrue(isValid)
     }
 
+    func testGitHubDeviceFlowValidateAccessPreservesRateLimitError() async {
+        let (session, protocolType) = makeMockedURLSession()
+        let networkManager = NetworkManager(urlSession: session)
+        let authenticator = GitHubDeviceFlowAuthenticator(networkManager: networkManager)
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://models.github.ai/catalog/models")
+            return (
+                HTTPURLResponse(
+                    url: request.url!,
+                    statusCode: 429,
+                    httpVersion: nil,
+                    headerFields: ["Retry-After": "30"]
+                )!,
+                Data("rate limited".utf8)
+            )
+        }
+
+        do {
+            try await authenticator.validateGitHubModelsAccess(accessToken: "test-token")
+            XCTFail("Expected rateLimitExceeded to be rethrown")
+        } catch let error as LLMError {
+            guard case .rateLimitExceeded(let retryAfter) = error else {
+                return XCTFail("Expected rateLimitExceeded, got \(error)")
+            }
+            XCTAssertEqual(retryAfter, 30)
+        } catch {
+            XCTFail("Expected LLMError.rateLimitExceeded, got \(error)")
+        }
+    }
+
     func testGitHubDeviceFlowRequestDeviceCodeUsesExpectedEndpoint() async throws {
         let (session, protocolType) = makeMockedURLSession()
         let networkManager = NetworkManager(urlSession: session)

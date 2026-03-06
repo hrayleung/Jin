@@ -84,8 +84,10 @@ actor GitHubDeviceFlowAuthenticator {
             _ = try await networkManager.sendRequest(request)
         } catch let llmError as LLMError {
             switch llmError {
-            case .authenticationFailed, .providerError, .rateLimitExceeded:
+            case .authenticationFailed, .providerError:
                 throw GitHubDeviceFlowError.missingModelsAccess(underlying: llmError)
+            case .rateLimitExceeded:
+                throw llmError
             default:
                 throw llmError
             }
