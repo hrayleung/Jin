@@ -514,6 +514,10 @@ func isOpenAIAudioInputModelID(_ lowerModelID: String) -> Bool {
 /// Per OpenAI docs, these are only accepted on GPT-5.2 / GPT-5.1 when reasoning is disabled.
 /// Keep this conservative to avoid `400 invalid_request_error` for unsupported models.
 private let openAIResponsesSamplingAllowedModelIDs: Set<String> = [
+    "gpt-5.4",
+    "gpt-5.4-2026-03-05",
+    "gpt-5.4-pro",
+    "gpt-5.4-pro-2026-03-05",
     "gpt-5.2",
     "gpt-5.2-2025-12-11",
     "gpt-5.1",
