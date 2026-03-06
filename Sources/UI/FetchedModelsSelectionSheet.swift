@@ -55,7 +55,7 @@ struct FetchedModelsSelectionSheet: View {
                         onConfirm(selected)
                         dismiss()
                     }
-                    .disabled(selectedIDs.isEmpty)
+                    .disabled(selectedIDs.isEmpty && existingModelsCount == 0)
                 }
             }
         }
@@ -86,7 +86,7 @@ struct FetchedModelsSelectionSheet: View {
                 Spacer(minLength: 0)
 
                 Menu("Selection") {
-                    Button("Select Visible") { selectAllVisible() }
+                    Button("Select Filtered") { selectAllFiltered() }
                         .disabled(visibleModels.isEmpty)
                     Button("Select New") { selectNewModels() }
                         .disabled(newModelsCount == 0)
@@ -187,7 +187,7 @@ struct FetchedModelsSelectionSheet: View {
 
     private var confirmLabel: String {
         if selectedIDs.isEmpty {
-            return "Add"
+            return existingModelsCount > 0 ? "Refresh Existing" : "Add"
         }
         return "Add Selected (\(selectedIDs.count))"
     }
@@ -289,7 +289,7 @@ struct FetchedModelsSelectionSheet: View {
 
     // MARK: - Actions
 
-    private func selectAllVisible() {
+    private func selectAllFiltered() {
         for model in visibleModels {
             selectedIDs.insert(model.id)
         }

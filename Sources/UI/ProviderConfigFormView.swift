@@ -358,7 +358,10 @@ struct ProviderConfigFormView: View {
                 existingModelIDs: Set(decodedModels.map(\.id)),
                 providerType: providerType,
                 onConfirm: { selectedModels in
-                    let merged = addFetchedModelsToExisting(selectedModels)
+                    let merged = addSelectedAndRefreshExisting(
+                        selected: selectedModels,
+                        allFetched: selection.models
+                    )
                     setModels(merged)
                 }
             )
@@ -1496,24 +1499,40 @@ struct ProviderConfigFormView: View {
         }
     }
 
-    /// Incrementally adds selected fetched models into the existing list.
-    /// Existing models not in the selection are preserved unchanged.
-    /// Models already present are updated with fresh metadata (preserving overrides/enabled).
-    private func addFetchedModelsToExisting(_ selectedModels: [ModelInfo]) -> [ModelInfo] {
+    /// Adds user-selected new models AND silently refreshes metadata for all
+    /// existing models that appeared in the fetch, regardless of selection.
+    /// User overrides and enabled state are always preserved.
+    private func addSelectedAndRefreshExisting(selected: [ModelInfo], allFetched: [ModelInfo]) -> [ModelInfo] {
         let existingByID = decodedModels.reduce(into: [String: ModelInfo]()) { $0[$1.id] = $1 }
+        let fetchedByID = allFetched.reduce(into: [String: ModelInfo]()) { $0[$1.id] = $1 }
         var resultByID = existingByID
 
-        for model in selectedModels {
-            let existing = existingByID[model.id]
+        // Refresh metadata for existing models that appeared in the fetch
+        for (id, fetched) in fetchedByID where existingByID[id] != nil {
+            let existing = existingByID[id]!
+            resultByID[id] = ModelInfo(
+                id: fetched.id,
+                name: fetched.name,
+                capabilities: fetched.capabilities,
+                contextWindow: fetched.contextWindow,
+                reasoningConfig: fetched.reasoningConfig,
+                overrides: existing.overrides,
+                catalogMetadata: fetched.catalogMetadata,
+                isEnabled: existing.isEnabled
+            )
+        }
+
+        // Add newly selected models that don't already exist
+        for model in selected where existingByID[model.id] == nil {
             resultByID[model.id] = ModelInfo(
                 id: model.id,
                 name: model.name,
                 capabilities: model.capabilities,
                 contextWindow: model.contextWindow,
                 reasoningConfig: model.reasoningConfig,
-                overrides: existing?.overrides,
+                overrides: nil,
                 catalogMetadata: model.catalogMetadata,
-                isEnabled: existing?.isEnabled ?? true
+                isEnabled: true
             )
         }
 
