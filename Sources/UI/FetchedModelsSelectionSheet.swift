@@ -8,33 +8,49 @@ struct FetchedModelsSelectionSheet: View {
     let providerType: ProviderType?
     let onConfirm: ([ModelInfo]) -> Void
 
-    @State private var selectedIDs: Set<String> = []
-    @State private var searchText = ""
-    @State private var filterMode: FilterMode = .all
+    @State private var selectedIDs: Set<String>
+    @State private var searchText: String
+    @State private var showFilter: ShowFilter
 
-    enum FilterMode: String, CaseIterable {
+    enum ShowFilter: String, CaseIterable {
+        case newOnly = "New"
         case all = "All"
-        case fullySupported = "Fully Supported"
-        case newOnly = "New Only"
+        case supported = "Supported"
+        case existing = "Existing"
+    }
+
+    init(
+        fetchedModels: [ModelInfo],
+        existingModelIDs: Set<String>,
+        providerType: ProviderType?,
+        onConfirm: @escaping ([ModelInfo]) -> Void
+    ) {
+        self.fetchedModels = fetchedModels
+        self.existingModelIDs = existingModelIDs
+        self.providerType = providerType
+        self.onConfirm = onConfirm
+
+        let newModelIDs = Set(fetchedModels.lazy.filter { !existingModelIDs.contains($0.id) }.map(\.id))
+        _selectedIDs = State(initialValue: newModelIDs)
+        _searchText = State(initialValue: "")
+        _showFilter = State(initialValue: newModelIDs.isEmpty ? .all : .newOnly)
     }
 
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                headerBar
+                controlsArea
                 Divider()
                 modelList
-                Divider()
-                footerBar
             }
             .background(JinSemanticColor.detailSurface)
-            .navigationTitle("Select Models to Add")
+            .navigationTitle("Add Models")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Confirm") {
+                    Button(confirmLabel) {
                         let selected = fetchedModels.filter { selectedIDs.contains($0.id) }
                         onConfirm(selected)
                         dismiss()
@@ -46,47 +62,54 @@ struct FetchedModelsSelectionSheet: View {
         .frame(minWidth: 560, minHeight: 480)
     }
 
-    // MARK: - Header
+    // MARK: - Controls
 
-    private var headerBar: some View {
-        VStack(spacing: JinSpacing.medium) {
-            HStack(spacing: JinSpacing.medium) {
-                Text("\(selectedIDs.count) selected")
-                    .font(.callout)
+    private var controlsArea: some View {
+        VStack(alignment: .leading, spacing: JinSpacing.small) {
+            TextField("Search models", text: $searchText)
+                .textFieldStyle(.roundedBorder)
+
+            Picker("Show", selection: $showFilter) {
+                ForEach(ShowFilter.allCases, id: \.self) { filter in
+                    Text(filter.rawValue).tag(filter)
+                }
+            }
+            .labelsHidden()
+            .pickerStyle(.segmented)
+
+            HStack(alignment: .firstTextBaseline, spacing: JinSpacing.small) {
+                Text(statsSummary)
+                    .font(.caption)
                     .foregroundStyle(.secondary)
                     .monospacedDigit()
 
-                Spacer()
+                Spacer(minLength: 0)
 
-                TextField("Search", text: $searchText)
-                    .textFieldStyle(.roundedBorder)
-                    .frame(maxWidth: 200)
+                Menu("Selection") {
+                    Button("Select Visible") { selectAllVisible() }
+                        .disabled(visibleModels.isEmpty)
+                    Button("Select New") { selectNewModels() }
+                        .disabled(newModelsCount == 0)
+                    Divider()
+                    Button("Clear Selection") { clearSelection() }
+                        .disabled(selectedIDs.isEmpty)
+                }
+                .controlSize(.small)
             }
 
-            HStack(spacing: JinSpacing.small) {
-                Picker("Filter", selection: $filterMode) {
-                    ForEach(FilterMode.allCases, id: \.self) { mode in
-                        Text(mode.rawValue).tag(mode)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .labelsHidden()
+            Text(selectionSummary)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .monospacedDigit()
 
-                Spacer()
-
-                Button("Select All") {
-                    selectAllVisible()
-                }
-                .buttonStyle(.borderless)
-                .controlSize(.small)
-
-                Divider().frame(height: 12)
-
-                Button("Deselect All") {
-                    deselectAllVisible()
-                }
-                .buttonStyle(.borderless)
-                .controlSize(.small)
+            if hiddenSelectedCount > 0 {
+                Text("\(hiddenSelectedCount) selected model(s) are hidden by the current filter.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else {
+                Text("New models are preselected.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
         }
         .padding(.horizontal, JinSpacing.large)
@@ -97,7 +120,13 @@ struct FetchedModelsSelectionSheet: View {
 
     private var modelList: some View {
         Group {
-            if visibleModels.isEmpty {
+            if fetchedModels.isEmpty {
+                ContentUnavailableView {
+                    Label("No models returned", systemImage: "tray")
+                } description: {
+                    Text("This provider did not return models for the current credentials.")
+                }
+            } else if visibleModels.isEmpty {
                 ContentUnavailableView {
                     Label("No models match", systemImage: "magnifyingglass")
                 } description: {
@@ -114,129 +143,148 @@ struct FetchedModelsSelectionSheet: View {
     }
 
     private func modelRow(_ model: ModelInfo) -> some View {
-        let alreadyAdded = existingModelIDs.contains(model.id)
-        let isSelected = selectedIDs.contains(model.id)
-        let fullySupported = isFullySupported(model.id)
+        let existing = existingModelIDs.contains(model.id)
+        let supported = isFullySupported(model.id)
 
-        return HStack(spacing: 8) {
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 6) {
-                    Text(model.name)
+        return Toggle(isOn: toggleBinding(for: model.id)) {
+            HStack(spacing: JinSpacing.small) {
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack(spacing: 6) {
+                        Text(model.name)
+                            .lineLimit(1)
+
+                        Text(existing ? "Existing" : "New")
+                            .font(.caption)
+                            .foregroundStyle(existing ? Color.secondary : Color.accentColor)
+
+                        if supported {
+                            Image(systemName: "checkmark.seal.fill")
+                                .font(.caption2)
+                                .foregroundStyle(.green)
+                                .help("Jin full support")
+                        }
+                    }
+
+                    Text(model.id)
+                        .foregroundStyle(.secondary)
+                        .font(.caption)
                         .lineLimit(1)
-
-                    if fullySupported {
-                        Text(JinModelSupport.fullSupportSymbol)
-                            .jinTagStyle(foreground: .green)
-                            .help("Jin full support")
-                    }
                 }
 
-                Text(model.id)
-                    .foregroundStyle(.secondary)
-                    .font(.caption)
-                    .lineLimit(1)
-            }
+                Spacer(minLength: 8)
 
-            Spacer(minLength: 8)
-
-            if alreadyAdded {
-                Text("Already added")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
-            Toggle("", isOn: Binding(
-                get: { isSelected },
-                set: { newValue in
-                    if newValue {
-                        selectedIDs.insert(model.id)
-                    } else {
-                        selectedIDs.remove(model.id)
-                    }
+                if selectedIDs.contains(model.id) {
+                    Text(existing ? "Update" : "Add")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
-            ))
-            .labelsHidden()
-        }
-        .contentShape(Rectangle())
-        .onTapGesture {
-            if isSelected {
-                selectedIDs.remove(model.id)
-            } else {
-                selectedIDs.insert(model.id)
             }
         }
+        .toggleStyle(.checkbox)
     }
 
-    // MARK: - Footer
+    // MARK: - Computed
 
-    private var footerBar: some View {
-        HStack(spacing: JinSpacing.medium) {
-            Group {
-                Text("\(fetchedModels.count) fetched")
-                if fullySupportedCount > 0 {
-                    Text("\(fullySupportedCount) fully supported")
-                        .foregroundStyle(.green)
-                }
-                if newModelsCount > 0 {
-                    Text("\(newModelsCount) new")
-                        .foregroundStyle(.blue)
-                }
-            }
-            .font(.caption)
-            .foregroundStyle(.secondary)
-
-            Spacer()
-
-            Button("Select New Only") {
-                selectedIDs = Set(fetchedModels.filter { !existingModelIDs.contains($0.id) }.map(\.id))
-            }
-            .buttonStyle(.borderless)
-            .controlSize(.small)
-            .disabled(newModelsCount == 0)
-
-            if fullySupportedCount > 0 {
-                Divider().frame(height: 12)
-
-                Button("Select Fully Supported") {
-                    selectedIDs = Set(fetchedModels.filter { isFullySupported($0.id) }.map(\.id))
-                }
-                .buttonStyle(.borderless)
-                .controlSize(.small)
-            }
+    private var confirmLabel: String {
+        if selectedIDs.isEmpty {
+            return "Add"
         }
-        .padding(.horizontal, JinSpacing.large)
-        .padding(.vertical, JinSpacing.medium)
+        return "Add Selected (\(selectedIDs.count))"
     }
 
-    // MARK: - Filtering
+    private var statsSummary: String {
+        "\(totalFetchedCount) fetched, \(newModelsCount) new, \(existingModelsCount) existing, \(supportedModelsCount) supported"
+    }
+
+    private var selectionSummary: String {
+        if selectedIDs.isEmpty {
+            return "No selection"
+        }
+
+        var parts: [String] = []
+        if selectedNewCount > 0 {
+            parts.append("\(selectedNewCount) new")
+        }
+        if selectedExistingCount > 0 {
+            parts.append("\(selectedExistingCount) existing")
+        }
+
+        if hiddenSelectedCount > 0 {
+            return "\(parts.joined(separator: ", ")) selected (\(hiddenSelectedCount) hidden)"
+        }
+        return "\(parts.joined(separator: ", ")) selected"
+    }
 
     private var visibleModels: [ModelInfo] {
-        let baseFiltered: [ModelInfo]
-        switch filterMode {
-        case .all:
-            baseFiltered = fetchedModels
-        case .fullySupported:
-            baseFiltered = fetchedModels.filter { isFullySupported($0.id) }
+        let base: [ModelInfo]
+        switch showFilter {
         case .newOnly:
-            baseFiltered = fetchedModels.filter { !existingModelIDs.contains($0.id) }
+            base = orderedModels.filter { !existingModelIDs.contains($0.id) }
+        case .all:
+            base = orderedModels
+        case .supported:
+            base = orderedModels.filter { isFullySupported($0.id) }
+        case .existing:
+            base = orderedModels.filter { existingModelIDs.contains($0.id) }
         }
 
         let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        guard !query.isEmpty else { return baseFiltered }
+        guard !query.isEmpty else { return base }
 
-        return baseFiltered.filter { model in
+        return base.filter { model in
             model.name.lowercased().contains(query) || model.id.lowercased().contains(query)
         }
     }
 
-    // MARK: - Counts
+    private var orderedModels: [ModelInfo] {
+        fetchedModels.sorted { lhs, rhs in
+            let lhsExisting = existingModelIDs.contains(lhs.id)
+            let rhsExisting = existingModelIDs.contains(rhs.id)
+            if lhsExisting != rhsExisting {
+                return !lhsExisting && rhsExisting
+            }
+            return lhs.name.localizedStandardCompare(rhs.name) == .orderedAscending
+        }
+    }
 
-    private var fullySupportedCount: Int {
-        fetchedModels.filter { isFullySupported($0.id) }.count
+    private var totalFetchedCount: Int {
+        fetchedModels.count
     }
 
     private var newModelsCount: Int {
         fetchedModels.filter { !existingModelIDs.contains($0.id) }.count
+    }
+
+    private var existingModelsCount: Int {
+        fetchedModels.count - newModelsCount
+    }
+
+    private var supportedModelsCount: Int {
+        fetchedModels.filter { isFullySupported($0.id) }.count
+    }
+
+    private var selectedVisibleCount: Int {
+        visibleModels.reduce(into: 0) { count, model in
+            if selectedIDs.contains(model.id) {
+                count += 1
+            }
+        }
+    }
+
+    private var hiddenSelectedCount: Int {
+        max(selectedIDs.count - selectedVisibleCount, 0)
+    }
+
+    private var selectedExistingCount: Int {
+        selectedIDs.reduce(into: 0) { count, modelID in
+            if existingModelIDs.contains(modelID) {
+                count += 1
+            }
+        }
+    }
+
+    private var selectedNewCount: Int {
+        max(selectedIDs.count - selectedExistingCount, 0)
     }
 
     // MARK: - Actions
@@ -247,9 +295,28 @@ struct FetchedModelsSelectionSheet: View {
         }
     }
 
-    private func deselectAllVisible() {
-        let visibleIDs = Set(visibleModels.map(\.id))
-        selectedIDs.subtract(visibleIDs)
+    private func selectNewModels() {
+        let newIDs = fetchedModels.compactMap { model in
+            existingModelIDs.contains(model.id) ? nil : model.id
+        }
+        selectedIDs = Set(newIDs)
+    }
+
+    private func clearSelection() {
+        selectedIDs.removeAll()
+    }
+
+    private func toggleBinding(for modelID: String) -> Binding<Bool> {
+        Binding(
+            get: { selectedIDs.contains(modelID) },
+            set: { selected in
+                if selected {
+                    selectedIDs.insert(modelID)
+                } else {
+                    selectedIDs.remove(modelID)
+                }
+            }
+        )
     }
 
     private func isFullySupported(_ modelID: String) -> Bool {

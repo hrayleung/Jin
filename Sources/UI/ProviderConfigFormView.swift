@@ -30,7 +30,7 @@ struct ProviderConfigFormView: View {
     @State private var showingDeleteModelConfirmation = false
     @State private var showingKeepFullySupportedModelsConfirmation = false
     @State private var showingKeepEnabledModelsConfirmation = false
-    @State private var fetchedModelsForSelection: [ModelInfo]?
+    @State private var fetchedModelsForSelection: FetchedModelsSelectionState?
     @State private var modelSearchText = ""
     @State private var editingModel: ModelInfo?
     @State private var modelPendingDeletion: ModelInfo?
@@ -41,6 +41,11 @@ struct ProviderConfigFormView: View {
 
     private let providerManager = ProviderManager()
     private let networkManager = NetworkManager()
+
+    private struct FetchedModelsSelectionState: Identifiable {
+        let id = UUID()
+        let models: [ModelInfo]
+    }
 
     var body: some View {
         Form {
@@ -261,7 +266,7 @@ struct ProviderConfigFormView: View {
                 }
 
                 HStack {
-                    Button("Fetch Models") {
+                    Button("Fetch from Provider") {
                         Task { await fetchModels() }
                     }
                     .disabled(isFetchModelsDisabled)
@@ -347,21 +352,16 @@ struct ProviderConfigFormView: View {
                 }
             )
         }
-        .sheet(isPresented: Binding(
-            get: { fetchedModelsForSelection != nil },
-            set: { if !$0 { fetchedModelsForSelection = nil } }
-        )) {
-            if let fetched = fetchedModelsForSelection {
-                FetchedModelsSelectionSheet(
-                    fetchedModels: fetched,
-                    existingModelIDs: Set(decodedModels.map(\.id)),
-                    providerType: providerType,
-                    onConfirm: { selectedModels in
-                        let merged = addFetchedModelsToExisting(selectedModels)
-                        setModels(merged)
-                    }
-                )
-            }
+        .sheet(item: $fetchedModelsForSelection) { selection in
+            FetchedModelsSelectionSheet(
+                fetchedModels: selection.models,
+                existingModelIDs: Set(decodedModels.map(\.id)),
+                providerType: providerType,
+                onConfirm: { selectedModels in
+                    let merged = addFetchedModelsToExisting(selectedModels)
+                    setModels(merged)
+                }
+            )
         }
         .sheet(isPresented: $showingAddModel) {
                 AddModelSheet(
@@ -1484,17 +1484,15 @@ struct ProviderConfigFormView: View {
             let deduplicated = fetched.filter { seenIDs.insert($0.id).inserted }
             let sorted = deduplicated.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
             await MainActor.run {
-                fetchedModelsForSelection = sorted
+                if sorted.isEmpty {
+                    fetchedModelsForSelection = nil
+                    modelsError = "No models were returned by this provider."
+                } else {
+                    fetchedModelsForSelection = FetchedModelsSelectionState(models: sorted)
+                }
             }
         } catch {
             await MainActor.run { modelsError = error.localizedDescription }
-        }
-    }
-
-    private func mergeFetchedModelsWithExisting(_ fetchedModels: [ModelInfo]) -> [ModelInfo] {
-        let merged = JinApp.mergeRefreshedModels(latestModels: fetchedModels, existingModels: decodedModels)
-        return merged.sorted { lhs, rhs in
-            lhs.name.localizedStandardCompare(rhs.name) == .orderedAscending
         }
     }
 
