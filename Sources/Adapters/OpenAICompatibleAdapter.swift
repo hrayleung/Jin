@@ -153,11 +153,19 @@ actor OpenAICompatibleAdapter: LLMProviderAdapter {
             body["max_tokens"] = maxTokens
         }
 
+        if providerConfig.type == .openai,
+           let serviceTier = resolvedOpenAIServiceTier(from: controls) {
+            body["service_tier"] = serviceTier
+        }
+
         if !tools.isEmpty, let functionTools = translateTools(tools) as? [[String: Any]] {
             body["tools"] = functionTools
         }
 
         for (key, value) in controls.providerSpecific {
+            if providerConfig.type == .openai, key == "service_tier" {
+                continue
+            }
             body[key] = value.value
         }
 

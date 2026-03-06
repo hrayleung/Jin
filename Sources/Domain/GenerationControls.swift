@@ -7,6 +7,7 @@ import Foundation
 /// - `ContextCacheControls.swift` -- prompt caching
 /// - `ReasoningControls.swift` -- thinking/reasoning
 /// - `WebSearchAndToolControls.swift` -- web search, MCP tools, PDF processing
+/// - `OpenAIServiceTier.swift` -- OpenAI `service_tier` (priority/flex/default/scale)
 /// - `OpenAIImageGenerationControls.swift` -- OpenAI image generation
 /// - `XAIMediaGenerationControls.swift` -- xAI image/video generation
 /// - `GoogleMediaGenerationControls.swift` -- Gemini/Vertex image/video generation
@@ -17,6 +18,7 @@ struct GenerationControls: Codable {
     var topP: Double?
     var reasoning: ReasoningControls?
     var webSearch: WebSearchControls?
+    var openAIServiceTier: OpenAIServiceTier?
     var searchPlugin: SearchPluginControls?
     var mcpTools: MCPToolsControls?
     var contextCache: ContextCacheControls?
@@ -34,6 +36,7 @@ struct GenerationControls: Codable {
         topP: Double? = nil,
         reasoning: ReasoningControls? = nil,
         webSearch: WebSearchControls? = nil,
+        openAIServiceTier: OpenAIServiceTier? = nil,
         searchPlugin: SearchPluginControls? = nil,
         mcpTools: MCPToolsControls? = nil,
         contextCache: ContextCacheControls? = nil,
@@ -50,6 +53,7 @@ struct GenerationControls: Codable {
         self.topP = topP
         self.reasoning = reasoning
         self.webSearch = webSearch
+        self.openAIServiceTier = openAIServiceTier
         self.searchPlugin = searchPlugin
         self.mcpTools = mcpTools
         self.contextCache = contextCache

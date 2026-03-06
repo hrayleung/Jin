@@ -343,6 +343,18 @@ struct ChatView: View {
                 .help(reasoningHelpText)
             }
 
+            if supportsOpenAIServiceTierControl {
+                Menu { openAIServiceTierMenuContent } label: {
+                    controlIconLabel(
+                        systemName: "speedometer",
+                        isActive: controls.openAIServiceTier != nil,
+                        badgeText: openAIServiceTierBadgeText
+                    )
+                }
+                .menuStyle(.borderlessButton)
+                .help(openAIServiceTierHelpText)
+            }
+
             if supportsWebSearchControl {
                 Menu { webSearchMenuContent } label: {
                     controlIconLabel(
@@ -2366,6 +2378,11 @@ struct ChatView: View {
         providerType == .codexAppServer
     }
 
+    private var supportsOpenAIServiceTierControl: Bool {
+        guard !supportsMediaGenerationControl else { return false }
+        return providerType == .openai || providerType == .openaiWebSocket
+    }
+
     private var reasoningHelpText: String {
         guard supportsReasoningControl else { return "Reasoning: Not supported" }
         switch providerType {
@@ -2384,6 +2401,11 @@ struct ChatView: View {
         guard supportsWebSearchControl else { return "Web Search: Not supported" }
         guard isWebSearchEnabled else { return "Web Search: Off" }
         return "Web Search: \(webSearchLabel)"
+    }
+
+    private var openAIServiceTierHelpText: String {
+        guard supportsOpenAIServiceTierControl else { return "Service Tier: Not supported" }
+        return "Service Tier: \(openAIServiceTierLabel)"
     }
 
     private var mcpToolsHelpText: String {
@@ -2431,6 +2453,10 @@ struct ChatView: View {
         }
     }
 
+    private var openAIServiceTierLabel: String {
+        controls.openAIServiceTier?.displayName ?? "Auto"
+    }
+
     private var webSearchSourcesLabel: String {
         let sources = Set(controls.webSearch?.sources ?? [])
         if sources.isEmpty { return "On" }
@@ -2475,6 +2501,11 @@ struct ChatView: View {
         case .none:
             return nil
         }
+    }
+
+    private var openAIServiceTierBadgeText: String? {
+        guard supportsOpenAIServiceTierControl else { return nil }
+        return controls.openAIServiceTier?.badgeText
     }
 
     private var webSearchBadgeText: String? {
@@ -4911,6 +4942,28 @@ struct ChatView: View {
         }
     }
 
+    @ViewBuilder
+    private var openAIServiceTierMenuContent: some View {
+        Button { setOpenAIServiceTier(nil) } label: {
+            menuItemLabel("Auto (OpenAI default)", isSelected: controls.openAIServiceTier == nil)
+        }
+
+        Divider()
+
+        ForEach(OpenAIServiceTier.allCases, id: \.self) { serviceTier in
+            Button {
+                setOpenAIServiceTier(serviceTier)
+            } label: {
+                menuItemLabel(serviceTier.displayName, isSelected: controls.openAIServiceTier == serviceTier)
+            }
+        }
+    }
+
+    private func setOpenAIServiceTier(_ serviceTier: OpenAIServiceTier?) {
+        controls.openAIServiceTier = serviceTier
+        persistControlsToConversation()
+    }
+
     private var supportsFireworksReasoningHistoryToggle: Bool {
         !fireworksReasoningHistoryOptions.isEmpty
     }
@@ -6667,6 +6720,7 @@ struct ChatView: View {
         normalizeVertexAIGenerationConfig()
         normalizeFireworksProviderSpecific()
         normalizeCodexProviderSpecific()
+        normalizeOpenAIServiceTierControls()
         normalizeWebSearchControls()
         normalizeSearchPluginControls()
         normalizeContextCacheControls()
@@ -6866,6 +6920,18 @@ struct ChatView: View {
             controls.providerSpecific.removeValue(forKey: "codex_cwd")
         } else if trimmed != raw {
             controls.providerSpecific["codex_cwd"] = AnyCodable(trimmed)
+        }
+    }
+
+    private func normalizeOpenAIServiceTierControls() {
+        if controls.openAIServiceTier == nil,
+           let legacyRaw = controls.providerSpecific["service_tier"]?.value as? String,
+           let legacy = OpenAIServiceTier.normalized(rawValue: legacyRaw) {
+            controls.openAIServiceTier = legacy
+        }
+
+        if controls.providerSpecific["service_tier"] != nil {
+            controls.providerSpecific.removeValue(forKey: "service_tier")
         }
     }
 

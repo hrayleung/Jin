@@ -412,6 +412,10 @@ actor OpenAIWebSocketAdapter: LLMProviderAdapter {
             body["max_output_tokens"] = maxTokens
         }
 
+        if let serviceTier = resolvedOpenAIServiceTier(from: controls) {
+            body["service_tier"] = serviceTier
+        }
+
         if reasoningEnabled, let effort = reasoningEffort {
             var reasoningDict: [String: Any] = [
                 "effort": mapReasoningEffort(effort, modelID: modelID)
@@ -444,7 +448,7 @@ actor OpenAIWebSocketAdapter: LLMProviderAdapter {
         }
 
         for (key, value) in controls.providerSpecific {
-            guard key != "prompt_cache_min_tokens" else {
+            guard key != "prompt_cache_min_tokens", key != "service_tier" else {
                 continue
             }
             if !supportsSamplingParameters, key == "temperature" || key == "top_p" {

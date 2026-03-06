@@ -544,6 +544,20 @@ func supportsOpenAIResponsesSamplingParameters(modelID: String, reasoningEnabled
     return openAIResponsesSamplingAllowedModelIDs.contains(canonical)
 }
 
+// MARK: - OpenAI Service Tier Support
+
+/// Resolves OpenAI `service_tier` from structured controls, with legacy fallback.
+///
+/// Legacy fallback keeps compatibility with older persisted `providerSpecific["service_tier"]`.
+func resolvedOpenAIServiceTier(from controls: GenerationControls) -> String? {
+    if let serviceTier = controls.openAIServiceTier {
+        return serviceTier.rawValue
+    }
+
+    let legacyRaw = controls.providerSpecific["service_tier"]?.value as? String
+    return OpenAIServiceTier.normalized(rawValue: legacyRaw)?.rawValue
+}
+
 // MARK: - OpenAI-Compatible Streaming Dispatch
 
 /// Common send/stream dispatch for OpenAI Chat Completions-compatible adapters.
