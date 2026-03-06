@@ -549,7 +549,7 @@ final class ModelSettingsResolverTests: XCTestCase {
 
         let resolvedVertexNanoBanana = ModelSettingsResolver.resolve(model: legacyNanoBanana, providerType: .vertexai)
         XCTAssertEqual(resolvedVertexNanoBanana.contextWindow, 131_072)
-        XCTAssertNil(resolvedVertexNanoBanana.reasoningConfig)
+        XCTAssertEqual(resolvedVertexNanoBanana.reasoningConfig?.defaultEffort, .minimal)
 
         let legacyProImage = ModelInfo(
             id: "gemini-3-pro-image-preview",
