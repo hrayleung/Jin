@@ -30,6 +30,7 @@ struct ProviderConfigFormView: View {
     @State private var showingDeleteModelConfirmation = false
     @State private var showingKeepFullySupportedModelsConfirmation = false
     @State private var showingKeepEnabledModelsConfirmation = false
+    @State private var fetchedModelsForSelection: FetchedModelsSelectionState?
     @State private var modelSearchText = ""
     @State private var editingModel: ModelInfo?
     @State private var modelPendingDeletion: ModelInfo?
@@ -40,6 +41,11 @@ struct ProviderConfigFormView: View {
 
     private let providerManager = ProviderManager()
     private let networkManager = NetworkManager()
+
+    private struct FetchedModelsSelectionState: Identifiable {
+        let id = UUID()
+        let models: [ModelInfo]
+    }
 
     var body: some View {
         Form {
@@ -260,7 +266,7 @@ struct ProviderConfigFormView: View {
                 }
 
                 HStack {
-                    Button("Fetch Models") {
+                    Button("Fetch from Provider") {
                         Task { await fetchModels() }
                     }
                     .disabled(isFetchModelsDisabled)
@@ -343,6 +349,20 @@ struct ProviderConfigFormView: View {
                     codexWorkingDirectoryPresets = codexWorkingDirectoryPresetsDraft
                     persistCodexWorkingDirectoryPresets()
                     showingCodexWorkingDirectoryPresetsSheet = false
+                }
+            )
+        }
+        .sheet(item: $fetchedModelsForSelection) { selection in
+            FetchedModelsSelectionSheet(
+                fetchedModels: selection.models,
+                existingModelIDs: Set(decodedModels.map(\.id)),
+                providerType: providerType,
+                onConfirm: { selectedModels in
+                    let merged = addSelectedAndRefreshExisting(
+                        selected: selectedModels,
+                        allFetched: selection.models
+                    )
+                    setModels(merged)
                 }
             )
         }
@@ -1462,19 +1482,61 @@ struct ProviderConfigFormView: View {
                 throw PersistenceError.invalidProviderType(provider.typeRaw)
             }
             let adapter = try await providerManager.createAdapter(for: config)
-            let fetchedModels = try await adapter.fetchAvailableModels()
+            let fetched = try await adapter.fetchAvailableModels()
+            var seenIDs = Set<String>()
+            let deduplicated = fetched.filter { seenIDs.insert($0.id).inserted }
+            let sorted = deduplicated.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
             await MainActor.run {
-                let merged = mergeFetchedModelsWithExisting(fetchedModels)
-                setModels(merged)
+                if sorted.isEmpty {
+                    fetchedModelsForSelection = nil
+                    modelsError = "No models were returned by this provider."
+                } else {
+                    fetchedModelsForSelection = FetchedModelsSelectionState(models: sorted)
+                }
             }
         } catch {
             await MainActor.run { modelsError = error.localizedDescription }
         }
     }
 
-    private func mergeFetchedModelsWithExisting(_ fetchedModels: [ModelInfo]) -> [ModelInfo] {
-        let merged = JinApp.mergeRefreshedModels(latestModels: fetchedModels, existingModels: decodedModels)
-        return merged.sorted { lhs, rhs in
+    /// Adds user-selected new models AND silently refreshes metadata for all
+    /// existing models that appeared in the fetch, regardless of selection.
+    /// User overrides and enabled state are always preserved.
+    private func addSelectedAndRefreshExisting(selected: [ModelInfo], allFetched: [ModelInfo]) -> [ModelInfo] {
+        let existingByID = decodedModels.reduce(into: [String: ModelInfo]()) { $0[$1.id] = $1 }
+        let fetchedByID = allFetched.reduce(into: [String: ModelInfo]()) { $0[$1.id] = $1 }
+        var resultByID = existingByID
+
+        // Refresh metadata for existing models that appeared in the fetch
+        for (id, fetched) in fetchedByID where existingByID[id] != nil {
+            let existing = existingByID[id]!
+            resultByID[id] = ModelInfo(
+                id: fetched.id,
+                name: fetched.name,
+                capabilities: fetched.capabilities,
+                contextWindow: fetched.contextWindow,
+                reasoningConfig: fetched.reasoningConfig,
+                overrides: existing.overrides,
+                catalogMetadata: fetched.catalogMetadata,
+                isEnabled: existing.isEnabled
+            )
+        }
+
+        // Add newly selected models that don't already exist
+        for model in selected where existingByID[model.id] == nil {
+            resultByID[model.id] = ModelInfo(
+                id: model.id,
+                name: model.name,
+                capabilities: model.capabilities,
+                contextWindow: model.contextWindow,
+                reasoningConfig: model.reasoningConfig,
+                overrides: nil,
+                catalogMetadata: model.catalogMetadata,
+                isEnabled: true
+            )
+        }
+
+        return resultByID.values.sorted { lhs, rhs in
             lhs.name.localizedStandardCompare(rhs.name) == .orderedAscending
         }
     }
