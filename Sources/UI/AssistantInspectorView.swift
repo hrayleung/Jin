@@ -332,10 +332,9 @@ private struct AssistantSettingsEditorView: View {
 
                         fieldBlock(title: "Max Output Tokens", footer: "Leave empty to follow model default limit.") {
                             HStack(spacing: JinSpacing.small) {
-                                TextField("e.g., 4096", text: maxOutputTokensBinding)
-                                    .font(.system(.body, design: .monospaced))
+                                TextField("Model default", text: maxOutputTokensBinding)
                                     .textFieldStyle(.roundedBorder)
-                                    .frame(width: 140)
+                                    .frame(maxWidth: 160)
 
                                 if assistant.maxOutputTokens != nil {
                                     Button("Clear") {
@@ -352,7 +351,7 @@ private struct AssistantSettingsEditorView: View {
                                         .font(.system(.caption, design: .monospaced))
                                         .foregroundStyle(.secondary)
                                 } else {
-                                    Text("No limit")
+                                    Text("Model default maximum")
                                         .font(.caption)
                                         .foregroundStyle(.tertiary)
                                 }
@@ -528,7 +527,7 @@ private struct AssistantSettingsEditorView: View {
     }
 
     private var maxTokensSummaryText: String {
-        assistant.maxOutputTokens.map(String.init) ?? "No limit"
+        assistant.maxOutputTokens.map(String.init) ?? "Model default maximum"
     }
 
     private var historySummaryText: String {

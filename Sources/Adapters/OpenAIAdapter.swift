@@ -67,6 +67,10 @@ actor OpenAIAdapter: LLMProviderAdapter {
                     continuation.yield(.contentDelta(.text(text)))
                 }
 
+                if let notice = response.incompleteNoticeMarkdown {
+                    continuation.yield(.contentDelta(.text(notice)))
+                }
+
                 continuation.yield(.messageEnd(usage: response.toUsage()))
                 continuation.finish()
             }
@@ -74,21 +78,38 @@ actor OpenAIAdapter: LLMProviderAdapter {
 
         let parser = SSEParser()
         let sseStream = await networkManager.streamRequest(request, parser: parser)
+        let streamDecoder = JSONDecoder()
+        streamDecoder.keyDecodingStrategy = .convertFromSnakeCase
 
         return AsyncThrowingStream { continuation in
             Task {
                 do {
                     var functionCallsByItemID: [String: ResponsesAPIFunctionCallState] = [:]
+                    var didEmitTerminalMessageEnd = false
 
                     for try await event in sseStream {
                         switch event {
                         case .event(let type, let data):
+                            if type == "response.incomplete",
+                               let jsonData = data.data(using: .utf8),
+                               let incomplete = try? streamDecoder.decode(ResponsesAPIIncompleteEvent.self, from: jsonData) {
+                                if let notice = incomplete.response.incompleteNoticeMarkdown {
+                                    continuation.yield(.contentDelta(.text(notice)))
+                                }
+                                continuation.yield(.messageEnd(usage: incomplete.response.toUsage()))
+                                didEmitTerminalMessageEnd = true
+                                continue
+                            }
+
                             do {
                                 if let streamEvent = try parseSSEEvent(
                                     type: type,
                                     data: data,
                                     functionCallsByItemID: &functionCallsByItemID
                                 ) {
+                                    if case .messageEnd = streamEvent {
+                                        didEmitTerminalMessageEnd = true
+                                    }
                                     continuation.yield(streamEvent)
                                 }
                             } catch is DecodingError {
@@ -97,7 +118,9 @@ actor OpenAIAdapter: LLMProviderAdapter {
                                 continue
                             }
                         case .done:
-                            continuation.yield(.messageEnd(usage: nil))
+                            if !didEmitTerminalMessageEnd {
+                                continuation.yield(.messageEnd(usage: nil))
+                            }
                         }
                     }
                     continuation.finish()
@@ -129,7 +152,35 @@ actor OpenAIAdapter: LLMProviderAdapter {
         let (data, _) = try await networkManager.sendRequest(request)
         let response = try JSONDecoder().decode(ModelsResponse.self, from: data)
         return response.data.map { model in
-            ModelCatalog.modelInfo(for: model.id, provider: .openai, name: model.id)
+            var info = ModelCatalog.modelInfo(for: model.id, provider: .openai, name: model.id)
+            let contextWindow = model.contextWindow.flatMap { $0 > 0 ? $0 : nil }
+            let maxOutputTokens = model.maxTokens.flatMap { $0 > 0 ? $0 : nil }
+            if let contextWindow {
+                info = ModelInfo(
+                    id: info.id,
+                    name: info.name,
+                    capabilities: info.capabilities,
+                    contextWindow: contextWindow,
+                    maxOutputTokens: maxOutputTokens ?? info.maxOutputTokens,
+                    reasoningConfig: info.reasoningConfig,
+                    overrides: info.overrides,
+                    catalogMetadata: info.catalogMetadata,
+                    isEnabled: info.isEnabled
+                )
+            } else if let maxOutputTokens {
+                info = ModelInfo(
+                    id: info.id,
+                    name: info.name,
+                    capabilities: info.capabilities,
+                    contextWindow: info.contextWindow,
+                    maxOutputTokens: maxOutputTokens,
+                    reasoningConfig: info.reasoningConfig,
+                    overrides: info.overrides,
+                    catalogMetadata: info.catalogMetadata,
+                    isEnabled: info.isEnabled
+                )
+            }
+            return info
         }
     }
 
@@ -743,4 +794,12 @@ private struct ModelsResponse: Codable {
 
 private struct ModelData: Codable {
     let id: String
+    let contextWindow: Int?
+    let maxTokens: Int?
+
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case contextWindow = "context_window"
+        case maxTokens = "max_tokens"
+    }
 }

@@ -65,6 +65,7 @@ struct ContentView: View {
     @AppStorage(AppPreferenceKeys.newChatFixedMCPEnabled) private var newChatFixedMCPEnabled = true
     @AppStorage(AppPreferenceKeys.newChatFixedMCPUseAllServers) private var newChatFixedMCPUseAllServers = true
     @AppStorage(AppPreferenceKeys.newChatFixedMCPServerIDsJSON) private var newChatFixedMCPServerIDsJSON = "[]"
+    @AppStorage("legacyOpenAIMaxOutputMigrationV1") private var didRunLegacyOpenAIMaxOutputMigration = false
     @FocusState private var isSidebarSearchFieldFocused: Bool
     private let conversationTitleGenerator = ConversationTitleGenerator()
 
@@ -988,6 +989,8 @@ struct ContentView: View {
         guard !didBootstrapAssistants else { return }
         didBootstrapAssistants = true
 
+        migrateLegacyOpenAIMaxOutputDefaultsIfNeeded()
+
         let defaultAssistant: AssistantEntity
         if let existing = assistants.first(where: { $0.id == "default" }) {
             defaultAssistant = existing
@@ -1015,6 +1018,79 @@ struct ContentView: View {
         for conversation in conversations where conversation.assistant == nil {
             conversation.assistant = defaultAssistant
         }
+    }
+
+    @MainActor
+    private func migrateLegacyOpenAIMaxOutputDefaultsIfNeeded() {
+        guard !didRunLegacyOpenAIMaxOutputMigration else { return }
+
+        var didMutate = false
+
+        if let defaultAssistant = assistants.first(where: { $0.id == "default" }),
+           LegacyOpenAIMaxOutputMigration.shouldClearAssistantMaxOutputTokens(
+            defaultAssistant.maxOutputTokens,
+            assistantID: defaultAssistant.id
+           ) {
+            defaultAssistant.maxOutputTokens = nil
+            defaultAssistant.updatedAt = Date()
+            didMutate = true
+        }
+
+        for conversation in conversations {
+            let assistantMaxOutputTokens = conversation.assistant?.maxOutputTokens
+
+            if let migrated = migratedModelConfigDataIfNeeded(
+                conversation.modelConfigData,
+                providerID: conversation.providerID,
+                modelID: conversation.modelID,
+                assistantMaxOutputTokens: assistantMaxOutputTokens
+            ) {
+                conversation.modelConfigData = migrated
+                didMutate = true
+            }
+
+            for thread in conversation.modelThreads {
+                if let migrated = migratedModelConfigDataIfNeeded(
+                    thread.modelConfigData,
+                    providerID: thread.providerID,
+                    modelID: thread.modelID,
+                    assistantMaxOutputTokens: assistantMaxOutputTokens
+                ) {
+                    thread.modelConfigData = migrated
+                    didMutate = true
+                }
+            }
+        }
+
+        if didMutate {
+            try? modelContext.save()
+        }
+
+        didRunLegacyOpenAIMaxOutputMigration = true
+    }
+
+    private func migratedModelConfigDataIfNeeded(
+        _ data: Data,
+        providerID: String,
+        modelID: String,
+        assistantMaxOutputTokens: Int?
+    ) -> Data? {
+        guard let providerType = providers.first(where: { $0.id == providerID })
+            .flatMap({ ProviderType(rawValue: $0.typeRaw) }) else {
+            return nil
+        }
+        guard let controls = try? JSONDecoder().decode(GenerationControls.self, from: data) else {
+            return nil
+        }
+        guard let migrated = LegacyOpenAIMaxOutputMigration.migratedControlsIfNeeded(
+            controls,
+            providerType: providerType,
+            modelID: modelID,
+            assistantMaxOutputTokens: assistantMaxOutputTokens
+        ) else {
+            return nil
+        }
+        return try? JSONEncoder().encode(migrated)
     }
 }
 

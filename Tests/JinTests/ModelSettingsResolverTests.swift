@@ -49,6 +49,82 @@ final class ModelSettingsResolverTests: XCTestCase {
         XCTAssertTrue(resolved.capabilities.contains(.reasoning))
     }
 
+    func testOpenAICatalogCarriesDocsVerifiedContextAndMaxOutput() {
+        let gpt54 = ModelCatalog.modelInfo(for: "gpt-5.4", provider: .openai)
+        let resolvedGPT54 = ModelSettingsResolver.resolve(model: gpt54, providerType: .openai)
+        XCTAssertEqual(resolvedGPT54.contextWindow, 1_050_000)
+        XCTAssertEqual(resolvedGPT54.maxOutputTokens, 128_000)
+
+        let gpt52 = ModelCatalog.modelInfo(for: "gpt-5.2", provider: .openai)
+        let resolvedGPT52 = ModelSettingsResolver.resolve(model: gpt52, providerType: .openai)
+        XCTAssertEqual(resolvedGPT52.contextWindow, 400_000)
+        XCTAssertEqual(resolvedGPT52.maxOutputTokens, 128_000)
+
+        let gpt5 = ModelCatalog.modelInfo(for: "gpt-5", provider: .openai)
+        let resolvedGPT5 = ModelSettingsResolver.resolve(model: gpt5, providerType: .openai)
+        XCTAssertEqual(resolvedGPT5.contextWindow, 400_000)
+        XCTAssertEqual(resolvedGPT5.maxOutputTokens, 128_000)
+
+        let o3 = ModelCatalog.modelInfo(for: "o3", provider: .openai)
+        let resolvedO3 = ModelSettingsResolver.resolve(model: o3, providerType: .openai)
+        XCTAssertEqual(resolvedO3.contextWindow, 200_000)
+        XCTAssertEqual(resolvedO3.maxOutputTokens, 100_000)
+
+        let gpt4o = ModelCatalog.modelInfo(for: "gpt-4o", provider: .openai)
+        let resolvedGPT4o = ModelSettingsResolver.resolve(model: gpt4o, providerType: .openai)
+        XCTAssertEqual(resolvedGPT4o.contextWindow, 128_000)
+        XCTAssertEqual(resolvedGPT4o.maxOutputTokens, 16_384)
+    }
+
+    func testAnthropicCatalogCarriesDocsVerifiedContextAndMaxOutput() {
+        let opus46 = ModelCatalog.modelInfo(for: "claude-opus-4-6", provider: .anthropic)
+        let resolvedOpus46 = ModelSettingsResolver.resolve(model: opus46, providerType: .anthropic)
+        XCTAssertEqual(resolvedOpus46.contextWindow, 200_000)
+        XCTAssertEqual(resolvedOpus46.maxOutputTokens, 128_000)
+
+        let sonnet46 = ModelCatalog.modelInfo(for: "claude-sonnet-4-6", provider: .anthropic)
+        let resolvedSonnet46 = ModelSettingsResolver.resolve(model: sonnet46, providerType: .anthropic)
+        XCTAssertEqual(resolvedSonnet46.contextWindow, 200_000)
+        XCTAssertEqual(resolvedSonnet46.maxOutputTokens, 64_000)
+
+        let opus45 = ModelCatalog.modelInfo(for: "claude-opus-4-5-20251101", provider: .anthropic)
+        let resolvedOpus45 = ModelSettingsResolver.resolve(model: opus45, providerType: .anthropic)
+        XCTAssertEqual(resolvedOpus45.contextWindow, 200_000)
+        XCTAssertEqual(resolvedOpus45.maxOutputTokens, 64_000)
+
+        let haiku45 = ModelCatalog.modelInfo(for: "claude-haiku-4-5-20251001", provider: .anthropic)
+        let resolvedHaiku45 = ModelSettingsResolver.resolve(model: haiku45, providerType: .anthropic)
+        XCTAssertEqual(resolvedHaiku45.contextWindow, 200_000)
+        XCTAssertEqual(resolvedHaiku45.maxOutputTokens, 64_000)
+    }
+
+    func testGeminiAndVertexCatalogCarryDocsVerifiedContextAndMaxOutput() {
+        let gemini31Pro = ModelCatalog.modelInfo(for: "gemini-3.1-pro-preview", provider: .gemini)
+        let resolvedGemini31Pro = ModelSettingsResolver.resolve(model: gemini31Pro, providerType: .gemini)
+        XCTAssertEqual(resolvedGemini31Pro.contextWindow, 1_048_576)
+        XCTAssertEqual(resolvedGemini31Pro.maxOutputTokens, 65_536)
+
+        let geminiImage = ModelCatalog.modelInfo(for: "gemini-2.5-flash-image", provider: .gemini)
+        let resolvedGeminiImage = ModelSettingsResolver.resolve(model: geminiImage, providerType: .gemini)
+        XCTAssertEqual(resolvedGeminiImage.contextWindow, 65_536)
+        XCTAssertEqual(resolvedGeminiImage.maxOutputTokens, 32_768)
+
+        let vertex25Pro = ModelCatalog.modelInfo(for: "gemini-2.5-pro", provider: .vertexai)
+        let resolvedVertex25Pro = ModelSettingsResolver.resolve(model: vertex25Pro, providerType: .vertexai)
+        XCTAssertEqual(resolvedVertex25Pro.contextWindow, 1_048_576)
+        XCTAssertEqual(resolvedVertex25Pro.maxOutputTokens, 65_535)
+
+        let vertex25Flash = ModelCatalog.modelInfo(for: "gemini-2.5-flash", provider: .vertexai)
+        let resolvedVertex25Flash = ModelSettingsResolver.resolve(model: vertex25Flash, providerType: .vertexai)
+        XCTAssertEqual(resolvedVertex25Flash.contextWindow, 1_048_576)
+        XCTAssertEqual(resolvedVertex25Flash.maxOutputTokens, 65_535)
+
+        let vertexFlashImage = ModelCatalog.modelInfo(for: "gemini-2.5-flash-image", provider: .vertexai)
+        let resolvedVertexFlashImage = ModelSettingsResolver.resolve(model: vertexFlashImage, providerType: .vertexai)
+        XCTAssertEqual(resolvedVertexFlashImage.contextWindow, 32_768)
+        XCTAssertEqual(resolvedVertexFlashImage.maxOutputTokens, 32_768)
+    }
+
     func testOpenRouterUsesUnifiedRequestShapeAcrossModelFamilies() {
         let claudeModel = ModelInfo(
             id: "anthropic/claude-sonnet-4.6",

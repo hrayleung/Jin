@@ -162,6 +162,10 @@ actor XAIAdapter: LLMProviderAdapter {
                     continuation.yield(.searchActivity(citationActivity))
                 }
 
+                if let notice = response.incompleteNoticeMarkdown {
+                    continuation.yield(.contentDelta(.text(notice)))
+                }
+
                 continuation.yield(.messageEnd(usage: response.toUsage()))
                 continuation.finish()
             }
@@ -177,10 +181,22 @@ actor XAIAdapter: LLMProviderAdapter {
                 do {
                     var functionCallsByItemID: [String: ResponsesAPIFunctionCallState] = [:]
                     var streamedOutputText = ""
+                    var didEmitTerminalMessageEnd = false
 
                     for try await event in sseStream {
                         switch event {
                         case .event(let type, let data):
+                            if type == "response.incomplete",
+                               let jsonData = data.data(using: .utf8),
+                               let incomplete = try? streamDecoder.decode(ResponsesAPIIncompleteEvent.self, from: jsonData) {
+                                if let notice = incomplete.response.incompleteNoticeMarkdown {
+                                    continuation.yield(.contentDelta(.text(notice)))
+                                }
+                                continuation.yield(.messageEnd(usage: incomplete.response.toUsage()))
+                                didEmitTerminalMessageEnd = true
+                                continue
+                            }
+
                             if type == "response.completed",
                                let jsonData = data.data(using: .utf8),
                                let completed = try? streamDecoder.decode(ResponsesAPICompletedEvent.self, from: jsonData),
@@ -203,10 +219,15 @@ actor XAIAdapter: LLMProviderAdapter {
                                 if case .contentDelta(.text(let delta)) = streamEvent {
                                     streamedOutputText.append(delta)
                                 }
+                                if case .messageEnd = streamEvent {
+                                    didEmitTerminalMessageEnd = true
+                                }
                                 continuation.yield(streamEvent)
                             }
                         case .done:
-                            continuation.yield(.messageEnd(usage: nil))
+                            if !didEmitTerminalMessageEnd {
+                                continuation.yield(.messageEnd(usage: nil))
+                            }
                         }
                     }
                     continuation.finish()
