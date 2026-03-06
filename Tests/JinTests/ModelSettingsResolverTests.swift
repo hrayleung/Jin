@@ -49,6 +49,21 @@ final class ModelSettingsResolverTests: XCTestCase {
         XCTAssertTrue(resolved.capabilities.contains(.reasoning))
     }
 
+    func testResolverFallsBackToModelMaxOutputTokens() {
+        let model = ModelInfo(
+            id: "openai/gpt-4o",
+            name: "GPT-4o",
+            capabilities: [.streaming, .toolCalling],
+            contextWindow: 128_000,
+            maxOutputTokens: 16_384,
+            reasoningConfig: nil,
+            isEnabled: true
+        )
+
+        let resolved = ModelSettingsResolver.resolve(model: model, providerType: .githubCopilot)
+        XCTAssertEqual(resolved.maxOutputTokens, 16_384)
+    }
+
     func testOpenRouterUsesUnifiedRequestShapeAcrossModelFamilies() {
         let claudeModel = ModelInfo(
             id: "anthropic/claude-sonnet-4.6",

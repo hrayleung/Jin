@@ -39,6 +39,8 @@ enum ModelSettingsResolver {
             capabilities: capabilities
         )
         let maxOutputTokens = normalizedPositiveInt(overrides?.maxOutputTokens)
+            ?? normalizedPositiveInt(catalogEntry?.maxOutputTokens)
+            ?? normalizedPositiveInt(model.maxOutputTokens)
         let modelType = overrides?.modelType ?? inferModelType(capabilities: capabilities, modelID: model.id)
         let reasoningCanDisable = overrides?.reasoningCanDisable
             ?? defaultReasoningCanDisable(for: providerType, modelID: model.id)

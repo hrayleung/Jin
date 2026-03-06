@@ -38,9 +38,17 @@ struct ProviderConfigFormView: View {
     @State private var openRouterUsageStatus: OpenRouterUsageStatus = .idle
     @State private var openRouterUsage: OpenRouterKeyUsage?
     @State private var openRouterUsageTask: Task<Void, Never>?
+    @State private var gitHubAuthMode: GitHubAuthMode = .githubCLI
+    @State private var gitHubAuthStatus: GitHubAuthStatus = .idle
+    @State private var gitHubAuthenticatedUser: GitHubAuthenticatedUser?
+    @State private var gitHubDeviceCodeResponse: GitHubDeviceCodeResponse?
+    @State private var gitHubOAuthClientID = ""
+    @State private var gitHubAuthTask: Task<Void, Never>?
 
     private let providerManager = ProviderManager()
     private let networkManager = NetworkManager()
+    private let gitHubDeviceFlowAuthenticator = GitHubDeviceFlowAuthenticator()
+    private let gitHubCLIAuthBridge = GitHubCLIAuthBridge()
 
     private struct FetchedModelsSelectionState: Identifiable {
         let id = UUID()
@@ -102,6 +110,8 @@ struct ProviderConfigFormView: View {
                     codexServerSection
                     codexAuthSection
                     codexWorkingDirectoryPresetsSection
+                case .githubCopilot:
+                    gitHubCopilotSection
                 case .openai, .openaiWebSocket, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter,
                      .anthropic, .perplexity, .groq, .cohere, .mistral, .deepinfra, .together, .xai,
                      .deepseek, .zhipuCodingPlan, .fireworks, .cerebras, .sambanova, .gemini:
@@ -315,6 +325,13 @@ struct ProviderConfigFormView: View {
             if providerType == .codexAppServer, codexAuthMode == .chatGPT {
                 await refreshCodexAccountStatus(forceRefreshToken: false)
             }
+            if providerType == .githubCopilot, !apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                if gitHubAuthMode == .oauthDevice {
+                    await refreshGitHubOAuthStatus()
+                } else if gitHubAuthMode == .githubCLI {
+                    await refreshGitHubCLIStatus()
+                }
+            }
         }
         .onChange(of: apiKey) { _, _ in
             guard hasLoadedCredentials else { return }
@@ -322,6 +339,10 @@ struct ProviderConfigFormView: View {
             if providerType == .openrouter {
                 scheduleOpenRouterUsageRefresh()
             }
+        }
+        .onChange(of: gitHubOAuthClientID) { _, _ in
+            guard hasLoadedCredentials else { return }
+            scheduleCredentialSave()
         }
         .onChange(of: codexAuthMode) { _, _ in
             guard hasLoadedCredentials else { return }
@@ -332,6 +353,14 @@ struct ProviderConfigFormView: View {
             codexAuthStatus = .idle
             scheduleCredentialSave()
         }
+        .onChange(of: gitHubAuthMode) { _, _ in
+            guard hasLoadedCredentials else { return }
+            gitHubAuthTask?.cancel()
+            gitHubDeviceCodeResponse = nil
+            gitHubAuthenticatedUser = nil
+            gitHubAuthStatus = .idle
+            scheduleCredentialSave()
+        }
         .onChange(of: serviceAccountJSON) { _, _ in
             guard hasLoadedCredentials else { return }
             scheduleCredentialSave()
@@ -340,6 +369,7 @@ struct ProviderConfigFormView: View {
             credentialSaveTask?.cancel()
             openRouterUsageTask?.cancel()
             codexAuthTask?.cancel()
+            gitHubAuthTask?.cancel()
         }
         .sheet(isPresented: $showingCodexWorkingDirectoryPresetsSheet) {
             CodexWorkingDirectoryPresetsManagerSheetView(
@@ -476,9 +506,9 @@ struct ProviderConfigFormView: View {
         HStack(spacing: 8) {
             Group {
                 if showingAPIKey {
-                    TextField("API Key", text: $apiKey)
+                    TextField(apiKeyFieldTitle, text: $apiKey)
                 } else {
-                    SecureField("API Key", text: $apiKey)
+                    SecureField(apiKeyFieldTitle, text: $apiKey)
                 }
             }
             Button {
@@ -492,6 +522,228 @@ struct ProviderConfigFormView: View {
             .help(showingAPIKey ? "Hide API key" : "Show API key")
             .disabled(apiKey.isEmpty)
         }
+    }
+
+    private var apiKeyFieldTitle: String {
+        providerType == .githubCopilot ? "GitHub Token" : "API Key"
+    }
+
+    // MARK: - GitHub Copilot
+
+    private var gitHubCopilotSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Uses GitHub Models' official REST inference API. Recommended: click `GitHub CLI` to let Jin open the browser login via `gh` and import the token automatically. You can also paste a GitHub token manually, or use OAuth device flow with your own OAuth App Client ID.")
+                .jinInfoCallout()
+
+            Picker("Authentication", selection: $gitHubAuthMode) {
+                Text("GitHub CLI").tag(GitHubAuthMode.githubCLI)
+                Text("Token").tag(GitHubAuthMode.token)
+                Text("OAuth App").tag(GitHubAuthMode.oauthDevice)
+            }
+            .pickerStyle(.segmented)
+
+            switch gitHubAuthMode {
+            case .githubCLI:
+                gitHubCLISection
+            case .token:
+                apiKeyField
+            case .oauthDevice:
+                gitHubOAuthSection
+            }
+        }
+    }
+
+    private var gitHubCLISection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 6) {
+                Circle()
+                    .fill(gitHubAuthStatusColor)
+                    .frame(width: 8, height: 8)
+                Text(gitHubAuthStatusLabel)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Text(gitHubAuthStatusMessage)
+                .foregroundStyle(.secondary)
+
+            Text("Requires the official GitHub CLI (`gh`). Jin imports the authenticated token into this provider after browser login. Logging out here only clears Jin's imported token.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            HStack {
+                Button {
+                    connectGitHubCLI()
+                } label: {
+                    Label("Connect with GitHub", systemImage: "person.badge.key")
+                }
+                .buttonStyle(.borderless)
+                .disabled(gitHubAuthStatus == .working)
+
+                Button {
+                    Task { await refreshGitHubCLIStatus() }
+                } label: {
+                    Label("Refresh Status", systemImage: "arrow.clockwise")
+                }
+                .buttonStyle(.borderless)
+                .disabled(gitHubRefreshDisabled)
+
+                Button(role: .destructive) {
+                    disconnectGitHubCLI()
+                } label: {
+                    Label("Clear Imported Token", systemImage: "trash")
+                }
+                .buttonStyle(.borderless)
+                .disabled(gitHubLogoutDisabled)
+
+                if gitHubAuthStatus == .working {
+                    ProgressView()
+                        .scaleEffect(0.5)
+                }
+            }
+        }
+        .padding(.vertical, 4)
+    }
+
+    private var gitHubOAuthSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 6) {
+                Circle()
+                    .fill(gitHubAuthStatusColor)
+                    .frame(width: 8, height: 8)
+                Text(gitHubAuthStatusLabel)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Text(gitHubAuthStatusMessage)
+                .foregroundStyle(.secondary)
+
+            TextField("OAuth App Client ID", text: $gitHubOAuthClientID)
+                .textFieldStyle(.roundedBorder)
+
+            if let deviceCode = gitHubDeviceCodeResponse {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("User code: \(deviceCode.userCode)")
+                        .font(.system(.body, design: .monospaced))
+                    Text("Verification URL: \(deviceCode.verificationURI)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            HStack {
+                Button {
+                    connectGitHubOAuth()
+                } label: {
+                    Label("Connect GitHub", systemImage: "person.badge.key")
+                }
+                .buttonStyle(.borderless)
+                .disabled(gitHubConnectDisabled)
+
+                Button {
+                    Task { await refreshGitHubOAuthStatus() }
+                } label: {
+                    Label("Refresh Status", systemImage: "arrow.clockwise")
+                }
+                .buttonStyle(.borderless)
+                .disabled(gitHubRefreshDisabled)
+
+                Button(role: .destructive) {
+                    disconnectGitHubOAuth()
+                } label: {
+                    Label("Logout", systemImage: "rectangle.portrait.and.arrow.right")
+                }
+                .buttonStyle(.borderless)
+                .disabled(gitHubLogoutDisabled)
+
+                if gitHubAuthStatus == .working {
+                    ProgressView()
+                        .scaleEffect(0.5)
+                }
+            }
+        }
+        .padding(.vertical, 4)
+    }
+
+    private var gitHubAuthStatusLabel: String {
+        switch gitHubAuthStatus {
+        case .idle:
+            return "Not connected"
+        case .working:
+            return "Working"
+        case .connected:
+            return "Connected"
+        case .failure:
+            return "Failed"
+        }
+    }
+
+    private var gitHubAuthStatusColor: Color {
+        switch gitHubAuthStatus {
+        case .connected:
+            return .green
+        case .working:
+            return .orange
+        case .idle, .failure:
+            return .secondary
+        }
+    }
+
+    private var gitHubAuthStatusMessage: String {
+        switch gitHubAuthStatus {
+        case .idle:
+            switch gitHubAuthMode {
+            case .githubCLI:
+                return "Click Connect with GitHub to launch GitHub CLI browser login and import the token into Jin."
+            case .token:
+                return "Paste a GitHub token with GitHub Models access."
+            case .oauthDevice:
+                return "Enter your GitHub OAuth App Client ID and start the device flow, or switch back to token mode."
+            }
+        case .working:
+            if let deviceCode = gitHubDeviceCodeResponse {
+                return "Finish authorization at \(deviceCode.verificationURI) with code \(deviceCode.userCode)."
+            }
+            if gitHubAuthMode == .githubCLI {
+                return "Waiting for GitHub CLI browser authorization..."
+            }
+            return "Waiting for GitHub authorization..."
+        case .connected:
+            if let login = gitHubAuthenticatedUser?.login,
+               let name = gitHubAuthenticatedUser?.name?.trimmingCharacters(in: .whitespacesAndNewlines),
+               !name.isEmpty {
+                return "Logged in as \(name) (@\(login))."
+            }
+            if let login = gitHubAuthenticatedUser?.login {
+                return "Logged in as @\(login)."
+            }
+            if gitHubAuthMode == .githubCLI {
+                return "GitHub CLI token has been imported into Jin and can access GitHub Models."
+            }
+            return "GitHub OAuth token is available and can access GitHub Models."
+        case .failure(let message):
+            return message
+        }
+    }
+
+    private var gitHubConnectDisabled: Bool {
+        switch gitHubAuthMode {
+        case .githubCLI:
+            return gitHubAuthStatus == .working
+        case .token:
+            return true
+        case .oauthDevice:
+            return gitHubAuthStatus == .working || gitHubOAuthClientID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        }
+    }
+
+    private var gitHubRefreshDisabled: Bool {
+        gitHubAuthStatus == .working || apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private var gitHubLogoutDisabled: Bool {
+        gitHubAuthStatus == .working || apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     // MARK: - Codex Auth
@@ -1055,6 +1307,7 @@ struct ProviderConfigFormView: View {
                 name: model.name,
                 capabilities: model.capabilities,
                 contextWindow: model.contextWindow,
+                maxOutputTokens: model.maxOutputTokens,
                 reasoningConfig: model.reasoningConfig,
                 overrides: model.overrides,
                 catalogMetadata: model.catalogMetadata,
@@ -1119,6 +1372,19 @@ struct ProviderConfigFormView: View {
                 codexAccount = nil
                 codexRateLimit = nil
                 codexPendingLoginID = nil
+            case .githubCopilot:
+                apiKey = provider.apiKey ?? ""
+                gitHubOAuthClientID = provider.oauthClientID ?? ""
+                if provider.apiKeyKeychainID == GitHubDeviceFlowAuthenticator.authModeHint {
+                    gitHubAuthMode = .oauthDevice
+                } else if provider.apiKeyKeychainID == GitHubProviderAuthModeHint.githubCLI {
+                    gitHubAuthMode = .githubCLI
+                } else {
+                    gitHubAuthMode = apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? .githubCLI : .token
+                }
+                gitHubAuthStatus = .idle
+                gitHubAuthenticatedUser = nil
+                gitHubDeviceCodeResponse = nil
             case .openai, .openaiWebSocket, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter,
                  .anthropic, .perplexity, .groq, .cohere, .mistral, .deepinfra, .together, .xai,
                  .deepseek, .zhipuCodingPlan, .fireworks, .cerebras, .sambanova, .gemini:
@@ -1293,6 +1559,165 @@ struct ProviderConfigFormView: View {
         return max(totalCredits - totalUsage, 0)
     }
 
+    private func connectGitHubCLI() {
+        gitHubAuthTask?.cancel()
+        gitHubAuthTask = Task {
+            await MainActor.run {
+                gitHubAuthStatus = .working
+                gitHubDeviceCodeResponse = nil
+                gitHubAuthenticatedUser = nil
+            }
+
+            do {
+                let accessToken = try await gitHubCLIAuthBridge.importToken()
+                try await gitHubDeviceFlowAuthenticator.validateGitHubModelsAccess(accessToken: accessToken)
+                let authenticatedUser = try? await gitHubDeviceFlowAuthenticator.fetchAuthenticatedUser(accessToken: accessToken)
+
+                await MainActor.run {
+                    apiKey = accessToken
+                    gitHubAuthenticatedUser = authenticatedUser
+                    gitHubAuthStatus = .connected
+                }
+                try await saveCredentials()
+            } catch is CancellationError {
+                return
+            } catch {
+                await MainActor.run {
+                    gitHubAuthStatus = .failure(error.localizedDescription)
+                }
+            }
+        }
+    }
+
+    private func refreshGitHubCLIStatus() async {
+        guard providerType == .githubCopilot, gitHubAuthMode == .githubCLI else { return }
+        await MainActor.run { gitHubAuthStatus = .working }
+
+        do {
+            let accessToken = try await gitHubCLIAuthBridge.currentToken()
+            try await gitHubDeviceFlowAuthenticator.validateGitHubModelsAccess(accessToken: accessToken)
+            let authenticatedUser = try? await gitHubDeviceFlowAuthenticator.fetchAuthenticatedUser(accessToken: accessToken)
+            await MainActor.run {
+                apiKey = accessToken
+                gitHubAuthenticatedUser = authenticatedUser
+                gitHubDeviceCodeResponse = nil
+                gitHubAuthStatus = .connected
+            }
+            try await saveCredentials()
+        } catch is CancellationError {
+            return
+        } catch {
+            await MainActor.run {
+                gitHubAuthenticatedUser = nil
+                gitHubAuthStatus = .failure(error.localizedDescription)
+            }
+        }
+    }
+
+    private func disconnectGitHubCLI() {
+        gitHubAuthTask?.cancel()
+        gitHubAuthTask = nil
+        gitHubDeviceCodeResponse = nil
+        gitHubAuthenticatedUser = nil
+        gitHubAuthStatus = .idle
+        apiKey = ""
+        scheduleCredentialSave()
+    }
+
+    private func connectGitHubOAuth() {
+        gitHubAuthTask?.cancel()
+        gitHubAuthTask = Task {
+            await MainActor.run {
+                gitHubAuthStatus = .working
+                gitHubDeviceCodeResponse = nil
+                gitHubAuthenticatedUser = nil
+            }
+
+            do {
+                try await saveCredentials()
+
+                let clientID = await MainActor.run {
+                    gitHubOAuthClientID.trimmingCharacters(in: .whitespacesAndNewlines)
+                }
+                let deviceCode = try await gitHubDeviceFlowAuthenticator.requestDeviceCode(clientID: clientID)
+
+                await MainActor.run {
+                    gitHubDeviceCodeResponse = deviceCode
+                    if let verificationURL = URL(string: deviceCode.verificationURI) {
+                        openURL(verificationURL)
+                    }
+                }
+
+                let accessToken = try await gitHubDeviceFlowAuthenticator.waitForAccessToken(
+                    clientID: clientID,
+                    deviceCodeResponse: deviceCode
+                )
+                try await gitHubDeviceFlowAuthenticator.validateGitHubModelsAccess(accessToken: accessToken.accessToken)
+                let authenticatedUser = try? await gitHubDeviceFlowAuthenticator.fetchAuthenticatedUser(accessToken: accessToken.accessToken)
+
+                await MainActor.run {
+                    apiKey = accessToken.accessToken
+                    gitHubAuthenticatedUser = authenticatedUser
+                    gitHubDeviceCodeResponse = nil
+                    gitHubAuthStatus = .connected
+                }
+                try await saveCredentials()
+            } catch is CancellationError {
+                return
+            } catch {
+                await MainActor.run {
+                    gitHubAuthStatus = .failure(error.localizedDescription)
+                }
+            }
+        }
+    }
+
+    private func refreshGitHubOAuthStatus() async {
+        guard providerType == .githubCopilot, gitHubAuthMode == .oauthDevice else { return }
+
+        let token = await MainActor.run {
+            apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        guard !token.isEmpty else {
+            await MainActor.run {
+                gitHubAuthenticatedUser = nil
+                gitHubDeviceCodeResponse = nil
+                gitHubAuthStatus = .idle
+            }
+            return
+        }
+
+        await MainActor.run { gitHubAuthStatus = .working }
+
+        do {
+            try await saveCredentials()
+            try await gitHubDeviceFlowAuthenticator.validateGitHubModelsAccess(accessToken: token)
+            let authenticatedUser = try? await gitHubDeviceFlowAuthenticator.fetchAuthenticatedUser(accessToken: token)
+            await MainActor.run {
+                gitHubAuthenticatedUser = authenticatedUser
+                gitHubDeviceCodeResponse = nil
+                gitHubAuthStatus = .connected
+            }
+        } catch is CancellationError {
+            return
+        } catch {
+            await MainActor.run {
+                gitHubAuthenticatedUser = nil
+                gitHubAuthStatus = .failure(error.localizedDescription)
+            }
+        }
+    }
+
+    private func disconnectGitHubOAuth() {
+        gitHubAuthTask?.cancel()
+        gitHubAuthTask = nil
+        gitHubDeviceCodeResponse = nil
+        gitHubAuthenticatedUser = nil
+        gitHubAuthStatus = .idle
+        apiKey = ""
+        scheduleCredentialSave()
+    }
+
     private func connectCodexChatGPTAccount() {
         codexAuthTask?.cancel()
         codexAuthTask = Task {
@@ -1431,6 +1856,31 @@ struct ProviderConfigFormView: View {
                 provider.apiKeyKeychainID = codexAuthMode == .localCodex ? CodexLocalAuthStore.authModeHint : nil
                 provider.apiKey = (codexAuthMode == .apiKey && !key.isEmpty) ? key : nil
                 provider.serviceAccountJSON = nil
+                provider.oauthClientID = nil
+                try? modelContext.save()
+            }
+
+        case .githubCopilot:
+            let key = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+            let clientID = gitHubOAuthClientID.trimmingCharacters(in: .whitespacesAndNewlines)
+            if validate, gitHubAuthMode == .oauthDevice, clientID.isEmpty {
+                throw GitHubDeviceFlowError.missingClientID
+            }
+
+            await MainActor.run {
+                switch gitHubAuthMode {
+                case .githubCLI:
+                    provider.apiKeyKeychainID = GitHubProviderAuthModeHint.githubCLI
+                    provider.oauthClientID = nil
+                case .token:
+                    provider.apiKeyKeychainID = nil
+                    provider.oauthClientID = nil
+                case .oauthDevice:
+                    provider.apiKeyKeychainID = GitHubDeviceFlowAuthenticator.authModeHint
+                    provider.oauthClientID = clientID.isEmpty ? nil : clientID
+                }
+                provider.apiKey = key.isEmpty ? nil : key
+                provider.serviceAccountJSON = nil
                 try? modelContext.save()
             }
 
@@ -1442,6 +1892,7 @@ struct ProviderConfigFormView: View {
                 provider.apiKeyKeychainID = nil
                 provider.apiKey = key.isEmpty ? nil : key
                 provider.serviceAccountJSON = nil
+                provider.oauthClientID = nil
                 try? modelContext.save()
             }
 
@@ -1456,6 +1907,7 @@ struct ProviderConfigFormView: View {
                 provider.apiKeyKeychainID = nil
                 provider.serviceAccountJSON = json.isEmpty ? nil : json
                 provider.apiKey = nil
+                provider.oauthClientID = nil
                 try? modelContext.save()
             }
 
@@ -1507,19 +1959,38 @@ struct ProviderConfigFormView: View {
         let fetchedByID = allFetched.reduce(into: [String: ModelInfo]()) { $0[$1.id] = $1 }
         var resultByID = existingByID
 
-        // Refresh metadata for existing models that appeared in the fetch
-        for (id, fetched) in fetchedByID where existingByID[id] != nil {
-            let existing = existingByID[id]!
-            resultByID[id] = ModelInfo(
+        func mergedModel(from fetched: ModelInfo, preserving existing: ModelInfo) -> ModelInfo {
+            ModelInfo(
                 id: fetched.id,
                 name: fetched.name,
                 capabilities: fetched.capabilities,
                 contextWindow: fetched.contextWindow,
+                maxOutputTokens: fetched.maxOutputTokens,
                 reasoningConfig: fetched.reasoningConfig,
                 overrides: existing.overrides,
                 catalogMetadata: fetched.catalogMetadata,
                 isEnabled: existing.isEnabled
             )
+        }
+
+        // Refresh metadata for existing models that appeared in the fetch
+        for (id, fetched) in fetchedByID where existingByID[id] != nil {
+            let existing = existingByID[id]!
+            resultByID[id] = mergedModel(from: fetched, preserving: existing)
+        }
+
+        if providerType == .githubCopilot {
+            for (legacyID, existing) in existingByID where fetchedByID[legacyID] == nil {
+                guard let migrated = ProviderModelAliasResolver.resolvedModel(
+                    for: legacyID,
+                    providerType: .githubCopilot,
+                    availableModels: allFetched
+                ), migrated.id != legacyID else {
+                    continue
+                }
+                resultByID.removeValue(forKey: legacyID)
+                resultByID[migrated.id] = mergedModel(from: migrated, preserving: existing)
+            }
         }
 
         // Add newly selected models that don't already exist
@@ -1529,6 +2000,7 @@ struct ProviderConfigFormView: View {
                 name: model.name,
                 capabilities: model.capabilities,
                 contextWindow: model.contextWindow,
+                maxOutputTokens: model.maxOutputTokens,
                 reasoningConfig: model.reasoningConfig,
                 overrides: nil,
                 catalogMetadata: model.catalogMetadata,
@@ -1553,6 +2025,10 @@ struct ProviderConfigFormView: View {
                 return CodexLocalAuthStore.loadAPIKey() == nil || testStatus == .testing
             }
             return testStatus == .testing || codexAuthStatus == .working
+        case .githubCopilot:
+            return apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                || testStatus == .testing
+                || gitHubAuthStatus == .working
         case .openai, .openaiWebSocket, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter,
              .anthropic, .perplexity, .groq, .cohere, .mistral, .deepinfra, .together, .xai, .deepseek,
              .zhipuCodingPlan, .fireworks, .cerebras, .sambanova, .gemini:
@@ -1575,6 +2051,8 @@ struct ProviderConfigFormView: View {
                 return CodexLocalAuthStore.loadAPIKey() == nil
             }
             return codexAuthStatus == .working
+        case .githubCopilot:
+            return apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || gitHubAuthStatus == .working
         case .openai, .openaiWebSocket, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter,
              .anthropic, .perplexity, .groq, .cohere, .mistral, .deepinfra, .together, .xai, .deepseek,
              .zhipuCodingPlan, .fireworks, .cerebras, .sambanova, .gemini:
@@ -1635,6 +2113,19 @@ struct ProviderConfigFormView: View {
         case idle
         case testing
         case success
+        case failure(String)
+    }
+
+    enum GitHubAuthMode: String, CaseIterable {
+        case githubCLI
+        case token
+        case oauthDevice
+    }
+
+    enum GitHubAuthStatus: Equatable {
+        case idle
+        case working
+        case connected
         case failure(String)
     }
 

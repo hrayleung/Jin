@@ -127,7 +127,7 @@ enum ModelCapabilityRegistry {
             return .anthropic
         case .gemini, .vertexai:
             return .gemini
-        case .codexAppServer, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter,
+        case .codexAppServer, .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter,
              .groq, .cohere, .mistral, .deepinfra, .together, .xai, .deepseek,
              .zhipuCodingPlan, .fireworks, .cerebras, .sambanova, .perplexity, .none:
             return .openAICompatible
@@ -247,7 +247,7 @@ enum ModelCapabilityRegistry {
             return supportsGoogleSearch(lowerModelID: lowerModelID, providerType: .gemini)
         case .vertexai:
             return supportsGoogleSearch(lowerModelID: lowerModelID, providerType: .vertexai)
-        case .codexAppServer, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .groq,
+        case .codexAppServer, .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .groq,
              .cohere, .mistral, .deepinfra, .together, .deepseek, .zhipuCodingPlan,
              .fireworks, .cerebras, .sambanova, .none:
             return false

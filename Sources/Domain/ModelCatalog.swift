@@ -12,6 +12,7 @@ import Foundation
 struct ModelCatalogEntry {
     let capabilities: ModelCapability
     let contextWindow: Int
+    let maxOutputTokens: Int?
     let reasoningConfig: ModelReasoningConfig?
     let isFullySupported: Bool
     let displayName: String
@@ -28,6 +29,7 @@ enum ModelCatalog {
         let displayName: String
         let capabilities: ModelCapability
         let contextWindow: Int
+        let maxOutputTokens: Int? = nil
         let reasoningConfig: ModelReasoningConfig?
         let isFullySupported: Bool
         /// Whether this model appears in the first-launch seed list.
@@ -37,6 +39,7 @@ enum ModelCatalog {
             ModelCatalogEntry(
                 capabilities: capabilities,
                 contextWindow: contextWindow,
+                maxOutputTokens: maxOutputTokens,
                 reasoningConfig: reasoningConfig,
                 isFullySupported: isFullySupported,
                 displayName: displayName
@@ -63,6 +66,7 @@ enum ModelCatalog {
                 name: name ?? e.displayName,
                 capabilities: e.capabilities,
                 contextWindow: e.contextWindow,
+                maxOutputTokens: e.maxOutputTokens,
                 reasoningConfig: e.reasoningConfig
             )
         }
@@ -82,12 +86,13 @@ enum ModelCatalog {
             .filter { $0.isSeeded }
             .map { r in
                 ModelInfo(
-                    id: r.id,
-                    name: r.displayName,
-                    capabilities: r.capabilities,
-                    contextWindow: r.contextWindow,
-                    reasoningConfig: r.reasoningConfig
-                )
+                id: r.id,
+                name: r.displayName,
+                capabilities: r.capabilities,
+                contextWindow: r.contextWindow,
+                maxOutputTokens: r.maxOutputTokens,
+                reasoningConfig: r.reasoningConfig
+            )
             }
     }
 

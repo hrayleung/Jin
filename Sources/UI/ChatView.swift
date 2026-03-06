@@ -1694,7 +1694,12 @@ struct ChatView: View {
     }
 
     private var selectedModelInfo: ModelInfo? {
-        if let model = availableModels.first(where: { $0.id == conversationEntity.modelID }) {
+        if let model = resolvedModelInfo(
+            for: conversationEntity.modelID,
+            providerEntity: currentProvider,
+            providerType: providerType,
+            availableModels: availableModels
+        ) {
             return normalizedSelectedModelInfo(model)
         }
         return nil
@@ -1707,6 +1712,48 @@ struct ChatView: View {
 
     private var lowerModelID: String {
         conversationEntity.modelID.lowercased()
+    }
+
+    private func resolvedModelInfo(
+        for modelID: String,
+        providerEntity: ProviderConfigEntity?,
+        providerType: ProviderType?,
+        availableModels: [ModelInfo]? = nil
+    ) -> ModelInfo? {
+        let models = availableModels ?? providerEntity?.allModels ?? []
+        return ProviderModelAliasResolver.resolvedModel(
+            for: modelID,
+            providerType: providerType,
+            availableModels: models
+        )
+    }
+
+    private func effectiveModelID(
+        for modelID: String,
+        providerEntity: ProviderConfigEntity?,
+        providerType: ProviderType?,
+        availableModels: [ModelInfo]? = nil
+    ) -> String {
+        let models = availableModels ?? providerEntity?.allModels ?? []
+        return ProviderModelAliasResolver.resolvedModelID(
+            for: modelID,
+            providerType: providerType,
+            availableModels: models
+        )
+    }
+
+    private func migrateThreadModelIDIfNeeded(
+        _ thread: ConversationModelThreadEntity,
+        resolvedModelID: String
+    ) {
+        guard resolvedModelID != thread.modelID else { return }
+        let previousModelID = thread.modelID
+        thread.modelID = resolvedModelID
+        if conversationEntity.activeThreadID == thread.id || conversationEntity.modelID == previousModelID {
+            conversationEntity.modelID = resolvedModelID
+        }
+        conversationEntity.updatedAt = Date()
+        try? modelContext.save()
     }
 
     private func normalizedSelectedModelInfo(_ model: ModelInfo) -> ModelInfo {
@@ -1768,6 +1815,7 @@ struct ChatView: View {
             name: name,
             capabilities: caps,
             contextWindow: contextWindow,
+            maxOutputTokens: model.maxOutputTokens,
             reasoningConfig: reasoningConfig,
             overrides: model.overrides,
             catalogMetadata: model.catalogMetadata,
@@ -1783,7 +1831,7 @@ struct ChatView: View {
             return Self.xAIImageGenerationModelIDs.contains(lowerModelID)
         case .gemini, .vertexai:
             return Self.geminiImageGenerationModelIDs.contains(lowerModelID)
-        case .codexAppServer, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway,
+        case .codexAppServer, .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway,
              .openrouter, .anthropic, .perplexity, .groq, .cohere, .mistral, .deepinfra, .together,
              .deepseek, .zhipuCodingPlan, .fireworks, .cerebras, .sambanova, .none:
             return false
@@ -1808,7 +1856,7 @@ struct ChatView: View {
         switch providerType {
         case .openai, .openaiWebSocket, .anthropic, .perplexity, .xai, .gemini, .vertexai:
             break
-        case .codexAppServer, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter, .groq,
+        case .codexAppServer, .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter, .groq,
              .cohere, .mistral, .deepinfra, .together, .deepseek, .zhipuCodingPlan,
              .fireworks, .cerebras, .sambanova:
             return false
@@ -1847,7 +1895,7 @@ struct ChatView: View {
             return Self.mistralAudioInputModelIDs.contains(lowerModelID)
         case .gemini, .vertexai:
             return Self.geminiAudioInputModelIDs.contains(lowerModelID)
-        case .openrouter, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .deepinfra, .together:
+        case .githubCopilot, .openrouter, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .deepinfra, .together:
             return Self.compatibleAudioInputModelIDs.contains(lowerModelID)
         case .fireworks:
             return Self.fireworksAudioInputModelIDs.contains(lowerModelID)
@@ -2138,7 +2186,7 @@ struct ChatView: View {
         switch providerType {
         case .perplexity:
             return controls.webSearch?.enabled ?? true
-        case .openai, .openaiWebSocket, .codexAppServer, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway,
+        case .openai, .openaiWebSocket, .codexAppServer, .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway,
              .openrouter, .anthropic, .groq, .cohere, .mistral, .deepinfra, .together, .xai,
              .deepseek, .zhipuCodingPlan, .fireworks, .cerebras, .sambanova, .gemini, .vertexai, .none:
             return controls.webSearch?.enabled == true
@@ -2240,7 +2288,7 @@ struct ChatView: View {
         switch providerType {
         case .gemini, .vertexai:
             return true
-        case .openai, .openaiWebSocket, .codexAppServer, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway,
+        case .openai, .openaiWebSocket, .codexAppServer, .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway,
              .openrouter, .anthropic, .perplexity, .groq, .cohere, .mistral, .deepinfra, .together,
              .xai, .deepseek, .zhipuCodingPlan, .fireworks, .cerebras, .sambanova, .none:
             return false
@@ -2255,7 +2303,7 @@ struct ChatView: View {
         switch providerType {
         case .openai, .openaiWebSocket, .anthropic, .xai:
             return true
-        case .codexAppServer, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter, .perplexity,
+        case .codexAppServer, .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter, .perplexity,
              .groq, .cohere, .mistral, .deepinfra, .together, .gemini, .vertexai, .deepseek,
              .zhipuCodingPlan, .fireworks, .cerebras, .sambanova, .none:
             return false
@@ -2276,7 +2324,7 @@ struct ChatView: View {
             return "OpenAI uses prompt cache hints. A stable key and retention hint can improve reuse across similar prompts."
         case .xai:
             return "xAI supports prompt cache hints and optional conversation scoping for continuity across related turns."
-        case .codexAppServer, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter, .perplexity,
+        case .codexAppServer, .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter, .perplexity,
              .groq, .cohere, .mistral, .deepinfra, .together, .deepseek, .zhipuCodingPlan,
              .fireworks, .cerebras, .sambanova, .none:
             return "Context cache controls are only available for providers with native prompt caching support."
@@ -2291,7 +2339,7 @@ struct ChatView: View {
             return "Use a stable cache key when your prompt prefix is consistent."
         case .anthropic:
             return "For best results, keep system prompts and tool descriptions stable so Anthropic can reuse cacheable blocks."
-        case .codexAppServer, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter, .perplexity,
+        case .codexAppServer, .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter, .perplexity,
              .groq, .cohere, .mistral, .deepinfra, .together, .deepseek, .zhipuCodingPlan,
              .fireworks, .cerebras, .sambanova, .none:
             return "Use explicit mode for Gemini/Vertex cached content resources. Other providers use implicit cache hints."
@@ -2333,7 +2381,7 @@ struct ChatView: View {
             return ContextCacheControls(mode: .implicit)
         case .cloudflareAIGateway:
             return ContextCacheControls(mode: .implicit, ttl: .minutes5)
-        case .codexAppServer, .openaiCompatible, .vercelAIGateway, .openrouter, .perplexity, .groq, .cohere,
+        case .codexAppServer, .githubCopilot, .openaiCompatible, .vercelAIGateway, .openrouter, .perplexity, .groq, .cohere,
              .mistral, .deepinfra, .together, .deepseek, .zhipuCodingPlan, .fireworks,
              .cerebras, .sambanova:
             return nil
@@ -2390,7 +2438,7 @@ struct ChatView: View {
             return "Thinking: \(reasoningLabel)"
         case .perplexity:
             return "Reasoning: \(reasoningLabel)"
-        case .openai, .openaiWebSocket, .codexAppServer, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway,
+        case .openai, .openaiWebSocket, .codexAppServer, .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway,
              .openrouter, .groq, .cohere, .mistral, .deepinfra, .together, .xai, .deepseek,
              .zhipuCodingPlan, .fireworks, .cerebras, .sambanova, .none:
             return "Reasoning: \(reasoningLabel)"
@@ -2446,7 +2494,7 @@ struct ChatView: View {
             return (controls.webSearch?.contextSize ?? .low).displayName
         case .xai:
             return webSearchSourcesLabel
-        case .codexAppServer, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter, .anthropic,
+        case .codexAppServer, .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter, .anthropic,
              .groq, .cohere, .mistral, .deepinfra, .together, .gemini, .vertexai, .deepseek,
              .zhipuCodingPlan, .fireworks, .cerebras, .sambanova, .none:
             return "On"
@@ -2536,7 +2584,7 @@ struct ChatView: View {
             return "On"
         case .anthropic:
             return "On"
-        case .codexAppServer, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter, .groq,
+        case .codexAppServer, .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter, .groq,
              .cohere, .mistral, .deepinfra, .together, .gemini, .vertexai, .deepseek,
              .zhipuCodingPlan, .fireworks, .cerebras, .sambanova, .none:
             return "On"
@@ -2891,7 +2939,11 @@ struct ChatView: View {
     }
 
     private var currentModelName: String {
-        currentProvider?.allModels.first(where: { $0.id == conversationEntity.modelID })?.name ?? conversationEntity.modelID
+        resolvedModelInfo(
+            for: conversationEntity.modelID,
+            providerEntity: currentProvider,
+            providerType: providerType
+        )?.name ?? conversationEntity.modelID
     }
 
     private var currentProvider: ProviderConfigEntity? {
@@ -2907,12 +2959,13 @@ struct ChatView: View {
     }
 
     private func modelName(id modelID: String, providerID: String) -> String {
-        providers
-            .first(where: { $0.id == providerID })?
-            .allModels
-            .first(where: { $0.id == modelID })?
-            .name
-            ?? modelID
+        let providerEntity = providers.first(where: { $0.id == providerID })
+        let providerType = providerEntity.flatMap { ProviderType(rawValue: $0.typeRaw) }
+        return resolvedModelInfo(
+            for: modelID,
+            providerEntity: providerEntity,
+            providerType: providerType
+        )?.name ?? modelID
     }
 
     private func isActiveThread(_ thread: ConversationModelThreadEntity) -> Bool {
@@ -3121,6 +3174,8 @@ struct ChatView: View {
         switch type {
         case .openai, .openaiWebSocket:
             return models.first(where: { $0.id == "gpt-5.2" })?.id
+        case .githubCopilot:
+            return nil
         case .anthropic:
             return models.first(where: { $0.id == "claude-opus-4-6" })?.id
                 ?? models.first(where: { $0.id == "claude-sonnet-4-6" })?.id
@@ -3646,9 +3701,18 @@ struct ChatView: View {
 
     private func messagePreparationProfile(for thread: ConversationModelThreadEntity) throws -> MessagePreparationProfile {
         let providerTypeSnapshot = providerType(forProviderID: thread.providerID)
-        let lowerModelID = thread.modelID.lowercased()
         let providerEntity = providers.first(where: { $0.id == thread.providerID })
-        let modelInfo = providerEntity?.allModels.first(where: { $0.id == thread.modelID })
+        let resolvedModelID = effectiveModelID(
+            for: thread.modelID,
+            providerEntity: providerEntity,
+            providerType: providerTypeSnapshot
+        )
+        let lowerModelID = resolvedModelID.lowercased()
+        let modelInfo = resolvedModelInfo(
+            for: thread.modelID,
+            providerEntity: providerEntity,
+            providerType: providerTypeSnapshot
+        )
         let normalizedModelInfoSnapshot = modelInfo.map { normalizedModelInfo($0, for: providerTypeSnapshot) }
         let resolvedModelSettings = normalizedModelInfoSnapshot.map {
             ModelSettingsResolver.resolve(model: $0, providerType: providerTypeSnapshot)
@@ -3675,7 +3739,7 @@ struct ChatView: View {
             throw LLMError.decodingError(message: "Failed to load conversation settings: \(error.localizedDescription)")
         }
         let pdfMode = resolvedPDFProcessingMode(for: controls, supportsNativePDF: nativePDFSupported)
-        let modelName = modelInfo?.name ?? thread.modelID
+        let modelName = modelInfo?.name ?? resolvedModelID
 
         return MessagePreparationProfile(
             threadID: thread.id,
@@ -3709,7 +3773,7 @@ struct ChatView: View {
             return Self.xAIImageGenerationModelIDs.contains(lowerModelID)
         case .gemini, .vertexai:
             return Self.geminiImageGenerationModelIDs.contains(lowerModelID)
-        case .codexAppServer, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway,
+        case .codexAppServer, .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway,
              .openrouter, .anthropic, .perplexity, .groq, .cohere, .mistral, .deepinfra, .together,
              .deepseek, .zhipuCodingPlan, .fireworks, .cerebras, .sambanova, .none:
             return false
@@ -3739,7 +3803,7 @@ struct ChatView: View {
         switch providerType {
         case .openai, .openaiWebSocket, .anthropic, .perplexity, .xai, .gemini, .vertexai:
             break
-        case .codexAppServer, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter, .groq,
+        case .codexAppServer, .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter, .groq,
              .cohere, .mistral, .deepinfra, .together, .deepseek, .zhipuCodingPlan,
              .fireworks, .cerebras, .sambanova:
             return false
@@ -4167,10 +4231,19 @@ struct ChatView: View {
 
         guard let thread = sortedModelThreads.first(where: { $0.id == threadID }) else { return }
         let providerID = thread.providerID
-        let modelID = thread.modelID
         let providerEntity = providers.first(where: { $0.id == providerID })
         let providerTypeSnapshot = providerEntity.flatMap { ProviderType(rawValue: $0.typeRaw) } ?? ProviderType(rawValue: providerID)
-        let modelInfoSnapshot = providerEntity?.allModels.first(where: { $0.id == modelID })
+        let modelID = effectiveModelID(
+            for: thread.modelID,
+            providerEntity: providerEntity,
+            providerType: providerTypeSnapshot
+        )
+        migrateThreadModelIDIfNeeded(thread, resolvedModelID: modelID)
+        let modelInfoSnapshot = resolvedModelInfo(
+            for: modelID,
+            providerEntity: providerEntity,
+            providerType: providerTypeSnapshot
+        )
         let resolvedModelSettingsSnapshot = modelInfoSnapshot.map {
             ModelSettingsResolver.resolve(model: $0, providerType: providerTypeSnapshot)
         }
@@ -4335,7 +4408,7 @@ struct ChatView: View {
                         modelID: modelID,
                         controls: requestControls,
                         tools: allTools,
-                        streaming: true
+                        streaming: resolvedModelSettingsSnapshot?.capabilities.contains(.streaming) ?? true
                     )
 
                     // Streaming can yield very frequent deltas. Throttle how often we publish changes
@@ -5242,7 +5315,7 @@ struct ChatView: View {
                     Button("Configure\u{2026}") {
                         openAnthropicWebSearchEditor()
                     }
-                case .codexAppServer, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter, .groq,
+                case .codexAppServer, .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter, .groq,
                      .cohere, .mistral, .deepinfra, .together, .gemini, .vertexai, .deepseek,
                      .zhipuCodingPlan, .fireworks, .cerebras, .sambanova, .none:
                     EmptyView()
@@ -6674,7 +6747,7 @@ struct ChatView: View {
             return WebSearchControls(enabled: true, contextSize: nil, sources: [.web])
         case .anthropic:
             return WebSearchControls(enabled: true)
-        case .codexAppServer, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter, .groq,
+        case .codexAppServer, .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter, .groq,
              .cohere, .mistral, .deepinfra, .together, .gemini, .vertexai, .deepseek,
              .zhipuCodingPlan, .fireworks, .cerebras, .sambanova, .none:
             return WebSearchControls(enabled: true, contextSize: nil, sources: nil)
@@ -6702,7 +6775,7 @@ struct ChatView: View {
             controls.webSearch?.contextSize = nil
             controls.webSearch?.sources = nil
             normalizeAnthropicDomainFilters()
-        case .codexAppServer, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter, .groq,
+        case .codexAppServer, .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter, .groq,
              .cohere, .mistral, .deepinfra, .together, .gemini, .vertexai, .deepseek,
              .zhipuCodingPlan, .fireworks, .cerebras, .sambanova, .none:
             controls.webSearch?.contextSize = nil

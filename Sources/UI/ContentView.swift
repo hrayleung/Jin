@@ -971,16 +971,18 @@ struct ContentView: View {
             try? modelContext.save()
         }
 
-        // Seed defaults only for a fresh install.
-        guard persistedProviders.isEmpty else { return }
+        let persistedIDs = Set(persistedProviders.map(\.id))
+        let missingDefaults = DefaultProviderSeeds.allProviders().filter { !persistedIDs.contains($0.id) }
 
-        for config in DefaultProviderSeeds.allProviders() {
+        for config in missingDefaults {
             if let entity = try? ProviderConfigEntity.fromDomain(config) {
                 modelContext.insert(entity)
             }
         }
 
-        try? modelContext.save()
+        if !missingDefaults.isEmpty {
+            try? modelContext.save()
+        }
     }
 
     @MainActor

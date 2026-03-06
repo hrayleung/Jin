@@ -82,6 +82,11 @@ struct AddProviderView: View {
                         .jinInfoCallout()
                 }
 
+                if providerType == .githubCopilot {
+                    Text("Uses GitHub Models' official inference API at `https://models.github.ai/inference`. Recommended: add the provider, then click `GitHub CLI` in provider settings for one-click browser login. You can also paste a GitHub token now or use a custom OAuth App later.")
+                        .jinInfoCallout()
+                }
+
                 switch providerType {
                 case .codexAppServer:
                     VStack(alignment: .leading, spacing: 6) {
@@ -105,6 +110,31 @@ struct AddProviderView: View {
                             .disabled(apiKey.isEmpty)
                         }
                         Text("Leave blank to use ChatGPT account login in provider settings.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                case .githubCopilot:
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack(spacing: 8) {
+                            Group {
+                                if isKeyVisible {
+                                    TextField("GitHub Token (Optional)", text: $apiKey)
+                                } else {
+                                    SecureField("GitHub Token (Optional)", text: $apiKey)
+                                }
+                            }
+                            Button {
+                                isKeyVisible.toggle()
+                            } label: {
+                                Image(systemName: isKeyVisible ? "eye.slash" : "eye")
+                                    .foregroundStyle(.secondary)
+                                    .frame(width: 22, height: 22)
+                            }
+                            .buttonStyle(.plain)
+                            .help(isKeyVisible ? "Hide token" : "Show token")
+                            .disabled(apiKey.isEmpty)
+                        }
+                        Text("Leave blank to use OAuth device login in provider settings.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -224,6 +254,8 @@ struct AddProviderView: View {
 
         switch providerType {
         case .codexAppServer:
+            return false
+        case .githubCopilot:
             return false
         case .openai, .openaiWebSocket, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter,
              .anthropic, .perplexity, .groq, .cohere, .mistral, .deepinfra, .together, .xai, .deepseek,
