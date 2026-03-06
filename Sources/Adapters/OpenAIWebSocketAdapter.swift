@@ -16,6 +16,7 @@ actor OpenAIWebSocketAdapter: LLMProviderAdapter {
     private var webSocketTask: URLSessionWebSocketTask?
     private var isResponseInFlight = false
     private var previousResponseID: String?
+    private var activeTraceSessionID: UUID?
 
     nonisolated static func responseCreateEvent(from responsePayload: [String: Any]) -> [String: Any] {
         var event = responsePayload
@@ -131,13 +132,27 @@ actor OpenAIWebSocketAdapter: LLMProviderAdapter {
             throw LLMError.invalidRequest(message: "Failed to encode WebSocket request payload.")
         }
 
-        let ws = try openWebSocket()
         isResponseInFlight = true
+        let ws: URLSessionWebSocketTask
+        do {
+            ws = try await openWebSocket()
+        } catch {
+            isResponseInFlight = false
+            throw error
+        }
+
+        let socketURL = ws.originalRequest?.url
+        activeTraceSessionID = await NetworkDebugLogger.shared.beginWebSocketSession(
+            url: socketURL ?? URL(string: "wss://unknown")!,
+            headers: ws.originalRequest?.allHTTPHeaderFields
+        )
+        let traceSessionID = activeTraceSessionID
 
         return AsyncThrowingStream { continuation in
             let task = Task {
                 do {
                     try await ws.send(.string(createEventString))
+                    await NetworkDebugLogger.shared.logWebSocketSend(sessionID: traceSessionID, message: createEventString)
 
                     var functionCallsByItemID: [String: ResponsesAPIFunctionCallState] = [:]
 
@@ -154,6 +169,8 @@ actor OpenAIWebSocketAdapter: LLMProviderAdapter {
                         @unknown default:
                             jsonString = ""
                         }
+
+                        await NetworkDebugLogger.shared.logWebSocketReceive(sessionID: traceSessionID, message: jsonString)
 
                         guard let eventType = parseEventType(from: jsonString) else {
                             continue
@@ -188,12 +205,15 @@ actor OpenAIWebSocketAdapter: LLMProviderAdapter {
                     }
 
                     isResponseInFlight = false
+                    await NetworkDebugLogger.shared.endWebSocketSession(sessionID: traceSessionID, error: nil)
                     continuation.finish()
                 } catch is CancellationError {
                     await cancelResponseIfPossible()
+                    await NetworkDebugLogger.shared.endWebSocketSession(sessionID: traceSessionID, error: CancellationError())
                     resetWebSocketState()
                     continuation.finish(throwing: CancellationError())
                 } catch {
+                    await NetworkDebugLogger.shared.endWebSocketSession(sessionID: traceSessionID, error: error)
                     resetWebSocketState()
                     continuation.finish(throwing: error)
                 }
@@ -239,7 +259,7 @@ actor OpenAIWebSocketAdapter: LLMProviderAdapter {
 
     // MARK: - Private
 
-    private func openWebSocket() throws -> URLSessionWebSocketTask {
+    private func openWebSocket() async throws -> URLSessionWebSocketTask {
         if let existing = webSocketTask, existing.state == .running {
             return existing
         }
@@ -341,6 +361,7 @@ actor OpenAIWebSocketAdapter: LLMProviderAdapter {
     private func resetWebSocketState() {
         isResponseInFlight = false
         previousResponseID = nil
+        activeTraceSessionID = nil
         webSocketTask?.cancel(with: .goingAway, reason: nil)
         webSocketTask = nil
     }

@@ -14,8 +14,18 @@ actor NetworkDebugLogger {
         let fileURL: URL
     }
 
+    private struct ActiveWebSocketSession {
+        let context: NetworkDebugLogContext
+        let startedAt: Date
+        let url: String
+        let requestHeaders: [String: String]
+        var frames: [[String: Any]]
+        let fileURL: URL
+    }
+
     private let isoFormatter = ISO8601DateFormatter()
     private var activeRequests: [UUID: ActiveRequest] = [:]
+    private var activeWebSocketSessions: [UUID: ActiveWebSocketSession] = [:]
 
     nonisolated static var logRootDirectoryURL: URL {
         let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
@@ -128,6 +138,93 @@ actor NetworkDebugLogger {
         await writeRecord(record, to: metadata.fileURL)
     }
 
+    // MARK: - WebSocket Session Logging
+
+    func beginWebSocketSession(url: URL, headers: [String: String]?) async -> UUID? {
+        guard Self.isLoggingEnabled else { return nil }
+
+        let context = NetworkDebugLogScope.current ?? NetworkDebugLogContext()
+        guard context.conversationID != nil else { return nil }
+
+        let sessionID = UUID()
+        let startedAt = Date()
+
+        activeWebSocketSessions[sessionID] = ActiveWebSocketSession(
+            context: context,
+            startedAt: startedAt,
+            url: url.absoluteString,
+            requestHeaders: headers ?? [:],
+            frames: [],
+            fileURL: Self.logFileURL(for: context, startedAt: startedAt, requestID: sessionID)
+        )
+        return sessionID
+    }
+
+    func logWebSocketSend(sessionID: UUID?, message: String) async {
+        guard Self.isLoggingEnabled, let sessionID,
+              var session = activeWebSocketSessions[sessionID] else { return }
+
+        var frame: [String: Any] = [
+            "ts": timestamp(),
+            "direction": "send"
+        ]
+
+        if let data = message.data(using: .utf8),
+           let json = try? JSONSerialization.jsonObject(with: data) {
+            frame["body"] = json
+        } else {
+            frame["body"] = message
+        }
+
+        session.frames.append(frame)
+        activeWebSocketSessions[sessionID] = session
+    }
+
+    func logWebSocketReceive(sessionID: UUID?, message: String) async {
+        guard Self.isLoggingEnabled, let sessionID,
+              var session = activeWebSocketSessions[sessionID] else { return }
+
+        var frame: [String: Any] = [
+            "ts": timestamp(),
+            "direction": "receive"
+        ]
+
+        if let data = message.data(using: .utf8),
+           let json = try? JSONSerialization.jsonObject(with: data) {
+            frame["body"] = json
+        } else {
+            frame["body"] = message
+        }
+
+        session.frames.append(frame)
+        activeWebSocketSessions[sessionID] = session
+    }
+
+    func endWebSocketSession(sessionID: UUID?, error: Error?) async {
+        guard Self.isLoggingEnabled, let sessionID else { return }
+
+        guard let session = activeWebSocketSessions.removeValue(forKey: sessionID) else { return }
+
+        let record: [String: Any] = [
+            "request_id": sessionID.uuidString,
+            "mode": "websocket",
+            "context": session.context.jsonObject,
+            "connection": [
+                "ts": isoFormatter.string(from: session.startedAt),
+                "url": session.url,
+                "headers": session.requestHeaders
+            ],
+            "frames": session.frames,
+            "closed": [
+                "ts": timestamp(),
+                "latency_ms": Int(Date().timeIntervalSince(session.startedAt) * 1000),
+                "error": error?.localizedDescription ?? NSNull()
+            ] as [String: Any]
+        ]
+
+        await writeRecord(record, to: session.fileURL)
+    }
+
     func clearLogFile() async throws {
         try await clearLogs()
     }
@@ -139,6 +236,7 @@ actor NetworkDebugLogger {
             try FileManager.default.removeItem(at: root)
         }
         activeRequests.removeAll()
+        activeWebSocketSessions.removeAll()
     }
 
     private func timestamp() -> String {
