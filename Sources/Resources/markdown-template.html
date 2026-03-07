@@ -9,6 +9,21 @@
     --body-font: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;
     --code-font: 'SF Mono', Menlo, monospace;
     --body-font-size: 14px;
+    --inline-code-bg: light-dark(hsla(230, 1%, 96%, 0.96), hsla(220, 13%, 20%, 0.96));
+    --inline-code-border: light-dark(hsla(230, 8%, 24%, 0.10), hsla(220, 14%, 71%, 0.12));
+    --code-surface: light-dark(hsl(230, 1%, 98%), hsl(220, 13%, 18%));
+    --code-surface-raised: light-dark(hsl(230, 1%, 97%), hsl(220, 13%, 19%));
+    --code-border: light-dark(hsla(230, 8%, 24%, 0.10), hsla(220, 14%, 71%, 0.12));
+    --code-separator: light-dark(hsla(230, 8%, 24%, 0.08), hsla(220, 14%, 71%, 0.12));
+    --code-text: light-dark(hsl(230, 8%, 24%), hsl(220, 14%, 71%));
+    --code-muted: light-dark(hsl(230, 6%, 44%), hsl(220, 9%, 55%));
+    --code-selection: light-dark(hsl(230, 1%, 90%), hsl(220, 13%, 28%));
+    --code-header-top: light-dark(hsl(230, 1%, 98%), hsl(220, 13%, 20%));
+    --code-header-bottom: light-dark(hsl(230, 1%, 96%), hsl(220, 13%, 18%));
+    --code-button-hover-bg: light-dark(hsla(221, 87%, 60%, 0.09), hsla(207, 82%, 66%, 0.16));
+    --code-button-hover-fg: light-dark(hsl(221, 87%, 60%), hsl(207, 82%, 66%));
+    --code-button-active-bg: light-dark(hsla(221, 87%, 60%, 0.13), hsla(207, 82%, 66%, 0.22));
+    --code-shadow: light-dark(0 10px 24px rgba(15, 23, 42, 0.05), 0 12px 28px rgba(2, 8, 23, 0.28));
 }
 * { margin: 0; padding: 0; box-sizing: border-box; }
 html, body { overflow: hidden; }
@@ -38,18 +53,18 @@ a:hover { text-decoration: underline; }
 code {
     font-family: var(--code-font);
     font-size: 0.88em;
-    background: light-dark(rgba(0,0,0,0.05), rgba(255,255,255,0.08));
+    background: var(--inline-code-bg);
     padding: 0.15em 0.4em;
     border-radius: 5px;
-    border: 0.5px solid light-dark(rgba(0,0,0,0.08), rgba(255,255,255,0.1));
+    border: 0.5px solid var(--inline-code-border);
 }
 pre {
     margin: 0.6em 0;
     border-radius: 8px;
     overflow-x: auto;
-    background: light-dark(#f6f8fa, #161b22) !important;
+    background: var(--code-surface) !important;
     position: relative;
-    border: 1px solid light-dark(#e1e4e8, #30363d);
+    border: 1px solid var(--code-border);
 }
 pre code {
     display: block;
@@ -62,11 +77,11 @@ pre code {
 }
 .code-block {
     margin: 0.65em 0;
-    border: 1px solid light-dark(#d8dee4, #2f3948);
-    border-radius: 11px;
+    border: 1px solid var(--code-border);
+    border-radius: 12px;
     overflow: hidden;
-    background: transparent;
-    box-shadow: 0 1px 0 light-dark(rgba(15, 23, 42, 0.03), rgba(2, 8, 23, 0.28));
+    background: var(--code-surface);
+    box-shadow: var(--code-shadow);
 }
 .code-block pre {
     margin: 0;
@@ -75,11 +90,11 @@ pre code {
     background: transparent !important;
 }
 .code-block pre code {
-    padding: 0.9em 1em 1em;
+    padding: 0.95em 1.05em 1.05em;
 }
 .code-block .code-content {
     display: block;
-    background: light-dark(#f3f4f6, #2b3038);
+    background: var(--code-surface);
 }
 .code-block .code-content[hidden] {
     display: none !important;
@@ -90,79 +105,100 @@ pre code {
 }
 .code-block .prism-code {
     margin: 0 !important;
-    border-radius: 0 0 11px 11px !important;
+    border-radius: 0 0 12px 12px !important;
     background: transparent !important;
-    color: light-dark(#1f2937, #dbe5f2) !important;
-    padding: 0.9em 1em 1em;
+    color: var(--code-text) !important;
+    padding: 0.95em 1.05em 1.05em;
     font-size: 0.85em;
-    line-height: 1.55;
+    line-height: 1.58;
     white-space: pre;
     overflow-x: auto;
     font-style: normal;
+    text-shadow: none;
+    tab-size: 4;
 }
-/* Prism GitHub-inspired theme */
+.code-block .prism-code::selection,
+.code-block .prism-code *::selection {
+    background: var(--code-selection);
+    color: inherit;
+}
+/* Prism One Light / One Dark token colors */
 .code-block .prism-code .token.comment,
 .code-block .prism-code .token.prolog,
-.code-block .prism-code .token.doctype,
 .code-block .prism-code .token.cdata {
-    color: light-dark(#6a737d, #8b949e);
-    font-style: italic;
+    color: light-dark(hsl(230, 4%, 64%), hsl(220, 10%, 40%));
 }
+.code-block .prism-code .token.doctype,
 .code-block .prism-code .token.punctuation,
-.code-block .prism-code .token.namespace,
+.code-block .prism-code .token.entity {
+    color: var(--code-text);
+}
+.code-block .prism-code .token.attr-name,
+.code-block .prism-code .token.class-name,
+.code-block .prism-code .token.boolean,
+.code-block .prism-code .token.constant,
+.code-block .prism-code .token.number,
+.code-block .prism-code .token.atrule,
+.code-block .prism-code .token.builtin,
+.code-block .prism-code .token.char,
+.code-block .prism-code .token.inserted {
+    color: light-dark(hsl(35, 99%, 36%), hsl(29, 54%, 61%));
+}
+.code-block .prism-code .token.keyword {
+    color: light-dark(hsl(301, 63%, 40%), hsl(286, 60%, 67%));
+}
 .code-block .prism-code .token.operator,
-.code-block .prism-code .token.entity,
+.code-block .prism-code .token.function,
 .code-block .prism-code .token.url {
-    color: light-dark(#4b5563, #9fb0c3);
+    color: light-dark(hsl(221, 87%, 60%), hsl(207, 82%, 66%));
 }
 .code-block .prism-code .token.property,
 .code-block .prism-code .token.tag,
-.code-block .prism-code .token.constant,
 .code-block .prism-code .token.symbol,
 .code-block .prism-code .token.deleted,
-.code-block .prism-code .token.selector {
-    color: light-dark(#d73a49, #ff7b72);
+.code-block .prism-code .token.important {
+    color: light-dark(hsl(5, 74%, 59%), hsl(355, 65%, 65%));
 }
-.code-block .prism-code .token.boolean,
-.code-block .prism-code .token.number,
-.code-block .prism-code .token.atrule,
-.code-block .prism-code .token.attr-value,
-.code-block .prism-code .token.keyword {
-    color: light-dark(#005cc5, #79c0ff);
-}
+.code-block .prism-code .token.selector,
 .code-block .prism-code .token.string,
-.code-block .prism-code .token.char,
-.code-block .prism-code .token.builtin,
-.code-block .prism-code .token.inserted,
-.code-block .prism-code .token.regex {
-    color: light-dark(#032f62, #a5d6ff);
-}
-.code-block .prism-code .token.function,
-.code-block .prism-code .token.class-name,
-.code-block .prism-code .token.maybe-class-name {
-    color: light-dark(#6f42c1, #d2a8ff);
+.code-block .prism-code .token.regex,
+.code-block .prism-code .token.attr-value,
+.code-block .prism-code .token.attr-value > .token.punctuation {
+    color: light-dark(hsl(119, 34%, 47%), hsl(95, 38%, 62%));
 }
 .code-block .prism-code .token.variable,
 .code-block .prism-code .token.parameter,
-.code-block .prism-code .token.attr-name,
+.code-block .prism-code .token.namespace,
 .code-block .prism-code .token.placeholder {
-    color: light-dark(#e36209, #ffa657);
-}
-.code-block .prism-code .token.important,
-.code-block .prism-code .token.bold {
-    font-weight: 700;
+    color: light-dark(hsl(205, 82%, 48%), hsl(187, 47%, 55%));
 }
 .code-block .prism-code .token.italic,
 .code-block .prism-code .token.emphasis {
     font-style: italic;
 }
+.code-block .prism-code .token.bold,
+.code-block .prism-code .token.important {
+    font-weight: 700;
+}
 .code-block .prism-code .token.entity {
     cursor: help;
 }
+.code-block .prism-code .language-css .token.string,
+.code-block .prism-code .style .token.string,
+.code-block .prism-code .token.maybe-class-name {
+    color: light-dark(hsl(5, 74%, 59%), hsl(355, 65%, 65%));
+}
+.code-block .prism-code .language-json .token.operator,
+.code-block .prism-code .language-json5 .token.operator,
+.code-block .prism-code .language-markdown .token.url,
+.code-block .prism-code .language-markdown .token.url > .token.operator,
+.code-block .prism-code .language-markdown .token.url-reference.url > .token.string {
+    color: var(--code-text);
+}
 .code-block .code-preview {
-    padding: 0.95em 1em 1.05em;
-    background: light-dark(#f8fafc, #2d323a);
-    border-top: 1px solid light-dark(#d8dee6, #3a424c);
+    padding: 0.98em 1.05em 1.08em;
+    background: var(--code-surface-raised);
+    border-top: 1px solid var(--code-separator);
 }
 .code-block .code-preview svg {
     display: block;
@@ -184,15 +220,6 @@ pre code {
     background: light-dark(#fef2f2, #2a1212);
     color: light-dark(#991b1b, #fca5a5);
 }
-@media(prefers-color-scheme:dark){
-    .code-block .code-content {
-        background: #2b3038;
-    }
-    .code-block .code-preview {
-        background: #2d323a;
-        border-top: 1px solid #3a424c;
-    }
-}
 .code-block.is-collapsed {
     box-shadow: none;
 }
@@ -204,11 +231,11 @@ pre code {
     justify-content: space-between;
     align-items: center;
     gap: 8px;
-    padding: 0.34em 0.68em 0.34em 0.82em;
-    background: linear-gradient(180deg, light-dark(#f8fafc, #3b424d), light-dark(#f2f5f8, #343a44));
-    border-bottom: 1px solid light-dark(#d8dee4, #4a525f);
+    padding: 0.38em 0.72em 0.38em 0.86em;
+    background: linear-gradient(180deg, var(--code-header-top), var(--code-header-bottom));
+    border-bottom: 1px solid var(--code-separator);
     font-size: 0.75em;
-    color: light-dark(#4d5b6a, #94a3b8);
+    color: var(--code-muted);
     user-select: none;
     -webkit-user-select: none;
 }
@@ -259,29 +286,34 @@ pre code {
     width: 2em;
     height: 2em;
     padding: 0;
-    border-radius: 5px;
+    border-radius: 6px;
     border: none;
     background: transparent;
-    color: light-dark(#64748b, #9aa8bd);
+    color: var(--code-muted);
     font-size: 0.95em;
     line-height: 1;
-    opacity: 0.88;
-    transition: opacity 0.15s, background 0.15s, color 0.15s;
+    opacity: 0.92;
+    transition: opacity 0.15s, background 0.15s, color 0.15s, transform 0.15s;
 }
 .code-header .copy-btn:hover,
 .code-header .render-btn:hover,
 .code-header .fold-btn:hover {
-    background: light-dark(rgba(15,23,42,0.08), rgba(148,163,184,0.16));
-    color: light-dark(#0f172a, #e2e8f0);
+    background: var(--code-button-hover-bg);
+    color: var(--code-button-hover-fg);
+}
+.code-header .copy-btn:active,
+.code-header .render-btn:active,
+.code-header .fold-btn:active {
+    transform: translateY(0.5px);
 }
 .code-header .copy-btn.copied {
     opacity: 1;
-    color: light-dark(#15803d, #4ade80);
+    color: light-dark(hsl(119, 34%, 40%), hsl(95, 38%, 62%));
 }
 .code-header .render-btn.is-active {
     opacity: 1;
-    color: light-dark(#0b63f6, #8ab4f8);
-    background: light-dark(rgba(11,99,246,0.12), rgba(138,180,248,0.18));
+    color: var(--code-button-hover-fg);
+    background: var(--code-button-active-bg);
 }
 .code-header .render-btn.is-loading {
     opacity: 0.55;
