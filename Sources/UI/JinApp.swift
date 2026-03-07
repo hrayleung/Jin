@@ -5,7 +5,7 @@ import AppKit
 @MainActor
 private final class JinAppDelegate: NSObject, NSApplicationDelegate {
     func applicationWillTerminate(_ notification: Notification) {
-        CodexAppServerController.shared.stop()
+        CodexAppServerController.shared.shutdownForApplicationTermination()
     }
 }
 

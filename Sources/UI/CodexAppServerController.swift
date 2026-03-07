@@ -12,8 +12,15 @@ final class CodexAppServerController: ObservableObject {
         case failed(String)
     }
 
+    private struct ShutdownOutcome {
+        let remainingPIDs: [Int32]
+        let managedProcessCount: Int
+        let force: Bool
+    }
+
     @Published private(set) var status: Status = .stopped
     @Published private(set) var lastOutputLine: String?
+    @Published private(set) var managedProcessCount = 0
 
     private var process: Process?
     private var stdoutPipe: Pipe?
@@ -22,6 +29,9 @@ final class CodexAppServerController: ObservableObject {
     private var stderrLineBuffer = Data()
     private var stderrTail = Data()
     private var requestedStop = false
+    private var refreshTask: Task<Void, Never>?
+    private var shutdownTask: Task<Void, Never>?
+    private var shutdownGeneration = 0
 
     private let stderrTailLimitBytes = 32 * 1024
 
@@ -34,7 +44,13 @@ final class CodexAppServerController: ObservableObject {
         "/sbin",
     ]
 
-    private init() {}
+    private init() {
+        refreshManagedProcesses()
+    }
+
+    var hasManagedProcesses: Bool {
+        managedProcessCount > 0 || process?.isRunning == true
+    }
 
     func start(listenURL rawListenURL: String) throws {
         let listenURL = rawListenURL.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -51,6 +67,9 @@ final class CodexAppServerController: ObservableObject {
         guard process?.isRunning != true else {
             throw CodexAppServerControlError.alreadyRunning
         }
+        guard shutdownTask == nil else {
+            throw CodexAppServerControlError.launchFailed("Codex app-server is still stopping.")
+        }
 
         teardownProcessResources()
         requestedStop = false
@@ -60,7 +79,11 @@ final class CodexAppServerController: ObservableObject {
         stderrTail.removeAll(keepingCapacity: true)
         status = .starting
 
-        let environment = mergedEnvironment()
+        var environment = mergedEnvironment()
+        environment[CodexManagedProcessSupport.managedEnvironmentKey] = CodexManagedProcessSupport.managedEnvironmentValue
+        environment["JIN_MANAGED_CODEX_PARENT_PID"] = String(getpid())
+        environment["JIN_MANAGED_CODEX_LISTEN_URL"] = listenURL
+
         guard let codexExecutable = resolveCodexExecutable(environment: environment) else {
             let hintPath = environment["PATH"] ?? "(empty)"
             let message = "Unable to find `codex` executable. PATH used by app: \(hintPath)"
@@ -111,24 +134,140 @@ final class CodexAppServerController: ObservableObject {
         self.process = process
         self.stdoutPipe = stdoutPipe
         self.stderrPipe = stderrPipe
+        managedProcessCount = 1
         status = .running(pid: process.processIdentifier, listenURL: listenURL)
     }
 
     func stop() {
-        guard let process, process.isRunning else {
-            teardownProcessResources()
-            status = .stopped
-            return
-        }
+        beginAsyncShutdown(includeDetectedRemainders: false, force: false)
+    }
 
+    func forceStopManagedServers() {
+        beginAsyncShutdown(includeDetectedRemainders: true, force: true)
+    }
+
+    func shutdownForApplicationTermination() {
+        let trackedPID = detachTrackedProcessIfNeeded()
+        let outcome = Self.performShutdown(
+            trackedPID: trackedPID,
+            includeDetectedRemainders: true,
+            force: true
+        )
+        managedProcessCount = outcome.managedProcessCount
+        requestedStop = false
+    }
+
+    func refreshManagedProcesses() {
+        refreshTask?.cancel()
+        refreshTask = Task.detached(priority: .utility) {
+            let count = CodexManagedProcessSupport.managedRootPIDs(
+                in: CodexManagedProcessSupport.currentProcessSnapshots()
+            ).count
+            guard !Task.isCancelled else { return }
+            await MainActor.run {
+                CodexAppServerController.shared.managedProcessCount = count
+            }
+        }
+    }
+
+    private func beginAsyncShutdown(includeDetectedRemainders: Bool, force: Bool) {
+        if shutdownTask != nil {
+            guard force else { return }
+            shutdownTask?.cancel()
+            shutdownTask = nil
+        }
         requestedStop = true
         status = .stopping
-        process.terminate()
+        refreshTask?.cancel()
+        let trackedPID = detachTrackedProcessIfNeeded()
+
+        shutdownGeneration += 1
+        let expectedGeneration = shutdownGeneration
+
+        shutdownTask = Task.detached(priority: .utility) {
+            let outcome = Self.performShutdown(
+                trackedPID: trackedPID,
+                includeDetectedRemainders: includeDetectedRemainders,
+                force: force
+            )
+            await MainActor.run {
+                let controller = CodexAppServerController.shared
+                guard controller.shutdownGeneration == expectedGeneration else { return }
+                controller.shutdownTask = nil
+                controller.managedProcessCount = outcome.managedProcessCount
+                controller.requestedStop = false
+                if outcome.remainingPIDs.isEmpty {
+                    if force {
+                        controller.lastOutputLine = "Force-stopped Jin-managed Codex app-server process(es)."
+                    }
+                    controller.status = .stopped
+                } else {
+                    controller.status = .failed("Some Jin-managed Codex app-server processes could not be stopped.")
+                }
+            }
+        }
+    }
+
+    private func detachTrackedProcessIfNeeded() -> Int32? {
+        let pid = process?.isRunning == true ? process?.processIdentifier : nil
+        process?.terminationHandler = nil
+        teardownProcessResources()
+        return pid
+    }
+
+    nonisolated private static func performShutdown(
+        trackedPID: Int32?,
+        includeDetectedRemainders: Bool,
+        force: Bool
+    ) -> ShutdownOutcome {
+        let snapshots = CodexManagedProcessSupport.currentProcessSnapshots()
+        var rootPIDs = Set<Int32>()
+
+        if let trackedPID, trackedPID > 0 {
+            rootPIDs.insert(trackedPID)
+        }
+        if includeDetectedRemainders {
+            rootPIDs.formUnion(CodexManagedProcessSupport.managedRootPIDs(in: snapshots))
+        }
+        if force {
+            rootPIDs.formUnion(CodexManagedProcessSupport.codexAppServerPIDs(in: snapshots))
+        }
+
+        let aliveRoots = rootPIDs.filter(CodexManagedProcessSupport.isProcessAlive)
+        guard !aliveRoots.isEmpty else {
+            let remainingManaged = CodexManagedProcessSupport.managedRootPIDs(in: snapshots).count
+            return ShutdownOutcome(remainingPIDs: [], managedProcessCount: remainingManaged, force: force)
+        }
+
+        let orderedPIDs = CodexManagedProcessSupport.shutdownOrder(for: aliveRoots, snapshots: snapshots)
+
+        if force {
+            CodexManagedProcessSupport.signal(orderedPIDs, signal: SIGKILL)
+            _ = CodexManagedProcessSupport.waitForExit(of: Array(aliveRoots), timeout: 0.2)
+        } else {
+            CodexManagedProcessSupport.signal(orderedPIDs, signal: SIGINT)
+
+            if !CodexManagedProcessSupport.waitForExit(of: Array(aliveRoots), timeout: 0.8) {
+                CodexManagedProcessSupport.signal(orderedPIDs, signal: SIGTERM)
+            }
+
+            if !CodexManagedProcessSupport.waitForExit(of: Array(aliveRoots), timeout: 0.35) {
+                CodexManagedProcessSupport.signal(orderedPIDs, signal: SIGKILL)
+            }
+        }
+
+        let refreshedSnapshots = CodexManagedProcessSupport.currentProcessSnapshots()
+        let remaining = CodexManagedProcessSupport.alivePIDs(in: Array(aliveRoots))
+        let remainingManaged = CodexManagedProcessSupport.managedRootPIDs(in: refreshedSnapshots).count
+        return ShutdownOutcome(remainingPIDs: remaining, managedProcessCount: remainingManaged, force: force)
     }
 
     private func handleProcessTermination(exitStatus: Int32) {
         teardownProcessResources()
-        defer { requestedStop = false }
+        defer {
+            requestedStop = false
+            refreshManagedProcesses()
+        }
 
         if requestedStop || exitStatus == 0 {
             status = .stopped
@@ -239,6 +378,7 @@ final class CodexAppServerController: ObservableObject {
     }
 
     private func teardownProcessResources() {
+        process?.terminationHandler = nil
         teardownReadHandlers(stdoutPipe: stdoutPipe, stderrPipe: stderrPipe)
         stdoutPipe = nil
         stderrPipe = nil

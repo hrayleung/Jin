@@ -56,7 +56,8 @@ actor CodexAppServerAdapter: LLMProviderAdapter {
         _ = tools // This provider intentionally does not pass client-side tool definitions.
 
         let endpoint = try resolvedEndpointURL()
-        let prompt = makePrompt(from: messages)
+        let fullTurnInput = makeTurnInput(from: messages, resumeExistingThread: false)
+        let resumedTurnInput = makeTurnInput(from: messages, resumeExistingThread: true)
         let threadStartParams = makeThreadStartParams(modelID: modelID, controls: controls)
 
         return AsyncThrowingStream { continuation in
@@ -73,27 +74,101 @@ actor CodexAppServerAdapter: LLMProviderAdapter {
                     try await initializeSession(with: client)
                     try await authenticateSession(client)
 
-                    let threadStartResult = try await client.request(
-                        method: "thread/start",
-                        params: threadStartParams
-                    ) { envelope in
-                        try await self.handleInterleavedEnvelope(
-                            envelope,
-                            with: client,
-                            continuation: continuation,
-                            state: state
-                        )
+                    let persistedThreadID = controls.codexResumeThreadID
+                    let pendingRollbackTurns = controls.codexPendingRollbackTurns
+
+                    let threadID: String
+                    let turnInput: [Any]
+
+                    if let persistedThreadID {
+                        do {
+                            let threadResumeResult = try await client.request(
+                                method: "thread/resume",
+                                params: makeThreadResumeParams(
+                                    threadID: persistedThreadID,
+                                    modelID: modelID,
+                                    controls: controls
+                                )
+                            ) { envelope in
+                                try await self.handleInterleavedEnvelope(
+                                    envelope,
+                                    with: client,
+                                    continuation: continuation,
+                                    state: state
+                                )
+                            }
+
+                            let resumedThreadID = Self.extractThreadID(from: threadResumeResult) ?? persistedThreadID
+
+                            if pendingRollbackTurns > 0 {
+                                _ = try await client.request(
+                                    method: "thread/rollback",
+                                    params: [
+                                        "threadId": resumedThreadID,
+                                        "numTurns": pendingRollbackTurns
+                                    ]
+                                ) { envelope in
+                                    try await self.handleInterleavedEnvelope(
+                                        envelope,
+                                        with: client,
+                                        continuation: continuation,
+                                        state: state
+                                    )
+                                }
+                            }
+
+                            threadID = resumedThreadID
+                            turnInput = resumedTurnInput
+                        } catch {
+                            guard Self.shouldFallbackToFreshThread(error) else {
+                                throw error
+                            }
+
+                            let threadStartResult = try await client.request(
+                                method: "thread/start",
+                                params: threadStartParams
+                            ) { envelope in
+                                try await self.handleInterleavedEnvelope(
+                                    envelope,
+                                    with: client,
+                                    continuation: continuation,
+                                    state: state
+                                )
+                            }
+
+                            guard let newThreadID = Self.extractThreadID(from: threadStartResult) else {
+                                throw LLMError.decodingError(message: "Codex thread/start did not return thread.id.")
+                            }
+
+                            threadID = newThreadID
+                            turnInput = fullTurnInput
+                        }
+                    } else {
+                        let threadStartResult = try await client.request(
+                            method: "thread/start",
+                            params: threadStartParams
+                        ) { envelope in
+                            try await self.handleInterleavedEnvelope(
+                                envelope,
+                                with: client,
+                                continuation: continuation,
+                                state: state
+                            )
+                        }
+
+                        guard let newThreadID = Self.extractThreadID(from: threadStartResult) else {
+                            throw LLMError.decodingError(message: "Codex thread/start did not return thread.id.")
+                        }
+
+                        threadID = newThreadID
+                        turnInput = fullTurnInput
                     }
 
-                    guard let threadID = threadStartResult.objectValue?
-                        .string(at: ["thread", "id"]),
-                          !threadID.isEmpty else {
-                        throw LLMError.decodingError(message: "Codex thread/start did not return thread.id.")
-                    }
+                    continuation.yield(.codexThreadState(CodexThreadState(remoteThreadID: threadID)))
 
                     let turnStartParams = makeTurnStartParams(
                         threadID: threadID,
-                        prompt: prompt,
+                        inputItems: turnInput,
                         controls: controls,
                         modelID: modelID
                     )
@@ -190,7 +265,13 @@ actor CodexAppServerAdapter: LLMProviderAdapter {
                     }
                 }
 
-                cursor = object.string(at: ["nextCursor"])
+                if let nextCursor = object.string(at: ["nextCursor"])?
+                    .trimmingCharacters(in: .whitespacesAndNewlines),
+                   !nextCursor.isEmpty {
+                    cursor = nextCursor
+                } else {
+                    cursor = nil
+                }
             } while cursor != nil
 
             if allModels.isEmpty {
@@ -363,7 +444,9 @@ actor CodexAppServerAdapter: LLMProviderAdapter {
             try await self.handleServerRequest(
                 id: requestID,
                 method: requestMethod,
-                with: client
+                params: envelope.params?.objectValue,
+                with: client,
+                continuation: nil
             )
         }
     }
@@ -513,7 +596,9 @@ actor CodexAppServerAdapter: LLMProviderAdapter {
                 try await handleServerRequest(
                     id: requestID,
                     method: method,
-                    with: client
+                    params: envelope.params?.objectValue,
+                    with: client,
+                    continuation: continuation
                 )
                 return
             }
@@ -623,6 +708,8 @@ actor CodexAppServerAdapter: LLMProviderAdapter {
                     ) {
                         continuation.yield(.codexToolActivity(toolActivity))
                     }
+
+                    break
                 }
 
                 if let activity = Self.searchActivityFromCodexItem(
@@ -760,14 +847,43 @@ actor CodexAppServerAdapter: LLMProviderAdapter {
     private func handleServerRequest(
         id: JSONRPCID,
         method: String,
-        with client: CodexWebSocketRPCClient
+        params: [String: JSONValue]?,
+        with client: CodexWebSocketRPCClient,
+        continuation: AsyncThrowingStream<StreamEvent, Error>.Continuation?
     ) async throws {
+        let params = params ?? [:]
+
+        if let continuation,
+           let interaction = Self.interactionRequest(id: id, method: method, params: params) {
+            continuation.yield(.codexInteractionRequest(interaction))
+            let response = await withTaskCancellationHandler(
+                operation: {
+                    await interaction.waitForResponse()
+                },
+                onCancel: {
+                    Task {
+                        await interaction.resolve(.cancelled(message: nil))
+                    }
+                }
+            )
+            try await Self.sendInteractionResponse(
+                response,
+                for: interaction,
+                requestID: id,
+                client: client
+            )
+            return
+        }
+
+        if let autoReply = CodexAppServerAutoReply.result(forServerRequestMethod: method) {
+            try await client.respond(id: id, result: autoReply)
+            return
+        }
+
         let message: String
         switch method {
         case "item/tool/call", "item/tool/requestUserInput":
             message = "Client callbacks are disabled for this Codex App Server provider."
-        case "item/commandExecution/requestApproval", "item/fileChange/requestApproval", "applyPatchApproval", "execCommandApproval":
-            message = "Interactive approval callbacks are disabled for this Codex App Server provider."
         default:
             message = "Unsupported server request method: \(method)"
         }
@@ -782,78 +898,25 @@ actor CodexAppServerAdapter: LLMProviderAdapter {
     // MARK: - Request builders
 
     private func makeThreadStartParams(modelID: String, controls: GenerationControls) -> [String: Any] {
-        var params: [String: Any] = [
-            "model": modelID,
-            "experimentalRawEvents": false,
-            "persistExtendedHistory": false
-        ]
+        CodexAppServerRequestBuilder.threadStartParams(modelID: modelID, controls: controls)
+    }
 
-        if let cwd = providerString(key: "codex_cwd", controls: controls) ?? providerString(key: "cwd", controls: controls) {
-            params["cwd"] = cwd
-        }
-        if let approval = providerString(key: "codex_approval_policy", controls: controls) {
-            params["approvalPolicy"] = approval
-        }
-        if let sandboxMode = providerSpecificValue(key: "codex_sandbox_mode", controls: controls) {
-            params["sandbox"] = sandboxMode
-        }
-        if let personality = providerString(key: "codex_personality", controls: controls) {
-            params["personality"] = personality
-        }
-        if let baseInstructions = providerString(key: "codex_base_instructions", controls: controls) {
-            params["baseInstructions"] = baseInstructions
-        }
-        if let developerInstructions = providerString(key: "codex_developer_instructions", controls: controls) {
-            params["developerInstructions"] = developerInstructions
-        }
-
-        return params
+    private func makeThreadResumeParams(threadID: String, modelID: String, controls: GenerationControls) -> [String: Any] {
+        CodexAppServerRequestBuilder.threadResumeParams(threadID: threadID, modelID: modelID, controls: controls)
     }
 
     private func makeTurnStartParams(
         threadID: String,
-        prompt: String,
+        inputItems: [Any],
         controls: GenerationControls,
         modelID: String
     ) -> [String: Any] {
-        var params: [String: Any] = [
-            "threadId": threadID,
-            "input": [
-                [
-                    "type": "text",
-                    "text": prompt,
-                    "text_elements": [Any]()
-                ]
-            ],
-            "model": modelID
-        ]
-
-        if let cwd = providerString(key: "codex_cwd", controls: controls) ?? providerString(key: "cwd", controls: controls) {
-            params["cwd"] = cwd
-        }
-        if let approval = providerString(key: "codex_approval_policy", controls: controls) {
-            params["approvalPolicy"] = approval
-        }
-        if let sandboxPolicy = providerSpecificValue(key: "codex_sandbox_policy", controls: controls) {
-            params["sandboxPolicy"] = sandboxPolicy
-        }
-        if let personality = providerString(key: "codex_personality", controls: controls) {
-            params["personality"] = personality
-        }
-        if let schema = providerSpecificValue(key: "codex_output_schema", controls: controls)
-            ?? providerSpecificValue(key: "output_schema", controls: controls) {
-            params["outputSchema"] = schema
-        }
-
-        if let reasoning = controls.reasoning, reasoning.enabled {
-            let effort = reasoning.effort ?? .medium
-            params["effort"] = effort.rawValue
-            if let summary = reasoning.summary {
-                params["summary"] = summary.rawValue
-            }
-        }
-
-        return params
+        CodexAppServerRequestBuilder.turnStartParams(
+            threadID: threadID,
+            inputItems: inputItems,
+            modelID: modelID,
+            controls: controls
+        )
     }
 
     // MARK: - Helpers
@@ -918,6 +981,79 @@ actor CodexAppServerAdapter: LLMProviderAdapter {
             throw LLMError.invalidRequest(message: "Invalid Codex App Server URL: \(raw)")
         }
         return url
+    }
+
+    private func makeTurnInput(from messages: [Message], resumeExistingThread: Bool) -> [Any] {
+        let fallbackPrompt = makePrompt(from: messages)
+
+        guard resumeExistingThread,
+              let lastMessage = messages.last,
+              lastMessage.role == .user else {
+            return [makeCodexTextInput(fallbackPrompt)]
+        }
+
+        let imageInputs = lastMessage.content.compactMap { part -> [String: Any]? in
+            guard case .image(let image) = part else { return nil }
+            return Self.codexImageInputItem(from: image)
+        }
+        guard !imageInputs.isEmpty else {
+            let latestUserText = renderUserTextForCodex(from: lastMessage.content)
+            let trimmedUserText = latestUserText.trimmingCharacters(in: .whitespacesAndNewlines)
+            return [makeCodexTextInput(trimmedUserText.isEmpty ? "Continue." : trimmedUserText)]
+        }
+
+        let historyPrompt = makePrompt(from: Array(messages.dropLast()))
+        let latestUserText = renderUserTextForCodex(from: lastMessage.content)
+
+        var inputs: [Any] = []
+        var textSegments: [String] = []
+        let trimmedHistory = historyPrompt.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmedHistory.isEmpty {
+            textSegments.append(trimmedHistory)
+        }
+        let trimmedUserText = latestUserText.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmedUserText.isEmpty {
+            textSegments.append("User:\n\(trimmedUserText)")
+        }
+        if !textSegments.isEmpty {
+            inputs.append(makeCodexTextInput(textSegments.joined(separator: "\n\n")))
+        }
+        inputs.append(contentsOf: imageInputs)
+        return inputs.isEmpty ? [makeCodexTextInput(fallbackPrompt)] : inputs
+    }
+
+    private func renderUserTextForCodex(from content: [ContentPart]) -> String {
+        content.compactMap { part -> String? in
+            switch part {
+            case .text(let text):
+                let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+                return trimmed.isEmpty ? nil : trimmed
+            case .thinking(let block):
+                let trimmed = block.text.trimmingCharacters(in: .whitespacesAndNewlines)
+                return trimmed.isEmpty ? nil : "[Thinking] \(trimmed)"
+            case .redactedThinking:
+                return "[Thinking redacted]"
+            case .image(let image):
+                return Self.codexImageInputItem(from: image) == nil ? "[Image attachment]" : nil
+            case .video(let video):
+                if let url = video.url?.absoluteString {
+                    return "[Video] \(url)"
+                }
+                return "[Video attachment]"
+            case .file(let file):
+                return "[File] \(file.filename)"
+            case .audio:
+                return "[Audio attachment]"
+            }
+        }.joined(separator: "\n")
+    }
+
+    private func makeCodexTextInput(_ text: String) -> [String: Any] {
+        [
+            "type": "text",
+            "text": text,
+            "text_elements": [Any]()
+        ]
     }
 
     private func makePrompt(from messages: [Message]) -> String {
@@ -992,15 +1128,48 @@ actor CodexAppServerAdapter: LLMProviderAdapter {
         )
     }
 
-    private func providerSpecificValue(key: String, controls: GenerationControls) -> Any? {
-        controls.providerSpecific[key]?.value
+    private nonisolated static func codexImageInputItem(from image: ImageContent) -> [String: Any]? {
+        if let url = image.url {
+            if url.isFileURL {
+                return [
+                    "type": "localImage",
+                    "path": url.path
+                ]
+            }
+            return [
+                "type": "image",
+                "url": url.absoluteString
+            ]
+        }
+        return nil
     }
 
-    private func providerString(key: String, controls: GenerationControls) -> String? {
-        guard let value = controls.providerSpecific[key]?.value as? String else { return nil }
-        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? nil : trimmed
+    private nonisolated static func extractThreadID(from result: JSONValue) -> String? {
+        if let threadID = result.objectValue?.string(at: ["thread", "id"]), !threadID.isEmpty {
+            return threadID
+        }
+        if let threadID = result.objectValue?.string(at: ["threadId"]), !threadID.isEmpty {
+            return threadID
+        }
+        return nil
     }
+
+    private nonisolated static func shouldFallbackToFreshThread(_ error: Error) -> Bool {
+        guard case let LLMError.providerError(code, message) = error else {
+            return false
+        }
+
+        if code == "-32602" {
+            return true
+        }
+
+        let lower = message.lowercased()
+        return lower.contains("not found")
+            || lower.contains("unknown thread")
+            || lower.contains("no such thread")
+            || lower.contains("missing thread")
+    }
+
 }
 
 // WebSocket RPC client, stream state, and JSON helpers are in CodexWebSocketRPCClient.swift

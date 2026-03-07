@@ -16,6 +16,8 @@ enum StreamEvent: Sendable {
     case toolCallEnd(ToolCall)
     case searchActivity(SearchActivity)
     case codexToolActivity(CodexToolActivity)
+    case codexInteractionRequest(CodexInteractionRequest)
+    case codexThreadState(CodexThreadState)
     case messageEnd(usage: Usage?)
     case error(LLMError)
 }

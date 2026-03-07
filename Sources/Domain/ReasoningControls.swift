@@ -46,9 +46,15 @@ enum ReasoningSummary: String, Codable, CaseIterable {
     case auto
     case concise
     case detailed
+    case none
 
     var displayName: String {
-        rawValue.capitalized
+        switch self {
+        case .none:
+            return "None"
+        case .auto, .concise, .detailed:
+            return rawValue.capitalized
+        }
     }
 }
 

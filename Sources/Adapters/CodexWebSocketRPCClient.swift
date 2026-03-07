@@ -148,6 +148,18 @@ actor CodexWebSocketRPCClient {
         }
     }
 
+    func respond(id: JSONRPCID, result: Any?) async throws {
+        var payload: [String: Any] = [
+            "jsonrpc": "2.0",
+            "id": id.rawValue,
+            "result": result ?? NSNull()
+        ]
+        if payload["id"] == nil {
+            payload["id"] = NSNull()
+        }
+        try await send(payload)
+    }
+
     func respondWithError(id: JSONRPCID, code: Int, message: String) async throws {
         var payload: [String: Any] = [
             "jsonrpc": "2.0",

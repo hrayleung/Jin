@@ -11,6 +11,23 @@ struct ChatView: View {
     static let nonLazyMessageStackThreshold = 80
     static let pinnedBottomRefreshDelays: [TimeInterval] = [0, 0.04, 0.14]
 
+    private struct PendingCodexInteraction: Identifiable {
+        let localThreadID: UUID
+        let request: CodexInteractionRequest
+
+        var id: UUID { request.id }
+    }
+
+    private var activeCodexInteractionBinding: Binding<PendingCodexInteraction?> {
+        Binding(
+            get: { pendingCodexInteractions.first },
+            set: { newValue in
+                guard newValue == nil, !pendingCodexInteractions.isEmpty else { return }
+                pendingCodexInteractions.removeFirst()
+            }
+        )
+    }
+
     @Environment(\.modelContext) private var modelContext
     @EnvironmentObject private var streamingStore: ConversationStreamingStore
     @EnvironmentObject private var responseCompletionNotifier: ResponseCompletionNotifier
@@ -63,10 +80,12 @@ struct ChatView: View {
     @State private var showingThinkingBudgetSheet = false
     @State private var thinkingBudgetDraft = ""
     @State private var maxTokensDraft = ""
-    @State private var showingCodexWorkingDirectorySheet = false
+    @State private var showingCodexSessionSettingsSheet = false
     @State private var codexWorkingDirectoryDraft = ""
     @State private var codexWorkingDirectoryDraftError: String?
-    @State private var codexWorkingDirectoryPresets: [CodexWorkingDirectoryPreset] = []
+    @State private var codexSandboxModeDraft: CodexSandboxMode = .default
+    @State private var codexPersonalityDraft: CodexPersonality?
+    @State private var pendingCodexInteractions: [PendingCodexInteraction] = []
 
     @State private var showingContextCacheSheet = false
     @State private var showingAnthropicWebSearchSheet = false
@@ -391,16 +410,16 @@ struct ChatView: View {
                 .help(mcpToolsHelpText)
             }
 
-            if supportsCodexWorkingDirectoryControl {
-                Button { openCodexWorkingDirectoryEditor() } label: {
+            if supportsCodexSessionControl {
+                Button { openCodexSessionSettingsEditor() } label: {
                     controlIconLabel(
-                        systemName: "folder",
-                        isActive: codexWorkingDirectory != nil,
-                        badgeText: codexWorkingDirectoryBadgeText
+                        systemName: "terminal",
+                        isActive: codexSessionOverrideCount > 0,
+                        badgeText: codexSessionBadgeText
                     )
                 }
                 .buttonStyle(.plain)
-                .help(codexWorkingDirectoryHelpText)
+                .help(codexSessionHelpText)
             }
 
             if supportsImageGenerationControl {
@@ -1136,23 +1155,29 @@ struct ChatView: View {
                 onSave: { applyImageGenerationDraft() }
             )
         }
-        .sheet(isPresented: $showingCodexWorkingDirectorySheet) {
-            CodexWorkingDirectorySheetView(
-                draft: $codexWorkingDirectoryDraft,
-                draftError: $codexWorkingDirectoryDraftError,
-                presets: codexWorkingDirectoryPresets,
+        .sheet(isPresented: $showingCodexSessionSettingsSheet) {
+            CodexSessionSettingsSheetView(
+                workingDirectoryDraft: $codexWorkingDirectoryDraft,
+                workingDirectoryDraftError: $codexWorkingDirectoryDraftError,
+                sandboxModeDraft: $codexSandboxModeDraft,
+                personalityDraft: $codexPersonalityDraft,
                 onChooseDirectory: { pickCodexWorkingDirectory() },
                 onSelectPreset: { preset in
                     codexWorkingDirectoryDraft = preset.path
                     codexWorkingDirectoryDraftError = nil
                 },
-                onResetToDefault: {
+                onResetWorkingDirectory: {
                     codexWorkingDirectoryDraft = ""
                     codexWorkingDirectoryDraftError = nil
                 },
-                onCancel: { showingCodexWorkingDirectorySheet = false },
-                onSave: { applyCodexWorkingDirectoryDraft() }
+                onCancel: { showingCodexSessionSettingsSheet = false },
+                onSave: { applyCodexSessionSettingsDraft() }
             )
+        }
+        .sheet(item: activeCodexInteractionBinding) { item in
+            CodexInteractionSheetView(request: item.request) { response in
+                resolveCodexInteraction(item, response: response)
+            }
         }
         .task {
             // Chat-local state is already prepared in onAppear / onChange.
@@ -1164,11 +1189,7 @@ struct ChatView: View {
                 await refreshExtensionCredentialsStatus()
             }
         }
-        .onReceive(NotificationCenter.default.publisher(for: .codexWorkingDirectoryPresetsDidChange)) { _ in
-            Task { @MainActor in
-                codexWorkingDirectoryPresets = CodexWorkingDirectoryPresetsStore.load()
-            }
-        }
+        .onReceive(NotificationCenter.default.publisher(for: .codexWorkingDirectoryPresetsDidChange)) { _ in }
         .focusedSceneValue(
             \.chatActions,
             ChatFocusedActions(
@@ -1883,8 +1904,8 @@ struct ChatView: View {
     }
 
     private var supportsPDFProcessingControl: Bool {
-        // Keep PDF preprocessing available for OCR/macOS extract even on media-generation models.
-        true
+        guard providerType != .codexAppServer else { return false }
+        return true
     }
 
     private var supportsCurrentModelImageSizeControl: Bool {
@@ -2178,6 +2199,8 @@ struct ChatView: View {
     }
 
     private var supportsNativeWebSearchControl: Bool {
+        guard providerType != .codexAppServer else { return false }
+
         if supportsMediaGenerationControl {
             if supportsImageGenerationControl {
                 return supportsImageGenerationWebSearch
@@ -2196,6 +2219,7 @@ struct ChatView: View {
     }
 
     private var modelSupportsBuiltinSearchPluginControl: Bool {
+        guard providerType != .codexAppServer else { return false }
         guard !supportsMediaGenerationControl else { return false }
         guard resolvedModelSettings?.capabilities.contains(.toolCalling) == true else { return false }
         return true
@@ -2370,11 +2394,12 @@ struct ChatView: View {
     }
 
     private var supportsMCPToolsControl: Bool {
+        guard providerType != .codexAppServer else { return false }
         guard !supportsMediaGenerationControl else { return false }
         return resolvedModelSettings?.capabilities.contains(.toolCalling) == true
     }
 
-    private var supportsCodexWorkingDirectoryControl: Bool {
+    private var supportsCodexSessionControl: Bool {
         providerType == .codexAppServer
     }
 
@@ -2416,12 +2441,20 @@ struct ChatView: View {
         return "MCP Tools: On (\(count) server\(count == 1 ? "" : "s"))"
     }
 
-    private var codexWorkingDirectoryHelpText: String {
-        guard supportsCodexWorkingDirectoryControl else { return "Working Directory: Not supported" }
-        guard let codexWorkingDirectory else {
-            return "Working Directory: app-server default"
+    private var codexSessionHelpText: String {
+        guard supportsCodexSessionControl else { return "Codex Session: Not supported" }
+
+        var segments: [String] = ["Sandbox: \(controls.codexSandboxMode.displayName)"]
+        if let workingDirectory = controls.codexWorkingDirectory {
+            segments.append("Working Directory: \(workingDirectory)")
+        } else {
+            segments.append("Working Directory: app-server default")
         }
-        return "Working Directory: \(codexWorkingDirectory)"
+        if let personality = controls.codexPersonality {
+            segments.append("Personality: \(personality.displayName)")
+        }
+
+        return "Codex Session: " + segments.joined(separator: " · ")
     }
 
     private var contextCacheHelpText: String {
@@ -2550,21 +2583,17 @@ struct ChatView: View {
         return count > 99 ? "99+" : "\(count)"
     }
 
-    private var codexWorkingDirectoryBadgeText: String? {
-        codexWorkingDirectory == nil ? nil : "WD"
+    private var codexSessionBadgeText: String? {
+        guard codexSessionOverrideCount > 0 else { return nil }
+        return controls.codexSandboxMode.badgeText
+    }
+
+    private var codexSessionOverrideCount: Int {
+        controls.codexActiveOverrideCount
     }
 
     private var codexWorkingDirectory: String? {
-        if let path = trimmedCodexWorkingDirectoryValue(for: "codex_cwd") {
-            return path
-        }
-        return trimmedCodexWorkingDirectoryValue(for: "cwd")
-    }
-
-    private func trimmedCodexWorkingDirectoryValue(for key: String) -> String? {
-        guard let raw = controls.providerSpecific[key]?.value as? String else { return nil }
-        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? nil : trimmed
+        controls.codexWorkingDirectory
     }
 
     private var contextCacheLabel: String {
@@ -3068,6 +3097,7 @@ struct ChatView: View {
         guard let thread = activeModelThread else { return }
         guard providerID != thread.providerID else { return }
 
+        clearCodexThreadPersistence(for: thread)
         thread.providerID = providerID
 
         let models = providers.first(where: { $0.id == providerID })?.enabledModels ?? []
@@ -3104,6 +3134,9 @@ struct ChatView: View {
             return
         }
 
+        if providerID != thread.providerID {
+            clearCodexThreadPersistence(for: thread)
+        }
         thread.providerID = providerID
         thread.modelID = modelID
         thread.updatedAt = Date()
@@ -3292,6 +3325,10 @@ struct ChatView: View {
             return
         }
 
+        if let threadID = messageEntity.contextThreadID ?? activeModelThread?.id {
+            invalidateCodexThreadPersistence(forThreadID: threadID)
+        }
+
         cancelEditingUserMessage()
         regenerateFromUserMessage(messageEntity)
     }
@@ -3341,7 +3378,8 @@ struct ChatView: View {
         let ordered = orderedConversationMessages(threadID: threadID)
         let normalizedKeepCount = max(0, min(keepCount, ordered.count))
         let keepIDs = Set(ordered.prefix(normalizedKeepCount).map(\.id))
-        let messagesToDelete = ordered.suffix(from: normalizedKeepCount)
+        let messagesToDelete = Array(ordered.suffix(from: normalizedKeepCount))
+        recordCodexThreadHistoryMutation(forThreadID: threadID, removedMessages: messagesToDelete)
 
         for message in messagesToDelete {
             modelContext.delete(message)
@@ -3354,6 +3392,93 @@ struct ChatView: View {
         pendingRestoreScrollMessageID = nil
         isPinnedToBottom = true
         rebuildMessageCaches()
+    }
+
+    private func injectCodexThreadPersistence(into controls: inout GenerationControls, from thread: ConversationModelThreadEntity) {
+        guard providerType(forProviderID: thread.providerID) == .codexAppServer else {
+            controls.codexResumeThreadID = nil
+            controls.codexPendingRollbackTurns = 0
+            return
+        }
+
+        let storedControls = storedGenerationControls(for: thread) ?? GenerationControls()
+        controls.codexResumeThreadID = storedControls.codexResumeThreadID
+        controls.codexPendingRollbackTurns = storedControls.codexPendingRollbackTurns
+    }
+
+    private func persistCodexThreadState(_ state: CodexThreadState, forLocalThreadID threadID: UUID) {
+        guard let thread = sortedModelThreads.first(where: { $0.id == threadID }) else { return }
+        guard providerType(forProviderID: thread.providerID) == .codexAppServer else { return }
+
+        mutateStoredGenerationControls(for: thread) { storedControls in
+            storedControls.codexResumeThreadID = state.remoteThreadID
+            storedControls.codexPendingRollbackTurns = 0
+        }
+    }
+
+    private func clearCodexThreadPersistence(for thread: ConversationModelThreadEntity) {
+        guard providerType(forProviderID: thread.providerID) == .codexAppServer else { return }
+        mutateStoredGenerationControls(for: thread) { storedControls in
+            storedControls.codexResumeThreadID = nil
+            storedControls.codexPendingRollbackTurns = 0
+        }
+    }
+
+    private func invalidateCodexThreadPersistence(forThreadID threadID: UUID) {
+        guard let thread = sortedModelThreads.first(where: { $0.id == threadID }) else { return }
+        guard providerType(forProviderID: thread.providerID) == .codexAppServer else { return }
+        clearCodexThreadPersistence(for: thread)
+    }
+
+    private func recordCodexThreadHistoryMutation(forThreadID threadID: UUID, removedMessages: [MessageEntity]) {
+        guard !removedMessages.isEmpty else { return }
+        guard let thread = sortedModelThreads.first(where: { $0.id == threadID }) else { return }
+        guard providerType(forProviderID: thread.providerID) == .codexAppServer else { return }
+
+        let storedControls = storedGenerationControls(for: thread) ?? GenerationControls()
+        guard storedControls.codexResumeThreadID != nil else { return }
+
+        if removedMessages.contains(where: { $0.turnID == nil }) {
+            clearCodexThreadPersistence(for: thread)
+            return
+        }
+
+        let removedTurnCount = Set(removedMessages.compactMap(\.turnID)).count
+        guard removedTurnCount > 0 else { return }
+        mutateStoredGenerationControls(for: thread) { controls in
+            controls.codexPendingRollbackTurns += removedTurnCount
+        }
+    }
+
+    private func storedGenerationControls(for thread: ConversationModelThreadEntity) -> GenerationControls? {
+        try? JSONDecoder().decode(GenerationControls.self, from: thread.modelConfigData)
+    }
+
+    private func mutateStoredGenerationControls(
+        for thread: ConversationModelThreadEntity,
+        _ mutate: (inout GenerationControls) -> Void
+    ) {
+        var controls = storedGenerationControls(for: thread) ?? GenerationControls()
+        let previousResumeThreadID = controls.codexResumeThreadID
+        let previousRollbackTurns = controls.codexPendingRollbackTurns
+        mutate(&controls)
+        guard controls.codexResumeThreadID != previousResumeThreadID
+            || controls.codexPendingRollbackTurns != previousRollbackTurns else {
+            return
+        }
+
+        do {
+            thread.modelConfigData = try JSONEncoder().encode(controls)
+            thread.updatedAt = Date()
+            if conversationEntity.activeThreadID == thread.id {
+                conversationEntity.modelConfigData = thread.modelConfigData
+            }
+            conversationEntity.updatedAt = max(conversationEntity.updatedAt, thread.updatedAt)
+            try modelContext.save()
+        } catch {
+            errorMessage = error.localizedDescription
+            showingError = true
+        }
     }
 
     private func refreshConversationActivityTimestampFromLatestUserMessage() {
@@ -4221,6 +4346,7 @@ struct ChatView: View {
             modelCapabilities: resolvedModelSettingsSnapshot?.capabilities
         )
         Self.sanitizeProviderSpecificForProvider(providerTypeSnapshot, controls: &controlsToUse)
+        injectCodexThreadPersistence(into: &controlsToUse, from: thread)
 
         let shouldTruncateMessages = assistant?.truncateMessages ?? false
         let maxHistoryMessages = assistant?.maxHistoryMessages
@@ -4434,6 +4560,17 @@ struct ChatView: View {
                             accumulator.upsertCodexToolActivity(activity)
                             await MainActor.run {
                                 streamingState.upsertCodexToolActivity(activity)
+                            }
+                        case .codexInteractionRequest(let request):
+                            await flushStreamingUI(force: true)
+                            await MainActor.run {
+                                pendingCodexInteractions.append(PendingCodexInteraction(localThreadID: threadID, request: request))
+                            }
+                        case .codexThreadState(let state):
+                            requestControls.codexResumeThreadID = state.remoteThreadID
+                            requestControls.codexPendingRollbackTurns = 0
+                            await MainActor.run {
+                                persistCodexThreadState(state, forLocalThreadID: threadID)
                             }
                         case .messageEnd:
                             await MainActor.run {
@@ -4680,6 +4817,7 @@ struct ChatView: View {
                         )
                     }
                     streamingStore.endSession(conversationID: conversationID, threadID: threadID)
+                    pendingCodexInteractions.removeAll { $0.localThreadID == threadID }
                 }
             }
         }
@@ -4864,7 +5002,7 @@ struct ChatView: View {
     }
 
     private var supportsReasoningSummaryControl: Bool {
-        providerType == .openai || providerType == .openaiWebSocket
+        providerType == .openai || providerType == .openaiWebSocket || providerType == .codexAppServer
     }
 
     @ViewBuilder
@@ -5788,11 +5926,12 @@ struct ChatView: View {
         showingImageGenerationSheet = true
     }
 
-    private func openCodexWorkingDirectoryEditor() {
+    private func openCodexSessionSettingsEditor() {
         codexWorkingDirectoryDraft = codexWorkingDirectory ?? ""
         codexWorkingDirectoryDraftError = nil
-        codexWorkingDirectoryPresets = CodexWorkingDirectoryPresetsStore.load()
-        showingCodexWorkingDirectorySheet = true
+        codexSandboxModeDraft = controls.codexSandboxMode
+        codexPersonalityDraft = controls.codexPersonality
+        showingCodexSessionSettingsSheet = true
     }
 
     private func pickCodexWorkingDirectory() {
@@ -5813,14 +5952,15 @@ struct ChatView: View {
         codexWorkingDirectoryDraftError = nil
     }
 
-    private func applyCodexWorkingDirectoryDraft() {
+    private func applyCodexSessionSettingsDraft() {
         let trimmed = codexWorkingDirectoryDraft.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmed.isEmpty {
-            controls.providerSpecific.removeValue(forKey: "codex_cwd")
-            controls.providerSpecific.removeValue(forKey: "cwd")
+            controls.codexWorkingDirectory = nil
+            controls.codexSandboxMode = codexSandboxModeDraft
+            controls.codexPersonality = codexPersonalityDraft
             persistControlsToConversation()
             codexWorkingDirectoryDraftError = nil
-            showingCodexWorkingDirectorySheet = false
+            showingCodexSessionSettingsSheet = false
             return
         }
 
@@ -5829,12 +5969,20 @@ struct ChatView: View {
             return
         }
 
-        controls.providerSpecific["codex_cwd"] = AnyCodable(normalized)
-        controls.providerSpecific.removeValue(forKey: "cwd")
+        controls.codexWorkingDirectory = normalized
+        controls.codexSandboxMode = codexSandboxModeDraft
+        controls.codexPersonality = codexPersonalityDraft
         persistControlsToConversation()
         codexWorkingDirectoryDraft = normalized
         codexWorkingDirectoryDraftError = nil
-        showingCodexWorkingDirectorySheet = false
+        showingCodexSessionSettingsSheet = false
+    }
+
+    private func resolveCodexInteraction(_ item: PendingCodexInteraction, response: CodexInteractionResponse) {
+        Task {
+            await item.request.resolve(response)
+        }
+        pendingCodexInteractions.removeAll { $0.id == item.id }
     }
 
     private func normalizedCodexWorkingDirectoryPath(from raw: String) -> String? {
@@ -6402,7 +6550,14 @@ struct ChatView: View {
 
     private func persistControlsToConversation() {
         do {
-            let data = try JSONEncoder().encode(controls)
+            var persistedControls = controls
+            if let activeThread = activeModelThread,
+               let storedControls = storedGenerationControls(for: activeThread) {
+                persistedControls.codexResumeThreadID = storedControls.codexResumeThreadID
+                persistedControls.codexPendingRollbackTurns = storedControls.codexPendingRollbackTurns
+            }
+
+            let data = try JSONEncoder().encode(persistedControls)
             if let activeThread = activeModelThread {
                 activeThread.modelConfigData = data
                 activeThread.updatedAt = Date()
@@ -6901,26 +7056,7 @@ struct ChatView: View {
             return
         }
 
-        if let legacy = trimmedCodexWorkingDirectoryValue(for: "cwd"), controls.providerSpecific["codex_cwd"] == nil {
-            controls.providerSpecific["codex_cwd"] = AnyCodable(legacy)
-        }
-        if controls.providerSpecific["cwd"] != nil {
-            controls.providerSpecific.removeValue(forKey: "cwd")
-        }
-
-        guard let raw = controls.providerSpecific["codex_cwd"]?.value as? String else {
-            if controls.providerSpecific["codex_cwd"] != nil {
-                controls.providerSpecific.removeValue(forKey: "codex_cwd")
-            }
-            return
-        }
-
-        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        if trimmed.isEmpty {
-            controls.providerSpecific.removeValue(forKey: "codex_cwd")
-        } else if trimmed != raw {
-            controls.providerSpecific["codex_cwd"] = AnyCodable(trimmed)
-        }
+        controls.normalizeCodexProviderSpecific(for: providerType)
     }
 
     private func normalizeOpenAIServiceTierControls() {
@@ -6938,12 +7074,7 @@ struct ChatView: View {
     nonisolated private static func sanitizeProviderSpecificForProvider(_ providerType: ProviderType?, controls: inout GenerationControls) {
         guard providerType != .codexAppServer else { return }
 
-        let codexKeys = controls.providerSpecific.keys.filter { key in
-            key == "cwd" || key.hasPrefix("codex_")
-        }
-        for key in codexKeys {
-            controls.providerSpecific.removeValue(forKey: key)
-        }
+        controls.removeCodexProviderSpecificKeys()
     }
 
     private func normalizeWebSearchControls() {

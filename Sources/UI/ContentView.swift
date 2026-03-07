@@ -572,6 +572,8 @@ struct ContentView: View {
             try? JSONDecoder().decode(GenerationControls.self, from: conversation.modelConfigData)
         }
         var controls = inheritedControls ?? GenerationControls()
+        controls.codexResumeThreadID = nil
+        controls.codexPendingRollbackTurns = 0
         switch newChatMCPMode {
         case .lastUsed:
             break

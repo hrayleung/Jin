@@ -54,7 +54,12 @@ struct CodexToolTimelineView: View {
                 VStack(spacing: 0) {
                     if isExpanded {
                         expandedPanel
-                            .transition(.move(edge: .top).combined(with: .opacity))
+                            .transition(
+                                .asymmetric(
+                                    insertion: .opacity.combined(with: .move(edge: .top)),
+                                    removal: .opacity
+                                )
+                            )
                     }
                 }
                 .clipped()
@@ -62,20 +67,20 @@ struct CodexToolTimelineView: View {
             .padding(JinSpacing.small)
             .jinSurface(.subtleStrong, cornerRadius: JinRadius.medium)
             .clipped()
-            .animation(.spring(duration: 0.25, bounce: 0), value: isExpanded)
-            .animation(.easeInOut(duration: 0.2), value: entryAnimationSignature)
+            .animation(.spring(duration: 0.3, bounce: 0.05), value: isExpanded)
+            .animation(.easeInOut(duration: 0.25), value: entryAnimationSignature)
             .onChange(of: isStreaming) { _, streaming in
                 if streaming {
                     let mode = Self.resolveDisplayMode()
                     if mode.startsExpandedDuringStreaming {
-                        withAnimation(.spring(duration: 0.25, bounce: 0)) {
+                        withAnimation(.spring(duration: 0.3, bounce: 0.05)) {
                             isExpanded = true
                         }
                     }
                 } else {
                     let mode = Self.resolveDisplayMode()
                     if mode == .collapseOnComplete {
-                        withAnimation(.spring(duration: 0.25, bounce: 0)) {
+                        withAnimation(.spring(duration: 0.3, bounce: 0.05)) {
                             isExpanded = false
                         }
                     }
@@ -89,19 +94,21 @@ struct CodexToolTimelineView: View {
         return CodexToolDisplayMode(rawValue: raw) ?? .expanded
     }
 
-    // MARK: - Subviews
+    // MARK: - Collapsed Summary Row
 
     private var collapsedSummaryRow: some View {
         Button {
-            withAnimation(.spring(duration: 0.25, bounce: 0)) {
+            withAnimation(.spring(duration: 0.3, bounce: 0.05)) {
                 isExpanded.toggle()
             }
         } label: {
             HStack(spacing: JinSpacing.small) {
-                Image(systemName: "terminal")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(.secondary)
-                    .frame(width: 16, height: 16)
+                ZStack {
+                    Image(systemName: "terminal")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(.secondary)
+                }
+                .frame(width: 18, height: 18)
 
                 Text(collapsedTitle)
                     .font(.subheadline.weight(.medium))
@@ -111,40 +118,36 @@ struct CodexToolTimelineView: View {
                 Spacer(minLength: 0)
 
                 if isStreaming, runningCount > 0 {
-                    ProgressView()
-                        .scaleEffect(0.5)
+                    CodexActivityIndicator()
                 }
 
                 if let compactStatusStyle {
-                    HStack(spacing: 4) {
-                        Image(systemName: compactStatusStyle.icon)
-                            .font(.system(size: 10, weight: .semibold))
-                        Text(compactStatusStyle.text)
-                            .font(.caption2.weight(.semibold))
-                    }
-                    .foregroundStyle(compactStatusStyle.color)
-                    .lineLimit(1)
+                    CodexCompactStatusBadge(style: compactStatusStyle)
                 }
 
-                Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                Image(systemName: "chevron.right")
                     .font(.caption2.weight(.semibold))
                     .foregroundStyle(.tertiary)
+                    .rotationEffect(.degrees(isExpanded ? 90 : 0))
+                    .animation(.spring(duration: 0.25, bounce: 0.15), value: isExpanded)
             }
             .padding(.horizontal, JinSpacing.small)
-            .padding(.vertical, 6)
+            .padding(.vertical, 7)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
     }
 
+    // MARK: - Expanded Panel
+
     private var expandedPanel: some View {
-        VStack(alignment: .leading, spacing: JinSpacing.small) {
-            HStack(alignment: .firstTextBaseline, spacing: JinSpacing.small - 2) {
+        VStack(alignment: .leading, spacing: JinSpacing.small + 2) {
+            HStack(alignment: .firstTextBaseline, spacing: JinSpacing.small) {
                 Text(entries.count == 1 ? "Codex Tool" : "Codex Tools")
                     .font(.headline)
 
                 if let statusSummaryText {
-                    Text("(\(statusSummaryText))")
+                    Text(statusSummaryText)
                         .font(.subheadline.weight(.medium))
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
@@ -153,19 +156,21 @@ struct CodexToolTimelineView: View {
                 Spacer(minLength: 0)
             }
 
-            VStack(alignment: .leading, spacing: JinSpacing.small) {
+            VStack(alignment: .leading, spacing: 0) {
                 ForEach(Array(entries.enumerated()), id: \.element.id) { index, entry in
                     CodexToolEntryView(
                         entry: entry,
+                        entryIndex: index,
                         showsConnectorAbove: index > 0,
-                        showsConnectorBelow: index < entries.count - 1
+                        showsConnectorBelow: index < entries.count - 1,
+                        isStreaming: isStreaming
                     )
                 }
             }
         }
         .padding(.horizontal, JinSpacing.small)
-        .padding(.top, JinSpacing.xSmall)
-        .padding(.bottom, JinSpacing.xSmall)
+        .padding(.top, JinSpacing.xSmall + 2)
+        .padding(.bottom, JinSpacing.small)
     }
 
     // MARK: - Derived Content
@@ -214,22 +219,22 @@ struct CodexToolTimelineView: View {
             if successCount > 0 {
                 return CodexCompactStatusStyle(
                     text: "\(summaryCountText(successCount, singular: "ok", plural: "ok")) / \(summaryCountText(errorCount, singular: "failed", plural: "failed"))",
-                    icon: "xmark.circle",
-                    color: Color(nsColor: .systemOrange).opacity(0.95)
+                    icon: "xmark.circle.fill",
+                    color: Color(nsColor: .systemOrange)
                 )
             }
             return CodexCompactStatusStyle(
                 text: summaryCountText(errorCount, singular: "failed", plural: "failed"),
-                icon: "xmark.circle",
-                color: Color(nsColor: .systemOrange).opacity(0.95)
+                icon: "xmark.circle.fill",
+                color: Color(nsColor: .systemOrange)
             )
         }
 
         if successCount > 0 {
             return CodexCompactStatusStyle(
                 text: successCount == 1 ? "Succeeded" : "All succeeded",
-                icon: "checkmark.circle",
-                color: Color(nsColor: .systemGreen).opacity(0.88)
+                icon: "checkmark.circle.fill",
+                color: Color(nsColor: .systemGreen)
             )
         }
 
@@ -249,7 +254,7 @@ struct CodexToolTimelineView: View {
             parts.append(summaryCountText(runningCount, singular: "running", plural: "running"))
         }
 
-        return parts.isEmpty ? nil : parts.joined(separator: " | ")
+        return parts.isEmpty ? nil : "(" + parts.joined(separator: " / ") + ")"
     }
 
     private func summaryCountText(_ count: Int, singular: String, plural: String) -> String {
@@ -261,10 +266,56 @@ struct CodexToolTimelineView: View {
 
     private var entryAnimationSignature: String {
         entries
-            .map { entry in
-                "\(entry.id):\(entry.executionStatus)"
-            }
+            .map { "\($0.id):\($0.executionStatus)" }
             .joined(separator: "|")
+    }
+}
+
+// MARK: - Compact Status Badge
+
+private struct CodexCompactStatusBadge: View {
+    let style: CodexCompactStatusStyle
+
+    var body: some View {
+        HStack(spacing: 4) {
+            Image(systemName: style.icon)
+                .font(.system(size: 10, weight: .semibold))
+            Text(style.text)
+                .font(.caption2.weight(.semibold))
+        }
+        .foregroundStyle(style.color.opacity(0.9))
+        .padding(.horizontal, 6)
+        .padding(.vertical, 3)
+        .background(
+            Capsule(style: .continuous)
+                .fill(style.color.opacity(0.1))
+        )
+        .lineLimit(1)
+    }
+}
+
+// MARK: - Activity Indicator (3-dot wave)
+
+private struct CodexActivityIndicator: View {
+    @State private var isAnimating = false
+
+    var body: some View {
+        HStack(spacing: 2.5) {
+            ForEach(0..<3, id: \.self) { index in
+                Circle()
+                    .fill(Color.secondary.opacity(0.6))
+                    .frame(width: 3.5, height: 3.5)
+                    .offset(y: isAnimating ? -2.5 : 2.5)
+                    .animation(
+                        .easeInOut(duration: 0.45)
+                            .repeatForever(autoreverses: true)
+                            .delay(Double(index) * 0.12),
+                        value: isAnimating
+                    )
+            }
+        }
+        .frame(height: 10)
+        .onAppear { isAnimating = true }
     }
 }
 
@@ -272,17 +323,22 @@ struct CodexToolTimelineView: View {
 
 private struct CodexToolEntryView: View {
     let entry: CodexToolTimelineEntry
+    let entryIndex: Int
     let showsConnectorAbove: Bool
     let showsConnectorBelow: Bool
+    let isStreaming: Bool
 
     @State private var isExpanded = false
     @State private var isRunningPulse = false
+    @State private var hasAppeared = false
+    @State private var completionBounce = false
 
     private struct StatusVisualStyle {
         let accent: Color
         let text: Color
         let nodeBackground: Color
         let nodeBorder: Color
+        let glowColor: Color
     }
 
     var body: some View {
@@ -305,13 +361,14 @@ private struct CodexToolEntryView: View {
                     statusPill
 
                     Button {
-                        withAnimation(.spring(duration: 0.25, bounce: 0)) {
+                        withAnimation(.spring(duration: 0.25, bounce: 0.1)) {
                             isExpanded.toggle()
                         }
                     } label: {
-                        Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
+                        Image(systemName: "chevron.right")
                             .font(.caption.weight(.semibold))
                             .foregroundStyle(.secondary)
+                            .rotationEffect(.degrees(isExpanded ? 90 : 0))
                     }
                     .accessibilityLabel(isExpanded ? "Collapse tool details" : "Expand tool details")
                     .accessibilityHint("Shows or hides details for this tool activity")
@@ -335,16 +392,29 @@ private struct CodexToolEntryView: View {
                 .clipped()
             }
             .padding(.horizontal, JinSpacing.medium)
-            .padding(.vertical, JinSpacing.small)
+            .padding(.vertical, JinSpacing.small + 2)
             .jinSurface(.neutral, cornerRadius: JinRadius.small)
         }
-        .animation(.spring(duration: 0.25, bounce: 0), value: isExpanded)
-        .animation(.spring(duration: 0.24, bounce: 0), value: entry.executionStatus)
+        .opacity(hasAppeared ? 1 : 0)
+        .offset(y: hasAppeared ? 0 : 6)
+        .animation(.spring(duration: 0.25, bounce: 0.1), value: isExpanded)
+        .animation(.spring(duration: 0.3, bounce: 0.08), value: entry.executionStatus)
         .onAppear {
             updatePulseAnimation(for: entry.executionStatus)
+            withAnimation(.spring(duration: 0.4, bounce: 0.08).delay(Double(entryIndex) * 0.06)) {
+                hasAppeared = true
+            }
         }
-        .onChange(of: entry.executionStatus) { _, newValue in
+        .onChange(of: entry.executionStatus) { oldValue, newValue in
             updatePulseAnimation(for: newValue)
+            if oldValue == .running && (newValue == .success || newValue == .error) {
+                withAnimation(.spring(duration: 0.35, bounce: 0.3)) {
+                    completionBounce = true
+                }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                    completionBounce = false
+                }
+            }
         }
     }
 
@@ -352,56 +422,110 @@ private struct CodexToolEntryView: View {
 
     @ViewBuilder
     private func timelineRail(status: ToolCallExecutionStatus) -> some View {
-        VStack(spacing: 2) {
-            Rectangle()
-                .fill(JinSemanticColor.separator.opacity(0.7))
-                .frame(width: JinStrokeWidth.regular, height: 12)
-                .opacity(showsConnectorAbove ? 1 : 0)
+        let style = statusStyle(for: status)
+
+        VStack(spacing: 0) {
+            connectorSegment(visible: showsConnectorAbove, style: style)
 
             statusNode(status: status)
 
-            Rectangle()
-                .fill(JinSemanticColor.separator.opacity(0.7))
-                .frame(width: JinStrokeWidth.regular, height: 12)
-                .opacity(showsConnectorBelow ? 1 : 0)
+            connectorSegment(visible: showsConnectorBelow, style: style)
         }
-        .frame(width: 16)
-        .padding(.top, JinSpacing.xSmall)
+        .frame(width: 20)
+        .padding(.top, JinSpacing.small)
+    }
+
+    @ViewBuilder
+    private func connectorSegment(visible: Bool, style: StatusVisualStyle) -> some View {
+        RoundedRectangle(cornerRadius: 0.5)
+            .fill(
+                LinearGradient(
+                    colors: [
+                        JinSemanticColor.separator.opacity(0.35),
+                        JinSemanticColor.separator.opacity(0.6)
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+            )
+            .frame(width: 1.5, height: 14)
+            .opacity(visible ? 1 : 0)
     }
 
     @ViewBuilder
     private func statusNode(status: ToolCallExecutionStatus) -> some View {
         let style = statusStyle(for: status)
+        let nodeSize: CGFloat = 18
 
         ZStack {
+            // Glow halo for running state
+            if status == .running {
+                Circle()
+                    .fill(style.glowColor)
+                    .frame(width: nodeSize + 8, height: nodeSize + 8)
+                    .blur(radius: 4)
+                    .opacity(isRunningPulse ? 0.5 : 0.15)
+                    .animation(
+                        .easeInOut(duration: 1.2).repeatForever(autoreverses: true),
+                        value: isRunningPulse
+                    )
+            }
+
+            // Spinning ring for running state
+            if status == .running {
+                Circle()
+                    .stroke(
+                        AngularGradient(
+                            gradient: Gradient(colors: [
+                                style.accent.opacity(0),
+                                style.accent.opacity(0.5),
+                                style.accent.opacity(0)
+                            ]),
+                            center: .center
+                        ),
+                        lineWidth: 1.5
+                    )
+                    .frame(width: nodeSize + 2, height: nodeSize + 2)
+                    .rotationEffect(.degrees(isRunningPulse ? 360 : 0))
+                    .animation(
+                        .linear(duration: 1.8).repeatForever(autoreverses: false),
+                        value: isRunningPulse
+                    )
+            }
+
+            // Base circle
             Circle()
                 .fill(style.nodeBackground)
-                .frame(width: 16, height: 16)
+                .frame(width: nodeSize, height: nodeSize)
                 .overlay(
                     Circle()
                         .stroke(style.nodeBorder, lineWidth: 0.75)
                 )
 
-            switch status {
-            case .running:
-                Circle()
-                    .fill(style.accent)
-                    .frame(width: 6, height: 6)
-                    .scaleEffect(isRunningPulse ? 1.4 : 0.85)
-                    .opacity(isRunningPulse ? 0.35 : 1)
-                    .animation(
-                        .easeInOut(duration: 0.85).repeatForever(autoreverses: true),
-                        value: isRunningPulse
-                    )
-            case .success:
-                Image(systemName: "checkmark")
-                    .font(.system(size: 8.5, weight: .semibold))
-                    .foregroundStyle(style.accent)
-            case .error:
-                Image(systemName: "xmark")
-                    .font(.system(size: 8.5, weight: .semibold))
-                    .foregroundStyle(style.accent)
+            // Status icon
+            Group {
+                switch status {
+                case .running:
+                    Circle()
+                        .fill(style.accent)
+                        .frame(width: 5.5, height: 5.5)
+                        .scaleEffect(isRunningPulse ? 1.3 : 0.8)
+                        .opacity(isRunningPulse ? 0.5 : 1)
+                        .animation(
+                            .easeInOut(duration: 0.9).repeatForever(autoreverses: true),
+                            value: isRunningPulse
+                        )
+                case .success:
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 8.5, weight: .bold))
+                        .foregroundStyle(style.accent)
+                case .error:
+                    Image(systemName: "xmark")
+                        .font(.system(size: 8.5, weight: .bold))
+                        .foregroundStyle(style.accent)
+                }
             }
+            .scaleEffect(completionBounce ? 1.25 : 1)
         }
     }
 
@@ -425,11 +549,16 @@ private struct CodexToolEntryView: View {
                     showsCopyButton: true
                 )
             } else if entry.executionStatus == .running {
-                Text("Waiting for result...")
-                    .jinInfoCallout()
+                HStack(spacing: JinSpacing.small) {
+                    CodexActivityIndicator()
+                    Text("Waiting for result...")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.vertical, JinSpacing.xSmall)
             }
         }
-        .transition(.move(edge: .top).combined(with: .opacity))
+        .transition(.opacity.combined(with: .move(edge: .top)))
     }
 
     // MARK: - Status Pill
@@ -439,12 +568,18 @@ private struct CodexToolEntryView: View {
         let status = entry.executionStatus
         let style = statusStyle(for: status)
 
-        HStack(spacing: 6) {
+        HStack(spacing: 5) {
             statusPillGlyph(for: status)
             Text(statusLabel(for: status))
         }
         .font(.caption2.weight(.semibold))
         .foregroundStyle(style.text)
+        .padding(.horizontal, 7)
+        .padding(.vertical, 3)
+        .background(
+            Capsule(style: .continuous)
+                .fill(style.accent.opacity(0.1))
+        )
         .lineLimit(1)
     }
 
@@ -456,14 +591,14 @@ private struct CodexToolEntryView: View {
         case .running:
             Circle()
                 .fill(style.accent)
-                .frame(width: 4.5, height: 4.5)
+                .frame(width: 4, height: 4)
         case .success:
-            Image(systemName: "checkmark.circle")
-                .font(.system(size: 10, weight: .semibold))
+            Image(systemName: "checkmark.circle.fill")
+                .font(.system(size: 9.5, weight: .semibold))
                 .foregroundStyle(style.accent)
         case .error:
-            Image(systemName: "xmark.circle")
-                .font(.system(size: 10, weight: .semibold))
+            Image(systemName: "xmark.circle.fill")
+                .font(.system(size: 9.5, weight: .semibold))
                 .foregroundStyle(style.accent)
         }
     }
@@ -519,24 +654,27 @@ private struct CodexToolEntryView: View {
         switch status {
         case .running:
             return StatusVisualStyle(
-                accent: .secondary,
+                accent: Color.accentColor.opacity(0.7),
                 text: .secondary,
-                nodeBackground: Color.primary.opacity(0.08),
-                nodeBorder: JinSemanticColor.separator.opacity(0.72)
+                nodeBackground: Color.accentColor.opacity(0.08),
+                nodeBorder: Color.accentColor.opacity(0.2),
+                glowColor: Color.accentColor.opacity(0.25)
             )
         case .success:
             return StatusVisualStyle(
                 accent: Color(nsColor: .systemGreen).opacity(0.88),
                 text: Color(nsColor: .systemGreen).opacity(0.88),
                 nodeBackground: Color(nsColor: .systemGreen).opacity(0.11),
-                nodeBorder: Color(nsColor: .systemGreen).opacity(0.26)
+                nodeBorder: Color(nsColor: .systemGreen).opacity(0.26),
+                glowColor: Color(nsColor: .systemGreen).opacity(0.15)
             )
         case .error:
             return StatusVisualStyle(
                 accent: Color(nsColor: .systemOrange).opacity(0.95),
                 text: Color(nsColor: .systemOrange).opacity(0.95),
                 nodeBackground: Color(nsColor: .systemOrange).opacity(0.14),
-                nodeBorder: Color(nsColor: .systemOrange).opacity(0.36)
+                nodeBorder: Color(nsColor: .systemOrange).opacity(0.36),
+                glowColor: Color(nsColor: .systemOrange).opacity(0.15)
             )
         }
     }
@@ -544,7 +682,6 @@ private struct CodexToolEntryView: View {
     private func toolIconName(_ name: String) -> String {
         let lower = name.lowercased()
         let tokens = lower.split(whereSeparator: { !$0.isLetter && !$0.isNumber })
-        // Shell / command execution
         if lower.contains("shell") || lower.contains("command") || lower.contains("exec")
             || lower.contains("bash") || lower.contains("terminal")
             || lower.hasPrefix("sh") || lower.hasPrefix("zsh")
@@ -555,34 +692,28 @@ private struct CodexToolEntryView: View {
             || lower.hasPrefix("echo") || lower.hasPrefix("curl") {
             return "terminal"
         }
-        // File write / edit / patch
         if lower.contains("write") || lower.contains("edit") || lower.contains("patch")
             || lower.contains("create_file") || lower.contains("apply")
             || lower.hasPrefix("file change") || lower.contains("file_change")
-            || lower.contains(": ") // e.g., "edit: main.swift"
+            || lower.contains(": ")
         {
             return "pencil.line"
         }
-        // File read
         if lower.contains("read") || lower.contains("cat") || lower.contains("view")
             || lower.contains("get_file") || lower.contains("image view") {
             return "doc.text"
         }
-        // Search / grep
         if lower.contains("search") || lower.contains("grep") || lower.contains("find")
             || lower.contains("ripgrep") || tokens.contains(where: { $0 == "rg" }) {
             return "magnifyingglass"
         }
-        // List / directory
         if lower.hasPrefix("ls") || lower.hasPrefix("dir")
             || lower.contains("list") || lower.contains("tree") {
             return "folder"
         }
-        // MCP tool
         if lower.contains("mcp") || lower.contains("/") {
             return "puzzlepiece"
         }
-        // Collaboration
         if lower.contains("collab") || lower.contains("spawn") || lower.contains("agent") {
             return "person.2"
         }
