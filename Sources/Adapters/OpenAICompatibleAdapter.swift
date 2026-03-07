@@ -85,10 +85,6 @@ actor OpenAICompatibleAdapter: LLMProviderAdapter {
         return response.data.map(makeModelInfo(from:))
     }
 
-    func translateTools(_ tools: [ToolDefinition]) -> Any {
-        tools.map(translateToolToOpenAIFormat)
-    }
-
     // MARK: - Private
 
     private var baseURL: String {
@@ -387,7 +383,7 @@ actor OpenAICompatibleAdapter: LLMProviderAdapter {
 
         return ModelInfo(
             id: model.id,
-            name: trimmedNonEmpty(model.name) ?? model.id,
+            name: normalizedTrimmedString(model.name) ?? model.id,
             capabilities: capabilities,
             contextWindow: max(1, model.maxInputTokens ?? 128_000),
             maxOutputTokens: model.maxOutputTokens,
@@ -400,9 +396,9 @@ actor OpenAICompatibleAdapter: LLMProviderAdapter {
 
     private func gitHubCatalogMetadata(from model: GitHubModelsCatalogModel) -> ModelCatalogMetadata? {
         let details = [
-            trimmedNonEmpty(model.publisher),
-            trimmedNonEmpty(model.summary),
-            trimmedNonEmpty(model.rateLimitTier).map { "Rate limit tier: \($0)" }
+            normalizedTrimmedString(model.publisher),
+            normalizedTrimmedString(model.summary),
+            normalizedTrimmedString(model.rateLimitTier).map { "Rate limit tier: \($0)" }
         ]
         .compactMap { $0 }
 
@@ -412,7 +408,7 @@ actor OpenAICompatibleAdapter: LLMProviderAdapter {
 
     private func makeVercelModelInfo(from model: OpenAIModelsResponse.Model) -> ModelInfo {
         let modelID = model.id
-        let displayName = trimmedNonEmpty(model.name) ?? modelID
+        let displayName = normalizedTrimmedString(model.name) ?? modelID
 
         if let entry = ModelCatalog.entry(for: modelID, provider: .vercelAIGateway) {
             return ModelInfo(
@@ -481,12 +477,6 @@ actor OpenAICompatibleAdapter: LLMProviderAdapter {
         }
 
         return capabilities
-    }
-
-    private func trimmedNonEmpty(_ value: String?) -> String? {
-        guard let value else { return nil }
-        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? nil : trimmed
     }
 
     private func isMistralTranscriptionOnlyModelID(_ lowerModelID: String) -> Bool {

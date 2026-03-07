@@ -29,16 +29,33 @@ actor MCPHub {
     }
 
     func toolDefinitions(for servers: [MCPServerConfig]) async throws -> (definitions: [ToolDefinition], routes: ToolRouteSnapshot) {
-        var serverTools: [(server: MCPServerConfig, tools: [MCPToolInfo])] = []
+        let enabledServers = servers.filter(\.isEnabled)
 
-        for server in servers where server.isEnabled {
-            let tools = try await withClient(for: server) { client in
-                try await client.listTools()
+        let serverTools = try await withThrowingTaskGroup(
+            of: (server: MCPServerConfig, tools: [MCPToolInfo]).self,
+            returning: [(server: MCPServerConfig, tools: [MCPToolInfo])].self
+        ) { group in
+            for server in enabledServers {
+                group.addTask {
+                    let tools = try await self.withClient(for: server) { client in
+                        try await client.listTools()
+                    }
+                    return (server, tools)
+                }
             }
-            serverTools.append((server, tools))
+
+            var results: [(server: MCPServerConfig, tools: [MCPToolInfo])] = []
+            for try await result in group {
+                results.append(result)
+            }
+            return results
         }
 
-        return Self.buildToolDefinitionsAndRoutes(from: serverTools)
+        // Preserve original server ordering for deterministic function name disambiguation
+        let serverOrder = Dictionary(uniqueKeysWithValues: enabledServers.enumerated().map { ($1.id, $0) })
+        let sorted = serverTools.sorted { (serverOrder[$0.server.id] ?? 0) < (serverOrder[$1.server.id] ?? 0) }
+
+        return Self.buildToolDefinitionsAndRoutes(from: sorted)
     }
 
     static func buildToolDefinitionsAndRoutes(

@@ -132,16 +132,11 @@ actor OpenAIAdapter: LLMProviderAdapter {
     }
 
     func validateAPIKey(_ key: String) async throws -> Bool {
-        var request = URLRequest(url: try validatedURL("\(baseURL)/models"))
-        request.httpMethod = "GET"
-        request.addValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
-
-        do {
-            _ = try await networkManager.sendRequest(request)
-            return true
-        } catch {
-            return false
-        }
+        await validateAPIKeyViaGET(
+            url: try validatedURL("\(baseURL)/models"),
+            apiKey: key,
+            networkManager: networkManager
+        )
     }
 
     func fetchAvailableModels() async throws -> [ModelInfo] {

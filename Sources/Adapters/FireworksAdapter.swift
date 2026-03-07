@@ -43,16 +43,11 @@ actor FireworksAdapter: LLMProviderAdapter {
     }
 
     func validateAPIKey(_ key: String) async throws -> Bool {
-        var request = URLRequest(url: try validatedURL("\(baseURL)/models"))
-        request.httpMethod = "GET"
-        request.addValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
-
-        do {
-            _ = try await networkManager.sendRequest(request)
-            return true
-        } catch {
-            return false
-        }
+        await validateAPIKeyViaGET(
+            url: try validatedURL("\(baseURL)/models"),
+            apiKey: key,
+            networkManager: networkManager
+        )
     }
 
     func fetchAvailableModels() async throws -> [ModelInfo] {
@@ -63,10 +58,6 @@ actor FireworksAdapter: LLMProviderAdapter {
         let (data, _) = try await networkManager.sendRequest(request)
         let response = try JSONDecoder().decode(OpenAIModelsResponse.self, from: data)
         return response.data.map { makeModelInfo(id: $0.id) }
-    }
-
-    func translateTools(_ tools: [ToolDefinition]) -> Any {
-        tools.map(translateToolToOpenAIFormat)
     }
 
     // MARK: - Private

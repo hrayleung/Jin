@@ -80,10 +80,6 @@ actor TogetherAdapter: LLMProviderAdapter {
         throw LLMError.decodingError(message: "Together /models response could not be decoded.")
     }
 
-    func translateTools(_ tools: [ToolDefinition]) -> Any {
-        tools.map(translateToolToOpenAIFormat)
-    }
-
     // MARK: - Private
 
     private var baseURL: String {

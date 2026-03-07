@@ -73,10 +73,6 @@ actor OpenRouterAdapter: LLMProviderAdapter {
         return response.data.map(makeModelInfo(from:))
     }
 
-    func translateTools(_ tools: [ToolDefinition]) -> Any {
-        tools.map(translateToolToOpenAIFormat)
-    }
-
     // MARK: - Private
 
     private var baseURL: String {

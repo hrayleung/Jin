@@ -30,76 +30,22 @@ extension VertexAIAdapter {
                 case .text(let text):
                     parts.append(["text": text])
                 case .image(let image):
-                    if let data = image.data {
-                        parts.append([
-                            "inlineData": [
-                                "mimeType": image.mimeType,
-                                "data": data.base64EncodedString()
-                            ]
-                        ])
-                    } else if let url = image.url, url.isFileURL {
-                        let data = try resolveFileData(from: url)
-                        parts.append([
-                            "inlineData": [
-                                "mimeType": image.mimeType,
-                                "data": data.base64EncodedString()
-                            ]
-                        ])
+                    if let inline = try GeminiModelConstants.inlineDataPart(mimeType: image.mimeType, data: image.data, url: image.url) {
+                        parts.append(inline)
                     }
                 case .video(let video):
-                    if let data = video.data {
-                        parts.append([
-                            "inlineData": [
-                                "mimeType": video.mimeType,
-                                "data": data.base64EncodedString()
-                            ]
-                        ])
-                    } else if let url = video.url, url.isFileURL {
-                        let data = try resolveFileData(from: url)
-                        parts.append([
-                            "inlineData": [
-                                "mimeType": video.mimeType,
-                                "data": data.base64EncodedString()
-                            ]
-                        ])
+                    if let inline = try GeminiModelConstants.inlineDataPart(mimeType: video.mimeType, data: video.data, url: video.url) {
+                        parts.append(inline)
                     }
                 case .audio(let audio):
-                    if let data = audio.data {
-                        parts.append([
-                            "inlineData": [
-                                "mimeType": audio.mimeType,
-                                "data": data.base64EncodedString()
-                            ]
-                        ])
-                    } else if let url = audio.url, url.isFileURL {
-                        let data = try resolveFileData(from: url)
-                        parts.append([
-                            "inlineData": [
-                                "mimeType": audio.mimeType,
-                                "data": data.base64EncodedString()
-                            ]
-                        ])
+                    if let inline = try GeminiModelConstants.inlineDataPart(mimeType: audio.mimeType, data: audio.data, url: audio.url) {
+                        parts.append(inline)
                     }
                 case .file(let file):
-                    if supportsNativePDF && file.mimeType == "application/pdf" {
-                        let pdfData: Data?
-                        if let data = file.data {
-                            pdfData = data
-                        } else if let url = file.url, url.isFileURL {
-                            pdfData = try resolveFileData(from: url)
-                        } else {
-                            pdfData = nil
-                        }
-
-                        if let pdfData = pdfData {
-                            parts.append([
-                                "inlineData": [
-                                    "mimeType": "application/pdf",
-                                    "data": pdfData.base64EncodedString()
-                                ]
-                            ])
-                            continue
-                        }
+                    if supportsNativePDF, file.mimeType == "application/pdf",
+                       let inline = try GeminiModelConstants.inlineDataPart(mimeType: "application/pdf", data: file.data, url: file.url) {
+                        parts.append(inline)
+                        continue
                     }
 
                     let text = AttachmentPromptRenderer.fallbackText(for: file)
@@ -266,34 +212,7 @@ extension VertexAIAdapter {
         if let candidate = response.candidates?.first,
            let content = candidate.content {
             for part in content.parts ?? [] {
-                if let text = part.text {
-                    if part.thought == true {
-                        events.append(.thinkingDelta(.thinking(textDelta: text, signature: part.thoughtSignature)))
-                    } else {
-                        events.append(.contentDelta(.text(text)))
-                    }
-                }
-
-                if let functionCall = part.functionCall {
-                    let id = UUID().uuidString
-                    let toolCall = ToolCall(
-                        id: id,
-                        name: functionCall.name,
-                        arguments: functionCall.args ?? [:],
-                        signature: part.thoughtSignature
-                    )
-                    events.append(.toolCallStart(toolCall))
-                    events.append(.toolCallEnd(toolCall))
-                }
-
-                if let inline = part.inlineData,
-                   let base64 = inline.data,
-                   let data = Data(base64Encoded: base64, options: .ignoreUnknownCharacters) {
-                    let mimeType = inline.mimeType ?? "image/png"
-                    if mimeType.lowercased().hasPrefix("image/") {
-                        events.append(.contentDelta(.image(ImageContent(mimeType: mimeType, data: data))))
-                    }
-                }
+                events.append(contentsOf: GeminiModelConstants.events(from: part))
             }
         }
 
@@ -313,19 +232,7 @@ extension VertexAIAdapter {
     }
 
     private func toSharedGrounding(_ g: VertexGenerateContentResponse.GroundingMetadata) -> GoogleGroundingSearchActivities.GroundingMetadata {
-        GoogleGroundingSearchActivities.GroundingMetadata(
-            webSearchQueries: g.webSearchQueries,
-            retrievalQueries: g.retrievalQueries,
-            groundingChunks: g.groundingChunks?.map {
-                .init(webURI: $0.web?.uri, webTitle: $0.web?.title)
-            },
-            groundingSupports: g.groundingSupports?.map {
-                .init(segmentText: $0.segment?.text, groundingChunkIndices: $0.groundingChunkIndices)
-            },
-            searchEntryPoint: g.searchEntryPoint.map {
-                .init(sdkBlob: $0.sdkBlob)
-            }
-        )
+        GeminiModelConstants.toSharedGrounding(g)
     }
 
     func usageFromVertexResponse(_ response: VertexGenerateContentResponse) -> Usage? {

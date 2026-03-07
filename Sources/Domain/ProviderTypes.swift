@@ -106,6 +106,34 @@ enum ProviderType: String, Codable, CaseIterable {
         }
     }
 
+    /// Providers using the Google generative AI API surface (Gemini API / Vertex AI).
+    var isGoogleFamily: Bool {
+        switch self {
+        case .gemini, .vertexai: return true
+        default: return false
+        }
+    }
+
+    /// Providers that support native prompt caching features.
+    var supportsNativePromptCaching: Bool {
+        switch self {
+        case .openai, .openaiWebSocket, .anthropic, .xai, .gemini, .vertexai:
+            return true
+        default:
+            return false
+        }
+    }
+
+    /// Providers that support native PDF file uploads (as opposed to OCR extraction).
+    var supportsNativePDFUpload: Bool {
+        switch self {
+        case .openai, .openaiWebSocket, .anthropic, .perplexity, .xai, .gemini, .vertexai:
+            return true
+        default:
+            return false
+        }
+    }
+
     var defaultBaseURL: String? {
         switch self {
         case .openai: return "https://api.openai.com/v1"

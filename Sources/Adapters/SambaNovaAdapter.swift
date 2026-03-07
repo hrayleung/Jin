@@ -49,13 +49,11 @@ actor SambaNovaAdapter: LLMProviderAdapter {
     }
 
     func validateAPIKey(_ key: String) async throws -> Bool {
-        let request = makeGETRequest(url: try validatedURL("\(baseURLRoot)/v1/models"), apiKey: key)
-        do {
-            _ = try await networkManager.sendRequest(request)
-            return true
-        } catch {
-            return false
-        }
+        await validateAPIKeyViaGET(
+            url: try validatedURL("\(baseURLRoot)/v1/models"),
+            apiKey: key,
+            networkManager: networkManager
+        )
     }
 
     func fetchAvailableModels() async throws -> [ModelInfo] {
@@ -66,10 +64,6 @@ actor SambaNovaAdapter: LLMProviderAdapter {
             .map(\.id)
             .filter { $0.caseInsensitiveCompare("DeepSeek-V3.2") != .orderedSame }
             .map { makeModelInfo(id: $0) }
-    }
-
-    func translateTools(_ tools: [ToolDefinition]) -> Any {
-        tools.map(translateToolToOpenAIFormat)
     }
 
     // MARK: - Private

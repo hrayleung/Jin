@@ -666,3 +666,26 @@ func makeGETRequest(url: URL, apiKey: String) -> URLRequest {
     request.addValue(jinUserAgent, forHTTPHeaderField: "User-Agent")
     return request
 }
+
+/// Validates an API key by making a GET request to a models endpoint.
+/// Used by most adapters that support standard `/models` endpoint validation.
+func validateAPIKeyViaGET(
+    url: URL,
+    apiKey: String,
+    networkManager: NetworkManager,
+    authHeader: (key: String, value: String)? = nil
+) async -> Bool {
+    var request = URLRequest(url: url)
+    request.httpMethod = "GET"
+    let auth = authHeader ?? (key: "Authorization", value: "Bearer \(apiKey)")
+    request.addValue(auth.value, forHTTPHeaderField: auth.key)
+    request.addValue("application/json", forHTTPHeaderField: "Accept")
+    request.addValue(jinUserAgent, forHTTPHeaderField: "User-Agent")
+
+    do {
+        _ = try await networkManager.sendRequest(request)
+        return true
+    } catch {
+        return false
+    }
+}

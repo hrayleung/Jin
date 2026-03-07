@@ -157,64 +157,13 @@ extension GeminiAdapter {
     }
 
     func inlineDataPart(mimeType: String, data: Data?, url: URL?) throws -> [String: Any]? {
-        if let data {
-            return [
-                "inlineData": [
-                    "mimeType": mimeType,
-                    "data": data.base64EncodedString()
-                ]
-            ]
-        }
-
-        if let url, url.isFileURL {
-            let data = try resolveFileData(from: url)
-            return [
-                "inlineData": [
-                    "mimeType": mimeType,
-                    "data": data.base64EncodedString()
-                ]
-            ]
-        }
-
-        return nil
+        try GeminiModelConstants.inlineDataPart(mimeType: mimeType, data: data, url: url)
     }
 
     // MARK: - Stream Event Parsing
 
     func events(from part: GeminiGenerateContentResponse.Part) -> [StreamEvent] {
-        var out: [StreamEvent] = []
-
-        if part.thought == true {
-            let text = part.text ?? ""
-            let signature = part.thoughtSignature
-            if !text.isEmpty || signature != nil {
-                out.append(.thinkingDelta(.thinking(textDelta: text, signature: signature)))
-            }
-        } else if let text = part.text, !text.isEmpty {
-            out.append(.contentDelta(.text(text)))
-        }
-
-        if let inline = part.inlineData,
-           let base64 = inline.data,
-           let data = Data(base64Encoded: base64) {
-            let mimeType = inline.mimeType ?? "image/png"
-            if mimeType.lowercased().hasPrefix("image/") {
-                out.append(.contentDelta(.image(ImageContent(mimeType: mimeType, data: data))))
-            }
-        }
-
-        if let functionCall = part.functionCall {
-            let toolCall = ToolCall(
-                id: UUID().uuidString,
-                name: functionCall.name,
-                arguments: functionCall.args ?? [:],
-                signature: part.thoughtSignature
-            )
-            out.append(.toolCallStart(toolCall))
-            out.append(.toolCallEnd(toolCall))
-        }
-
-        return out
+        GeminiModelConstants.events(from: part)
     }
 
     // MARK: - Grounding / Search Activities
@@ -239,19 +188,7 @@ extension GeminiAdapter {
     }
 
     private func toSharedGrounding(_ g: GeminiGenerateContentResponse.GroundingMetadata) -> GoogleGroundingSearchActivities.GroundingMetadata {
-        GoogleGroundingSearchActivities.GroundingMetadata(
-            webSearchQueries: g.webSearchQueries,
-            retrievalQueries: g.retrievalQueries,
-            groundingChunks: g.groundingChunks?.map {
-                .init(webURI: $0.web?.uri, webTitle: $0.web?.title)
-            },
-            groundingSupports: g.groundingSupports?.map {
-                .init(segmentText: $0.segment?.text, groundingChunkIndices: $0.groundingChunkIndices)
-            },
-            searchEntryPoint: g.searchEntryPoint.map {
-                .init(sdkBlob: $0.sdkBlob)
-            }
-        )
+        GeminiModelConstants.toSharedGrounding(g)
     }
 
     func isCandidateContentFiltered(_ candidate: GeminiGenerateContentResponse.Candidate) -> Bool {

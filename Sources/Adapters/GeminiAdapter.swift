@@ -254,16 +254,12 @@ actor GeminiAdapter: LLMProviderAdapter {
     }
 
     func validateAPIKey(_ key: String) async throws -> Bool {
-        var request = URLRequest(url: try validatedURL("\(baseURL)/models"))
-        request.httpMethod = "GET"
-        request.addValue(key, forHTTPHeaderField: "x-goog-api-key")
-
-        do {
-            _ = try await networkManager.sendRequest(request)
-            return true
-        } catch {
-            return false
-        }
+        await validateAPIKeyViaGET(
+            url: try validatedURL("\(baseURL)/models"),
+            apiKey: key,
+            networkManager: networkManager,
+            authHeader: (key: "x-goog-api-key", value: key)
+        )
     }
 
     func fetchAvailableModels() async throws -> [ModelInfo] {
@@ -538,35 +534,11 @@ actor GeminiAdapter: LLMProviderAdapter {
     }
 
     private func defaultThinkingLevelWhenOff(modelID: String) -> String {
-        let supportsMinimal = ModelCapabilityRegistry.supportedReasoningEfforts(
-            for: .gemini,
-            modelID: modelID
-        ).contains(.minimal)
-        return supportsMinimal ? "MINIMAL" : "LOW"
+        GeminiModelConstants.defaultThinkingLevelWhenOff(for: .gemini, modelID: modelID)
     }
 
     private func mapEffortToThinkingLevel(_ effort: ReasoningEffort, modelID: String) -> String {
-        let supportedEfforts = ModelCapabilityRegistry.supportedReasoningEfforts(
-            for: .gemini,
-            modelID: modelID
-        )
-        let supportsMinimal = supportedEfforts.contains(.minimal)
-        let supportsMedium = supportedEfforts.contains(.medium)
-
-        switch effort {
-        case .none:
-            return supportsMinimal ? "MINIMAL" : "LOW"
-        case .minimal:
-            return supportsMinimal ? "MINIMAL" : "LOW"
-        case .low:
-            return "LOW"
-        case .medium:
-            return supportsMedium ? "MEDIUM" : "HIGH"
-        case .high:
-            return "HIGH"
-        case .xhigh:
-            return "HIGH"
-        }
+        GeminiModelConstants.mapEffortToThinkingLevel(effort, for: .gemini, modelID: modelID)
     }
 
     // Content translation, event parsing, and model info building are in GeminiContentTranslation.swift
