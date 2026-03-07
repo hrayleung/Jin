@@ -57,6 +57,7 @@ enum ProviderType: String, Codable, CaseIterable {
     case openai
     case openaiWebSocket
     case codexAppServer
+    case githubCopilot
     case openaiCompatible
     case cloudflareAIGateway
     case vercelAIGateway
@@ -82,6 +83,7 @@ enum ProviderType: String, Codable, CaseIterable {
         case .openai: return "OpenAI"
         case .openaiWebSocket: return "OpenAI (WebSocket)"
         case .codexAppServer: return "Codex App Server (Beta)"
+        case .githubCopilot: return "GitHub Copilot"
         case .openaiCompatible: return "OpenAI Compatible"
         case .cloudflareAIGateway: return "Cloudflare AI Gateway"
         case .vercelAIGateway: return "Vercel AI Gateway"
@@ -109,6 +111,7 @@ enum ProviderType: String, Codable, CaseIterable {
         case .openai: return "https://api.openai.com/v1"
         case .openaiWebSocket: return "wss://api.openai.com/v1"
         case .codexAppServer: return "ws://127.0.0.1:4500"
+        case .githubCopilot: return "https://models.github.ai/inference"
         case .openaiCompatible: return "https://api.openai.com/v1"
         case .cloudflareAIGateway: return "https://gateway.ai.cloudflare.com/v1/{account_id}/{gateway_slug}/compat"
         case .vercelAIGateway: return "https://ai-gateway.vercel.sh/v1"

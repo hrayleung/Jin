@@ -126,6 +126,7 @@ struct ModelSettingsSheet: View {
                                     name: model.name,
                                     capabilities: model.capabilities,
                                     contextWindow: model.contextWindow,
+                                    maxOutputTokens: model.maxOutputTokens,
                                     reasoningConfig: model.reasoningConfig,
                                     overrides: nil,
                                     catalogMetadata: model.catalogMetadata,

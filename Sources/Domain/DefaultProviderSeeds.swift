@@ -12,6 +12,7 @@ enum DefaultProviderSeeds {
             openAI,
             openAIWebSocket,
             codexAppServer,
+            githubCopilot,
             groq,
             openRouter,
             cloudflareAIGateway,
@@ -64,6 +65,17 @@ enum DefaultProviderSeeds {
             iconID: LobeProviderIconCatalog.defaultIconID(for: .codexAppServer),
             baseURL: ProviderType.codexAppServer.defaultBaseURL,
             models: ModelCatalog.seededModels(for: .codexAppServer)
+        )
+    }
+
+    static var githubCopilot: ProviderConfig {
+        ProviderConfig(
+            id: "github-copilot",
+            name: "GitHub Copilot",
+            type: .githubCopilot,
+            iconID: LobeProviderIconCatalog.defaultIconID(for: .githubCopilot),
+            baseURL: ProviderType.githubCopilot.defaultBaseURL,
+            models: []
         )
     }
 

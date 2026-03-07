@@ -324,6 +324,8 @@ final class ProviderConfigEntity {
     var iconID: String?
     var apiKey: String?
     var serviceAccountJSON: String?
+    // Legacy: preserved for schema compatibility with older GitHub OAuth builds.
+    var oauthClientID: String?
     // Legacy: no longer used (credentials are stored directly on this entity).
     var apiKeyKeychainID: String?
     var baseURL: String?
@@ -337,6 +339,7 @@ final class ProviderConfigEntity {
         iconID: String? = nil,
         apiKey: String? = nil,
         serviceAccountJSON: String? = nil,
+        oauthClientID: String? = nil,
         apiKeyKeychainID: String? = nil,
         baseURL: String? = nil,
         modelsData: Data,
@@ -348,6 +351,7 @@ final class ProviderConfigEntity {
         self.iconID = iconID
         self.apiKey = apiKey
         self.serviceAccountJSON = serviceAccountJSON
+        self.oauthClientID = oauthClientID
         self.apiKeyKeychainID = apiKeyKeychainID
         self.baseURL = baseURL
         self.modelsData = modelsData
@@ -389,6 +393,7 @@ final class ProviderConfigEntity {
             iconID: config.iconID,
             apiKey: config.apiKey,
             serviceAccountJSON: config.serviceAccountJSON,
+            oauthClientID: nil,
             apiKeyKeychainID: config.authModeHint,
             baseURL: config.baseURL,
             modelsData: modelsData,
