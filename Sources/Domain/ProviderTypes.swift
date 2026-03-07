@@ -52,10 +52,6 @@ struct ModelOverrides: Codable, Equatable {
     }
 }
 
-enum GitHubProviderAuthModeHint {
-    static let githubCLI = "github.auth.gh_cli.v1"
-}
-
 /// Provider type.
 enum ProviderType: String, Codable, CaseIterable {
     case openai
@@ -149,7 +145,6 @@ struct ProviderConfig: Identifiable, Codable {
     var authModeHint: String?
     var apiKey: String?
     var serviceAccountJSON: String?
-    var oauthClientID: String?
     var baseURL: String?
     var models: [ModelInfo]
     var isEnabled: Bool
@@ -162,7 +157,6 @@ struct ProviderConfig: Identifiable, Codable {
         authModeHint: String? = nil,
         apiKey: String? = nil,
         serviceAccountJSON: String? = nil,
-        oauthClientID: String? = nil,
         baseURL: String? = nil,
         models: [ModelInfo] = [],
         isEnabled: Bool = true
@@ -174,7 +168,6 @@ struct ProviderConfig: Identifiable, Codable {
         self.authModeHint = authModeHint
         self.apiKey = apiKey
         self.serviceAccountJSON = serviceAccountJSON
-        self.oauthClientID = oauthClientID
         self.baseURL = baseURL
         self.models = models
         self.isEnabled = isEnabled

@@ -1698,7 +1698,7 @@ struct ChatView: View {
             for: conversationEntity.modelID,
             providerEntity: currentProvider,
             providerType: providerType,
-            availableModels: availableModels
+            availableModels: currentProvider?.allModels
         ) {
             return normalizedSelectedModelInfo(model)
         }
@@ -4267,10 +4267,13 @@ struct ChatView: View {
             providerEntity: providerEntity,
             providerType: providerTypeSnapshot
         )
-        let resolvedModelSettingsSnapshot = modelInfoSnapshot.map {
+        let normalizedModelInfoSnapshot = modelInfoSnapshot.map {
+            normalizedModelInfo($0, for: providerTypeSnapshot)
+        }
+        let resolvedModelSettingsSnapshot = normalizedModelInfoSnapshot.map {
             ModelSettingsResolver.resolve(model: $0, providerType: providerTypeSnapshot)
         }
-        let modelNameSnapshot = modelInfoSnapshot?.name ?? modelID
+        let modelNameSnapshot = normalizedModelInfoSnapshot?.name ?? modelID
         let streamingState = streamingStore.beginSession(
             conversationID: conversationID,
             threadID: threadID,

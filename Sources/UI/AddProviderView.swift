@@ -83,7 +83,7 @@ struct AddProviderView: View {
                 }
 
                 if providerType == .githubCopilot {
-                    Text("Uses GitHub Models' official inference API at `https://models.github.ai/inference`. Recommended: add the provider, then click `GitHub CLI` in provider settings for one-click browser login. You can also paste a GitHub token now or use a custom OAuth App later.")
+                    Text("Uses GitHub Models' official inference API at `https://models.github.ai/inference`. Configure a GitHub token with GitHub Models access to use this provider.")
                         .jinInfoCallout()
                 }
 
@@ -113,40 +113,15 @@ struct AddProviderView: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
-                case .githubCopilot:
-                    VStack(alignment: .leading, spacing: 6) {
-                        HStack(spacing: 8) {
-                            Group {
-                                if isKeyVisible {
-                                    TextField("GitHub Token (Optional)", text: $apiKey)
-                                } else {
-                                    SecureField("GitHub Token (Optional)", text: $apiKey)
-                                }
-                            }
-                            Button {
-                                isKeyVisible.toggle()
-                            } label: {
-                                Image(systemName: isKeyVisible ? "eye.slash" : "eye")
-                                    .foregroundStyle(.secondary)
-                                    .frame(width: 22, height: 22)
-                            }
-                            .buttonStyle(.plain)
-                            .help(isKeyVisible ? "Hide token" : "Show token")
-                            .disabled(apiKey.isEmpty)
-                        }
-                        Text("Leave blank to use OAuth device login in provider settings.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                case .openai, .openaiWebSocket, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter,
+                case .githubCopilot, .openai, .openaiWebSocket, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter,
                      .anthropic, .perplexity, .groq, .cohere, .mistral, .deepinfra, .together, .xai,
                      .deepseek, .zhipuCodingPlan, .fireworks, .cerebras, .sambanova, .gemini:
                     HStack(spacing: 8) {
                         Group {
                             if isKeyVisible {
-                                TextField("API Key", text: $apiKey)
+                                TextField(providerType == .githubCopilot ? "GitHub Token" : "API Key", text: $apiKey)
                             } else {
-                                SecureField("API Key", text: $apiKey)
+                                SecureField(providerType == .githubCopilot ? "GitHub Token" : "API Key", text: $apiKey)
                             }
                         }
                         Button {
@@ -255,9 +230,7 @@ struct AddProviderView: View {
         switch providerType {
         case .codexAppServer:
             return false
-        case .githubCopilot:
-            return false
-        case .openai, .openaiWebSocket, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter,
+        case .githubCopilot, .openai, .openaiWebSocket, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter,
              .anthropic, .perplexity, .groq, .cohere, .mistral, .deepinfra, .together, .xai, .deepseek,
              .zhipuCodingPlan, .fireworks, .cerebras, .sambanova, .gemini:
             return apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty

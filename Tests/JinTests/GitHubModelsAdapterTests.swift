@@ -120,77 +120,16 @@ final class GitHubModelsAdapterTests: XCTestCase {
         XCTAssertTrue(isValid)
     }
 
-    func testGitHubDeviceFlowValidateAccessPreservesRateLimitError() async {
-        let (session, protocolType) = makeMockedURLSession()
-        let networkManager = NetworkManager(urlSession: session)
-        let authenticator = GitHubDeviceFlowAuthenticator(networkManager: networkManager)
-
-        protocolType.requestHandler = { request in
-            XCTAssertEqual(request.url?.absoluteString, "https://models.github.ai/catalog/models")
-            return (
-                HTTPURLResponse(
-                    url: request.url!,
-                    statusCode: 429,
-                    httpVersion: nil,
-                    headerFields: ["Retry-After": "30"]
-                )!,
-                Data("rate limited".utf8)
-            )
-        }
-
-        do {
-            try await authenticator.validateGitHubModelsAccess(accessToken: "test-token")
-            XCTFail("Expected rateLimitExceeded to be rethrown")
-        } catch let error as LLMError {
-            guard case .rateLimitExceeded(let retryAfter) = error else {
-                return XCTFail("Expected rateLimitExceeded, got \(error)")
-            }
-            XCTAssertEqual(retryAfter, 30)
-        } catch {
-            XCTFail("Expected LLMError.rateLimitExceeded, got \(error)")
-        }
-    }
-
-    func testGitHubDeviceFlowRequestDeviceCodeUsesExpectedEndpoint() async throws {
-        let (session, protocolType) = makeMockedURLSession()
-        let networkManager = NetworkManager(urlSession: session)
-        let authenticator = GitHubDeviceFlowAuthenticator(networkManager: networkManager)
-
-        protocolType.requestHandler = { request in
-            XCTAssertEqual(request.url?.absoluteString, "https://github.com/login/device/code")
-            XCTAssertEqual(request.httpMethod, "POST")
-            XCTAssertEqual(request.value(forHTTPHeaderField: "Accept"), "application/json")
-            XCTAssertEqual(request.value(forHTTPHeaderField: "Content-Type"), "application/x-www-form-urlencoded")
-            XCTAssertEqual(String(data: requestBodyData(request) ?? Data(), encoding: .utf8), "client_id=test-client")
-
-            let payload: [String: Any] = [
-                "device_code": "device-code",
-                "user_code": "1A2B-3C4D",
-                "verification_uri": "https://github.com/login/device",
-                "expires_in": 900,
-                "interval": 5
-            ]
-            let data = try JSONSerialization.data(withJSONObject: payload)
-            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
-        }
-
-        let response = try await authenticator.requestDeviceCode(clientID: "test-client")
-        XCTAssertEqual(response.deviceCode, "device-code")
-        XCTAssertEqual(response.userCode, "1A2B-3C4D")
-        XCTAssertEqual(response.verificationURI, "https://github.com/login/device")
-        XCTAssertEqual(response.expiresIn, 900)
-        XCTAssertEqual(response.interval, 5)
-    }
 }
 
 private final class MockURLProtocol: URLProtocol {
     static var requestHandler: ((URLRequest) throws -> (HTTPURLResponse, Data))?
 
-    override class func canInit(with request: URLRequest) -> Bool {
+    override static func canInit(with request: URLRequest) -> Bool {
         true
     }
 
-    override class func canonicalRequest(for request: URLRequest) -> URLRequest {
+    override static func canonicalRequest(for request: URLRequest) -> URLRequest {
         request
     }
 
@@ -217,32 +156,4 @@ private func makeMockedURLSession() -> (URLSession, MockURLProtocol.Type) {
     let config = URLSessionConfiguration.ephemeral
     config.protocolClasses = [MockURLProtocol.self]
     return (URLSession(configuration: config), MockURLProtocol.self)
-}
-
-private func requestBodyData(_ request: URLRequest) -> Data? {
-    if let body = request.httpBody {
-        return body
-    }
-
-    guard let stream = request.httpBodyStream else { return nil }
-
-    stream.open()
-    defer { stream.close() }
-
-    var data = Data()
-    let bufferSize = 16 * 1024
-    var buffer = [UInt8](repeating: 0, count: bufferSize)
-
-    while stream.hasBytesAvailable {
-        let read = stream.read(&buffer, maxLength: bufferSize)
-        if read < 0 {
-            return nil
-        }
-        if read == 0 {
-            break
-        }
-        data.append(buffer, count: read)
-    }
-
-    return data
 }
