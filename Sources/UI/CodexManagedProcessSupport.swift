@@ -53,14 +53,6 @@ enum CodexManagedProcessSupport {
         )
     }
 
-    static func codexAppServerPIDs(in snapshots: [CodexManagedProcessSnapshot]) -> Set<Int32> {
-        Set(
-            snapshots
-                .filter { $0.commandLine.localizedCaseInsensitiveContains(commandNeedle) }
-                .map(\.pid)
-        )
-    }
-
     static func shutdownOrder(
         for rootPIDs: Set<Int32>,
         snapshots: [CodexManagedProcessSnapshot]

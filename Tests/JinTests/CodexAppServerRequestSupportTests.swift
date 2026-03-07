@@ -11,6 +11,7 @@ final class CodexAppServerRequestSupportTests: XCTestCase {
         XCTAssertEqual(params["model"] as? String, "gpt-5-codex")
         XCTAssertEqual(params["approvalPolicy"] as? String, "never")
         XCTAssertEqual(params["sandbox"] as? String, CodexSandboxMode.workspaceWrite.rawValue)
+        XCTAssertEqual(params["persistExtendedHistory"] as? Bool, false)
     }
 
 
@@ -30,6 +31,7 @@ final class CodexAppServerRequestSupportTests: XCTestCase {
         XCTAssertEqual(params["model"] as? String, "gpt-5-codex")
         XCTAssertEqual(params["approvalPolicy"] as? String, "never")
         XCTAssertEqual(params["sandbox"] as? String, CodexSandboxMode.readOnly.rawValue)
+        XCTAssertEqual(params["persistExtendedHistory"] as? Bool, false)
         XCTAssertEqual(params["personality"] as? String, CodexPersonality.friendly.rawValue)
         XCTAssertEqual(params["cwd"] as? String, "/tmp/repo")
     }

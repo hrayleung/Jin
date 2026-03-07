@@ -56,7 +56,12 @@ struct CodexInteractionSheetView: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") {
-                        onResolve(.cancelled(message: "User cancelled the Codex interaction."))
+                        switch request.kind {
+                        case .commandApproval, .fileChangeApproval:
+                            onResolve(.approval(.cancel))
+                        case .userInput:
+                            onResolve(.cancelled(message: "User cancelled the Codex interaction."))
+                        }
                     }
                 }
                 ToolbarItem(placement: .confirmationAction) {

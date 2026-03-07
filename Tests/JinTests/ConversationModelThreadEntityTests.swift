@@ -28,7 +28,6 @@ final class ConversationModelThreadEntityTests: XCTestCase {
         XCTAssertEqual(domain.modelConfig.modelID, "claude-sonnet-4-6")
         XCTAssertEqual(domain.modelConfig.controls.maxTokens, 222)
     }
-}
 
     func testConversationModelThreadModelConfigCanCarryInternalCodexPersistence() throws {
         var controls = GenerationControls()
@@ -45,4 +44,4 @@ final class ConversationModelThreadEntityTests: XCTestCase {
         XCTAssertEqual(decoded.codexResumeThreadID, "remote-thread-123")
         XCTAssertEqual(decoded.codexPendingRollbackTurns, 2)
     }
-
+}

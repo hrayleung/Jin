@@ -221,17 +221,11 @@ final class CodexAppServerController: ObservableObject {
         force: Bool
     ) -> ShutdownOutcome {
         let snapshots = CodexManagedProcessSupport.currentProcessSnapshots()
-        var rootPIDs = Set<Int32>()
-
-        if let trackedPID, trackedPID > 0 {
-            rootPIDs.insert(trackedPID)
-        }
-        if includeDetectedRemainders {
-            rootPIDs.formUnion(CodexManagedProcessSupport.managedRootPIDs(in: snapshots))
-        }
-        if force {
-            rootPIDs.formUnion(CodexManagedProcessSupport.codexAppServerPIDs(in: snapshots))
-        }
+        let rootPIDs = shutdownRootPIDs(
+            trackedPID: trackedPID,
+            includeDetectedRemainders: includeDetectedRemainders,
+            snapshots: snapshots
+        )
 
         let aliveRoots = rootPIDs.filter(CodexManagedProcessSupport.isProcessAlive)
         guard !aliveRoots.isEmpty else {
@@ -260,6 +254,23 @@ final class CodexAppServerController: ObservableObject {
         let remaining = CodexManagedProcessSupport.alivePIDs(in: Array(aliveRoots))
         let remainingManaged = CodexManagedProcessSupport.managedRootPIDs(in: refreshedSnapshots).count
         return ShutdownOutcome(remainingPIDs: remaining, managedProcessCount: remainingManaged, force: force)
+    }
+
+    nonisolated static func shutdownRootPIDs(
+        trackedPID: Int32?,
+        includeDetectedRemainders: Bool,
+        snapshots: [CodexManagedProcessSnapshot]
+    ) -> Set<Int32> {
+        var rootPIDs = Set<Int32>()
+
+        if let trackedPID, trackedPID > 0 {
+            rootPIDs.insert(trackedPID)
+        }
+        if includeDetectedRemainders {
+            rootPIDs.formUnion(CodexManagedProcessSupport.managedRootPIDs(in: snapshots))
+        }
+
+        return rootPIDs
     }
 
     private func handleProcessTermination(exitStatus: Int32) {

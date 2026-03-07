@@ -33,7 +33,8 @@ struct CodexAppServerRequestBuilder {
             "threadId": threadID,
             "model": modelID,
             "approvalPolicy": defaultApprovalPolicy,
-            "sandbox": controls.codexSandboxMode.threadStartValue
+            "sandbox": controls.codexSandboxMode.threadStartValue,
+            "persistExtendedHistory": false
         ]
 
         if let cwd = controls.codexWorkingDirectory {

@@ -59,11 +59,19 @@ extension CodexAppServerAdapter {
             ]
             try await client.respond(id: requestID, result: payload)
         case .cancelled(let message):
-            try await client.respondWithError(
-                id: requestID,
-                code: -32000,
-                message: message ?? "User cancelled the Codex interaction request."
-            )
+            switch request.kind {
+            case .commandApproval, .fileChangeApproval:
+                try await client.respond(
+                    id: requestID,
+                    result: approvalResultPayload(for: request.method, choice: .cancel)
+                )
+            case .userInput:
+                try await client.respondWithError(
+                    id: requestID,
+                    code: -32000,
+                    message: message ?? "User cancelled the Codex interaction request."
+                )
+            }
         }
     }
 

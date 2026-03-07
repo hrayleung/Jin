@@ -56,8 +56,8 @@ actor CodexAppServerAdapter: LLMProviderAdapter {
         _ = tools // This provider intentionally does not pass client-side tool definitions.
 
         let endpoint = try resolvedEndpointURL()
-        let fullTurnInput = makeTurnInput(from: messages, resumeExistingThread: false)
-        let resumedTurnInput = makeTurnInput(from: messages, resumeExistingThread: true)
+        let fullTurnInput = Self.makeTurnInput(from: messages, resumeExistingThread: false)
+        let resumedTurnInput = Self.makeTurnInput(from: messages, resumeExistingThread: true)
         let threadStartParams = makeThreadStartParams(modelID: modelID, controls: controls)
 
         return AsyncThrowingStream { continuation in
@@ -983,7 +983,7 @@ actor CodexAppServerAdapter: LLMProviderAdapter {
         return url
     }
 
-    private func makeTurnInput(from messages: [Message], resumeExistingThread: Bool) -> [Any] {
+    nonisolated static func makeTurnInput(from messages: [Message], resumeExistingThread: Bool) -> [Any] {
         let fallbackPrompt = makePrompt(from: messages)
 
         guard resumeExistingThread,
@@ -1002,27 +1002,16 @@ actor CodexAppServerAdapter: LLMProviderAdapter {
             return [makeCodexTextInput(trimmedUserText.isEmpty ? "Continue." : trimmedUserText)]
         }
 
-        let historyPrompt = makePrompt(from: Array(messages.dropLast()))
         let latestUserText = renderUserTextForCodex(from: lastMessage.content)
 
         var inputs: [Any] = []
-        var textSegments: [String] = []
-        let trimmedHistory = historyPrompt.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !trimmedHistory.isEmpty {
-            textSegments.append(trimmedHistory)
-        }
         let trimmedUserText = latestUserText.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !trimmedUserText.isEmpty {
-            textSegments.append("User:\n\(trimmedUserText)")
-        }
-        if !textSegments.isEmpty {
-            inputs.append(makeCodexTextInput(textSegments.joined(separator: "\n\n")))
-        }
+        inputs.append(makeCodexTextInput(trimmedUserText.isEmpty ? "Continue." : trimmedUserText))
         inputs.append(contentsOf: imageInputs)
         return inputs.isEmpty ? [makeCodexTextInput(fallbackPrompt)] : inputs
     }
 
-    private func renderUserTextForCodex(from content: [ContentPart]) -> String {
+    private nonisolated static func renderUserTextForCodex(from content: [ContentPart]) -> String {
         content.compactMap { part -> String? in
             switch part {
             case .text(let text):
@@ -1048,7 +1037,7 @@ actor CodexAppServerAdapter: LLMProviderAdapter {
         }.joined(separator: "\n")
     }
 
-    private func makeCodexTextInput(_ text: String) -> [String: Any] {
+    private nonisolated static func makeCodexTextInput(_ text: String) -> [String: Any] {
         [
             "type": "text",
             "text": text,
@@ -1056,7 +1045,7 @@ actor CodexAppServerAdapter: LLMProviderAdapter {
         ]
     }
 
-    private func makePrompt(from messages: [Message]) -> String {
+    private nonisolated static func makePrompt(from messages: [Message]) -> String {
         let rendered = messages
             .map { message in
                 let role: String
@@ -1154,20 +1143,16 @@ actor CodexAppServerAdapter: LLMProviderAdapter {
         return nil
     }
 
-    private nonisolated static func shouldFallbackToFreshThread(_ error: Error) -> Bool {
+    nonisolated static func shouldFallbackToFreshThread(_ error: Error) -> Bool {
         guard case let LLMError.providerError(code, message) = error else {
             return false
-        }
-
-        if code == "-32602" {
-            return true
         }
 
         let lower = message.lowercased()
         return lower.contains("not found")
             || lower.contains("unknown thread")
             || lower.contains("no such thread")
-            || lower.contains("missing thread")
+            || (code == "-32602" && lower.contains("missing thread"))
     }
 
 }

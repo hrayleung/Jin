@@ -37,7 +37,6 @@ final class CodexSessionSettingsTests: XCTestCase {
         XCTAssertNil(controls.codexWorkingDirectory)
         XCTAssertNil(controls.codexPersonality)
     }
-}
 
     func testInternalCodexResumeKeysRoundTripWithoutAffectingVisibleOverrides() {
         var controls = GenerationControls()
@@ -54,4 +53,4 @@ final class CodexSessionSettingsTests: XCTestCase {
         XCTAssertNil(controls.codexResumeThreadID)
         XCTAssertEqual(controls.codexPendingRollbackTurns, 0)
     }
-
+}
