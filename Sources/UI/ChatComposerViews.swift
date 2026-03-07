@@ -134,38 +134,6 @@ struct DraftAttachmentChip: View {
     }
 }
 
-// MARK: - Per-Message MCP Chip
-
-struct PerMessageMCPChip: View {
-    let name: String
-    let onRemove: () -> Void
-
-    var body: some View {
-        HStack(spacing: JinSpacing.xSmall) {
-            Text(name)
-                .font(.callout.weight(.medium))
-                .lineLimit(1)
-
-            Button(action: onRemove) {
-                Image(systemName: "xmark")
-                    .font(.system(size: 9, weight: .semibold))
-                    .foregroundStyle(.secondary)
-            }
-            .buttonStyle(.plain)
-        }
-        .padding(.horizontal, JinSpacing.medium - 2)
-        .padding(.vertical, JinSpacing.xSmall + 2)
-        .background(
-            Capsule()
-                .fill(JinSemanticColor.accentSurface)
-        )
-        .overlay(
-            Capsule()
-                .stroke(JinSemanticColor.selectedStroke, lineWidth: JinStrokeWidth.hairline)
-        )
-    }
-}
-
 // MARK: - Composer Control Icon
 
 struct ComposerControlIconLabel: View {
@@ -244,15 +212,6 @@ struct CompactComposerOverlayView<ControlsRow: View>: View {
     let onRemoveAttachment: (DraftAttachment) -> Void
     let onExpand: () -> Void
     let onSend: () -> Void
-    let slashCommandServers: [SlashCommandMCPServerItem]
-    let isSlashCommandActive: Bool
-    let slashCommandFilterText: String
-    let slashCommandHighlightedIndex: Int
-    let perMessageMCPChips: [SlashCommandMCPServerItem]
-    let onSlashCommandSelectServer: (String) -> Void
-    let onSlashCommandDismiss: () -> Void
-    let onRemovePerMessageMCPServer: (String) -> Void
-    let onInterceptKeyDown: ((UInt16) -> Bool)?
     private let controlsRow: () -> ControlsRow
 
     init(
@@ -279,15 +238,6 @@ struct CompactComposerOverlayView<ControlsRow: View>: View {
         onRemoveAttachment: @escaping (DraftAttachment) -> Void,
         onExpand: @escaping () -> Void,
         onSend: @escaping () -> Void,
-        slashCommandServers: [SlashCommandMCPServerItem] = [],
-        isSlashCommandActive: Bool = false,
-        slashCommandFilterText: String = "",
-        slashCommandHighlightedIndex: Int = 0,
-        perMessageMCPChips: [SlashCommandMCPServerItem] = [],
-        onSlashCommandSelectServer: @escaping (String) -> Void = { _ in },
-        onSlashCommandDismiss: @escaping () -> Void = {},
-        onRemovePerMessageMCPServer: @escaping (String) -> Void = { _ in },
-        onInterceptKeyDown: ((UInt16) -> Bool)? = nil,
         @ViewBuilder controlsRow: @escaping () -> ControlsRow
     ) {
         _messageText = messageText
@@ -313,15 +263,6 @@ struct CompactComposerOverlayView<ControlsRow: View>: View {
         self.onRemoveAttachment = onRemoveAttachment
         self.onExpand = onExpand
         self.onSend = onSend
-        self.slashCommandServers = slashCommandServers
-        self.isSlashCommandActive = isSlashCommandActive
-        self.slashCommandFilterText = slashCommandFilterText
-        self.slashCommandHighlightedIndex = slashCommandHighlightedIndex
-        self.perMessageMCPChips = perMessageMCPChips
-        self.onSlashCommandSelectServer = onSlashCommandSelectServer
-        self.onSlashCommandDismiss = onSlashCommandDismiss
-        self.onRemovePerMessageMCPServer = onRemovePerMessageMCPServer
-        self.onInterceptKeyDown = onInterceptKeyDown
         self.controlsRow = controlsRow
     }
 
@@ -358,30 +299,12 @@ struct CompactComposerOverlayView<ControlsRow: View>: View {
     @ViewBuilder
     private var leftColumn: some View {
         VStack(alignment: .leading, spacing: JinSpacing.small) {
-            perMessageMCPChipsRow
             attachmentChipsRow
             remoteVideoInputRow
             composerTextEditor
             controlsRow()
             prepareStatusRow
             speechStatusRow
-        }
-    }
-
-    @ViewBuilder
-    private var perMessageMCPChipsRow: some View {
-        if !perMessageMCPChips.isEmpty {
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: JinSpacing.small) {
-                    ForEach(perMessageMCPChips) { chip in
-                        PerMessageMCPChip(
-                            name: chip.name,
-                            onRemove: { onRemovePerMessageMCPServer(chip.id) }
-                        )
-                    }
-                }
-                .padding(.horizontal, JinSpacing.xSmall)
-            }
         }
     }
 
@@ -458,8 +381,7 @@ struct CompactComposerOverlayView<ControlsRow: View>: View {
                     if abs(composerTextContentHeight - clamped) > 0.5 {
                         composerTextContentHeight = clamped
                     }
-                },
-                onInterceptKeyDown: onInterceptKeyDown
+                }
             )
             .frame(height: composerTextContentHeight)
         }
@@ -549,15 +471,6 @@ struct ExpandedComposerOverlay: View {
     let onDropFileURLs: ([URL]) -> Bool
     let onDropImages: ([NSImage]) -> Bool
     let onRemoveAttachment: (DraftAttachment) -> Void
-    let slashCommandServers: [SlashCommandMCPServerItem]
-    let isSlashCommandActive: Bool
-    let slashCommandFilterText: String
-    let slashCommandHighlightedIndex: Int
-    let perMessageMCPChips: [SlashCommandMCPServerItem]
-    let onSlashCommandSelectServer: (String) -> Void
-    let onSlashCommandDismiss: () -> Void
-    let onRemovePerMessageMCPServer: (String) -> Void
-    let onInterceptKeyDown: ((UInt16) -> Bool)?
 
     @State private var isEditorFocused = true
 
@@ -604,48 +517,11 @@ struct ExpandedComposerOverlay: View {
         VStack(spacing: 0) {
             panelHeader
             Divider()
-            panelSlashCommandPopover
-            panelPerMessageMCPChips
             panelAttachmentChips
             panelRemoteVideoURLField
             panelEditor
             Divider()
             panelFooter
-        }
-    }
-
-    @ViewBuilder
-    private var panelSlashCommandPopover: some View {
-        if isSlashCommandActive {
-            SlashCommandMCPPopover(
-                servers: slashCommandServers,
-                filterText: slashCommandFilterText,
-                highlightedIndex: slashCommandHighlightedIndex,
-                onSelectServer: onSlashCommandSelectServer,
-                onDismiss: onSlashCommandDismiss
-            )
-            .padding(.horizontal, JinSpacing.large)
-            .padding(.vertical, JinSpacing.small)
-            .transition(.opacity.combined(with: .move(edge: .bottom)))
-            .animation(.easeOut(duration: 0.12), value: isSlashCommandActive)
-        }
-    }
-
-    @ViewBuilder
-    private var panelPerMessageMCPChips: some View {
-        if !perMessageMCPChips.isEmpty {
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: JinSpacing.small) {
-                    ForEach(perMessageMCPChips) { chip in
-                        PerMessageMCPChip(
-                            name: chip.name,
-                            onRemove: { onRemovePerMessageMCPServer(chip.id) }
-                        )
-                    }
-                }
-                .padding(.horizontal, JinSpacing.large)
-                .padding(.vertical, JinSpacing.small)
-            }
         }
     }
 
@@ -716,6 +592,7 @@ struct ExpandedComposerOverlay: View {
                     .disabled(isBusy)
                 }
             }
+            .padding(.horizontal, 10)
             .padding(.vertical, 8)
             .padding(.horizontal, JinSpacing.large)
             .padding(.top, JinSpacing.small)
@@ -748,8 +625,7 @@ struct ExpandedComposerOverlay: View {
                 onCancel: {
                     isPresented = false
                     return true
-                },
-                onInterceptKeyDown: onInterceptKeyDown
+                }
             )
         }
         .padding(.horizontal, JinSpacing.large)

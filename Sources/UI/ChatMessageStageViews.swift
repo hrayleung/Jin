@@ -6,30 +6,6 @@ struct ChatThreadRenderContext {
     let toolResultsByCallID: [String: ToolResult]
 }
 
-struct EditSlashCommandContext {
-    let servers: [SlashCommandMCPServerItem]
-    let isActive: Bool
-    let filterText: String
-    let highlightedIndex: Int
-    let perMessageChips: [SlashCommandMCPServerItem]
-    let onSelectServer: (String) -> Void
-    let onDismiss: () -> Void
-    let onRemovePerMessageServer: (String) -> Void
-    let onInterceptKeyDown: ((UInt16) -> Bool)?
-
-    static let inactive = EditSlashCommandContext(
-        servers: [],
-        isActive: false,
-        filterText: "",
-        highlightedIndex: 0,
-        perMessageChips: [],
-        onSelectServer: { _ in },
-        onDismiss: {},
-        onRemovePerMessageServer: { _ in },
-        onInterceptKeyDown: nil
-    )
-}
-
 struct ChatMessageInteractionContext {
     let actionsEnabled: Bool
     let textToSpeechEnabled: Bool
@@ -46,7 +22,6 @@ struct ChatMessageInteractionContext {
     let onEditUserMessage: (MessageEntity) -> Void
     let onSubmitUserEdit: (MessageEntity) -> Void
     let onCancelUserEdit: () -> Void
-    let editSlashCommand: EditSlashCommandContext
 }
 
 struct ChatMessageTimelineView: View {
@@ -119,7 +94,6 @@ struct ChatMessageTimelineView: View {
                     interaction.onSubmitUserEdit(entity)
                 },
                 onCancelUserEdit: interaction.onCancelUserEdit,
-                editSlashCommand: interaction.editSlashCommand,
                 onActivate: {
                     if let threadID = message.contextThreadID {
                         onActivateThreadForMessage(threadID)
@@ -314,10 +288,7 @@ struct ChatMultiModelStageView: View {
     let composerHeight: CGFloat
     let isStreaming: Bool
     let activeThreadID: UUID?
-    let initialMessageRenderLimit: Int
-    let messageRenderPageSize: Int
     let eagerCodeHighlightTailCount: Int
-    let nonLazyMessageStackThreshold: Int
     let interaction: ChatMessageInteractionContext
     let modelNameForThread: (ConversationModelThreadEntity) -> String
     let providerIconIDForProviderID: (String) -> String?
@@ -347,10 +318,7 @@ struct ChatMultiModelStageView: View {
                             composerHeight: composerHeight,
                             isStreaming: isStreaming,
                             isActive: activeThreadID == thread.id,
-                            initialMessageRenderLimit: initialMessageRenderLimit,
-                            messageRenderPageSize: messageRenderPageSize,
                             eagerCodeHighlightTailCount: eagerCodeHighlightTailCount,
-                            nonLazyMessageStackThreshold: nonLazyMessageStackThreshold,
                             interaction: interaction,
                             streamingMessage: streamingMessageForThread(thread.id),
                             streamingModelLabel: streamingModelLabelForThread(thread.id),
@@ -378,61 +346,11 @@ private struct ChatMultiModelThreadColumnView: View {
     let composerHeight: CGFloat
     let isStreaming: Bool
     let isActive: Bool
-    let initialMessageRenderLimit: Int
-    let messageRenderPageSize: Int
     let eagerCodeHighlightTailCount: Int
-    let nonLazyMessageStackThreshold: Int
     let interaction: ChatMessageInteractionContext
     let streamingMessage: StreamingMessageState?
     let streamingModelLabel: String?
     let onActivateThread: () -> Void
-
-    @State private var messageRenderLimit: Int
-    @State private var pendingRestoreScrollMessageID: UUID?
-
-    init(
-        conversationMessageCount: Int,
-        thread: ConversationModelThreadEntity,
-        context: ChatThreadRenderContext,
-        columnWidth: CGFloat,
-        containerHeight: CGFloat,
-        assistantDisplayName: String,
-        providerIconID: String?,
-        threadTitle: String,
-        composerHeight: CGFloat,
-        isStreaming: Bool,
-        isActive: Bool,
-        initialMessageRenderLimit: Int,
-        messageRenderPageSize: Int,
-        eagerCodeHighlightTailCount: Int,
-        nonLazyMessageStackThreshold: Int,
-        interaction: ChatMessageInteractionContext,
-        streamingMessage: StreamingMessageState?,
-        streamingModelLabel: String?,
-        onActivateThread: @escaping () -> Void
-    ) {
-        self.conversationMessageCount = conversationMessageCount
-        self.thread = thread
-        self.context = context
-        self.columnWidth = columnWidth
-        self.containerHeight = containerHeight
-        self.assistantDisplayName = assistantDisplayName
-        self.providerIconID = providerIconID
-        self.threadTitle = threadTitle
-        self.composerHeight = composerHeight
-        self.isStreaming = isStreaming
-        self.isActive = isActive
-        self.initialMessageRenderLimit = initialMessageRenderLimit
-        self.messageRenderPageSize = messageRenderPageSize
-        self.eagerCodeHighlightTailCount = eagerCodeHighlightTailCount
-        self.nonLazyMessageStackThreshold = nonLazyMessageStackThreshold
-        self.interaction = interaction
-        self.streamingMessage = streamingMessage
-        self.streamingModelLabel = streamingModelLabel
-        self.onActivateThread = onActivateThread
-        _messageRenderLimit = State(initialValue: initialMessageRenderLimit)
-        _pendingRestoreScrollMessageID = State(initialValue: nil)
-    }
 
     private var bubbleMaxWidth: CGFloat {
         max(220, columnWidth - 34)
@@ -443,19 +361,7 @@ private struct ChatMultiModelThreadColumnView: View {
     }
 
     private var eagerCodeHighlightStartIndex: Int {
-        max(0, visibleMessages.count - eagerCodeHighlightTailCount)
-    }
-
-    private var visibleMessages: [MessageRenderItem] {
-        Array(context.visibleMessages.suffix(messageRenderLimit))
-    }
-
-    private var hiddenCount: Int {
-        context.visibleMessages.count - visibleMessages.count
-    }
-
-    private var useLazyMessageStack: Bool {
-        visibleMessages.count > nonLazyMessageStackThreshold
+        max(0, context.visibleMessages.count - eagerCodeHighlightTailCount)
     }
 
     var body: some View {
@@ -486,28 +392,31 @@ private struct ChatMultiModelThreadColumnView: View {
 
             ScrollViewReader { proxy in
                 ScrollView {
-                    Group {
-                        if useLazyMessageStack {
-                            LazyVStack(alignment: .leading, spacing: 16) {
-                                timelineView
-                            }
-                        } else {
-                            VStack(alignment: .leading, spacing: 16) {
-                                timelineView
-                            }
-                        }
+                    VStack(alignment: .leading, spacing: 16) {
+                        ChatMessageTimelineView(
+                            visibleMessages: context.visibleMessages,
+                            hiddenCount: 0,
+                            messageRenderPageSize: nil,
+                            onLoadEarlier: nil,
+                            bubbleMaxWidth: bubbleMaxWidth,
+                            assistantDisplayName: assistantDisplayName,
+                            providerIconID: providerIconID,
+                            eagerCodeHighlightStartIndex: eagerCodeHighlightStartIndex,
+                            toolResultsByCallID: context.toolResultsByCallID,
+                            messageEntitiesByID: context.messageEntitiesByID,
+                            interaction: interaction,
+                            streamingMessage: streamingMessage,
+                            streamingModelLabel: streamingModelLabel,
+                            bottomSpacerHeight: composerHeight + 24,
+                            bottomID: bottomID,
+                            onActivateThreadForMessage: { _ in onActivateThread() },
+                            onActivateTimeline: onActivateThread
+                        )
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.top, 14)
                 }
                 .defaultScrollAnchor(.bottom)
-                .onChange(of: messageRenderLimit) { _, _ in
-                    guard let restoreID = pendingRestoreScrollMessageID else { return }
-                    DispatchQueue.main.async {
-                        proxy.scrollTo(restoreID, anchor: .top)
-                        pendingRestoreScrollMessageID = nil
-                    }
-                }
                 .onAppear {
                     DispatchQueue.main.async {
                         proxy.scrollTo(bottomID, anchor: .bottom)
@@ -523,10 +432,6 @@ private struct ChatMultiModelThreadColumnView: View {
                         proxy.scrollTo(bottomID, anchor: .bottom)
                     }
                 }
-                .onChange(of: thread.id) { _, _ in
-                    messageRenderLimit = initialMessageRenderLimit
-                    pendingRestoreScrollMessageID = nil
-                }
             }
         }
         .frame(width: columnWidth, alignment: .topLeading)
@@ -541,32 +446,6 @@ private struct ChatMultiModelThreadColumnView: View {
                     isActive ? Color.accentColor.opacity(0.65) : JinSemanticColor.separator.opacity(0.45),
                     lineWidth: isActive ? JinStrokeWidth.emphasized : JinStrokeWidth.hairline
                 )
-        )
-    }
-
-    private var timelineView: some View {
-        ChatMessageTimelineView(
-            visibleMessages: visibleMessages,
-            hiddenCount: hiddenCount,
-            messageRenderPageSize: hiddenCount > 0 ? messageRenderPageSize : nil,
-            onLoadEarlier: hiddenCount > 0 ? {
-                guard let firstVisible = visibleMessages.first else { return }
-                pendingRestoreScrollMessageID = firstVisible.id
-                messageRenderLimit = min(context.visibleMessages.count, messageRenderLimit + messageRenderPageSize)
-            } : nil,
-            bubbleMaxWidth: bubbleMaxWidth,
-            assistantDisplayName: assistantDisplayName,
-            providerIconID: providerIconID,
-            eagerCodeHighlightStartIndex: eagerCodeHighlightStartIndex,
-            toolResultsByCallID: context.toolResultsByCallID,
-            messageEntitiesByID: context.messageEntitiesByID,
-            interaction: interaction,
-            streamingMessage: streamingMessage,
-            streamingModelLabel: streamingModelLabel,
-            bottomSpacerHeight: composerHeight + 24,
-            bottomID: bottomID,
-            onActivateThreadForMessage: { _ in onActivateThread() },
-            onActivateTimeline: onActivateThread
         )
     }
 }
