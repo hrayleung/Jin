@@ -595,14 +595,15 @@ var languageHighlightAliases = {
 };
 
 function resolveLanguageLabel(lang) {
-    var normalized = '';
+    var raw = lang ? String(lang).trim().toLowerCase() : '';
+    if (!raw) return 'txt';
     if (window.JinShiki && typeof window.JinShiki.normalizeLanguage === 'function') {
-        normalized = window.JinShiki.normalizeLanguage(lang);
-    } else {
-        normalized = lang ? String(lang).trim().toLowerCase() : '';
+        var normalized = window.JinShiki.normalizeLanguage(raw);
+        if (normalized && normalized !== 'txt') {
+            return languageHighlightAliases[normalized] || normalized;
+        }
     }
-    if (!normalized) return 'txt';
-    return languageHighlightAliases[normalized] || normalized;
+    return languageHighlightAliases[raw] || raw;
 }
 
 function resolveLanguageLogoURL(lang, label) {
