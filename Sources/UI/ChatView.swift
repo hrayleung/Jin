@@ -151,162 +151,57 @@ struct ChatView: View {
     }
 
     private var sortedModelThreads: [ConversationModelThreadEntity] {
-        conversationEntity.modelThreads.sorted { lhs, rhs in
-            if lhs.displayOrder != rhs.displayOrder {
-                return lhs.displayOrder < rhs.displayOrder
-            }
-            return lhs.createdAt < rhs.createdAt
-        }
+        ChatThreadSupport.sortedThreads(in: conversationEntity.modelThreads)
     }
 
     private var selectedModelThreads: [ConversationModelThreadEntity] {
-        let selected = sortedModelThreads.filter(\.isSelected)
-        let base = selected.isEmpty ? sortedModelThreads.prefix(1).map { $0 } : selected
-        guard let active = activeModelThread else { return base }
-
-        if base.contains(where: { $0.id == active.id }) {
-            return base
-        }
-        return base + [active]
+        ChatThreadSupport.selectedThreads(
+            from: sortedModelThreads,
+            activeThread: activeModelThread
+        )
     }
 
     private var secondaryToolbarThreads: [ConversationModelThreadEntity] {
-        guard let active = activeModelThread else { return sortedModelThreads }
-        return sortedModelThreads.filter { $0.id != active.id }
+        ChatThreadSupport.secondaryToolbarThreads(
+            from: sortedModelThreads,
+            activeThread: activeModelThread
+        )
     }
 
     private var activeModelThread: ConversationModelThreadEntity? {
-        let threads = sortedModelThreads
-        guard !threads.isEmpty else { return nil }
-
-        let preferredID = activeThreadID ?? conversationEntity.activeThreadID
-        if let preferredID,
-           let thread = threads.first(where: { $0.id == preferredID }) {
-            return thread
-        }
-
-        let selected = threads.filter(\.isSelected)
-        if let latest = selected.max(by: { $0.lastActivatedAt < $1.lastActivatedAt }) {
-            return latest
-        }
-
-        return threads.first
+        ChatThreadSupport.activeThread(
+            in: sortedModelThreads,
+            preferredID: activeThreadID ?? conversationEntity.activeThreadID
+        )
     }
 
     private var composerOverlay: some View {
-        let shape = RoundedRectangle(cornerRadius: JinRadius.large, style: .continuous)
-
-        return HStack(alignment: .bottom, spacing: JinSpacing.medium) {
-            composerLeftColumn
-            composerSendButton
-        }
-        .padding(JinSpacing.medium)
-        .frame(maxWidth: 800)
-        .background {
-            shape.fill(.regularMaterial)
-        }
-        .overlay(
-            shape.stroke(JinSemanticColor.separator.opacity(0.45), lineWidth: JinStrokeWidth.hairline)
-        )
-        .overlay(
-            shape.stroke(isComposerDropTargeted ? Color.accentColor : Color.clear, lineWidth: JinStrokeWidth.emphasized)
-        )
-        .shadow(color: Color.black.opacity(0.06), radius: 10, x: 0, y: 4)
-        .overlay(alignment: .topTrailing) {
-            composerExpandButton
-                .padding(.top, JinSpacing.medium)
-                .padding(.trailing, JinSpacing.medium)
-        }
-    }
-
-    @ViewBuilder
-    private var composerLeftColumn: some View {
-        VStack(alignment: .leading, spacing: JinSpacing.small) {
-            composerAttachmentChipsRow
-            composerRemoteVideoInputRow
-            composerTextEditor
+        CompactComposerOverlayView(
+            messageText: $messageText,
+            remoteVideoURLText: $remoteVideoInputURLText,
+            draftAttachments: $draftAttachments,
+            isComposerDropTargeted: $isComposerDropTargeted,
+            isComposerFocused: $isComposerFocused,
+            composerTextContentHeight: $composerTextContentHeight,
+            sendWithCommandEnter: sendWithCommandEnter,
+            isBusy: isBusy,
+            canSendDraft: canSendDraft,
+            showsRemoteVideoURLField: supportsExplicitRemoteVideoURLInput,
+            isPreparingToSend: isPreparingToSend,
+            prepareToSendStatus: prepareToSendStatus,
+            isRecording: speechToTextManager.isRecording,
+            isTranscribing: speechToTextManager.isTranscribing,
+            recordingDurationText: formattedRecordingDuration,
+            transcribingStatusText: speechToTextUsesAudioAttachment ? "Attaching audio…" : "Transcribing…",
+            onDropFileURLs: handleDroppedFileURLs,
+            onDropImages: handleDroppedImages,
+            onSubmit: handleComposerSubmit,
+            onCancel: handleComposerCancel,
+            onRemoveAttachment: removeDraftAttachment,
+            onExpand: { isExpandedComposerPresented = true },
+            onSend: sendMessage
+        ) {
             composerControlsRow
-            composerPrepareToSendRow
-            composerSpeechToTextStatusRow
-        }
-    }
-
-    @ViewBuilder
-    private var composerAttachmentChipsRow: some View {
-        if !draftAttachments.isEmpty {
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: JinSpacing.small) {
-                    ForEach(draftAttachments) { attachment in
-                        DraftAttachmentChip(
-                            attachment: attachment,
-                            onRemove: { removeDraftAttachment(attachment) }
-                        )
-                    }
-                }
-                .padding(.horizontal, JinSpacing.xSmall)
-            }
-        }
-    }
-
-    @ViewBuilder
-    private var composerRemoteVideoInputRow: some View {
-        if supportsExplicitRemoteVideoURLInput {
-            HStack(spacing: JinSpacing.small) {
-                Image(systemName: "link")
-                    .foregroundStyle(.secondary)
-
-                TextField("Public video URL (optional, for video edit)", text: $remoteVideoInputURLText)
-                    .textFieldStyle(.plain)
-                    .font(.callout)
-                    .disabled(isBusy)
-
-                if !trimmedRemoteVideoInputURLText.isEmpty {
-                    Button {
-                        remoteVideoInputURLText = ""
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .foregroundStyle(.secondary)
-                    }
-                    .buttonStyle(.plain)
-                    .help("Clear video URL")
-                    .disabled(isBusy)
-                }
-            }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 8)
-            .jinSurface(.subtle, cornerRadius: JinRadius.medium)
-        }
-    }
-
-    @ViewBuilder
-    private var composerTextEditor: some View {
-        ZStack(alignment: .topLeading) {
-            if messageText.isEmpty {
-                Text("Type a message...")
-                    .font(.body)
-                    .foregroundStyle(.secondary)
-                    .padding(.top, 2)
-                    .padding(.leading, 6)
-            }
-
-            DroppableTextEditor(
-                text: $messageText,
-                isDropTargeted: $isComposerDropTargeted,
-                isFocused: $isComposerFocused,
-                font: NSFont.preferredFont(forTextStyle: .body),
-                useCommandEnterToSubmit: sendWithCommandEnter,
-                onDropFileURLs: handleDroppedFileURLs,
-                onDropImages: handleDroppedImages,
-                onSubmit: handleComposerSubmit,
-                onCancel: handleComposerCancel,
-                onContentHeightChanged: { height in
-                    let clamped = max(36, min(height, 120))
-                    if abs(composerTextContentHeight - clamped) > 0.5 {
-                        composerTextContentHeight = clamped
-                    }
-                }
-            )
-            .frame(height: composerTextContentHeight)
         }
     }
 
@@ -314,136 +209,123 @@ struct ChatView: View {
     private var composerControlsRow: some View {
         HStack(spacing: 6) {
             if speechToTextPluginEnabled || speechToTextManagerActive {
-                Button { toggleSpeechToText() } label: {
-                    controlIconLabel(
-                        systemName: speechToTextSystemImageName,
-                        isActive: speechToTextManagerActive,
-                        badgeText: speechToTextBadgeText,
-                        activeColor: speechToTextActiveColor
-                    )
-                }
-                .buttonStyle(.plain)
-                .help(speechToTextHelpText)
-                .disabled(isBusy || speechToTextManager.isTranscribing || (!speechToTextReadyForCurrentMode && !speechToTextManager.isRecording))
-            }
-
-            Button { isFileImporterPresented = true } label: {
-                controlIconLabel(
-                    systemName: "paperclip",
-                    isActive: !draftAttachments.isEmpty,
-                    badgeText: draftAttachments.isEmpty ? nil : "\(draftAttachments.count)"
+                composerButtonControl(
+                    systemName: speechToTextSystemImageName,
+                    isActive: speechToTextManagerActive,
+                    badgeText: speechToTextBadgeText,
+                    help: speechToTextHelpText,
+                    activeColor: speechToTextActiveColor,
+                    disabled: isBusy || speechToTextManager.isTranscribing || (!speechToTextReadyForCurrentMode && !speechToTextManager.isRecording),
+                    action: toggleSpeechToText
                 )
             }
-            .buttonStyle(.plain)
-            .help(fileAttachmentHelpText)
-            .disabled(isBusy)
+
+            composerButtonControl(
+                systemName: "paperclip",
+                isActive: !draftAttachments.isEmpty,
+                badgeText: draftAttachments.isEmpty ? nil : "\(draftAttachments.count)",
+                help: fileAttachmentHelpText,
+                disabled: isBusy
+            ) {
+                isFileImporterPresented = true
+            }
 
             if supportsPDFProcessingControl {
-                Menu { pdfProcessingMenuContent } label: {
-                    controlIconLabel(
-                        systemName: "doc.text.magnifyingglass",
-                        isActive: resolvedPDFProcessingMode != .native,
-                        badgeText: pdfProcessingBadgeText
-                    )
+                composerMenuControl(
+                    systemName: "doc.text.magnifyingglass",
+                    isActive: resolvedPDFProcessingMode != .native,
+                    badgeText: pdfProcessingBadgeText,
+                    help: pdfProcessingHelpText
+                ) {
+                    pdfProcessingMenuContent
                 }
-                .menuStyle(.borderlessButton)
-                .help(pdfProcessingHelpText)
             }
 
             if supportsReasoningControl {
-                Menu { reasoningMenuContent } label: {
-                    controlIconLabel(
-                        systemName: "brain",
-                        isActive: isReasoningEnabled,
-                        badgeText: reasoningBadgeText
-                    )
+                composerMenuControl(
+                    systemName: "brain",
+                    isActive: isReasoningEnabled,
+                    badgeText: reasoningBadgeText,
+                    help: reasoningHelpText
+                ) {
+                    reasoningMenuContent
                 }
-                .menuStyle(.borderlessButton)
-                .help(reasoningHelpText)
             }
 
             if supportsOpenAIServiceTierControl {
-                Menu { openAIServiceTierMenuContent } label: {
-                    controlIconLabel(
-                        systemName: "speedometer",
-                        isActive: controls.openAIServiceTier != nil,
-                        badgeText: openAIServiceTierBadgeText
-                    )
+                composerMenuControl(
+                    systemName: "speedometer",
+                    isActive: controls.openAIServiceTier != nil,
+                    badgeText: openAIServiceTierBadgeText,
+                    help: openAIServiceTierHelpText
+                ) {
+                    openAIServiceTierMenuContent
                 }
-                .menuStyle(.borderlessButton)
-                .help(openAIServiceTierHelpText)
             }
 
             if supportsWebSearchControl {
-                Menu { webSearchMenuContent } label: {
-                    controlIconLabel(
-                        systemName: "globe",
-                        isActive: isWebSearchEnabled,
-                        badgeText: webSearchBadgeText
-                    )
+                composerMenuControl(
+                    systemName: "globe",
+                    isActive: isWebSearchEnabled,
+                    badgeText: webSearchBadgeText,
+                    help: webSearchHelpText
+                ) {
+                    webSearchMenuContent
                 }
-                .menuStyle(.borderlessButton)
-                .help(webSearchHelpText)
             }
 
             if supportsContextCacheControl {
-                Menu { contextCacheMenuContent } label: {
-                    controlIconLabel(
-                        systemName: "archivebox",
-                        isActive: isContextCacheEnabled,
-                        badgeText: contextCacheBadgeText
-                    )
+                composerMenuControl(
+                    systemName: "archivebox",
+                    isActive: isContextCacheEnabled,
+                    badgeText: contextCacheBadgeText,
+                    help: contextCacheHelpText
+                ) {
+                    contextCacheMenuContent
                 }
-                .menuStyle(.borderlessButton)
-                .help(contextCacheHelpText)
             }
 
             if supportsMCPToolsControl {
-                Menu { mcpToolsMenuContent } label: {
-                    controlIconLabel(
-                        systemName: "hammer",
-                        isActive: supportsMCPToolsControl && isMCPToolsEnabled,
-                        badgeText: mcpToolsBadgeText
-                    )
+                composerMenuControl(
+                    systemName: "hammer",
+                    isActive: supportsMCPToolsControl && isMCPToolsEnabled,
+                    badgeText: mcpToolsBadgeText,
+                    help: mcpToolsHelpText
+                ) {
+                    mcpToolsMenuContent
                 }
-                .menuStyle(.borderlessButton)
-                .help(mcpToolsHelpText)
             }
 
             if supportsCodexSessionControl {
-                Button { openCodexSessionSettingsEditor() } label: {
-                    controlIconLabel(
-                        systemName: "terminal",
-                        isActive: codexSessionOverrideCount > 0,
-                        badgeText: codexSessionBadgeText
-                    )
-                }
-                .buttonStyle(.plain)
-                .help(codexSessionHelpText)
+                composerButtonControl(
+                    systemName: "terminal",
+                    isActive: codexSessionOverrideCount > 0,
+                    badgeText: codexSessionBadgeText,
+                    help: codexSessionHelpText,
+                    action: openCodexSessionSettingsEditor
+                )
             }
 
             if supportsImageGenerationControl {
-                Menu { imageGenerationMenuContent } label: {
-                    controlIconLabel(
-                        systemName: "photo",
-                        isActive: isImageGenerationConfigured,
-                        badgeText: imageGenerationBadgeText
-                    )
+                composerMenuControl(
+                    systemName: "photo",
+                    isActive: isImageGenerationConfigured,
+                    badgeText: imageGenerationBadgeText,
+                    help: imageGenerationHelpText
+                ) {
+                    imageGenerationMenuContent
                 }
-                .menuStyle(.borderlessButton)
-                .help(imageGenerationHelpText)
             }
 
             if supportsVideoGenerationControl {
-                Menu { videoGenerationMenuContent } label: {
-                    controlIconLabel(
-                        systemName: "film",
-                        isActive: isVideoGenerationConfigured,
-                        badgeText: videoGenerationBadgeText
-                    )
+                composerMenuControl(
+                    systemName: "film",
+                    isActive: isVideoGenerationConfigured,
+                    badgeText: videoGenerationBadgeText,
+                    help: videoGenerationHelpText
+                ) {
+                    videoGenerationMenuContent
                 }
-                .menuStyle(.borderlessButton)
-                .help(videoGenerationHelpText)
             }
 
             Spacer(minLength: 0)
@@ -451,620 +333,200 @@ struct ChatView: View {
         .padding(.bottom, 1)
     }
 
-    @ViewBuilder
-    private var composerPrepareToSendRow: some View {
-        if isPreparingToSend, let prepareToSendStatus {
-            HStack(spacing: 8) {
-                ProgressView()
-                    .controlSize(.small)
-                Text(prepareToSendStatus)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Spacer(minLength: 0)
-            }
-            .padding(.top, 2)
-        }
-    }
-
-    @ViewBuilder
-    private var composerSpeechToTextStatusRow: some View {
-        if speechToTextManager.isRecording {
-            HStack(spacing: 8) {
-                Circle()
-                    .fill(Color.red)
-                    .frame(width: 6, height: 6)
-                Text("Recording… \(formattedRecordingDuration)")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Spacer(minLength: 0)
-            }
-            .padding(.top, 2)
-        } else if speechToTextManager.isTranscribing {
-            HStack(spacing: 8) {
-                ProgressView()
-                    .controlSize(.small)
-                Text(speechToTextUsesAudioAttachment ? "Attaching audio…" : "Transcribing…")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Spacer(minLength: 0)
-            }
-            .padding(.top, 2)
-        }
-    }
-
-    private var composerExpandButton: some View {
-        Button {
-            isExpandedComposerPresented = true
-        } label: {
-            Image(systemName: "arrow.up.left.and.arrow.down.right")
-                .font(.system(size: 10, weight: .medium))
-                .foregroundStyle(.tertiary)
-                .frame(width: 22, height: 22)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .help("Expand composer (\u{21E7}\u{2318}E)")
-        .disabled(isBusy)
-    }
-
-    private var composerSendButton: some View {
-        Button(action: sendMessage) {
-            Image(systemName: isBusy ? "stop.circle.fill" : "arrow.up.circle.fill")
-                .resizable()
-                .symbolRenderingMode(.hierarchical)
-                .frame(width: 22, height: 22)
-                .foregroundStyle(isBusy ? Color.secondary : (canSendDraft ? Color.accentColor : .gray))
-        }
-        .buttonStyle(.plain)
-        .disabled((!canSendDraft && !isBusy) || speechToTextManager.isRecording || speechToTextManager.isTranscribing)
-        .padding(.bottom, 2)
-    }
-
-    @ViewBuilder
-    private func chatMessageRows(
-        visibleMessages: [MessageRenderItem],
-        hiddenCount: Int,
-        allMessagesCount: Int,
-        bubbleMaxWidth: CGFloat,
-        assistantDisplayName: String,
-        providerIconID: String?,
-        eagerCodeHighlightStartIndex: Int,
-        toolResultsByCallID: [String: ToolResult],
-        messageEntitiesByID: [UUID: MessageEntity]
+    private func composerButtonControl(
+        systemName: String,
+        isActive: Bool,
+        badgeText: String?,
+        help: String,
+        activeColor: Color = .accentColor,
+        disabled: Bool = false,
+        action: @escaping () -> Void
     ) -> some View {
-        if hiddenCount > 0 {
-            LoadEarlierMessagesRow(
-                hiddenCount: hiddenCount,
-                pageSize: Self.messageRenderPageSize,
-                onLoad: {
-                    guard let firstVisible = visibleMessages.first else { return }
-                    pendingRestoreScrollMessageID = firstVisible.id
-                    messageRenderLimit = min(allMessagesCount, messageRenderLimit + Self.messageRenderPageSize)
-                }
+        Button(action: action) {
+            ComposerControlIconLabel(
+                systemName: systemName,
+                isActive: isActive,
+                badgeText: badgeText,
+                activeColor: activeColor
             )
-            .id("loadEarlier")
         }
-
-        ForEach(Array(visibleMessages.enumerated()), id: \.element.id) { index, message in
-            MessageRow(
-                item: message,
-                maxBubbleWidth: bubbleMaxWidth,
-                assistantDisplayName: assistantDisplayName,
-                providerIconID: providerIconID,
-                deferCodeHighlightUpgrade: index < eagerCodeHighlightStartIndex,
-                toolResultsByCallID: toolResultsByCallID,
-                actionsEnabled: !isStreaming,
-                textToSpeechEnabled: textToSpeechPluginEnabled,
-                textToSpeechConfigured: textToSpeechConfigured,
-                textToSpeechIsGenerating: ttsPlaybackManager.isGenerating(messageID: message.id),
-                textToSpeechIsPlaying: ttsPlaybackManager.isPlaying(messageID: message.id),
-                textToSpeechIsPaused: ttsPlaybackManager.isPaused(messageID: message.id),
-                onToggleSpeakAssistantMessage: { messageID, text in
-                    guard let entity = messageEntitiesByID[messageID] else { return }
-                    toggleSpeakAssistantMessage(entity, text: text)
-                },
-                onStopSpeakAssistantMessage: { messageID in
-                    guard let entity = messageEntitiesByID[messageID] else { return }
-                    stopSpeakAssistantMessage(entity)
-                },
-                onRegenerate: { messageID in
-                    guard let entity = messageEntitiesByID[messageID] else { return }
-                    regenerateMessage(entity)
-                },
-                onEditUserMessage: { messageID in
-                    guard let entity = messageEntitiesByID[messageID] else { return }
-                    beginEditingUserMessage(entity)
-                },
-                editingUserMessageID: editingUserMessageID,
-                editingUserMessageText: $editingUserMessageText,
-                editingUserMessageFocused: $isEditingUserMessageFocused,
-                onSubmitUserEdit: { messageID in
-                    guard let entity = messageEntitiesByID[messageID] else { return }
-                    submitEditingUserMessage(entity)
-                },
-                onCancelUserEdit: {
-                    cancelEditingUserMessage()
-                },
-                onActivate: {
-                    if let threadID = message.contextThreadID {
-                        activateThread(by: threadID)
-                    }
-                }
-            )
-            .id(message.id)
-        }
-
-        // Streaming message
-        if let streaming = streamingMessage {
-            StreamingMessageView(
-                state: streaming,
-                maxBubbleWidth: bubbleMaxWidth,
-                assistantDisplayName: assistantDisplayName,
-                modelLabel: streamingModelLabel,
-                providerIconID: providerIconID,
-                onContentUpdate: { }
-            )
-            .id("streaming")
-        }
-
-        Color.clear
-            .frame(height: composerHeight + 24)
-            .id("bottom")
+        .buttonStyle(.plain)
+        .help(help)
+        .disabled(disabled)
     }
 
-    private func chatScrollView(geometry: GeometryProxy, proxy: ScrollViewProxy) -> some View {
-        func refreshPinnedBottomIfNeeded() {
-            guard isPinnedToBottom else { return }
-            pinnedBottomRefreshGeneration &+= 1
-            let refreshGeneration = pinnedBottomRefreshGeneration
-
-            for delay in Self.pinnedBottomRefreshDelays {
-                DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
-                    guard refreshGeneration == pinnedBottomRefreshGeneration else { return }
-                    guard isPinnedToBottom else { return }
-                    proxy.scrollTo("bottom", anchor: .bottom)
-                }
-            }
+    private func composerMenuControl<MenuContent: View>(
+        systemName: String,
+        isActive: Bool,
+        badgeText: String?,
+        help: String,
+        activeColor: Color = .accentColor,
+        @ViewBuilder content: @escaping () -> MenuContent
+    ) -> some View {
+        Menu(content: content) {
+            ComposerControlIconLabel(
+                systemName: systemName,
+                isActive: isActive,
+                badgeText: badgeText,
+                activeColor: activeColor
+            )
         }
-
-        return ScrollView {
-            let bubbleMaxWidth = maxBubbleWidth(for: geometry.size.width)
-            let assistantDisplayName = conversationEntity.assistant?.displayName ?? "Assistant"
-            let providerIconID = currentProviderIconID
-            let toolResultsByCallID = cachedToolResultsByCallID
-            let messageEntitiesByID = cachedMessageEntitiesByID
-
-            let allMessages = cachedVisibleMessages
-            let visibleMessages = Array(allMessages.suffix(messageRenderLimit))
-            let hiddenCount = allMessages.count - visibleMessages.count
-            let eagerCodeHighlightStartIndex = max(0, visibleMessages.count - Self.eagerCodeHighlightTailCount)
-            let useLazyMessageStack = visibleMessages.count > Self.nonLazyMessageStackThreshold
-
-            Group {
-                if useLazyMessageStack {
-                    LazyVStack(alignment: .leading, spacing: 16) {
-                        chatMessageRows(
-                            visibleMessages: visibleMessages,
-                            hiddenCount: hiddenCount,
-                            allMessagesCount: allMessages.count,
-                            bubbleMaxWidth: bubbleMaxWidth,
-                            assistantDisplayName: assistantDisplayName,
-                            providerIconID: providerIconID,
-                            eagerCodeHighlightStartIndex: eagerCodeHighlightStartIndex,
-                            toolResultsByCallID: toolResultsByCallID,
-                            messageEntitiesByID: messageEntitiesByID
-                        )
-                    }
-                } else {
-                    VStack(alignment: .leading, spacing: 16) {
-                        chatMessageRows(
-                            visibleMessages: visibleMessages,
-                            hiddenCount: hiddenCount,
-                            allMessagesCount: allMessages.count,
-                            bubbleMaxWidth: bubbleMaxWidth,
-                            assistantDisplayName: assistantDisplayName,
-                            providerIconID: providerIconID,
-                            eagerCodeHighlightStartIndex: eagerCodeHighlightStartIndex,
-                            toolResultsByCallID: toolResultsByCallID,
-                            messageEntitiesByID: messageEntitiesByID
-                        )
-                    }
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 20)
-            .padding(.top, 24)
-            .frame(minHeight: geometry.size.height, alignment: .bottom)
-        }
-        .defaultScrollAnchor(.bottom)
-        .overlay(alignment: .bottomTrailing) {
-            Group {
-                if !isPinnedToBottom {
-                    Button {
-                        withAnimation(.easeOut(duration: 0.2)) {
-                            proxy.scrollTo("bottom", anchor: .bottom)
-                        }
-                    } label: {
-                        Image(systemName: "chevron.down")
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundStyle(.secondary)
-                            .frame(width: 32, height: 32)
-                            .background(.regularMaterial, in: Circle())
-                            .shadow(color: .black.opacity(0.1), radius: 4, y: 2)
-                    }
-                    .buttonStyle(.plain)
-                    .padding(.trailing, 20)
-                    .padding(.bottom, 34)
-                    .transition(.opacity.combined(with: .scale(scale: 0.8)))
-                }
-            }
-            .animation(.easeInOut(duration: 0.2), value: isPinnedToBottom)
-        }
-        .onScrollPinChange(isPinned: $isPinnedToBottom)
-        .onChange(of: messageRenderLimit) { _, _ in
-            guard let restoreID = pendingRestoreScrollMessageID else { return }
-            DispatchQueue.main.async {
-                proxy.scrollTo(restoreID, anchor: .top)
-                pendingRestoreScrollMessageID = nil
-            }
-        }
-        .onChange(of: conversationEntity.messages.count) { _, _ in
-            refreshPinnedBottomIfNeeded()
-        }
-        .onChange(of: isStreaming) { wasStreaming, nowStreaming in
-            guard wasStreaming, !nowStreaming else { return }
-            rebuildMessageCachesIfNeeded()
-            refreshPinnedBottomIfNeeded()
-        }
-        .onChange(of: conversationEntity.id) { _, _ in
-            DispatchQueue.main.async {
-                proxy.scrollTo("bottom", anchor: .bottom)
-            }
-        }
+        .menuStyle(.borderlessButton)
+        .help(help)
     }
 
-    private struct ThreadRenderContext {
-        let visibleMessages: [MessageRenderItem]
-        let messageEntitiesByID: [UUID: MessageEntity]
-        let toolResultsByCallID: [String: ToolResult]
+    private var messageInteractionContext: ChatMessageInteractionContext {
+        ChatMessageInteractionContext(
+            actionsEnabled: !isStreaming,
+            textToSpeechEnabled: textToSpeechPluginEnabled,
+            textToSpeechConfigured: textToSpeechConfigured,
+            editingUserMessageID: editingUserMessageID,
+            editingUserMessageText: $editingUserMessageText,
+            editingUserMessageFocused: $isEditingUserMessageFocused,
+            textToSpeechIsGenerating: { messageID in
+                ttsPlaybackManager.isGenerating(messageID: messageID)
+            },
+            textToSpeechIsPlaying: { messageID in
+                ttsPlaybackManager.isPlaying(messageID: messageID)
+            },
+            textToSpeechIsPaused: { messageID in
+                ttsPlaybackManager.isPaused(messageID: messageID)
+            },
+            onToggleSpeakAssistantMessage: { entity, text in
+                toggleSpeakAssistantMessage(entity, text: text)
+            },
+            onStopSpeakAssistantMessage: { entity in
+                stopSpeakAssistantMessage(entity)
+            },
+            onRegenerate: { entity in
+                regenerateMessage(entity)
+            },
+            onEditUserMessage: { entity in
+                beginEditingUserMessage(entity)
+            },
+            onSubmitUserEdit: { entity in
+                submitEditingUserMessage(entity)
+            },
+            onCancelUserEdit: {
+                cancelEditingUserMessage()
+            }
+        )
     }
 
-    private func threadRenderContext(threadID: UUID) -> ThreadRenderContext {
-        let ordered = orderedConversationMessages(threadID: threadID)
+    private var assistantDisplayName: String {
+        conversationEntity.assistant?.displayName ?? "Assistant"
+    }
+
+    private var singleThreadRenderContext: ChatThreadRenderContext {
+        ChatThreadRenderContext(
+            visibleMessages: cachedVisibleMessages,
+            messageEntitiesByID: cachedMessageEntitiesByID,
+            toolResultsByCallID: cachedToolResultsByCallID
+        )
+    }
+
+    private var selectedThreadRenderContexts: [UUID: ChatThreadRenderContext] {
+        Dictionary(uniqueKeysWithValues: selectedModelThreads.map { thread in
+            (thread.id, threadRenderContext(threadID: thread.id))
+        })
+    }
+
+    private func threadRenderContext(threadID: UUID) -> ChatThreadRenderContext {
+        let ordered = ChatMessageRenderPipeline.orderedMessages(
+            from: conversationEntity.messages,
+            threadID: threadID
+        )
         let fallbackModelLabel = sortedModelThreads
             .first(where: { $0.id == threadID })
             .map { modelName(id: $0.modelID, providerID: $0.providerID) }
             ?? currentModelName
 
-        var messageEntitiesByID: [UUID: MessageEntity] = [:]
-        messageEntitiesByID.reserveCapacity(ordered.count)
-
-        var renderedItems: [MessageRenderItem] = []
-        renderedItems.reserveCapacity(ordered.count)
-
-        for entity in ordered {
-            messageEntitiesByID[entity.id] = entity
-            guard entity.role != "tool" else { continue }
-
-            guard let message = try? entity.toDomain() else { continue }
-            let renderedParts = renderedContentParts(content: message.content)
-
-            renderedItems.append(
-                MessageRenderItem(
-                    id: entity.id,
-                    contextThreadID: entity.contextThreadID,
-                    role: entity.role,
-                    timestamp: entity.timestamp,
-                    renderedContentParts: renderedParts,
-                    toolCalls: message.toolCalls ?? [],
-                    searchActivities: message.searchActivities ?? [],
-                    codexToolActivities: message.codexToolActivities ?? [],
-                    assistantModelLabel: entity.role == "assistant"
-                        ? (entity.generatedModelName ?? entity.generatedModelID ?? fallbackModelLabel)
-                        : nil,
-                    assistantProviderIconID: entity.role == "assistant"
-                        ? providerIconID(for: entity.generatedProviderID ?? "")
-                        : nil,
-                    responseMetrics: entity.responseMetrics,
-                    copyText: copyableText(from: message),
-                    canEditUserMessage: entity.role == "user"
-                        && message.content.contains(where: { part in
-                            if case .text = part { return true }
-                            return false
-                        })
-                )
-            )
-        }
-
-        return ThreadRenderContext(
-            visibleMessages: renderedItems,
-            messageEntitiesByID: messageEntitiesByID,
-            toolResultsByCallID: toolResultsByToolCallID(in: ordered)
+        return ChatMessageRenderPipeline.makeRenderContext(
+            from: ordered,
+            fallbackModelLabel: fallbackModelLabel,
+            assistantProviderIconID: { providerID in
+                providerIconID(for: providerID)
+            }
         )
     }
 
-    private func multiModelChatView(geometry: GeometryProxy) -> some View {
-        let threads = selectedModelThreads
-        let horizontalPadding: CGFloat = 20
-        let spacing: CGFloat = 12
-        let availableWidth = max(0, geometry.size.width - (horizontalPadding * 2) - (spacing * CGFloat(max(threads.count - 1, 0))))
-        let columnWidth = max(320, availableWidth / CGFloat(max(threads.count, 1)))
-
-        return ScrollView(.horizontal) {
-            HStack(alignment: .top, spacing: spacing) {
-                ForEach(threads) { thread in
-                    multiModelThreadColumn(
-                        thread: thread,
-                        columnWidth: columnWidth,
-                        containerHeight: geometry.size.height
-                    )
-                }
-            }
-            .padding(.horizontal, horizontalPadding)
-            .padding(.top, 16)
-            .frame(minHeight: geometry.size.height, alignment: .bottomLeading)
-        }
-    }
-
-    private func multiModelThreadColumn(
-        thread: ConversationModelThreadEntity,
-        columnWidth: CGFloat,
-        containerHeight: CGFloat
-    ) -> some View {
-        let context = threadRenderContext(threadID: thread.id)
-        let assistantDisplayName = conversationEntity.assistant?.displayName ?? "Assistant"
-        let providerIcon = providerIconID(for: thread.providerID)
-        let eagerCodeHighlightStartIndex = max(0, context.visibleMessages.count - Self.eagerCodeHighlightTailCount)
-        let bubbleMaxWidth = max(220, columnWidth - 34)
-        let bottomID = "bottom-\(thread.id.uuidString)"
-
-        return VStack(spacing: 0) {
-            Button {
-                activateThread(thread)
-            } label: {
-                HStack(spacing: 8) {
-                    ProviderIconView(iconID: providerIcon, size: 12)
-                        .frame(width: 14, height: 14)
-                    Text(modelName(id: thread.modelID, providerID: thread.providerID))
-                        .font(.caption)
-                        .fontWeight(.semibold)
-                        .lineLimit(1)
-                    Spacer(minLength: 0)
-                    if isActiveThread(thread) {
-                        Image(systemName: "pencil.circle.fill")
-                            .font(.caption)
-                            .foregroundStyle(Color.accentColor)
-                    }
-                }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 10)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-
-            Divider()
-                .overlay(JinSemanticColor.separator.opacity(0.35))
-
-            ScrollViewReader { proxy in
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 16) {
-                        multiModelThreadRows(
-                            thread: thread,
-                            context: context,
-                            bubbleMaxWidth: bubbleMaxWidth,
-                            assistantDisplayName: assistantDisplayName,
-                            providerIcon: providerIcon,
-                            eagerCodeHighlightStartIndex: eagerCodeHighlightStartIndex
-                        )
-
-                        if let streaming = streamingMessage(for: thread.id) {
-                            StreamingMessageView(
-                                state: streaming,
-                                maxBubbleWidth: bubbleMaxWidth,
-                                assistantDisplayName: assistantDisplayName,
-                                modelLabel: streamingModelLabel(for: thread.id),
-                                providerIconID: providerIcon,
-                                onContentUpdate: { }
-                            )
-                            .id("streaming-\(thread.id.uuidString)")
-                        }
-
-                        Color.clear
-                            .frame(height: composerHeight + 24)
-                            .id(bottomID)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.top, 14)
-                }
-                .defaultScrollAnchor(.bottom)
-                .onAppear {
-                    DispatchQueue.main.async {
-                        proxy.scrollTo(bottomID, anchor: .bottom)
-                    }
-                }
-                .onChange(of: conversationEntity.messages.count) { _, _ in
-                    DispatchQueue.main.async {
-                        proxy.scrollTo(bottomID, anchor: .bottom)
-                    }
-                }
-                .onChange(of: isStreaming) { _, _ in
-                    DispatchQueue.main.async {
-                        proxy.scrollTo(bottomID, anchor: .bottom)
-                    }
-                }
-            }
-        }
-        .frame(width: columnWidth, alignment: .topLeading)
-        .frame(minHeight: containerHeight, alignment: .topLeading)
-        .background(
-            RoundedRectangle(cornerRadius: JinRadius.large, style: .continuous)
-                .fill(JinSemanticColor.detailSurface)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: JinRadius.large, style: .continuous)
-                .stroke(
-                    isActiveThread(thread) ? Color.accentColor.opacity(0.65) : JinSemanticColor.separator.opacity(0.45),
-                    lineWidth: isActiveThread(thread) ? JinStrokeWidth.emphasized : JinStrokeWidth.hairline
-                )
+    private func singleThreadMessageStage(geometry: GeometryProxy) -> some View {
+        ChatSingleThreadMessagesView(
+            conversationID: conversationEntity.id,
+            conversationMessageCount: conversationEntity.messages.count,
+            containerSize: geometry.size,
+            allMessages: singleThreadRenderContext.visibleMessages,
+            toolResultsByCallID: singleThreadRenderContext.toolResultsByCallID,
+            messageEntitiesByID: singleThreadRenderContext.messageEntitiesByID,
+            assistantDisplayName: assistantDisplayName,
+            providerIconID: currentProviderIconID,
+            composerHeight: composerHeight,
+            isStreaming: isStreaming,
+            streamingMessage: streamingMessage,
+            streamingModelLabel: streamingModelLabel,
+            messageRenderPageSize: Self.messageRenderPageSize,
+            eagerCodeHighlightTailCount: Self.eagerCodeHighlightTailCount,
+            nonLazyMessageStackThreshold: Self.nonLazyMessageStackThreshold,
+            pinnedBottomRefreshDelays: Self.pinnedBottomRefreshDelays,
+            interaction: messageInteractionContext,
+            onStreamingFinished: {
+                rebuildMessageCachesIfNeeded()
+            },
+            onActivateMessageThread: { threadID in
+                activateThread(by: threadID)
+            },
+            messageRenderLimit: $messageRenderLimit,
+            pendingRestoreScrollMessageID: $pendingRestoreScrollMessageID,
+            isPinnedToBottom: $isPinnedToBottom,
+            pinnedBottomRefreshGeneration: $pinnedBottomRefreshGeneration
         )
     }
 
-    @ViewBuilder
-    private func multiModelThreadRows(
-        thread: ConversationModelThreadEntity,
-        context: ThreadRenderContext,
-        bubbleMaxWidth: CGFloat,
-        assistantDisplayName: String,
-        providerIcon: String?,
-        eagerCodeHighlightStartIndex: Int
-    ) -> some View {
-        ForEach(Array(context.visibleMessages.enumerated()), id: \.element.id) { index, message in
-            MessageRow(
-                item: message,
-                maxBubbleWidth: bubbleMaxWidth,
-                assistantDisplayName: assistantDisplayName,
-                providerIconID: providerIcon,
-                deferCodeHighlightUpgrade: index < eagerCodeHighlightStartIndex,
-                toolResultsByCallID: context.toolResultsByCallID,
-                actionsEnabled: !isStreaming,
-                textToSpeechEnabled: textToSpeechPluginEnabled,
-                textToSpeechConfigured: textToSpeechConfigured,
-                textToSpeechIsGenerating: ttsPlaybackManager.isGenerating(messageID: message.id),
-                textToSpeechIsPlaying: ttsPlaybackManager.isPlaying(messageID: message.id),
-                textToSpeechIsPaused: ttsPlaybackManager.isPaused(messageID: message.id),
-                onToggleSpeakAssistantMessage: { messageID, text in
-                    guard let entity = context.messageEntitiesByID[messageID] else { return }
-                    toggleSpeakAssistantMessage(entity, text: text)
-                },
-                onStopSpeakAssistantMessage: { messageID in
-                    guard let entity = context.messageEntitiesByID[messageID] else { return }
-                    stopSpeakAssistantMessage(entity)
-                },
-                onRegenerate: { messageID in
-                    guard let entity = context.messageEntitiesByID[messageID] else { return }
-                    regenerateMessage(entity)
-                },
-                onEditUserMessage: { messageID in
-                    guard let entity = context.messageEntitiesByID[messageID] else { return }
-                    beginEditingUserMessage(entity)
-                },
-                editingUserMessageID: editingUserMessageID,
-                editingUserMessageText: $editingUserMessageText,
-                editingUserMessageFocused: $isEditingUserMessageFocused,
-                onSubmitUserEdit: { messageID in
-                    guard let entity = context.messageEntitiesByID[messageID] else { return }
-                    submitEditingUserMessage(entity)
-                },
-                onCancelUserEdit: {
-                    cancelEditingUserMessage()
-                },
-                onActivate: {
-                    activateThread(thread)
-                }
-            )
-            .id(message.id)
-        }
+    private func multiThreadMessageStage(geometry: GeometryProxy) -> some View {
+        ChatMultiModelStageView(
+            conversationMessageCount: conversationEntity.messages.count,
+            containerSize: geometry.size,
+            threads: selectedModelThreads,
+            contextsByThreadID: selectedThreadRenderContexts,
+            assistantDisplayName: assistantDisplayName,
+            composerHeight: composerHeight,
+            isStreaming: isStreaming,
+            activeThreadID: activeModelThread?.id,
+            eagerCodeHighlightTailCount: Self.eagerCodeHighlightTailCount,
+            interaction: messageInteractionContext,
+            modelNameForThread: { thread in
+                modelName(id: thread.modelID, providerID: thread.providerID)
+            },
+            providerIconIDForProviderID: { providerID in
+                providerIconID(for: providerID)
+            },
+            streamingMessageForThread: { threadID in
+                streamingMessage(for: threadID)
+            },
+            streamingModelLabelForThread: { threadID in
+                streamingModelLabel(for: threadID)
+            },
+            onActivateThread: { threadID in
+                activateThread(by: threadID)
+            }
+        )
     }
 
     var body: some View {
         VStack(spacing: 0) {
             detailHeaderBar
-            ZStack(alignment: .bottom) {
-                // Message list
-                GeometryReader { geometry in
-                    if selectedModelThreads.count > 1 {
-                        multiModelChatView(geometry: geometry)
-                    } else {
-                        ScrollViewReader { proxy in
-                            chatScrollView(geometry: geometry, proxy: proxy)
-                        }
-                    }
-                }
-
-                // Floating Composer
-                composerOverlay
-                    .padding(.horizontal, 16)
-                    .padding(.bottom, 16)
-                    .background {
-                        GeometryReader { geo in
-                            Color.clear.preference(key: ComposerHeightPreferenceKey.self, value: geo.size.height)
-                        }
-                    }
-            }
-            .onPreferenceChange(ComposerHeightPreferenceKey.self) { newValue in
-                if abs(composerHeight - newValue) > 0.5 {
-                    composerHeight = newValue
-                }
-            }
-            .background(JinSemanticColor.detailSurface)
-            .overlay {
-                if isExpandedComposerPresented {
-                    ExpandedComposerOverlay(
-                        messageText: $messageText,
-                        remoteVideoURLText: $remoteVideoInputURLText,
-                        draftAttachments: $draftAttachments,
-                        isPresented: $isExpandedComposerPresented,
-                        isComposerDropTargeted: $isComposerDropTargeted,
-                        isBusy: isBusy,
-                        canSendDraft: canSendDraft,
-                        showsRemoteVideoURLField: supportsExplicitRemoteVideoURLInput,
-                        onSend: {
-                            isExpandedComposerPresented = false
-                            sendMessage()
-                        },
-                        onDropFileURLs: handleDroppedFileURLs,
-                        onDropImages: handleDroppedImages,
-                        onRemoveAttachment: removeDraftAttachment
-                    )
-                    .transition(.opacity.combined(with: .scale(scale: 0.96, anchor: .bottom)))
-                }
-            }
-            .animation(.easeInOut(duration: 0.2), value: isExpandedComposerPresented)
-        } // end VStack
+            conversationStage
+        }
         .environment(\.dropForwarderRef, dropForwarderRef)
         .onDrop(of: [.fileURL, .url, .text, .image, .data, .item], isTargeted: $isFullPageDropTargeted) { providers in
             handleDrop(providers)
         }
         .overlay {
-            ZStack {
-                Color.accentColor.opacity(0.08)
-                    .ignoresSafeArea()
-                VStack(spacing: 8) {
-                    Image(systemName: "arrow.down.doc")
-                        .font(.system(size: 32, weight: .light))
-                        .foregroundStyle(.secondary)
-                    Text("Drop to attach")
-                        .font(.headline)
-                        .foregroundStyle(.secondary)
-                }
-                .padding(24)
-                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: JinRadius.large, style: .continuous))
-            }
-            .allowsHitTesting(false)
-            .opacity(isFullPageDropTargeted ? 1 : 0)
-            .animation(.easeInOut(duration: 0.15), value: isFullPageDropTargeted)
+            fullPageDropOverlay
         }
-        .onAppear {
-            isComposerFocused = true
-            installWKWebViewDropForwarder()
-            // loadControlsFromConversation internally calls ensureModelThreadsInitializedIfNeeded
-            // and syncActiveThreadSelection, so calling them separately is redundant and causes
-            // extra render cycles that make the header flicker.
-            loadControlsFromConversation()
-            rebuildMessageCaches()
-        }
+        .onAppear(perform: handleChatAppear)
         .onChange(of: conversationEntity.id) { _, _ in
-            // Switching chats: reset transient per-chat state and rebuild caches.
-            cancelEditingUserMessage()
-            messageRenderLimit = Self.initialMessageRenderLimit
-            pendingRestoreScrollMessageID = nil
-            isPinnedToBottom = true
-            isExpandedComposerPresented = false
-            remoteVideoInputURLText = ""
-            // loadControlsFromConversation internally calls ensureModelThreadsInitializedIfNeeded
-            // and syncActiveThreadSelection, so calling them separately is redundant.
-            loadControlsFromConversation()
-            rebuildMessageCaches()
+            handleConversationSwitch()
         }
         .onChange(of: conversationEntity.messages.count) { _, _ in
             rebuildMessageCachesIfNeeded()
@@ -1082,13 +544,7 @@ struct ChatView: View {
             allowedContentTypes: [.image, .movie, .audio, .pdf],
             allowsMultipleSelection: true
         ) { result in
-            switch result {
-            case .success(let urls):
-                Task { await importAttachments(from: urls) }
-            case .failure(let error):
-                errorMessage = error.localizedDescription
-                showingError = true
-            }
+            handleAttachmentImport(result)
         }
         .sheet(isPresented: $showingThinkingBudgetSheet) {
             ThinkingBudgetSheetView(
@@ -1190,23 +646,141 @@ struct ChatView: View {
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: .codexWorkingDirectoryPresetsDidChange)) { _ in }
-        .focusedSceneValue(
-            \.chatActions,
-            ChatFocusedActions(
-                canAttach: !isBusy,
-                canStopStreaming: isBusy,
-                focusComposer: { isComposerFocused = true },
-                openModelPicker: { isModelPickerPresented.toggle() },
-                attach: { isFileImporterPresented = true },
-                stopStreaming: {
-                    guard isBusy else { return }
+        .focusedSceneValue(\.chatActions, chatFocusedActions)
+    }
+
+    private var conversationStage: some View {
+        ZStack(alignment: .bottom) {
+            messageStage
+            floatingComposer
+        }
+        .onPreferenceChange(ComposerHeightPreferenceKey.self) { newValue in
+            if abs(composerHeight - newValue) > 0.5 {
+                composerHeight = newValue
+            }
+        }
+        .background(JinSemanticColor.detailSurface)
+        .overlay {
+            expandedComposerOverlay
+        }
+        .animation(.easeInOut(duration: 0.2), value: isExpandedComposerPresented)
+    }
+
+    private var messageStage: some View {
+        GeometryReader { geometry in
+            if selectedModelThreads.count > 1 {
+                multiThreadMessageStage(geometry: geometry)
+            } else {
+                singleThreadMessageStage(geometry: geometry)
+            }
+        }
+    }
+
+    private var floatingComposer: some View {
+        composerOverlay
+            .padding(.horizontal, 16)
+            .padding(.bottom, 16)
+            .background {
+                GeometryReader { geo in
+                    Color.clear.preference(key: ComposerHeightPreferenceKey.self, value: geo.size.height)
+                }
+            }
+    }
+
+    @ViewBuilder
+    private var expandedComposerOverlay: some View {
+        if isExpandedComposerPresented {
+            ExpandedComposerOverlay(
+                messageText: $messageText,
+                remoteVideoURLText: $remoteVideoInputURLText,
+                draftAttachments: $draftAttachments,
+                isPresented: $isExpandedComposerPresented,
+                isComposerDropTargeted: $isComposerDropTargeted,
+                isBusy: isBusy,
+                canSendDraft: canSendDraft,
+                showsRemoteVideoURLField: supportsExplicitRemoteVideoURLInput,
+                onSend: {
+                    isExpandedComposerPresented = false
                     sendMessage()
                 },
-                toggleExpandedComposer: {
-                    isExpandedComposerPresented.toggle()
-                }
+                onDropFileURLs: handleDroppedFileURLs,
+                onDropImages: handleDroppedImages,
+                onRemoveAttachment: removeDraftAttachment
             )
+            .transition(.opacity.combined(with: .scale(scale: 0.96, anchor: .bottom)))
+        }
+    }
+
+    private var fullPageDropOverlay: some View {
+        ZStack {
+            Color.accentColor.opacity(0.08)
+                .ignoresSafeArea()
+
+            VStack(spacing: 8) {
+                Image(systemName: "arrow.down.doc")
+                    .font(.system(size: 32, weight: .light))
+                    .foregroundStyle(.secondary)
+                Text("Drop to attach")
+                    .font(.headline)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(24)
+            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: JinRadius.large, style: .continuous))
+        }
+        .allowsHitTesting(false)
+        .opacity(isFullPageDropTargeted ? 1 : 0)
+        .animation(.easeInOut(duration: 0.15), value: isFullPageDropTargeted)
+    }
+
+    private var chatFocusedActions: ChatFocusedActions {
+        ChatFocusedActions(
+            canAttach: !isBusy,
+            canStopStreaming: isBusy,
+            focusComposer: { isComposerFocused = true },
+            openModelPicker: { isModelPickerPresented.toggle() },
+            attach: { isFileImporterPresented = true },
+            stopStreaming: {
+                guard isBusy else { return }
+                sendMessage()
+            },
+            toggleExpandedComposer: {
+                isExpandedComposerPresented.toggle()
+            }
         )
+    }
+
+    private func handleChatAppear() {
+        isComposerFocused = true
+        installWKWebViewDropForwarder()
+        // loadControlsFromConversation internally calls ensureModelThreadsInitializedIfNeeded
+        // and syncActiveThreadSelection, so calling them separately is redundant and causes
+        // extra render cycles that make the header flicker.
+        loadControlsFromConversation()
+        rebuildMessageCaches()
+    }
+
+    private func handleConversationSwitch() {
+        // Switching chats: reset transient per-chat state and rebuild caches.
+        cancelEditingUserMessage()
+        messageRenderLimit = Self.initialMessageRenderLimit
+        pendingRestoreScrollMessageID = nil
+        isPinnedToBottom = true
+        isExpandedComposerPresented = false
+        remoteVideoInputURLText = ""
+        // loadControlsFromConversation internally calls ensureModelThreadsInitializedIfNeeded
+        // and syncActiveThreadSelection, so calling them separately is redundant.
+        loadControlsFromConversation()
+        rebuildMessageCaches()
+    }
+
+    private func handleAttachmentImport(_ result: Result<[URL], Error>) {
+        switch result {
+        case .success(let urls):
+            Task { await importAttachments(from: urls) }
+        case .failure(let error):
+            errorMessage = error.localizedDescription
+            showingError = true
+        }
     }
     
     // MARK: - Helpers & Subviews
@@ -1715,15 +1289,19 @@ struct ChatView: View {
     }
 
     private var selectedModelInfo: ModelInfo? {
-        if let model = resolvedModelInfo(
-            for: conversationEntity.modelID,
+        guard let model = ChatModelCapabilitySupport.resolvedModelInfo(
+            modelID: conversationEntity.modelID,
             providerEntity: currentProvider,
             providerType: providerType,
             availableModels: currentProvider?.allModels
-        ) {
-            return normalizedSelectedModelInfo(model)
+        ) else {
+            return nil
         }
-        return nil
+
+        return ChatModelCapabilitySupport.normalizedSelectedModelInfo(
+            model,
+            providerType: providerType
+        )
     }
 
     private var resolvedModelSettings: ResolvedModelSettings? {
@@ -1741,11 +1319,11 @@ struct ChatView: View {
         providerType: ProviderType?,
         availableModels: [ModelInfo]? = nil
     ) -> ModelInfo? {
-        let models = availableModels ?? providerEntity?.allModels ?? []
-        return ProviderModelAliasResolver.resolvedModel(
-            for: modelID,
+        ChatModelCapabilitySupport.resolvedModelInfo(
+            modelID: modelID,
+            providerEntity: providerEntity,
             providerType: providerType,
-            availableModels: models
+            availableModels: availableModels
         )
     }
 
@@ -1755,11 +1333,11 @@ struct ChatView: View {
         providerType: ProviderType?,
         availableModels: [ModelInfo]? = nil
     ) -> String {
-        let models = availableModels ?? providerEntity?.allModels ?? []
-        return ProviderModelAliasResolver.resolvedModelID(
-            for: modelID,
+        ChatModelCapabilitySupport.effectiveModelID(
+            modelID: modelID,
+            providerEntity: providerEntity,
             providerType: providerType,
-            availableModels: models
+            availableModels: availableModels
         )
     }
 
@@ -1793,157 +1371,73 @@ struct ChatView: View {
     }
 
     private func normalizedSelectedModelInfo(_ model: ModelInfo) -> ModelInfo {
-        guard providerType == .fireworks else { return model }
-        return normalizedFireworksModelInfo(model)
-    }
-
-    private func normalizedFireworksModelInfo(_ model: ModelInfo) -> ModelInfo {
-        let canonicalID = fireworksCanonicalModelID(model.id)
-        var caps = model.capabilities
-        var contextWindow = model.contextWindow
-        var reasoningConfig = model.reasoningConfig
-        var name = model.name
-        let defaultReasoningConfig = ModelReasoningConfig(type: .effort, defaultEffort: .medium)
-
-        switch canonicalID {
-        case "kimi-k2p5":
-            caps.insert(.vision)
-            caps.insert(.reasoning)
-            contextWindow = 262_100
-            reasoningConfig = defaultReasoningConfig
-            if name == model.id { name = "Kimi K2.5" }
-        case "qwen3-omni-30b-a3b-instruct", "qwen3-omni-30b-a3b-thinking":
-            caps.insert(.vision)
-            caps.insert(.audio)
-        case "qwen3-asr-4b", "qwen3-asr-0.6b":
-            caps.insert(.audio)
-        case "glm-5":
-            caps.insert(.reasoning)
-            contextWindow = 202_800
-            reasoningConfig = defaultReasoningConfig
-            if name == model.id { name = "GLM-5" }
-        case "glm-4p7":
-            caps.insert(.reasoning)
-            contextWindow = 202_800
-            reasoningConfig = defaultReasoningConfig
-            if name == model.id { name = "GLM-4.7" }
-        case "minimax-m2p5":
-            caps.insert(.reasoning)
-            contextWindow = 196_600
-            reasoningConfig = defaultReasoningConfig
-            if name == model.id { name = "MiniMax M2.5" }
-        case "minimax-m2p1":
-            caps.insert(.reasoning)
-            contextWindow = 204_800
-            reasoningConfig = defaultReasoningConfig
-            if name == model.id { name = "MiniMax M2.1" }
-        case "minimax-m2":
-            caps.insert(.reasoning)
-            contextWindow = 196_600
-            reasoningConfig = defaultReasoningConfig
-            if name == model.id { name = "MiniMax M2" }
-        default:
-            break
-        }
-
-        return ModelInfo(
-            id: model.id,
-            name: name,
-            capabilities: caps,
-            contextWindow: contextWindow,
-            maxOutputTokens: model.maxOutputTokens,
-            reasoningConfig: reasoningConfig,
-            overrides: model.overrides,
-            catalogMetadata: model.catalogMetadata,
-            isEnabled: model.isEnabled
+        ChatModelCapabilitySupport.normalizedSelectedModelInfo(
+            model,
+            providerType: providerType
         )
     }
 
+    private func normalizedFireworksModelInfo(_ model: ModelInfo) -> ModelInfo {
+        ChatModelCapabilitySupport.normalizedFireworksModelInfo(model)
+    }
+
     private var isImageGenerationModelID: Bool {
-        switch providerType {
-        case .openai, .openaiWebSocket:
-            return Self.openAIImageGenerationModelIDs.contains(lowerModelID)
-        case .xai:
-            return Self.xAIImageGenerationModelIDs.contains(lowerModelID)
-        case .gemini, .vertexai:
-            return Self.geminiImageGenerationModelIDs.contains(lowerModelID)
-        case .codexAppServer, .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway,
-             .openrouter, .anthropic, .perplexity, .groq, .cohere, .mistral, .deepinfra, .together,
-             .deepseek, .zhipuCodingPlan, .fireworks, .cerebras, .sambanova, .none:
-            return false
-        }
+        ChatModelCapabilitySupport.isImageGenerationModelID(
+            providerType: providerType,
+            lowerModelID: lowerModelID,
+            openAIImageGenerationModelIDs: Self.openAIImageGenerationModelIDs,
+            xAIImageGenerationModelIDs: Self.xAIImageGenerationModelIDs,
+            geminiImageGenerationModelIDs: Self.geminiImageGenerationModelIDs
+        )
     }
 
     private var isVideoGenerationModelID: Bool {
-        switch providerType {
-        case .xai:
-            return Self.xAIVideoGenerationModelIDs.contains(lowerModelID)
-        case .gemini, .vertexai:
-            return Self.googleVideoGenerationModelIDs.contains(lowerModelID)
-        default:
-            return false
-        }
+        ChatModelCapabilitySupport.isVideoGenerationModelID(
+            providerType: providerType,
+            lowerModelID: lowerModelID,
+            xAIVideoGenerationModelIDs: Self.xAIVideoGenerationModelIDs,
+            googleVideoGenerationModelIDs: Self.googleVideoGenerationModelIDs
+        )
     }
 
     private var supportsNativePDF: Bool {
-        guard !supportsMediaGenerationControl else { return false }
-        guard let providerType = providerType else { return false }
-
-        switch providerType {
-        case .openai, .openaiWebSocket, .anthropic, .perplexity, .xai, .gemini, .vertexai:
-            break
-        case .codexAppServer, .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter, .groq,
-             .cohere, .mistral, .deepinfra, .together, .deepseek, .zhipuCodingPlan,
-             .fireworks, .cerebras, .sambanova:
-            return false
-        }
-
-        if resolvedModelSettings?.capabilities.contains(.nativePDF) == true {
-            return true
-        }
-
-        return JinModelSupport.supportsNativePDF(providerType: providerType, modelID: lowerModelID)
+        ChatModelCapabilitySupport.supportsNativePDF(
+            supportsMediaGenerationControl: supportsMediaGenerationControl,
+            providerType: providerType,
+            resolvedModelSettings: resolvedModelSettings,
+            lowerModelID: lowerModelID
+        )
     }
 
     private var supportsVision: Bool {
-        resolvedModelSettings?.capabilities.contains(.vision) == true
-            || supportsImageGenerationControl
-            || supportsVideoGenerationControl
+        ChatModelCapabilitySupport.supportsVision(
+            resolvedModelSettings: resolvedModelSettings,
+            supportsImageGenerationControl: supportsImageGenerationControl,
+            supportsVideoGenerationControl: supportsVideoGenerationControl
+        )
     }
 
     private var supportsAudioInput: Bool {
-        if isMistralTranscriptionOnlyModelID {
-            return false
-        }
-
-        if resolvedModelSettings?.capabilities.contains(.audio) == true {
-            return true
-        }
-
-        if supportsMediaGenerationControl {
-            return false
-        }
-
-        switch providerType {
-        case .openai, .openaiWebSocket:
-            return Self.openAIAudioInputModelIDs.contains(lowerModelID)
-        case .mistral:
-            return Self.mistralAudioInputModelIDs.contains(lowerModelID)
-        case .gemini, .vertexai:
-            return Self.geminiAudioInputModelIDs.contains(lowerModelID)
-        case .githubCopilot, .openrouter, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .deepinfra, .together:
-            return Self.compatibleAudioInputModelIDs.contains(lowerModelID)
-        case .fireworks:
-            return Self.fireworksAudioInputModelIDs.contains(lowerModelID)
-        case .anthropic, .perplexity, .groq, .cohere, .xai, .deepseek, .zhipuCodingPlan,
-             .cerebras, .sambanova, .codexAppServer, .none:
-            return false
-        }
+        ChatModelCapabilitySupport.supportsAudioInput(
+            isMistralTranscriptionOnlyModelID: isMistralTranscriptionOnlyModelID,
+            resolvedModelSettings: resolvedModelSettings,
+            supportsMediaGenerationControl: supportsMediaGenerationControl,
+            providerType: providerType,
+            lowerModelID: lowerModelID,
+            openAIAudioInputModelIDs: Self.openAIAudioInputModelIDs,
+            mistralAudioInputModelIDs: Self.mistralAudioInputModelIDs,
+            geminiAudioInputModelIDs: Self.geminiAudioInputModelIDs,
+            compatibleAudioInputModelIDs: Self.compatibleAudioInputModelIDs,
+            fireworksAudioInputModelIDs: Self.fireworksAudioInputModelIDs
+        )
     }
 
     private var isMistralTranscriptionOnlyModelID: Bool {
-        providerType == .mistral
-            && Self.mistralTranscriptionOnlyModelIDs.contains(lowerModelID)
+        ChatModelCapabilitySupport.isMistralTranscriptionOnlyModelID(
+            providerType: providerType,
+            lowerModelID: lowerModelID,
+            mistralTranscriptionOnlyModelIDs: Self.mistralTranscriptionOnlyModelIDs
+        )
     }
 
     private var supportsImageGenerationControl: Bool {
@@ -1959,11 +1453,12 @@ struct ChatView: View {
     }
 
     private var supportsImageGenerationWebSearch: Bool {
-        guard supportsImageGenerationControl else { return false }
-        if let resolvedModelSettings {
-            return resolvedModelSettings.supportsWebSearch
-        }
-        return ModelCapabilityRegistry.supportsWebSearch(for: providerType, modelID: conversationEntity.modelID)
+        ChatModelCapabilitySupport.supportsImageGenerationWebSearch(
+            supportsImageGenerationControl: supportsImageGenerationControl,
+            resolvedModelSettings: resolvedModelSettings,
+            providerType: providerType,
+            conversationModelID: conversationEntity.modelID
+        )
     }
 
     private var supportsPDFProcessingControl: Bool {
@@ -1972,162 +1467,65 @@ struct ChatView: View {
     }
 
     private var supportsCurrentModelImageSizeControl: Bool {
-        lowerModelID == "gemini-3-pro-image-preview"
-            || lowerModelID == "gemini-3.1-flash-image-preview"
+        ChatModelCapabilitySupport.supportsCurrentModelImageSizeControl(lowerModelID: lowerModelID)
     }
 
     private var supportedCurrentModelImageAspectRatios: [ImageAspectRatio] {
-        if lowerModelID == "gemini-3.1-flash-image-preview" {
-            return ImageAspectRatio.nanoBanana2SupportedCases
-        }
-        return ImageAspectRatio.defaultSupportedCases
+        ChatModelCapabilitySupport.supportedCurrentModelImageAspectRatios(lowerModelID: lowerModelID)
     }
 
     private var supportedCurrentModelImageSizes: [ImageOutputSize] {
-        if lowerModelID == "gemini-3.1-flash-image-preview" {
-            return ImageOutputSize.nanoBanana2SupportedCases
-        }
-        return ImageOutputSize.defaultSupportedCases
+        ChatModelCapabilitySupport.supportedCurrentModelImageSizes(lowerModelID: lowerModelID)
     }
 
     private var isImageGenerationConfigured: Bool {
-        if providerType == .xai {
-            return !(controls.xaiImageGeneration?.isEmpty ?? true)
-        }
-        if providerType == .openai || providerType == .openaiWebSocket {
-            return !(controls.openaiImageGeneration?.isEmpty ?? true)
-        }
-        return !(controls.imageGeneration?.isEmpty ?? true)
+        ChatModelCapabilitySupport.isImageGenerationConfigured(
+            providerType: providerType,
+            controls: controls
+        )
     }
 
     private var imageGenerationBadgeText: String? {
-        guard supportsImageGenerationControl else { return nil }
-
-        if providerType == .xai {
-            if let ratio = controls.xaiImageGeneration?.aspectRatio ?? controls.xaiImageGeneration?.size?.mappedAspectRatio {
-                return ratio.displayName
-            }
-            if let count = controls.xaiImageGeneration?.count, count > 1 {
-                return "x\(count)"
-            }
-            return isImageGenerationConfigured ? "On" : nil
-        }
-
-        if providerType == .openai || providerType == .openaiWebSocket {
-            if let size = controls.openaiImageGeneration?.size {
-                return size.displayName
-            }
-            if let quality = controls.openaiImageGeneration?.quality {
-                return quality.displayName
-            }
-            if let count = controls.openaiImageGeneration?.count, count > 1 {
-                return "x\(count)"
-            }
-            return isImageGenerationConfigured ? "On" : nil
-        }
-
-        if controls.imageGeneration?.responseMode == .imageOnly {
-            return "IMG"
-        }
-        if let ratio = controls.imageGeneration?.aspectRatio?.rawValue {
-            return ratio
-        }
-        if controls.imageGeneration?.seed != nil {
-            return "Seed"
-        }
-        return isImageGenerationConfigured ? "On" : nil
+        ChatModelCapabilitySupport.imageGenerationBadgeText(
+            supportsImageGenerationControl: supportsImageGenerationControl,
+            providerType: providerType,
+            controls: controls,
+            isImageGenerationConfigured: isImageGenerationConfigured
+        )
     }
 
     private var imageGenerationHelpText: String {
-        guard supportsImageGenerationControl else { return "Image Generation: Not supported" }
-
-        if providerType == .xai {
-            if let ratio = controls.xaiImageGeneration?.aspectRatio ?? controls.xaiImageGeneration?.size?.mappedAspectRatio {
-                return "Image Generation: \(ratio.displayName)"
-            }
-            if let count = controls.xaiImageGeneration?.count {
-                return "Image Generation: Count \(count)"
-            }
-            return isImageGenerationConfigured ? "Image Generation: Customized" : "Image Generation: Default"
-        }
-
-        if providerType == .openai || providerType == .openaiWebSocket {
-            if let size = controls.openaiImageGeneration?.size {
-                return "Image Generation: \(size.displayName)"
-            }
-            if let quality = controls.openaiImageGeneration?.quality {
-                return "Image Generation: \(quality.displayName)"
-            }
-            return isImageGenerationConfigured ? "Image Generation: Customized" : "Image Generation: Default"
-        }
-
-        if let ratio = controls.imageGeneration?.aspectRatio?.rawValue {
-            return "Image Generation: \(ratio)"
-        }
-        if controls.imageGeneration?.responseMode == .imageOnly {
-            return "Image Generation: Image only"
-        }
-        return isImageGenerationConfigured ? "Image Generation: Customized" : "Image Generation: Default"
+        ChatModelCapabilitySupport.imageGenerationHelpText(
+            supportsImageGenerationControl: supportsImageGenerationControl,
+            providerType: providerType,
+            controls: controls,
+            isImageGenerationConfigured: isImageGenerationConfigured
+        )
     }
 
     private var isVideoGenerationConfigured: Bool {
-        switch providerType {
-        case .gemini, .vertexai:
-            return !(controls.googleVideoGeneration?.isEmpty ?? true)
-        case .xai:
-            return !(controls.xaiVideoGeneration?.isEmpty ?? true)
-        default:
-            return false
-        }
+        ChatModelCapabilitySupport.isVideoGenerationConfigured(
+            providerType: providerType,
+            controls: controls
+        )
     }
 
     private var videoGenerationBadgeText: String? {
-        guard supportsVideoGenerationControl else { return nil }
-
-        switch providerType {
-        case .gemini, .vertexai:
-            let gc = controls.googleVideoGeneration
-            if let duration = gc?.durationSeconds { return "\(duration)s" }
-            if let ratio = gc?.aspectRatio { return ratio.displayName }
-            if let resolution = gc?.resolution { return resolution.displayName }
-            return isVideoGenerationConfigured ? "On" : nil
-        case .xai:
-            if let duration = controls.xaiVideoGeneration?.duration { return "\(duration)s" }
-            if let ratio = controls.xaiVideoGeneration?.aspectRatio { return ratio.displayName }
-            if let resolution = controls.xaiVideoGeneration?.resolution { return resolution.displayName }
-            return isVideoGenerationConfigured ? "On" : nil
-        default:
-            return nil
-        }
+        ChatModelCapabilitySupport.videoGenerationBadgeText(
+            supportsVideoGenerationControl: supportsVideoGenerationControl,
+            providerType: providerType,
+            controls: controls,
+            isVideoGenerationConfigured: isVideoGenerationConfigured
+        )
     }
 
     private var videoGenerationHelpText: String {
-        guard supportsVideoGenerationControl else { return "Video Generation: Not supported" }
-
-        switch providerType {
-        case .gemini, .vertexai:
-            let gc = controls.googleVideoGeneration
-            var parts: [String] = []
-            if let duration = gc?.durationSeconds { parts.append("\(duration)s") }
-            if let ratio = gc?.aspectRatio { parts.append(ratio.displayName) }
-            if let resolution = gc?.resolution { parts.append(resolution.displayName) }
-            if let audio = gc?.generateAudio, audio { parts.append("Audio") }
-            if parts.isEmpty {
-                return isVideoGenerationConfigured ? "Video Generation: Customized" : "Video Generation: Default"
-            }
-            return "Video Generation: \(parts.joined(separator: ", "))"
-        case .xai:
-            var parts: [String] = []
-            if let duration = controls.xaiVideoGeneration?.duration { parts.append("\(duration)s") }
-            if let ratio = controls.xaiVideoGeneration?.aspectRatio { parts.append(ratio.displayName) }
-            if let resolution = controls.xaiVideoGeneration?.resolution { parts.append(resolution.displayName) }
-            if parts.isEmpty {
-                return isVideoGenerationConfigured ? "Video Generation: Customized" : "Video Generation: Default"
-            }
-            return "Video Generation: \(parts.joined(separator: ", "))"
-        default:
-            return "Video Generation: Not supported"
-        }
+        ChatModelCapabilitySupport.videoGenerationHelpText(
+            supportsVideoGenerationControl: supportsVideoGenerationControl,
+            providerType: providerType,
+            controls: controls,
+            isVideoGenerationConfigured: isVideoGenerationConfigured
+        )
     }
 
     private var resolvedPDFProcessingMode: PDFProcessingMode {
@@ -2135,13 +1533,12 @@ struct ChatView: View {
     }
 
     private var defaultPDFProcessingFallbackMode: PDFProcessingMode {
-        if mistralOCRPluginEnabled, mistralOCRConfigured {
-            return .mistralOCR
-        }
-        if deepSeekOCRPluginEnabled, deepSeekOCRConfigured {
-            return .deepSeekOCR
-        }
-        return .macOSExtract
+        ChatModelCapabilitySupport.defaultPDFProcessingFallbackMode(
+            mistralOCRPluginEnabled: mistralOCRPluginEnabled,
+            mistralOCRConfigured: mistralOCRConfigured,
+            deepSeekOCRPluginEnabled: deepSeekOCRPluginEnabled,
+            deepSeekOCRConfigured: deepSeekOCRConfigured
+        )
     }
 
     private func isPDFProcessingModeAvailable(_ mode: PDFProcessingMode) -> Bool {
@@ -2149,27 +1546,22 @@ struct ChatView: View {
     }
 
     private func isPDFProcessingModeAvailable(_ mode: PDFProcessingMode, supportsNativePDF: Bool) -> Bool {
-        switch mode {
-        case .native:
-            return supportsNativePDF
-        case .macOSExtract:
-            return true
-        case .mistralOCR:
-            return mistralOCRPluginEnabled
-        case .deepSeekOCR:
-            return deepSeekOCRPluginEnabled
-        }
+        ChatModelCapabilitySupport.isPDFProcessingModeAvailable(
+            mode,
+            supportsNativePDF: supportsNativePDF,
+            mistralOCRPluginEnabled: mistralOCRPluginEnabled,
+            deepSeekOCRPluginEnabled: deepSeekOCRPluginEnabled
+        )
     }
 
     private func resolvedPDFProcessingMode(for controls: GenerationControls, supportsNativePDF: Bool) -> PDFProcessingMode {
-        let requested = controls.pdfProcessingMode ?? .native
-        if isPDFProcessingModeAvailable(requested, supportsNativePDF: supportsNativePDF) {
-            return requested
-        }
-        if supportsNativePDF {
-            return .native
-        }
-        return defaultPDFProcessingFallbackMode
+        ChatModelCapabilitySupport.resolvedPDFProcessingMode(
+            controls: controls,
+            supportsNativePDF: supportsNativePDF,
+            defaultPDFProcessingFallbackMode: defaultPDFProcessingFallbackMode,
+            mistralOCRPluginEnabled: mistralOCRPluginEnabled,
+            deepSeekOCRPluginEnabled: deepSeekOCRPluginEnabled
+        )
     }
 
     private var pdfProcessingBadgeText: String? {
@@ -2746,105 +2138,58 @@ struct ChatView: View {
         }
     }
 
-    @ViewBuilder
-    private func controlIconLabel(systemName: String, isActive: Bool, badgeText: String?, activeColor: Color = .accentColor) -> some View {
-        ZStack(alignment: .bottomTrailing) {
-            Image(systemName: systemName)
-                .font(.system(size: 14, weight: .semibold))
-                .symbolRenderingMode(.hierarchical)
-                .foregroundStyle(isActive ? activeColor : Color.secondary)
-                .frame(width: JinControlMetrics.iconButtonHitSize, height: JinControlMetrics.iconButtonHitSize)
-                .background(
-                    Circle()
-                        .fill(isActive ? activeColor.opacity(0.18) : Color.clear)
-                )
-                .overlay(
-                    Circle()
-                        .stroke(isActive ? JinSemanticColor.separator.opacity(0.45) : Color.clear, lineWidth: JinStrokeWidth.hairline)
-                )
-
-            if let badgeText, !badgeText.isEmpty {
-                Text(badgeText)
-                    .font(.system(size: 9, weight: .semibold, design: .rounded))
-                    .padding(.horizontal, JinSpacing.xSmall)
-                    .padding(.vertical, 1)
-                    .foregroundStyle(.primary)
-                    .background(
-                        Capsule()
-                            .fill(JinSemanticColor.surface)
-                    )
-                    .overlay(
-                        Capsule()
-                            .stroke(JinSemanticColor.separator.opacity(0.7), lineWidth: JinStrokeWidth.hairline)
-                    )
-                    .offset(x: JinSpacing.xSmall, y: JinSpacing.xSmall)
-            }
-        }
-    }
-
     private var detailHeaderBar: some View {
-        HStack(spacing: JinSpacing.small) {
-            if isSidebarHidden, let onToggleSidebar {
-                Button(action: onToggleSidebar) {
-                    Image(systemName: "sidebar.leading")
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(.secondary)
-                }
-                .buttonStyle(.plain)
-                .help("Show Sidebar")
+        ChatHeaderBarView(
+            isSidebarHidden: isSidebarHidden,
+            onToggleSidebar: onToggleSidebar,
+            currentProviderIconID: currentProviderIconID,
+            currentModelName: currentModelName,
+            toolbarThreads: headerToolbarThreads,
+            isModelPickerPresented: $isModelPickerPresented,
+            isAddModelPickerPresented: $isAddModelPickerPresented,
+            isStarred: conversationEntity.isStarred == true,
+            onToggleStar: {
+                conversationEntity.isStarred = !(conversationEntity.isStarred == true)
+                try? modelContext.save()
+            },
+            onOpenAssistantInspector: { isAssistantInspectorPresented = true },
+            onRequestDeleteConversation: onRequestDeleteConversation,
+            onToggleToolbarThread: { threadID in
+                guard let thread = sortedModelThreads.first(where: { $0.id == threadID }) else { return }
+                toggleThreadSelection(thread)
+            },
+            onActivateToolbarThread: activateThread(by:),
+            onRemoveToolbarThread: { threadID in
+                guard let thread = sortedModelThreads.first(where: { $0.id == threadID }) else { return }
+                removeModelThread(thread)
             }
-
-            modelPickerButton
-
-            if secondaryToolbarThreads.isEmpty {
-                Spacer(minLength: 0)
-            } else {
-                selectedModelsToolbar
-            }
-
-            addModelButton
-
-            detailHeaderActions
-        }
-        .padding(.horizontal, JinSpacing.medium)
-        .padding(.vertical, JinSpacing.small)
-        .frame(minHeight: 38)
-        .background(JinSemanticColor.detailSurface)
-        .overlay(alignment: .bottom) {
-            Rectangle()
-                .fill(JinSemanticColor.separator.opacity(0.45))
-                .frame(height: JinStrokeWidth.hairline)
-        }
-    }
-
-    private var modelPickerButton: some View {
-        Button {
-            isModelPickerPresented = true
-        } label: {
-            HStack(spacing: 6) {
-                ProviderIconView(iconID: currentProviderIconID, size: 14)
-                    .frame(width: 16, height: 16)
-
-                Text(currentModelName)
-                    .font(.callout)
-                    .fontWeight(.medium)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-
-                Image(systemName: "chevron.down")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-            }
-        }
-        .buttonStyle(.plain)
-        .help("Select model")
-        .accessibilityLabel("Select model")
-        .popover(isPresented: $isModelPickerPresented, arrowEdge: .bottom) {
+        ) {
             modelPickerPopoverContent { providerID, modelID in
                 setProviderAndModel(providerID: providerID, modelID: modelID)
                 isModelPickerPresented = false
             }
+        } addModelPopover: {
+            modelPickerPopoverContent { providerID, modelID in
+                addOrActivateThread(providerID: providerID, modelID: modelID)
+                isAddModelPickerPresented = false
+            }
         }
+    }
+
+    private var headerToolbarThreads: [ChatHeaderToolbarThread] {
+        ChatThreadSupport.headerToolbarThreads(
+            secondaryThreads: secondaryToolbarThreads,
+            sortedThreadCount: sortedModelThreads.count,
+            providerIconID: { providerID in
+                providerIconID(for: providerID)
+            },
+            modelName: { modelID, providerID in
+                modelName(id: modelID, providerID: providerID)
+            },
+            isActiveThread: { thread in
+                isActiveThread(thread)
+            }
+        )
     }
 
     private func modelPickerPopoverContent(onSelect: @escaping (String, String) -> Void) -> some View {
@@ -2857,159 +2202,56 @@ struct ChatView: View {
         )
     }
 
-    private var detailHeaderActions: some View {
-        HStack(spacing: JinSpacing.xSmall) {
-            let isStarred = conversationEntity.isStarred == true
-            Button {
-                conversationEntity.isStarred = !isStarred
-                try? modelContext.save()
-            } label: {
-                Image(systemName: isStarred ? "star.fill" : "star")
-                    .font(.system(size: JinControlMetrics.iconButtonGlyphSize, weight: .semibold))
-                    .foregroundStyle(isStarred ? Color.orange : Color.primary)
-            }
-            .buttonStyle(JinIconButtonStyle())
-            .help(isStarred ? "Unstar chat" : "Star chat")
-
-            Button {
-                isAssistantInspectorPresented = true
-            } label: {
-                Image(systemName: "slider.horizontal.3")
-                    .font(.system(size: JinControlMetrics.iconButtonGlyphSize, weight: .semibold))
-            }
-            .buttonStyle(JinIconButtonStyle())
-            .help("Assistant Settings")
-
-            Button(role: .destructive) {
-                onRequestDeleteConversation()
-            } label: {
-                Image(systemName: "trash")
-                    .font(.system(size: JinControlMetrics.iconButtonGlyphSize, weight: .semibold))
-            }
-            .buttonStyle(JinIconButtonStyle())
-            .help("Delete chat")
-        }
-        .fixedSize(horizontal: true, vertical: false)
-    }
-
-    private var addModelButton: some View {
-        Button {
-            isAddModelPickerPresented = true
-        } label: {
-            Image(systemName: "plus.circle")
-                .font(.system(size: 14, weight: .regular))
-                .foregroundStyle(.secondary)
-        }
-        .buttonStyle(.plain)
-        .help("Add model")
-        .popover(isPresented: $isAddModelPickerPresented, arrowEdge: .bottom) {
-            modelPickerPopoverContent { providerID, modelID in
-                addOrActivateThread(providerID: providerID, modelID: modelID)
-                isAddModelPickerPresented = false
-            }
-        }
-    }
-
-    private var selectedModelsToolbar: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 6) {
-                ForEach(secondaryToolbarThreads) { thread in
-                    HStack(spacing: 4) {
-                        Button {
-                            toggleThreadSelection(thread)
-                        } label: {
-                            HStack(spacing: 4) {
-                                ProviderIconView(iconID: providerIconID(for: thread.providerID), size: 10)
-                                    .frame(width: 10, height: 10)
-                                Text(toolbarThreadLabel(thread))
-                                    .font(.caption2)
-                                    .lineLimit(1)
-                                Image(systemName: thread.isSelected ? "checkmark.circle.fill" : "circle")
-                                    .font(.system(size: 10, weight: .semibold))
-                                    .foregroundStyle(thread.isSelected ? Color.accentColor : Color.secondary)
-                            }
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 3)
-                            .background(
-                                Capsule(style: .circular)
-                                    .fill(thread.isSelected ? Color.accentColor.opacity(0.2) : JinSemanticColor.surface)
-                            )
-                            .overlay(
-                                Capsule(style: .circular)
-                                    .stroke(
-                                        isActiveThread(thread) ? Color.accentColor.opacity(0.75) : JinSemanticColor.separator.opacity(0.45),
-                                        lineWidth: isActiveThread(thread) ? JinStrokeWidth.emphasized : JinStrokeWidth.hairline
-                                    )
-                            )
-                        }
-                        .buttonStyle(.plain)
-                        .help(thread.isSelected ? "Selected for next send" : "Click to include this model")
-                        .contextMenu {
-                            Button("Set as input target") {
-                                activateThread(thread)
-                            }
-
-                            if sortedModelThreads.count > 1 {
-                                Divider()
-                                Button("Remove from this chat", role: .destructive) {
-                                    removeModelThread(thread)
-                                }
-                            }
-                        }
-
-                        if sortedModelThreads.count > 1 {
-                            Button {
-                                removeModelThread(thread)
-                            } label: {
-                                Image(systemName: "xmark.circle.fill")
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
-                            }
-                            .buttonStyle(.plain)
-                            .help("Remove model from this chat")
-                        }
-                    }
-                }
-            }
-            .padding(.vertical, 1)
-        }
-        .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
-        .frame(maxWidth: .infinity, alignment: .trailing)
-    }
-
-    private func toolbarThreadLabel(_ thread: ConversationModelThreadEntity) -> String {
-        let name = modelName(id: thread.modelID, providerID: thread.providerID)
-        return String(name.prefix(22))
-    }
-
     private var currentModelName: String {
-        resolvedModelInfo(
-            for: conversationEntity.modelID,
-            providerEntity: currentProvider,
-            providerType: providerType
-        )?.name ?? conversationEntity.modelID
+        ChatThreadSupport.currentModelName(
+            providerID: conversationEntity.providerID,
+            modelID: conversationEntity.modelID,
+            providers: providers,
+            providerType: providerType,
+            resolveModelInfo: { modelID, providerEntity, providerType in
+                resolvedModelInfo(
+                    for: modelID,
+                    providerEntity: providerEntity,
+                    providerType: providerType
+                )
+            }
+        )
     }
 
     private var currentProvider: ProviderConfigEntity? {
-        providers.first(where: { $0.id == conversationEntity.providerID })
+        ChatThreadSupport.currentProvider(
+            for: conversationEntity.providerID,
+            in: providers
+        )
     }
 
     private var currentProviderIconID: String? {
-        currentProvider?.resolvedProviderIconID
+        ChatThreadSupport.providerIconID(
+            for: conversationEntity.providerID,
+            in: providers
+        )
     }
 
     private func providerIconID(for providerID: String) -> String? {
-        providers.first(where: { $0.id == providerID })?.resolvedProviderIconID
+        ChatThreadSupport.providerIconID(
+            for: providerID,
+            in: providers
+        )
     }
 
     private func modelName(id modelID: String, providerID: String) -> String {
-        let providerEntity = providers.first(where: { $0.id == providerID })
-        let providerType = providerEntity.flatMap { ProviderType(rawValue: $0.typeRaw) }
-        return resolvedModelInfo(
-            for: modelID,
-            providerEntity: providerEntity,
-            providerType: providerType
-        )?.name ?? modelID
+        ChatThreadSupport.modelName(
+            modelID: modelID,
+            providerID: providerID,
+            providers: providers,
+            resolveModelInfo: { modelID, providerEntity, providerType in
+                resolvedModelInfo(
+                    for: modelID,
+                    providerEntity: providerEntity,
+                    providerType: providerType
+                )
+            }
+        )
     }
 
     private func isActiveThread(_ thread: ConversationModelThreadEntity) -> Bool {
@@ -3017,57 +2259,27 @@ struct ChatView: View {
     }
 
     private func toggleThreadSelection(_ thread: ConversationModelThreadEntity) {
-        guard let index = conversationEntity.modelThreads.firstIndex(where: { $0.id == thread.id }) else { return }
-        if activeModelThread?.id == thread.id {
-            activateThread(conversationEntity.modelThreads[index])
-            return
-        }
-
-        let selectedCount = sortedModelThreads.filter(\.isSelected).count
-        let isCurrentlySelected = conversationEntity.modelThreads[index].isSelected
-
-        if isCurrentlySelected && selectedCount <= 1 {
-            activateThread(conversationEntity.modelThreads[index])
-            return
-        }
-
-        conversationEntity.modelThreads[index].isSelected.toggle()
-        conversationEntity.modelThreads[index].updatedAt = Date()
-        conversationEntity.updatedAt = Date()
-
-        if conversationEntity.modelThreads[index].isSelected {
-            activateThread(conversationEntity.modelThreads[index])
-            return
-        }
-
-        if activeModelThread?.id == thread.id,
-           let replacement = sortedModelThreads.first(where: { $0.id != thread.id && $0.isSelected }) {
-            activateThread(replacement)
-            return
-        }
-
-        rebuildMessageCaches()
-        try? modelContext.save()
+        ChatThreadSupport.toggleThreadSelection(
+            thread: thread,
+            conversationEntity: conversationEntity,
+            sortedThreads: sortedModelThreads,
+            activeThread: activeModelThread,
+            modelContext: modelContext,
+            activateThread: { thread in
+                activateThread(thread)
+            },
+            rebuildMessageCaches: {
+                rebuildMessageCaches()
+            }
+        )
     }
 
     private func synchronizeLegacyConversationModelFields(with thread: ConversationModelThreadEntity) {
-        // Guard against no-op writes to avoid unnecessary SwiftData change
-        // notifications that cause the header bar to re-render and flicker.
-        if conversationEntity.providerID != thread.providerID {
-            conversationEntity.providerID = thread.providerID
-        }
-        if conversationEntity.modelID != thread.modelID {
-            conversationEntity.modelID = thread.modelID
-        }
-        if conversationEntity.modelConfigData != thread.modelConfigData {
-            conversationEntity.modelConfigData = thread.modelConfigData
-        }
-        if conversationEntity.activeThreadID != thread.id {
-            conversationEntity.activeThreadID = thread.id
-        }
-        if activeThreadID != thread.id {
-            activeThreadID = thread.id
-        }
+        ChatThreadSupport.synchronizeLegacyConversationModelFields(
+            conversationEntity: conversationEntity,
+            activeThreadID: &activeThreadID,
+            thread: thread
+        )
     }
 
     private func activateThread(_ thread: ConversationModelThreadEntity) {
@@ -3090,70 +2302,39 @@ struct ChatView: View {
     }
 
     private func removeModelThread(_ thread: ConversationModelThreadEntity) {
-        guard sortedModelThreads.count > 1 else { return }
-        let removedThreadID = thread.id
-        let activeBeforeRemovalID = activeThreadID ?? conversationEntity.activeThreadID
-        let removedWasActive = activeBeforeRemovalID == removedThreadID
-        streamingStore.cancel(conversationID: conversationEntity.id, threadID: removedThreadID)
-        streamingStore.endSession(conversationID: conversationEntity.id, threadID: removedThreadID)
-
-        for message in conversationEntity.messages where message.contextThreadID == removedThreadID {
-            modelContext.delete(message)
-        }
-        conversationEntity.messages.removeAll { $0.contextThreadID == removedThreadID }
-
-        if let index = conversationEntity.modelThreads.firstIndex(where: { $0.id == removedThreadID }) {
-            let threadEntity = conversationEntity.modelThreads[index]
-            conversationEntity.modelThreads.remove(at: index)
-            modelContext.delete(threadEntity)
-        }
-
-        if removedWasActive {
-            if let replacement = sortedModelThreads.first(where: \.isSelected) ?? sortedModelThreads.first {
-                activateThread(replacement)
+        ChatThreadSupport.removeModelThread(
+            thread: thread,
+            conversationEntity: conversationEntity,
+            sortedThreads: sortedModelThreads,
+            activeThreadID: activeThreadID,
+            streamingStore: streamingStore,
+            modelContext: modelContext,
+            rebuildMessageCaches: {
+                rebuildMessageCaches()
+            },
+            activateThread: { thread in
+                activateThread(thread)
             }
-        } else if let currentActiveID = activeBeforeRemovalID {
-            if !sortedModelThreads.contains(where: { $0.id == currentActiveID }),
-               let fallback = sortedModelThreads.first {
-                activateThread(fallback)
-            }
-        }
-
-        conversationEntity.updatedAt = Date()
-        rebuildMessageCaches()
-        try? modelContext.save()
+        )
     }
 
     private func addOrActivateThread(providerID: String, modelID: String) {
-        let resolvedModelID = canonicalModelID(for: providerID, modelID: modelID)
-        if let existing = sortedModelThreads.first(where: {
-            $0.providerID == providerID && canonicalModelID(for: $0.providerID, modelID: $0.modelID) == resolvedModelID
-        }) {
-            existing.isSelected = true
-            activateThread(existing)
-            return
-        }
-
-        guard sortedModelThreads.count < 3 else {
-            errorMessage = "A chat can include up to 3 models."
-            showingError = true
-            return
-        }
-
-        let encodedControls = (try? JSONEncoder().encode(GenerationControls())) ?? Data()
-        let nextOrder = (sortedModelThreads.map(\.displayOrder).max() ?? -1) + 1
-        let thread = ConversationModelThreadEntity(
+        ChatThreadSupport.addOrActivateThread(
             providerID: providerID,
-            modelID: resolvedModelID,
-            modelConfigData: encodedControls,
-            displayOrder: nextOrder,
-            isSelected: true,
-            isPrimary: false
+            modelID: modelID,
+            conversationEntity: conversationEntity,
+            sortedThreads: sortedModelThreads,
+            canonicalModelID: { providerID, modelID in
+                canonicalModelID(for: providerID, modelID: modelID)
+            },
+            activateThread: { thread in
+                activateThread(thread)
+            },
+            showError: { message in
+                errorMessage = message
+                showingError = true
+            }
         )
-        thread.conversation = conversationEntity
-        conversationEntity.modelThreads.append(thread)
-        conversationEntity.updatedAt = Date()
-        activateThread(thread)
     }
 
     private var availableModels: [ModelInfo] {
@@ -3166,119 +2347,91 @@ struct ChatView: View {
     }
 
     private func setProvider(_ providerID: String) {
-        guard let thread = activeModelThread else { return }
-        guard providerID != thread.providerID else { return }
-
-        clearCodexThreadPersistence(for: thread)
-        thread.providerID = providerID
-
-        let models = providers.first(where: { $0.id == providerID })?.enabledModels ?? []
-        if let preferredModelID = preferredModelID(in: models, providerID: providerID) {
-            thread.modelID = preferredModelID
-            synchronizeLegacyConversationModelFields(with: thread)
-            normalizeControlsForCurrentSelection()
-            try? modelContext.save()
-            return
-        }
-        thread.modelID = models.first?.id ?? thread.modelID
-        synchronizeLegacyConversationModelFields(with: thread)
-        normalizeControlsForCurrentSelection()
-        try? modelContext.save()
+        ChatModelSelectionSupport.setProvider(
+            providerID: providerID,
+            activeThread: activeModelThread,
+            providers: providers,
+            modelContext: modelContext,
+            clearCodexThreadPersistence: { thread in
+                clearCodexThreadPersistence(for: thread)
+            },
+            synchronizeLegacyConversationModelFields: { thread in
+                synchronizeLegacyConversationModelFields(with: thread)
+            },
+            normalizeControlsForCurrentSelection: {
+                normalizeControlsForCurrentSelection()
+            },
+            preferredModelID: { models, providerID in
+                preferredModelID(in: models, providerID: providerID)
+            }
+        )
     }
 
     private func setModel(_ modelID: String) {
-        guard let thread = activeModelThread else { return }
-        let resolvedModelID = canonicalModelID(for: thread.providerID, modelID: modelID)
-        guard resolvedModelID != canonicalModelID(for: thread.providerID, modelID: thread.modelID) else { return }
-        thread.modelID = resolvedModelID
-        synchronizeLegacyConversationModelFields(with: thread)
-        normalizeControlsForCurrentSelection()
-        try? modelContext.save()
+        ChatModelSelectionSupport.setModel(
+            modelID: modelID,
+            activeThread: activeModelThread,
+            modelContext: modelContext,
+            canonicalModelID: { providerID, modelID in
+                canonicalModelID(for: providerID, modelID: modelID)
+            },
+            synchronizeLegacyConversationModelFields: { thread in
+                synchronizeLegacyConversationModelFields(with: thread)
+            },
+            normalizeControlsForCurrentSelection: {
+                normalizeControlsForCurrentSelection()
+            }
+        )
     }
 
     private func setProviderAndModel(providerID: String, modelID: String) {
-        let resolvedModelID = canonicalModelID(for: providerID, modelID: modelID)
-        if let existing = sortedModelThreads.first(where: {
-            $0.providerID == providerID && canonicalModelID(for: $0.providerID, modelID: $0.modelID) == resolvedModelID
-        }) {
-            activateThread(existing)
-            return
-        }
-
-        guard let thread = activeModelThread else {
-            addOrActivateThread(providerID: providerID, modelID: resolvedModelID)
-            return
-        }
-
-        if providerID != thread.providerID {
-            clearCodexThreadPersistence(for: thread)
-        }
-        thread.providerID = providerID
-        thread.modelID = resolvedModelID
-        thread.updatedAt = Date()
-        synchronizeLegacyConversationModelFields(with: thread)
-        normalizeControlsForCurrentSelection()
-        persistControlsToConversation()
+        ChatModelSelectionSupport.setProviderAndModel(
+            providerID: providerID,
+            modelID: modelID,
+            activeThread: activeModelThread,
+            sortedThreads: sortedModelThreads,
+            clearCodexThreadPersistence: { thread in
+                clearCodexThreadPersistence(for: thread)
+            },
+            canonicalModelID: { providerID, modelID in
+                canonicalModelID(for: providerID, modelID: modelID)
+            },
+            addOrActivateThread: { providerID, modelID in
+                addOrActivateThread(providerID: providerID, modelID: modelID)
+            },
+            activateThread: { thread in
+                activateThread(thread)
+            },
+            synchronizeLegacyConversationModelFields: { thread in
+                synchronizeLegacyConversationModelFields(with: thread)
+            },
+            normalizeControlsForCurrentSelection: {
+                normalizeControlsForCurrentSelection()
+            },
+            persistControlsToConversation: {
+                persistControlsToConversation()
+            }
+        )
     }
 
     private func preferredModelID(in models: [ModelInfo], providerID: String) -> String? {
-        guard let provider = providers.first(where: { $0.id == providerID }),
-              let type = ProviderType(rawValue: provider.typeRaw) else {
-            return nil
-        }
-
-        switch type {
-        case .openai, .openaiWebSocket:
-            return models.first(where: { $0.id == "gpt-5.2" })?.id
-        case .githubCopilot:
-            return nil
-        case .anthropic:
-            return models.first(where: { $0.id == "claude-opus-4-6" })?.id
-                ?? models.first(where: { $0.id == "claude-sonnet-4-6" })?.id
-                ?? models.first(where: { $0.id == "claude-sonnet-4-5-20250929" })?.id
-        case .perplexity:
-            return models.first(where: { $0.id == "sonar-pro" })?.id
-                ?? models.first(where: { $0.id == "sonar" })?.id
-        case .deepseek:
-            return models.first(where: { $0.id == "deepseek-chat" })?.id
-                ?? models.first(where: { $0.id == "deepseek-reasoner" })?.id
-        case .zhipuCodingPlan:
-            return models.first(where: { $0.id.lowercased() == "glm-5" })?.id
-                ?? models.first(where: { $0.id.lowercased() == "glm-4.7" })?.id
-        case .fireworks:
-            return models.first(where: { isFireworksModelID($0.id, canonicalID: "glm-5") })?.id
-                ?? models.first(where: { isFireworksModelID($0.id, canonicalID: "minimax-m2p5") })?.id
-                ?? models.first(where: { isFireworksModelID($0.id, canonicalID: "kimi-k2p5") })?.id
-                ?? models.first(where: { isFireworksModelID($0.id, canonicalID: "glm-4p7") })?.id
-        case .cerebras:
-            return models.first(where: { $0.id == "zai-glm-4.7" })?.id
-        case .sambanova:
-            return models.first(where: { $0.id == "MiniMax-M2.5" })?.id
-                ?? models.first(where: { $0.id == "gpt-oss-120b" })?.id
-        case .gemini:
-            for preferredID in Self.geminiPreferredModelOrder {
-                if let exact = models.first(where: { $0.id.lowercased() == preferredID }) {
-                    return exact.id
-                }
+        ChatModelSelectionSupport.preferredModelID(
+            in: models,
+            providerID: providerID,
+            providers: providers,
+            geminiPreferredModelOrder: Self.geminiPreferredModelOrder,
+            isFireworksModelID: { modelID, canonicalID in
+                isFireworksModelID(modelID, canonicalID: canonicalID)
             }
-            return nil
-        case .codexAppServer, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter, .groq, .cohere, .mistral, .deepinfra, .together, .xai, .vertexai:
-            return nil
-        }
+        )
     }
 
 
     private func orderedConversationMessages(threadID: UUID? = nil) -> [MessageEntity] {
-        let filtered = conversationEntity.messages.filter { entity in
-            guard let threadID else { return true }
-            return entity.contextThreadID == threadID
-        }
-        return filtered.sorted { lhs, rhs in
-            if lhs.timestamp != rhs.timestamp {
-                return lhs.timestamp < rhs.timestamp
-            }
-            return lhs.id.uuidString < rhs.id.uuidString
-        }
+        ChatMessageRenderPipeline.orderedMessages(
+            from: conversationEntity.messages,
+            threadID: threadID
+        )
     }
 
     private func rebuildMessageCachesIfNeeded() {
@@ -3292,62 +2445,20 @@ struct ChatView: View {
 
     private func rebuildMessageCaches() {
         let ordered = orderedConversationMessages(threadID: activeModelThread?.id)
+        let context = ChatMessageRenderPipeline.makeRenderContext(
+            from: ordered,
+            fallbackModelLabel: currentModelName,
+            assistantProviderIconID: { providerID in
+                providerIconID(for: providerID)
+            }
+        )
 
-        var messageEntitiesByID: [UUID: MessageEntity] = [:]
-        messageEntitiesByID.reserveCapacity(ordered.count)
-
-        var renderedItems: [MessageRenderItem] = []
-        renderedItems.reserveCapacity(ordered.count)
-
-        for entity in ordered {
-            messageEntitiesByID[entity.id] = entity
-            guard entity.role != "tool" else { continue }
-
-            guard let message = try? entity.toDomain() else { continue }
-            let renderedParts = renderedContentParts(content: message.content)
-
-            renderedItems.append(
-                MessageRenderItem(
-                    id: entity.id,
-                    contextThreadID: entity.contextThreadID,
-                    role: entity.role,
-                    timestamp: entity.timestamp,
-                    renderedContentParts: renderedParts,
-                    toolCalls: message.toolCalls ?? [],
-                    searchActivities: message.searchActivities ?? [],
-                    codexToolActivities: message.codexToolActivities ?? [],
-                    assistantModelLabel: entity.role == "assistant"
-                        ? (entity.generatedModelName ?? entity.generatedModelID ?? currentModelName)
-                        : nil,
-                    assistantProviderIconID: entity.role == "assistant"
-                        ? providerIconID(for: entity.generatedProviderID ?? "")
-                        : nil,
-                    responseMetrics: entity.responseMetrics,
-                    copyText: copyableText(from: message),
-                    canEditUserMessage: entity.role == "user"
-                        && message.content.contains(where: { part in
-                            if case .text = part { return true }
-                            return false
-                        })
-                )
-            )
-        }
-
-        cachedVisibleMessages = renderedItems
-        cachedMessageEntitiesByID = messageEntitiesByID
-        cachedToolResultsByCallID = toolResultsByToolCallID(in: ordered)
+        cachedVisibleMessages = context.visibleMessages
+        cachedMessageEntitiesByID = context.messageEntitiesByID
+        cachedToolResultsByCallID = context.toolResultsByCallID
         cachedMessagesVersion &+= 1
         lastCacheRebuildMessageCount = ordered.count
         lastCacheRebuildUpdatedAt = conversationEntity.updatedAt
-    }
-
-    private func renderedContentParts(content: [ContentPart]) -> [RenderedMessageContentPart] {
-        content.compactMap { part in
-            if case .redactedThinking = part {
-                return nil
-            }
-            return RenderedMessageContentPart(part: part)
-        }
     }
 
     private func regenerateMessage(_ messageEntity: MessageEntity) {
@@ -3569,34 +2680,7 @@ struct ChatView: View {
     }
 
     private func editableUserText(from message: Message) -> String? {
-        let parts = message.content.compactMap { part -> String? in
-            guard case .text(let text) = part else { return nil }
-            let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-            return trimmed.isEmpty ? nil : trimmed
-        }
-
-        guard !parts.isEmpty else { return nil }
-        return parts.joined(separator: "\n\n")
-    }
-
-    private func copyableText(from message: Message) -> String {
-        let textParts = message.content.compactMap { part -> String? in
-            guard case .text(let text) = part else { return nil }
-            let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-            return trimmed.isEmpty ? nil : trimmed
-        }
-
-        if !textParts.isEmpty {
-            return textParts.joined(separator: "\n\n")
-        }
-
-        let fileParts = message.content.compactMap { part -> String? in
-            guard case .file(let file) = part else { return nil }
-            let trimmed = file.filename.trimmingCharacters(in: .whitespacesAndNewlines)
-            return trimmed.isEmpty ? nil : trimmed
-        }
-
-        return fileParts.joined(separator: "\n")
+        ChatMessageRenderPipeline.editableUserText(from: message)
     }
 
     private func updateUserMessageContent(_ entity: MessageEntity, newText: String) throws {
@@ -3625,30 +2709,6 @@ struct ChatView: View {
         }
 
         entity.contentData = try encoder.encode(newContent)
-    }
-
-    private func toolResultsByToolCallID(in messageEntities: [MessageEntity]) -> [String: ToolResult] {
-        var results: [String: ToolResult] = [:]
-        results.reserveCapacity(8)
-
-        let decoder = JSONDecoder()
-        for entity in messageEntities where entity.role == "tool" {
-            guard let data = entity.toolResultsData,
-                  let toolResults = try? decoder.decode([ToolResult].self, from: data) else {
-                continue
-            }
-
-            for result in toolResults {
-                results[result.toolCallID] = result
-            }
-        }
-
-        return results
-    }
-
-    private func maxBubbleWidth(for containerWidth: CGFloat) -> CGFloat {
-        let usable = max(0, containerWidth - 32) // Message rows add horizontal padding
-        return max(260, usable * 0.78)
     }
 
     private func resolvedSystemPrompt(conversationSystemPrompt: String?, assistant: AssistantEntity?) -> String? {
@@ -6921,55 +5981,21 @@ struct ChatView: View {
     }
 
     private func defaultWebSearchControls(enabled: Bool) -> WebSearchControls {
-        guard enabled else { return WebSearchControls(enabled: false) }
-
-        switch providerType {
-        case .openai, .openaiWebSocket:
-            return WebSearchControls(enabled: true, contextSize: .medium, sources: nil)
-        case .perplexity:
-            // Perplexity defaults `search_context_size` to `low` when omitted.
-            return WebSearchControls(enabled: true, contextSize: nil, sources: nil)
-        case .xai:
-            return WebSearchControls(enabled: true, contextSize: nil, sources: [.web])
-        case .anthropic:
-            return WebSearchControls(enabled: true)
-        case .codexAppServer, .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter, .groq,
-             .cohere, .mistral, .deepinfra, .together, .gemini, .vertexai, .deepseek,
-             .zhipuCodingPlan, .fireworks, .cerebras, .sambanova, .none:
-            return WebSearchControls(enabled: true, contextSize: nil, sources: nil)
-        }
+        ChatControlNormalizationSupport.defaultWebSearchControls(
+            enabled: enabled,
+            providerType: providerType
+        )
     }
 
     private func ensureValidWebSearchDefaultsIfEnabled() {
-        guard controls.webSearch?.enabled == true else { return }
-        switch providerType {
-        case .openai, .openaiWebSocket:
-            controls.webSearch?.sources = nil
-            if controls.webSearch?.contextSize == nil {
-                controls.webSearch?.contextSize = .medium
-            }
-        case .perplexity:
-            controls.webSearch?.sources = nil
-            // Leave contextSize nil to use Perplexity defaults unless explicitly set.
-        case .xai:
-            controls.webSearch?.contextSize = nil
-            let sources = controls.webSearch?.sources ?? []
-            if sources.isEmpty {
-                controls.webSearch?.sources = [.web]
-            }
-        case .anthropic:
-            controls.webSearch?.contextSize = nil
-            controls.webSearch?.sources = nil
-            normalizeAnthropicDomainFilters()
-        case .codexAppServer, .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter, .groq,
-             .cohere, .mistral, .deepinfra, .together, .gemini, .vertexai, .deepseek,
-             .zhipuCodingPlan, .fireworks, .cerebras, .sambanova, .none:
-            controls.webSearch?.contextSize = nil
-            controls.webSearch?.sources = nil
-        }
+        ChatControlNormalizationSupport.ensureValidWebSearchDefaultsIfEnabled(
+            controls: &controls,
+            providerType: providerType
+        )
     }
 
     private func normalizeControlsForCurrentSelection() {
+
         let originalData = (try? JSONEncoder().encode(controls)) ?? Data()
 
         normalizeMaxTokensForModel()
@@ -6995,26 +6021,23 @@ struct ChatView: View {
     }
 
     private func normalizeMaxTokensForModel() {
-        if let modelMaxOutput = resolvedModelSettings?.maxOutputTokens,
-           let requested = controls.maxTokens,
-           requested > modelMaxOutput {
-            controls.maxTokens = modelMaxOutput
-        }
+        ChatControlNormalizationSupport.normalizeMaxTokensForModel(
+            controls: &controls,
+            modelMaxOutputTokens: resolvedModelSettings?.maxOutputTokens
+        )
     }
 
     private func normalizeMediaGenerationOverrides() {
-        guard supportsMediaGenerationControl else { return }
-        if !supportsReasoningControl {
-            controls.reasoning = nil
-        }
-        if !supportsWebSearchControl {
-            controls.webSearch = nil
-        }
-        controls.searchPlugin = nil
-        controls.mcpTools = nil
+        ChatControlNormalizationSupport.normalizeMediaGenerationOverrides(
+            controls: &controls,
+            supportsMediaGenerationControl: supportsMediaGenerationControl,
+            supportsReasoningControl: supportsReasoningControl,
+            supportsWebSearchControl: supportsWebSearchControl
+        )
     }
 
     private func normalizeReasoningControls() {
+
         if supportsReasoningControl, let reasoningConfig = selectedReasoningConfig {
             switch reasoningConfig.type {
             case .effort:
@@ -7102,83 +6125,41 @@ struct ChatView: View {
     }
 
     private func normalizeVertexAIGenerationConfig() {
-        guard providerType == .vertexai,
-              var generationConfig = controls.providerSpecific["generationConfig"]?.value as? [String: Any] else {
-            return
-        }
-
-        var mutated = false
-
-        if lowerModelID == "gemini-3-pro-image-preview"
-            || lowerModelID == "gemini-3.1-flash-image-preview" {
-            if generationConfig["thinkingConfig"] != nil {
-                generationConfig.removeValue(forKey: "thinkingConfig")
-                mutated = true
-            }
-        } else if Self.vertexGemini25TextModelIDs.contains(lowerModelID),
-                  var thinkingConfig = generationConfig["thinkingConfig"] as? [String: Any],
-                  thinkingConfig["thinkingLevel"] != nil {
-            thinkingConfig.removeValue(forKey: "thinkingLevel")
-            if thinkingConfig.isEmpty {
-                generationConfig.removeValue(forKey: "thinkingConfig")
-            } else {
-                generationConfig["thinkingConfig"] = thinkingConfig
-            }
-            mutated = true
-        }
-
-        guard mutated else { return }
-        if generationConfig.isEmpty {
-            controls.providerSpecific.removeValue(forKey: "generationConfig")
-        } else {
-            controls.providerSpecific["generationConfig"] = AnyCodable(generationConfig)
-        }
+        ChatControlNormalizationSupport.normalizeVertexAIGenerationConfig(
+            controls: &controls,
+            providerType: providerType,
+            lowerModelID: lowerModelID,
+            vertexGemini25TextModelIDs: Self.vertexGemini25TextModelIDs
+        )
     }
 
     private func normalizeFireworksProviderSpecific() {
-        guard providerType == .fireworks else { return }
-
-        if isFireworksMiniMaxM2FamilyModel(conversationEntity.modelID) {
-            controls.providerSpecific.removeValue(forKey: "reasoning_effort")
-        }
-
-        if let rawHistory = controls.providerSpecific["reasoning_history"]?.value as? String {
-            let normalized = rawHistory.lowercased()
-            if fireworksReasoningHistoryOptions.contains(normalized) {
-                controls.providerSpecific["reasoning_history"] = AnyCodable(normalized)
-            } else {
-                controls.providerSpecific.removeValue(forKey: "reasoning_history")
-            }
-        } else if controls.providerSpecific["reasoning_history"] != nil {
-            controls.providerSpecific.removeValue(forKey: "reasoning_history")
-        }
+        ChatControlNormalizationSupport.normalizeFireworksProviderSpecific(
+            controls: &controls,
+            providerType: providerType,
+            conversationModelID: conversationEntity.modelID,
+            fireworksReasoningHistoryOptions: fireworksReasoningHistoryOptions
+        )
     }
 
     private func normalizeCodexProviderSpecific() {
-        guard providerType == .codexAppServer else {
-            Self.sanitizeProviderSpecificForProvider(providerType, controls: &controls)
-            return
-        }
-
-        controls.normalizeCodexProviderSpecific(for: providerType)
+        ChatControlNormalizationSupport.normalizeCodexProviderSpecific(
+            controls: &controls,
+            providerType: providerType
+        )
     }
 
     private func normalizeOpenAIServiceTierControls() {
-        if controls.openAIServiceTier == nil,
-           let legacyRaw = controls.providerSpecific["service_tier"]?.value as? String,
-           let legacy = OpenAIServiceTier.normalized(rawValue: legacyRaw) {
-            controls.openAIServiceTier = legacy
-        }
-
-        if controls.providerSpecific["service_tier"] != nil {
-            controls.providerSpecific.removeValue(forKey: "service_tier")
-        }
+        ChatControlNormalizationSupport.normalizeOpenAIServiceTierControls(
+            controls: &controls
+        )
     }
 
     nonisolated private static func sanitizeProviderSpecificForProvider(_ providerType: ProviderType?, controls: inout GenerationControls) {
-        guard providerType != .codexAppServer else { return }
-
-        controls.removeCodexProviderSpecificKeys()
+        ChatControlNormalizationSupport.sanitizeProviderSpecificForProvider(
+            providerType,
+            controls: &controls
+        )
     }
 
     private func normalizeWebSearchControls() {
@@ -7192,204 +6173,66 @@ struct ChatView: View {
     }
 
     private func normalizeSearchPluginControls() {
-        if !modelSupportsBuiltinSearchPluginControl {
-            controls.searchPlugin = nil
-            return
-        }
-
-        guard controls.webSearch?.enabled == true else {
-            return
-        }
-
-        guard var plugin = controls.searchPlugin else {
-            return
-        }
-
-        if let maxResults = plugin.maxResults {
-            plugin.maxResults = max(1, min(50, maxResults))
-        }
-        if let recencyDays = plugin.recencyDays {
-            plugin.recencyDays = max(1, min(365, recencyDays))
-        }
-
-        controls.searchPlugin = plugin
+        ChatControlNormalizationSupport.normalizeSearchPluginControls(
+            controls: &controls,
+            modelSupportsBuiltinSearchPluginControl: modelSupportsBuiltinSearchPluginControl
+        )
     }
 
     private func normalizeContextCacheControls() {
-        if supportsContextCacheControl {
-            if var contextCache = controls.contextCache {
-                if !supportsExplicitContextCacheMode, contextCache.mode == .explicit {
-                    contextCache.mode = .implicit
-                    contextCache.cachedContentName = nil
-                }
-                if !supportsContextCacheStrategy {
-                    contextCache.strategy = nil
-                } else if contextCache.strategy == nil {
-                    contextCache.strategy = .systemOnly
-                }
-                if !supportsContextCacheTTL {
-                    contextCache.ttl = nil
-                }
-                if providerType != .openai && providerType != .openaiWebSocket && providerType != .xai {
-                    contextCache.cacheKey = nil
-                }
-                if providerType != .xai {
-                    contextCache.minTokensThreshold = nil
-                }
-                if providerType != .xai {
-                    contextCache.conversationID = nil
-                }
-                if providerType != .gemini && providerType != .vertexai {
-                    contextCache.cachedContentName = nil
-                }
-                if contextCache.mode == .off, providerType != .anthropic {
-                    controls.contextCache = nil
-                } else {
-                    controls.contextCache = contextCache
-                }
-            }
-        } else {
-            controls.contextCache = nil
-        }
+        ChatControlNormalizationSupport.normalizeContextCacheControls(
+            controls: &controls,
+            supportsContextCacheControl: supportsContextCacheControl,
+            supportsExplicitContextCacheMode: supportsExplicitContextCacheMode,
+            supportsContextCacheStrategy: supportsContextCacheStrategy,
+            supportsContextCacheTTL: supportsContextCacheTTL,
+            providerType: providerType
+        )
     }
 
     private func normalizeMCPToolsControls() {
-        if supportsMCPToolsControl {
-            if controls.mcpTools == nil {
-                controls.mcpTools = MCPToolsControls(enabled: true, enabledServerIDs: nil)
-            } else if controls.mcpTools?.enabledServerIDs?.isEmpty == true {
-                controls.mcpTools?.enabledServerIDs = nil
-            }
-        } else {
-            controls.mcpTools = nil
-        }
+        ChatControlNormalizationSupport.normalizeMCPToolsControls(
+            controls: &controls,
+            supportsMCPToolsControl: supportsMCPToolsControl
+        )
     }
 
     private func normalizeAnthropicMaxTokens() {
-        if !supportsReasoningControl, providerType == .anthropic {
-            controls.maxTokens = nil
-        }
-        if providerType == .anthropic,
-           controls.maxTokens != nil,
-           controls.reasoning?.enabled != true {
-            controls.maxTokens = nil
-        }
+        ChatControlNormalizationSupport.normalizeAnthropicMaxTokens(
+            controls: &controls,
+            supportsReasoningControl: supportsReasoningControl,
+            providerType: providerType
+        )
     }
 
     private func normalizeImageGenerationControls() {
-        if supportsImageGenerationControl {
-            if providerType == .openai || providerType == .openaiWebSocket {
-                controls.imageGeneration = nil
-                controls.xaiImageGeneration = nil
-                if var openaiImage = controls.openaiImageGeneration {
-                    normalizeOpenAIImageControls(&openaiImage)
-                    controls.openaiImageGeneration = openaiImage.isEmpty ? nil : openaiImage
-                }
-            } else if providerType == .xai {
-                controls.imageGeneration = nil
-                controls.openaiImageGeneration = nil
-                if var xaiImage = controls.xaiImageGeneration {
-                    xaiImage.quality = nil
-                    xaiImage.style = nil
-                    if xaiImage.aspectRatio != nil {
-                        xaiImage.size = nil
-                    }
-                    controls.xaiImageGeneration = xaiImage.isEmpty ? nil : xaiImage
-                }
-            } else {
-                if !supportsCurrentModelImageSizeControl {
-                    controls.imageGeneration?.imageSize = nil
-                } else if let size = controls.imageGeneration?.imageSize,
-                          !supportedCurrentModelImageSizes.contains(size) {
-                    controls.imageGeneration?.imageSize = nil
-                }
-                if let ratio = controls.imageGeneration?.aspectRatio,
-                   !supportedCurrentModelImageAspectRatios.contains(ratio) {
-                    controls.imageGeneration?.aspectRatio = nil
-                }
-                if providerType != .vertexai {
-                    controls.imageGeneration?.vertexPersonGeneration = nil
-                    controls.imageGeneration?.vertexOutputMIMEType = nil
-                    controls.imageGeneration?.vertexCompressionQuality = nil
-                }
-                if controls.imageGeneration?.isEmpty == true {
-                    controls.imageGeneration = nil
-                }
-                controls.xaiImageGeneration = nil
-                controls.openaiImageGeneration = nil
-            }
-        } else {
-            controls.imageGeneration = nil
-            controls.xaiImageGeneration = nil
-            controls.openaiImageGeneration = nil
-        }
+        ChatControlNormalizationSupport.normalizeImageGenerationControls(
+            controls: &controls,
+            supportsImageGenerationControl: supportsImageGenerationControl,
+            providerType: providerType,
+            supportsCurrentModelImageSizeControl: supportsCurrentModelImageSizeControl,
+            supportedCurrentModelImageSizes: supportedCurrentModelImageSizes,
+            supportedCurrentModelImageAspectRatios: supportedCurrentModelImageAspectRatios,
+            lowerModelID: lowerModelID
+        )
     }
 
-    /// Prune model-incompatible fields from OpenAI image generation controls.
-    ///
-    /// Different OpenAI image models support different parameter subsets:
-    /// - GPT Image models: all params except `style`
-    /// - DALL-E 3: `size`, `quality` (standard/hd), `style` only
-    /// - DALL-E 2: `size` only (quality must be `standard`)
     private func normalizeOpenAIImageControls(_ controls: inout OpenAIImageGenerationControls) {
-        let isGPTImage = lowerModelID.hasPrefix("gpt-image")
-        let isDallE3 = lowerModelID.hasPrefix("dall-e-3")
-        let isDallE2 = lowerModelID.hasPrefix("dall-e-2")
-
-        if isGPTImage {
-            // GPT Image models don't support style
-            controls.style = nil
-        } else if isDallE3 {
-            // DALL-E 3: no GPT-image-specific params, no input fidelity
-            controls.background = nil
-            controls.outputFormat = nil
-            controls.outputCompression = nil
-            controls.moderation = nil
-            controls.inputFidelity = nil
-            // quality must be standard or hd
-            if let quality = controls.quality, quality != .standard && quality != .hd {
-                controls.quality = nil
-            }
-        } else if isDallE2 {
-            // DALL-E 2: minimal params
-            controls.background = nil
-            controls.outputFormat = nil
-            controls.outputCompression = nil
-            controls.moderation = nil
-            controls.inputFidelity = nil
-            controls.style = nil
-            // quality must be standard
-            if let quality = controls.quality, quality != .standard {
-                controls.quality = nil
-            }
-            // size must be dall-e-2 compatible
-            if let size = controls.size, !OpenAIImageSize.dallE2Sizes.contains(size) {
-                controls.size = nil
-            }
-        }
-
-        // input_fidelity is only for gpt-image-1
-        if lowerModelID != "gpt-image-1" {
-            controls.inputFidelity = nil
-        }
-
-        // Clear compression if format doesn't support it
-        if controls.outputFormat == nil || controls.outputFormat == .png {
-            controls.outputCompression = nil
-        }
+        ChatControlNormalizationSupport.normalizeOpenAIImageControls(
+            &controls,
+            lowerModelID: lowerModelID
+        )
     }
 
     private func normalizeVideoGenerationControls() {
-        if supportsVideoGenerationControl {
-            if controls.xaiVideoGeneration?.isEmpty == true {
-                controls.xaiVideoGeneration = nil
-            }
-        } else {
-            controls.xaiVideoGeneration = nil
-        }
+        ChatControlNormalizationSupport.normalizeVideoGenerationControls(
+            controls: &controls,
+            supportsVideoGenerationControl: supportsVideoGenerationControl
+        )
     }
 
     private var builtinSearchIncludeRawBinding: Binding<Bool> {
+
         Binding(
             get: {
                 controls.searchPlugin?.includeRawContent ?? false
