@@ -7,8 +7,8 @@ import Combine
 struct ChatView: View {
     static let initialMessageRenderLimit = 24
     static let messageRenderPageSize = 40
-    static let eagerCodeHighlightTailCount = 12
-    static let nonLazyMessageStackThreshold = 80
+    static let eagerCodeHighlightTailCount = 6
+    static let nonLazyMessageStackThreshold = 16
     static let pinnedBottomRefreshDelays: [TimeInterval] = [0, 0.04, 0.14]
 
     private struct PendingCodexInteraction: Identifiable {

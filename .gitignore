@@ -39,6 +39,7 @@ response.json
 # IDE
 .vscode/
 .idea/
+node_modules/
 *.swp
 *.swo
 *~
