@@ -11,6 +11,7 @@ actor OpenAICompatibleAdapter: LLMProviderAdapter {
 
     private let networkManager: NetworkManager
     private let apiKey: String
+    private let gitHubModelsAPIVersion = "2022-11-28"
 
     init(providerConfig: ProviderConfig, apiKey: String, networkManager: NetworkManager = NetworkManager()) {
         self.providerConfig = providerConfig
@@ -48,10 +49,15 @@ actor OpenAICompatibleAdapter: LLMProviderAdapter {
     }
 
     func validateAPIKey(_ key: String) async throws -> Bool {
-        var request = URLRequest(url: try validatedURL("\(baseURL)/models"))
+        if providerConfig.type == .githubCopilot {
+            return try await validateGitHubModelsToken(key)
+        }
+
+        var request = URLRequest(url: try validatedURL(modelsListURLString))
         request.httpMethod = "GET"
         request.addValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
-        request.addValue("application/json", forHTTPHeaderField: "Accept")
+        request.addValue(acceptHeaderValue, forHTTPHeaderField: "Accept")
+        applyProviderHeaders(to: &request)
 
         do {
             _ = try await networkManager.sendRequest(request)
@@ -62,12 +68,19 @@ actor OpenAICompatibleAdapter: LLMProviderAdapter {
     }
 
     func fetchAvailableModels() async throws -> [ModelInfo] {
-        var request = URLRequest(url: try validatedURL("\(baseURL)/models"))
+        var request = URLRequest(url: try validatedURL(modelsListURLString))
         request.httpMethod = "GET"
         request.addValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-        request.addValue("application/json", forHTTPHeaderField: "Accept")
+        request.addValue(acceptHeaderValue, forHTTPHeaderField: "Accept")
+        applyProviderHeaders(to: &request)
 
         let (data, _) = try await networkManager.sendRequest(request)
+
+        if providerConfig.type == .githubCopilot {
+            let response = try JSONDecoder().decode([GitHubModelsCatalogModel].self, from: data)
+            return response.compactMap(makeGitHubModelInfo(from:))
+        }
+
         let response = try JSONDecoder().decode(OpenAIModelsResponse.self, from: data)
         return response.data.map(makeModelInfo(from:))
     }
@@ -99,6 +112,27 @@ actor OpenAICompatibleAdapter: LLMProviderAdapter {
         return trimmed
     }
 
+    private var modelsListURLString: String {
+        if providerConfig.type == .githubCopilot {
+            guard let base = URL(string: baseURL), let host = base.host else {
+                return "https://models.github.ai/catalog/models"
+            }
+
+            var components = URLComponents()
+            components.scheme = base.scheme ?? "https"
+            components.host = host
+            components.port = base.port
+            components.path = "/catalog/models"
+            return components.url?.absoluteString ?? "https://models.github.ai/catalog/models"
+        }
+
+        return "\(baseURL)/models"
+    }
+
+    private var acceptHeaderValue: String {
+        providerConfig.type == .githubCopilot ? "application/vnd.github+json" : "application/json"
+    }
+
     private func normalizedCloudflareGatewayBaseURL(from value: String) -> String {
         guard providerConfig.type == .cloudflareAIGateway else { return value }
 
@@ -122,7 +156,8 @@ actor OpenAICompatibleAdapter: LLMProviderAdapter {
         request.httpMethod = "POST"
         request.addValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
         request.addValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.addValue("application/json", forHTTPHeaderField: "Accept")
+        request.addValue(acceptHeaderValue, forHTTPHeaderField: "Accept")
+        applyProviderHeaders(to: &request)
         applyCloudflareGatewayCacheHeaders(to: &request, controls: controls)
 
         var body: [String: Any] = [
@@ -171,6 +206,28 @@ actor OpenAICompatibleAdapter: LLMProviderAdapter {
 
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
         return request
+    }
+
+    private func applyProviderHeaders(to request: inout URLRequest) {
+        request.setValue(jinUserAgent, forHTTPHeaderField: "User-Agent")
+
+        guard providerConfig.type == .githubCopilot else { return }
+        request.setValue(gitHubModelsAPIVersion, forHTTPHeaderField: "X-GitHub-Api-Version")
+    }
+
+    private func validateGitHubModelsToken(_ key: String) async throws -> Bool {
+        var request = URLRequest(url: try validatedURL(modelsListURLString))
+        request.httpMethod = "GET"
+        request.addValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
+        request.addValue(acceptHeaderValue, forHTTPHeaderField: "Accept")
+        applyProviderHeaders(to: &request)
+
+        do {
+            _ = try await networkManager.sendRequest(request)
+            return true
+        } catch {
+            return false
+        }
     }
 
     private func applyCloudflareGatewayCacheHeaders(to request: inout URLRequest, controls: GenerationControls) {
@@ -270,6 +327,89 @@ actor OpenAICompatibleAdapter: LLMProviderAdapter {
         ModelCatalog.modelInfo(for: id, provider: providerConfig.type, name: id)
     }
 
+    private func makeGitHubModelInfo(from model: GitHubModelsCatalogModel) -> ModelInfo? {
+        let lowerOutputModalities = Set((model.supportedOutputModalities ?? []).map { $0.lowercased() })
+        guard lowerOutputModalities.contains("text") else { return nil }
+
+        if let entry = ModelCatalog.entry(for: model.id, provider: .githubCopilot) {
+            return ModelInfo(
+                id: model.id,
+                name: entry.displayName,
+                capabilities: entry.capabilities,
+                contextWindow: entry.contextWindow,
+                maxOutputTokens: entry.maxOutputTokens ?? model.maxOutputTokens,
+                reasoningConfig: entry.reasoningConfig
+            )
+        }
+
+        let lowerInputModalities = Set((model.supportedInputModalities ?? []).map { $0.lowercased() })
+        let lowerCapabilities = Set((model.capabilities ?? []).map { $0.lowercased() })
+        let lowerTags = Set((model.tags ?? []).map { $0.lowercased() })
+
+        var capabilities: ModelCapability = []
+
+        if lowerCapabilities.contains("streaming") {
+            capabilities.insert(.streaming)
+        }
+        if lowerInputModalities.contains("image") {
+            capabilities.insert(.vision)
+        }
+        if lowerInputModalities.contains("audio") || lowerOutputModalities.contains("audio") {
+            capabilities.insert(.audio)
+        }
+        if lowerOutputModalities.contains("image") {
+            capabilities.insert(.imageGeneration)
+        }
+        if lowerOutputModalities.contains("video") {
+            capabilities.insert(.videoGeneration)
+        }
+        if lowerInputModalities.contains("pdf")
+            || lowerCapabilities.contains("pdf")
+            || lowerCapabilities.contains("native_pdf")
+            || lowerCapabilities.contains("native-pdf") {
+            capabilities.insert(.nativePDF)
+        }
+        if lowerCapabilities.contains("tool_calling")
+            || lowerCapabilities.contains("tool-calling")
+            || lowerCapabilities.contains("function_calling")
+            || lowerCapabilities.contains("function-calling")
+            || lowerCapabilities.contains("tools") {
+            capabilities.insert(.toolCalling)
+        }
+        if lowerCapabilities.contains("reasoning") || lowerCapabilities.contains("thinking") || lowerTags.contains("reasoning") {
+            capabilities.insert(.reasoning)
+        }
+        if lowerCapabilities.contains("prompt_caching")
+            || lowerCapabilities.contains("prompt-caching")
+            || lowerCapabilities.contains("caching") {
+            capabilities.insert(.promptCaching)
+        }
+
+        return ModelInfo(
+            id: model.id,
+            name: trimmedNonEmpty(model.name) ?? model.id,
+            capabilities: capabilities,
+            contextWindow: max(1, model.maxInputTokens ?? 128_000),
+            maxOutputTokens: model.maxOutputTokens,
+            reasoningConfig: capabilities.contains(.reasoning)
+                ? ModelCapabilityRegistry.defaultReasoningConfig(for: .githubCopilot, modelID: model.id)
+                : nil,
+            catalogMetadata: gitHubCatalogMetadata(from: model)
+        )
+    }
+
+    private func gitHubCatalogMetadata(from model: GitHubModelsCatalogModel) -> ModelCatalogMetadata? {
+        let details = [
+            trimmedNonEmpty(model.publisher),
+            trimmedNonEmpty(model.summary),
+            trimmedNonEmpty(model.rateLimitTier).map { "Rate limit tier: \($0)" }
+        ]
+        .compactMap { $0 }
+
+        guard !details.isEmpty else { return nil }
+        return ModelCatalogMetadata(availabilityMessage: details.joined(separator: "\n"))
+    }
+
     private func makeVercelModelInfo(from model: OpenAIModelsResponse.Model) -> ModelInfo {
         let modelID = model.id
         let displayName = trimmedNonEmpty(model.name) ?? modelID
@@ -351,5 +491,48 @@ actor OpenAICompatibleAdapter: LLMProviderAdapter {
 
     private func isMistralTranscriptionOnlyModelID(_ lowerModelID: String) -> Bool {
         lowerModelID == "voxtral-mini-2602" || lowerModelID.contains("transcribe")
+    }
+}
+
+private struct GitHubModelsCatalogModel: Decodable {
+    let id: String
+    let name: String?
+    let capabilities: [String]?
+    let supportedInputModalities: [String]?
+    let supportedOutputModalities: [String]?
+    let directMaxInputTokens: Int?
+    let directMaxOutputTokens: Int?
+    let limits: Limits?
+    let publisher: String?
+    let summary: String?
+    let rateLimitTier: String?
+    let tags: [String]?
+
+    var maxInputTokens: Int? { directMaxInputTokens ?? limits?.maxInputTokens }
+    var maxOutputTokens: Int? { directMaxOutputTokens ?? limits?.maxOutputTokens }
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case name
+        case capabilities
+        case supportedInputModalities = "supported_input_modalities"
+        case supportedOutputModalities = "supported_output_modalities"
+        case directMaxInputTokens = "max_input_tokens"
+        case directMaxOutputTokens = "max_output_tokens"
+        case limits
+        case publisher
+        case summary
+        case rateLimitTier = "rate_limit_tier"
+        case tags
+    }
+
+    struct Limits: Decodable {
+        let maxInputTokens: Int?
+        let maxOutputTokens: Int?
+
+        enum CodingKeys: String, CodingKey {
+            case maxInputTokens = "max_input_tokens"
+            case maxOutputTokens = "max_output_tokens"
+        }
     }
 }

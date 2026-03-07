@@ -68,43 +68,41 @@ resolve_version() {
   echo "$default_version"
 }
 
+require_architecture() {
+  local binary_path="$1"
+  local expected_arch="$2"
+  local display_name="${3:-$binary_path}"
+  local binary_archs
+
+  binary_archs="$(lipo -archs "$binary_path" 2>/dev/null || true)"
+  if [[ -z "$binary_archs" ]]; then
+    echo "Failed to inspect architectures for $display_name: $binary_path" >&2
+    exit 1
+  fi
+  if [[ " $binary_archs " != *" $expected_arch "* ]]; then
+    echo "Error: $display_name is missing required '$expected_arch' slice ($binary_archs)." >&2
+    exit 1
+  fi
+}
+
 echo "Cleaning stale SwiftPM resource bundles…"
 shopt -s nullglob
-for bundle in "$ROOT/.build/release"/*.bundle "$ROOT/.build/"*-apple-macosx/release/*.bundle; do
+for bundle in "$ROOT/.build/release"/*.bundle "$ROOT/.build/arm64-apple-macosx/release"/*.bundle; do
   rm -rf "$bundle"
 done
 
-ARCHS=(arm64 x86_64)
-BUILD_OUTPUT_DIRS=()
-ARCH_BINARIES=()
+ARCH="arm64"
+BUILD_OUTPUT_DIR="$ROOT/.build/$ARCH-apple-macosx/release"
 
-echo "Building (Release) for Apple Silicon + Intel…"
-for arch in "${ARCHS[@]}"; do
-  echo "Building ($arch)…"
-  swift build -c release --disable-sandbox --arch "$arch"
+echo "Building (Release) for Apple Silicon…"
+swift build -c release --disable-sandbox --arch "$ARCH"
 
-  arch_bin="$ROOT/.build/$arch-apple-macosx/release/$APP_NAME"
-  if [[ ! -f "$arch_bin" ]]; then
-    echo "Expected binary not found for $arch: $arch_bin" >&2
-    exit 1
-  fi
-
-  ARCH_BINARIES+=("$arch_bin")
-  BUILD_OUTPUT_DIRS+=("$ROOT/.build/$arch-apple-macosx/release")
-done
-
-UNIVERSAL_BIN="$DIST/$APP_NAME-universal"
-echo "Creating universal binary…"
-lipo -create "${ARCH_BINARIES[@]}" -output "$UNIVERSAL_BIN"
-universal_archs="$(lipo -archs "$UNIVERSAL_BIN")"
-for arch in "${ARCHS[@]}"; do
-  if [[ " $universal_archs " != *" $arch "* ]]; then
-    echo "Error: arch '$arch' missing from universal binary: $universal_archs" >&2
-    exit 1
-  fi
-done
-echo "Universal binary architectures: $universal_archs"
-BIN="$UNIVERSAL_BIN"
+BIN="$BUILD_OUTPUT_DIR/$APP_NAME"
+if [[ ! -f "$BIN" ]]; then
+  echo "Expected binary not found: $BIN" >&2
+  exit 1
+fi
+require_architecture "$BIN" "$ARCH" "$APP_NAME"
 
 echo "Creating .app bundle…"
 mkdir -p "$APP_BUNDLE/Contents/MacOS" "$APP_BUNDLE/Contents/Resources" "$APP_BUNDLE/Contents/Frameworks"
@@ -126,17 +124,11 @@ done
 echo "Copying SwiftPM resource bundles…"
 shopt -s nullglob
 copied_bundle_count=0
-for bundle_dir in "${BUILD_OUTPUT_DIRS[@]}"; do
-  for bundle in "$bundle_dir"/*.bundle; do
-    bundle_name="$(basename "$bundle")"
-    target_bundle="$APP_BUNDLE/Contents/Resources/$bundle_name"
-    # SwiftPM resource bundles are architecture-independent; first copy wins.
-    if [[ -e "$target_bundle" ]]; then
-      continue
-    fi
-    cp -R "$bundle" "$target_bundle"
-    copied_bundle_count=$((copied_bundle_count + 1))
-  done
+for bundle in "$BUILD_OUTPUT_DIR"/*.bundle; do
+  bundle_name="$(basename "$bundle")"
+  target_bundle="$APP_BUNDLE/Contents/Resources/$bundle_name"
+  cp -R "$bundle" "$target_bundle"
+  copied_bundle_count=$((copied_bundle_count + 1))
 done
 shopt -u nullglob
 
@@ -174,32 +166,17 @@ resolve_framework_binary() {
   echo ""
 }
 
-for bundle_dir in "${BUILD_OUTPUT_DIRS[@]}"; do
-  for framework in "$bundle_dir"/*.framework; do
-    framework_name="$(basename "$framework")"
-    target_framework="$APP_BUNDLE/Contents/Frameworks/$framework_name"
-    if [[ -e "$target_framework" ]]; then
-      continue
-    fi
-    ditto "$framework" "$target_framework"
-    framework_binary="$(resolve_framework_binary "$target_framework")"
-    if [[ -z "$framework_binary" ]]; then
-      echo "Failed to locate executable for embedded framework: $framework_name" >&2
-      exit 1
-    fi
-    framework_archs="$(lipo -archs "$framework_binary" 2>/dev/null || true)"
-    if [[ -z "$framework_archs" ]]; then
-      echo "Failed to inspect framework architectures: $framework_binary" >&2
-      exit 1
-    fi
-    for arch in "${ARCHS[@]}"; do
-      if [[ " $framework_archs " != *" $arch "* ]]; then
-        echo "Error: embedded framework '$framework_name' is missing '$arch' slice ($framework_archs)." >&2
-        exit 1
-      fi
-    done
-    embedded_framework_count=$((embedded_framework_count + 1))
-  done
+for framework in "$BUILD_OUTPUT_DIR"/*.framework; do
+  framework_name="$(basename "$framework")"
+  target_framework="$APP_BUNDLE/Contents/Frameworks/$framework_name"
+  ditto "$framework" "$target_framework"
+  framework_binary="$(resolve_framework_binary "$target_framework")"
+  if [[ -z "$framework_binary" ]]; then
+    echo "Failed to locate executable for embedded framework: $framework_name" >&2
+    exit 1
+  fi
+  require_architecture "$framework_binary" "$ARCH" "embedded framework '$framework_name'"
+  embedded_framework_count=$((embedded_framework_count + 1))
 done
 shopt -u nullglob
 

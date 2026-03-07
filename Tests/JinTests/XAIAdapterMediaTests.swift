@@ -85,6 +85,73 @@ final class XAIAdapterMediaTests: XCTestCase {
         XCTAssertEqual(generatedImages[0].url?.absoluteString, "https://cdn.example.com/generated.png")
     }
 
+    func testXAIStreamingAppendsNoticeForIncompleteResponse() async throws {
+        let (session, protocolType) = makeMockedURLSession()
+        let networkManager = NetworkManager(urlSession: session)
+
+        let providerConfig = ProviderConfig(
+            id: "x",
+            name: "xAI",
+            type: .xai,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://example.com/responses")
+            XCTAssertEqual(request.httpMethod, "POST")
+
+            let sse = """
+            event: response.created
+            data: {"type":"response.created","response":{"id":"resp_xai_incomplete_1"}}
+
+            event: response.reasoning_summary_text.delta
+            data: {"type":"response.reasoning_summary_text.delta","delta":"Drafting..."}
+
+            event: response.incomplete
+            data: {"type":"response.incomplete","response":{"id":"resp_xai_incomplete_1","status":"incomplete","incomplete_details":{"reason":"max_output_tokens"},"usage":{"input_tokens":5,"output_tokens":9}}}
+
+            data: [DONE]
+
+            """
+
+            return (
+                HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                Data(sse.utf8)
+            )
+        }
+
+        let adapter = XAIAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hi")])],
+            modelID: "grok-4-1-fast-reasoning",
+            controls: GenerationControls(reasoning: ReasoningControls(enabled: true, effort: .medium, summary: .auto)),
+            tools: [],
+            streaming: true
+        )
+
+        var thinking = ""
+        var visibleText = ""
+        var terminalUsage: Usage?
+
+        for try await event in stream {
+            switch event {
+            case .thinkingDelta(.thinking(let delta, _)):
+                thinking.append(delta)
+            case .contentDelta(.text(let text)):
+                visibleText.append(text)
+            case .messageEnd(let usage):
+                terminalUsage = usage
+            default:
+                break
+            }
+        }
+
+        XCTAssertEqual(thinking, "Drafting...")
+        XCTAssertTrue(visibleText.contains("max output token limit"))
+        XCTAssertEqual(terminalUsage?.outputTokens, 9)
+    }
+
     func testXAIImageGenerationProUsesImageEndpoint() async throws {
         let (session, protocolType) = makeMockedURLSession()
         let networkManager = NetworkManager(urlSession: session)

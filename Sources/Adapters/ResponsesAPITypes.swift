@@ -40,6 +40,36 @@ struct ResponsesAPIUsageInfo: Codable {
     }
 }
 
+struct ResponsesAPIIncompleteDetails: Codable {
+    let reason: String?
+
+    static func noticeMarkdown(status: String?, reason: String?) -> String? {
+        let normalizedStatus = status?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        let normalizedReason = reason?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+
+        guard normalizedStatus == "incomplete" || normalizedReason != nil else {
+            return nil
+        }
+
+        let message: String
+        switch normalizedReason {
+        case "max_output_tokens":
+            message = "Response stopped early because the model hit the max output token limit. Increase Max Output Tokens or lower reasoning effort if you want a full answer."
+        case let normalizedReason? where !normalizedReason.isEmpty:
+            let readableReason = normalizedReason.replacingOccurrences(of: "_", with: " ")
+            message = "Response stopped early (\(readableReason))."
+        default:
+            message = "Response stopped early before completion."
+        }
+
+        return "\n\n---\n\n\(message)"
+    }
+}
+
 // MARK: - Streaming Event Types
 
 struct ResponsesAPICreatedEvent: Codable {
@@ -83,6 +113,28 @@ struct ResponsesAPICompletedEvent: Codable {
 
         func toUsage() -> Usage? {
             usage?.toUsage()
+        }
+    }
+}
+
+struct ResponsesAPIIncompleteEvent: Codable {
+    let response: Response
+
+    struct Response: Codable {
+        let id: String?
+        let status: String?
+        let incompleteDetails: ResponsesAPIIncompleteDetails?
+        let usage: ResponsesAPIUsageInfo?
+
+        func toUsage() -> Usage? {
+            usage?.toUsage()
+        }
+
+        var incompleteNoticeMarkdown: String? {
+            ResponsesAPIIncompleteDetails.noticeMarkdown(
+                status: status,
+                reason: incompleteDetails?.reason
+            )
         }
     }
 }
@@ -229,6 +281,8 @@ struct ResponsesAPIResponse: Codable {
     let output: [ResponsesAPIOutputItem]
     let citations: [String]?
     let usage: ResponsesAPIUsageInfo?
+    let status: String?
+    let incompleteDetails: ResponsesAPIIncompleteDetails?
 
     var outputTextParts: [String] {
         output.flatMap { item in
@@ -241,6 +295,13 @@ struct ResponsesAPIResponse: Codable {
                 return []
             }
         }
+    }
+
+    var incompleteNoticeMarkdown: String? {
+        ResponsesAPIIncompleteDetails.noticeMarkdown(
+            status: status,
+            reason: incompleteDetails?.reason
+        )
     }
 
     var searchActivities: [SearchActivity] {

@@ -82,6 +82,11 @@ struct AddProviderView: View {
                         .jinInfoCallout()
                 }
 
+                if providerType == .githubCopilot {
+                    Text("Uses GitHub Models' official inference API at `https://models.github.ai/inference`. Configure a GitHub token with GitHub Models access to use this provider.")
+                        .jinInfoCallout()
+                }
+
                 switch providerType {
                 case .codexAppServer:
                     VStack(alignment: .leading, spacing: 6) {
@@ -108,15 +113,15 @@ struct AddProviderView: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
-                case .openai, .openaiWebSocket, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter,
+                case .githubCopilot, .openai, .openaiWebSocket, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter,
                      .anthropic, .perplexity, .groq, .cohere, .mistral, .deepinfra, .together, .xai,
                      .deepseek, .zhipuCodingPlan, .fireworks, .cerebras, .sambanova, .gemini:
                     HStack(spacing: 8) {
                         Group {
                             if isKeyVisible {
-                                TextField("API Key", text: $apiKey)
+                                TextField(providerType == .githubCopilot ? "GitHub Token" : "API Key", text: $apiKey)
                             } else {
-                                SecureField("API Key", text: $apiKey)
+                                SecureField(providerType == .githubCopilot ? "GitHub Token" : "API Key", text: $apiKey)
                             }
                         }
                         Button {
@@ -225,7 +230,7 @@ struct AddProviderView: View {
         switch providerType {
         case .codexAppServer:
             return false
-        case .openai, .openaiWebSocket, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter,
+        case .githubCopilot, .openai, .openaiWebSocket, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter,
              .anthropic, .perplexity, .groq, .cohere, .mistral, .deepinfra, .together, .xai, .deepseek,
              .zhipuCodingPlan, .fireworks, .cerebras, .sambanova, .gemini:
             return apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty

@@ -103,7 +103,7 @@ struct ProviderConfigFormView: View {
                     codexServerSection
                     codexAuthSection
                     codexWorkingDirectoryPresetsSection
-                case .openai, .openaiWebSocket, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter,
+                case .githubCopilot, .openai, .openaiWebSocket, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter,
                      .anthropic, .perplexity, .groq, .cohere, .mistral, .deepinfra, .together, .xai,
                      .deepseek, .zhipuCodingPlan, .fireworks, .cerebras, .sambanova, .gemini:
                     apiKeyField
@@ -481,9 +481,9 @@ struct ProviderConfigFormView: View {
         HStack(spacing: 8) {
             Group {
                 if showingAPIKey {
-                    TextField("API Key", text: $apiKey)
+                    TextField(apiKeyFieldTitle, text: $apiKey)
                 } else {
-                    SecureField("API Key", text: $apiKey)
+                    SecureField(apiKeyFieldTitle, text: $apiKey)
                 }
             }
             Button {
@@ -497,6 +497,10 @@ struct ProviderConfigFormView: View {
             .help(showingAPIKey ? "Hide API key" : "Show API key")
             .disabled(apiKey.isEmpty)
         }
+    }
+
+    private var apiKeyFieldTitle: String {
+        providerType == .githubCopilot ? "GitHub Token" : "API Key"
     }
 
     // MARK: - Codex Auth
@@ -1116,6 +1120,7 @@ struct ProviderConfigFormView: View {
                 name: model.name,
                 capabilities: model.capabilities,
                 contextWindow: model.contextWindow,
+                maxOutputTokens: model.maxOutputTokens,
                 reasoningConfig: model.reasoningConfig,
                 overrides: model.overrides,
                 catalogMetadata: model.catalogMetadata,
@@ -1180,6 +1185,8 @@ struct ProviderConfigFormView: View {
                 codexAccount = nil
                 codexRateLimit = nil
                 codexPendingLoginID = nil
+            case .githubCopilot:
+                apiKey = provider.apiKey ?? ""
             case .openai, .openaiWebSocket, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter,
                  .anthropic, .perplexity, .groq, .cohere, .mistral, .deepinfra, .together, .xai,
                  .deepseek, .zhipuCodingPlan, .fireworks, .cerebras, .sambanova, .gemini:
@@ -1495,7 +1502,7 @@ struct ProviderConfigFormView: View {
                 try? modelContext.save()
             }
 
-        case .openai, .openaiWebSocket, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter,
+        case .githubCopilot, .openai, .openaiWebSocket, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter,
              .anthropic, .perplexity, .groq, .cohere, .mistral, .deepinfra, .together, .xai, .deepseek,
              .zhipuCodingPlan, .fireworks, .cerebras, .sambanova, .gemini:
             let key = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -1568,19 +1575,38 @@ struct ProviderConfigFormView: View {
         let fetchedByID = allFetched.reduce(into: [String: ModelInfo]()) { $0[$1.id] = $1 }
         var resultByID = existingByID
 
-        // Refresh metadata for existing models that appeared in the fetch
-        for (id, fetched) in fetchedByID where existingByID[id] != nil {
-            let existing = existingByID[id]!
-            resultByID[id] = ModelInfo(
+        func mergedModel(from fetched: ModelInfo, preserving existing: ModelInfo) -> ModelInfo {
+            ModelInfo(
                 id: fetched.id,
                 name: fetched.name,
                 capabilities: fetched.capabilities,
                 contextWindow: fetched.contextWindow,
+                maxOutputTokens: fetched.maxOutputTokens,
                 reasoningConfig: fetched.reasoningConfig,
                 overrides: existing.overrides,
                 catalogMetadata: fetched.catalogMetadata,
                 isEnabled: existing.isEnabled
             )
+        }
+
+        // Refresh metadata for existing models that appeared in the fetch
+        for (id, fetched) in fetchedByID where existingByID[id] != nil {
+            let existing = existingByID[id]!
+            resultByID[id] = mergedModel(from: fetched, preserving: existing)
+        }
+
+        if providerType == .githubCopilot {
+            for (legacyID, existing) in existingByID where fetchedByID[legacyID] == nil {
+                guard let migrated = ProviderModelAliasResolver.resolvedModel(
+                    for: legacyID,
+                    providerType: .githubCopilot,
+                    availableModels: allFetched
+                ), migrated.id != legacyID else {
+                    continue
+                }
+                resultByID.removeValue(forKey: legacyID)
+                resultByID[migrated.id] = mergedModel(from: migrated, preserving: existing)
+            }
         }
 
         // Add newly selected models that don't already exist
@@ -1590,6 +1616,7 @@ struct ProviderConfigFormView: View {
                 name: model.name,
                 capabilities: model.capabilities,
                 contextWindow: model.contextWindow,
+                maxOutputTokens: model.maxOutputTokens,
                 reasoningConfig: model.reasoningConfig,
                 overrides: nil,
                 catalogMetadata: model.catalogMetadata,
@@ -1608,7 +1635,7 @@ struct ProviderConfigFormView: View {
         switch ProviderType(rawValue: provider.typeRaw) {
         case .codexAppServer:
             return !codexCanUseCurrentAuthenticationMode || testStatus == .testing || codexAuthStatus == .working
-        case .openai, .openaiWebSocket, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter,
+        case .githubCopilot, .openai, .openaiWebSocket, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter,
              .anthropic, .perplexity, .groq, .cohere, .mistral, .deepinfra, .together, .xai, .deepseek,
              .zhipuCodingPlan, .fireworks, .cerebras, .sambanova, .gemini:
             return apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || testStatus == .testing
@@ -1624,7 +1651,7 @@ struct ProviderConfigFormView: View {
         switch providerType {
         case .codexAppServer:
             return !codexCanUseCurrentAuthenticationMode || codexAuthStatus == .working
-        case .openai, .openaiWebSocket, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter,
+        case .githubCopilot, .openai, .openaiWebSocket, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter,
              .anthropic, .perplexity, .groq, .cohere, .mistral, .deepinfra, .together, .xai, .deepseek,
              .zhipuCodingPlan, .fireworks, .cerebras, .sambanova, .gemini:
             return apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty

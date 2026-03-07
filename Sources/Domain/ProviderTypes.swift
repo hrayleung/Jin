@@ -57,6 +57,7 @@ enum ProviderType: String, Codable, CaseIterable {
     case openai
     case openaiWebSocket
     case codexAppServer
+    case githubCopilot
     case openaiCompatible
     case cloudflareAIGateway
     case vercelAIGateway
@@ -82,6 +83,7 @@ enum ProviderType: String, Codable, CaseIterable {
         case .openai: return "OpenAI"
         case .openaiWebSocket: return "OpenAI (WebSocket)"
         case .codexAppServer: return "Codex App Server (Beta)"
+        case .githubCopilot: return "GitHub Copilot"
         case .openaiCompatible: return "OpenAI Compatible"
         case .cloudflareAIGateway: return "Cloudflare AI Gateway"
         case .vercelAIGateway: return "Vercel AI Gateway"
@@ -109,6 +111,7 @@ enum ProviderType: String, Codable, CaseIterable {
         case .openai: return "https://api.openai.com/v1"
         case .openaiWebSocket: return "wss://api.openai.com/v1"
         case .codexAppServer: return "ws://127.0.0.1:4500"
+        case .githubCopilot: return "https://models.github.ai/inference"
         case .openaiCompatible: return "https://api.openai.com/v1"
         case .cloudflareAIGateway: return "https://gateway.ai.cloudflare.com/v1/{account_id}/{gateway_slug}/compat"
         case .vercelAIGateway: return "https://ai-gateway.vercel.sh/v1"
@@ -177,13 +180,14 @@ struct ModelInfo: Identifiable, Codable {
     let name: String
     let capabilities: ModelCapability
     let contextWindow: Int
+    let maxOutputTokens: Int?
     let reasoningConfig: ModelReasoningConfig?
     var overrides: ModelOverrides?
     var catalogMetadata: ModelCatalogMetadata?
     var isEnabled: Bool
 
     enum CodingKeys: String, CodingKey {
-        case id, name, capabilities, contextWindow, reasoningConfig, overrides, catalogMetadata, isEnabled
+        case id, name, capabilities, contextWindow, maxOutputTokens, reasoningConfig, overrides, catalogMetadata, isEnabled
     }
 
     init(
@@ -191,6 +195,7 @@ struct ModelInfo: Identifiable, Codable {
         name: String,
         capabilities: ModelCapability = [],
         contextWindow: Int,
+        maxOutputTokens: Int? = nil,
         reasoningConfig: ModelReasoningConfig? = nil,
         overrides: ModelOverrides? = nil,
         catalogMetadata: ModelCatalogMetadata? = nil,
@@ -200,6 +205,7 @@ struct ModelInfo: Identifiable, Codable {
         self.name = name
         self.capabilities = capabilities
         self.contextWindow = contextWindow
+        self.maxOutputTokens = maxOutputTokens
         self.reasoningConfig = reasoningConfig
         self.overrides = overrides
         self.catalogMetadata = catalogMetadata
@@ -212,6 +218,7 @@ struct ModelInfo: Identifiable, Codable {
         name = try container.decode(String.self, forKey: .name)
         capabilities = try container.decode(ModelCapability.self, forKey: .capabilities)
         contextWindow = try container.decode(Int.self, forKey: .contextWindow)
+        maxOutputTokens = try container.decodeIfPresent(Int.self, forKey: .maxOutputTokens)
         reasoningConfig = try container.decodeIfPresent(ModelReasoningConfig.self, forKey: .reasoningConfig)
         overrides = try container.decodeIfPresent(ModelOverrides.self, forKey: .overrides)
         catalogMetadata = try container.decodeIfPresent(ModelCatalogMetadata.self, forKey: .catalogMetadata)
@@ -224,6 +231,7 @@ struct ModelInfo: Identifiable, Codable {
         try container.encode(name, forKey: .name)
         try container.encode(capabilities, forKey: .capabilities)
         try container.encode(contextWindow, forKey: .contextWindow)
+        try container.encodeIfPresent(maxOutputTokens, forKey: .maxOutputTokens)
         try container.encode(reasoningConfig, forKey: .reasoningConfig)
         try container.encodeIfPresent(overrides, forKey: .overrides)
         try container.encodeIfPresent(catalogMetadata, forKey: .catalogMetadata)

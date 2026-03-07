@@ -209,6 +209,7 @@ Connect MCP servers for tool calling under **Settings > MCP Servers**. Jin suppo
 ### Download
 
 Download the latest release from the [Releases](../../releases) page. Assets are typically `Jin.zip` (containing `Jin.app`) or `Jin.dmg`.
+Current release artifacts are Apple Silicon-only.
 If your release is zipped, unzip it first.
 
 ### If macOS blocks the app
@@ -227,6 +228,7 @@ xattr -dr com.apple.quarantine /Applications/Jin.app
 
 ### Requirements
 
+- Apple Silicon Mac
 - macOS 14 (Sonoma) or later
 
 ## Getting Started
@@ -245,7 +247,7 @@ swift build
 swift test
 swift run Jin            # Run from the command line (Debug)
 open Package.swift          # Open in Xcode
-bash Packaging/package.sh   # Build universal release .app bundle and create dist/Jin.zip
+bash Packaging/package.sh   # Build Apple Silicon release .app bundle and create dist/Jin.zip
 bash Packaging/package.sh dmg  # Optional: also create a DMG
 ```
 

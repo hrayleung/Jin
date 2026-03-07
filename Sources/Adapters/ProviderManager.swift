@@ -43,7 +43,8 @@ actor ProviderManager {
         case .codexAppServer:
             let apiKey = optionalAPIKey(from: credentials)
             return CodexAppServerAdapter(providerConfig: config, apiKey: apiKey, networkManager: networkManager)
-        case .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .groq, .mistral, .deepinfra, .zhipuCodingPlan:
+        case .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .groq, .mistral, .deepinfra,
+             .zhipuCodingPlan:
             let apiKey = requiredAPIKey(from: credentials, for: config.type)
             return OpenAICompatibleAdapter(providerConfig: config, apiKey: apiKey, networkManager: networkManager)
         case .openrouter:

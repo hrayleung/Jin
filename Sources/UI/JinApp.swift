@@ -241,6 +241,7 @@ struct JinApp: App {
                     name: model.name,
                     capabilities: model.capabilities,
                     contextWindow: model.contextWindow,
+                    maxOutputTokens: model.maxOutputTokens,
                     reasoningConfig: model.reasoningConfig,
                     overrides: existing?.overrides,
                     catalogMetadata: model.catalogMetadata,
