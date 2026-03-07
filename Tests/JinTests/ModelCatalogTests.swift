@@ -65,13 +65,13 @@ final class ModelCatalogTests: XCTestCase {
         XCTAssertTrue(gpt.capabilities.contains(.reasoning))
         XCTAssertTrue(gpt.capabilities.contains(.promptCaching))
 
-        let kimi = ModelCatalog.modelInfo(
-            for: "moonshotai/kimi-k2.5",
+        let gemini = ModelCatalog.modelInfo(
+            for: "google/gemini-3.1-pro-preview",
             provider: .vercelAIGateway
         )
-        XCTAssertEqual(kimi.contextWindow, 256_000)
-        XCTAssertTrue(kimi.capabilities.contains(.vision))
-        XCTAssertTrue(kimi.capabilities.contains(.reasoning))
+        XCTAssertEqual(gemini.contextWindow, 1_048_576)
+        XCTAssertTrue(gemini.capabilities.contains(.vision))
+        XCTAssertTrue(gemini.capabilities.contains(.reasoning))
     }
 
     func testOpenAIAudioModelsAreCatalogBackedByExactIDs() {

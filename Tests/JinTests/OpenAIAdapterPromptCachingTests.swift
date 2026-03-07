@@ -608,6 +608,7 @@ final class OpenAIAdapterPromptCachingTests: XCTestCase {
         )
 
         var sawTextDelta = false
+        var messageEndCount = 0
         var sawMessageEndWithoutUsage = false
         for try await event in stream {
             switch event {
@@ -616,6 +617,7 @@ final class OpenAIAdapterPromptCachingTests: XCTestCase {
                     sawTextDelta = true
                 }
             case .messageEnd(let usage):
+                messageEndCount += 1
                 if usage == nil {
                     sawMessageEndWithoutUsage = true
                 }
@@ -626,6 +628,73 @@ final class OpenAIAdapterPromptCachingTests: XCTestCase {
 
         XCTAssertTrue(sawTextDelta)
         XCTAssertTrue(sawMessageEndWithoutUsage)
+        XCTAssertEqual(messageEndCount, 1)
+    }
+
+    func testOpenAIAdapterStreamingAppendsNoticeForIncompleteResponse() async throws {
+        let (session, protocolType) = makeOpenAIMockedURLSession()
+        let networkManager = NetworkManager(urlSession: session)
+
+        let providerConfig = ProviderConfig(
+            id: "openai",
+            name: "OpenAI",
+            type: .openai,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://example.com/responses")
+
+            let sse = """
+            event: response.created
+            data: {"type":"response.created","response":{"id":"resp_incomplete_1"}}
+
+            event: response.reasoning_summary_text.delta
+            data: {"type":"response.reasoning_summary_text.delta","delta":"Thinking..."}
+
+            event: response.incomplete
+            data: {"type":"response.incomplete","response":{"id":"resp_incomplete_1","status":"incomplete","incomplete_details":{"reason":"max_output_tokens"},"usage":{"input_tokens":3,"output_tokens":7}}}
+
+            data: [DONE]
+
+            """
+
+            return (
+                HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                Data(sse.utf8)
+            )
+        }
+
+        let adapter = OpenAIAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hi")])],
+            modelID: "gpt-5.4",
+            controls: GenerationControls(reasoning: ReasoningControls(enabled: true, effort: .medium, summary: .auto)),
+            tools: [],
+            streaming: true
+        )
+
+        var thinking = ""
+        var visibleText = ""
+        var terminalUsage: Usage?
+
+        for try await event in stream {
+            switch event {
+            case .thinkingDelta(.thinking(let delta, _)):
+                thinking.append(delta)
+            case .contentDelta(.text(let text)):
+                visibleText.append(text)
+            case .messageEnd(let usage):
+                terminalUsage = usage
+            default:
+                break
+            }
+        }
+
+        XCTAssertEqual(thinking, "Thinking...")
+        XCTAssertTrue(visibleText.contains("max output token limit"))
+        XCTAssertEqual(terminalUsage?.outputTokens, 7)
     }
 
     func testOpenAIAdapterCitationSearchActivityCarriesSnippetFromAnnotationOffsets() async throws {

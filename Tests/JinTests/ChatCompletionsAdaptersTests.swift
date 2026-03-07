@@ -172,7 +172,7 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         let stream = try await adapter.sendMessage(
             messages: [Message(role: .user, content: [.text("hi")])],
             modelID: "fireworks/minimax-m2p5",
-            controls: GenerationControls(reasoning: ReasoningControls(enabled: false)),
+            controls: GenerationControls(),
             tools: [],
             streaming: false
         )
@@ -588,11 +588,11 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
 
             let payload: [String: Any] = [
                 "data": [
-                    ["id": "gpt-5.2"],
-                    ["id": "gpt-5.3-codex"],
-                    ["id": "gpt-5.3-chat-latest"],
-                    ["id": "gpt-4o"],
-                    ["id": "gpt-4.1-mini"]
+                    ["id": "gpt-5.2", "max_tokens": 128_000, "context_window": 400_000],
+                    ["id": "gpt-5.3-codex", "max_tokens": 128_000, "context_window": 400_000],
+                    ["id": "gpt-5.3-chat-latest", "max_tokens": 32_000, "context_window": 128_000],
+                    ["id": "gpt-4o", "max_tokens": 16_384, "context_window": 128_000],
+                    ["id": "gpt-4.1-mini", "max_tokens": 32_000, "context_window": 128_000]
                 ]
             ]
             let data = try JSONSerialization.data(withJSONObject: payload)
@@ -605,30 +605,41 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
 
         let gpt52 = try XCTUnwrap(byID["gpt-5.2"])
         XCTAssertEqual(gpt52.contextWindow, 400_000)
+        XCTAssertEqual(gpt52.maxOutputTokens, 128_000)
         XCTAssertTrue(gpt52.capabilities.contains(.vision))
         XCTAssertTrue(gpt52.capabilities.contains(.reasoning))
         XCTAssertTrue(gpt52.capabilities.contains(.nativePDF))
+        XCTAssertEqual(ModelSettingsResolver.resolve(model: gpt52, providerType: .openai).maxOutputTokens, 128_000)
 
         let gpt53 = try XCTUnwrap(byID["gpt-5.3-codex"])
         XCTAssertEqual(gpt53.contextWindow, 400_000)
+        XCTAssertEqual(gpt53.maxOutputTokens, 128_000)
         XCTAssertTrue(gpt53.capabilities.contains(.vision))
         XCTAssertTrue(gpt53.capabilities.contains(.reasoning))
         XCTAssertTrue(gpt53.capabilities.contains(.nativePDF))
+        XCTAssertEqual(ModelSettingsResolver.resolve(model: gpt53, providerType: .openai).maxOutputTokens, 128_000)
 
         let gpt53ChatLatest = try XCTUnwrap(byID["gpt-5.3-chat-latest"])
         XCTAssertEqual(gpt53ChatLatest.contextWindow, 128_000)
+        XCTAssertEqual(gpt53ChatLatest.maxOutputTokens, 32_000)
         XCTAssertTrue(gpt53ChatLatest.capabilities.contains(.vision))
         XCTAssertFalse(gpt53ChatLatest.capabilities.contains(.reasoning))
         XCTAssertFalse(gpt53ChatLatest.capabilities.contains(.nativePDF))
+        XCTAssertEqual(ModelSettingsResolver.resolve(model: gpt53ChatLatest, providerType: .openai).maxOutputTokens, 32_000)
 
         let gpt4o = try XCTUnwrap(byID["gpt-4o"])
         XCTAssertEqual(gpt4o.contextWindow, 128_000)
+        XCTAssertEqual(gpt4o.maxOutputTokens, 16_384)
         XCTAssertTrue(gpt4o.capabilities.contains(.vision))
         XCTAssertFalse(gpt4o.capabilities.contains(.reasoning))
         XCTAssertTrue(gpt4o.capabilities.contains(.nativePDF))
+        XCTAssertEqual(ModelSettingsResolver.resolve(model: gpt4o, providerType: .openai).maxOutputTokens, 16_384)
 
         let gpt41mini = try XCTUnwrap(byID["gpt-4.1-mini"])
+        XCTAssertEqual(gpt41mini.contextWindow, 128_000)
+        XCTAssertEqual(gpt41mini.maxOutputTokens, 32_000)
         XCTAssertFalse(gpt41mini.capabilities.contains(.nativePDF))
+        XCTAssertEqual(ModelSettingsResolver.resolve(model: gpt41mini, providerType: .openai).maxOutputTokens, 32_000)
     }
 
     func testOpenAIAdapterFetchModelsPreservesAudioMetadataForKnownAudioIDs() async throws {

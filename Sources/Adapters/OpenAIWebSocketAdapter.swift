@@ -155,8 +155,10 @@ actor OpenAIWebSocketAdapter: LLMProviderAdapter {
                     await NetworkDebugLogger.shared.logWebSocketSend(sessionID: traceSessionID, message: createEventString)
 
                     var functionCallsByItemID: [String: ResponsesAPIFunctionCallState] = [:]
+                    let eventDecoder = JSONDecoder()
+                    eventDecoder.keyDecodingStrategy = .convertFromSnakeCase
 
-                    while true {
+                    while !Task.isCancelled {
                         try Task.checkCancellation()
 
                         let message = try await ws.receive()
@@ -177,6 +179,16 @@ actor OpenAIWebSocketAdapter: LLMProviderAdapter {
                         }
 
                         let isTerminalEvent = isTerminalResponseEventType(eventType)
+
+                        if eventType == "response.incomplete",
+                           let jsonData = jsonString.data(using: .utf8),
+                           let incomplete = try? eventDecoder.decode(ResponsesAPIIncompleteEvent.self, from: jsonData) {
+                            if let notice = incomplete.response.incompleteNoticeMarkdown {
+                                continuation.yield(.contentDelta(.text(notice)))
+                            }
+                            continuation.yield(.messageEnd(usage: incomplete.response.toUsage()))
+                            break
+                        }
 
                         do {
                             if let streamEvent = try parseSSEEvent(
@@ -249,7 +261,35 @@ actor OpenAIWebSocketAdapter: LLMProviderAdapter {
         let (data, _) = try await networkManager.sendRequest(request)
         let response = try JSONDecoder().decode(ModelsResponse.self, from: data)
         return response.data.map { model in
-            ModelCatalog.modelInfo(for: model.id, provider: .openaiWebSocket, name: model.id)
+            var info = ModelCatalog.modelInfo(for: model.id, provider: .openaiWebSocket, name: model.id)
+            let contextWindow = model.contextWindow.flatMap { $0 > 0 ? $0 : nil }
+            let maxOutputTokens = model.maxTokens.flatMap { $0 > 0 ? $0 : nil }
+            if let contextWindow {
+                info = ModelInfo(
+                    id: info.id,
+                    name: info.name,
+                    capabilities: info.capabilities,
+                    contextWindow: contextWindow,
+                    maxOutputTokens: maxOutputTokens ?? info.maxOutputTokens,
+                    reasoningConfig: info.reasoningConfig,
+                    overrides: info.overrides,
+                    catalogMetadata: info.catalogMetadata,
+                    isEnabled: info.isEnabled
+                )
+            } else if let maxOutputTokens {
+                info = ModelInfo(
+                    id: info.id,
+                    name: info.name,
+                    capabilities: info.capabilities,
+                    contextWindow: info.contextWindow,
+                    maxOutputTokens: maxOutputTokens,
+                    reasoningConfig: info.reasoningConfig,
+                    overrides: info.overrides,
+                    catalogMetadata: info.catalogMetadata,
+                    isEnabled: info.isEnabled
+                )
+            }
+            return info
         }
     }
 
@@ -584,4 +624,12 @@ private struct ModelsResponse: Codable {
 
 private struct ModelData: Codable {
     let id: String
+    let contextWindow: Int?
+    let maxTokens: Int?
+
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case contextWindow = "context_window"
+        case maxTokens = "max_tokens"
+    }
 }

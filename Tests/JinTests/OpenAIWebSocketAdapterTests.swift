@@ -65,6 +65,22 @@ final class OpenAIWebSocketAdapterTests: XCTestCase {
         XCTAssertFalse(gpt41mini.capabilities.contains(.nativePDF))
     }
 
+    func testOpenAIWebSocketAdapterTreatsResponseIncompleteAsTerminalEvent() async {
+        let adapter = OpenAIWebSocketAdapter(
+            providerConfig: ProviderConfig(
+                id: "openai-websocket",
+                name: "OpenAI (WebSocket)",
+                type: .openaiWebSocket,
+                apiKey: "ignored",
+                baseURL: "https://example.com/v1"
+            ),
+            apiKey: "test-key"
+        )
+
+        let isTerminal = await adapter.isTerminalResponseEventType("response.incomplete")
+        XCTAssertTrue(isTerminal)
+    }
+
     func testOpenAIWebSocketAdapterFetchModelsPreservesAudioMetadataForKnownAudioIDs() async throws {
         let (session, protocolType) = makeMockedURLSession()
         let networkManager = NetworkManager(urlSession: session)
