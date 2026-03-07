@@ -29,11 +29,31 @@ enum ModelCatalog {
         let displayName: String
         let capabilities: ModelCapability
         let contextWindow: Int
-        let maxOutputTokens: Int? = nil
+        let maxOutputTokens: Int?
         let reasoningConfig: ModelReasoningConfig?
         let isFullySupported: Bool
         /// Whether this model appears in the first-launch seed list.
         let isSeeded: Bool
+
+        init(
+            id: String,
+            displayName: String,
+            capabilities: ModelCapability,
+            contextWindow: Int,
+            maxOutputTokens: Int? = nil,
+            reasoningConfig: ModelReasoningConfig?,
+            isFullySupported: Bool,
+            isSeeded: Bool
+        ) {
+            self.id = id
+            self.displayName = displayName
+            self.capabilities = capabilities
+            self.contextWindow = contextWindow
+            self.maxOutputTokens = maxOutputTokens
+            self.reasoningConfig = reasoningConfig
+            self.isFullySupported = isFullySupported
+            self.isSeeded = isSeeded
+        }
 
         var entry: ModelCatalogEntry {
             ModelCatalogEntry(
@@ -86,13 +106,13 @@ enum ModelCatalog {
             .filter { $0.isSeeded }
             .map { r in
                 ModelInfo(
-                id: r.id,
-                name: r.displayName,
-                capabilities: r.capabilities,
-                contextWindow: r.contextWindow,
-                maxOutputTokens: r.maxOutputTokens,
-                reasoningConfig: r.reasoningConfig
-            )
+                    id: r.id,
+                    name: r.displayName,
+                    capabilities: r.capabilities,
+                    contextWindow: r.contextWindow,
+                    maxOutputTokens: r.maxOutputTokens,
+                    reasoningConfig: r.reasoningConfig
+                )
             }
     }
 
@@ -111,6 +131,7 @@ enum ModelCatalog {
             name: name,
             capabilities: conservativeUnknownCapabilities,
             contextWindow: conservativeUnknownContextWindow,
+            maxOutputTokens: nil,
             reasoningConfig: nil
         )
     }

@@ -17,6 +17,7 @@ extension OpenAIWebSocketAdapter {
     func isTerminalResponseEventType(_ eventType: String) -> Bool {
         eventType == "response.completed"
             || eventType == "response.failed"
+            || eventType == "response.incomplete"
             || eventType == "response.canceled"
             || eventType == "response.cancelled"
             || eventType == "error"

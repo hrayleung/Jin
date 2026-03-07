@@ -2,6 +2,14 @@ import Foundation
 
 /// Network manager for HTTP requests with streaming support
 actor NetworkManager {
+    nonisolated static let defaultRequestTimeoutInterval: TimeInterval = 7 * 24 * 60 * 60
+    nonisolated static let defaultResourceTimeoutInterval: TimeInterval = 7 * 24 * 60 * 60
+
+    private static let defaultSession: URLSession = {
+        let configuration = makeDefaultSessionConfiguration()
+        return URLSession(configuration: configuration)
+    }()
+
     private let overrideSession: URLSession?
 
     init(urlSession: URLSession? = nil) {
@@ -10,9 +18,16 @@ actor NetworkManager {
 
     /// Resolves the URLSession to use for each request.
     /// When an explicit session is provided, it's always used.
-    /// Otherwise, uses the shared URLSession.
+    /// Otherwise, uses a default session configured for long-running LLM requests.
     private var urlSession: URLSession {
-        overrideSession ?? .shared
+        overrideSession ?? Self.defaultSession
+    }
+
+    nonisolated static func makeDefaultSessionConfiguration() -> URLSessionConfiguration {
+        let configuration = URLSessionConfiguration.default
+        configuration.timeoutIntervalForRequest = defaultRequestTimeoutInterval
+        configuration.timeoutIntervalForResource = defaultResourceTimeoutInterval
+        return configuration
     }
 
     /// Stream request with custom parser

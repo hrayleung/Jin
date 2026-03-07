@@ -38,9 +38,11 @@ enum ModelSettingsResolver {
             fallback: model.reasoningConfig,
             capabilities: capabilities
         )
-        let maxOutputTokens = normalizedPositiveInt(overrides?.maxOutputTokens)
-            ?? normalizedPositiveInt(catalogEntry?.maxOutputTokens)
-            ?? normalizedPositiveInt(model.maxOutputTokens)
+        let maxOutputTokens = resolvedMaxOutputTokens(
+            overrides: overrides,
+            catalogEntry: catalogEntry,
+            fallback: model.maxOutputTokens
+        )
         let modelType = overrides?.modelType ?? inferModelType(capabilities: capabilities, modelID: model.id)
         let reasoningCanDisable = overrides?.reasoningCanDisable
             ?? defaultReasoningCanDisable(for: providerType, modelID: model.id)
@@ -107,6 +109,16 @@ enum ModelSettingsResolver {
         overrides?.contextWindow ?? catalogEntry?.contextWindow ?? fallback
     }
 
+    private static func resolvedMaxOutputTokens(
+        overrides: ModelOverrides?,
+        catalogEntry: ModelCatalogEntry?,
+        fallback: Int?
+    ) -> Int? {
+        normalizedPositiveInt(overrides?.maxOutputTokens)
+            ?? normalizedPositiveInt(catalogEntry?.maxOutputTokens)
+            ?? normalizedPositiveInt(fallback)
+    }
+
     private static func resolvedReasoningConfig(
         overrides: ModelOverrides?,
         catalogEntry: ModelCatalogEntry?,
@@ -120,9 +132,11 @@ enum ModelSettingsResolver {
         if let override = overrides?.reasoningConfig {
             return override
         }
+
         if let catalogEntry {
             return catalogEntry.reasoningConfig
         }
+
         return fallback
     }
 

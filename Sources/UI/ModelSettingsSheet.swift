@@ -39,7 +39,7 @@ struct ModelSettingsSheet: View {
 
         _modelType = State(initialValue: resolved.modelType)
         _contextWindowText = State(initialValue: "\(resolved.contextWindow)")
-        _maxOutputTokensText = State(initialValue: resolved.maxOutputTokens.map(String.init) ?? "")
+        _maxOutputTokensText = State(initialValue: model.overrides?.maxOutputTokens.map(String.init) ?? "")
         _capabilities = State(initialValue: resolved.capabilities)
         _reasoningEnabled = State(initialValue: resolvedReasoning?.type != ReasoningConfigType.none && resolvedReasoning != nil)
         _reasoningType = State(initialValue: resolvedReasoning?.type ?? .effort)
@@ -244,6 +244,9 @@ struct ModelSettingsSheet: View {
             for: providerType,
             modelID: model.id
         )
+        let baseMaxOutputTokens = providerType.flatMap {
+            ModelCatalog.entry(for: model.id, provider: $0)?.maxOutputTokens
+        }
 
         var overrides = ModelOverrides()
         if modelType != baseModelType {
@@ -252,7 +255,7 @@ struct ModelSettingsSheet: View {
         if contextWindow != model.contextWindow {
             overrides.contextWindow = contextWindow
         }
-        if let maxOutputTokens {
+        if let maxOutputTokens, maxOutputTokens != baseMaxOutputTokens {
             overrides.maxOutputTokens = maxOutputTokens
         }
         if updatedCapabilities != model.capabilities {

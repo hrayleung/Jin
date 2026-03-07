@@ -4,7 +4,8 @@ enum GenerationControlsResolver {
     static func resolvedForRequest(
         base: GenerationControls,
         assistantTemperature: Double?,
-        assistantMaxOutputTokens: Int?
+        assistantMaxOutputTokens: Int?,
+        modelMaxOutputTokens: Int?
     ) -> GenerationControls {
         var resolved = base
 
@@ -14,6 +15,10 @@ enum GenerationControlsResolver {
 
         if resolved.maxTokens == nil, let assistantMaxOutputTokens {
             resolved.maxTokens = assistantMaxOutputTokens
+        }
+
+        if resolved.maxTokens == nil, let modelMaxOutputTokens {
+            resolved.maxTokens = modelMaxOutputTokens
         }
 
         return resolved

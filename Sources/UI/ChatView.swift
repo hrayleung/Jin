@@ -4312,7 +4312,8 @@ struct ChatView: View {
         controlsToUse = GenerationControlsResolver.resolvedForRequest(
             base: controlsToUse,
             assistantTemperature: assistant?.temperature,
-            assistantMaxOutputTokens: assistant?.maxOutputTokens
+            assistantMaxOutputTokens: assistant?.maxOutputTokens,
+            modelMaxOutputTokens: resolvedModelSettingsSnapshot?.maxOutputTokens
         )
         controlsToUse.contextCache = automaticContextCacheControls(
             providerType: providerTypeSnapshot,
