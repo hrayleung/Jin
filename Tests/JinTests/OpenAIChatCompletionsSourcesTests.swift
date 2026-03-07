@@ -98,6 +98,60 @@ final class OpenAIChatCompletionsSourcesTests: XCTestCase {
         )
     }
 
+    func testNonStreamingTrimsSearchResultMetadataWithoutAffectingVisibleContent() async throws {
+        let payload: [String: Any] = [
+            "id": "cmpl_sources_trimmed_1",
+            "choices": [
+                [
+                    "message": [
+                        "role": "assistant",
+                        "content": "Answer"
+                    ]
+                ]
+            ],
+            "search_results": [
+                [
+                    "title": "  Foo  ",
+                    "url": "  https://foo.com  ",
+                    "snippet": "\n Foo\n snippet \n"
+                ],
+                [
+                    "title": "Duplicate",
+                    "url": "https://foo.com",
+                    "snippet": "Should be deduped"
+                ],
+                [
+                    "title": "   ",
+                    "url": "  https://bar.com  ",
+                    "snippet": "\n\n"
+                ]
+            ]
+        ]
+
+        let data = try JSONSerialization.data(withJSONObject: payload)
+        let response = try OpenAIChatCompletionsCore.decodeResponse(data)
+        let stream = OpenAIChatCompletionsCore.makeNonStreamingStream(
+            response: response,
+            reasoningField: .reasoningOrReasoningContent
+        )
+
+        var events: [StreamEvent] = []
+        for try await event in stream {
+            events.append(event)
+        }
+
+        XCTAssertEqual(events.count, 4)
+
+        guard case .contentDelta(.text(let content)) = events[1] else { return XCTFail("Expected contentDelta") }
+        XCTAssertEqual(content, "Answer")
+
+        guard case .contentDelta(.text(let sources)) = events[2] else { return XCTFail("Expected contentDelta") }
+        XCTAssertEqual(
+            sources,
+            "\n\n---\n\n### Sources\n1. [Foo](<https://foo.com>) — Foo snippet\n2. [https://bar.com](<https://bar.com>)"
+        )
+    }
+
     func testStreamingAppendsCitationsOnDone() async throws {
         let sseStream = AsyncThrowingStream<SSEEvent, Error> { continuation in
             let chunk1: [String: Any] = [

@@ -621,27 +621,7 @@ actor VertexAIAdapter: LLMProviderAdapter {
     }
 
     private func mapEffortToVertexLevel(_ effort: ReasoningEffort, modelID: String) -> String {
-        let supportedEfforts = ModelCapabilityRegistry.supportedReasoningEfforts(
-            for: .vertexai,
-            modelID: modelID
-        )
-        let supportsMinimal = supportedEfforts.contains(.minimal)
-        let supportsMedium = supportedEfforts.contains(.medium)
-
-        switch effort {
-        case .none:
-            return supportsMinimal ? "MINIMAL" : "LOW"
-        case .minimal:
-            return supportsMinimal ? "MINIMAL" : "LOW"
-        case .low:
-            return "LOW"
-        case .medium:
-            return supportsMedium ? "MEDIUM" : "HIGH"
-        case .high:
-            return "HIGH"
-        case .xhigh:
-            return "HIGH"
-        }
+        GeminiModelConstants.mapEffortToThinkingLevel(effort, for: .vertexai, modelID: modelID)
     }
 
     private func supportsNativePDF(_ modelID: String) -> Bool {

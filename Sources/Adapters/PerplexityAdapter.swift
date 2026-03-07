@@ -100,10 +100,6 @@ actor PerplexityAdapter: LLMProviderAdapter {
         ]
     }
 
-    func translateTools(_ tools: [ToolDefinition]) -> Any {
-        tools.map(translateToolToOpenAIFormat)
-    }
-
     // MARK: - Private
 
     private var baseURL: String {

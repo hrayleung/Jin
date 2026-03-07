@@ -82,3 +82,12 @@ protocol LLMProviderAdapter: Actor {
     /// Translate tools to provider-specific format
     func translateTools(_ tools: [ToolDefinition]) -> Any
 }
+
+// MARK: - Default Implementations
+
+extension LLMProviderAdapter {
+    /// Default: OpenAI-compatible tool format. Override for providers with custom formats.
+    func translateTools(_ tools: [ToolDefinition]) -> Any {
+        tools.map(translateToolToOpenAIFormat)
+    }
+}

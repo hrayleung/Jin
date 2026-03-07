@@ -182,37 +182,55 @@ struct JinApp: App {
 
             let providerManager = ProviderManager()
 
+            // Collect providers that need refresh with their current configs
+            var staleProviders: [(entity: ProviderConfigEntity, config: ProviderConfig, existingModels: [ModelInfo])] = []
             for providerEntity in providers {
-                do {
-                    let refreshKey = "providerModelsLastRefreshAt.\(providerEntity.id)"
-                    let lastRefreshedAt = defaults.double(forKey: refreshKey)
-                    if lastRefreshedAt > 0,
-                       now.timeIntervalSince1970 - lastRefreshedAt < refreshInterval {
-                        continue
-                    }
-
-                    // Convert to domain model
-                    let providerConfig = try providerEntity.toDomain()
-
-                    // Create adapter and fetch latest models
-                    let adapter = try await providerManager.createAdapter(for: providerConfig)
-                    let latestModels = try await adapter.fetchAvailableModels()
-
-                    // Preserve user enable/disable choices when refreshing model metadata.
-                    // Be defensive against duplicate IDs in persisted data or provider payloads.
-                    let merged = Self.mergeRefreshedModels(
-                        latestModels: latestModels,
-                        existingModels: providerEntity.allModels
-                    )
-
-                    let encoder = JSONEncoder()
-                    if let newModelsData = try? encoder.encode(merged) {
-                        providerEntity.modelsData = newModelsData
-                        defaults.set(now.timeIntervalSince1970, forKey: refreshKey)
-                    }
-                } catch {
-                    // If fetching fails, continue with next provider
+                let refreshKey = "providerModelsLastRefreshAt.\(providerEntity.id)"
+                let lastRefreshedAt = defaults.double(forKey: refreshKey)
+                if lastRefreshedAt > 0,
+                   now.timeIntervalSince1970 - lastRefreshedAt < refreshInterval {
                     continue
+                }
+                guard let config = try? providerEntity.toDomain() else { continue }
+                staleProviders.append((providerEntity, config, providerEntity.allModels))
+            }
+
+            // Fetch models from all stale providers concurrently
+            let fetchResults = await withTaskGroup(
+                of: (id: String, models: [ModelInfo]?).self,
+                returning: [String: [ModelInfo]].self
+            ) { group in
+                for entry in staleProviders {
+                    group.addTask {
+                        do {
+                            let adapter = try await providerManager.createAdapter(for: entry.config)
+                            let models = try await adapter.fetchAvailableModels()
+                            return (entry.config.id, models)
+                        } catch {
+                            return (entry.config.id, nil)
+                        }
+                    }
+                }
+                var results: [String: [ModelInfo]] = [:]
+                for await result in group {
+                    if let models = result.models {
+                        results[result.id] = models
+                    }
+                }
+                return results
+            }
+
+            // Merge results back into SwiftData entities (sequential, same context)
+            let encoder = JSONEncoder()
+            for entry in staleProviders {
+                guard let latestModels = fetchResults[entry.config.id] else { continue }
+                let merged = Self.mergeRefreshedModels(
+                    latestModels: latestModels,
+                    existingModels: entry.existingModels
+                )
+                if let newModelsData = try? encoder.encode(merged) {
+                    entry.entity.modelsData = newModelsData
+                    defaults.set(now.timeIntervalSince1970, forKey: "providerModelsLastRefreshAt.\(entry.entity.id)")
                 }
             }
 
