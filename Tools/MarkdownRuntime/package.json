@@ -3,12 +3,10 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "node build-shiki-runtime.mjs"
+    "build": "node build-hljs-runtime.mjs"
   },
   "devDependencies": {
-    "@shikijs/langs-precompiled": "4.0.1",
-    "@shikijs/themes": "4.0.1",
     "esbuild": "0.27.3",
-    "shiki": "4.0.1"
+    "highlight.js": "11.11.1"
   }
 }

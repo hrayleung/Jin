@@ -88,13 +88,11 @@ pre code {
 .code-block .code-preview[hidden] {
     display: none !important;
 }
-.code-block .shiki {
+.code-block .hljs {
     margin: 0 !important;
     border-radius: 0 0 11px 11px !important;
     background: transparent !important;
-    color: var(--shiki-light, #1f2937) !important;
-}
-.code-block .shiki code {
+    color: light-dark(#1f2937, #dbe5f2) !important;
     padding: 0.9em 1em 1em;
     font-size: 0.85em;
     line-height: 1.55;
@@ -102,15 +100,25 @@ pre code {
     overflow-x: auto;
     font-style: normal;
 }
-.code-block .shiki .line {
-    min-height: 1.55em;
-}
-.code-block .shiki span {
-    color: var(--shiki-light, #1f2937);
-    font-style: var(--shiki-light-font-style, normal);
-    font-weight: var(--shiki-light-font-weight, 400);
-    text-decoration: var(--shiki-light-text-decoration, none);
-}
+/* highlight.js GitHub theme — light */
+.hljs-comment, .hljs-quote { color: light-dark(#6a737d, #8b949e); font-style: italic; }
+.hljs-keyword, .hljs-selector-tag { color: light-dark(#d73a49, #ff7b72); }
+.hljs-literal, .hljs-number, .hljs-doctag { color: light-dark(#005cc5, #79c0ff); }
+.hljs-string, .hljs-addition { color: light-dark(#032f62, #a5d6ff); }
+.hljs-deletion { color: light-dark(#b31d28, #ffa198); }
+.hljs-regexp, .hljs-link { color: light-dark(#032f62, #a5d6ff); }
+.hljs-meta { color: light-dark(#005cc5, #79c0ff); }
+.hljs-title, .hljs-title\.class_, .hljs-title\.function_ { color: light-dark(#6f42c1, #d2a8ff); }
+.hljs-name, .hljs-section { color: light-dark(#22863a, #7ee787); }
+.hljs-built_in, .hljs-type { color: light-dark(#005cc5, #79c0ff); }
+.hljs-attr, .hljs-attribute { color: light-dark(#005cc5, #79c0ff); }
+.hljs-variable, .hljs-template-variable { color: light-dark(#e36209, #ffa657); }
+.hljs-symbol, .hljs-bullet { color: light-dark(#e36209, #ffa657); }
+.hljs-subst { color: light-dark(#24292e, #c9d1d9); }
+.hljs-selector-id, .hljs-selector-class, .hljs-selector-attr, .hljs-selector-pseudo { color: light-dark(#6f42c1, #d2a8ff); }
+.hljs-tag { color: light-dark(#22863a, #7ee787); }
+.hljs-emphasis { font-style: italic; }
+.hljs-strong { font-weight: 700; }
 .code-block .code-preview {
     padding: 0.95em 1em 1.05em;
     background: light-dark(#f8fafc, #2d323a);
@@ -139,15 +147,6 @@ pre code {
 @media(prefers-color-scheme:dark){
     .code-block .code-content {
         background: #2b3038;
-    }
-    .code-block .shiki {
-        color: var(--shiki-dark, #dbe5f2) !important;
-    }
-    .code-block .shiki span {
-        color: var(--shiki-dark, #dbe5f2);
-        font-style: var(--shiki-dark-font-style, normal);
-        font-weight: var(--shiki-dark-font-weight, 400);
-        text-decoration: var(--shiki-dark-text-decoration, none);
     }
     .code-block .code-preview {
         background: #2d323a;
@@ -286,8 +285,8 @@ var _latestStreamBase64 = '';
 var _streamRenderTicket = 0;
 var _latestStableText = '';
 var _latestStreamText = '';
-var _shikiReady = false;
-var _shikiRuntimeLoadPromise = null;
+var _hljsReady = false;
+var _hljsRuntimeLoadPromise = null;
 var _mathRuntimeLoadPromise = null;
 var _mathStyleLoadPromise = null;
 var _mathReady = false;
@@ -312,27 +311,28 @@ function resolveMermaidFromGlobal() {
     }
 }
 
-function loadShikiRuntimeScript() {
-    if (window.JinShiki && typeof window.JinShiki.prepareHighlighter === 'function') {
+function loadHljsRuntimeScript() {
+    if (window.JinHljs && typeof window.JinHljs.highlightCode === 'function') {
         return Promise.resolve(true);
     }
-    if (_shikiRuntimeLoadPromise) {
-        return _shikiRuntimeLoadPromise;
+    if (_hljsRuntimeLoadPromise) {
+        return _hljsRuntimeLoadPromise;
     }
-    _shikiRuntimeLoadPromise = new Promise(function(resolve) {
+    _hljsRuntimeLoadPromise = new Promise(function(resolve) {
         var script = document.createElement('script');
-        script.src = 'markdown-shiki-runtime.js';
+        script.src = 'markdown-hljs-runtime.js';
         script.async = true;
         script.onload = function() {
-            resolve(!!(window.JinShiki && typeof window.JinShiki.prepareHighlighter === 'function'));
+            _hljsReady = !!(window.JinHljs && typeof window.JinHljs.highlightCode === 'function');
+            resolve(_hljsReady);
         };
         script.onerror = function(err) {
-            console.warn('[JinShiki] failed to load runtime script', err);
+            console.warn('[JinHljs] failed to load runtime script', err);
             resolve(false);
         };
         document.head.appendChild(script);
     });
-    return _shikiRuntimeLoadPromise;
+    return _hljsRuntimeLoadPromise;
 }
 
 function loadScriptOnce(src, warningLabel) {
@@ -566,7 +566,38 @@ var languageLogoAliases = {
     verilog: 'verilog',
     vhdl: 'verilog',
     glsl: 'wgsl',
-    hlsl: 'wgsl'
+    hlsl: 'wgsl',
+    viml: 'vim',
+    vimscript: 'vim',
+    'emacs-lisp': 'elisp',
+    elisp: 'elisp',
+    bat: 'bat',
+    batch: 'bat',
+    sml: 'sml',
+    coq: 'coq',
+    raku: 'raku',
+    perl6: 'raku',
+    hack: 'hack',
+    lean: 'lean',
+    lean4: 'lean',
+    idris: 'idris',
+    fennel: 'fennel',
+    janet: 'janet',
+    forth: 'forth',
+    io: 'io',
+    motoko: 'motoko',
+    dhall: 'dhall',
+    cue: 'cue',
+    starlark: 'starlark',
+    bazel: 'starlark',
+    bicep: 'bicep',
+    jsonnet: 'jsonnet',
+    d: 'd',
+    processing: 'processing',
+    reasonml: 'reasonml',
+    reason: 'reasonml',
+    wat: 'wasm',
+    solidity: 'solidity'
 };
 
 var languageLogoURLs = {
@@ -661,6 +692,30 @@ var languageLogoURLs = {
     log: 'https://api.iconify.design/mdi/file-document-outline.svg?color=%2364748b',
     http: 'https://api.iconify.design/mdi/web.svg?color=%2364748b',
     tcl: 'https://api.iconify.design/mdi/code-tags.svg?color=%23e4790d',
+    d: 'https://api.iconify.design/simple-icons/dlang.svg?color=%23b03030',
+    vim: 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/vim/vim-original.svg',
+    elisp: 'https://api.iconify.design/simple-icons/gnuemacs.svg?color=%237f5ab6',
+    bat: 'https://api.iconify.design/mdi/console.svg?color=%2364748b',
+    dos: 'https://api.iconify.design/mdi/console.svg?color=%2364748b',
+    sml: 'https://api.iconify.design/mdi/lambda.svg?color=%2364748b',
+    coq: 'https://api.iconify.design/mdi/function-variant.svg?color=%23d4a752',
+    raku: 'https://api.iconify.design/simple-icons/raku.svg?color=%230298be',
+    hack: 'https://api.iconify.design/simple-icons/hacklang.svg?color=%23878787',
+    lean: 'https://api.iconify.design/mdi/function-variant.svg?color=%23404040',
+    idris: 'https://api.iconify.design/mdi/lambda.svg?color=%23b30000',
+    fennel: 'https://api.iconify.design/mdi/flower-outline.svg?color=%23fff3b5',
+    janet: 'https://api.iconify.design/mdi/flower-tulip-outline.svg?color=%2369539e',
+    forth: 'https://api.iconify.design/mdi/code-braces-box.svg?color=%23b03030',
+    io: 'https://api.iconify.design/mdi/circle-outline.svg?color=%2364748b',
+    motoko: 'https://api.iconify.design/simple-icons/dfinity.svg?color=%2329abe2',
+    dhall: 'https://api.iconify.design/mdi/function-variant.svg?color=%236b8e23',
+    cue: 'https://api.iconify.design/simple-icons/cue.svg?color=%233b82f6',
+    starlark: 'https://api.iconify.design/simple-icons/bazel.svg?color=%2343a047',
+    bicep: 'https://api.iconify.design/simple-icons/microsoftazure.svg?color=%230078d4',
+    jsonnet: 'https://api.iconify.design/mdi/code-json.svg?color=%23f59e0b',
+    processing: 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/processing/processing-original.svg',
+    zig: 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/zig/zig-original.svg',
+    reasonml: 'https://api.iconify.design/simple-icons/reason.svg?color=%23dd4b39',
     txt: 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/markdown/markdown-original.svg',
     markdown: 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/markdown/markdown-original.svg',
     mermaid: 'https://api.iconify.design/simple-icons/mermaid.svg?color=%23ff3670'
@@ -678,22 +733,29 @@ var languageHighlightAliases = {
     text: 'txt',
     fortran: 'fortran',
     assembly: 'asm',
-    x86: 'asm'
+    x86: 'asm',
+    elisp: 'emacs-lisp',
+    vim: 'viml',
+    vimscript: 'viml',
+    wat: 'wasm',
+    perl6: 'raku',
+    bazel: 'starlark',
+    delphi: 'pascal'
 };
 
 function resolveLanguageLabel(lang) {
     var raw = lang ? String(lang).trim().toLowerCase() : '';
     if (!raw) return 'txt';
-    if (window.JinShiki && typeof window.JinShiki.languageLabel === 'function') {
-        return window.JinShiki.languageLabel(raw) || raw;
+    if (window.JinHljs && typeof window.JinHljs.languageLabel === 'function') {
+        return window.JinHljs.languageLabel(raw) || raw;
     }
     return languageHighlightAliases[raw] || raw;
 }
 
 function resolveLanguageLogoURL(lang, label) {
     var key = '';
-    if (window.JinShiki && typeof window.JinShiki.languageLogoKey === 'function') {
-        key = window.JinShiki.languageLogoKey(lang || label || '');
+    if (window.JinHljs && typeof window.JinHljs.languageLogoKey === 'function') {
+        key = window.JinHljs.languageLogoKey(lang || label || '');
     }
     if (!key) {
         key = resolveLanguageLabel(lang || label || '');
@@ -732,9 +794,9 @@ function codeHeaderHTML(id, label, lang, renderKind) {
     return '<div class="code-header"><span class="lang-label">' + logo + '<span class="lang-text">' + escapeHTML(label) + '</span></span><span class="code-actions">' + renderButton + '<button type="button" class="fold-btn" id="fold-' + id + '" title="Collapse code block" aria-label="Collapse code block" aria-controls="content-' + id + '" aria-expanded="true" onclick="toggleCodeFold(' + id + ')">' + foldIcon + '</button><button type="button" class="copy-btn" id="copy-' + id + '" title="Copy code" aria-label="Copy code" onclick="copyCode(' + id + ')">' + copyIcon + '</button></span></div>';
 }
 
-function wrapShikiCodeBlock(id, label, shikiHTML, lang, renderKind) {
+function wrapCodeBlock(id, label, codeHTML, lang, renderKind) {
     var preview = renderKind ? '<div class="code-preview" id="preview-' + id + '" hidden></div>' : '';
-    return '<div class="code-block shiki-block" id="code-block-' + id + '">' + codeHeaderHTML(id, label, lang, renderKind) + '<div class="code-content" id="content-' + id + '"><div class="code-raw" id="raw-' + id + '">' + shikiHTML + '</div>' + preview + '</div></div>';
+    return '<div class="code-block" id="code-block-' + id + '">' + codeHeaderHTML(id, label, lang, renderKind) + '<div class="code-content" id="content-' + id + '"><div class="code-raw" id="raw-' + id + '">' + codeHTML + '</div>' + preview + '</div></div>';
 }
 
 function decodeBase64UTF8(base64) {
@@ -1061,45 +1123,12 @@ async function toggleCodeRender(id) {
     scheduleHeightReport();
 }
 
-function ensureShikiReady() {
-    if (_shikiReady) {
+function ensureHljsReady() {
+    if (_hljsReady) {
         return Promise.resolve(true);
     }
-    return loadShikiRuntimeScript()
-        .then(function(loaded) {
-            if (!loaded || !window.JinShiki || typeof window.JinShiki.prepareHighlighter !== 'function') {
-                return false;
-            }
-            return window.JinShiki.prepareHighlighter();
-        })
-        .then(function(ok) {
-            _shikiReady = !!ok;
-            return _shikiReady;
-        })
+    return loadHljsRuntimeScript()
         .catch(function() { return false; });
-}
-
-
-function collectCodeFenceLanguages(markdownText) {
-    var languages = [];
-    var text = String(markdownText || '');
-    var pattern = /(?:^|\n) {0,3}(?:```|~~~)([^\s`~]+)/g;
-    var match;
-    while ((match = pattern.exec(text)) !== null) {
-        if (match[1] && languages.indexOf(match[1]) === -1) {
-            languages.push(match[1]);
-        }
-    }
-    return languages;
-}
-
-function loadFenceLanguagesThenRender(markdownText, rerenderFn) {
-    var languages = collectCodeFenceLanguages(markdownText);
-    if (languages.length && window.JinShiki && window.JinShiki.ensureLanguagesLoaded) {
-        window.JinShiki.ensureLanguagesLoaded(languages).then(rerenderFn);
-    } else {
-        rerenderFn();
-    }
 }
 
 function addLanguageCandidate(candidates, value) {
@@ -1131,12 +1160,12 @@ function buildHighlightLanguageCandidates(lang, label, renderKind) {
     return candidates;
 }
 
-function highlightCodeWithShiki(code, candidates) {
-    if (!window.JinShiki || typeof window.JinShiki.highlightCodeToHtmlIfReady !== 'function') {
+function highlightCodeWithHljs(code, candidates) {
+    if (!window.JinHljs || typeof window.JinHljs.highlightCode !== 'function') {
         return '';
     }
     for (var i = 0; i < candidates.length; i += 1) {
-        var html = window.JinShiki.highlightCodeToHtmlIfReady(code, candidates[i]) || '';
+        var html = window.JinHljs.highlightCode(code, candidates[i]) || '';
         if (html) return html;
     }
     return '';
@@ -1172,15 +1201,18 @@ function highlightCodeBlock(str, lang) {
     };
 
     var candidates = buildHighlightLanguageCandidates(lang, label, renderKind);
-    var shikiHTML = '';
+    var highlightedInner = '';
     if (shouldAttemptCodeHighlight(str)) {
-        shikiHTML = highlightCodeWithShiki(str, candidates);
+        highlightedInner = highlightCodeWithHljs(str, candidates);
     }
 
-    if (!shikiHTML) {
-        shikiHTML = '<pre class="shiki"><code>' + escapeHTML(str) + '</code></pre>';
+    var codeHTML;
+    if (highlightedInner) {
+        codeHTML = '<pre><code class="hljs">' + highlightedInner + '</code></pre>';
+    } else {
+        codeHTML = '<pre><code class="hljs">' + escapeHTML(str) + '</code></pre>';
     }
-    return wrapShikiCodeBlock(id, label, shikiHTML, lang, renderKind);
+    return wrapCodeBlock(id, label, codeHTML, lang, renderKind);
 }
 
 function fenceLanguageFromInfo(info) {
@@ -1308,14 +1340,14 @@ async function updateContent(base64, options) {
         });
     }
 
-    if (needsCodeHighlight && !_shikiReady) {
+    if (needsCodeHighlight && !_hljsReady) {
         var requestHighlightUpgrade = function() {
             if (ticket !== _stableRenderTicket || base64 !== _latestStableBase64) {
                 return;
             }
-            ensureShikiReady().then(function(ok) {
+            ensureHljsReady().then(function(ok) {
                 if (!ok) return;
-                loadFenceLanguagesThenRender(text, queueRerenderIfCurrent);
+                queueRerenderIfCurrent();
             });
         };
 
@@ -1362,14 +1394,14 @@ async function updateContentText(text, options) {
         });
     }
 
-    if (needsCodeHighlight && !_shikiReady) {
+    if (needsCodeHighlight && !_hljsReady) {
         var requestHighlightUpgrade = function() {
             if (ticket !== _stableRenderTicket || renderedText !== _latestStableText) {
                 return;
             }
-            ensureShikiReady().then(function(ok) {
+            ensureHljsReady().then(function(ok) {
                 if (!ok) return;
-                loadFenceLanguagesThenRender(renderedText, queueRerenderIfCurrent);
+                queueRerenderIfCurrent();
             });
         };
 
@@ -1416,7 +1448,7 @@ resizeObserver.observe(document.body);
 window.updateWithBase64 = updateContent;
 window.updateWithText = updateContentText;
 
-// Streaming renderer uses the same Shiki code block rendering as stable mode.
+// Streaming renderer uses the same highlight.js code block rendering as stable mode.
 var streamMdState = createMarkdownParserState();
 
 async function updateStreamingContent(base64, options) {
@@ -1454,14 +1486,14 @@ async function updateStreamingContent(base64, options) {
         });
     }
 
-    if (needsCodeHighlight && !_shikiReady) {
+    if (needsCodeHighlight && !_hljsReady) {
         var requestHighlightUpgrade = function() {
             if (ticket !== _streamRenderTicket || base64 !== _latestStreamBase64) {
                 return;
             }
-            ensureShikiReady().then(function(ok) {
+            ensureHljsReady().then(function(ok) {
                 if (!ok) return;
-                loadFenceLanguagesThenRender(text, queueRerenderIfCurrent);
+                queueRerenderIfCurrent();
             });
         };
 
@@ -1510,14 +1542,14 @@ async function updateStreamingContentText(text, options) {
         });
     }
 
-    if (needsCodeHighlight && !_shikiReady) {
+    if (needsCodeHighlight && !_hljsReady) {
         var requestHighlightUpgrade = function() {
             if (ticket !== _streamRenderTicket || renderedText !== _latestStreamText) {
                 return;
             }
-            ensureShikiReady().then(function(ok) {
+            ensureHljsReady().then(function(ok) {
                 if (!ok) return;
-                loadFenceLanguagesThenRender(renderedText, queueRerenderIfCurrent);
+                queueRerenderIfCurrent();
             });
         };
 

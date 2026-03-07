@@ -1,0 +1,832 @@
+{
+  "generator": "Tools/MarkdownRuntime/build-hljs-runtime.mjs",
+  "hljsVersion": "11.11.1",
+  "canonicalLanguages": [
+    {
+      "id": "ada",
+      "name": "ada",
+      "aliases": []
+    },
+    {
+      "id": "angular-html",
+      "name": "angular-html",
+      "aliases": []
+    },
+    {
+      "id": "angular-ts",
+      "name": "angular-ts",
+      "aliases": []
+    },
+    {
+      "id": "applescript",
+      "name": "applescript",
+      "aliases": []
+    },
+    {
+      "id": "asciidoc",
+      "name": "asciidoc",
+      "aliases": []
+    },
+    {
+      "id": "asm",
+      "name": "asm",
+      "aliases": []
+    },
+    {
+      "id": "astro",
+      "name": "astro",
+      "aliases": []
+    },
+    {
+      "id": "awk",
+      "name": "awk",
+      "aliases": []
+    },
+    {
+      "id": "bat",
+      "name": "bat",
+      "aliases": []
+    },
+    {
+      "id": "bicep",
+      "name": "bicep",
+      "aliases": []
+    },
+    {
+      "id": "blade",
+      "name": "blade",
+      "aliases": []
+    },
+    {
+      "id": "c",
+      "name": "c",
+      "aliases": []
+    },
+    {
+      "id": "clojure",
+      "name": "clojure",
+      "aliases": []
+    },
+    {
+      "id": "cmake",
+      "name": "cmake",
+      "aliases": []
+    },
+    {
+      "id": "cobol",
+      "name": "cobol",
+      "aliases": []
+    },
+    {
+      "id": "coffee",
+      "name": "coffee",
+      "aliases": []
+    },
+    {
+      "id": "common-lisp",
+      "name": "common-lisp",
+      "aliases": []
+    },
+    {
+      "id": "coq",
+      "name": "coq",
+      "aliases": []
+    },
+    {
+      "id": "cpp",
+      "name": "cpp",
+      "aliases": []
+    },
+    {
+      "id": "crystal",
+      "name": "crystal",
+      "aliases": []
+    },
+    {
+      "id": "csharp",
+      "name": "csharp",
+      "aliases": []
+    },
+    {
+      "id": "css",
+      "name": "css",
+      "aliases": []
+    },
+    {
+      "id": "csv",
+      "name": "csv",
+      "aliases": []
+    },
+    {
+      "id": "cue",
+      "name": "cue",
+      "aliases": []
+    },
+    {
+      "id": "d",
+      "name": "d",
+      "aliases": []
+    },
+    {
+      "id": "dart",
+      "name": "dart",
+      "aliases": []
+    },
+    {
+      "id": "dhall",
+      "name": "dhall",
+      "aliases": []
+    },
+    {
+      "id": "diff",
+      "name": "diff",
+      "aliases": []
+    },
+    {
+      "id": "docker",
+      "name": "docker",
+      "aliases": []
+    },
+    {
+      "id": "dockerfile",
+      "name": "dockerfile",
+      "aliases": []
+    },
+    {
+      "id": "dotenv",
+      "name": "dotenv",
+      "aliases": []
+    },
+    {
+      "id": "elixir",
+      "name": "elixir",
+      "aliases": []
+    },
+    {
+      "id": "elm",
+      "name": "elm",
+      "aliases": []
+    },
+    {
+      "id": "emacs-lisp",
+      "name": "emacs-lisp",
+      "aliases": []
+    },
+    {
+      "id": "erb",
+      "name": "erb",
+      "aliases": []
+    },
+    {
+      "id": "erlang",
+      "name": "erlang",
+      "aliases": []
+    },
+    {
+      "id": "fennel",
+      "name": "fennel",
+      "aliases": []
+    },
+    {
+      "id": "fish",
+      "name": "fish",
+      "aliases": []
+    },
+    {
+      "id": "fortran-fixed-form",
+      "name": "fortran-fixed-form",
+      "aliases": []
+    },
+    {
+      "id": "fortran-free-form",
+      "name": "fortran-free-form",
+      "aliases": []
+    },
+    {
+      "id": "fsharp",
+      "name": "fsharp",
+      "aliases": []
+    },
+    {
+      "id": "gdresource",
+      "name": "gdresource",
+      "aliases": []
+    },
+    {
+      "id": "gdscript",
+      "name": "gdscript",
+      "aliases": []
+    },
+    {
+      "id": "glsl",
+      "name": "glsl",
+      "aliases": []
+    },
+    {
+      "id": "go",
+      "name": "go",
+      "aliases": []
+    },
+    {
+      "id": "graphql",
+      "name": "graphql",
+      "aliases": []
+    },
+    {
+      "id": "groovy",
+      "name": "groovy",
+      "aliases": []
+    },
+    {
+      "id": "hack",
+      "name": "hack",
+      "aliases": []
+    },
+    {
+      "id": "haml",
+      "name": "haml",
+      "aliases": []
+    },
+    {
+      "id": "handlebars",
+      "name": "handlebars",
+      "aliases": []
+    },
+    {
+      "id": "haskell",
+      "name": "haskell",
+      "aliases": []
+    },
+    {
+      "id": "hcl",
+      "name": "hcl",
+      "aliases": []
+    },
+    {
+      "id": "hlsl",
+      "name": "hlsl",
+      "aliases": []
+    },
+    {
+      "id": "html",
+      "name": "html",
+      "aliases": []
+    },
+    {
+      "id": "http",
+      "name": "http",
+      "aliases": []
+    },
+    {
+      "id": "idris",
+      "name": "idris",
+      "aliases": []
+    },
+    {
+      "id": "ini",
+      "name": "ini",
+      "aliases": []
+    },
+    {
+      "id": "janet",
+      "name": "janet",
+      "aliases": []
+    },
+    {
+      "id": "java",
+      "name": "java",
+      "aliases": []
+    },
+    {
+      "id": "javascript",
+      "name": "javascript",
+      "aliases": []
+    },
+    {
+      "id": "json",
+      "name": "json",
+      "aliases": []
+    },
+    {
+      "id": "json5",
+      "name": "json5",
+      "aliases": []
+    },
+    {
+      "id": "jsonc",
+      "name": "jsonc",
+      "aliases": []
+    },
+    {
+      "id": "jsonl",
+      "name": "jsonl",
+      "aliases": []
+    },
+    {
+      "id": "jsonnet",
+      "name": "jsonnet",
+      "aliases": []
+    },
+    {
+      "id": "jsx",
+      "name": "jsx",
+      "aliases": []
+    },
+    {
+      "id": "julia",
+      "name": "julia",
+      "aliases": []
+    },
+    {
+      "id": "kotlin",
+      "name": "kotlin",
+      "aliases": []
+    },
+    {
+      "id": "latex",
+      "name": "latex",
+      "aliases": []
+    },
+    {
+      "id": "lean",
+      "name": "lean",
+      "aliases": []
+    },
+    {
+      "id": "less",
+      "name": "less",
+      "aliases": []
+    },
+    {
+      "id": "liquid",
+      "name": "liquid",
+      "aliases": []
+    },
+    {
+      "id": "llvm",
+      "name": "llvm",
+      "aliases": []
+    },
+    {
+      "id": "lua",
+      "name": "lua",
+      "aliases": []
+    },
+    {
+      "id": "make",
+      "name": "make",
+      "aliases": []
+    },
+    {
+      "id": "markdown",
+      "name": "markdown",
+      "aliases": []
+    },
+    {
+      "id": "matlab",
+      "name": "matlab",
+      "aliases": []
+    },
+    {
+      "id": "mdx",
+      "name": "mdx",
+      "aliases": []
+    },
+    {
+      "id": "mermaid",
+      "name": "mermaid",
+      "aliases": []
+    },
+    {
+      "id": "mipsasm",
+      "name": "mipsasm",
+      "aliases": []
+    },
+    {
+      "id": "motoko",
+      "name": "motoko",
+      "aliases": []
+    },
+    {
+      "id": "nginx",
+      "name": "nginx",
+      "aliases": []
+    },
+    {
+      "id": "nim",
+      "name": "nim",
+      "aliases": []
+    },
+    {
+      "id": "nix",
+      "name": "nix",
+      "aliases": []
+    },
+    {
+      "id": "nushell",
+      "name": "nushell",
+      "aliases": []
+    },
+    {
+      "id": "objective-c",
+      "name": "objective-c",
+      "aliases": []
+    },
+    {
+      "id": "ocaml",
+      "name": "ocaml",
+      "aliases": []
+    },
+    {
+      "id": "odin",
+      "name": "odin",
+      "aliases": []
+    },
+    {
+      "id": "pascal",
+      "name": "pascal",
+      "aliases": []
+    },
+    {
+      "id": "perl",
+      "name": "perl",
+      "aliases": []
+    },
+    {
+      "id": "pgsql",
+      "name": "pgsql",
+      "aliases": []
+    },
+    {
+      "id": "php",
+      "name": "php",
+      "aliases": []
+    },
+    {
+      "id": "postcss",
+      "name": "postcss",
+      "aliases": []
+    },
+    {
+      "id": "powershell",
+      "name": "powershell",
+      "aliases": []
+    },
+    {
+      "id": "processing",
+      "name": "processing",
+      "aliases": []
+    },
+    {
+      "id": "prolog",
+      "name": "prolog",
+      "aliases": []
+    },
+    {
+      "id": "proto",
+      "name": "proto",
+      "aliases": []
+    },
+    {
+      "id": "pug",
+      "name": "pug",
+      "aliases": []
+    },
+    {
+      "id": "puppet",
+      "name": "puppet",
+      "aliases": []
+    },
+    {
+      "id": "purescript",
+      "name": "purescript",
+      "aliases": []
+    },
+    {
+      "id": "python",
+      "name": "python",
+      "aliases": []
+    },
+    {
+      "id": "qml",
+      "name": "qml",
+      "aliases": []
+    },
+    {
+      "id": "r",
+      "name": "r",
+      "aliases": []
+    },
+    {
+      "id": "racket",
+      "name": "racket",
+      "aliases": []
+    },
+    {
+      "id": "raku",
+      "name": "raku",
+      "aliases": []
+    },
+    {
+      "id": "reasonml",
+      "name": "reasonml",
+      "aliases": []
+    },
+    {
+      "id": "rst",
+      "name": "rst",
+      "aliases": []
+    },
+    {
+      "id": "ruby",
+      "name": "ruby",
+      "aliases": []
+    },
+    {
+      "id": "rust",
+      "name": "rust",
+      "aliases": []
+    },
+    {
+      "id": "sas",
+      "name": "sas",
+      "aliases": []
+    },
+    {
+      "id": "sass",
+      "name": "sass",
+      "aliases": []
+    },
+    {
+      "id": "scala",
+      "name": "scala",
+      "aliases": []
+    },
+    {
+      "id": "scheme",
+      "name": "scheme",
+      "aliases": []
+    },
+    {
+      "id": "scss",
+      "name": "scss",
+      "aliases": []
+    },
+    {
+      "id": "shellscript",
+      "name": "shellscript",
+      "aliases": []
+    },
+    {
+      "id": "shellsession",
+      "name": "shellsession",
+      "aliases": []
+    },
+    {
+      "id": "smalltalk",
+      "name": "smalltalk",
+      "aliases": []
+    },
+    {
+      "id": "sml",
+      "name": "sml",
+      "aliases": []
+    },
+    {
+      "id": "solidity",
+      "name": "solidity",
+      "aliases": []
+    },
+    {
+      "id": "sql",
+      "name": "sql",
+      "aliases": []
+    },
+    {
+      "id": "ssh-config",
+      "name": "ssh-config",
+      "aliases": []
+    },
+    {
+      "id": "starlark",
+      "name": "starlark",
+      "aliases": []
+    },
+    {
+      "id": "stata",
+      "name": "stata",
+      "aliases": []
+    },
+    {
+      "id": "stylus",
+      "name": "stylus",
+      "aliases": []
+    },
+    {
+      "id": "svelte",
+      "name": "svelte",
+      "aliases": []
+    },
+    {
+      "id": "swift",
+      "name": "swift",
+      "aliases": []
+    },
+    {
+      "id": "system-verilog",
+      "name": "system-verilog",
+      "aliases": []
+    },
+    {
+      "id": "tcl",
+      "name": "tcl",
+      "aliases": []
+    },
+    {
+      "id": "terraform",
+      "name": "terraform",
+      "aliases": []
+    },
+    {
+      "id": "tex",
+      "name": "tex",
+      "aliases": []
+    },
+    {
+      "id": "toml",
+      "name": "toml",
+      "aliases": []
+    },
+    {
+      "id": "tsx",
+      "name": "tsx",
+      "aliases": []
+    },
+    {
+      "id": "twig",
+      "name": "twig",
+      "aliases": []
+    },
+    {
+      "id": "txt",
+      "name": "txt",
+      "aliases": []
+    },
+    {
+      "id": "typescript",
+      "name": "typescript",
+      "aliases": []
+    },
+    {
+      "id": "typst",
+      "name": "typst",
+      "aliases": []
+    },
+    {
+      "id": "v",
+      "name": "v",
+      "aliases": []
+    },
+    {
+      "id": "vala",
+      "name": "vala",
+      "aliases": []
+    },
+    {
+      "id": "vbnet",
+      "name": "vbnet",
+      "aliases": []
+    },
+    {
+      "id": "verilog",
+      "name": "verilog",
+      "aliases": []
+    },
+    {
+      "id": "vhdl",
+      "name": "vhdl",
+      "aliases": []
+    },
+    {
+      "id": "viml",
+      "name": "viml",
+      "aliases": []
+    },
+    {
+      "id": "vue",
+      "name": "vue",
+      "aliases": []
+    },
+    {
+      "id": "vue-html",
+      "name": "vue-html",
+      "aliases": []
+    },
+    {
+      "id": "wasm",
+      "name": "wasm",
+      "aliases": []
+    },
+    {
+      "id": "wgsl",
+      "name": "wgsl",
+      "aliases": []
+    },
+    {
+      "id": "wolfram",
+      "name": "wolfram",
+      "aliases": []
+    },
+    {
+      "id": "xml",
+      "name": "xml",
+      "aliases": []
+    },
+    {
+      "id": "yaml",
+      "name": "yaml",
+      "aliases": []
+    }
+  ],
+  "customAliases": {
+    "plain": "txt",
+    "plaintext": "txt",
+    "text": "txt",
+    "shell": "shellscript",
+    "shellscript": "shellscript",
+    "zsh": "shellscript",
+    "docker": "dockerfile",
+    "fishshell": "fish",
+    "vuejs": "vue",
+    "cplusplus": "cpp",
+    "objectivec": "objective-c",
+    "obj-c": "objective-c",
+    "objective-cpp": "cpp",
+    "golang": "go",
+    "mysql": "sql",
+    "postgresql": "sql",
+    "sqlite": "sql",
+    "pgsql": "sql",
+    "fortran": "fortran-free-form",
+    "assembly": "asm",
+    "x86": "asm",
+    "x86asm": "asm",
+    "assembly-x86": "asm",
+    "mermaidsvg": "mermaid",
+    "mermaid-svg": "mermaid",
+    "elisp": "emacs-lisp",
+    "wat": "wasm",
+    "nu": "nushell",
+    "vim": "viml",
+    "vimscript": "viml",
+    "perl6": "raku",
+    "bazel": "starlark",
+    "delphi": "pascal",
+    "hlsl": "hlsl",
+    "wgsl": "wgsl"
+  },
+  "customLabels": {
+    "txt": "txt",
+    "shellscript": "bash",
+    "shellsession": "console",
+    "common-lisp": "common-lisp",
+    "fortran-fixed-form": "fortran",
+    "fortran-free-form": "fortran",
+    "make": "makefile"
+  },
+  "customLogoKeys": {
+    "shellscript": "bash",
+    "shellsession": "bash",
+    "ssh-config": "bash",
+    "dockerfile": "docker",
+    "docker": "docker",
+    "jsx": "javascript",
+    "tsx": "typescript",
+    "common-lisp": "lisp",
+    "emacs-lisp": "elisp",
+    "fennel": "fennel",
+    "janet": "janet",
+    "fortran-fixed-form": "fortran",
+    "fortran-free-form": "fortran",
+    "make": "make",
+    "json5": "json",
+    "jsonc": "json",
+    "jsonl": "json",
+    "angular-html": "angular",
+    "angular-ts": "angular",
+    "vue-html": "vue",
+    "coffee": "coffeescript",
+    "erb": "ruby",
+    "blade": "php",
+    "liquid": "ruby",
+    "hcl": "terraform",
+    "mdx": "markdown",
+    "rst": "markdown",
+    "asciidoc": "markdown",
+    "typst": "latex",
+    "system-verilog": "verilog",
+    "vhdl": "verilog",
+    "glsl": "wgsl",
+    "hlsl": "wgsl"
+  }
+}
