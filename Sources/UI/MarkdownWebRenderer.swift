@@ -10,7 +10,7 @@ private let markdownTemplateURL = JinResourceBundle.url(forResource: "markdown-t
 /// each WKWebView can load from an in-memory string instead of triggering
 /// per-instance file I/O for both the template and its subresource.
 /// The `baseURL` points to the resources directory so that lazily-loaded
-/// scripts (highlight.js, KaTeX, Mermaid) still resolve via relative URLs.
+/// scripts (Prism, KaTeX, Mermaid) still resolve via relative URLs.
 /// Embeds a base64-encoded markdown payload into the cached HTML so that the
 /// browser renders content during the initial page load — no Swift→JS round-trip.
 private func embedMarkdownBootstrap(

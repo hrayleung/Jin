@@ -3,10 +3,10 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "node build-hljs-runtime.mjs"
+    "build": "node build-prism-runtime.mjs"
   },
   "devDependencies": {
     "esbuild": "0.27.3",
-    "highlight.js": "11.11.1"
+    "prismjs": "1.30.0"
   }
 }

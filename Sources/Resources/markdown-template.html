@@ -88,7 +88,7 @@ pre code {
 .code-block .code-preview[hidden] {
     display: none !important;
 }
-.code-block .hljs {
+.code-block .prism-code {
     margin: 0 !important;
     border-radius: 0 0 11px 11px !important;
     background: transparent !important;
@@ -100,25 +100,65 @@ pre code {
     overflow-x: auto;
     font-style: normal;
 }
-/* highlight.js GitHub theme — light */
-.hljs-comment, .hljs-quote { color: light-dark(#6a737d, #8b949e); font-style: italic; }
-.hljs-keyword, .hljs-selector-tag { color: light-dark(#d73a49, #ff7b72); }
-.hljs-literal, .hljs-number, .hljs-doctag { color: light-dark(#005cc5, #79c0ff); }
-.hljs-string, .hljs-addition { color: light-dark(#032f62, #a5d6ff); }
-.hljs-deletion { color: light-dark(#b31d28, #ffa198); }
-.hljs-regexp, .hljs-link { color: light-dark(#032f62, #a5d6ff); }
-.hljs-meta { color: light-dark(#005cc5, #79c0ff); }
-.hljs-title, .hljs-title\.class_, .hljs-title\.function_ { color: light-dark(#6f42c1, #d2a8ff); }
-.hljs-name, .hljs-section { color: light-dark(#22863a, #7ee787); }
-.hljs-built_in, .hljs-type { color: light-dark(#005cc5, #79c0ff); }
-.hljs-attr, .hljs-attribute { color: light-dark(#005cc5, #79c0ff); }
-.hljs-variable, .hljs-template-variable { color: light-dark(#e36209, #ffa657); }
-.hljs-symbol, .hljs-bullet { color: light-dark(#e36209, #ffa657); }
-.hljs-subst { color: light-dark(#24292e, #c9d1d9); }
-.hljs-selector-id, .hljs-selector-class, .hljs-selector-attr, .hljs-selector-pseudo { color: light-dark(#6f42c1, #d2a8ff); }
-.hljs-tag { color: light-dark(#22863a, #7ee787); }
-.hljs-emphasis { font-style: italic; }
-.hljs-strong { font-weight: 700; }
+/* Prism GitHub-inspired theme */
+.code-block .prism-code .token.comment,
+.code-block .prism-code .token.prolog,
+.code-block .prism-code .token.doctype,
+.code-block .prism-code .token.cdata {
+    color: light-dark(#6a737d, #8b949e);
+    font-style: italic;
+}
+.code-block .prism-code .token.punctuation,
+.code-block .prism-code .token.namespace,
+.code-block .prism-code .token.operator,
+.code-block .prism-code .token.entity,
+.code-block .prism-code .token.url {
+    color: light-dark(#4b5563, #9fb0c3);
+}
+.code-block .prism-code .token.property,
+.code-block .prism-code .token.tag,
+.code-block .prism-code .token.constant,
+.code-block .prism-code .token.symbol,
+.code-block .prism-code .token.deleted,
+.code-block .prism-code .token.selector {
+    color: light-dark(#d73a49, #ff7b72);
+}
+.code-block .prism-code .token.boolean,
+.code-block .prism-code .token.number,
+.code-block .prism-code .token.atrule,
+.code-block .prism-code .token.attr-value,
+.code-block .prism-code .token.keyword {
+    color: light-dark(#005cc5, #79c0ff);
+}
+.code-block .prism-code .token.string,
+.code-block .prism-code .token.char,
+.code-block .prism-code .token.builtin,
+.code-block .prism-code .token.inserted,
+.code-block .prism-code .token.regex {
+    color: light-dark(#032f62, #a5d6ff);
+}
+.code-block .prism-code .token.function,
+.code-block .prism-code .token.class-name,
+.code-block .prism-code .token.maybe-class-name {
+    color: light-dark(#6f42c1, #d2a8ff);
+}
+.code-block .prism-code .token.variable,
+.code-block .prism-code .token.parameter,
+.code-block .prism-code .token.attr-name,
+.code-block .prism-code .token.placeholder {
+    color: light-dark(#e36209, #ffa657);
+}
+.code-block .prism-code .token.important,
+.code-block .prism-code .token.bold {
+    font-weight: 700;
+}
+.code-block .prism-code .token.italic,
+.code-block .prism-code .token.emphasis {
+    font-style: italic;
+}
+.code-block .prism-code .token.entity {
+    cursor: help;
+}
 .code-block .code-preview {
     padding: 0.95em 1em 1.05em;
     background: light-dark(#f8fafc, #2d323a);
@@ -285,8 +325,8 @@ var _latestStreamBase64 = '';
 var _streamRenderTicket = 0;
 var _latestStableText = '';
 var _latestStreamText = '';
-var _hljsReady = false;
-var _hljsRuntimeLoadPromise = null;
+var _prismReady = false;
+var _prismRuntimeLoadPromise = null;
 var _mathRuntimeLoadPromise = null;
 var _mathStyleLoadPromise = null;
 var _mathReady = false;
@@ -311,28 +351,28 @@ function resolveMermaidFromGlobal() {
     }
 }
 
-function loadHljsRuntimeScript() {
-    if (window.JinHljs && typeof window.JinHljs.highlightCode === 'function') {
+function loadPrismRuntimeScript() {
+    if (window.JinPrism && typeof window.JinPrism.highlightCode === 'function') {
         return Promise.resolve(true);
     }
-    if (_hljsRuntimeLoadPromise) {
-        return _hljsRuntimeLoadPromise;
+    if (_prismRuntimeLoadPromise) {
+        return _prismRuntimeLoadPromise;
     }
-    _hljsRuntimeLoadPromise = new Promise(function(resolve) {
+    _prismRuntimeLoadPromise = new Promise(function(resolve) {
         var script = document.createElement('script');
-        script.src = 'markdown-hljs-runtime.js';
+        script.src = 'markdown-prism-runtime.js';
         script.async = true;
         script.onload = function() {
-            _hljsReady = !!(window.JinHljs && typeof window.JinHljs.highlightCode === 'function');
-            resolve(_hljsReady);
+            _prismReady = !!(window.JinPrism && typeof window.JinPrism.highlightCode === 'function');
+            resolve(_prismReady);
         };
         script.onerror = function(err) {
-            console.warn('[JinHljs] failed to load runtime script', err);
+            console.warn('[JinPrism] failed to load runtime script', err);
             resolve(false);
         };
         document.head.appendChild(script);
     });
-    return _hljsRuntimeLoadPromise;
+    return _prismRuntimeLoadPromise;
 }
 
 function loadScriptOnce(src, warningLabel) {
@@ -746,16 +786,16 @@ var languageHighlightAliases = {
 function resolveLanguageLabel(lang) {
     var raw = lang ? String(lang).trim().toLowerCase() : '';
     if (!raw) return 'txt';
-    if (window.JinHljs && typeof window.JinHljs.languageLabel === 'function') {
-        return window.JinHljs.languageLabel(raw) || raw;
+    if (window.JinPrism && typeof window.JinPrism.languageLabel === 'function') {
+        return window.JinPrism.languageLabel(raw) || raw;
     }
     return languageHighlightAliases[raw] || raw;
 }
 
 function resolveLanguageLogoURL(lang, label) {
     var key = '';
-    if (window.JinHljs && typeof window.JinHljs.languageLogoKey === 'function') {
-        key = window.JinHljs.languageLogoKey(lang || label || '');
+    if (window.JinPrism && typeof window.JinPrism.languageLogoKey === 'function') {
+        key = window.JinPrism.languageLogoKey(lang || label || '');
     }
     if (!key) {
         key = resolveLanguageLabel(lang || label || '');
@@ -1123,11 +1163,11 @@ async function toggleCodeRender(id) {
     scheduleHeightReport();
 }
 
-function ensureHljsReady() {
-    if (_hljsReady) {
+function ensurePrismReady() {
+    if (_prismReady) {
         return Promise.resolve(true);
     }
-    return loadHljsRuntimeScript()
+    return loadPrismRuntimeScript()
         .catch(function() { return false; });
 }
 
@@ -1160,12 +1200,12 @@ function buildHighlightLanguageCandidates(lang, label, renderKind) {
     return candidates;
 }
 
-function highlightCodeWithHljs(code, candidates) {
-    if (!window.JinHljs || typeof window.JinHljs.highlightCode !== 'function') {
+function highlightCodeWithPrism(code, candidates) {
+    if (!window.JinPrism || typeof window.JinPrism.highlightCode !== 'function') {
         return '';
     }
     for (var i = 0; i < candidates.length; i += 1) {
-        var html = window.JinHljs.highlightCode(code, candidates[i]) || '';
+        var html = window.JinPrism.highlightCode(code, candidates[i]) || '';
         if (html) return html;
     }
     return '';
@@ -1203,14 +1243,14 @@ function highlightCodeBlock(str, lang) {
     var candidates = buildHighlightLanguageCandidates(lang, label, renderKind);
     var highlightedInner = '';
     if (shouldAttemptCodeHighlight(str)) {
-        highlightedInner = highlightCodeWithHljs(str, candidates);
+        highlightedInner = highlightCodeWithPrism(str, candidates);
     }
 
     var codeHTML;
     if (highlightedInner) {
-        codeHTML = '<pre><code class="hljs">' + highlightedInner + '</code></pre>';
+        codeHTML = '<pre><code class="prism-code">' + highlightedInner + '</code></pre>';
     } else {
-        codeHTML = '<pre><code class="hljs">' + escapeHTML(str) + '</code></pre>';
+        codeHTML = '<pre><code class="prism-code">' + escapeHTML(str) + '</code></pre>';
     }
     return wrapCodeBlock(id, label, codeHTML, lang, renderKind);
 }
@@ -1340,12 +1380,12 @@ async function updateContent(base64, options) {
         });
     }
 
-    if (needsCodeHighlight && !_hljsReady) {
+    if (needsCodeHighlight && !_prismReady) {
         var requestHighlightUpgrade = function() {
             if (ticket !== _stableRenderTicket || base64 !== _latestStableBase64) {
                 return;
             }
-            ensureHljsReady().then(function(ok) {
+            ensurePrismReady().then(function(ok) {
                 if (!ok) return;
                 queueRerenderIfCurrent();
             });
@@ -1394,12 +1434,12 @@ async function updateContentText(text, options) {
         });
     }
 
-    if (needsCodeHighlight && !_hljsReady) {
+    if (needsCodeHighlight && !_prismReady) {
         var requestHighlightUpgrade = function() {
             if (ticket !== _stableRenderTicket || renderedText !== _latestStableText) {
                 return;
             }
-            ensureHljsReady().then(function(ok) {
+            ensurePrismReady().then(function(ok) {
                 if (!ok) return;
                 queueRerenderIfCurrent();
             });
@@ -1448,7 +1488,7 @@ resizeObserver.observe(document.body);
 window.updateWithBase64 = updateContent;
 window.updateWithText = updateContentText;
 
-// Streaming renderer uses the same highlight.js code block rendering as stable mode.
+// Streaming renderer uses the same Prism code block rendering as stable mode.
 var streamMdState = createMarkdownParserState();
 
 async function updateStreamingContent(base64, options) {
@@ -1486,12 +1526,12 @@ async function updateStreamingContent(base64, options) {
         });
     }
 
-    if (needsCodeHighlight && !_hljsReady) {
+    if (needsCodeHighlight && !_prismReady) {
         var requestHighlightUpgrade = function() {
             if (ticket !== _streamRenderTicket || base64 !== _latestStreamBase64) {
                 return;
             }
-            ensureHljsReady().then(function(ok) {
+            ensurePrismReady().then(function(ok) {
                 if (!ok) return;
                 queueRerenderIfCurrent();
             });
@@ -1542,12 +1582,12 @@ async function updateStreamingContentText(text, options) {
         });
     }
 
-    if (needsCodeHighlight && !_hljsReady) {
+    if (needsCodeHighlight && !_prismReady) {
         var requestHighlightUpgrade = function() {
             if (ticket !== _streamRenderTicket || renderedText !== _latestStreamText) {
                 return;
             }
-            ensureHljsReady().then(function(ok) {
+            ensurePrismReady().then(function(ok) {
                 if (!ok) return;
                 queueRerenderIfCurrent();
             });

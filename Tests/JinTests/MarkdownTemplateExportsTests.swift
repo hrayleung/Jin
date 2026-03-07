@@ -12,6 +12,7 @@ final class MarkdownTemplateExportsTests: XCTestCase {
 
         XCTAssertTrue(html.contains("window.updateWithText"), "Expected updateWithText export in markdown template")
         XCTAssertTrue(html.contains("window.updateStreamingWithText"), "Expected updateStreamingWithText export in markdown template")
+        XCTAssertTrue(html.contains("markdown-prism-runtime.js"), "Expected Prism runtime in markdown template")
+        XCTAssertFalse(html.contains("markdown-hljs-runtime.js"), "Did not expect legacy highlight.js runtime in markdown template")
     }
 }
-
