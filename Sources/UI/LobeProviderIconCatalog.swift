@@ -110,6 +110,7 @@ enum LobeProviderIconCatalog {
         LobeProviderIcon(id: "Cerebras", docsSlug: "cerebras", filename: "cerebras.svg"),
         LobeProviderIcon(id: "Civitai", docsSlug: "civitai", filename: "civitai.svg"),
         LobeProviderIcon(id: "Cloudflare", docsSlug: "cloudflare", filename: "cloudflare.svg"),
+        LobeProviderIcon(id: "Codex", docsSlug: "codex", filename: "codex.svg"),
         LobeProviderIcon(id: "Cohere", docsSlug: "cohere", filename: "cohere.svg"),
         LobeProviderIcon(id: "CometAPI", docsSlug: "comet-api", filename: "cometapi.svg"),
         LobeProviderIcon(id: "Crusoe", docsSlug: "crusoe", filename: "crusoe.svg"),
@@ -123,6 +124,7 @@ enum LobeProviderIconCatalog {
         LobeProviderIcon(id: "Friendli", docsSlug: "friendli", filename: "friendli.svg"),
         LobeProviderIcon(id: "GiteeAI", docsSlug: "gitee-ai", filename: "giteeai.svg"),
         LobeProviderIcon(id: "Github", docsSlug: "github", filename: "github.svg"),
+        LobeProviderIcon(id: "GithubCopilot", docsSlug: "github-copilot", filename: "githubcopilot.svg"),
         LobeProviderIcon(id: "Google", docsSlug: "google", filename: "google.svg"),
         LobeProviderIcon(id: "GoogleCloud", docsSlug: "google-cloud", filename: "googlecloud.svg"),
         LobeProviderIcon(id: "Groq", docsSlug: "groq", filename: "groq.svg"),
@@ -212,9 +214,9 @@ enum LobeProviderIconCatalog {
         case .openaiWebSocket:
             return "OpenAI"
         case .codexAppServer:
-            return "OpenAI"
+            return "Codex"
         case .githubCopilot:
-            return "Github"
+            return "GithubCopilot"
         case .openaiCompatible:
             return "OpenAI"
         case .cloudflareAIGateway:
