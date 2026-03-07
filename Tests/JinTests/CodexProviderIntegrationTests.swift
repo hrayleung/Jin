@@ -5,7 +5,7 @@ final class CodexProviderIntegrationTests: XCTestCase {
     func testCodexProviderTypeDefaultsAndIconMapping() {
         XCTAssertEqual(ProviderType.codexAppServer.displayName, "Codex App Server (Beta)")
         XCTAssertEqual(ProviderType.codexAppServer.defaultBaseURL, "ws://127.0.0.1:4500")
-        XCTAssertEqual(LobeProviderIconCatalog.defaultIconID(for: .codexAppServer), "OpenAI")
+        XCTAssertEqual(LobeProviderIconCatalog.defaultIconID(for: .codexAppServer), "Codex")
     }
 
     func testProviderManagerCreatesCodexAdapter() async throws {

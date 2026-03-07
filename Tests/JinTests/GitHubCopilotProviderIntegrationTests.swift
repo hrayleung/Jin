@@ -5,7 +5,7 @@ final class GitHubCopilotProviderIntegrationTests: XCTestCase {
     func testGitHubCopilotProviderTypeDefaultsAndIconMapping() {
         XCTAssertEqual(ProviderType.githubCopilot.displayName, "GitHub Copilot")
         XCTAssertEqual(ProviderType.githubCopilot.defaultBaseURL, "https://models.github.ai/inference")
-        XCTAssertEqual(LobeProviderIconCatalog.defaultIconID(for: .githubCopilot), "Github")
+        XCTAssertEqual(LobeProviderIconCatalog.defaultIconID(for: .githubCopilot), "GithubCopilot")
     }
 
     func testProviderManagerCreatesOpenAICompatibleAdapterForGitHubCopilot() async throws {

@@ -5,6 +5,7 @@ import os
 private let markdownRendererLogger = Logger(subsystem: "com.jin.app", category: "MarkdownRenderer")
 
 private let markdownTemplateURL = JinResourceBundle.url(forResource: "markdown-template", withExtension: "html")
+private let inlineCoreRuntimePlaceholder = "<!-- INLINE_CORE_RUNTIME -->\n<script src=\"markdown-core-runtime.js\"></script>"
 
 /// Pre-cached HTML template with `markdown-core-runtime.js` inlined so that
 /// each WKWebView can load from an in-memory string instead of triggering
@@ -35,10 +36,16 @@ private let inlineTemplate: (html: String, baseURL: URL)? = {
         return nil
     }
 
-    let inlined = templateHTML.replacingOccurrences(
-        of: "<script src=\"markdown-core-runtime.js\"></script>",
-        with: "<script>\n\(coreRuntimeJS)\n</script>"
-    )
+    let replacement = "<script>\n\(coreRuntimeJS)\n</script>"
+    let inlined: String
+
+    if let range = templateHTML.range(of: inlineCoreRuntimePlaceholder) {
+        inlined = templateHTML.replacingCharacters(in: range, with: replacement)
+    } else {
+        markdownRendererLogger.warning("Failed to inline markdown core runtime because template marker was not found.")
+        inlined = templateHTML
+    }
+
     return (html: inlined, baseURL: templateURL.deletingLastPathComponent())
 }()
 
