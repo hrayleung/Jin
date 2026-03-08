@@ -78,8 +78,7 @@ struct MCPToolTimelineView: View {
             }
         } label: {
             HStack(spacing: JinSpacing.small) {
-                MCPIconView(iconID: summaryIconID, fallbackSystemName: "server.rack", size: 14)
-                    .frame(width: 16, height: 16)
+                summaryIconStack
 
                 Text(collapsedTitle)
                     .font(.subheadline.weight(.medium))
@@ -113,6 +112,35 @@ struct MCPToolTimelineView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+    }
+
+    @ViewBuilder
+    private var summaryIconStack: some View {
+        let ids = serverIDs
+        if ids.count <= 1 {
+            MCPIconView(iconID: summaryIconID, fallbackSystemName: "server.rack", size: 14)
+                .frame(width: 16, height: 16)
+        } else {
+            // Overlapping icon stack for multiple servers — each icon slightly offset.
+            let displayed = Array(ids.prefix(4))
+            let overlapOffset: CGFloat = 10
+            let totalWidth = 16 + overlapOffset * CGFloat(displayed.count - 1)
+
+            ZStack(alignment: .leading) {
+                ForEach(Array(displayed.enumerated()), id: \.element) { index, serverID in
+                    MCPIconView(iconID: resolvedIconID(forServerID: serverID), fallbackSystemName: "server.rack", size: 14)
+                        .frame(width: 16, height: 16)
+                        .background(
+                            Circle()
+                                .fill(.regularMaterial)
+                                .frame(width: 18, height: 18)
+                        )
+                        .offset(x: overlapOffset * CGFloat(index))
+                        .zIndex(Double(displayed.count - index))
+                }
+            }
+            .frame(width: totalWidth, height: 16)
+        }
     }
 
     private var expandedPanel: some View {

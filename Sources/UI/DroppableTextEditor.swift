@@ -14,6 +14,8 @@ struct DroppableTextEditor: NSViewRepresentable {
     let onSubmit: () -> Void
     let onCancel: () -> Bool
     let onContentHeightChanged: ((CGFloat) -> Void)?
+    /// Optional key event interceptor. Return `true` to consume the event (prevents default handling).
+    let onInterceptKeyDown: ((UInt16) -> Bool)?
 
     init(
         text: Binding<String>,
@@ -25,7 +27,8 @@ struct DroppableTextEditor: NSViewRepresentable {
         onDropImages: @escaping ([NSImage]) -> Bool,
         onSubmit: @escaping () -> Void,
         onCancel: @escaping () -> Bool,
-        onContentHeightChanged: ((CGFloat) -> Void)? = nil
+        onContentHeightChanged: ((CGFloat) -> Void)? = nil,
+        onInterceptKeyDown: ((UInt16) -> Bool)? = nil
     ) {
         _text = text
         _isDropTargeted = isDropTargeted
@@ -37,6 +40,7 @@ struct DroppableTextEditor: NSViewRepresentable {
         self.onSubmit = onSubmit
         self.onCancel = onCancel
         self.onContentHeightChanged = onContentHeightChanged
+        self.onInterceptKeyDown = onInterceptKeyDown
     }
 
     func makeCoordinator() -> Coordinator {
@@ -48,7 +52,8 @@ struct DroppableTextEditor: NSViewRepresentable {
             onDropImages: onDropImages,
             onSubmit: onSubmit,
             onCancel: onCancel,
-            onContentHeightChanged: onContentHeightChanged
+            onContentHeightChanged: onContentHeightChanged,
+            onInterceptKeyDown: onInterceptKeyDown
         )
     }
 
@@ -84,6 +89,9 @@ struct DroppableTextEditor: NSViewRepresentable {
         }
         textView.onCancel = {
             context.coordinator.cancel()
+        }
+        textView.onInterceptKeyDown = { keyCode in
+            context.coordinator.interceptKeyDown(keyCode)
         }
 
         let readableTypes = NSFilePromiseReceiver.readableDraggedTypes.map { NSPasteboard.PasteboardType($0) }
@@ -124,6 +132,8 @@ struct DroppableTextEditor: NSViewRepresentable {
     func updateNSView(_ nsView: NSScrollView, context: Context) {
         guard let textView = nsView.documentView as? DroppableNSTextView else { return }
 
+        context.coordinator.updateInterceptor(onInterceptKeyDown)
+
         if textView.useCommandEnterToSubmit != useCommandEnterToSubmit {
             textView.useCommandEnterToSubmit = useCommandEnterToSubmit
         }
@@ -155,6 +165,7 @@ struct DroppableTextEditor: NSViewRepresentable {
         private let onSubmit: () -> Void
         private let onCancel: () -> Bool
         private let onContentHeightChanged: ((CGFloat) -> Void)?
+        private var onInterceptKeyDown: ((UInt16) -> Bool)?
 
         init(
             text: Binding<String>,
@@ -164,7 +175,8 @@ struct DroppableTextEditor: NSViewRepresentable {
             onDropImages: @escaping ([NSImage]) -> Bool,
             onSubmit: @escaping () -> Void,
             onCancel: @escaping () -> Bool,
-            onContentHeightChanged: ((CGFloat) -> Void)? = nil
+            onContentHeightChanged: ((CGFloat) -> Void)? = nil,
+            onInterceptKeyDown: ((UInt16) -> Bool)? = nil
         ) {
             textBinding = text
             isDropTargetedBinding = isDropTargeted
@@ -174,6 +186,15 @@ struct DroppableTextEditor: NSViewRepresentable {
             self.onSubmit = onSubmit
             self.onCancel = onCancel
             self.onContentHeightChanged = onContentHeightChanged
+            self.onInterceptKeyDown = onInterceptKeyDown
+        }
+
+        func updateInterceptor(_ interceptor: ((UInt16) -> Bool)?) {
+            onInterceptKeyDown = interceptor
+        }
+
+        func interceptKeyDown(_ keyCode: UInt16) -> Bool {
+            onInterceptKeyDown?(keyCode) ?? false
         }
 
         func textDidChange(_ notification: Notification) {
@@ -419,6 +440,7 @@ final class DroppableNSTextView: NSTextView {
     var onPerformPasteboard: ((NSPasteboard) -> Bool)?
     var onSubmit: (() -> Void)?
     var onCancel: (() -> Bool)?
+    var onInterceptKeyDown: ((UInt16) -> Bool)?
     var useCommandEnterToSubmit = false
 
     override func becomeFirstResponder() -> Bool {
@@ -499,6 +521,11 @@ final class DroppableNSTextView: NSTextView {
     }
 
     override func keyDown(with event: NSEvent) {
+        // Give the interceptor first chance to handle the event (e.g. slash command popup navigation).
+        if onInterceptKeyDown?(event.keyCode) == true {
+            return
+        }
+
         // Escape
         if event.keyCode == 53, onCancel?() == true {
             return

@@ -204,6 +204,8 @@ struct Message: Identifiable, Codable {
     let searchActivities: [SearchActivity]?
     let codexToolActivities: [CodexToolActivity]?
     let timestamp: Date
+    /// MCP server names selected via slash command for this specific message.
+    let perMessageMCPServerNames: [String]?
 
     init(
         id: UUID = UUID(),
@@ -213,7 +215,8 @@ struct Message: Identifiable, Codable {
         toolResults: [ToolResult]? = nil,
         searchActivities: [SearchActivity]? = nil,
         codexToolActivities: [CodexToolActivity]? = nil,
-        timestamp: Date = Date()
+        timestamp: Date = Date(),
+        perMessageMCPServerNames: [String]? = nil
     ) {
         self.id = id
         self.role = role
@@ -223,6 +226,7 @@ struct Message: Identifiable, Codable {
         self.searchActivities = searchActivities
         self.codexToolActivities = codexToolActivities
         self.timestamp = timestamp
+        self.perMessageMCPServerNames = perMessageMCPServerNames
     }
 }
 

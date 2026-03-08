@@ -53,7 +53,8 @@ enum ChatMessageRenderPipeline {
                         && message.content.contains(where: { part in
                             if case .text = part { return true }
                             return false
-                        })
+                        }),
+                    perMessageMCPServerNames: message.perMessageMCPServerNames ?? []
                 )
             )
         }

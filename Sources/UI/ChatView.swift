@@ -87,6 +87,14 @@ struct ChatView: View {
     @State private var codexPersonalityDraft: CodexPersonality?
     @State private var pendingCodexInteractions: [PendingCodexInteraction] = []
 
+    private enum SlashCommandTarget { case composer, editMessage }
+    @State private var isSlashMCPPopoverVisible = false
+    @State private var slashMCPFilterText = ""
+    @State private var slashMCPHighlightedIndex = 0
+    @State private var slashCommandTarget: SlashCommandTarget = .composer
+    /// Per-message MCP server override. When non-empty, these servers are used instead of the conversation-level selection.
+    @State private var perMessageMCPServerIDs: Set<String> = []
+
     @State private var showingContextCacheSheet = false
     @State private var showingAnthropicWebSearchSheet = false
     @State private var anthropicWebSearchDomainMode: AnthropicDomainFilterMode = .none
@@ -199,9 +207,21 @@ struct ChatView: View {
             onCancel: handleComposerCancel,
             onRemoveAttachment: removeDraftAttachment,
             onExpand: { isExpandedComposerPresented = true },
-            onSend: sendMessage
+            onSend: sendMessage,
+            slashCommandServers: slashCommandMCPItems,
+            isSlashCommandActive: isSlashMCPPopoverVisible,
+            slashCommandFilterText: slashMCPFilterText,
+            slashCommandHighlightedIndex: slashMCPHighlightedIndex,
+            perMessageMCPChips: perMessageMCPChips,
+            onSlashCommandSelectServer: handleSlashCommandSelectServer,
+            onSlashCommandDismiss: dismissSlashCommandPopover,
+            onRemovePerMessageMCPServer: removePerMessageMCPServer,
+            onInterceptKeyDown: isSlashMCPPopoverVisible ? handleSlashCommandKeyDown : nil
         ) {
             composerControlsRow
+        }
+        .onChange(of: messageText) { _, newValue in
+            updateSlashCommandState(for: newValue, target: .composer)
         }
     }
 
@@ -409,7 +429,23 @@ struct ChatView: View {
             },
             onCancelUserEdit: {
                 cancelEditingUserMessage()
-            }
+            },
+            editSlashCommand: editSlashCommandContext
+        )
+    }
+
+    private var editSlashCommandContext: EditSlashCommandContext {
+        let isEditTarget = slashCommandTarget == .editMessage
+        return EditSlashCommandContext(
+            servers: slashCommandMCPItems,
+            isActive: isSlashMCPPopoverVisible && isEditTarget,
+            filterText: isEditTarget ? slashMCPFilterText : "",
+            highlightedIndex: isEditTarget ? slashMCPHighlightedIndex : 0,
+            perMessageChips: perMessageMCPChips,
+            onSelectServer: handleSlashCommandSelectServer,
+            onDismiss: dismissSlashCommandPopover,
+            onRemovePerMessageServer: removePerMessageMCPServer,
+            onInterceptKeyDown: (isSlashMCPPopoverVisible && isEditTarget) ? handleSlashCommandKeyDown : nil
         )
     }
 
@@ -530,6 +566,9 @@ struct ChatView: View {
         .onAppear(perform: handleChatAppear)
         .onChange(of: conversationEntity.id) { _, _ in
             handleConversationSwitch()
+        }
+        .onChange(of: editingUserMessageText) { _, newValue in
+            updateSlashCommandState(for: newValue, target: .editMessage)
         }
         .onChange(of: conversationEntity.messages.count) { _, _ in
             rebuildMessageCachesIfNeeded()
@@ -680,14 +719,30 @@ struct ChatView: View {
     }
 
     private var floatingComposer: some View {
-        composerOverlay
-            .padding(.horizontal, 16)
-            .padding(.bottom, 16)
-            .background {
-                GeometryReader { geo in
-                    Color.clear.preference(key: ComposerHeightPreferenceKey.self, value: geo.size.height)
-                }
+        VStack(spacing: JinSpacing.small) {
+            if isSlashMCPPopoverVisible, slashCommandTarget == .composer {
+                SlashCommandMCPPopover(
+                    servers: slashCommandMCPItems,
+                    filterText: slashMCPFilterText,
+                    highlightedIndex: slashMCPHighlightedIndex,
+                    onSelectServer: handleSlashCommandSelectServer,
+                    onDismiss: dismissSlashCommandPopover
+                )
+                .padding(.horizontal, JinSpacing.medium)
+                .frame(maxWidth: 800)
+                .transition(.opacity.combined(with: .move(edge: .bottom)))
             }
+
+            composerOverlay
+        }
+        .animation(.easeOut(duration: 0.15), value: isSlashMCPPopoverVisible)
+        .padding(.horizontal, 16)
+        .padding(.bottom, 16)
+        .background {
+            GeometryReader { geo in
+                Color.clear.preference(key: ComposerHeightPreferenceKey.self, value: geo.size.height)
+            }
+        }
     }
 
     @ViewBuilder
@@ -2525,18 +2580,41 @@ struct ChatView: View {
             return
         }
 
+        // Store per-message MCP server names on the edited message entity
+        if !perMessageMCPServerIDs.isEmpty {
+            let serverNames = eligibleMCPServers
+                .filter { perMessageMCPServerIDs.contains($0.id) }
+                .map(\.name)
+                .sorted()
+            messageEntity.perMessageMCPServerNamesData = try? JSONEncoder().encode(serverNames)
+        } else {
+            messageEntity.perMessageMCPServerNamesData = nil
+        }
+
         if let threadID = messageEntity.contextThreadID ?? activeModelThread?.id {
             invalidateCodexThreadPersistence(forThreadID: threadID)
         }
 
-        cancelEditingUserMessage()
+        endEditingUI()
         regenerateFromUserMessage(messageEntity)
+        // perMessageMCPServerIDs is consumed and cleared inside startStreamingResponse
     }
 
-    private func cancelEditingUserMessage() {
+    /// Clears editing UI state without touching per-message MCP selection.
+    private func endEditingUI() {
         editingUserMessageID = nil
         editingUserMessageText = ""
         isEditingUserMessageFocused = false
+        if slashCommandTarget == .editMessage {
+            isSlashMCPPopoverVisible = false
+            slashMCPFilterText = ""
+            slashMCPHighlightedIndex = 0
+        }
+    }
+
+    private func cancelEditingUserMessage() {
+        endEditingUI()
+        perMessageMCPServerIDs = []
     }
 
     private func regenerateFromUserMessage(_ messageEntity: MessageEntity) {
@@ -2760,7 +2838,7 @@ struct ChatView: View {
         }
 
         guard canSendDraft else { return }
-        cancelEditingUserMessage()
+        endEditingUI()
         ensureModelThreadsInitializedIfNeeded()
 
         guard let activeThread = activeModelThread else {
@@ -2788,6 +2866,12 @@ struct ChatView: View {
         let messageTextSnapshot = trimmedMessageText
         let remoteVideoURLTextSnapshot = trimmedRemoteVideoInputURLText
         let attachmentsSnapshot = draftAttachments
+        let perMessageMCPNamesSnapshot: [String]? = perMessageMCPServerIDs.isEmpty
+            ? nil
+            : eligibleMCPServers
+                .filter { perMessageMCPServerIDs.contains($0.id) }
+                .map(\.name)
+                .sorted()
         let askedAt = Date()
         let turnID = UUID()
 
@@ -2823,7 +2907,7 @@ struct ChatView: View {
                     }
 
                     for prepared in preparedMessages {
-                        let message = Message(role: .user, content: prepared.parts, timestamp: askedAt)
+                        let message = Message(role: .user, content: prepared.parts, timestamp: askedAt, perMessageMCPServerNames: perMessageMCPNamesSnapshot)
                         guard let messageEntity = try? MessageEntity.fromDomain(message) else { continue }
                         messageEntity.contextThreadID = prepared.threadID
                         messageEntity.turnID = turnID
@@ -3525,13 +3609,15 @@ struct ChatView: View {
         let reservedOutputTokens = max(0, controlsToUse.maxTokens ?? 2048)
         let mcpServerConfigs: [MCPServerConfig]
         do {
-            mcpServerConfigs = try resolvedMCPServerConfigs(for: controlsToUse)
+            mcpServerConfigs = try resolvedMCPServerConfigsWithPerMessageOverride(for: controlsToUse)
         } catch {
             errorMessage = "Failed to load MCP server configs: \(error.localizedDescription)"
             showingError = true
             streamingStore.endSession(conversationID: conversationID, threadID: threadID)
             return
         }
+        // Clear per-message MCP override after capturing the configs
+        perMessageMCPServerIDs = []
         let chatNamingTarget = resolvedChatNamingTarget()
         let supportsBuiltinSearchPlugin = (resolvedModelSettingsSnapshot?.capabilities.contains(.toolCalling) == true)
             && webSearchPluginEnabled
@@ -4958,6 +5044,149 @@ struct ChatView: View {
     private func resetMCPServerSelection() {
         controls = ChatAuxiliaryControlSupport.resetMCPServerSelection(controls: controls)
         persistControlsToConversation()
+    }
+
+    // MARK: - Slash Command MCP (per-message override)
+
+    private var slashCommandMCPItems: [SlashCommandMCPServerItem] {
+        eligibleMCPServers.map { server in
+            SlashCommandMCPServerItem(
+                id: server.id,
+                name: server.name,
+                isSelected: perMessageMCPServerIDs.contains(server.id)
+            )
+        }
+    }
+
+    private var perMessageMCPChips: [SlashCommandMCPServerItem] {
+        let eligible = Set(eligibleMCPServers.map(\.id))
+        return perMessageMCPServerIDs
+            .filter { eligible.contains($0) }
+            .compactMap { id in
+                eligibleMCPServers.first { $0.id == id }
+            }
+            .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+            .map { SlashCommandMCPServerItem(id: $0.id, name: $0.name, isSelected: true) }
+    }
+
+    private func updateSlashCommandState(for text: String, target: SlashCommandTarget) {
+        guard supportsMCPToolsControl, !eligibleMCPServers.isEmpty else {
+            if isSlashMCPPopoverVisible {
+                isSlashMCPPopoverVisible = false
+            }
+            return
+        }
+
+        if let filter = SlashCommandDetection.detectFilter(in: text) {
+            slashMCPFilterText = filter
+            slashCommandTarget = target
+            if !isSlashMCPPopoverVisible {
+                slashMCPHighlightedIndex = 0
+                isSlashMCPPopoverVisible = true
+            }
+            let count = SlashCommandDetection.filteredCount(
+                servers: slashCommandMCPItems,
+                filterText: filter
+            )
+            if count > 0, slashMCPHighlightedIndex >= count {
+                slashMCPHighlightedIndex = count - 1
+            }
+        } else if isSlashMCPPopoverVisible, slashCommandTarget == target {
+            isSlashMCPPopoverVisible = false
+            slashMCPFilterText = ""
+            slashMCPHighlightedIndex = 0
+        }
+    }
+
+    private func handleSlashCommandSelectServer(_ serverID: String) {
+        if perMessageMCPServerIDs.contains(serverID) {
+            perMessageMCPServerIDs.remove(serverID)
+        } else {
+            perMessageMCPServerIDs.insert(serverID)
+        }
+
+        // Remove the slash token from whichever editor is active
+        switch slashCommandTarget {
+        case .composer:
+            messageText = SlashCommandDetection.removeSlashToken(from: messageText)
+        case .editMessage:
+            editingUserMessageText = SlashCommandDetection.removeSlashToken(from: editingUserMessageText)
+        }
+        isSlashMCPPopoverVisible = false
+        slashMCPFilterText = ""
+        slashMCPHighlightedIndex = 0
+    }
+
+    private func removePerMessageMCPServer(_ serverID: String) {
+        perMessageMCPServerIDs.remove(serverID)
+    }
+
+    private func dismissSlashCommandPopover() {
+        switch slashCommandTarget {
+        case .composer:
+            messageText = SlashCommandDetection.removeSlashToken(from: messageText)
+        case .editMessage:
+            editingUserMessageText = SlashCommandDetection.removeSlashToken(from: editingUserMessageText)
+        }
+        isSlashMCPPopoverVisible = false
+        slashMCPFilterText = ""
+        slashMCPHighlightedIndex = 0
+    }
+
+    private func handleSlashCommandKeyDown(_ keyCode: UInt16) -> Bool {
+        let items = slashCommandMCPItems
+        let count = SlashCommandDetection.filteredCount(
+            servers: items,
+            filterText: slashMCPFilterText
+        )
+        guard count > 0 else {
+            if keyCode == 53 {
+                dismissSlashCommandPopover()
+                return true
+            }
+            return false
+        }
+
+        switch keyCode {
+        case 126: // Arrow Up
+            slashMCPHighlightedIndex = max(0, slashMCPHighlightedIndex - 1)
+            return true
+        case 125: // Arrow Down
+            slashMCPHighlightedIndex = min(count - 1, slashMCPHighlightedIndex + 1)
+            return true
+        case 36, 76, 48: // Return / Enter / Tab
+            if let serverID = SlashCommandDetection.highlightedServerID(
+                servers: items,
+                filterText: slashMCPFilterText,
+                highlightedIndex: slashMCPHighlightedIndex
+            ) {
+                handleSlashCommandSelectServer(serverID)
+            }
+            return true
+        case 53: // Escape
+            dismissSlashCommandPopover()
+            return true
+        default:
+            return false
+        }
+    }
+
+    /// Resolves MCP server configs with per-message override applied.
+    private func resolvedMCPServerConfigsWithPerMessageOverride(for controlsToUse: GenerationControls) throws -> [MCPServerConfig] {
+        if perMessageMCPServerIDs.isEmpty {
+            return try resolvedMCPServerConfigs(for: controlsToUse)
+        }
+        // Build a temporary controls with per-message server selection
+        var overrideControls = controlsToUse
+        overrideControls.mcpTools = MCPToolsControls(
+            enabled: true,
+            enabledServerIDs: Array(perMessageMCPServerIDs)
+        )
+        return try ChatAuxiliaryControlSupport.resolvedMCPServerConfigs(
+            controls: overrideControls,
+            supportsMCPToolsControl: true,
+            servers: mcpServers
+        )
     }
 
     private func resolvedMCPServerConfigs(for controlsToUse: GenerationControls) throws -> [MCPServerConfig] {

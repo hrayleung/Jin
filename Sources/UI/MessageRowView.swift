@@ -148,6 +148,31 @@ private struct VideoPlayerView: NSViewRepresentable {
     }
 }
 
+// MARK: - User Message MCP Badge Row
+
+struct UserMessageMCPBadgeRow: View {
+    let serverNames: [String]
+
+    var body: some View {
+        HStack(spacing: JinSpacing.xSmall) {
+            Image(systemName: "hammer")
+                .font(.system(size: 10, weight: .medium))
+                .foregroundStyle(.secondary)
+
+            ForEach(serverNames, id: \.self) { name in
+                Text(name)
+                    .font(.caption2.weight(.medium))
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(
+                        Capsule()
+                            .fill(Color.primary.opacity(0.08))
+                    )
+            }
+        }
+    }
+}
+
 // MARK: - Render Models
 
 struct MessageRenderItem: Identifiable {
@@ -164,6 +189,7 @@ struct MessageRenderItem: Identifiable {
     let responseMetrics: ResponseMetrics?
     let copyText: String
     let canEditUserMessage: Bool
+    let perMessageMCPServerNames: [String]
 
     var isUser: Bool { role == "user" }
     var isAssistant: Bool { role == "assistant" }
@@ -198,6 +224,7 @@ struct MessageRow: View {
     let editingUserMessageFocused: Binding<Bool>
     let onSubmitUserEdit: (UUID) -> Void
     let onCancelUserEdit: () -> Void
+    let editSlashCommand: EditSlashCommandContext
     let onActivate: (() -> Void)?
     @State private var isResponseMetricsPopoverPresented = false
 
@@ -225,6 +252,31 @@ struct MessageRow: View {
 
                     VStack(alignment: .leading, spacing: 8) {
                         if isEditingUserMessage {
+                            if editSlashCommand.isActive {
+                                SlashCommandMCPPopover(
+                                    servers: editSlashCommand.servers,
+                                    filterText: editSlashCommand.filterText,
+                                    highlightedIndex: editSlashCommand.highlightedIndex,
+                                    onSelectServer: editSlashCommand.onSelectServer,
+                                    onDismiss: editSlashCommand.onDismiss
+                                )
+                                .transition(.opacity.combined(with: .move(edge: .bottom)))
+                                .animation(.easeOut(duration: 0.12), value: editSlashCommand.isActive)
+                            }
+
+                            if !editSlashCommand.perMessageChips.isEmpty {
+                                ScrollView(.horizontal, showsIndicators: false) {
+                                    HStack(spacing: JinSpacing.xSmall) {
+                                        ForEach(editSlashCommand.perMessageChips) { chip in
+                                            PerMessageMCPChip(
+                                                name: chip.name,
+                                                onRemove: { editSlashCommand.onRemovePerMessageServer(chip.id) }
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+
                             DroppableTextEditor(
                                 text: editingUserMessageText,
                                 isDropTargeted: .constant(false),
@@ -236,10 +288,15 @@ struct MessageRow: View {
                                 onCancel: {
                                     onCancelUserEdit()
                                     return true
-                                }
+                                },
+                                onInterceptKeyDown: editSlashCommand.onInterceptKeyDown
                             )
                             .frame(minHeight: 36, maxHeight: 400)
                         } else {
+                            if isUser, !item.perMessageMCPServerNames.isEmpty {
+                                UserMessageMCPBadgeRow(serverNames: item.perMessageMCPServerNames)
+                            }
+
                             if !item.searchActivities.isEmpty {
                                 SearchActivityTimelineView(
                                     activities: item.searchActivities,
