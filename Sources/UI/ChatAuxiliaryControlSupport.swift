@@ -324,14 +324,24 @@ enum ChatAuxiliaryControlSupport {
     static func resolvedMCPServerConfigs(
         controls: GenerationControls,
         supportsMCPToolsControl: Bool,
-        servers: [MCPServerConfigEntity]
+        servers: [MCPServerConfigEntity],
+        perMessageOverrideServerIDs: Set<String> = []
     ) throws -> [MCPServerConfig] {
         guard supportsMCPToolsControl else { return [] }
-        guard controls.mcpTools?.enabled == true else { return [] }
+
+        var effectiveControls = controls
+        if !perMessageOverrideServerIDs.isEmpty {
+            effectiveControls.mcpTools = MCPToolsControls(
+                enabled: true,
+                enabledServerIDs: Array(perMessageOverrideServerIDs).sorted()
+            )
+        }
+
+        guard effectiveControls.mcpTools?.enabled == true else { return [] }
 
         let eligibleServers = eligibleMCPServers(from: servers)
         let eligibleIDs = Set(eligibleServers.map(\.id))
-        let allowlist = controls.mcpTools?.enabledServerIDs
+        let allowlist = effectiveControls.mcpTools?.enabledServerIDs
         let selectedIDs = allowlist.map(Set.init) ?? eligibleIDs
         let resolvedIDs = selectedIDs.intersection(eligibleIDs)
 
