@@ -235,8 +235,12 @@ struct ArtifactWorkspaceView: View {
         }
 
         guard panel.runModal() == .OK, let url = panel.url else { return }
-        try? artifact.content.data(using: .utf8)?.write(to: url, options: .atomic)
-        pulseFeedback(.save)
+        do {
+            try artifact.content.data(using: .utf8)?.write(to: url, options: .atomic)
+            pulseFeedback(.save)
+        } catch {
+            // Write failed — skip save feedback
+        }
     }
 
     private enum FeedbackKind {

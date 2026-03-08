@@ -67,7 +67,9 @@ private struct ArtifactWebRendererRepresentable: NSViewRepresentable {
         func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction) async -> WKNavigationActionPolicy {
             if navigationAction.navigationType == .linkActivated,
                let url = navigationAction.request.url {
-                NSWorkspace.shared.open(url)
+                if let scheme = url.scheme?.lowercased(), ["http", "https"].contains(scheme) {
+                    NSWorkspace.shared.open(url)
+                }
                 return .cancel
             }
             return .allow

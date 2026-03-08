@@ -21,7 +21,7 @@ enum ArtifactContentType: String, Codable, CaseIterable, Hashable, Sendable {
         case .html:
             return "html"
         case .react:
-            return "jsx"
+            return "tsx"
         case .echarts:
             return "json"
         }

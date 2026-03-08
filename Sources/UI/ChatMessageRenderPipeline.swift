@@ -112,31 +112,40 @@ enum ChatMessageRenderPipeline {
 
             case .text(let text) where role == .assistant:
                 let parseResult = ArtifactMarkupParser.parse(text)
-                for segment in parseResult.visibleTextSegments {
-                    guard !segment.isEmpty else { continue }
-                    blocks.append(.content(.text(segment)))
-                }
+                let segments = parseResult.visibleTextSegments
+                let artifacts = parseResult.artifacts
+                let maxIndex = max(segments.count, artifacts.count)
 
-                for artifact in parseResult.artifacts {
-                    let nextVersion = (artifactVersionCounts[artifact.artifactID] ?? 0) + 1
-                    artifactVersionCounts[artifact.artifactID] = nextVersion
-
-                    if artifactVersionsByID[artifact.artifactID] == nil {
-                        artifactOrder.append(artifact.artifactID)
-                        artifactVersionsByID[artifact.artifactID] = []
+                for i in 0..<maxIndex {
+                    if i < segments.count {
+                        let segment = segments[i]
+                        if !segment.isEmpty {
+                            blocks.append(.content(.text(segment)))
+                        }
                     }
 
-                    let version = RenderedArtifactVersion(
-                        artifactID: artifact.artifactID,
-                        version: nextVersion,
-                        title: artifact.title,
-                        contentType: artifact.contentType,
-                        content: artifact.content,
-                        sourceMessageID: messageID,
-                        sourceTimestamp: timestamp
-                    )
-                    artifactVersionsByID[artifact.artifactID, default: []].append(version)
-                    blocks.append(.artifact(version))
+                    if i < artifacts.count {
+                        let artifact = artifacts[i]
+                        let nextVersion = (artifactVersionCounts[artifact.artifactID] ?? 0) + 1
+                        artifactVersionCounts[artifact.artifactID] = nextVersion
+
+                        if artifactVersionsByID[artifact.artifactID] == nil {
+                            artifactOrder.append(artifact.artifactID)
+                            artifactVersionsByID[artifact.artifactID] = []
+                        }
+
+                        let version = RenderedArtifactVersion(
+                            artifactID: artifact.artifactID,
+                            version: nextVersion,
+                            title: artifact.title,
+                            contentType: artifact.contentType,
+                            content: artifact.content,
+                            sourceMessageID: messageID,
+                            sourceTimestamp: timestamp
+                        )
+                        artifactVersionsByID[artifact.artifactID, default: []].append(version)
+                        blocks.append(.artifact(version))
+                    }
                 }
 
             default:
