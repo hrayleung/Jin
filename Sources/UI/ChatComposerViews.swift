@@ -592,7 +592,6 @@ struct ExpandedComposerOverlay: View {
                     .disabled(isBusy)
                 }
             }
-            .padding(.horizontal, 10)
             .padding(.vertical, 8)
             .padding(.horizontal, JinSpacing.large)
             .padding(.top, JinSpacing.small)

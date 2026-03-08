@@ -137,12 +137,12 @@ enum ChatControlNormalizationSupport {
     static func normalizeFireworksProviderSpecific(
         controls: inout GenerationControls,
         providerType: ProviderType?,
-        conversationModelID: String,
+        isMiniMaxM2FamilyModel: Bool,
         fireworksReasoningHistoryOptions: [String]
     ) {
         guard providerType == .fireworks else { return }
 
-        if isFireworksMiniMaxM2FamilyModel(conversationModelID) {
+        if isMiniMaxM2FamilyModel {
             controls.providerSpecific.removeValue(forKey: "reasoning_effort")
         }
 
