@@ -549,6 +549,15 @@ struct ExpandedComposerOverlay: View {
     let onDropFileURLs: ([URL]) -> Bool
     let onDropImages: ([NSImage]) -> Bool
     let onRemoveAttachment: (DraftAttachment) -> Void
+    let slashCommandServers: [SlashCommandMCPServerItem]
+    let isSlashCommandActive: Bool
+    let slashCommandFilterText: String
+    let slashCommandHighlightedIndex: Int
+    let perMessageMCPChips: [SlashCommandMCPServerItem]
+    let onSlashCommandSelectServer: (String) -> Void
+    let onSlashCommandDismiss: () -> Void
+    let onRemovePerMessageMCPServer: (String) -> Void
+    let onInterceptKeyDown: ((UInt16) -> Bool)?
 
     @State private var isEditorFocused = true
 
@@ -595,11 +604,48 @@ struct ExpandedComposerOverlay: View {
         VStack(spacing: 0) {
             panelHeader
             Divider()
+            panelSlashCommandPopover
+            panelPerMessageMCPChips
             panelAttachmentChips
             panelRemoteVideoURLField
             panelEditor
             Divider()
             panelFooter
+        }
+    }
+
+    @ViewBuilder
+    private var panelSlashCommandPopover: some View {
+        if isSlashCommandActive {
+            SlashCommandMCPPopover(
+                servers: slashCommandServers,
+                filterText: slashCommandFilterText,
+                highlightedIndex: slashCommandHighlightedIndex,
+                onSelectServer: onSlashCommandSelectServer,
+                onDismiss: onSlashCommandDismiss
+            )
+            .padding(.horizontal, JinSpacing.large)
+            .padding(.vertical, JinSpacing.small)
+            .transition(.opacity.combined(with: .move(edge: .bottom)))
+            .animation(.easeOut(duration: 0.12), value: isSlashCommandActive)
+        }
+    }
+
+    @ViewBuilder
+    private var panelPerMessageMCPChips: some View {
+        if !perMessageMCPChips.isEmpty {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: JinSpacing.small) {
+                    ForEach(perMessageMCPChips) { chip in
+                        PerMessageMCPChip(
+                            name: chip.name,
+                            onRemove: { onRemovePerMessageMCPServer(chip.id) }
+                        )
+                    }
+                }
+                .padding(.horizontal, JinSpacing.large)
+                .padding(.vertical, JinSpacing.small)
+            }
         }
     }
 
@@ -702,7 +748,8 @@ struct ExpandedComposerOverlay: View {
                 onCancel: {
                     isPresented = false
                     return true
-                }
+                },
+                onInterceptKeyDown: onInterceptKeyDown
             )
         }
         .padding(.horizontal, JinSpacing.large)

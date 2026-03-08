@@ -748,6 +748,7 @@ struct ChatView: View {
     @ViewBuilder
     private var expandedComposerOverlay: some View {
         if isExpandedComposerPresented {
+            let isComposerTarget = slashCommandTarget == .composer
             ExpandedComposerOverlay(
                 messageText: $messageText,
                 remoteVideoURLText: $remoteVideoInputURLText,
@@ -763,7 +764,16 @@ struct ChatView: View {
                 },
                 onDropFileURLs: handleDroppedFileURLs,
                 onDropImages: handleDroppedImages,
-                onRemoveAttachment: removeDraftAttachment
+                onRemoveAttachment: removeDraftAttachment,
+                slashCommandServers: slashCommandMCPItems,
+                isSlashCommandActive: isSlashMCPPopoverVisible && isComposerTarget,
+                slashCommandFilterText: isComposerTarget ? slashMCPFilterText : "",
+                slashCommandHighlightedIndex: isComposerTarget ? slashMCPHighlightedIndex : 0,
+                perMessageMCPChips: perMessageMCPChips,
+                onSlashCommandSelectServer: handleSlashCommandSelectServer,
+                onSlashCommandDismiss: dismissSlashCommandPopover,
+                onRemovePerMessageMCPServer: removePerMessageMCPServer,
+                onInterceptKeyDown: (isSlashMCPPopoverVisible && isComposerTarget) ? handleSlashCommandKeyDown : nil
             )
             .transition(.opacity.combined(with: .scale(scale: 0.96, anchor: .bottom)))
         }
@@ -2556,6 +2566,12 @@ struct ChatView: View {
         editingUserMessageID = messageEntity.id
         editingUserMessageText = editableText
 
+        // Restore per-message MCP server IDs from the saved message entity
+        if let idsData = messageEntity.perMessageMCPServerIDsData,
+           let savedIDs = try? JSONDecoder().decode([String].self, from: idsData) {
+            perMessageMCPServerIDs = Set(savedIDs)
+        }
+
         DispatchQueue.main.async {
             isEditingUserMessageFocused = true
         }
@@ -2580,15 +2596,17 @@ struct ChatView: View {
             return
         }
 
-        // Store per-message MCP server names on the edited message entity
+        // Update per-message MCP metadata on the edited message entity
         if !perMessageMCPServerIDs.isEmpty {
             let serverNames = eligibleMCPServers
                 .filter { perMessageMCPServerIDs.contains($0.id) }
                 .map(\.name)
                 .sorted()
             messageEntity.perMessageMCPServerNamesData = try? JSONEncoder().encode(serverNames)
+            messageEntity.perMessageMCPServerIDsData = try? JSONEncoder().encode(Array(perMessageMCPServerIDs).sorted())
         } else {
             messageEntity.perMessageMCPServerNamesData = nil
+            messageEntity.perMessageMCPServerIDsData = nil
         }
 
         if let threadID = messageEntity.contextThreadID ?? activeModelThread?.id {
@@ -2620,12 +2638,15 @@ struct ChatView: View {
     private func regenerateFromUserMessage(_ messageEntity: MessageEntity) {
         guard let threadID = messageEntity.contextThreadID ?? activeModelThread?.id else { return }
         guard let keepCount = keepCountForRegeneratingUserMessage(messageEntity, threadID: threadID) else { return }
+        // Snapshot and clear per-message MCP before streaming so the state is consumed exactly once.
+        let mcpSnapshot = perMessageMCPServerIDs
+        perMessageMCPServerIDs = []
         let askedAt = Date()
         truncateConversation(keepingMessages: keepCount, in: threadID)
         messageEntity.timestamp = askedAt
         conversationEntity.updatedAt = askedAt
         activateThread(by: threadID)
-        startStreamingResponse(for: threadID, triggeredByUserSend: false)
+        startStreamingResponse(for: threadID, triggeredByUserSend: false, perMessageMCPServerIDs: mcpSnapshot)
     }
 
     private func regenerateFromAssistantMessage(_ messageEntity: MessageEntity) {
@@ -2866,6 +2887,7 @@ struct ChatView: View {
         let messageTextSnapshot = trimmedMessageText
         let remoteVideoURLTextSnapshot = trimmedRemoteVideoInputURLText
         let attachmentsSnapshot = draftAttachments
+        let perMessageMCPIDsSnapshot: [String]? = perMessageMCPServerIDs.isEmpty ? nil : Array(perMessageMCPServerIDs).sorted()
         let perMessageMCPNamesSnapshot: [String]? = perMessageMCPServerIDs.isEmpty
             ? nil
             : eligibleMCPServers
@@ -2911,6 +2933,7 @@ struct ChatView: View {
                         guard let messageEntity = try? MessageEntity.fromDomain(message) else { continue }
                         messageEntity.contextThreadID = prepared.threadID
                         messageEntity.turnID = turnID
+                        messageEntity.perMessageMCPServerIDsData = try? JSONEncoder().encode(perMessageMCPIDsSnapshot)
                         messageEntity.conversation = conversationEntity
                         conversationEntity.messages.append(messageEntity)
                     }
@@ -2931,11 +2954,15 @@ struct ChatView: View {
                     isPreparingToSend = false
                     prepareToSendStatus = nil
                     prepareToSendTask = nil
+                    // Snapshot per-message MCP IDs before the loop; clear once after all threads consume it.
+                    let perMessageMCPSnapshot = perMessageMCPServerIDs
+                    perMessageMCPServerIDs = []
                     for threadID in targetThreadIDs {
                         startStreamingResponse(
                             for: threadID,
                             triggeredByUserSend: threadID == namingThreadID,
-                            turnID: turnID
+                            turnID: turnID,
+                            perMessageMCPServerIDs: perMessageMCPSnapshot
                         )
                     }
                 }
@@ -3528,7 +3555,7 @@ struct ChatView: View {
     }
 
     @MainActor
-    private func startStreamingResponse(for threadID: UUID, triggeredByUserSend: Bool = false, turnID: UUID? = nil) {
+    private func startStreamingResponse(for threadID: UUID, triggeredByUserSend: Bool = false, turnID: UUID? = nil, perMessageMCPServerIDs: Set<String> = []) {
         let conversationID = conversationEntity.id
         guard !streamingStore.isStreaming(conversationID: conversationID, threadID: threadID) else { return }
 
@@ -3607,17 +3634,39 @@ struct ChatView: View {
         let maxHistoryMessages = assistant?.maxHistoryMessages
         let modelContextWindow = resolvedModelSettingsSnapshot?.contextWindow ?? 128000
         let reservedOutputTokens = max(0, controlsToUse.maxTokens ?? 2048)
+        // Resolve MCP server configs, applying per-message override only if this thread's model supports tool calling.
+        let threadSupportsMCPTools: Bool = {
+            guard providerTypeSnapshot != .codexAppServer else { return false }
+            guard !(resolvedModelSettingsSnapshot?.capabilities.contains(.imageGeneration) == true
+                    || resolvedModelSettingsSnapshot?.capabilities.contains(.videoGeneration) == true) else { return false }
+            return resolvedModelSettingsSnapshot?.capabilities.contains(.toolCalling) == true
+        }()
         let mcpServerConfigs: [MCPServerConfig]
         do {
-            mcpServerConfigs = try resolvedMCPServerConfigsWithPerMessageOverride(for: controlsToUse)
+            if !perMessageMCPServerIDs.isEmpty, threadSupportsMCPTools {
+                var overrideControls = controlsToUse
+                overrideControls.mcpTools = MCPToolsControls(
+                    enabled: true,
+                    enabledServerIDs: Array(perMessageMCPServerIDs)
+                )
+                mcpServerConfigs = try ChatAuxiliaryControlSupport.resolvedMCPServerConfigs(
+                    controls: overrideControls,
+                    supportsMCPToolsControl: true,
+                    servers: mcpServers
+                )
+            } else {
+                mcpServerConfigs = try ChatAuxiliaryControlSupport.resolvedMCPServerConfigs(
+                    controls: controlsToUse,
+                    supportsMCPToolsControl: threadSupportsMCPTools,
+                    servers: mcpServers
+                )
+            }
         } catch {
             errorMessage = "Failed to load MCP server configs: \(error.localizedDescription)"
             showingError = true
             streamingStore.endSession(conversationID: conversationID, threadID: threadID)
             return
         }
-        // Clear per-message MCP override after capturing the configs
-        perMessageMCPServerIDs = []
         let chatNamingTarget = resolvedChatNamingTarget()
         let supportsBuiltinSearchPlugin = (resolvedModelSettingsSnapshot?.capabilities.contains(.toolCalling) == true)
             && webSearchPluginEnabled
@@ -5169,24 +5218,6 @@ struct ChatView: View {
         default:
             return false
         }
-    }
-
-    /// Resolves MCP server configs with per-message override applied.
-    private func resolvedMCPServerConfigsWithPerMessageOverride(for controlsToUse: GenerationControls) throws -> [MCPServerConfig] {
-        if perMessageMCPServerIDs.isEmpty {
-            return try resolvedMCPServerConfigs(for: controlsToUse)
-        }
-        // Build a temporary controls with per-message server selection
-        var overrideControls = controlsToUse
-        overrideControls.mcpTools = MCPToolsControls(
-            enabled: true,
-            enabledServerIDs: Array(perMessageMCPServerIDs)
-        )
-        return try ChatAuxiliaryControlSupport.resolvedMCPServerConfigs(
-            controls: overrideControls,
-            supportsMCPToolsControl: true,
-            servers: mcpServers
-        )
     }
 
     private func resolvedMCPServerConfigs(for controlsToUse: GenerationControls) throws -> [MCPServerConfig] {

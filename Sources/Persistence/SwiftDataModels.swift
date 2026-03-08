@@ -218,6 +218,8 @@ final class MessageEntity {
     var generatedModelName: String?
     /// Per-message MCP server names selected via slash command. Stored as JSON-encoded [String].
     var perMessageMCPServerNamesData: Data?
+    /// Per-message MCP server IDs for restoring selection on edit. Stored as JSON-encoded [String].
+    var perMessageMCPServerIDsData: Data?
 
     @Relationship var conversation: ConversationEntity?
 
