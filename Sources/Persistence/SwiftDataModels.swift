@@ -238,7 +238,9 @@ final class MessageEntity {
         generatedProviderID: String? = nil,
         generatedModelID: String? = nil,
         generatedModelName: String? = nil,
-        thinkingVisible: Bool = true
+        thinkingVisible: Bool = true,
+        perMessageMCPServerNamesData: Data? = nil,
+        perMessageMCPServerIDsData: Data? = nil
     ) {
         self.id = id
         self.role = role
@@ -255,6 +257,8 @@ final class MessageEntity {
         self.generatedModelID = generatedModelID
         self.generatedModelName = generatedModelName
         self.thinkingVisible = thinkingVisible
+        self.perMessageMCPServerNamesData = perMessageMCPServerNamesData
+        self.perMessageMCPServerIDsData = perMessageMCPServerIDsData
     }
 
     var responseMetrics: ResponseMetrics? {
@@ -309,7 +313,7 @@ final class MessageEntity {
         let codexToolActivitiesData = try message.codexToolActivities.map { try encoder.encode($0) }
         let perMessageMCPServerNamesData = try message.perMessageMCPServerNames.map { try encoder.encode($0) }
 
-        let entity = MessageEntity(
+        return MessageEntity(
             id: message.id,
             role: message.role.rawValue,
             timestamp: message.timestamp,
@@ -317,10 +321,9 @@ final class MessageEntity {
             toolCallsData: toolCallsData,
             toolResultsData: toolResultsData,
             searchActivitiesData: searchActivitiesData,
-            codexToolActivitiesData: codexToolActivitiesData
+            codexToolActivitiesData: codexToolActivitiesData,
+            perMessageMCPServerNamesData: perMessageMCPServerNamesData
         )
-        entity.perMessageMCPServerNamesData = perMessageMCPServerNamesData
-        return entity
     }
 }
 
