@@ -312,6 +312,7 @@ struct Conversation: Identifiable, Codable {
     let id: UUID
     var title: String
     var systemPrompt: String?
+    var artifactsEnabled: Bool
     var messages: [Message]
     var modelConfig: ModelConfig
     let createdAt: Date
@@ -321,6 +322,7 @@ struct Conversation: Identifiable, Codable {
         id: UUID = UUID(),
         title: String,
         systemPrompt: String? = nil,
+        artifactsEnabled: Bool = false,
         messages: [Message] = [],
         modelConfig: ModelConfig,
         createdAt: Date = Date(),
@@ -329,6 +331,7 @@ struct Conversation: Identifiable, Codable {
         self.id = id
         self.title = title
         self.systemPrompt = systemPrompt
+        self.artifactsEnabled = artifactsEnabled
         self.messages = messages
         self.modelConfig = modelConfig
         self.createdAt = createdAt

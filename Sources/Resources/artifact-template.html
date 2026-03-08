@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self' data: blob:; style-src 'unsafe-inline'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; font-src 'self' data:; connect-src 'none';">
+    <style>
+        :root {
+            color-scheme: light dark;
+            --surface: color-mix(in srgb, Canvas 96%, transparent);
+            --surface-elevated: color-mix(in srgb, Canvas 92%, CanvasText 3%);
+            --separator: color-mix(in srgb, CanvasText 18%, transparent);
+            --text-secondary: color-mix(in srgb, CanvasText 62%, transparent);
+            --accent: #2f855a;
+            --code-bg: color-mix(in srgb, Canvas 88%, CanvasText 4%);
+            --error-bg: rgba(180, 30, 30, 0.12);
+            --error-stroke: rgba(180, 30, 30, 0.28);
+            font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
+        }
+
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            background: transparent;
+            color: CanvasText;
+        }
+
+        body {
+            min-height: 100%;
+        }
+
+        #artifact-root {
+            width: 100%;
+            min-height: 100%;
+            box-sizing: border-box;
+            padding: 18px;
+            overflow: auto;
+        }
+
+        #artifact-root > *:first-child {
+            margin-top: 0;
+        }
+
+        #artifact-root > *:last-child {
+            margin-bottom: 0;
+        }
+
+        .artifact-error {
+            margin: 0;
+            padding: 14px;
+            white-space: pre-wrap;
+            border-radius: 12px;
+            border: 1px solid var(--error-stroke);
+            background: var(--error-bg);
+            font-family: "SF Mono", Menlo, monospace;
+            font-size: 12px;
+            line-height: 1.55;
+        }
+
+        .artifact-chart,
+        .artifact-react-root {
+            width: 100%;
+            min-height: max(420px, calc(100vh - 140px));
+        }
+
+        pre,
+        code {
+            font-family: "SF Mono", Menlo, monospace;
+        }
+
+        pre {
+            overflow: auto;
+            padding: 14px;
+            border-radius: 12px;
+            background: var(--code-bg);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th,
+        td {
+            padding: 8px 10px;
+            border: 1px solid var(--separator);
+            text-align: left;
+        }
+
+        blockquote {
+            margin-left: 0;
+            padding-left: 12px;
+            border-left: 3px solid var(--separator);
+            color: var(--text-secondary);
+        }
+
+        a {
+            color: color-mix(in srgb, var(--accent) 82%, CanvasText 18%);
+        }
+
+        svg {
+            max-width: 100%;
+            height: auto;
+        }
+    </style>
+</head>
+<body>
+    <div id="artifact-root"></div>
+    <script src="artifact-runtime.js"></script>
+</body>
+</html>

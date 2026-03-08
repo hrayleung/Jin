@@ -29,7 +29,9 @@ struct StreamingMessageView: View {
     @AppStorage(AppPreferenceKeys.codeFontFamily) private var codeFontFamily = JinTypography.systemFontPreferenceValue
 
     var body: some View {
-        let showsCopyButton = state.hasVisibleText
+        let parseResult = ArtifactMarkupParser.parse(state.textContent, hidesTrailingIncompleteArtifact: true)
+        let visibleText = parseResult.visibleText
+        let showsCopyButton = !visibleText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         let visibleToolCalls = state.streamingToolCalls.filter { call in
             !BuiltinSearchToolHub.isBuiltinSearchFunctionName(call.name)
         }
@@ -88,8 +90,14 @@ struct StreamingMessageView: View {
                             )
                         }
 
-                        if !state.textChunks.isEmpty {
-                            MarkdownWebRenderer(markdownText: state.textContent, isStreaming: true)
+                        if !visibleText.isEmpty {
+                            MarkdownWebRenderer(markdownText: visibleText, isStreaming: true)
+                        }
+
+                        if !parseResult.artifacts.isEmpty {
+                            ForEach(Array(parseResult.artifacts.enumerated()), id: \.offset) { _, artifact in
+                                StreamingArtifactIndicator(artifact: artifact)
+                            }
                         } else if state.thinkingChunks.isEmpty && state.searchActivities.isEmpty && state.codexToolActivities.isEmpty && visibleToolCalls.isEmpty {
                             HStack(spacing: 6) {
                                 ProgressView().scaleEffect(0.5)
@@ -104,7 +112,7 @@ struct StreamingMessageView: View {
 
                     if showsCopyButton {
                         HStack {
-                            CopyToPasteboardButton(text: state.textContent, helpText: "Copy message", useProminentStyle: false)
+                            CopyToPasteboardButton(text: visibleText, helpText: "Copy message", useProminentStyle: false)
                                 .accessibilityLabel("Copy message")
                             Spacer(minLength: 0)
                         }
@@ -129,6 +137,83 @@ struct StreamingMessageView: View {
 
     private var chatCodeFont: Font {
         JinTypography.chatCodeFont(codeFamilyPreference: codeFontFamily, scale: JinTypography.defaultChatMessageScale)
+    }
+}
+
+// MARK: - Streaming Artifact Indicator
+
+private struct StreamingArtifactIndicator: View {
+    let artifact: ParsedArtifact
+
+    var body: some View {
+        HStack(spacing: JinSpacing.small) {
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .fill(accentColor.opacity(0.12))
+                .frame(width: 26, height: 26)
+                .overlay {
+                    Image(systemName: iconName)
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(accentColor)
+                }
+
+            Text(artifact.title)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.primary)
+                .lineLimit(1)
+
+            Spacer(minLength: 0)
+
+            HStack(spacing: 4) {
+                ProgressView()
+                    .controlSize(.mini)
+                    .scaleEffect(0.6)
+                ArtifactTypeBadge(contentType: artifact.contentType)
+            }
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+        .fixedSize(horizontal: false, vertical: true)
+        .background(
+            RoundedRectangle(cornerRadius: JinRadius.small, style: .continuous)
+                .fill(JinSemanticColor.subtleSurface.opacity(0.7))
+        )
+        .overlay(alignment: .leading) {
+            UnevenRoundedRectangle(
+                topLeadingRadius: JinRadius.small,
+                bottomLeadingRadius: JinRadius.small,
+                bottomTrailingRadius: 0,
+                topTrailingRadius: 0,
+                style: .continuous
+            )
+            .fill(accentColor)
+            .frame(width: 3)
+        }
+        .overlay(
+            RoundedRectangle(cornerRadius: JinRadius.small, style: .continuous)
+                .stroke(accentColor.opacity(0.12), lineWidth: JinStrokeWidth.hairline)
+        )
+    }
+
+    private var accentColor: Color {
+        switch artifact.contentType {
+        case .react:
+            return Color(red: 0.55, green: 0.68, blue: 0.78)
+        case .html:
+            return Color(red: 0.75, green: 0.58, blue: 0.50)
+        case .echarts:
+            return Color(red: 0.55, green: 0.70, blue: 0.60)
+        }
+    }
+
+    private var iconName: String {
+        switch artifact.contentType {
+        case .react:
+            return "atom"
+        case .html:
+            return "globe"
+        case .echarts:
+            return "chart.bar.xaxis"
+        }
     }
 }
 

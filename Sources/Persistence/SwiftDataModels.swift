@@ -61,6 +61,7 @@ final class ConversationEntity {
     @Attribute(.unique) var id: UUID
     var title: String
     var isStarred: Bool?
+    var artifactsEnabled: Bool?
     var createdAt: Date
     var updatedAt: Date
     var systemPrompt: String?
@@ -85,6 +86,7 @@ final class ConversationEntity {
         id: UUID = UUID(),
         title: String,
         isStarred: Bool = false,
+        artifactsEnabled: Bool? = nil,
         createdAt: Date = Date(),
         updatedAt: Date = Date(),
         systemPrompt: String? = nil,
@@ -97,6 +99,7 @@ final class ConversationEntity {
         self.id = id
         self.title = title
         self.isStarred = isStarred
+        self.artifactsEnabled = artifactsEnabled
         self.createdAt = createdAt
         self.updatedAt = updatedAt
         self.systemPrompt = systemPrompt
@@ -129,6 +132,7 @@ final class ConversationEntity {
             id: id,
             title: title,
             systemPrompt: systemPrompt,
+            artifactsEnabled: artifactsEnabled == true,
             messages: try messages.sorted(by: { $0.timestamp < $1.timestamp }).map { try $0.toDomain() },
             modelConfig: modelConfig,
             createdAt: createdAt,
@@ -144,6 +148,7 @@ final class ConversationEntity {
         return ConversationEntity(
             id: conversation.id,
             title: conversation.title,
+            artifactsEnabled: conversation.artifactsEnabled,
             createdAt: conversation.createdAt,
             updatedAt: conversation.updatedAt,
             systemPrompt: conversation.systemPrompt,

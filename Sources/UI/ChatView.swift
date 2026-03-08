@@ -71,8 +71,12 @@ struct ChatView: View {
     @State private var cachedMessagesVersion: Int = 0
     @State private var cachedMessageEntitiesByID: [UUID: MessageEntity] = [:]
     @State private var cachedToolResultsByCallID: [String: ToolResult] = [:]
+    @State private var cachedArtifactCatalog: ArtifactCatalog = .empty
     @State private var lastCacheRebuildMessageCount: Int = 0
     @State private var lastCacheRebuildUpdatedAt: Date = .distantPast
+    @State private var isArtifactPaneVisible = false
+    @State private var selectedArtifactIDByThreadID: [UUID: String] = [:]
+    @State private var selectedArtifactVersionByThreadID: [UUID: Int] = [:]
     @ObservedObject var favoriteModelsStore = FavoriteModelsStore.shared
 
     @State var errorMessage: String?
@@ -248,6 +252,16 @@ struct ChatView: View {
             ) {
                 isFileImporterPresented = true
             }
+
+            composerButtonControl(
+                systemName: conversationEntity.artifactsEnabled == true ? "square.stack.3d.up.fill" : "square.stack.3d.up",
+                isActive: conversationEntity.artifactsEnabled == true,
+                badgeText: nil,
+                help: artifactsHelpText,
+                activeColor: .accentColor,
+                disabled: isBusy,
+                action: toggleArtifactsEnabled
+            )
 
             if supportsPDFProcessingControl {
                 composerMenuControl(
@@ -456,7 +470,8 @@ struct ChatView: View {
         ChatThreadRenderContext(
             visibleMessages: cachedVisibleMessages,
             messageEntitiesByID: cachedMessageEntitiesByID,
-            toolResultsByCallID: cachedToolResultsByCallID
+            toolResultsByCallID: cachedToolResultsByCallID,
+            artifactCatalog: cachedArtifactCatalog
         )
     }
 
@@ -464,6 +479,39 @@ struct ChatView: View {
         Dictionary(uniqueKeysWithValues: selectedModelThreads.map { thread in
             (thread.id, threadRenderContext(threadID: thread.id))
         })
+    }
+
+    private var activeArtifactCatalog: ArtifactCatalog {
+        if let activeThreadID, activeModelThread != nil {
+            return threadRenderContext(threadID: activeThreadID).artifactCatalog
+        }
+        return cachedArtifactCatalog
+    }
+
+    private var selectedArtifactIDBinding: Binding<String?> {
+        Binding(
+            get: {
+                guard let threadID = activeModelThread?.id else { return nil }
+                return selectedArtifactIDByThreadID[threadID]
+            },
+            set: { newValue in
+                guard let threadID = activeModelThread?.id else { return }
+                selectedArtifactIDByThreadID[threadID] = newValue
+            }
+        )
+    }
+
+    private var selectedArtifactVersionBinding: Binding<Int?> {
+        Binding(
+            get: {
+                guard let threadID = activeModelThread?.id else { return nil }
+                return selectedArtifactVersionByThreadID[threadID]
+            },
+            set: { newValue in
+                guard let threadID = activeModelThread?.id else { return }
+                selectedArtifactVersionByThreadID[threadID] = newValue
+            }
+        )
     }
 
     private func threadRenderContext(threadID: UUID) -> ChatThreadRenderContext {
@@ -510,6 +558,7 @@ struct ChatView: View {
             onActivateMessageThread: { threadID in
                 activateThread(by: threadID)
             },
+            onOpenArtifact: openArtifact,
             messageRenderLimit: $messageRenderLimit,
             pendingRestoreScrollMessageID: $pendingRestoreScrollMessageID,
             isPinnedToBottom: $isPinnedToBottom,
@@ -546,7 +595,8 @@ struct ChatView: View {
             },
             onActivateThread: { threadID in
                 activateThread(by: threadID)
-            }
+            },
+            onOpenArtifact: openArtifact
         )
     }
 
@@ -691,9 +741,18 @@ struct ChatView: View {
     }
 
     private var conversationStage: some View {
-        ZStack(alignment: .bottom) {
-            messageStage
-            floatingComposer
+        Group {
+            if isArtifactPaneVisible {
+                HSplitView {
+                    messageStageContainer
+                    artifactPane
+                }
+            } else {
+                messageStageContainer
+            }
+        }
+        .onChange(of: activeThreadID) { _, _ in
+            syncArtifactSelectionForActiveThread()
         }
         .onPreferenceChange(ComposerHeightPreferenceKey.self) { newValue in
             if abs(composerHeight - newValue) > 0.5 {
@@ -705,6 +764,25 @@ struct ChatView: View {
             expandedComposerOverlay
         }
         .animation(.easeInOut(duration: 0.2), value: isExpandedComposerPresented)
+        .animation(.easeInOut(duration: 0.18), value: isArtifactPaneVisible)
+    }
+
+    private var messageStageContainer: some View {
+        ZStack(alignment: .bottom) {
+            messageStage
+            floatingComposer
+        }
+    }
+
+    private var artifactPane: some View {
+        ArtifactWorkspaceView(
+            catalog: activeArtifactCatalog,
+            selectedArtifactID: selectedArtifactIDBinding,
+            selectedArtifactVersion: selectedArtifactVersionBinding,
+            onClose: {
+                isArtifactPaneVisible = false
+            }
+        )
     }
 
     private var messageStage: some View {
@@ -824,6 +902,7 @@ struct ChatView: View {
         // extra render cycles that make the header flicker.
         loadControlsFromConversation()
         rebuildMessageCaches()
+        syncArtifactSelectionForActiveThread()
     }
 
     private func handleConversationSwitch() {
@@ -833,11 +912,15 @@ struct ChatView: View {
         pendingRestoreScrollMessageID = nil
         isPinnedToBottom = true
         isExpandedComposerPresented = false
+        isArtifactPaneVisible = false
+        selectedArtifactIDByThreadID = [:]
+        selectedArtifactVersionByThreadID = [:]
         remoteVideoInputURLText = ""
         // loadControlsFromConversation internally calls ensureModelThreadsInitializedIfNeeded
         // and syncActiveThreadSelection, so calling them separately is redundant.
         loadControlsFromConversation()
         rebuildMessageCaches()
+        syncArtifactSelectionForActiveThread()
     }
 
     private func handleAttachmentImport(_ result: Result<[URL], Error>) {
@@ -920,6 +1003,19 @@ struct ChatView: View {
             ? "Attach images / videos / audio / PDFs"
             : "Attach images / videos / PDFs"
         return supportsNativePDF ? "\(base) (Native PDF support ✓)" : base
+    }
+
+    private var artifactsHelpText: String {
+        if conversationEntity.artifactsEnabled == true {
+            return "Artifacts enabled for new replies"
+        }
+        return "Enable artifact generation for new replies"
+    }
+
+    private func toggleArtifactsEnabled() {
+        conversationEntity.artifactsEnabled = !(conversationEntity.artifactsEnabled == true)
+        conversationEntity.updatedAt = Date()
+        try? modelContext.save()
     }
 
     private var formattedRecordingDuration: String {
@@ -2245,9 +2341,71 @@ struct ChatView: View {
         cachedVisibleMessages = context.visibleMessages
         cachedMessageEntitiesByID = context.messageEntitiesByID
         cachedToolResultsByCallID = context.toolResultsByCallID
+        cachedArtifactCatalog = context.artifactCatalog
         cachedMessagesVersion &+= 1
         lastCacheRebuildMessageCount = ordered.count
         lastCacheRebuildUpdatedAt = conversationEntity.updatedAt
+        syncArtifactSelectionForActiveThread()
+    }
+
+    private func syncArtifactSelectionForActiveThread() {
+        guard let threadID = activeModelThread?.id else { return }
+
+        let catalog = activeModelThread?.id == activeThreadID ? cachedArtifactCatalog : threadRenderContext(threadID: threadID).artifactCatalog
+        guard !catalog.isEmpty else {
+            selectedArtifactIDByThreadID[threadID] = nil
+            selectedArtifactVersionByThreadID[threadID] = nil
+            return
+        }
+
+        let selectedArtifactID = selectedArtifactIDByThreadID[threadID]
+        let selectedVersion = selectedArtifactVersionByThreadID[threadID]
+
+        if let selectedArtifactID,
+           catalog.version(artifactID: selectedArtifactID, version: selectedVersion) != nil {
+            return
+        }
+
+        if let latest = catalog.latestVersion {
+            selectedArtifactIDByThreadID[threadID] = latest.artifactID
+            selectedArtifactVersionByThreadID[threadID] = latest.version
+        }
+    }
+
+    private func openArtifact(_ artifact: RenderedArtifactVersion, threadID: UUID?) {
+        let resolvedThreadID = threadID ?? activeModelThread?.id
+        if let resolvedThreadID, activeModelThread?.id != resolvedThreadID {
+            activateThread(by: resolvedThreadID)
+        }
+
+        if let resolvedThreadID {
+            selectedArtifactIDByThreadID[resolvedThreadID] = artifact.artifactID
+            selectedArtifactVersionByThreadID[resolvedThreadID] = artifact.version
+        }
+
+        isArtifactPaneVisible = true
+    }
+
+    private func autoOpenLatestArtifactIfNeeded(from message: Message, threadID: UUID) {
+        guard activeModelThread?.id == threadID else { return }
+
+        let artifacts = message.content.compactMap { part -> [ParsedArtifact]? in
+            guard case .text(let text) = part else { return nil }
+            return ArtifactMarkupParser.parse(text).artifacts
+        }.flatMap { $0 }
+
+        guard let latest = artifacts.last else { return }
+
+        let catalog = cachedArtifactCatalog
+        let resolvedVersion = catalog.latestVersion(for: latest.artifactID)
+        if let resolvedVersion {
+            selectedArtifactIDByThreadID[threadID] = resolvedVersion.artifactID
+            selectedArtifactVersionByThreadID[threadID] = resolvedVersion.version
+        } else {
+            selectedArtifactIDByThreadID[threadID] = latest.artifactID
+        }
+
+        isArtifactPaneVisible = true
     }
 
     private func regenerateMessage(_ messageEntity: MessageEntity) {
@@ -2501,9 +2659,14 @@ struct ChatView: View {
     }
 
     private func resolvedSystemPrompt(conversationSystemPrompt: String?, assistant: AssistantEntity?) -> String? {
-        ChatMessagePreparationSupport.resolvedSystemPrompt(
+        let basePrompt = ChatMessagePreparationSupport.resolvedSystemPrompt(
             conversationSystemPrompt: conversationSystemPrompt,
             assistant: assistant
+        )
+
+        return ArtifactMarkupParser.appendingInstructions(
+            to: basePrompt,
+            enabled: conversationEntity.artifactsEnabled == true
         )
     }
 
@@ -2934,6 +3097,7 @@ struct ChatView: View {
                     conversationEntity.messages.append(entity)
                     conversationEntity.updatedAt = Date()
                     rebuildMessageCaches()
+                    autoOpenLatestArtifactIfNeeded(from: message, threadID: threadID)
                     try? modelContext.save()
                     return entity.id
                 } catch {

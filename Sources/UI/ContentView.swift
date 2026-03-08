@@ -600,6 +600,7 @@ struct ContentView: View {
         let controlsData = (try? JSONEncoder().encode(controls)) ?? Data()
         let conversation = ConversationEntity(
             title: "New Chat",
+            artifactsEnabled: false,
             systemPrompt: nil,
             providerID: providerID,
             modelID: modelID,

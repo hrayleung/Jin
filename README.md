@@ -27,6 +27,7 @@ Conversation-first: fast, focused, and minimal.
 - **Web search** — Provider-native search plus fallback through built-in search plugins (Exa, Brave, Jina, Firecrawl, Tavily), with in-chat search activity, citations, and source timeline
 - **Context caching** — Model-aware caching controls (mode, TTL, strategy) across supported providers
 - **Tool calling (MCP)** — Connect external tools and data via the Model Context Protocol using persistent or ephemeral servers
+- **Artifacts** — Interactive artifact rendering for React components, HTML apps, and ECharts visualizations — generated inline and previewed in a split workspace panel
 - **Image generation + edits** — OpenAI, Gemini, Vertex AI, and xAI image generation; OpenAI (gpt-image-1/1.5) and xAI support image edit flows by attaching a source image
 - **Video generation + edits** — Gemini/Vertex Veo and xAI video flows, with optional public URL input for editable workflows
 - **PDF processing** — Native PDF for supported models, or explicit Mistral/DeepSeek OCR modes and local macOS extraction fallback
@@ -54,6 +55,10 @@ Conversation-first: fast, focused, and minimal.
 
 <p align="center">
   <img src="docs/screenshots/tool-calling.png" alt="Tool calling flow with MCP tools in chat" width="1200" />
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/artifact.png" alt="Interactive artifact with React component rendered in split workspace" width="1200" />
 </p>
 
 <p align="center">

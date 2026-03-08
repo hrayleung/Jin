@@ -4,6 +4,7 @@ struct ChatThreadRenderContext {
     let visibleMessages: [MessageRenderItem]
     let messageEntitiesByID: [UUID: MessageEntity]
     let toolResultsByCallID: [String: ToolResult]
+    let artifactCatalog: ArtifactCatalog
 }
 
 struct EditSlashCommandContext {
@@ -67,6 +68,7 @@ struct ChatMessageTimelineView: View {
     let bottomID: String
     let onActivateThreadForMessage: (UUID?) -> Void
     let onActivateTimeline: () -> Void
+    let onOpenArtifact: (RenderedArtifactVersion, UUID?) -> Void
 
     @ViewBuilder
     var body: some View {
@@ -120,6 +122,7 @@ struct ChatMessageTimelineView: View {
                 },
                 onCancelUserEdit: interaction.onCancelUserEdit,
                 editSlashCommand: interaction.editSlashCommand,
+                onOpenArtifact: onOpenArtifact,
                 onActivate: {
                     if let threadID = message.contextThreadID {
                         onActivateThreadForMessage(threadID)
@@ -169,6 +172,7 @@ struct ChatSingleThreadMessagesView: View {
     let interaction: ChatMessageInteractionContext
     let onStreamingFinished: () -> Void
     let onActivateMessageThread: (UUID) -> Void
+    let onOpenArtifact: (RenderedArtifactVersion, UUID?) -> Void
     @Binding var messageRenderLimit: Int
     @Binding var pendingRestoreScrollMessageID: UUID?
     @Binding var isPinnedToBottom: Bool
@@ -286,7 +290,8 @@ struct ChatSingleThreadMessagesView: View {
                 guard let threadID else { return }
                 onActivateMessageThread(threadID)
             },
-            onActivateTimeline: { }
+            onActivateTimeline: { },
+            onOpenArtifact: onOpenArtifact
         )
     }
 
@@ -324,6 +329,7 @@ struct ChatMultiModelStageView: View {
     let streamingMessageForThread: (UUID) -> StreamingMessageState?
     let streamingModelLabelForThread: (UUID) -> String?
     let onActivateThread: (UUID) -> Void
+    let onOpenArtifact: (RenderedArtifactVersion, UUID?) -> Void
 
     var body: some View {
         let horizontalPadding: CGFloat = 20
@@ -354,7 +360,8 @@ struct ChatMultiModelStageView: View {
                             interaction: interaction,
                             streamingMessage: streamingMessageForThread(thread.id),
                             streamingModelLabel: streamingModelLabelForThread(thread.id),
-                            onActivateThread: { onActivateThread(thread.id) }
+                            onActivateThread: { onActivateThread(thread.id) },
+                            onOpenArtifact: onOpenArtifact
                         )
                     }
                 }
@@ -386,6 +393,7 @@ private struct ChatMultiModelThreadColumnView: View {
     let streamingMessage: StreamingMessageState?
     let streamingModelLabel: String?
     let onActivateThread: () -> Void
+    let onOpenArtifact: (RenderedArtifactVersion, UUID?) -> Void
 
     @State private var messageRenderLimit: Int
     @State private var pendingRestoreScrollMessageID: UUID?
@@ -409,7 +417,8 @@ private struct ChatMultiModelThreadColumnView: View {
         interaction: ChatMessageInteractionContext,
         streamingMessage: StreamingMessageState?,
         streamingModelLabel: String?,
-        onActivateThread: @escaping () -> Void
+        onActivateThread: @escaping () -> Void,
+        onOpenArtifact: @escaping (RenderedArtifactVersion, UUID?) -> Void
     ) {
         self.conversationMessageCount = conversationMessageCount
         self.thread = thread
@@ -430,6 +439,7 @@ private struct ChatMultiModelThreadColumnView: View {
         self.streamingMessage = streamingMessage
         self.streamingModelLabel = streamingModelLabel
         self.onActivateThread = onActivateThread
+        self.onOpenArtifact = onOpenArtifact
         _messageRenderLimit = State(initialValue: initialMessageRenderLimit)
         _pendingRestoreScrollMessageID = State(initialValue: nil)
     }
@@ -566,7 +576,8 @@ private struct ChatMultiModelThreadColumnView: View {
             bottomSpacerHeight: composerHeight + 24,
             bottomID: bottomID,
             onActivateThreadForMessage: { _ in onActivateThread() },
-            onActivateTimeline: onActivateThread
+            onActivateTimeline: onActivateThread,
+            onOpenArtifact: onOpenArtifact
         )
     }
 }
