@@ -16,10 +16,12 @@ enum ChatModelSelectionSupport {
         guard let activeThread else { return }
         guard providerID != activeThread.providerID else { return }
 
+        let models = providers.first(where: { $0.id == providerID })?.enabledModels ?? []
+        guard !models.isEmpty else { return }
+
         clearCodexThreadPersistence(activeThread)
         activeThread.providerID = providerID
 
-        let models = providers.first(where: { $0.id == providerID })?.enabledModels ?? []
         if let preferredModelID = preferredModelID(models, providerID) {
             activeThread.modelID = preferredModelID
             synchronizeLegacyConversationModelFields(activeThread)
@@ -70,6 +72,7 @@ enum ChatModelSelectionSupport {
         if let existing = sortedThreads.first(where: {
             $0.providerID == providerID && canonicalModelID($0.providerID, $0.modelID) == resolvedModelID
         }) {
+            existing.isSelected = true
             activateThread(existing)
             return
         }

@@ -492,7 +492,10 @@ struct ChatView: View {
             composerHeight: composerHeight,
             isStreaming: isStreaming,
             activeThreadID: activeModelThread?.id,
+            initialMessageRenderLimit: Self.initialMessageRenderLimit,
+            messageRenderPageSize: Self.messageRenderPageSize,
             eagerCodeHighlightTailCount: Self.eagerCodeHighlightTailCount,
+            nonLazyMessageStackThreshold: Self.nonLazyMessageStackThreshold,
             interaction: messageInteractionContext,
             modelNameForThread: { thread in
                 modelName(id: thread.modelID, providerID: thread.providerID)
@@ -4862,22 +4865,6 @@ struct ChatView: View {
         )
     }
 
-    private func normalizeAnthropicDomainFilters() {
-        let allowed = AnthropicWebSearchDomainUtils.normalizedDomains(controls.webSearch?.allowedDomains)
-        let blocked = AnthropicWebSearchDomainUtils.normalizedDomains(controls.webSearch?.blockedDomains)
-
-        if !allowed.isEmpty {
-            controls.webSearch?.allowedDomains = allowed
-            controls.webSearch?.blockedDomains = nil
-        } else if !blocked.isEmpty {
-            controls.webSearch?.allowedDomains = nil
-            controls.webSearch?.blockedDomains = blocked
-        } else {
-            controls.webSearch?.allowedDomains = nil
-            controls.webSearch?.blockedDomains = nil
-        }
-    }
-
     private func openAnthropicWebSearchEditor() {
         let prepared = ChatAuxiliaryControlSupport.prepareAnthropicWebSearchEditorDraft(
             webSearch: controls.webSearch,
@@ -5429,7 +5416,7 @@ struct ChatView: View {
         ChatControlNormalizationSupport.normalizeFireworksProviderSpecific(
             controls: &controls,
             providerType: providerType,
-            conversationModelID: conversationEntity.modelID,
+            isMiniMaxM2FamilyModel: isFireworksMiniMaxM2FamilyModel(conversationEntity.modelID),
             fireworksReasoningHistoryOptions: fireworksReasoningHistoryOptions
         )
     }

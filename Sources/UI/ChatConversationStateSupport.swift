@@ -51,6 +51,7 @@ enum ChatConversationStateSupport {
         if let currentActive = conversationEntity.activeThreadID,
            !sortedModelThreads().contains(where: { $0.id == currentActive }) {
             conversationEntity.activeThreadID = fallbackThread.id
+            activeThreadID = fallbackThread.id
             didMutate = true
         }
 

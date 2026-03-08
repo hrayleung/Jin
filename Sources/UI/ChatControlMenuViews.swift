@@ -555,7 +555,7 @@ struct XAIImageGenerationMenuView<MenuItemLabel: View>: View {
                 Button {
                     onSetCount(count)
                 } label: {
-                    menuItemLabel("\(count)", (currentCount ?? 1) == count)
+                    menuItemLabel("\(count)", currentCount == count)
                 }
             }
         }

@@ -164,12 +164,6 @@ enum ChatThreadSupport {
             return
         }
 
-        if activeThread?.id == thread.id,
-           let replacement = sortedThreads.first(where: { $0.id != thread.id && $0.isSelected }) {
-            activateThread(replacement)
-            return
-        }
-
         rebuildMessageCaches()
         try? modelContext.save()
     }

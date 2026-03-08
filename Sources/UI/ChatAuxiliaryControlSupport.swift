@@ -187,22 +187,6 @@ enum ChatAuxiliaryControlSupport {
         return .success(draft)
     }
 
-    static func normalizeAnthropicDomainFilters(controls: inout GenerationControls) {
-        let allowed = AnthropicWebSearchDomainUtils.normalizedDomains(controls.webSearch?.allowedDomains)
-        let blocked = AnthropicWebSearchDomainUtils.normalizedDomains(controls.webSearch?.blockedDomains)
-
-        if !allowed.isEmpty {
-            controls.webSearch?.allowedDomains = allowed
-            controls.webSearch?.blockedDomains = nil
-        } else if !blocked.isEmpty {
-            controls.webSearch?.allowedDomains = nil
-            controls.webSearch?.blockedDomains = blocked
-        } else {
-            controls.webSearch?.allowedDomains = nil
-            controls.webSearch?.blockedDomains = nil
-        }
-    }
-
     static func prepareAnthropicWebSearchEditorDraft(
         webSearch: WebSearchControls?,
         currentMode: AnthropicDomainFilterMode
@@ -272,7 +256,7 @@ enum ChatAuxiliaryControlSupport {
             }
         }
 
-        normalizeAnthropicDomainFilters(controls: &controls)
+        ChatControlNormalizationSupport.normalizeAnthropicDomainFilters(controls: &controls)
         controls.webSearch?.userLocation = locationDraft.isEmpty ? nil : locationDraft
         return .success(controls)
     }
