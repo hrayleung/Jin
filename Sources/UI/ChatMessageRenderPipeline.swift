@@ -26,18 +26,31 @@ enum ChatMessageRenderPipeline {
         var renderedItems: [MessageRenderItem] = []
         renderedItems.reserveCapacity(orderedMessages.count)
 
+        var artifactVersionCounts: [String: Int] = [:]
+        var artifactOrder: [String] = []
+        var artifactVersionsByID: [String: [RenderedArtifactVersion]] = [:]
+
         for entity in orderedMessages {
             messageEntitiesByID[entity.id] = entity
             guard entity.role != "tool" else { continue }
 
             guard let message = try? entity.toDomain() else { continue }
+            let renderedBlocks = renderedBlocks(
+                content: message.content,
+                role: message.role,
+                messageID: entity.id,
+                timestamp: entity.timestamp,
+                artifactVersionCounts: &artifactVersionCounts,
+                artifactOrder: &artifactOrder,
+                artifactVersionsByID: &artifactVersionsByID
+            )
             renderedItems.append(
                 MessageRenderItem(
                     id: entity.id,
                     contextThreadID: entity.contextThreadID,
                     role: entity.role,
                     timestamp: entity.timestamp,
-                    renderedContentParts: renderedContentParts(content: message.content),
+                    renderedBlocks: renderedBlocks,
                     toolCalls: message.toolCalls ?? [],
                     searchActivities: message.searchActivities ?? [],
                     codexToolActivities: message.codexToolActivities ?? [],
@@ -48,7 +61,7 @@ enum ChatMessageRenderPipeline {
                         ? assistantProviderIconID(entity.generatedProviderID ?? "")
                         : nil,
                     responseMetrics: entity.responseMetrics,
-                    copyText: copyableText(from: message),
+                    copyText: copyableText(from: message, role: message.role),
                     canEditUserMessage: entity.role == "user"
                         && message.content.contains(where: { part in
                             if case .text = part { return true }
@@ -62,7 +75,11 @@ enum ChatMessageRenderPipeline {
         return ChatThreadRenderContext(
             visibleMessages: renderedItems,
             messageEntitiesByID: messageEntitiesByID,
-            toolResultsByCallID: toolResultsByToolCallID(in: orderedMessages)
+            toolResultsByCallID: toolResultsByToolCallID(in: orderedMessages),
+            artifactCatalog: ArtifactCatalog(
+                orderedArtifactIDs: artifactOrder,
+                versionsByArtifactID: artifactVersionsByID
+            )
         )
     }
 
@@ -77,19 +94,78 @@ enum ChatMessageRenderPipeline {
         return parts.joined(separator: "\n\n")
     }
 
-    private static func renderedContentParts(content: [ContentPart]) -> [RenderedMessageContentPart] {
-        content.compactMap { part in
-            if case .redactedThinking = part {
-                return nil
+    private static func renderedBlocks(
+        content: [ContentPart],
+        role: MessageRole,
+        messageID: UUID,
+        timestamp: Date,
+        artifactVersionCounts: inout [String: Int],
+        artifactOrder: inout [String],
+        artifactVersionsByID: inout [String: [RenderedArtifactVersion]]
+    ) -> [RenderedMessageBlock] {
+        var blocks: [RenderedMessageBlock] = []
+
+        for part in content {
+            switch part {
+            case .redactedThinking:
+                continue
+
+            case .text(let text) where role == .assistant:
+                let parseResult = ArtifactMarkupParser.parse(text)
+                let segments = parseResult.visibleTextSegments
+                let artifacts = parseResult.artifacts
+                let maxIndex = max(segments.count, artifacts.count)
+
+                for i in 0..<maxIndex {
+                    if i < segments.count {
+                        let segment = segments[i]
+                        if !segment.isEmpty {
+                            blocks.append(.content(.text(segment)))
+                        }
+                    }
+
+                    if i < artifacts.count {
+                        let artifact = artifacts[i]
+                        let nextVersion = (artifactVersionCounts[artifact.artifactID] ?? 0) + 1
+                        artifactVersionCounts[artifact.artifactID] = nextVersion
+
+                        if artifactVersionsByID[artifact.artifactID] == nil {
+                            artifactOrder.append(artifact.artifactID)
+                            artifactVersionsByID[artifact.artifactID] = []
+                        }
+
+                        let version = RenderedArtifactVersion(
+                            artifactID: artifact.artifactID,
+                            version: nextVersion,
+                            title: artifact.title,
+                            contentType: artifact.contentType,
+                            content: artifact.content,
+                            sourceMessageID: messageID,
+                            sourceTimestamp: timestamp
+                        )
+                        artifactVersionsByID[artifact.artifactID, default: []].append(version)
+                        blocks.append(.artifact(version))
+                    }
+                }
+
+            default:
+                blocks.append(.content(part))
             }
-            return RenderedMessageContentPart(part: part)
         }
+
+        return blocks
     }
 
-    private static func copyableText(from message: Message) -> String {
+    private static func copyableText(from message: Message, role: MessageRole) -> String {
         let textParts = message.content.compactMap { part -> String? in
             guard case .text(let text) = part else { return nil }
-            let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            let sourceText: String
+            if role == .assistant {
+                sourceText = ArtifactMarkupParser.visibleText(from: text)
+            } else {
+                sourceText = text
+            }
+            let trimmed = sourceText.trimmingCharacters(in: .whitespacesAndNewlines)
             return trimmed.isEmpty ? nil : trimmed
         }
 

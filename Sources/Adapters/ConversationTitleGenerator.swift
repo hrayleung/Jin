@@ -68,7 +68,8 @@ Rules:
             let content = message.content.compactMap { part -> String? in
                 switch part {
                 case .text(let text):
-                    let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+                    let visibleText = ArtifactMarkupParser.visibleText(from: text)
+                    let trimmed = visibleText.trimmingCharacters(in: .whitespacesAndNewlines)
                     return trimmed.isEmpty ? nil : trimmed
                 case .file(let file):
                     let fallback = AttachmentPromptRenderer.fallbackText(for: file)
