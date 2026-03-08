@@ -21,7 +21,7 @@ struct AssistantInspectorView: View {
                 }
             }
         }
-        .frame(minWidth: 600, idealWidth: 700, minHeight: 700, idealHeight: 800)
+        .frame(minWidth: 600, idealWidth: 700, minHeight: 600, idealHeight: 700)
     }
 }
 
@@ -39,9 +39,9 @@ private struct IconPickerButton: View {
                     .frame(width: JinControlMetrics.iconButtonHitSize, height: JinControlMetrics.iconButtonHitSize)
                     .jinSurface(.selected, cornerRadius: JinRadius.small)
 
-                Text(selectedIcon.isEmpty ? "Choose…" : selectedIcon)
+                Text(selectedIcon.isEmpty ? "Choose Icon…" : "Change Icon")
                     .font(.body)
-                    .foregroundStyle(selectedIcon.isEmpty ? .secondary : .primary)
+                    .foregroundStyle(.secondary)
                     .lineLimit(1)
 
                 Image(systemName: "chevron.up.chevron.down")
@@ -246,63 +246,12 @@ private struct AssistantSettingsEditorView: View {
 
     @State private var customReplyLanguageDraft = ""
     @State private var replyLanguageSelectionDraft: ReplyLanguageOption = .default
+    @State private var isIconPickerPresented = false
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: JinSpacing.large) {
-                VStack(alignment: .leading, spacing: JinSpacing.medium) {
-                    HStack(alignment: .center, spacing: JinSpacing.medium) {
-                        assistantIcon
-                            .frame(width: 56, height: 56)
-
-                        VStack(alignment: .leading, spacing: JinSpacing.xSmall) {
-                            Text(assistant.displayName)
-                                .font(.title2)
-                                .fontWeight(.semibold)
-                            Text("Tune this assistant’s behavior defaults for every new chat.")
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
-                        }
-
-                        Spacer(minLength: 0)
-                    }
-
-                    LazyVGrid(
-                        columns: [GridItem(.adaptive(minimum: 140), spacing: JinSpacing.small)],
-                        alignment: .leading,
-                        spacing: JinSpacing.small
-                    ) {
-                        overviewPill(title: "Temperature", value: temperatureSummaryText)
-                        overviewPill(title: "Max Tokens", value: maxTokensSummaryText)
-                        overviewPill(title: "History", value: historySummaryText)
-                        overviewPill(title: "Reply Language", value: replyLanguageSummaryText)
-                    }
-                }
-                .padding(JinSpacing.medium + 2)
-                .jinSurface(.raised, cornerRadius: JinRadius.large)
-
-                sectionCard(
-                    title: "Identity",
-                    subtitle: "How this assistant appears in your workspace.",
-                    systemImage: "person.crop.circle"
-                ) {
-                    VStack(alignment: .leading, spacing: JinSpacing.medium) {
-                        fieldBlock(title: "Name") {
-                            TextField("e.g., Code Assistant", text: nameBinding)
-                                .textFieldStyle(.roundedBorder)
-                        }
-
-                        fieldBlock(title: "Icon") {
-                            IconPickerButton(selectedIcon: iconBinding)
-                        }
-
-                        fieldBlock(title: "Description", footer: "Shown in assistant picker and sidebar hints.") {
-                            TextField("e.g., Helps with coding", text: descriptionBinding, axis: .vertical)
-                                .lineLimit(2...4)
-                                .textFieldStyle(.roundedBorder)
-                        }
-                    }
-                }
+                headerCard
 
                 sectionCard(
                     title: "System Prompt",
@@ -457,6 +406,38 @@ private struct AssistantSettingsEditorView: View {
         }
     }
 
+    private var headerCard: some View {
+        HStack(alignment: .center, spacing: JinSpacing.medium) {
+            Button {
+                isIconPickerPresented = true
+            } label: {
+                assistantIcon
+                    .frame(width: 56, height: 56)
+            }
+            .buttonStyle(.plain)
+            .help("Change icon")
+            .sheet(isPresented: $isIconPickerPresented) {
+                IconPickerSheet(selectedIcon: iconBinding)
+            }
+
+            VStack(alignment: .leading, spacing: JinSpacing.xSmall) {
+                TextField(text: nameBinding, prompt: Text("Assistant name")) { EmptyView() }
+                    .font(.title2)
+                    .fontWeight(.semibold)
+                    .textFieldStyle(.plain)
+
+                TextField(text: descriptionBinding, prompt: Text("Short description…")) { EmptyView() }
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .textFieldStyle(.plain)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(JinSpacing.medium + 2)
+        .jinSurface(.raised, cornerRadius: JinRadius.large)
+    }
+
     private func sectionCard<Content: View>(
         title: String,
         subtitle: String,
@@ -504,49 +485,6 @@ private struct AssistantSettingsEditorView: View {
                     .foregroundStyle(.tertiary)
             }
         }
-    }
-
-    private func overviewPill(title: String, value: String) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(title)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            Text(value)
-                .font(.system(.body, design: .monospaced))
-                .fontWeight(.medium)
-                .lineLimit(1)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, JinSpacing.small + 2)
-        .padding(.vertical, JinSpacing.small)
-        .jinSurface(.neutral, cornerRadius: JinRadius.small)
-    }
-
-    private var temperatureSummaryText: String {
-        assistant.temperature.formatted(.number.precision(.fractionLength(2)))
-    }
-
-    private var maxTokensSummaryText: String {
-        assistant.maxOutputTokens.map(String.init) ?? "Model default maximum"
-    }
-
-    private var historySummaryText: String {
-        switch assistant.truncateMessages {
-        case nil:
-            return "Default"
-        case false:
-            return "Unlimited"
-        case true:
-            if let value = assistant.maxHistoryMessages, value > 0 {
-                return "Keep \(value)"
-            }
-            return "On"
-        }
-    }
-
-    private var replyLanguageSummaryText: String {
-        let trimmed = (assistant.replyLanguage ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? "Default" : trimmed
     }
 
     private var systemInstructionEditor: some View {

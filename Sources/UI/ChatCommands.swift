@@ -62,6 +62,12 @@ struct ChatCommands: Commands {
         .keyboardShortcut(shortcutsStore.keyboardShortcut(for: .openModelPicker))
         .disabled(chatActions == nil)
 
+        Button("Add Model…") {
+            chatActions?.openAddModelPicker()
+        }
+        .keyboardShortcut(shortcutsStore.keyboardShortcut(for: .addModelToChat))
+        .disabled(chatActions == nil)
+
         Button("Attach…") {
             chatActions?.attach()
         }

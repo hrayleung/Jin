@@ -31,12 +31,14 @@ struct ChatView: View {
     @Environment(\.modelContext) var modelContext
     @EnvironmentObject private var streamingStore: ConversationStreamingStore
     @EnvironmentObject private var responseCompletionNotifier: ResponseCompletionNotifier
+    @EnvironmentObject private var shortcutsStore: AppShortcutsStore
     @Bindable var conversationEntity: ConversationEntity
     let onRequestDeleteConversation: () -> Void
     @Binding var isAssistantInspectorPresented: Bool
     var onPersistConversationIfNeeded: () -> Void = {}
     var isSidebarHidden: Bool = false
     var onToggleSidebar: (() -> Void)? = nil
+    var onNewChat: (() -> Void)? = nil
     @Query var providers: [ProviderConfigEntity]
     @Query var mcpServers: [MCPServerConfigEntity]
 
@@ -805,6 +807,7 @@ struct ChatView: View {
             canStopStreaming: isBusy,
             focusComposer: { isComposerFocused = true },
             openModelPicker: { isModelPickerPresented.toggle() },
+            openAddModelPicker: { isAddModelPickerPresented.toggle() },
             attach: { isFileImporterPresented = true },
             stopStreaming: {
                 guard isBusy else { return }
@@ -1931,12 +1934,15 @@ struct ChatView: View {
         ChatHeaderBarView(
             isSidebarHidden: isSidebarHidden,
             onToggleSidebar: onToggleSidebar,
+            onNewChat: onNewChat,
             currentProviderIconID: currentProviderIconID,
             currentModelName: currentModelName,
             toolbarThreads: headerToolbarThreads,
             isModelPickerPresented: $isModelPickerPresented,
             isAddModelPickerPresented: $isAddModelPickerPresented,
             isStarred: conversationEntity.isStarred == true,
+            starShortcutLabel: shortcutsStore.binding(for: .toggleStarChat)?.displayLabel,
+            addModelShortcutLabel: shortcutsStore.binding(for: .addModelToChat)?.displayLabel,
             onToggleStar: {
                 conversationEntity.isStarred = !(conversationEntity.isStarred == true)
                 try? modelContext.save()

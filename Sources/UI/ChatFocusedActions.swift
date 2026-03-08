@@ -5,6 +5,7 @@ struct ChatFocusedActions {
     let canStopStreaming: Bool
     let focusComposer: () -> Void
     let openModelPicker: () -> Void
+    let openAddModelPicker: () -> Void
     let attach: () -> Void
     let stopStreaming: () -> Void
     let toggleExpandedComposer: () -> Void

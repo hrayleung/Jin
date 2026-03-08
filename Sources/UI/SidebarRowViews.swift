@@ -25,8 +25,8 @@ struct ConversationRowView: View {
             .font(.headline)
             HStack {
                 HStack(spacing: 4) {
-                    ProviderIconView(iconID: providerIconID, fallbackSystemName: "network", size: 10)
-                        .frame(width: 10, height: 10)
+                    ProviderIconView(iconID: providerIconID, fallbackSystemName: "network", size: 12)
+                        .frame(width: 12, height: 12)
                     Text(subtitle)
                         .lineLimit(1)
                 }

@@ -9,15 +9,43 @@ struct ChatHeaderToolbarThread: Identifiable {
     let isRemovable: Bool
 }
 
+private struct ChatHeaderLeadingSymbol: View {
+    let systemName: String
+
+    var body: some View {
+        Image(systemName: systemName)
+            .font(.system(size: JinControlMetrics.iconButtonGlyphSize, weight: .semibold))
+            .imageScale(.medium)
+            .foregroundStyle(.secondary)
+            // These two SF Symbols do not share the same optical center at toolbar size.
+            // Keep the correction local to this header instead of pushing a generic icon rule.
+            .offset(y: visualVerticalOffset)
+    }
+
+    private var visualVerticalOffset: CGFloat {
+        switch systemName {
+        case "square.and.pencil":
+            return -0.95
+        case "sidebar.leading":
+            return 0
+        default:
+            return 0
+        }
+    }
+}
+
 struct ChatHeaderBarView<ModelPickerContent: View, AddModelPickerContent: View>: View {
     let isSidebarHidden: Bool
     let onToggleSidebar: (() -> Void)?
+    let onNewChat: (() -> Void)?
     let currentProviderIconID: String?
     let currentModelName: String
     let toolbarThreads: [ChatHeaderToolbarThread]
     @Binding var isModelPickerPresented: Bool
     @Binding var isAddModelPickerPresented: Bool
     let isStarred: Bool
+    let starShortcutLabel: String?
+    let addModelShortcutLabel: String?
     let onToggleStar: () -> Void
     let onOpenAssistantInspector: () -> Void
     let onRequestDeleteConversation: () -> Void
@@ -30,12 +58,15 @@ struct ChatHeaderBarView<ModelPickerContent: View, AddModelPickerContent: View>:
     init(
         isSidebarHidden: Bool,
         onToggleSidebar: (() -> Void)?,
+        onNewChat: (() -> Void)? = nil,
         currentProviderIconID: String?,
         currentModelName: String,
         toolbarThreads: [ChatHeaderToolbarThread],
         isModelPickerPresented: Binding<Bool>,
         isAddModelPickerPresented: Binding<Bool>,
         isStarred: Bool,
+        starShortcutLabel: String? = nil,
+        addModelShortcutLabel: String? = nil,
         onToggleStar: @escaping () -> Void,
         onOpenAssistantInspector: @escaping () -> Void,
         onRequestDeleteConversation: @escaping () -> Void,
@@ -47,12 +78,15 @@ struct ChatHeaderBarView<ModelPickerContent: View, AddModelPickerContent: View>:
     ) {
         self.isSidebarHidden = isSidebarHidden
         self.onToggleSidebar = onToggleSidebar
+        self.onNewChat = onNewChat
         self.currentProviderIconID = currentProviderIconID
         self.currentModelName = currentModelName
         self.toolbarThreads = toolbarThreads
         _isModelPickerPresented = isModelPickerPresented
         _isAddModelPickerPresented = isAddModelPickerPresented
         self.isStarred = isStarred
+        self.starShortcutLabel = starShortcutLabel
+        self.addModelShortcutLabel = addModelShortcutLabel
         self.onToggleStar = onToggleStar
         self.onOpenAssistantInspector = onOpenAssistantInspector
         self.onRequestDeleteConversation = onRequestDeleteConversation
@@ -85,14 +119,28 @@ struct ChatHeaderBarView<ModelPickerContent: View, AddModelPickerContent: View>:
     @ViewBuilder
     private var sidebarButton: some View {
         if isSidebarHidden, let onToggleSidebar {
-            Button(action: onToggleSidebar) {
-                Image(systemName: "sidebar.leading")
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(.secondary)
+            headerIconButton(
+                systemName: "sidebar.leading",
+                helpText: "Show Sidebar",
+                action: onToggleSidebar
+            )
+
+            if let onNewChat {
+                headerIconButton(
+                    systemName: "square.and.pencil",
+                    helpText: "New Chat",
+                    action: onNewChat
+                )
             }
-            .buttonStyle(.plain)
-            .help("Show Sidebar")
         }
+    }
+
+    private func headerIconButton(systemName: String, helpText: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            ChatHeaderLeadingSymbol(systemName: systemName)
+        }
+        .buttonStyle(JinIconButtonStyle(showBackground: false))
+        .help(helpText)
     }
 
     private var modelPickerButton: some View {
@@ -207,7 +255,7 @@ struct ChatHeaderBarView<ModelPickerContent: View, AddModelPickerContent: View>:
                 .foregroundStyle(.secondary)
         }
         .buttonStyle(.plain)
-        .help("Add model")
+        .help(addModelShortcutLabel.map { "Add model (\($0))" } ?? "Add model")
         .popover(isPresented: $isAddModelPickerPresented, arrowEdge: .bottom) {
             addModelPopover()
         }
@@ -221,7 +269,11 @@ struct ChatHeaderBarView<ModelPickerContent: View, AddModelPickerContent: View>:
                     .foregroundStyle(isStarred ? Color.orange : Color.primary)
             }
             .buttonStyle(JinIconButtonStyle())
-            .help(isStarred ? "Unstar chat" : "Star chat")
+            .help({
+                let base = isStarred ? "Unstar chat" : "Star chat"
+                if let label = starShortcutLabel { return "\(base) (\(label))" }
+                return base
+            }())
 
             Button(action: onOpenAssistantInspector) {
                 Image(systemName: "slider.horizontal.3")

@@ -146,7 +146,8 @@ struct ContentView: View {
                             persistConversationIfNeeded(conversation)
                         },
                         isSidebarHidden: !isSidebarVisible,
-                        onToggleSidebar: toggleSidebarVisibility
+                        onToggleSidebar: toggleSidebarVisibility,
+                        onNewChat: createNewConversation
                     )
                         .id(conversation.id)
                         .background(JinSemanticColor.detailSurface)
@@ -155,13 +156,25 @@ struct ContentView: View {
                     noConversationSelectedView
                         .overlay(alignment: .topLeading) {
                             if !isSidebarVisible {
-                                Button(action: toggleSidebarVisibility) {
-                                    Image(systemName: "sidebar.leading")
-                                        .font(.system(size: 13, weight: .medium))
-                                        .foregroundStyle(.secondary)
+                                HStack(spacing: JinSpacing.small) {
+                                    Button(action: toggleSidebarVisibility) {
+                                        Image(systemName: "sidebar.leading")
+                                            .font(.system(size: 13, weight: .medium))
+                                            .foregroundStyle(.secondary)
+                                            .frame(width: 20, height: 20)
+                                    }
+                                    .buttonStyle(.plain)
+                                    .help("Show Sidebar")
+
+                                    Button(action: createNewConversation) {
+                                        Image(systemName: "square.and.pencil")
+                                            .font(.system(size: 13, weight: .medium))
+                                            .foregroundStyle(.secondary)
+                                            .frame(width: 20, height: 20)
+                                    }
+                                    .buttonStyle(.plain)
+                                    .help("New Chat")
                                 }
-                                .buttonStyle(.plain)
-                                .help("Show Sidebar")
                                 .padding(JinSpacing.medium)
                             }
                         }
