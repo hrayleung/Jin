@@ -324,19 +324,105 @@ enum ChatAuxiliaryControlSupport {
     static func resolvedMCPServerConfigs(
         controls: GenerationControls,
         supportsMCPToolsControl: Bool,
-        servers: [MCPServerConfigEntity]
+        servers: [MCPServerConfigEntity],
+        perMessageOverrideServerIDs: Set<String> = []
     ) throws -> [MCPServerConfig] {
         guard supportsMCPToolsControl else { return [] }
-        guard controls.mcpTools?.enabled == true else { return [] }
+
+        var effectiveControls = controls
+        if !perMessageOverrideServerIDs.isEmpty {
+            effectiveControls.mcpTools = MCPToolsControls(
+                enabled: true,
+                enabledServerIDs: Array(perMessageOverrideServerIDs).sorted()
+            )
+        }
+
+        guard effectiveControls.mcpTools?.enabled == true else { return [] }
 
         let eligibleServers = eligibleMCPServers(from: servers)
         let eligibleIDs = Set(eligibleServers.map(\.id))
-        let allowlist = controls.mcpTools?.enabledServerIDs
+        let allowlist = effectiveControls.mcpTools?.enabledServerIDs
         let selectedIDs = allowlist.map(Set.init) ?? eligibleIDs
         let resolvedIDs = selectedIDs.intersection(eligibleIDs)
 
         return try eligibleServers
             .filter { resolvedIDs.contains($0.id) }
             .map { try $0.toConfig() }
+    }
+
+    // MARK: - Automatic Context Cache
+
+    static func automaticContextCacheControls(
+        providerType: ProviderType?,
+        modelID: String,
+        modelCapabilities: ModelCapability?,
+        supportsMediaGenerationControl: Bool,
+        conversationID: UUID
+    ) -> ContextCacheControls? {
+        guard !supportsMediaGenerationControl else { return nil }
+        guard let providerType else { return nil }
+        if providerType != .cloudflareAIGateway,
+           let modelCapabilities,
+           !modelCapabilities.contains(.promptCaching) {
+            return nil
+        }
+
+        let cacheConversationID = automaticContextCacheConversationID(
+            conversationID: conversationID,
+            modelID: modelID
+        )
+
+        switch providerType {
+        case .openai, .openaiWebSocket:
+            return ContextCacheControls(mode: .implicit)
+        case .xai:
+            return ContextCacheControls(
+                mode: .implicit,
+                conversationID: cacheConversationID
+            )
+        case .anthropic:
+            return ContextCacheControls(
+                mode: .implicit,
+                strategy: .prefixWindow,
+                ttl: .providerDefault
+            )
+        case .gemini, .vertexai:
+            return ContextCacheControls(mode: .implicit)
+        case .cloudflareAIGateway:
+            return ContextCacheControls(mode: .implicit, ttl: .minutes5)
+        case .codexAppServer, .githubCopilot, .openaiCompatible, .vercelAIGateway, .openrouter, .perplexity, .groq, .cohere,
+             .mistral, .deepinfra, .together, .deepseek, .zhipuCodingPlan, .fireworks,
+             .cerebras, .sambanova:
+            return nil
+        }
+    }
+
+    static func automaticContextCacheConversationID(conversationID: UUID, modelID: String) -> String {
+        let conversationPart = conversationID.uuidString.lowercased()
+        let modelPart = sanitizedContextCacheIdentifier(modelID, maxLength: 32)
+        return "jin-conv-\(conversationPart)-\(modelPart)"
+    }
+
+    static func sanitizedContextCacheIdentifier(_ raw: String, maxLength: Int) -> String {
+        let allowed = Set("abcdefghijklmnopqrstuvwxyz0123456789-_")
+        let lower = raw.lowercased()
+        var output = ""
+        output.reserveCapacity(min(lower.count, maxLength))
+
+        var previousWasHyphen = false
+        for scalar in lower.unicodeScalars {
+            guard output.count < maxLength else { break }
+            let character = Character(scalar)
+            if allowed.contains(character) {
+                output.append(character)
+                previousWasHyphen = false
+            } else if !previousWasHyphen {
+                output.append("-")
+                previousWasHyphen = true
+            }
+        }
+
+        let trimmed = output.trimmingCharacters(in: CharacterSet(charactersIn: "-_"))
+        return trimmed.isEmpty ? "model" : trimmed
     }
 }
