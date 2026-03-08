@@ -151,162 +151,57 @@ struct ChatView: View {
     }
 
     private var sortedModelThreads: [ConversationModelThreadEntity] {
-        conversationEntity.modelThreads.sorted { lhs, rhs in
-            if lhs.displayOrder != rhs.displayOrder {
-                return lhs.displayOrder < rhs.displayOrder
-            }
-            return lhs.createdAt < rhs.createdAt
-        }
+        ChatThreadSupport.sortedThreads(in: conversationEntity.modelThreads)
     }
 
     private var selectedModelThreads: [ConversationModelThreadEntity] {
-        let selected = sortedModelThreads.filter(\.isSelected)
-        let base = selected.isEmpty ? sortedModelThreads.prefix(1).map { $0 } : selected
-        guard let active = activeModelThread else { return base }
-
-        if base.contains(where: { $0.id == active.id }) {
-            return base
-        }
-        return base + [active]
+        ChatThreadSupport.selectedThreads(
+            from: sortedModelThreads,
+            activeThread: activeModelThread
+        )
     }
 
     private var secondaryToolbarThreads: [ConversationModelThreadEntity] {
-        guard let active = activeModelThread else { return sortedModelThreads }
-        return sortedModelThreads.filter { $0.id != active.id }
+        ChatThreadSupport.secondaryToolbarThreads(
+            from: sortedModelThreads,
+            activeThread: activeModelThread
+        )
     }
 
     private var activeModelThread: ConversationModelThreadEntity? {
-        let threads = sortedModelThreads
-        guard !threads.isEmpty else { return nil }
-
-        let preferredID = activeThreadID ?? conversationEntity.activeThreadID
-        if let preferredID,
-           let thread = threads.first(where: { $0.id == preferredID }) {
-            return thread
-        }
-
-        let selected = threads.filter(\.isSelected)
-        if let latest = selected.max(by: { $0.lastActivatedAt < $1.lastActivatedAt }) {
-            return latest
-        }
-
-        return threads.first
+        ChatThreadSupport.activeThread(
+            in: sortedModelThreads,
+            preferredID: activeThreadID ?? conversationEntity.activeThreadID
+        )
     }
 
     private var composerOverlay: some View {
-        let shape = RoundedRectangle(cornerRadius: JinRadius.large, style: .continuous)
-
-        return HStack(alignment: .bottom, spacing: JinSpacing.medium) {
-            composerLeftColumn
-            composerSendButton
-        }
-        .padding(JinSpacing.medium)
-        .frame(maxWidth: 800)
-        .background {
-            shape.fill(.regularMaterial)
-        }
-        .overlay(
-            shape.stroke(JinSemanticColor.separator.opacity(0.45), lineWidth: JinStrokeWidth.hairline)
-        )
-        .overlay(
-            shape.stroke(isComposerDropTargeted ? Color.accentColor : Color.clear, lineWidth: JinStrokeWidth.emphasized)
-        )
-        .shadow(color: Color.black.opacity(0.06), radius: 10, x: 0, y: 4)
-        .overlay(alignment: .topTrailing) {
-            composerExpandButton
-                .padding(.top, JinSpacing.medium)
-                .padding(.trailing, JinSpacing.medium)
-        }
-    }
-
-    @ViewBuilder
-    private var composerLeftColumn: some View {
-        VStack(alignment: .leading, spacing: JinSpacing.small) {
-            composerAttachmentChipsRow
-            composerRemoteVideoInputRow
-            composerTextEditor
+        CompactComposerOverlayView(
+            messageText: $messageText,
+            remoteVideoURLText: $remoteVideoInputURLText,
+            draftAttachments: $draftAttachments,
+            isComposerDropTargeted: $isComposerDropTargeted,
+            isComposerFocused: $isComposerFocused,
+            composerTextContentHeight: $composerTextContentHeight,
+            sendWithCommandEnter: sendWithCommandEnter,
+            isBusy: isBusy,
+            canSendDraft: canSendDraft,
+            showsRemoteVideoURLField: supportsExplicitRemoteVideoURLInput,
+            isPreparingToSend: isPreparingToSend,
+            prepareToSendStatus: prepareToSendStatus,
+            isRecording: speechToTextManager.isRecording,
+            isTranscribing: speechToTextManager.isTranscribing,
+            recordingDurationText: formattedRecordingDuration,
+            transcribingStatusText: speechToTextUsesAudioAttachment ? "Attaching audio…" : "Transcribing…",
+            onDropFileURLs: handleDroppedFileURLs,
+            onDropImages: handleDroppedImages,
+            onSubmit: handleComposerSubmit,
+            onCancel: handleComposerCancel,
+            onRemoveAttachment: removeDraftAttachment,
+            onExpand: { isExpandedComposerPresented = true },
+            onSend: sendMessage
+        ) {
             composerControlsRow
-            composerPrepareToSendRow
-            composerSpeechToTextStatusRow
-        }
-    }
-
-    @ViewBuilder
-    private var composerAttachmentChipsRow: some View {
-        if !draftAttachments.isEmpty {
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: JinSpacing.small) {
-                    ForEach(draftAttachments) { attachment in
-                        DraftAttachmentChip(
-                            attachment: attachment,
-                            onRemove: { removeDraftAttachment(attachment) }
-                        )
-                    }
-                }
-                .padding(.horizontal, JinSpacing.xSmall)
-            }
-        }
-    }
-
-    @ViewBuilder
-    private var composerRemoteVideoInputRow: some View {
-        if supportsExplicitRemoteVideoURLInput {
-            HStack(spacing: JinSpacing.small) {
-                Image(systemName: "link")
-                    .foregroundStyle(.secondary)
-
-                TextField("Public video URL (optional, for video edit)", text: $remoteVideoInputURLText)
-                    .textFieldStyle(.plain)
-                    .font(.callout)
-                    .disabled(isBusy)
-
-                if !trimmedRemoteVideoInputURLText.isEmpty {
-                    Button {
-                        remoteVideoInputURLText = ""
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .foregroundStyle(.secondary)
-                    }
-                    .buttonStyle(.plain)
-                    .help("Clear video URL")
-                    .disabled(isBusy)
-                }
-            }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 8)
-            .jinSurface(.subtle, cornerRadius: JinRadius.medium)
-        }
-    }
-
-    @ViewBuilder
-    private var composerTextEditor: some View {
-        ZStack(alignment: .topLeading) {
-            if messageText.isEmpty {
-                Text("Type a message...")
-                    .font(.body)
-                    .foregroundStyle(.secondary)
-                    .padding(.top, 2)
-                    .padding(.leading, 6)
-            }
-
-            DroppableTextEditor(
-                text: $messageText,
-                isDropTargeted: $isComposerDropTargeted,
-                isFocused: $isComposerFocused,
-                font: NSFont.preferredFont(forTextStyle: .body),
-                useCommandEnterToSubmit: sendWithCommandEnter,
-                onDropFileURLs: handleDroppedFileURLs,
-                onDropImages: handleDroppedImages,
-                onSubmit: handleComposerSubmit,
-                onCancel: handleComposerCancel,
-                onContentHeightChanged: { height in
-                    let clamped = max(36, min(height, 120))
-                    if abs(composerTextContentHeight - clamped) > 0.5 {
-                        composerTextContentHeight = clamped
-                    }
-                }
-            )
-            .frame(height: composerTextContentHeight)
         }
     }
 
@@ -314,136 +209,123 @@ struct ChatView: View {
     private var composerControlsRow: some View {
         HStack(spacing: 6) {
             if speechToTextPluginEnabled || speechToTextManagerActive {
-                Button { toggleSpeechToText() } label: {
-                    controlIconLabel(
-                        systemName: speechToTextSystemImageName,
-                        isActive: speechToTextManagerActive,
-                        badgeText: speechToTextBadgeText,
-                        activeColor: speechToTextActiveColor
-                    )
-                }
-                .buttonStyle(.plain)
-                .help(speechToTextHelpText)
-                .disabled(isBusy || speechToTextManager.isTranscribing || (!speechToTextReadyForCurrentMode && !speechToTextManager.isRecording))
-            }
-
-            Button { isFileImporterPresented = true } label: {
-                controlIconLabel(
-                    systemName: "paperclip",
-                    isActive: !draftAttachments.isEmpty,
-                    badgeText: draftAttachments.isEmpty ? nil : "\(draftAttachments.count)"
+                composerButtonControl(
+                    systemName: speechToTextSystemImageName,
+                    isActive: speechToTextManagerActive,
+                    badgeText: speechToTextBadgeText,
+                    help: speechToTextHelpText,
+                    activeColor: speechToTextActiveColor,
+                    disabled: isBusy || speechToTextManager.isTranscribing || (!speechToTextReadyForCurrentMode && !speechToTextManager.isRecording),
+                    action: toggleSpeechToText
                 )
             }
-            .buttonStyle(.plain)
-            .help(fileAttachmentHelpText)
-            .disabled(isBusy)
+
+            composerButtonControl(
+                systemName: "paperclip",
+                isActive: !draftAttachments.isEmpty,
+                badgeText: draftAttachments.isEmpty ? nil : "\(draftAttachments.count)",
+                help: fileAttachmentHelpText,
+                disabled: isBusy
+            ) {
+                isFileImporterPresented = true
+            }
 
             if supportsPDFProcessingControl {
-                Menu { pdfProcessingMenuContent } label: {
-                    controlIconLabel(
-                        systemName: "doc.text.magnifyingglass",
-                        isActive: resolvedPDFProcessingMode != .native,
-                        badgeText: pdfProcessingBadgeText
-                    )
+                composerMenuControl(
+                    systemName: "doc.text.magnifyingglass",
+                    isActive: resolvedPDFProcessingMode != .native,
+                    badgeText: pdfProcessingBadgeText,
+                    help: pdfProcessingHelpText
+                ) {
+                    pdfProcessingMenuContent
                 }
-                .menuStyle(.borderlessButton)
-                .help(pdfProcessingHelpText)
             }
 
             if supportsReasoningControl {
-                Menu { reasoningMenuContent } label: {
-                    controlIconLabel(
-                        systemName: "brain",
-                        isActive: isReasoningEnabled,
-                        badgeText: reasoningBadgeText
-                    )
+                composerMenuControl(
+                    systemName: "brain",
+                    isActive: isReasoningEnabled,
+                    badgeText: reasoningBadgeText,
+                    help: reasoningHelpText
+                ) {
+                    reasoningMenuContent
                 }
-                .menuStyle(.borderlessButton)
-                .help(reasoningHelpText)
             }
 
             if supportsOpenAIServiceTierControl {
-                Menu { openAIServiceTierMenuContent } label: {
-                    controlIconLabel(
-                        systemName: "speedometer",
-                        isActive: controls.openAIServiceTier != nil,
-                        badgeText: openAIServiceTierBadgeText
-                    )
+                composerMenuControl(
+                    systemName: "speedometer",
+                    isActive: controls.openAIServiceTier != nil,
+                    badgeText: openAIServiceTierBadgeText,
+                    help: openAIServiceTierHelpText
+                ) {
+                    openAIServiceTierMenuContent
                 }
-                .menuStyle(.borderlessButton)
-                .help(openAIServiceTierHelpText)
             }
 
             if supportsWebSearchControl {
-                Menu { webSearchMenuContent } label: {
-                    controlIconLabel(
-                        systemName: "globe",
-                        isActive: isWebSearchEnabled,
-                        badgeText: webSearchBadgeText
-                    )
+                composerMenuControl(
+                    systemName: "globe",
+                    isActive: isWebSearchEnabled,
+                    badgeText: webSearchBadgeText,
+                    help: webSearchHelpText
+                ) {
+                    webSearchMenuContent
                 }
-                .menuStyle(.borderlessButton)
-                .help(webSearchHelpText)
             }
 
             if supportsContextCacheControl {
-                Menu { contextCacheMenuContent } label: {
-                    controlIconLabel(
-                        systemName: "archivebox",
-                        isActive: isContextCacheEnabled,
-                        badgeText: contextCacheBadgeText
-                    )
+                composerMenuControl(
+                    systemName: "archivebox",
+                    isActive: isContextCacheEnabled,
+                    badgeText: contextCacheBadgeText,
+                    help: contextCacheHelpText
+                ) {
+                    contextCacheMenuContent
                 }
-                .menuStyle(.borderlessButton)
-                .help(contextCacheHelpText)
             }
 
             if supportsMCPToolsControl {
-                Menu { mcpToolsMenuContent } label: {
-                    controlIconLabel(
-                        systemName: "hammer",
-                        isActive: supportsMCPToolsControl && isMCPToolsEnabled,
-                        badgeText: mcpToolsBadgeText
-                    )
+                composerMenuControl(
+                    systemName: "hammer",
+                    isActive: supportsMCPToolsControl && isMCPToolsEnabled,
+                    badgeText: mcpToolsBadgeText,
+                    help: mcpToolsHelpText
+                ) {
+                    mcpToolsMenuContent
                 }
-                .menuStyle(.borderlessButton)
-                .help(mcpToolsHelpText)
             }
 
             if supportsCodexSessionControl {
-                Button { openCodexSessionSettingsEditor() } label: {
-                    controlIconLabel(
-                        systemName: "terminal",
-                        isActive: codexSessionOverrideCount > 0,
-                        badgeText: codexSessionBadgeText
-                    )
-                }
-                .buttonStyle(.plain)
-                .help(codexSessionHelpText)
+                composerButtonControl(
+                    systemName: "terminal",
+                    isActive: codexSessionOverrideCount > 0,
+                    badgeText: codexSessionBadgeText,
+                    help: codexSessionHelpText,
+                    action: openCodexSessionSettingsEditor
+                )
             }
 
             if supportsImageGenerationControl {
-                Menu { imageGenerationMenuContent } label: {
-                    controlIconLabel(
-                        systemName: "photo",
-                        isActive: isImageGenerationConfigured,
-                        badgeText: imageGenerationBadgeText
-                    )
+                composerMenuControl(
+                    systemName: "photo",
+                    isActive: isImageGenerationConfigured,
+                    badgeText: imageGenerationBadgeText,
+                    help: imageGenerationHelpText
+                ) {
+                    imageGenerationMenuContent
                 }
-                .menuStyle(.borderlessButton)
-                .help(imageGenerationHelpText)
             }
 
             if supportsVideoGenerationControl {
-                Menu { videoGenerationMenuContent } label: {
-                    controlIconLabel(
-                        systemName: "film",
-                        isActive: isVideoGenerationConfigured,
-                        badgeText: videoGenerationBadgeText
-                    )
+                composerMenuControl(
+                    systemName: "film",
+                    isActive: isVideoGenerationConfigured,
+                    badgeText: videoGenerationBadgeText,
+                    help: videoGenerationHelpText
+                ) {
+                    videoGenerationMenuContent
                 }
-                .menuStyle(.borderlessButton)
-                .help(videoGenerationHelpText)
             }
 
             Spacer(minLength: 0)
@@ -451,620 +333,203 @@ struct ChatView: View {
         .padding(.bottom, 1)
     }
 
-    @ViewBuilder
-    private var composerPrepareToSendRow: some View {
-        if isPreparingToSend, let prepareToSendStatus {
-            HStack(spacing: 8) {
-                ProgressView()
-                    .controlSize(.small)
-                Text(prepareToSendStatus)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Spacer(minLength: 0)
-            }
-            .padding(.top, 2)
-        }
-    }
-
-    @ViewBuilder
-    private var composerSpeechToTextStatusRow: some View {
-        if speechToTextManager.isRecording {
-            HStack(spacing: 8) {
-                Circle()
-                    .fill(Color.red)
-                    .frame(width: 6, height: 6)
-                Text("Recording… \(formattedRecordingDuration)")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Spacer(minLength: 0)
-            }
-            .padding(.top, 2)
-        } else if speechToTextManager.isTranscribing {
-            HStack(spacing: 8) {
-                ProgressView()
-                    .controlSize(.small)
-                Text(speechToTextUsesAudioAttachment ? "Attaching audio…" : "Transcribing…")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Spacer(minLength: 0)
-            }
-            .padding(.top, 2)
-        }
-    }
-
-    private var composerExpandButton: some View {
-        Button {
-            isExpandedComposerPresented = true
-        } label: {
-            Image(systemName: "arrow.up.left.and.arrow.down.right")
-                .font(.system(size: 10, weight: .medium))
-                .foregroundStyle(.tertiary)
-                .frame(width: 22, height: 22)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .help("Expand composer (\u{21E7}\u{2318}E)")
-        .disabled(isBusy)
-    }
-
-    private var composerSendButton: some View {
-        Button(action: sendMessage) {
-            Image(systemName: isBusy ? "stop.circle.fill" : "arrow.up.circle.fill")
-                .resizable()
-                .symbolRenderingMode(.hierarchical)
-                .frame(width: 22, height: 22)
-                .foregroundStyle(isBusy ? Color.secondary : (canSendDraft ? Color.accentColor : .gray))
-        }
-        .buttonStyle(.plain)
-        .disabled((!canSendDraft && !isBusy) || speechToTextManager.isRecording || speechToTextManager.isTranscribing)
-        .padding(.bottom, 2)
-    }
-
-    @ViewBuilder
-    private func chatMessageRows(
-        visibleMessages: [MessageRenderItem],
-        hiddenCount: Int,
-        allMessagesCount: Int,
-        bubbleMaxWidth: CGFloat,
-        assistantDisplayName: String,
-        providerIconID: String?,
-        eagerCodeHighlightStartIndex: Int,
-        toolResultsByCallID: [String: ToolResult],
-        messageEntitiesByID: [UUID: MessageEntity]
+    private func composerButtonControl(
+        systemName: String,
+        isActive: Bool,
+        badgeText: String?,
+        help: String,
+        activeColor: Color = .accentColor,
+        disabled: Bool = false,
+        action: @escaping () -> Void
     ) -> some View {
-        if hiddenCount > 0 {
-            LoadEarlierMessagesRow(
-                hiddenCount: hiddenCount,
-                pageSize: Self.messageRenderPageSize,
-                onLoad: {
-                    guard let firstVisible = visibleMessages.first else { return }
-                    pendingRestoreScrollMessageID = firstVisible.id
-                    messageRenderLimit = min(allMessagesCount, messageRenderLimit + Self.messageRenderPageSize)
-                }
+        Button(action: action) {
+            ComposerControlIconLabel(
+                systemName: systemName,
+                isActive: isActive,
+                badgeText: badgeText,
+                activeColor: activeColor
             )
-            .id("loadEarlier")
         }
-
-        ForEach(Array(visibleMessages.enumerated()), id: \.element.id) { index, message in
-            MessageRow(
-                item: message,
-                maxBubbleWidth: bubbleMaxWidth,
-                assistantDisplayName: assistantDisplayName,
-                providerIconID: providerIconID,
-                deferCodeHighlightUpgrade: index < eagerCodeHighlightStartIndex,
-                toolResultsByCallID: toolResultsByCallID,
-                actionsEnabled: !isStreaming,
-                textToSpeechEnabled: textToSpeechPluginEnabled,
-                textToSpeechConfigured: textToSpeechConfigured,
-                textToSpeechIsGenerating: ttsPlaybackManager.isGenerating(messageID: message.id),
-                textToSpeechIsPlaying: ttsPlaybackManager.isPlaying(messageID: message.id),
-                textToSpeechIsPaused: ttsPlaybackManager.isPaused(messageID: message.id),
-                onToggleSpeakAssistantMessage: { messageID, text in
-                    guard let entity = messageEntitiesByID[messageID] else { return }
-                    toggleSpeakAssistantMessage(entity, text: text)
-                },
-                onStopSpeakAssistantMessage: { messageID in
-                    guard let entity = messageEntitiesByID[messageID] else { return }
-                    stopSpeakAssistantMessage(entity)
-                },
-                onRegenerate: { messageID in
-                    guard let entity = messageEntitiesByID[messageID] else { return }
-                    regenerateMessage(entity)
-                },
-                onEditUserMessage: { messageID in
-                    guard let entity = messageEntitiesByID[messageID] else { return }
-                    beginEditingUserMessage(entity)
-                },
-                editingUserMessageID: editingUserMessageID,
-                editingUserMessageText: $editingUserMessageText,
-                editingUserMessageFocused: $isEditingUserMessageFocused,
-                onSubmitUserEdit: { messageID in
-                    guard let entity = messageEntitiesByID[messageID] else { return }
-                    submitEditingUserMessage(entity)
-                },
-                onCancelUserEdit: {
-                    cancelEditingUserMessage()
-                },
-                onActivate: {
-                    if let threadID = message.contextThreadID {
-                        activateThread(by: threadID)
-                    }
-                }
-            )
-            .id(message.id)
-        }
-
-        // Streaming message
-        if let streaming = streamingMessage {
-            StreamingMessageView(
-                state: streaming,
-                maxBubbleWidth: bubbleMaxWidth,
-                assistantDisplayName: assistantDisplayName,
-                modelLabel: streamingModelLabel,
-                providerIconID: providerIconID,
-                onContentUpdate: { }
-            )
-            .id("streaming")
-        }
-
-        Color.clear
-            .frame(height: composerHeight + 24)
-            .id("bottom")
+        .buttonStyle(.plain)
+        .help(help)
+        .disabled(disabled)
     }
 
-    private func chatScrollView(geometry: GeometryProxy, proxy: ScrollViewProxy) -> some View {
-        func refreshPinnedBottomIfNeeded() {
-            guard isPinnedToBottom else { return }
-            pinnedBottomRefreshGeneration &+= 1
-            let refreshGeneration = pinnedBottomRefreshGeneration
-
-            for delay in Self.pinnedBottomRefreshDelays {
-                DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
-                    guard refreshGeneration == pinnedBottomRefreshGeneration else { return }
-                    guard isPinnedToBottom else { return }
-                    proxy.scrollTo("bottom", anchor: .bottom)
-                }
-            }
+    private func composerMenuControl<MenuContent: View>(
+        systemName: String,
+        isActive: Bool,
+        badgeText: String?,
+        help: String,
+        activeColor: Color = .accentColor,
+        @ViewBuilder content: @escaping () -> MenuContent
+    ) -> some View {
+        Menu(content: content) {
+            ComposerControlIconLabel(
+                systemName: systemName,
+                isActive: isActive,
+                badgeText: badgeText,
+                activeColor: activeColor
+            )
         }
-
-        return ScrollView {
-            let bubbleMaxWidth = maxBubbleWidth(for: geometry.size.width)
-            let assistantDisplayName = conversationEntity.assistant?.displayName ?? "Assistant"
-            let providerIconID = currentProviderIconID
-            let toolResultsByCallID = cachedToolResultsByCallID
-            let messageEntitiesByID = cachedMessageEntitiesByID
-
-            let allMessages = cachedVisibleMessages
-            let visibleMessages = Array(allMessages.suffix(messageRenderLimit))
-            let hiddenCount = allMessages.count - visibleMessages.count
-            let eagerCodeHighlightStartIndex = max(0, visibleMessages.count - Self.eagerCodeHighlightTailCount)
-            let useLazyMessageStack = visibleMessages.count > Self.nonLazyMessageStackThreshold
-
-            Group {
-                if useLazyMessageStack {
-                    LazyVStack(alignment: .leading, spacing: 16) {
-                        chatMessageRows(
-                            visibleMessages: visibleMessages,
-                            hiddenCount: hiddenCount,
-                            allMessagesCount: allMessages.count,
-                            bubbleMaxWidth: bubbleMaxWidth,
-                            assistantDisplayName: assistantDisplayName,
-                            providerIconID: providerIconID,
-                            eagerCodeHighlightStartIndex: eagerCodeHighlightStartIndex,
-                            toolResultsByCallID: toolResultsByCallID,
-                            messageEntitiesByID: messageEntitiesByID
-                        )
-                    }
-                } else {
-                    VStack(alignment: .leading, spacing: 16) {
-                        chatMessageRows(
-                            visibleMessages: visibleMessages,
-                            hiddenCount: hiddenCount,
-                            allMessagesCount: allMessages.count,
-                            bubbleMaxWidth: bubbleMaxWidth,
-                            assistantDisplayName: assistantDisplayName,
-                            providerIconID: providerIconID,
-                            eagerCodeHighlightStartIndex: eagerCodeHighlightStartIndex,
-                            toolResultsByCallID: toolResultsByCallID,
-                            messageEntitiesByID: messageEntitiesByID
-                        )
-                    }
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 20)
-            .padding(.top, 24)
-            .frame(minHeight: geometry.size.height, alignment: .bottom)
-        }
-        .defaultScrollAnchor(.bottom)
-        .overlay(alignment: .bottomTrailing) {
-            Group {
-                if !isPinnedToBottom {
-                    Button {
-                        withAnimation(.easeOut(duration: 0.2)) {
-                            proxy.scrollTo("bottom", anchor: .bottom)
-                        }
-                    } label: {
-                        Image(systemName: "chevron.down")
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundStyle(.secondary)
-                            .frame(width: 32, height: 32)
-                            .background(.regularMaterial, in: Circle())
-                            .shadow(color: .black.opacity(0.1), radius: 4, y: 2)
-                    }
-                    .buttonStyle(.plain)
-                    .padding(.trailing, 20)
-                    .padding(.bottom, 34)
-                    .transition(.opacity.combined(with: .scale(scale: 0.8)))
-                }
-            }
-            .animation(.easeInOut(duration: 0.2), value: isPinnedToBottom)
-        }
-        .onScrollPinChange(isPinned: $isPinnedToBottom)
-        .onChange(of: messageRenderLimit) { _, _ in
-            guard let restoreID = pendingRestoreScrollMessageID else { return }
-            DispatchQueue.main.async {
-                proxy.scrollTo(restoreID, anchor: .top)
-                pendingRestoreScrollMessageID = nil
-            }
-        }
-        .onChange(of: conversationEntity.messages.count) { _, _ in
-            refreshPinnedBottomIfNeeded()
-        }
-        .onChange(of: isStreaming) { wasStreaming, nowStreaming in
-            guard wasStreaming, !nowStreaming else { return }
-            rebuildMessageCachesIfNeeded()
-            refreshPinnedBottomIfNeeded()
-        }
-        .onChange(of: conversationEntity.id) { _, _ in
-            DispatchQueue.main.async {
-                proxy.scrollTo("bottom", anchor: .bottom)
-            }
-        }
+        .menuStyle(.borderlessButton)
+        .help(help)
     }
 
-    private struct ThreadRenderContext {
-        let visibleMessages: [MessageRenderItem]
-        let messageEntitiesByID: [UUID: MessageEntity]
-        let toolResultsByCallID: [String: ToolResult]
+    private var messageInteractionContext: ChatMessageInteractionContext {
+        ChatMessageInteractionContext(
+            actionsEnabled: !isStreaming,
+            textToSpeechEnabled: textToSpeechPluginEnabled,
+            textToSpeechConfigured: textToSpeechConfigured,
+            editingUserMessageID: editingUserMessageID,
+            editingUserMessageText: $editingUserMessageText,
+            editingUserMessageFocused: $isEditingUserMessageFocused,
+            textToSpeechIsGenerating: { messageID in
+                ttsPlaybackManager.isGenerating(messageID: messageID)
+            },
+            textToSpeechIsPlaying: { messageID in
+                ttsPlaybackManager.isPlaying(messageID: messageID)
+            },
+            textToSpeechIsPaused: { messageID in
+                ttsPlaybackManager.isPaused(messageID: messageID)
+            },
+            onToggleSpeakAssistantMessage: { entity, text in
+                toggleSpeakAssistantMessage(entity, text: text)
+            },
+            onStopSpeakAssistantMessage: { entity in
+                stopSpeakAssistantMessage(entity)
+            },
+            onRegenerate: { entity in
+                regenerateMessage(entity)
+            },
+            onEditUserMessage: { entity in
+                beginEditingUserMessage(entity)
+            },
+            onSubmitUserEdit: { entity in
+                submitEditingUserMessage(entity)
+            },
+            onCancelUserEdit: {
+                cancelEditingUserMessage()
+            }
+        )
     }
 
-    private func threadRenderContext(threadID: UUID) -> ThreadRenderContext {
-        let ordered = orderedConversationMessages(threadID: threadID)
+    private var assistantDisplayName: String {
+        conversationEntity.assistant?.displayName ?? "Assistant"
+    }
+
+    private var singleThreadRenderContext: ChatThreadRenderContext {
+        ChatThreadRenderContext(
+            visibleMessages: cachedVisibleMessages,
+            messageEntitiesByID: cachedMessageEntitiesByID,
+            toolResultsByCallID: cachedToolResultsByCallID
+        )
+    }
+
+    private var selectedThreadRenderContexts: [UUID: ChatThreadRenderContext] {
+        Dictionary(uniqueKeysWithValues: selectedModelThreads.map { thread in
+            (thread.id, threadRenderContext(threadID: thread.id))
+        })
+    }
+
+    private func threadRenderContext(threadID: UUID) -> ChatThreadRenderContext {
+        let ordered = ChatMessageRenderPipeline.orderedMessages(
+            from: conversationEntity.messages,
+            threadID: threadID
+        )
         let fallbackModelLabel = sortedModelThreads
             .first(where: { $0.id == threadID })
             .map { modelName(id: $0.modelID, providerID: $0.providerID) }
             ?? currentModelName
 
-        var messageEntitiesByID: [UUID: MessageEntity] = [:]
-        messageEntitiesByID.reserveCapacity(ordered.count)
-
-        var renderedItems: [MessageRenderItem] = []
-        renderedItems.reserveCapacity(ordered.count)
-
-        for entity in ordered {
-            messageEntitiesByID[entity.id] = entity
-            guard entity.role != "tool" else { continue }
-
-            guard let message = try? entity.toDomain() else { continue }
-            let renderedParts = renderedContentParts(content: message.content)
-
-            renderedItems.append(
-                MessageRenderItem(
-                    id: entity.id,
-                    contextThreadID: entity.contextThreadID,
-                    role: entity.role,
-                    timestamp: entity.timestamp,
-                    renderedContentParts: renderedParts,
-                    toolCalls: message.toolCalls ?? [],
-                    searchActivities: message.searchActivities ?? [],
-                    codexToolActivities: message.codexToolActivities ?? [],
-                    assistantModelLabel: entity.role == "assistant"
-                        ? (entity.generatedModelName ?? entity.generatedModelID ?? fallbackModelLabel)
-                        : nil,
-                    assistantProviderIconID: entity.role == "assistant"
-                        ? providerIconID(for: entity.generatedProviderID ?? "")
-                        : nil,
-                    responseMetrics: entity.responseMetrics,
-                    copyText: copyableText(from: message),
-                    canEditUserMessage: entity.role == "user"
-                        && message.content.contains(where: { part in
-                            if case .text = part { return true }
-                            return false
-                        })
-                )
-            )
-        }
-
-        return ThreadRenderContext(
-            visibleMessages: renderedItems,
-            messageEntitiesByID: messageEntitiesByID,
-            toolResultsByCallID: toolResultsByToolCallID(in: ordered)
+        return ChatMessageRenderPipeline.makeRenderContext(
+            from: ordered,
+            fallbackModelLabel: fallbackModelLabel,
+            assistantProviderIconID: { providerID in
+                providerIconID(for: providerID)
+            }
         )
     }
 
-    private func multiModelChatView(geometry: GeometryProxy) -> some View {
-        let threads = selectedModelThreads
-        let horizontalPadding: CGFloat = 20
-        let spacing: CGFloat = 12
-        let availableWidth = max(0, geometry.size.width - (horizontalPadding * 2) - (spacing * CGFloat(max(threads.count - 1, 0))))
-        let columnWidth = max(320, availableWidth / CGFloat(max(threads.count, 1)))
-
-        return ScrollView(.horizontal) {
-            HStack(alignment: .top, spacing: spacing) {
-                ForEach(threads) { thread in
-                    multiModelThreadColumn(
-                        thread: thread,
-                        columnWidth: columnWidth,
-                        containerHeight: geometry.size.height
-                    )
-                }
-            }
-            .padding(.horizontal, horizontalPadding)
-            .padding(.top, 16)
-            .frame(minHeight: geometry.size.height, alignment: .bottomLeading)
-        }
-    }
-
-    private func multiModelThreadColumn(
-        thread: ConversationModelThreadEntity,
-        columnWidth: CGFloat,
-        containerHeight: CGFloat
-    ) -> some View {
-        let context = threadRenderContext(threadID: thread.id)
-        let assistantDisplayName = conversationEntity.assistant?.displayName ?? "Assistant"
-        let providerIcon = providerIconID(for: thread.providerID)
-        let eagerCodeHighlightStartIndex = max(0, context.visibleMessages.count - Self.eagerCodeHighlightTailCount)
-        let bubbleMaxWidth = max(220, columnWidth - 34)
-        let bottomID = "bottom-\(thread.id.uuidString)"
-
-        return VStack(spacing: 0) {
-            Button {
-                activateThread(thread)
-            } label: {
-                HStack(spacing: 8) {
-                    ProviderIconView(iconID: providerIcon, size: 12)
-                        .frame(width: 14, height: 14)
-                    Text(modelName(id: thread.modelID, providerID: thread.providerID))
-                        .font(.caption)
-                        .fontWeight(.semibold)
-                        .lineLimit(1)
-                    Spacer(minLength: 0)
-                    if isActiveThread(thread) {
-                        Image(systemName: "pencil.circle.fill")
-                            .font(.caption)
-                            .foregroundStyle(Color.accentColor)
-                    }
-                }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 10)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-
-            Divider()
-                .overlay(JinSemanticColor.separator.opacity(0.35))
-
-            ScrollViewReader { proxy in
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 16) {
-                        multiModelThreadRows(
-                            thread: thread,
-                            context: context,
-                            bubbleMaxWidth: bubbleMaxWidth,
-                            assistantDisplayName: assistantDisplayName,
-                            providerIcon: providerIcon,
-                            eagerCodeHighlightStartIndex: eagerCodeHighlightStartIndex
-                        )
-
-                        if let streaming = streamingMessage(for: thread.id) {
-                            StreamingMessageView(
-                                state: streaming,
-                                maxBubbleWidth: bubbleMaxWidth,
-                                assistantDisplayName: assistantDisplayName,
-                                modelLabel: streamingModelLabel(for: thread.id),
-                                providerIconID: providerIcon,
-                                onContentUpdate: { }
-                            )
-                            .id("streaming-\(thread.id.uuidString)")
-                        }
-
-                        Color.clear
-                            .frame(height: composerHeight + 24)
-                            .id(bottomID)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.top, 14)
-                }
-                .defaultScrollAnchor(.bottom)
-                .onAppear {
-                    DispatchQueue.main.async {
-                        proxy.scrollTo(bottomID, anchor: .bottom)
-                    }
-                }
-                .onChange(of: conversationEntity.messages.count) { _, _ in
-                    DispatchQueue.main.async {
-                        proxy.scrollTo(bottomID, anchor: .bottom)
-                    }
-                }
-                .onChange(of: isStreaming) { _, _ in
-                    DispatchQueue.main.async {
-                        proxy.scrollTo(bottomID, anchor: .bottom)
-                    }
-                }
-            }
-        }
-        .frame(width: columnWidth, alignment: .topLeading)
-        .frame(minHeight: containerHeight, alignment: .topLeading)
-        .background(
-            RoundedRectangle(cornerRadius: JinRadius.large, style: .continuous)
-                .fill(JinSemanticColor.detailSurface)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: JinRadius.large, style: .continuous)
-                .stroke(
-                    isActiveThread(thread) ? Color.accentColor.opacity(0.65) : JinSemanticColor.separator.opacity(0.45),
-                    lineWidth: isActiveThread(thread) ? JinStrokeWidth.emphasized : JinStrokeWidth.hairline
-                )
+    private func singleThreadMessageStage(geometry: GeometryProxy) -> some View {
+        ChatSingleThreadMessagesView(
+            conversationID: conversationEntity.id,
+            conversationMessageCount: conversationEntity.messages.count,
+            containerSize: geometry.size,
+            allMessages: singleThreadRenderContext.visibleMessages,
+            toolResultsByCallID: singleThreadRenderContext.toolResultsByCallID,
+            messageEntitiesByID: singleThreadRenderContext.messageEntitiesByID,
+            assistantDisplayName: assistantDisplayName,
+            providerIconID: currentProviderIconID,
+            composerHeight: composerHeight,
+            isStreaming: isStreaming,
+            streamingMessage: streamingMessage,
+            streamingModelLabel: streamingModelLabel,
+            messageRenderPageSize: Self.messageRenderPageSize,
+            eagerCodeHighlightTailCount: Self.eagerCodeHighlightTailCount,
+            nonLazyMessageStackThreshold: Self.nonLazyMessageStackThreshold,
+            pinnedBottomRefreshDelays: Self.pinnedBottomRefreshDelays,
+            interaction: messageInteractionContext,
+            onStreamingFinished: {
+                rebuildMessageCachesIfNeeded()
+            },
+            onActivateMessageThread: { threadID in
+                activateThread(by: threadID)
+            },
+            messageRenderLimit: $messageRenderLimit,
+            pendingRestoreScrollMessageID: $pendingRestoreScrollMessageID,
+            isPinnedToBottom: $isPinnedToBottom,
+            pinnedBottomRefreshGeneration: $pinnedBottomRefreshGeneration
         )
     }
 
-    @ViewBuilder
-    private func multiModelThreadRows(
-        thread: ConversationModelThreadEntity,
-        context: ThreadRenderContext,
-        bubbleMaxWidth: CGFloat,
-        assistantDisplayName: String,
-        providerIcon: String?,
-        eagerCodeHighlightStartIndex: Int
-    ) -> some View {
-        ForEach(Array(context.visibleMessages.enumerated()), id: \.element.id) { index, message in
-            MessageRow(
-                item: message,
-                maxBubbleWidth: bubbleMaxWidth,
-                assistantDisplayName: assistantDisplayName,
-                providerIconID: providerIcon,
-                deferCodeHighlightUpgrade: index < eagerCodeHighlightStartIndex,
-                toolResultsByCallID: context.toolResultsByCallID,
-                actionsEnabled: !isStreaming,
-                textToSpeechEnabled: textToSpeechPluginEnabled,
-                textToSpeechConfigured: textToSpeechConfigured,
-                textToSpeechIsGenerating: ttsPlaybackManager.isGenerating(messageID: message.id),
-                textToSpeechIsPlaying: ttsPlaybackManager.isPlaying(messageID: message.id),
-                textToSpeechIsPaused: ttsPlaybackManager.isPaused(messageID: message.id),
-                onToggleSpeakAssistantMessage: { messageID, text in
-                    guard let entity = context.messageEntitiesByID[messageID] else { return }
-                    toggleSpeakAssistantMessage(entity, text: text)
-                },
-                onStopSpeakAssistantMessage: { messageID in
-                    guard let entity = context.messageEntitiesByID[messageID] else { return }
-                    stopSpeakAssistantMessage(entity)
-                },
-                onRegenerate: { messageID in
-                    guard let entity = context.messageEntitiesByID[messageID] else { return }
-                    regenerateMessage(entity)
-                },
-                onEditUserMessage: { messageID in
-                    guard let entity = context.messageEntitiesByID[messageID] else { return }
-                    beginEditingUserMessage(entity)
-                },
-                editingUserMessageID: editingUserMessageID,
-                editingUserMessageText: $editingUserMessageText,
-                editingUserMessageFocused: $isEditingUserMessageFocused,
-                onSubmitUserEdit: { messageID in
-                    guard let entity = context.messageEntitiesByID[messageID] else { return }
-                    submitEditingUserMessage(entity)
-                },
-                onCancelUserEdit: {
-                    cancelEditingUserMessage()
-                },
-                onActivate: {
-                    activateThread(thread)
-                }
-            )
-            .id(message.id)
-        }
+    private func multiThreadMessageStage(geometry: GeometryProxy) -> some View {
+        ChatMultiModelStageView(
+            conversationMessageCount: conversationEntity.messages.count,
+            containerSize: geometry.size,
+            threads: selectedModelThreads,
+            contextsByThreadID: selectedThreadRenderContexts,
+            assistantDisplayName: assistantDisplayName,
+            composerHeight: composerHeight,
+            isStreaming: isStreaming,
+            activeThreadID: activeModelThread?.id,
+            initialMessageRenderLimit: Self.initialMessageRenderLimit,
+            messageRenderPageSize: Self.messageRenderPageSize,
+            eagerCodeHighlightTailCount: Self.eagerCodeHighlightTailCount,
+            nonLazyMessageStackThreshold: Self.nonLazyMessageStackThreshold,
+            interaction: messageInteractionContext,
+            modelNameForThread: { thread in
+                modelName(id: thread.modelID, providerID: thread.providerID)
+            },
+            providerIconIDForProviderID: { providerID in
+                providerIconID(for: providerID)
+            },
+            streamingMessageForThread: { threadID in
+                streamingMessage(for: threadID)
+            },
+            streamingModelLabelForThread: { threadID in
+                streamingModelLabel(for: threadID)
+            },
+            onActivateThread: { threadID in
+                activateThread(by: threadID)
+            }
+        )
     }
 
     var body: some View {
         VStack(spacing: 0) {
             detailHeaderBar
-            ZStack(alignment: .bottom) {
-                // Message list
-                GeometryReader { geometry in
-                    if selectedModelThreads.count > 1 {
-                        multiModelChatView(geometry: geometry)
-                    } else {
-                        ScrollViewReader { proxy in
-                            chatScrollView(geometry: geometry, proxy: proxy)
-                        }
-                    }
-                }
-
-                // Floating Composer
-                composerOverlay
-                    .padding(.horizontal, 16)
-                    .padding(.bottom, 16)
-                    .background {
-                        GeometryReader { geo in
-                            Color.clear.preference(key: ComposerHeightPreferenceKey.self, value: geo.size.height)
-                        }
-                    }
-            }
-            .onPreferenceChange(ComposerHeightPreferenceKey.self) { newValue in
-                if abs(composerHeight - newValue) > 0.5 {
-                    composerHeight = newValue
-                }
-            }
-            .background(JinSemanticColor.detailSurface)
-            .overlay {
-                if isExpandedComposerPresented {
-                    ExpandedComposerOverlay(
-                        messageText: $messageText,
-                        remoteVideoURLText: $remoteVideoInputURLText,
-                        draftAttachments: $draftAttachments,
-                        isPresented: $isExpandedComposerPresented,
-                        isComposerDropTargeted: $isComposerDropTargeted,
-                        isBusy: isBusy,
-                        canSendDraft: canSendDraft,
-                        showsRemoteVideoURLField: supportsExplicitRemoteVideoURLInput,
-                        onSend: {
-                            isExpandedComposerPresented = false
-                            sendMessage()
-                        },
-                        onDropFileURLs: handleDroppedFileURLs,
-                        onDropImages: handleDroppedImages,
-                        onRemoveAttachment: removeDraftAttachment
-                    )
-                    .transition(.opacity.combined(with: .scale(scale: 0.96, anchor: .bottom)))
-                }
-            }
-            .animation(.easeInOut(duration: 0.2), value: isExpandedComposerPresented)
-        } // end VStack
+            conversationStage
+        }
         .environment(\.dropForwarderRef, dropForwarderRef)
         .onDrop(of: [.fileURL, .url, .text, .image, .data, .item], isTargeted: $isFullPageDropTargeted) { providers in
             handleDrop(providers)
         }
         .overlay {
-            ZStack {
-                Color.accentColor.opacity(0.08)
-                    .ignoresSafeArea()
-                VStack(spacing: 8) {
-                    Image(systemName: "arrow.down.doc")
-                        .font(.system(size: 32, weight: .light))
-                        .foregroundStyle(.secondary)
-                    Text("Drop to attach")
-                        .font(.headline)
-                        .foregroundStyle(.secondary)
-                }
-                .padding(24)
-                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: JinRadius.large, style: .continuous))
-            }
-            .allowsHitTesting(false)
-            .opacity(isFullPageDropTargeted ? 1 : 0)
-            .animation(.easeInOut(duration: 0.15), value: isFullPageDropTargeted)
+            fullPageDropOverlay
         }
-        .onAppear {
-            isComposerFocused = true
-            installWKWebViewDropForwarder()
-            // loadControlsFromConversation internally calls ensureModelThreadsInitializedIfNeeded
-            // and syncActiveThreadSelection, so calling them separately is redundant and causes
-            // extra render cycles that make the header flicker.
-            loadControlsFromConversation()
-            rebuildMessageCaches()
-        }
+        .onAppear(perform: handleChatAppear)
         .onChange(of: conversationEntity.id) { _, _ in
-            // Switching chats: reset transient per-chat state and rebuild caches.
-            cancelEditingUserMessage()
-            messageRenderLimit = Self.initialMessageRenderLimit
-            pendingRestoreScrollMessageID = nil
-            isPinnedToBottom = true
-            isExpandedComposerPresented = false
-            remoteVideoInputURLText = ""
-            // loadControlsFromConversation internally calls ensureModelThreadsInitializedIfNeeded
-            // and syncActiveThreadSelection, so calling them separately is redundant.
-            loadControlsFromConversation()
-            rebuildMessageCaches()
+            handleConversationSwitch()
         }
         .onChange(of: conversationEntity.messages.count) { _, _ in
             rebuildMessageCachesIfNeeded()
@@ -1082,13 +547,7 @@ struct ChatView: View {
             allowedContentTypes: [.image, .movie, .audio, .pdf],
             allowsMultipleSelection: true
         ) { result in
-            switch result {
-            case .success(let urls):
-                Task { await importAttachments(from: urls) }
-            case .failure(let error):
-                errorMessage = error.localizedDescription
-                showingError = true
-            }
+            handleAttachmentImport(result)
         }
         .sheet(isPresented: $showingThinkingBudgetSheet) {
             ThinkingBudgetSheetView(
@@ -1190,23 +649,141 @@ struct ChatView: View {
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: .codexWorkingDirectoryPresetsDidChange)) { _ in }
-        .focusedSceneValue(
-            \.chatActions,
-            ChatFocusedActions(
-                canAttach: !isBusy,
-                canStopStreaming: isBusy,
-                focusComposer: { isComposerFocused = true },
-                openModelPicker: { isModelPickerPresented.toggle() },
-                attach: { isFileImporterPresented = true },
-                stopStreaming: {
-                    guard isBusy else { return }
+        .focusedSceneValue(\.chatActions, chatFocusedActions)
+    }
+
+    private var conversationStage: some View {
+        ZStack(alignment: .bottom) {
+            messageStage
+            floatingComposer
+        }
+        .onPreferenceChange(ComposerHeightPreferenceKey.self) { newValue in
+            if abs(composerHeight - newValue) > 0.5 {
+                composerHeight = newValue
+            }
+        }
+        .background(JinSemanticColor.detailSurface)
+        .overlay {
+            expandedComposerOverlay
+        }
+        .animation(.easeInOut(duration: 0.2), value: isExpandedComposerPresented)
+    }
+
+    private var messageStage: some View {
+        GeometryReader { geometry in
+            if selectedModelThreads.count > 1 {
+                multiThreadMessageStage(geometry: geometry)
+            } else {
+                singleThreadMessageStage(geometry: geometry)
+            }
+        }
+    }
+
+    private var floatingComposer: some View {
+        composerOverlay
+            .padding(.horizontal, 16)
+            .padding(.bottom, 16)
+            .background {
+                GeometryReader { geo in
+                    Color.clear.preference(key: ComposerHeightPreferenceKey.self, value: geo.size.height)
+                }
+            }
+    }
+
+    @ViewBuilder
+    private var expandedComposerOverlay: some View {
+        if isExpandedComposerPresented {
+            ExpandedComposerOverlay(
+                messageText: $messageText,
+                remoteVideoURLText: $remoteVideoInputURLText,
+                draftAttachments: $draftAttachments,
+                isPresented: $isExpandedComposerPresented,
+                isComposerDropTargeted: $isComposerDropTargeted,
+                isBusy: isBusy,
+                canSendDraft: canSendDraft,
+                showsRemoteVideoURLField: supportsExplicitRemoteVideoURLInput,
+                onSend: {
+                    isExpandedComposerPresented = false
                     sendMessage()
                 },
-                toggleExpandedComposer: {
-                    isExpandedComposerPresented.toggle()
-                }
+                onDropFileURLs: handleDroppedFileURLs,
+                onDropImages: handleDroppedImages,
+                onRemoveAttachment: removeDraftAttachment
             )
+            .transition(.opacity.combined(with: .scale(scale: 0.96, anchor: .bottom)))
+        }
+    }
+
+    private var fullPageDropOverlay: some View {
+        ZStack {
+            Color.accentColor.opacity(0.08)
+                .ignoresSafeArea()
+
+            VStack(spacing: 8) {
+                Image(systemName: "arrow.down.doc")
+                    .font(.system(size: 32, weight: .light))
+                    .foregroundStyle(.secondary)
+                Text("Drop to attach")
+                    .font(.headline)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(24)
+            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: JinRadius.large, style: .continuous))
+        }
+        .allowsHitTesting(false)
+        .opacity(isFullPageDropTargeted ? 1 : 0)
+        .animation(.easeInOut(duration: 0.15), value: isFullPageDropTargeted)
+    }
+
+    private var chatFocusedActions: ChatFocusedActions {
+        ChatFocusedActions(
+            canAttach: !isBusy,
+            canStopStreaming: isBusy,
+            focusComposer: { isComposerFocused = true },
+            openModelPicker: { isModelPickerPresented.toggle() },
+            attach: { isFileImporterPresented = true },
+            stopStreaming: {
+                guard isBusy else { return }
+                sendMessage()
+            },
+            toggleExpandedComposer: {
+                isExpandedComposerPresented.toggle()
+            }
         )
+    }
+
+    private func handleChatAppear() {
+        isComposerFocused = true
+        installWKWebViewDropForwarder()
+        // loadControlsFromConversation internally calls ensureModelThreadsInitializedIfNeeded
+        // and syncActiveThreadSelection, so calling them separately is redundant and causes
+        // extra render cycles that make the header flicker.
+        loadControlsFromConversation()
+        rebuildMessageCaches()
+    }
+
+    private func handleConversationSwitch() {
+        // Switching chats: reset transient per-chat state and rebuild caches.
+        cancelEditingUserMessage()
+        messageRenderLimit = Self.initialMessageRenderLimit
+        pendingRestoreScrollMessageID = nil
+        isPinnedToBottom = true
+        isExpandedComposerPresented = false
+        remoteVideoInputURLText = ""
+        // loadControlsFromConversation internally calls ensureModelThreadsInitializedIfNeeded
+        // and syncActiveThreadSelection, so calling them separately is redundant.
+        loadControlsFromConversation()
+        rebuildMessageCaches()
+    }
+
+    private func handleAttachmentImport(_ result: Result<[URL], Error>) {
+        switch result {
+        case .success(let urls):
+            Task { await importAttachments(from: urls) }
+        case .failure(let error):
+            errorMessage = error.localizedDescription
+            showingError = true
+        }
     }
     
     // MARK: - Helpers & Subviews
@@ -1715,15 +1292,19 @@ struct ChatView: View {
     }
 
     private var selectedModelInfo: ModelInfo? {
-        if let model = resolvedModelInfo(
-            for: conversationEntity.modelID,
+        guard let model = ChatModelCapabilitySupport.resolvedModelInfo(
+            modelID: conversationEntity.modelID,
             providerEntity: currentProvider,
             providerType: providerType,
             availableModels: currentProvider?.allModels
-        ) {
-            return normalizedSelectedModelInfo(model)
+        ) else {
+            return nil
         }
-        return nil
+
+        return ChatModelCapabilitySupport.normalizedSelectedModelInfo(
+            model,
+            providerType: providerType
+        )
     }
 
     private var resolvedModelSettings: ResolvedModelSettings? {
@@ -1741,11 +1322,11 @@ struct ChatView: View {
         providerType: ProviderType?,
         availableModels: [ModelInfo]? = nil
     ) -> ModelInfo? {
-        let models = availableModels ?? providerEntity?.allModels ?? []
-        return ProviderModelAliasResolver.resolvedModel(
-            for: modelID,
+        ChatModelCapabilitySupport.resolvedModelInfo(
+            modelID: modelID,
+            providerEntity: providerEntity,
             providerType: providerType,
-            availableModels: models
+            availableModels: availableModels
         )
     }
 
@@ -1755,11 +1336,11 @@ struct ChatView: View {
         providerType: ProviderType?,
         availableModels: [ModelInfo]? = nil
     ) -> String {
-        let models = availableModels ?? providerEntity?.allModels ?? []
-        return ProviderModelAliasResolver.resolvedModelID(
-            for: modelID,
+        ChatModelCapabilitySupport.effectiveModelID(
+            modelID: modelID,
+            providerEntity: providerEntity,
             providerType: providerType,
-            availableModels: models
+            availableModels: availableModels
         )
     }
 
@@ -1793,157 +1374,73 @@ struct ChatView: View {
     }
 
     private func normalizedSelectedModelInfo(_ model: ModelInfo) -> ModelInfo {
-        guard providerType == .fireworks else { return model }
-        return normalizedFireworksModelInfo(model)
-    }
-
-    private func normalizedFireworksModelInfo(_ model: ModelInfo) -> ModelInfo {
-        let canonicalID = fireworksCanonicalModelID(model.id)
-        var caps = model.capabilities
-        var contextWindow = model.contextWindow
-        var reasoningConfig = model.reasoningConfig
-        var name = model.name
-        let defaultReasoningConfig = ModelReasoningConfig(type: .effort, defaultEffort: .medium)
-
-        switch canonicalID {
-        case "kimi-k2p5":
-            caps.insert(.vision)
-            caps.insert(.reasoning)
-            contextWindow = 262_100
-            reasoningConfig = defaultReasoningConfig
-            if name == model.id { name = "Kimi K2.5" }
-        case "qwen3-omni-30b-a3b-instruct", "qwen3-omni-30b-a3b-thinking":
-            caps.insert(.vision)
-            caps.insert(.audio)
-        case "qwen3-asr-4b", "qwen3-asr-0.6b":
-            caps.insert(.audio)
-        case "glm-5":
-            caps.insert(.reasoning)
-            contextWindow = 202_800
-            reasoningConfig = defaultReasoningConfig
-            if name == model.id { name = "GLM-5" }
-        case "glm-4p7":
-            caps.insert(.reasoning)
-            contextWindow = 202_800
-            reasoningConfig = defaultReasoningConfig
-            if name == model.id { name = "GLM-4.7" }
-        case "minimax-m2p5":
-            caps.insert(.reasoning)
-            contextWindow = 196_600
-            reasoningConfig = defaultReasoningConfig
-            if name == model.id { name = "MiniMax M2.5" }
-        case "minimax-m2p1":
-            caps.insert(.reasoning)
-            contextWindow = 204_800
-            reasoningConfig = defaultReasoningConfig
-            if name == model.id { name = "MiniMax M2.1" }
-        case "minimax-m2":
-            caps.insert(.reasoning)
-            contextWindow = 196_600
-            reasoningConfig = defaultReasoningConfig
-            if name == model.id { name = "MiniMax M2" }
-        default:
-            break
-        }
-
-        return ModelInfo(
-            id: model.id,
-            name: name,
-            capabilities: caps,
-            contextWindow: contextWindow,
-            maxOutputTokens: model.maxOutputTokens,
-            reasoningConfig: reasoningConfig,
-            overrides: model.overrides,
-            catalogMetadata: model.catalogMetadata,
-            isEnabled: model.isEnabled
+        ChatModelCapabilitySupport.normalizedSelectedModelInfo(
+            model,
+            providerType: providerType
         )
     }
 
+    private func normalizedFireworksModelInfo(_ model: ModelInfo) -> ModelInfo {
+        ChatModelCapabilitySupport.normalizedFireworksModelInfo(model)
+    }
+
     private var isImageGenerationModelID: Bool {
-        switch providerType {
-        case .openai, .openaiWebSocket:
-            return Self.openAIImageGenerationModelIDs.contains(lowerModelID)
-        case .xai:
-            return Self.xAIImageGenerationModelIDs.contains(lowerModelID)
-        case .gemini, .vertexai:
-            return Self.geminiImageGenerationModelIDs.contains(lowerModelID)
-        case .codexAppServer, .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway,
-             .openrouter, .anthropic, .perplexity, .groq, .cohere, .mistral, .deepinfra, .together,
-             .deepseek, .zhipuCodingPlan, .fireworks, .cerebras, .sambanova, .none:
-            return false
-        }
+        ChatModelCapabilitySupport.isImageGenerationModelID(
+            providerType: providerType,
+            lowerModelID: lowerModelID,
+            openAIImageGenerationModelIDs: Self.openAIImageGenerationModelIDs,
+            xAIImageGenerationModelIDs: Self.xAIImageGenerationModelIDs,
+            geminiImageGenerationModelIDs: Self.geminiImageGenerationModelIDs
+        )
     }
 
     private var isVideoGenerationModelID: Bool {
-        switch providerType {
-        case .xai:
-            return Self.xAIVideoGenerationModelIDs.contains(lowerModelID)
-        case .gemini, .vertexai:
-            return Self.googleVideoGenerationModelIDs.contains(lowerModelID)
-        default:
-            return false
-        }
+        ChatModelCapabilitySupport.isVideoGenerationModelID(
+            providerType: providerType,
+            lowerModelID: lowerModelID,
+            xAIVideoGenerationModelIDs: Self.xAIVideoGenerationModelIDs,
+            googleVideoGenerationModelIDs: Self.googleVideoGenerationModelIDs
+        )
     }
 
     private var supportsNativePDF: Bool {
-        guard !supportsMediaGenerationControl else { return false }
-        guard let providerType = providerType else { return false }
-
-        switch providerType {
-        case .openai, .openaiWebSocket, .anthropic, .perplexity, .xai, .gemini, .vertexai:
-            break
-        case .codexAppServer, .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter, .groq,
-             .cohere, .mistral, .deepinfra, .together, .deepseek, .zhipuCodingPlan,
-             .fireworks, .cerebras, .sambanova:
-            return false
-        }
-
-        if resolvedModelSettings?.capabilities.contains(.nativePDF) == true {
-            return true
-        }
-
-        return JinModelSupport.supportsNativePDF(providerType: providerType, modelID: lowerModelID)
+        ChatModelCapabilitySupport.supportsNativePDF(
+            supportsMediaGenerationControl: supportsMediaGenerationControl,
+            providerType: providerType,
+            resolvedModelSettings: resolvedModelSettings,
+            lowerModelID: lowerModelID
+        )
     }
 
     private var supportsVision: Bool {
-        resolvedModelSettings?.capabilities.contains(.vision) == true
-            || supportsImageGenerationControl
-            || supportsVideoGenerationControl
+        ChatModelCapabilitySupport.supportsVision(
+            resolvedModelSettings: resolvedModelSettings,
+            supportsImageGenerationControl: supportsImageGenerationControl,
+            supportsVideoGenerationControl: supportsVideoGenerationControl
+        )
     }
 
     private var supportsAudioInput: Bool {
-        if isMistralTranscriptionOnlyModelID {
-            return false
-        }
-
-        if resolvedModelSettings?.capabilities.contains(.audio) == true {
-            return true
-        }
-
-        if supportsMediaGenerationControl {
-            return false
-        }
-
-        switch providerType {
-        case .openai, .openaiWebSocket:
-            return Self.openAIAudioInputModelIDs.contains(lowerModelID)
-        case .mistral:
-            return Self.mistralAudioInputModelIDs.contains(lowerModelID)
-        case .gemini, .vertexai:
-            return Self.geminiAudioInputModelIDs.contains(lowerModelID)
-        case .githubCopilot, .openrouter, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .deepinfra, .together:
-            return Self.compatibleAudioInputModelIDs.contains(lowerModelID)
-        case .fireworks:
-            return Self.fireworksAudioInputModelIDs.contains(lowerModelID)
-        case .anthropic, .perplexity, .groq, .cohere, .xai, .deepseek, .zhipuCodingPlan,
-             .cerebras, .sambanova, .codexAppServer, .none:
-            return false
-        }
+        ChatModelCapabilitySupport.supportsAudioInput(
+            isMistralTranscriptionOnlyModelID: isMistralTranscriptionOnlyModelID,
+            resolvedModelSettings: resolvedModelSettings,
+            supportsMediaGenerationControl: supportsMediaGenerationControl,
+            providerType: providerType,
+            lowerModelID: lowerModelID,
+            openAIAudioInputModelIDs: Self.openAIAudioInputModelIDs,
+            mistralAudioInputModelIDs: Self.mistralAudioInputModelIDs,
+            geminiAudioInputModelIDs: Self.geminiAudioInputModelIDs,
+            compatibleAudioInputModelIDs: Self.compatibleAudioInputModelIDs,
+            fireworksAudioInputModelIDs: Self.fireworksAudioInputModelIDs
+        )
     }
 
     private var isMistralTranscriptionOnlyModelID: Bool {
-        providerType == .mistral
-            && Self.mistralTranscriptionOnlyModelIDs.contains(lowerModelID)
+        ChatModelCapabilitySupport.isMistralTranscriptionOnlyModelID(
+            providerType: providerType,
+            lowerModelID: lowerModelID,
+            mistralTranscriptionOnlyModelIDs: Self.mistralTranscriptionOnlyModelIDs
+        )
     }
 
     private var supportsImageGenerationControl: Bool {
@@ -1959,11 +1456,12 @@ struct ChatView: View {
     }
 
     private var supportsImageGenerationWebSearch: Bool {
-        guard supportsImageGenerationControl else { return false }
-        if let resolvedModelSettings {
-            return resolvedModelSettings.supportsWebSearch
-        }
-        return ModelCapabilityRegistry.supportsWebSearch(for: providerType, modelID: conversationEntity.modelID)
+        ChatModelCapabilitySupport.supportsImageGenerationWebSearch(
+            supportsImageGenerationControl: supportsImageGenerationControl,
+            resolvedModelSettings: resolvedModelSettings,
+            providerType: providerType,
+            conversationModelID: conversationEntity.modelID
+        )
     }
 
     private var supportsPDFProcessingControl: Bool {
@@ -1972,162 +1470,65 @@ struct ChatView: View {
     }
 
     private var supportsCurrentModelImageSizeControl: Bool {
-        lowerModelID == "gemini-3-pro-image-preview"
-            || lowerModelID == "gemini-3.1-flash-image-preview"
+        ChatModelCapabilitySupport.supportsCurrentModelImageSizeControl(lowerModelID: lowerModelID)
     }
 
     private var supportedCurrentModelImageAspectRatios: [ImageAspectRatio] {
-        if lowerModelID == "gemini-3.1-flash-image-preview" {
-            return ImageAspectRatio.nanoBanana2SupportedCases
-        }
-        return ImageAspectRatio.defaultSupportedCases
+        ChatModelCapabilitySupport.supportedCurrentModelImageAspectRatios(lowerModelID: lowerModelID)
     }
 
     private var supportedCurrentModelImageSizes: [ImageOutputSize] {
-        if lowerModelID == "gemini-3.1-flash-image-preview" {
-            return ImageOutputSize.nanoBanana2SupportedCases
-        }
-        return ImageOutputSize.defaultSupportedCases
+        ChatModelCapabilitySupport.supportedCurrentModelImageSizes(lowerModelID: lowerModelID)
     }
 
     private var isImageGenerationConfigured: Bool {
-        if providerType == .xai {
-            return !(controls.xaiImageGeneration?.isEmpty ?? true)
-        }
-        if providerType == .openai || providerType == .openaiWebSocket {
-            return !(controls.openaiImageGeneration?.isEmpty ?? true)
-        }
-        return !(controls.imageGeneration?.isEmpty ?? true)
+        ChatModelCapabilitySupport.isImageGenerationConfigured(
+            providerType: providerType,
+            controls: controls
+        )
     }
 
     private var imageGenerationBadgeText: String? {
-        guard supportsImageGenerationControl else { return nil }
-
-        if providerType == .xai {
-            if let ratio = controls.xaiImageGeneration?.aspectRatio ?? controls.xaiImageGeneration?.size?.mappedAspectRatio {
-                return ratio.displayName
-            }
-            if let count = controls.xaiImageGeneration?.count, count > 1 {
-                return "x\(count)"
-            }
-            return isImageGenerationConfigured ? "On" : nil
-        }
-
-        if providerType == .openai || providerType == .openaiWebSocket {
-            if let size = controls.openaiImageGeneration?.size {
-                return size.displayName
-            }
-            if let quality = controls.openaiImageGeneration?.quality {
-                return quality.displayName
-            }
-            if let count = controls.openaiImageGeneration?.count, count > 1 {
-                return "x\(count)"
-            }
-            return isImageGenerationConfigured ? "On" : nil
-        }
-
-        if controls.imageGeneration?.responseMode == .imageOnly {
-            return "IMG"
-        }
-        if let ratio = controls.imageGeneration?.aspectRatio?.rawValue {
-            return ratio
-        }
-        if controls.imageGeneration?.seed != nil {
-            return "Seed"
-        }
-        return isImageGenerationConfigured ? "On" : nil
+        ChatModelCapabilitySupport.imageGenerationBadgeText(
+            supportsImageGenerationControl: supportsImageGenerationControl,
+            providerType: providerType,
+            controls: controls,
+            isImageGenerationConfigured: isImageGenerationConfigured
+        )
     }
 
     private var imageGenerationHelpText: String {
-        guard supportsImageGenerationControl else { return "Image Generation: Not supported" }
-
-        if providerType == .xai {
-            if let ratio = controls.xaiImageGeneration?.aspectRatio ?? controls.xaiImageGeneration?.size?.mappedAspectRatio {
-                return "Image Generation: \(ratio.displayName)"
-            }
-            if let count = controls.xaiImageGeneration?.count {
-                return "Image Generation: Count \(count)"
-            }
-            return isImageGenerationConfigured ? "Image Generation: Customized" : "Image Generation: Default"
-        }
-
-        if providerType == .openai || providerType == .openaiWebSocket {
-            if let size = controls.openaiImageGeneration?.size {
-                return "Image Generation: \(size.displayName)"
-            }
-            if let quality = controls.openaiImageGeneration?.quality {
-                return "Image Generation: \(quality.displayName)"
-            }
-            return isImageGenerationConfigured ? "Image Generation: Customized" : "Image Generation: Default"
-        }
-
-        if let ratio = controls.imageGeneration?.aspectRatio?.rawValue {
-            return "Image Generation: \(ratio)"
-        }
-        if controls.imageGeneration?.responseMode == .imageOnly {
-            return "Image Generation: Image only"
-        }
-        return isImageGenerationConfigured ? "Image Generation: Customized" : "Image Generation: Default"
+        ChatModelCapabilitySupport.imageGenerationHelpText(
+            supportsImageGenerationControl: supportsImageGenerationControl,
+            providerType: providerType,
+            controls: controls,
+            isImageGenerationConfigured: isImageGenerationConfigured
+        )
     }
 
     private var isVideoGenerationConfigured: Bool {
-        switch providerType {
-        case .gemini, .vertexai:
-            return !(controls.googleVideoGeneration?.isEmpty ?? true)
-        case .xai:
-            return !(controls.xaiVideoGeneration?.isEmpty ?? true)
-        default:
-            return false
-        }
+        ChatModelCapabilitySupport.isVideoGenerationConfigured(
+            providerType: providerType,
+            controls: controls
+        )
     }
 
     private var videoGenerationBadgeText: String? {
-        guard supportsVideoGenerationControl else { return nil }
-
-        switch providerType {
-        case .gemini, .vertexai:
-            let gc = controls.googleVideoGeneration
-            if let duration = gc?.durationSeconds { return "\(duration)s" }
-            if let ratio = gc?.aspectRatio { return ratio.displayName }
-            if let resolution = gc?.resolution { return resolution.displayName }
-            return isVideoGenerationConfigured ? "On" : nil
-        case .xai:
-            if let duration = controls.xaiVideoGeneration?.duration { return "\(duration)s" }
-            if let ratio = controls.xaiVideoGeneration?.aspectRatio { return ratio.displayName }
-            if let resolution = controls.xaiVideoGeneration?.resolution { return resolution.displayName }
-            return isVideoGenerationConfigured ? "On" : nil
-        default:
-            return nil
-        }
+        ChatModelCapabilitySupport.videoGenerationBadgeText(
+            supportsVideoGenerationControl: supportsVideoGenerationControl,
+            providerType: providerType,
+            controls: controls,
+            isVideoGenerationConfigured: isVideoGenerationConfigured
+        )
     }
 
     private var videoGenerationHelpText: String {
-        guard supportsVideoGenerationControl else { return "Video Generation: Not supported" }
-
-        switch providerType {
-        case .gemini, .vertexai:
-            let gc = controls.googleVideoGeneration
-            var parts: [String] = []
-            if let duration = gc?.durationSeconds { parts.append("\(duration)s") }
-            if let ratio = gc?.aspectRatio { parts.append(ratio.displayName) }
-            if let resolution = gc?.resolution { parts.append(resolution.displayName) }
-            if let audio = gc?.generateAudio, audio { parts.append("Audio") }
-            if parts.isEmpty {
-                return isVideoGenerationConfigured ? "Video Generation: Customized" : "Video Generation: Default"
-            }
-            return "Video Generation: \(parts.joined(separator: ", "))"
-        case .xai:
-            var parts: [String] = []
-            if let duration = controls.xaiVideoGeneration?.duration { parts.append("\(duration)s") }
-            if let ratio = controls.xaiVideoGeneration?.aspectRatio { parts.append(ratio.displayName) }
-            if let resolution = controls.xaiVideoGeneration?.resolution { parts.append(resolution.displayName) }
-            if parts.isEmpty {
-                return isVideoGenerationConfigured ? "Video Generation: Customized" : "Video Generation: Default"
-            }
-            return "Video Generation: \(parts.joined(separator: ", "))"
-        default:
-            return "Video Generation: Not supported"
-        }
+        ChatModelCapabilitySupport.videoGenerationHelpText(
+            supportsVideoGenerationControl: supportsVideoGenerationControl,
+            providerType: providerType,
+            controls: controls,
+            isVideoGenerationConfigured: isVideoGenerationConfigured
+        )
     }
 
     private var resolvedPDFProcessingMode: PDFProcessingMode {
@@ -2135,13 +1536,12 @@ struct ChatView: View {
     }
 
     private var defaultPDFProcessingFallbackMode: PDFProcessingMode {
-        if mistralOCRPluginEnabled, mistralOCRConfigured {
-            return .mistralOCR
-        }
-        if deepSeekOCRPluginEnabled, deepSeekOCRConfigured {
-            return .deepSeekOCR
-        }
-        return .macOSExtract
+        ChatModelCapabilitySupport.defaultPDFProcessingFallbackMode(
+            mistralOCRPluginEnabled: mistralOCRPluginEnabled,
+            mistralOCRConfigured: mistralOCRConfigured,
+            deepSeekOCRPluginEnabled: deepSeekOCRPluginEnabled,
+            deepSeekOCRConfigured: deepSeekOCRConfigured
+        )
     }
 
     private func isPDFProcessingModeAvailable(_ mode: PDFProcessingMode) -> Bool {
@@ -2149,27 +1549,22 @@ struct ChatView: View {
     }
 
     private func isPDFProcessingModeAvailable(_ mode: PDFProcessingMode, supportsNativePDF: Bool) -> Bool {
-        switch mode {
-        case .native:
-            return supportsNativePDF
-        case .macOSExtract:
-            return true
-        case .mistralOCR:
-            return mistralOCRPluginEnabled
-        case .deepSeekOCR:
-            return deepSeekOCRPluginEnabled
-        }
+        ChatModelCapabilitySupport.isPDFProcessingModeAvailable(
+            mode,
+            supportsNativePDF: supportsNativePDF,
+            mistralOCRPluginEnabled: mistralOCRPluginEnabled,
+            deepSeekOCRPluginEnabled: deepSeekOCRPluginEnabled
+        )
     }
 
     private func resolvedPDFProcessingMode(for controls: GenerationControls, supportsNativePDF: Bool) -> PDFProcessingMode {
-        let requested = controls.pdfProcessingMode ?? .native
-        if isPDFProcessingModeAvailable(requested, supportsNativePDF: supportsNativePDF) {
-            return requested
-        }
-        if supportsNativePDF {
-            return .native
-        }
-        return defaultPDFProcessingFallbackMode
+        ChatModelCapabilitySupport.resolvedPDFProcessingMode(
+            controls: controls,
+            supportsNativePDF: supportsNativePDF,
+            defaultPDFProcessingFallbackMode: defaultPDFProcessingFallbackMode,
+            mistralOCRPluginEnabled: mistralOCRPluginEnabled,
+            deepSeekOCRPluginEnabled: deepSeekOCRPluginEnabled
+        )
     }
 
     private var pdfProcessingBadgeText: String? {
@@ -2694,12 +2089,20 @@ struct ChatView: View {
     }
 
     private var selectedMCPServerIDs: Set<String> {
-        guard controls.mcpTools?.enabled == true else { return [] }
-        let eligibleIDs = Set(eligibleMCPServers.map(\.id))
-        if let allowlist = controls.mcpTools?.enabledServerIDs {
-            return Set(allowlist).intersection(eligibleIDs)
+        ChatAuxiliaryControlSupport.selectedMCPServerIDs(
+            controls: controls,
+            eligibleServers: eligibleMCPServers
+        )
+    }
+
+    private var mcpServerMenuItems: [MCPServerMenuItem] {
+        eligibleMCPServers.map { server in
+            MCPServerMenuItem(
+                id: server.id,
+                name: server.name,
+                isOn: mcpServerSelectionBinding(serverID: server.id)
+            )
         }
-        return eligibleIDs
     }
 
     private func setPDFProcessingMode(_ mode: PDFProcessingMode) {
@@ -2746,105 +2149,58 @@ struct ChatView: View {
         }
     }
 
-    @ViewBuilder
-    private func controlIconLabel(systemName: String, isActive: Bool, badgeText: String?, activeColor: Color = .accentColor) -> some View {
-        ZStack(alignment: .bottomTrailing) {
-            Image(systemName: systemName)
-                .font(.system(size: 14, weight: .semibold))
-                .symbolRenderingMode(.hierarchical)
-                .foregroundStyle(isActive ? activeColor : Color.secondary)
-                .frame(width: JinControlMetrics.iconButtonHitSize, height: JinControlMetrics.iconButtonHitSize)
-                .background(
-                    Circle()
-                        .fill(isActive ? activeColor.opacity(0.18) : Color.clear)
-                )
-                .overlay(
-                    Circle()
-                        .stroke(isActive ? JinSemanticColor.separator.opacity(0.45) : Color.clear, lineWidth: JinStrokeWidth.hairline)
-                )
-
-            if let badgeText, !badgeText.isEmpty {
-                Text(badgeText)
-                    .font(.system(size: 9, weight: .semibold, design: .rounded))
-                    .padding(.horizontal, JinSpacing.xSmall)
-                    .padding(.vertical, 1)
-                    .foregroundStyle(.primary)
-                    .background(
-                        Capsule()
-                            .fill(JinSemanticColor.surface)
-                    )
-                    .overlay(
-                        Capsule()
-                            .stroke(JinSemanticColor.separator.opacity(0.7), lineWidth: JinStrokeWidth.hairline)
-                    )
-                    .offset(x: JinSpacing.xSmall, y: JinSpacing.xSmall)
-            }
-        }
-    }
-
     private var detailHeaderBar: some View {
-        HStack(spacing: JinSpacing.small) {
-            if isSidebarHidden, let onToggleSidebar {
-                Button(action: onToggleSidebar) {
-                    Image(systemName: "sidebar.leading")
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(.secondary)
-                }
-                .buttonStyle(.plain)
-                .help("Show Sidebar")
+        ChatHeaderBarView(
+            isSidebarHidden: isSidebarHidden,
+            onToggleSidebar: onToggleSidebar,
+            currentProviderIconID: currentProviderIconID,
+            currentModelName: currentModelName,
+            toolbarThreads: headerToolbarThreads,
+            isModelPickerPresented: $isModelPickerPresented,
+            isAddModelPickerPresented: $isAddModelPickerPresented,
+            isStarred: conversationEntity.isStarred == true,
+            onToggleStar: {
+                conversationEntity.isStarred = !(conversationEntity.isStarred == true)
+                try? modelContext.save()
+            },
+            onOpenAssistantInspector: { isAssistantInspectorPresented = true },
+            onRequestDeleteConversation: onRequestDeleteConversation,
+            onToggleToolbarThread: { threadID in
+                guard let thread = sortedModelThreads.first(where: { $0.id == threadID }) else { return }
+                toggleThreadSelection(thread)
+            },
+            onActivateToolbarThread: activateThread(by:),
+            onRemoveToolbarThread: { threadID in
+                guard let thread = sortedModelThreads.first(where: { $0.id == threadID }) else { return }
+                removeModelThread(thread)
             }
-
-            modelPickerButton
-
-            if secondaryToolbarThreads.isEmpty {
-                Spacer(minLength: 0)
-            } else {
-                selectedModelsToolbar
-            }
-
-            addModelButton
-
-            detailHeaderActions
-        }
-        .padding(.horizontal, JinSpacing.medium)
-        .padding(.vertical, JinSpacing.small)
-        .frame(minHeight: 38)
-        .background(JinSemanticColor.detailSurface)
-        .overlay(alignment: .bottom) {
-            Rectangle()
-                .fill(JinSemanticColor.separator.opacity(0.45))
-                .frame(height: JinStrokeWidth.hairline)
-        }
-    }
-
-    private var modelPickerButton: some View {
-        Button {
-            isModelPickerPresented = true
-        } label: {
-            HStack(spacing: 6) {
-                ProviderIconView(iconID: currentProviderIconID, size: 14)
-                    .frame(width: 16, height: 16)
-
-                Text(currentModelName)
-                    .font(.callout)
-                    .fontWeight(.medium)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-
-                Image(systemName: "chevron.down")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-            }
-        }
-        .buttonStyle(.plain)
-        .help("Select model")
-        .accessibilityLabel("Select model")
-        .popover(isPresented: $isModelPickerPresented, arrowEdge: .bottom) {
+        ) {
             modelPickerPopoverContent { providerID, modelID in
                 setProviderAndModel(providerID: providerID, modelID: modelID)
                 isModelPickerPresented = false
             }
+        } addModelPopover: {
+            modelPickerPopoverContent { providerID, modelID in
+                addOrActivateThread(providerID: providerID, modelID: modelID)
+                isAddModelPickerPresented = false
+            }
         }
+    }
+
+    private var headerToolbarThreads: [ChatHeaderToolbarThread] {
+        ChatThreadSupport.headerToolbarThreads(
+            secondaryThreads: secondaryToolbarThreads,
+            sortedThreadCount: sortedModelThreads.count,
+            providerIconID: { providerID in
+                providerIconID(for: providerID)
+            },
+            modelName: { modelID, providerID in
+                modelName(id: modelID, providerID: providerID)
+            },
+            isActiveThread: { thread in
+                isActiveThread(thread)
+            }
+        )
     }
 
     private func modelPickerPopoverContent(onSelect: @escaping (String, String) -> Void) -> some View {
@@ -2857,159 +2213,56 @@ struct ChatView: View {
         )
     }
 
-    private var detailHeaderActions: some View {
-        HStack(spacing: JinSpacing.xSmall) {
-            let isStarred = conversationEntity.isStarred == true
-            Button {
-                conversationEntity.isStarred = !isStarred
-                try? modelContext.save()
-            } label: {
-                Image(systemName: isStarred ? "star.fill" : "star")
-                    .font(.system(size: JinControlMetrics.iconButtonGlyphSize, weight: .semibold))
-                    .foregroundStyle(isStarred ? Color.orange : Color.primary)
-            }
-            .buttonStyle(JinIconButtonStyle())
-            .help(isStarred ? "Unstar chat" : "Star chat")
-
-            Button {
-                isAssistantInspectorPresented = true
-            } label: {
-                Image(systemName: "slider.horizontal.3")
-                    .font(.system(size: JinControlMetrics.iconButtonGlyphSize, weight: .semibold))
-            }
-            .buttonStyle(JinIconButtonStyle())
-            .help("Assistant Settings")
-
-            Button(role: .destructive) {
-                onRequestDeleteConversation()
-            } label: {
-                Image(systemName: "trash")
-                    .font(.system(size: JinControlMetrics.iconButtonGlyphSize, weight: .semibold))
-            }
-            .buttonStyle(JinIconButtonStyle())
-            .help("Delete chat")
-        }
-        .fixedSize(horizontal: true, vertical: false)
-    }
-
-    private var addModelButton: some View {
-        Button {
-            isAddModelPickerPresented = true
-        } label: {
-            Image(systemName: "plus.circle")
-                .font(.system(size: 14, weight: .regular))
-                .foregroundStyle(.secondary)
-        }
-        .buttonStyle(.plain)
-        .help("Add model")
-        .popover(isPresented: $isAddModelPickerPresented, arrowEdge: .bottom) {
-            modelPickerPopoverContent { providerID, modelID in
-                addOrActivateThread(providerID: providerID, modelID: modelID)
-                isAddModelPickerPresented = false
-            }
-        }
-    }
-
-    private var selectedModelsToolbar: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 6) {
-                ForEach(secondaryToolbarThreads) { thread in
-                    HStack(spacing: 4) {
-                        Button {
-                            toggleThreadSelection(thread)
-                        } label: {
-                            HStack(spacing: 4) {
-                                ProviderIconView(iconID: providerIconID(for: thread.providerID), size: 10)
-                                    .frame(width: 10, height: 10)
-                                Text(toolbarThreadLabel(thread))
-                                    .font(.caption2)
-                                    .lineLimit(1)
-                                Image(systemName: thread.isSelected ? "checkmark.circle.fill" : "circle")
-                                    .font(.system(size: 10, weight: .semibold))
-                                    .foregroundStyle(thread.isSelected ? Color.accentColor : Color.secondary)
-                            }
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 3)
-                            .background(
-                                Capsule(style: .circular)
-                                    .fill(thread.isSelected ? Color.accentColor.opacity(0.2) : JinSemanticColor.surface)
-                            )
-                            .overlay(
-                                Capsule(style: .circular)
-                                    .stroke(
-                                        isActiveThread(thread) ? Color.accentColor.opacity(0.75) : JinSemanticColor.separator.opacity(0.45),
-                                        lineWidth: isActiveThread(thread) ? JinStrokeWidth.emphasized : JinStrokeWidth.hairline
-                                    )
-                            )
-                        }
-                        .buttonStyle(.plain)
-                        .help(thread.isSelected ? "Selected for next send" : "Click to include this model")
-                        .contextMenu {
-                            Button("Set as input target") {
-                                activateThread(thread)
-                            }
-
-                            if sortedModelThreads.count > 1 {
-                                Divider()
-                                Button("Remove from this chat", role: .destructive) {
-                                    removeModelThread(thread)
-                                }
-                            }
-                        }
-
-                        if sortedModelThreads.count > 1 {
-                            Button {
-                                removeModelThread(thread)
-                            } label: {
-                                Image(systemName: "xmark.circle.fill")
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
-                            }
-                            .buttonStyle(.plain)
-                            .help("Remove model from this chat")
-                        }
-                    }
-                }
-            }
-            .padding(.vertical, 1)
-        }
-        .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
-        .frame(maxWidth: .infinity, alignment: .trailing)
-    }
-
-    private func toolbarThreadLabel(_ thread: ConversationModelThreadEntity) -> String {
-        let name = modelName(id: thread.modelID, providerID: thread.providerID)
-        return String(name.prefix(22))
-    }
-
     private var currentModelName: String {
-        resolvedModelInfo(
-            for: conversationEntity.modelID,
-            providerEntity: currentProvider,
-            providerType: providerType
-        )?.name ?? conversationEntity.modelID
+        ChatThreadSupport.currentModelName(
+            providerID: conversationEntity.providerID,
+            modelID: conversationEntity.modelID,
+            providers: providers,
+            providerType: providerType,
+            resolveModelInfo: { modelID, providerEntity, providerType in
+                resolvedModelInfo(
+                    for: modelID,
+                    providerEntity: providerEntity,
+                    providerType: providerType
+                )
+            }
+        )
     }
 
     private var currentProvider: ProviderConfigEntity? {
-        providers.first(where: { $0.id == conversationEntity.providerID })
+        ChatThreadSupport.currentProvider(
+            for: conversationEntity.providerID,
+            in: providers
+        )
     }
 
     private var currentProviderIconID: String? {
-        currentProvider?.resolvedProviderIconID
+        ChatThreadSupport.providerIconID(
+            for: conversationEntity.providerID,
+            in: providers
+        )
     }
 
     private func providerIconID(for providerID: String) -> String? {
-        providers.first(where: { $0.id == providerID })?.resolvedProviderIconID
+        ChatThreadSupport.providerIconID(
+            for: providerID,
+            in: providers
+        )
     }
 
     private func modelName(id modelID: String, providerID: String) -> String {
-        let providerEntity = providers.first(where: { $0.id == providerID })
-        let providerType = providerEntity.flatMap { ProviderType(rawValue: $0.typeRaw) }
-        return resolvedModelInfo(
-            for: modelID,
-            providerEntity: providerEntity,
-            providerType: providerType
-        )?.name ?? modelID
+        ChatThreadSupport.modelName(
+            modelID: modelID,
+            providerID: providerID,
+            providers: providers,
+            resolveModelInfo: { modelID, providerEntity, providerType in
+                resolvedModelInfo(
+                    for: modelID,
+                    providerEntity: providerEntity,
+                    providerType: providerType
+                )
+            }
+        )
     }
 
     private func isActiveThread(_ thread: ConversationModelThreadEntity) -> Bool {
@@ -3017,57 +2270,27 @@ struct ChatView: View {
     }
 
     private func toggleThreadSelection(_ thread: ConversationModelThreadEntity) {
-        guard let index = conversationEntity.modelThreads.firstIndex(where: { $0.id == thread.id }) else { return }
-        if activeModelThread?.id == thread.id {
-            activateThread(conversationEntity.modelThreads[index])
-            return
-        }
-
-        let selectedCount = sortedModelThreads.filter(\.isSelected).count
-        let isCurrentlySelected = conversationEntity.modelThreads[index].isSelected
-
-        if isCurrentlySelected && selectedCount <= 1 {
-            activateThread(conversationEntity.modelThreads[index])
-            return
-        }
-
-        conversationEntity.modelThreads[index].isSelected.toggle()
-        conversationEntity.modelThreads[index].updatedAt = Date()
-        conversationEntity.updatedAt = Date()
-
-        if conversationEntity.modelThreads[index].isSelected {
-            activateThread(conversationEntity.modelThreads[index])
-            return
-        }
-
-        if activeModelThread?.id == thread.id,
-           let replacement = sortedModelThreads.first(where: { $0.id != thread.id && $0.isSelected }) {
-            activateThread(replacement)
-            return
-        }
-
-        rebuildMessageCaches()
-        try? modelContext.save()
+        ChatThreadSupport.toggleThreadSelection(
+            thread: thread,
+            conversationEntity: conversationEntity,
+            sortedThreads: sortedModelThreads,
+            activeThread: activeModelThread,
+            modelContext: modelContext,
+            activateThread: { thread in
+                activateThread(thread)
+            },
+            rebuildMessageCaches: {
+                rebuildMessageCaches()
+            }
+        )
     }
 
     private func synchronizeLegacyConversationModelFields(with thread: ConversationModelThreadEntity) {
-        // Guard against no-op writes to avoid unnecessary SwiftData change
-        // notifications that cause the header bar to re-render and flicker.
-        if conversationEntity.providerID != thread.providerID {
-            conversationEntity.providerID = thread.providerID
-        }
-        if conversationEntity.modelID != thread.modelID {
-            conversationEntity.modelID = thread.modelID
-        }
-        if conversationEntity.modelConfigData != thread.modelConfigData {
-            conversationEntity.modelConfigData = thread.modelConfigData
-        }
-        if conversationEntity.activeThreadID != thread.id {
-            conversationEntity.activeThreadID = thread.id
-        }
-        if activeThreadID != thread.id {
-            activeThreadID = thread.id
-        }
+        ChatThreadSupport.synchronizeLegacyConversationModelFields(
+            conversationEntity: conversationEntity,
+            activeThreadID: &activeThreadID,
+            thread: thread
+        )
     }
 
     private func activateThread(_ thread: ConversationModelThreadEntity) {
@@ -3090,70 +2313,39 @@ struct ChatView: View {
     }
 
     private func removeModelThread(_ thread: ConversationModelThreadEntity) {
-        guard sortedModelThreads.count > 1 else { return }
-        let removedThreadID = thread.id
-        let activeBeforeRemovalID = activeThreadID ?? conversationEntity.activeThreadID
-        let removedWasActive = activeBeforeRemovalID == removedThreadID
-        streamingStore.cancel(conversationID: conversationEntity.id, threadID: removedThreadID)
-        streamingStore.endSession(conversationID: conversationEntity.id, threadID: removedThreadID)
-
-        for message in conversationEntity.messages where message.contextThreadID == removedThreadID {
-            modelContext.delete(message)
-        }
-        conversationEntity.messages.removeAll { $0.contextThreadID == removedThreadID }
-
-        if let index = conversationEntity.modelThreads.firstIndex(where: { $0.id == removedThreadID }) {
-            let threadEntity = conversationEntity.modelThreads[index]
-            conversationEntity.modelThreads.remove(at: index)
-            modelContext.delete(threadEntity)
-        }
-
-        if removedWasActive {
-            if let replacement = sortedModelThreads.first(where: \.isSelected) ?? sortedModelThreads.first {
-                activateThread(replacement)
+        ChatThreadSupport.removeModelThread(
+            thread: thread,
+            conversationEntity: conversationEntity,
+            sortedThreads: sortedModelThreads,
+            activeThreadID: activeThreadID,
+            streamingStore: streamingStore,
+            modelContext: modelContext,
+            rebuildMessageCaches: {
+                rebuildMessageCaches()
+            },
+            activateThread: { thread in
+                activateThread(thread)
             }
-        } else if let currentActiveID = activeBeforeRemovalID {
-            if !sortedModelThreads.contains(where: { $0.id == currentActiveID }),
-               let fallback = sortedModelThreads.first {
-                activateThread(fallback)
-            }
-        }
-
-        conversationEntity.updatedAt = Date()
-        rebuildMessageCaches()
-        try? modelContext.save()
+        )
     }
 
     private func addOrActivateThread(providerID: String, modelID: String) {
-        let resolvedModelID = canonicalModelID(for: providerID, modelID: modelID)
-        if let existing = sortedModelThreads.first(where: {
-            $0.providerID == providerID && canonicalModelID(for: $0.providerID, modelID: $0.modelID) == resolvedModelID
-        }) {
-            existing.isSelected = true
-            activateThread(existing)
-            return
-        }
-
-        guard sortedModelThreads.count < 3 else {
-            errorMessage = "A chat can include up to 3 models."
-            showingError = true
-            return
-        }
-
-        let encodedControls = (try? JSONEncoder().encode(GenerationControls())) ?? Data()
-        let nextOrder = (sortedModelThreads.map(\.displayOrder).max() ?? -1) + 1
-        let thread = ConversationModelThreadEntity(
+        ChatThreadSupport.addOrActivateThread(
             providerID: providerID,
-            modelID: resolvedModelID,
-            modelConfigData: encodedControls,
-            displayOrder: nextOrder,
-            isSelected: true,
-            isPrimary: false
+            modelID: modelID,
+            conversationEntity: conversationEntity,
+            sortedThreads: sortedModelThreads,
+            canonicalModelID: { providerID, modelID in
+                canonicalModelID(for: providerID, modelID: modelID)
+            },
+            activateThread: { thread in
+                activateThread(thread)
+            },
+            showError: { message in
+                errorMessage = message
+                showingError = true
+            }
         )
-        thread.conversation = conversationEntity
-        conversationEntity.modelThreads.append(thread)
-        conversationEntity.updatedAt = Date()
-        activateThread(thread)
     }
 
     private var availableModels: [ModelInfo] {
@@ -3166,119 +2358,91 @@ struct ChatView: View {
     }
 
     private func setProvider(_ providerID: String) {
-        guard let thread = activeModelThread else { return }
-        guard providerID != thread.providerID else { return }
-
-        clearCodexThreadPersistence(for: thread)
-        thread.providerID = providerID
-
-        let models = providers.first(where: { $0.id == providerID })?.enabledModels ?? []
-        if let preferredModelID = preferredModelID(in: models, providerID: providerID) {
-            thread.modelID = preferredModelID
-            synchronizeLegacyConversationModelFields(with: thread)
-            normalizeControlsForCurrentSelection()
-            try? modelContext.save()
-            return
-        }
-        thread.modelID = models.first?.id ?? thread.modelID
-        synchronizeLegacyConversationModelFields(with: thread)
-        normalizeControlsForCurrentSelection()
-        try? modelContext.save()
+        ChatModelSelectionSupport.setProvider(
+            providerID: providerID,
+            activeThread: activeModelThread,
+            providers: providers,
+            modelContext: modelContext,
+            clearCodexThreadPersistence: { thread in
+                clearCodexThreadPersistence(for: thread)
+            },
+            synchronizeLegacyConversationModelFields: { thread in
+                synchronizeLegacyConversationModelFields(with: thread)
+            },
+            normalizeControlsForCurrentSelection: {
+                normalizeControlsForCurrentSelection()
+            },
+            preferredModelID: { models, providerID in
+                preferredModelID(in: models, providerID: providerID)
+            }
+        )
     }
 
     private func setModel(_ modelID: String) {
-        guard let thread = activeModelThread else { return }
-        let resolvedModelID = canonicalModelID(for: thread.providerID, modelID: modelID)
-        guard resolvedModelID != canonicalModelID(for: thread.providerID, modelID: thread.modelID) else { return }
-        thread.modelID = resolvedModelID
-        synchronizeLegacyConversationModelFields(with: thread)
-        normalizeControlsForCurrentSelection()
-        try? modelContext.save()
+        ChatModelSelectionSupport.setModel(
+            modelID: modelID,
+            activeThread: activeModelThread,
+            modelContext: modelContext,
+            canonicalModelID: { providerID, modelID in
+                canonicalModelID(for: providerID, modelID: modelID)
+            },
+            synchronizeLegacyConversationModelFields: { thread in
+                synchronizeLegacyConversationModelFields(with: thread)
+            },
+            normalizeControlsForCurrentSelection: {
+                normalizeControlsForCurrentSelection()
+            }
+        )
     }
 
     private func setProviderAndModel(providerID: String, modelID: String) {
-        let resolvedModelID = canonicalModelID(for: providerID, modelID: modelID)
-        if let existing = sortedModelThreads.first(where: {
-            $0.providerID == providerID && canonicalModelID(for: $0.providerID, modelID: $0.modelID) == resolvedModelID
-        }) {
-            activateThread(existing)
-            return
-        }
-
-        guard let thread = activeModelThread else {
-            addOrActivateThread(providerID: providerID, modelID: resolvedModelID)
-            return
-        }
-
-        if providerID != thread.providerID {
-            clearCodexThreadPersistence(for: thread)
-        }
-        thread.providerID = providerID
-        thread.modelID = resolvedModelID
-        thread.updatedAt = Date()
-        synchronizeLegacyConversationModelFields(with: thread)
-        normalizeControlsForCurrentSelection()
-        persistControlsToConversation()
+        ChatModelSelectionSupport.setProviderAndModel(
+            providerID: providerID,
+            modelID: modelID,
+            activeThread: activeModelThread,
+            sortedThreads: sortedModelThreads,
+            clearCodexThreadPersistence: { thread in
+                clearCodexThreadPersistence(for: thread)
+            },
+            canonicalModelID: { providerID, modelID in
+                canonicalModelID(for: providerID, modelID: modelID)
+            },
+            addOrActivateThread: { providerID, modelID in
+                addOrActivateThread(providerID: providerID, modelID: modelID)
+            },
+            activateThread: { thread in
+                activateThread(thread)
+            },
+            synchronizeLegacyConversationModelFields: { thread in
+                synchronizeLegacyConversationModelFields(with: thread)
+            },
+            normalizeControlsForCurrentSelection: {
+                normalizeControlsForCurrentSelection()
+            },
+            persistControlsToConversation: {
+                persistControlsToConversation()
+            }
+        )
     }
 
     private func preferredModelID(in models: [ModelInfo], providerID: String) -> String? {
-        guard let provider = providers.first(where: { $0.id == providerID }),
-              let type = ProviderType(rawValue: provider.typeRaw) else {
-            return nil
-        }
-
-        switch type {
-        case .openai, .openaiWebSocket:
-            return models.first(where: { $0.id == "gpt-5.2" })?.id
-        case .githubCopilot:
-            return nil
-        case .anthropic:
-            return models.first(where: { $0.id == "claude-opus-4-6" })?.id
-                ?? models.first(where: { $0.id == "claude-sonnet-4-6" })?.id
-                ?? models.first(where: { $0.id == "claude-sonnet-4-5-20250929" })?.id
-        case .perplexity:
-            return models.first(where: { $0.id == "sonar-pro" })?.id
-                ?? models.first(where: { $0.id == "sonar" })?.id
-        case .deepseek:
-            return models.first(where: { $0.id == "deepseek-chat" })?.id
-                ?? models.first(where: { $0.id == "deepseek-reasoner" })?.id
-        case .zhipuCodingPlan:
-            return models.first(where: { $0.id.lowercased() == "glm-5" })?.id
-                ?? models.first(where: { $0.id.lowercased() == "glm-4.7" })?.id
-        case .fireworks:
-            return models.first(where: { isFireworksModelID($0.id, canonicalID: "glm-5") })?.id
-                ?? models.first(where: { isFireworksModelID($0.id, canonicalID: "minimax-m2p5") })?.id
-                ?? models.first(where: { isFireworksModelID($0.id, canonicalID: "kimi-k2p5") })?.id
-                ?? models.first(where: { isFireworksModelID($0.id, canonicalID: "glm-4p7") })?.id
-        case .cerebras:
-            return models.first(where: { $0.id == "zai-glm-4.7" })?.id
-        case .sambanova:
-            return models.first(where: { $0.id == "MiniMax-M2.5" })?.id
-                ?? models.first(where: { $0.id == "gpt-oss-120b" })?.id
-        case .gemini:
-            for preferredID in Self.geminiPreferredModelOrder {
-                if let exact = models.first(where: { $0.id.lowercased() == preferredID }) {
-                    return exact.id
-                }
+        ChatModelSelectionSupport.preferredModelID(
+            in: models,
+            providerID: providerID,
+            providers: providers,
+            geminiPreferredModelOrder: Self.geminiPreferredModelOrder,
+            isFireworksModelID: { modelID, canonicalID in
+                isFireworksModelID(modelID, canonicalID: canonicalID)
             }
-            return nil
-        case .codexAppServer, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter, .groq, .cohere, .mistral, .deepinfra, .together, .xai, .vertexai:
-            return nil
-        }
+        )
     }
 
 
     private func orderedConversationMessages(threadID: UUID? = nil) -> [MessageEntity] {
-        let filtered = conversationEntity.messages.filter { entity in
-            guard let threadID else { return true }
-            return entity.contextThreadID == threadID
-        }
-        return filtered.sorted { lhs, rhs in
-            if lhs.timestamp != rhs.timestamp {
-                return lhs.timestamp < rhs.timestamp
-            }
-            return lhs.id.uuidString < rhs.id.uuidString
-        }
+        ChatMessageRenderPipeline.orderedMessages(
+            from: conversationEntity.messages,
+            threadID: threadID
+        )
     }
 
     private func rebuildMessageCachesIfNeeded() {
@@ -3292,62 +2456,20 @@ struct ChatView: View {
 
     private func rebuildMessageCaches() {
         let ordered = orderedConversationMessages(threadID: activeModelThread?.id)
+        let context = ChatMessageRenderPipeline.makeRenderContext(
+            from: ordered,
+            fallbackModelLabel: currentModelName,
+            assistantProviderIconID: { providerID in
+                providerIconID(for: providerID)
+            }
+        )
 
-        var messageEntitiesByID: [UUID: MessageEntity] = [:]
-        messageEntitiesByID.reserveCapacity(ordered.count)
-
-        var renderedItems: [MessageRenderItem] = []
-        renderedItems.reserveCapacity(ordered.count)
-
-        for entity in ordered {
-            messageEntitiesByID[entity.id] = entity
-            guard entity.role != "tool" else { continue }
-
-            guard let message = try? entity.toDomain() else { continue }
-            let renderedParts = renderedContentParts(content: message.content)
-
-            renderedItems.append(
-                MessageRenderItem(
-                    id: entity.id,
-                    contextThreadID: entity.contextThreadID,
-                    role: entity.role,
-                    timestamp: entity.timestamp,
-                    renderedContentParts: renderedParts,
-                    toolCalls: message.toolCalls ?? [],
-                    searchActivities: message.searchActivities ?? [],
-                    codexToolActivities: message.codexToolActivities ?? [],
-                    assistantModelLabel: entity.role == "assistant"
-                        ? (entity.generatedModelName ?? entity.generatedModelID ?? currentModelName)
-                        : nil,
-                    assistantProviderIconID: entity.role == "assistant"
-                        ? providerIconID(for: entity.generatedProviderID ?? "")
-                        : nil,
-                    responseMetrics: entity.responseMetrics,
-                    copyText: copyableText(from: message),
-                    canEditUserMessage: entity.role == "user"
-                        && message.content.contains(where: { part in
-                            if case .text = part { return true }
-                            return false
-                        })
-                )
-            )
-        }
-
-        cachedVisibleMessages = renderedItems
-        cachedMessageEntitiesByID = messageEntitiesByID
-        cachedToolResultsByCallID = toolResultsByToolCallID(in: ordered)
+        cachedVisibleMessages = context.visibleMessages
+        cachedMessageEntitiesByID = context.messageEntitiesByID
+        cachedToolResultsByCallID = context.toolResultsByCallID
         cachedMessagesVersion &+= 1
         lastCacheRebuildMessageCount = ordered.count
         lastCacheRebuildUpdatedAt = conversationEntity.updatedAt
-    }
-
-    private func renderedContentParts(content: [ContentPart]) -> [RenderedMessageContentPart] {
-        content.compactMap { part in
-            if case .redactedThinking = part {
-                return nil
-            }
-            return RenderedMessageContentPart(part: part)
-        }
     }
 
     private func regenerateMessage(_ messageEntity: MessageEntity) {
@@ -3569,34 +2691,7 @@ struct ChatView: View {
     }
 
     private func editableUserText(from message: Message) -> String? {
-        let parts = message.content.compactMap { part -> String? in
-            guard case .text(let text) = part else { return nil }
-            let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-            return trimmed.isEmpty ? nil : trimmed
-        }
-
-        guard !parts.isEmpty else { return nil }
-        return parts.joined(separator: "\n\n")
-    }
-
-    private func copyableText(from message: Message) -> String {
-        let textParts = message.content.compactMap { part -> String? in
-            guard case .text(let text) = part else { return nil }
-            let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-            return trimmed.isEmpty ? nil : trimmed
-        }
-
-        if !textParts.isEmpty {
-            return textParts.joined(separator: "\n\n")
-        }
-
-        let fileParts = message.content.compactMap { part -> String? in
-            guard case .file(let file) = part else { return nil }
-            let trimmed = file.filename.trimmingCharacters(in: .whitespacesAndNewlines)
-            return trimmed.isEmpty ? nil : trimmed
-        }
-
-        return fileParts.joined(separator: "\n")
+        ChatMessageRenderPipeline.editableUserText(from: message)
     }
 
     private func updateUserMessageContent(_ entity: MessageEntity, newText: String) throws {
@@ -3625,30 +2720,6 @@ struct ChatView: View {
         }
 
         entity.contentData = try encoder.encode(newContent)
-    }
-
-    private func toolResultsByToolCallID(in messageEntities: [MessageEntity]) -> [String: ToolResult] {
-        var results: [String: ToolResult] = [:]
-        results.reserveCapacity(8)
-
-        let decoder = JSONDecoder()
-        for entity in messageEntities where entity.role == "tool" {
-            guard let data = entity.toolResultsData,
-                  let toolResults = try? decoder.decode([ToolResult].self, from: data) else {
-                continue
-            }
-
-            for result in toolResults {
-                results[result.toolCallID] = result
-            }
-        }
-
-        return results
-    }
-
-    private func maxBubbleWidth(for containerWidth: CGFloat) -> CGFloat {
-        let usable = max(0, containerWidth - 32) // Message rows add horizontal padding
-        return max(260, usable * 0.78)
     }
 
     private func resolvedSystemPrompt(conversationSystemPrompt: String?, assistant: AssistantEntity?) -> String? {
@@ -5107,77 +4178,46 @@ struct ChatView: View {
 
     @ViewBuilder
     private var reasoningMenuContent: some View {
-        if let reasoningConfig = selectedReasoningConfig, reasoningConfig.type != .none {
-            if supportsReasoningDisableToggle {
-                Button { setReasoningOff() } label: { menuItemLabel("Off", isSelected: !isReasoningEnabled) }
+        ReasoningControlMenuView(
+            reasoningConfig: selectedReasoningConfig,
+            supportsReasoningDisableToggle: supportsReasoningDisableToggle,
+            isReasoningEnabled: isReasoningEnabled,
+            isAnthropicProvider: providerType == .anthropic,
+            supportsCerebrasPreservedThinkingToggle: supportsCerebrasPreservedThinkingToggle,
+            cerebrasPreserveThinkingBinding: cerebrasPreserveThinkingBinding,
+            availableReasoningEffortLevels: availableReasoningEffortLevels,
+            supportsReasoningSummaryControl: supportsReasoningSummaryControl,
+            currentReasoningSummary: controls.reasoning?.summary ?? .auto,
+            currentReasoningEffort: controls.reasoning?.effort,
+            supportsFireworksReasoningHistoryToggle: supportsFireworksReasoningHistoryToggle,
+            fireworksReasoningHistoryOptions: fireworksReasoningHistoryOptions,
+            fireworksReasoningHistory: fireworksReasoningHistory,
+            budgetTokensLabel: String(controls.reasoning?.budgetTokens ?? selectedReasoningConfig?.defaultBudget ?? 1024),
+            fireworksReasoningHistoryLabel: { option in
+                fireworksReasoningHistoryLabel(for: option)
+            },
+            menuItemLabel: { title, isSelected in
+                menuItemLabel(title, isSelected: isSelected)
+            },
+            onSetReasoningOff: {
+                setReasoningOff()
+            },
+            onSetReasoningOn: {
+                setReasoningOn()
+            },
+            onOpenThinkingBudgetEditor: {
+                openThinkingBudgetEditor()
+            },
+            onSetReasoningEffort: { effort in
+                setReasoningEffort(effort)
+            },
+            onSetReasoningSummary: { summary in
+                setReasoningSummary(summary)
+            },
+            onSetFireworksReasoningHistory: { value in
+                setFireworksReasoningHistory(value)
             }
-
-            switch reasoningConfig.type {
-            case .toggle:
-                Button { setReasoningOn() } label: { menuItemLabel("On", isSelected: isReasoningEnabled) }
-
-                if supportsCerebrasPreservedThinkingToggle {
-                    Divider()
-                    Toggle("Preserve thinking", isOn: cerebrasPreserveThinkingBinding)
-                        .help("Keeps GLM thinking across turns (maps to clear_thinking: false).")
-                }
-
-            case .effort:
-                if providerType == .anthropic {
-                    Button { openThinkingBudgetEditor() } label: {
-                        menuItemLabel("Configure thinking\u{2026}", isSelected: isReasoningEnabled)
-                    }
-                } else {
-                    effortLevelButtons(for: availableReasoningEffortLevels)
-
-                    if supportsReasoningSummaryControl {
-                        Divider()
-                        Text("Reasoning summary")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-
-                        ForEach(ReasoningSummary.allCases, id: \.self) { summary in
-                            Button {
-                                setReasoningSummary(summary)
-                            } label: {
-                                menuItemLabel(summary.displayName, isSelected: (controls.reasoning?.summary ?? .auto) == summary)
-                            }
-                        }
-                    }
-                }
-
-                if supportsFireworksReasoningHistoryToggle {
-                    Divider()
-                    Text("Thinking history")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-
-                    Button { setFireworksReasoningHistory(nil) } label: { menuItemLabel("Default (model)", isSelected: fireworksReasoningHistory == nil) }
-                    ForEach(fireworksReasoningHistoryOptions, id: \.self) { option in
-                        Button {
-                            setFireworksReasoningHistory(option)
-                        } label: {
-                            menuItemLabel(
-                                fireworksReasoningHistoryLabel(for: option),
-                                isSelected: fireworksReasoningHistory == option
-                            )
-                        }
-                    }
-                }
-
-            case .budget:
-                Button { openThinkingBudgetEditor() } label: {
-                    let current = controls.reasoning?.budgetTokens ?? reasoningConfig.defaultBudget ?? 1024
-                    menuItemLabel("Budget tokens… (\(current))", isSelected: isReasoningEnabled)
-                }
-
-            case .none:
-                EmptyView()
-            }
-        } else {
-            Text("Not supported")
-                .foregroundStyle(.secondary)
-        }
+        )
     }
 
     @ViewBuilder
@@ -5324,169 +4364,84 @@ struct ChatView: View {
         )
     }
 
+    private var anthropicDynamicFilteringBinding: Binding<Bool> {
+        Binding(
+            get: { controls.webSearch?.dynamicFiltering ?? false },
+            set: { newValue in
+                controls.webSearch?.dynamicFiltering = newValue ? true : nil
+                persistControlsToConversation()
+            }
+        )
+    }
+
     @ViewBuilder
     private var webSearchMenuContent: some View {
-        Toggle("Web Search", isOn: webSearchEnabledBinding)
-        if isWebSearchEnabled {
-            if supportsSearchEngineModeSwitch {
-                Divider()
-                Menu("Engine") {
-                    Button {
-                        setSearchEnginePreference(useJinSearch: false)
-                    } label: {
-                        menuItemLabel("Native", isSelected: !usesBuiltinSearchPlugin)
-                    }
-
-                    Button {
-                        setSearchEnginePreference(useJinSearch: true)
-                    } label: {
-                        menuItemLabel("Jin Search", isSelected: usesBuiltinSearchPlugin)
-                    }
+        WebSearchControlMenuView(
+            isEnabled: webSearchEnabledBinding,
+            isWebSearchEnabled: isWebSearchEnabled,
+            supportsSearchEngineModeSwitch: supportsSearchEngineModeSwitch,
+            usesBuiltinSearchPlugin: usesBuiltinSearchPlugin,
+            effectiveSearchPluginProvider: effectiveSearchPluginProvider,
+            builtinMaxResults: controls.searchPlugin?.maxResults ?? WebSearchPluginSettingsStore.load().defaultMaxResults,
+            builtinRecencyDays: controls.searchPlugin?.recencyDays,
+            providerType: providerType,
+            openAIContextSize: controls.webSearch?.contextSize ?? .medium,
+            perplexityContextSize: controls.webSearch?.contextSize ?? .low,
+            xaiSourcesAreEmpty: Set(controls.webSearch?.sources ?? []).isEmpty,
+            anthropicMaxUses: controls.webSearch?.maxUses,
+            supportsAnthropicDynamicFiltering: supportsAnthropicDynamicFiltering,
+            builtinSearchIncludeRawBinding: builtinSearchIncludeRawBinding,
+            builtinSearchFetchPageBinding: builtinSearchFetchPageBinding,
+            builtinSearchFirecrawlExtractBinding: builtinSearchFirecrawlExtractBinding,
+            xaiWebBinding: webSearchSourceBinding(.web),
+            xaiXBinding: webSearchSourceBinding(.x),
+            anthropicDynamicFilteringBinding: anthropicDynamicFilteringBinding,
+            menuItemLabel: { title, isSelected in
+                menuItemLabel(title, isSelected: isSelected)
+            },
+            onSetSearchEnginePreference: { useJinSearch in
+                setSearchEnginePreference(useJinSearch: useJinSearch)
+            },
+            onSelectSearchProvider: { provider in
+                if controls.searchPlugin == nil {
+                    controls.searchPlugin = SearchPluginControls()
                 }
+                controls.searchPlugin?.provider = provider
+                persistControlsToConversation()
+            },
+            onSelectBuiltinMaxResults: { value in
+                if controls.searchPlugin == nil {
+                    controls.searchPlugin = SearchPluginControls()
+                }
+                controls.searchPlugin?.maxResults = value
+                persistControlsToConversation()
+            },
+            onSelectBuiltinRecencyDays: { value in
+                if controls.searchPlugin == nil {
+                    controls.searchPlugin = SearchPluginControls()
+                }
+                controls.searchPlugin?.recencyDays = value
+                persistControlsToConversation()
+            },
+            onSelectOpenAIContextSize: { size in
+                controls.webSearch?.contextSize = size
+                persistControlsToConversation()
+            },
+            onSelectPerplexityContextSize: { size in
+                if controls.webSearch == nil {
+                    controls.webSearch = defaultWebSearchControls(enabled: true)
+                }
+                controls.webSearch?.contextSize = size
+                persistControlsToConversation()
+            },
+            onSelectAnthropicMaxUses: { value in
+                controls.webSearch?.maxUses = value
+                persistControlsToConversation()
+            },
+            onOpenAnthropicConfiguration: {
+                openAnthropicWebSearchEditor()
             }
-
-            if usesBuiltinSearchPlugin {
-                Divider()
-                Menu("Provider") {
-                    ForEach(SearchPluginProvider.allCases) { provider in
-                        Button {
-                            if controls.searchPlugin == nil {
-                                controls.searchPlugin = SearchPluginControls()
-                            }
-                            controls.searchPlugin?.provider = provider
-                            persistControlsToConversation()
-                        } label: {
-                            menuItemLabel(
-                                provider.displayName,
-                                isSelected: effectiveSearchPluginProvider == provider
-                            )
-                        }
-                    }
-                }
-
-                Menu("Max Results") {
-                    let current = controls.searchPlugin?.maxResults ?? WebSearchPluginSettingsStore.load().defaultMaxResults
-                    ForEach([3, 5, 8, 10, 20, 30, 50], id: \.self) { value in
-                        Button {
-                            if controls.searchPlugin == nil {
-                                controls.searchPlugin = SearchPluginControls()
-                            }
-                            controls.searchPlugin?.maxResults = value
-                            persistControlsToConversation()
-                        } label: {
-                            menuItemLabel("\(value)", isSelected: current == value)
-                        }
-                    }
-                }
-
-                Menu("Recency") {
-                    let current = controls.searchPlugin?.recencyDays
-                    Button {
-                        if controls.searchPlugin == nil {
-                            controls.searchPlugin = SearchPluginControls()
-                        }
-                        controls.searchPlugin?.recencyDays = nil
-                        persistControlsToConversation()
-                    } label: {
-                        menuItemLabel("Any time", isSelected: current == nil)
-                    }
-
-                    ForEach([1, 7, 30, 90], id: \.self) { value in
-                        Button {
-                            if controls.searchPlugin == nil {
-                                controls.searchPlugin = SearchPluginControls()
-                            }
-                            controls.searchPlugin?.recencyDays = value
-                            persistControlsToConversation()
-                        } label: {
-                            menuItemLabel("Past \(value)d", isSelected: current == value)
-                        }
-                    }
-                }
-
-                Divider()
-                Toggle("Include raw snippets", isOn: builtinSearchIncludeRawBinding)
-
-                if effectiveSearchPluginProvider == .jina {
-                    Toggle("Fetch pages via Reader", isOn: builtinSearchFetchPageBinding)
-                } else if effectiveSearchPluginProvider == .firecrawl {
-                    Toggle("Extract markdown", isOn: builtinSearchFirecrawlExtractBinding)
-                }
-            } else {
-                switch providerType {
-                case .openai, .openaiWebSocket:
-                    Divider()
-                    ForEach(WebSearchContextSize.allCases, id: \.self) { size in
-                        Button {
-                            controls.webSearch?.contextSize = size
-                            persistControlsToConversation()
-                        } label: {
-                            menuItemLabel(size.displayName, isSelected: (controls.webSearch?.contextSize ?? .medium) == size)
-                        }
-                    }
-                case .perplexity:
-                    Divider()
-                    ForEach(WebSearchContextSize.allCases, id: \.self) { size in
-                        Button {
-                            if controls.webSearch == nil {
-                                controls.webSearch = defaultWebSearchControls(enabled: true)
-                            }
-                            controls.webSearch?.contextSize = size
-                            persistControlsToConversation()
-                        } label: {
-                            menuItemLabel(size.displayName, isSelected: (controls.webSearch?.contextSize ?? .low) == size)
-                        }
-                    }
-                case .xai:
-                    Divider()
-                    Toggle("Web", isOn: webSearchSourceBinding(.web))
-                    Toggle("X", isOn: webSearchSourceBinding(.x))
-
-                    if Set(controls.webSearch?.sources ?? []).isEmpty {
-                        Divider()
-                        Text("Select at least one source.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                case .anthropic:
-                    Divider()
-                    Menu("Max Uses") {
-                        let current = controls.webSearch?.maxUses
-                        Button {
-                            controls.webSearch?.maxUses = nil
-                            persistControlsToConversation()
-                        } label: {
-                            menuItemLabel("Default (10)", isSelected: current == nil)
-                        }
-                        ForEach([1, 3, 5, 10, 20], id: \.self) { value in
-                            Button {
-                                controls.webSearch?.maxUses = value
-                                persistControlsToConversation()
-                            } label: {
-                                menuItemLabel("\(value)", isSelected: current == value)
-                            }
-                        }
-                    }
-                    if supportsAnthropicDynamicFiltering {
-                        Toggle("Dynamic Filtering", isOn: Binding(
-                            get: { controls.webSearch?.dynamicFiltering ?? false },
-                            set: { newValue in
-                                controls.webSearch?.dynamicFiltering = newValue ? true : nil
-                                persistControlsToConversation()
-                            }
-                        ))
-                    }
-                    Divider()
-                    Button("Configure\u{2026}") {
-                        openAnthropicWebSearchEditor()
-                    }
-                case .codexAppServer, .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter, .groq,
-                     .cohere, .mistral, .deepinfra, .together, .gemini, .vertexai, .deepseek,
-                     .zhipuCodingPlan, .fireworks, .cerebras, .sambanova, .none:
-                    EmptyView()
-                }
-            }
-        }
+        )
     }
 
     private func setSearchEnginePreference(useJinSearch: Bool) {
@@ -5499,61 +4454,52 @@ struct ChatView: View {
 
     @ViewBuilder
     private var contextCacheMenuContent: some View {
-        Button {
-            controls.contextCache = ContextCacheControls(mode: .off)
-            persistControlsToConversation()
-        } label: {
-            menuItemLabel("Off", isSelected: effectiveContextCacheMode == .off)
-        }
-
-        Button {
-            var cache = controls.contextCache ?? ContextCacheControls(mode: .implicit)
-            cache.mode = .implicit
-            if providerType != .anthropic {
-                cache.strategy = nil
-            }
-            if providerType != .openai && providerType != .openaiWebSocket && providerType != .xai {
-                cache.cacheKey = nil
-            }
-            if providerType != .xai {
-                cache.minTokensThreshold = nil
-            }
-            if providerType != .xai {
-                cache.conversationID = nil
-            }
-            if providerType != .gemini && providerType != .vertexai {
-                cache.cachedContentName = nil
-            }
-            controls.contextCache = cache
-            persistControlsToConversation()
-        } label: {
-            menuItemLabel("Implicit", isSelected: effectiveContextCacheMode == .implicit)
-        }
-
-        if supportsExplicitContextCacheMode {
-            Button {
+        ContextCacheControlMenuView(
+            effectiveMode: effectiveContextCacheMode,
+            supportsExplicitContextCacheMode: supportsExplicitContextCacheMode,
+            showsReset: controls.contextCache != nil,
+            onTurnOff: {
+                controls.contextCache = ContextCacheControls(mode: .off)
+                persistControlsToConversation()
+            },
+            onSetImplicit: {
+                var cache = controls.contextCache ?? ContextCacheControls(mode: .implicit)
+                cache.mode = .implicit
+                if providerType != .anthropic {
+                    cache.strategy = nil
+                }
+                if providerType != .openai && providerType != .openaiWebSocket && providerType != .xai {
+                    cache.cacheKey = nil
+                }
+                if providerType != .xai {
+                    cache.minTokensThreshold = nil
+                }
+                if providerType != .xai {
+                    cache.conversationID = nil
+                }
+                if providerType != .gemini && providerType != .vertexai {
+                    cache.cachedContentName = nil
+                }
+                controls.contextCache = cache
+                persistControlsToConversation()
+            },
+            onSetExplicit: {
                 var cache = controls.contextCache ?? ContextCacheControls(mode: .explicit)
                 cache.mode = .explicit
                 controls.contextCache = cache
                 persistControlsToConversation()
-            } label: {
-                menuItemLabel("Explicit", isSelected: effectiveContextCacheMode == .explicit)
-            }
-        }
-
-        Divider()
-
-        Button("Configure…") {
-            openContextCacheEditor()
-        }
-
-        if controls.contextCache != nil {
-            Divider()
-            Button("Reset", role: .destructive) {
+            },
+            onConfigure: {
+                openContextCacheEditor()
+            },
+            onReset: {
                 controls.contextCache = nil
                 persistControlsToConversation()
+            },
+            menuItemLabel: { title, isSelected in
+                menuItemLabel(title, isSelected: isSelected)
             }
-        }
+        )
     }
 
     private var mcpToolsEnabledBinding: Binding<Bool> {
@@ -5572,89 +4518,99 @@ struct ChatView: View {
 
     @ViewBuilder
     private var mcpToolsMenuContent: some View {
-        Toggle("MCP Tools", isOn: mcpToolsEnabledBinding)
-
-        if isMCPToolsEnabled {
-            if eligibleMCPServers.isEmpty {
-                Divider()
-                Text("No MCP servers enabled for automatic tool use.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            } else {
-                Divider()
-                Text("Servers")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-
-                ForEach(eligibleMCPServers, id: \.id) { server in
-                    Toggle(server.name, isOn: mcpServerSelectionBinding(serverID: server.id))
-                }
-
-                if selectedMCPServerIDs.isEmpty {
-                    Divider()
-                    Text("Select at least one server.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                } else if controls.mcpTools?.enabledServerIDs != nil {
-                    Divider()
-                    Button("Use all servers") {
-                        resetMCPServerSelection()
-                    }
-                }
+        MCPToolsControlMenuView(
+            isEnabled: mcpToolsEnabledBinding,
+            isMCPToolsEnabled: isMCPToolsEnabled,
+            servers: mcpServerMenuItems,
+            selectedServerIDs: selectedMCPServerIDs,
+            usesCustomServerSelection: controls.mcpTools?.enabledServerIDs != nil,
+            onUseAllServers: {
+                resetMCPServerSelection()
             }
-        }
+        )
     }
 
     @ViewBuilder
     private var imageGenerationMenuContent: some View {
         if providerType == .xai {
-            Text("xAI Image")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-
-            Divider()
-
-            Menu("Count") {
-                Button { updateXAIImageGeneration { $0.count = nil } } label: {
-                    menuItemLabel("Default", isSelected: controls.xaiImageGeneration?.count == nil)
-                }
-                ForEach([1, 2, 4], id: \.self) { count in
-                    Button { updateXAIImageGeneration { $0.count = count } } label: {
-                        menuItemLabel("\(count)", isSelected: (controls.xaiImageGeneration?.count ?? 1) == count)
-                    }
-                }
-            }
-
-            Menu("Aspect ratio") {
-                Button { updateXAIImageGeneration { $0.aspectRatio = nil } } label: {
-                    let selected = controls.xaiImageGeneration?.aspectRatio == nil
-                        && controls.xaiImageGeneration?.size == nil
-                    menuItemLabel("Default", isSelected: selected)
-                }
-                ForEach(XAIAspectRatio.allCases, id: \.self) { ratio in
-                    Button {
+            XAIImageGenerationMenuView(
+                isConfigured: isImageGenerationConfigured,
+                currentCount: controls.xaiImageGeneration?.count,
+                selectedAspectRatio: controls.xaiImageGeneration?.aspectRatio ?? controls.xaiImageGeneration?.size?.mappedAspectRatio,
+                menuItemLabel: { title, isSelected in
+                    menuItemLabel(title, isSelected: isSelected)
+                },
+                onSetCount: { value in
+                    updateXAIImageGeneration { $0.count = value }
+                },
+                onSetAspectRatio: { value in
+                    if let value {
                         updateXAIImageGeneration {
-                            $0.aspectRatio = ratio
-                            $0.size = nil // legacy fallback only
+                            $0.aspectRatio = value
+                            $0.size = nil
                         }
-                    } label: {
-                        menuItemLabel(
-                            ratio.displayName,
-                            isSelected: (controls.xaiImageGeneration?.aspectRatio ?? controls.xaiImageGeneration?.size?.mappedAspectRatio) == ratio
-                        )
+                    } else {
+                        updateXAIImageGeneration {
+                            $0.aspectRatio = nil
+                            $0.size = nil
+                        }
                     }
-                }
-            }
-
-            if isImageGenerationConfigured {
-                Divider()
-                Button("Reset", role: .destructive) {
+                },
+                onReset: {
                     controls.xaiImageGeneration = nil
                     persistControlsToConversation()
                 }
-            }
+            )
         } else if providerType == .openai || providerType == .openaiWebSocket {
-            openAIImageGenerationMenuContent
+            OpenAIImageGenerationMenuView(
+                isConfigured: isImageGenerationConfigured,
+                isGPTImageModel: lowerModelID.hasPrefix("gpt-image"),
+                isDallE3: lowerModelID.hasPrefix("dall-e-3"),
+                showsInputFidelity: lowerModelID == "gpt-image-1",
+                currentCount: controls.openaiImageGeneration?.count,
+                currentSize: controls.openaiImageGeneration?.size,
+                currentQuality: controls.openaiImageGeneration?.quality,
+                currentStyle: controls.openaiImageGeneration?.style,
+                currentBackground: controls.openaiImageGeneration?.background,
+                currentOutputFormat: controls.openaiImageGeneration?.outputFormat,
+                currentOutputCompression: controls.openaiImageGeneration?.outputCompression,
+                currentModeration: controls.openaiImageGeneration?.moderation,
+                currentInputFidelity: controls.openaiImageGeneration?.inputFidelity,
+                menuItemLabel: { title, isSelected in
+                    menuItemLabel(title, isSelected: isSelected)
+                },
+                onSetCount: { value in
+                    updateOpenAIImageGeneration { $0.count = value }
+                },
+                onSetSize: { value in
+                    updateOpenAIImageGeneration { $0.size = value }
+                },
+                onSetQuality: { value in
+                    updateOpenAIImageGeneration { $0.quality = value }
+                },
+                onSetStyle: { value in
+                    updateOpenAIImageGeneration { $0.style = value }
+                },
+                onSetBackground: { value in
+                    updateOpenAIImageGeneration { $0.background = value }
+                },
+                onSetOutputFormat: { value in
+                    updateOpenAIImageGeneration { $0.outputFormat = value }
+                },
+                onSetOutputCompression: { value in
+                    updateOpenAIImageGeneration { $0.outputCompression = value }
+                },
+                onSetModeration: { value in
+                    updateOpenAIImageGeneration { $0.moderation = value }
+                },
+                onSetInputFidelity: { value in
+                    updateOpenAIImageGeneration { $0.inputFidelity = value }
+                },
+                onReset: {
+                    controls.openaiImageGeneration = nil
+                    persistControlsToConversation()
+                }
+            )
         } else {
             Button("Edit…") {
                 openImageGenerationEditor()
@@ -5666,150 +4622,6 @@ struct ChatView: View {
                     controls.imageGeneration = nil
                     persistControlsToConversation()
                 }
-            }
-        }
-    }
-
-    // MARK: - OpenAI Image Generation Menu
-
-    @ViewBuilder
-    private var openAIImageGenerationMenuContent: some View {
-        let isGPTImageModel = lowerModelID.hasPrefix("gpt-image")
-        let isDallE3 = lowerModelID.hasPrefix("dall-e-3")
-        let isDallE2 = lowerModelID.hasPrefix("dall-e-2")
-
-        Text("OpenAI Image")
-            .font(.caption)
-            .foregroundStyle(.secondary)
-
-        Divider()
-
-        Menu("Count") {
-            Button { updateOpenAIImageGeneration { $0.count = nil } } label: {
-                menuItemLabel("Default (1)", isSelected: controls.openaiImageGeneration?.count == nil)
-            }
-            ForEach([1, 2, 4], id: \.self) { count in
-                Button { updateOpenAIImageGeneration { $0.count = count } } label: {
-                    menuItemLabel("\(count)", isSelected: controls.openaiImageGeneration?.count == count)
-                }
-            }
-        }
-
-        Menu("Size") {
-            let sizes: [OpenAIImageSize] = isGPTImageModel
-                ? OpenAIImageSize.gptImageSizes
-                : isDallE3 ? OpenAIImageSize.dallE3Sizes
-                : isDallE2 ? OpenAIImageSize.dallE2Sizes
-                : OpenAIImageSize.gptImageSizes
-
-            Button { updateOpenAIImageGeneration { $0.size = nil } } label: {
-                menuItemLabel("Default", isSelected: controls.openaiImageGeneration?.size == nil)
-            }
-            ForEach(sizes, id: \.self) { size in
-                Button { updateOpenAIImageGeneration { $0.size = size } } label: {
-                    menuItemLabel(size.displayName, isSelected: controls.openaiImageGeneration?.size == size)
-                }
-            }
-        }
-
-        let qualities: [OpenAIImageQuality] = isGPTImageModel
-            ? OpenAIImageQuality.gptImageQualities
-            : isDallE3 ? OpenAIImageQuality.dallE3Qualities
-            : []
-
-        if !qualities.isEmpty {
-            Menu("Quality") {
-                Button { updateOpenAIImageGeneration { $0.quality = nil } } label: {
-                    menuItemLabel("Default", isSelected: controls.openaiImageGeneration?.quality == nil)
-                }
-                ForEach(qualities, id: \.self) { quality in
-                    Button { updateOpenAIImageGeneration { $0.quality = quality } } label: {
-                        menuItemLabel(quality.displayName, isSelected: controls.openaiImageGeneration?.quality == quality)
-                    }
-                }
-            }
-        }
-
-        if isDallE3 {
-            Menu("Style") {
-                Button { updateOpenAIImageGeneration { $0.style = nil } } label: {
-                    menuItemLabel("Default (Vivid)", isSelected: controls.openaiImageGeneration?.style == nil)
-                }
-                ForEach(OpenAIImageStyle.allCases, id: \.self) { style in
-                    Button { updateOpenAIImageGeneration { $0.style = style } } label: {
-                        menuItemLabel(style.displayName, isSelected: controls.openaiImageGeneration?.style == style)
-                    }
-                }
-            }
-        }
-
-        if isGPTImageModel {
-            Menu("Background") {
-                Button { updateOpenAIImageGeneration { $0.background = nil } } label: {
-                    menuItemLabel("Default (Auto)", isSelected: controls.openaiImageGeneration?.background == nil)
-                }
-                ForEach(OpenAIImageBackground.allCases, id: \.self) { bg in
-                    Button { updateOpenAIImageGeneration { $0.background = bg } } label: {
-                        menuItemLabel(bg.displayName, isSelected: controls.openaiImageGeneration?.background == bg)
-                    }
-                }
-            }
-
-            Menu("Output Format") {
-                Button { updateOpenAIImageGeneration { $0.outputFormat = nil } } label: {
-                    menuItemLabel("Default (PNG)", isSelected: controls.openaiImageGeneration?.outputFormat == nil)
-                }
-                ForEach(OpenAIImageOutputFormat.allCases, id: \.self) { format in
-                    Button { updateOpenAIImageGeneration { $0.outputFormat = format } } label: {
-                        menuItemLabel(format.displayName, isSelected: controls.openaiImageGeneration?.outputFormat == format)
-                    }
-                }
-            }
-
-            if controls.openaiImageGeneration?.outputFormat == .jpeg || controls.openaiImageGeneration?.outputFormat == .webp {
-                Menu("Compression") {
-                    Button { updateOpenAIImageGeneration { $0.outputCompression = nil } } label: {
-                        menuItemLabel("Default (100)", isSelected: controls.openaiImageGeneration?.outputCompression == nil)
-                    }
-                    ForEach([25, 50, 75, 100], id: \.self) { level in
-                        Button { updateOpenAIImageGeneration { $0.outputCompression = level } } label: {
-                            menuItemLabel("\(level)%", isSelected: controls.openaiImageGeneration?.outputCompression == level)
-                        }
-                    }
-                }
-            }
-
-            Menu("Moderation") {
-                Button { updateOpenAIImageGeneration { $0.moderation = nil } } label: {
-                    menuItemLabel("Default (Auto)", isSelected: controls.openaiImageGeneration?.moderation == nil)
-                }
-                ForEach(OpenAIImageModeration.allCases, id: \.self) { mod in
-                    Button { updateOpenAIImageGeneration { $0.moderation = mod } } label: {
-                        menuItemLabel(mod.displayName, isSelected: controls.openaiImageGeneration?.moderation == mod)
-                    }
-                }
-            }
-
-            // Input fidelity (gpt-image-1 only) — controls style/feature matching for edits
-            if lowerModelID == "gpt-image-1" {
-                Menu("Input Fidelity") {
-                    Button { updateOpenAIImageGeneration { $0.inputFidelity = nil } } label: {
-                        menuItemLabel("Default (Low)", isSelected: controls.openaiImageGeneration?.inputFidelity == nil)
-                    }
-                    ForEach(OpenAIImageInputFidelity.allCases, id: \.self) { fidelity in
-                        Button { updateOpenAIImageGeneration { $0.inputFidelity = fidelity } } label: {
-                            menuItemLabel(fidelity.displayName, isSelected: controls.openaiImageGeneration?.inputFidelity == fidelity)
-                        }
-                    }
-                }
-            }
-        }
-
-        if isImageGenerationConfigured {
-            Divider()
-            Button("Reset", role: .destructive) {
-                controls.openaiImageGeneration = nil
-                persistControlsToConversation()
             }
         }
     }
@@ -5856,144 +4668,65 @@ struct ChatView: View {
     private var videoGenerationMenuContent: some View {
         switch providerType {
         case .gemini, .vertexai:
-            googleVideoGenerationMenuContent
-        case .xai:
-            xaiVideoGenerationMenuContent
-        default:
-            EmptyView()
-        }
-    }
-
-    @ViewBuilder
-    private var googleVideoGenerationMenuContent: some View {
-        let isVeo3 = GoogleVideoGenerationCore.isVeo3OrLater(conversationEntity.modelID)
-        let isVertexProvider = providerType == .vertexai
-
-        Text("Google Veo")
-            .font(.caption)
-            .foregroundStyle(.secondary)
-
-        Divider()
-
-        Menu("Duration") {
-            Button { updateGoogleVideoGeneration { $0.durationSeconds = nil } } label: {
-                menuItemLabel("Default", isSelected: controls.googleVideoGeneration?.durationSeconds == nil)
-            }
-            ForEach([4, 6, 8], id: \.self) { seconds in
-                Button { updateGoogleVideoGeneration { $0.durationSeconds = seconds } } label: {
-                    menuItemLabel("\(seconds)s", isSelected: controls.googleVideoGeneration?.durationSeconds == seconds)
-                }
-            }
-        }
-
-        Menu("Aspect ratio") {
-            Button { updateGoogleVideoGeneration { $0.aspectRatio = nil } } label: {
-                menuItemLabel("Default (16:9)", isSelected: controls.googleVideoGeneration?.aspectRatio == nil)
-            }
-            ForEach(GoogleVideoAspectRatio.allCases, id: \.self) { ratio in
-                Button { updateGoogleVideoGeneration { $0.aspectRatio = ratio } } label: {
-                    menuItemLabel(ratio.displayName, isSelected: controls.googleVideoGeneration?.aspectRatio == ratio)
-                }
-            }
-        }
-
-        if isVeo3 {
-            Menu("Resolution") {
-                Button { updateGoogleVideoGeneration { $0.resolution = nil } } label: {
-                    menuItemLabel("Default (720p)", isSelected: controls.googleVideoGeneration?.resolution == nil)
-                }
-                ForEach(GoogleVideoResolution.allCases, id: \.self) { res in
-                    Button { updateGoogleVideoGeneration { $0.resolution = res } } label: {
-                        menuItemLabel(res.displayName, isSelected: controls.googleVideoGeneration?.resolution == res)
-                    }
-                }
-            }
-        }
-
-        Menu("Person generation") {
-            Button { updateGoogleVideoGeneration { $0.personGeneration = nil } } label: {
-                menuItemLabel("Default", isSelected: controls.googleVideoGeneration?.personGeneration == nil)
-            }
-            ForEach(GoogleVideoPersonGeneration.allCases, id: \.self) { person in
-                Button { updateGoogleVideoGeneration { $0.personGeneration = person } } label: {
-                    menuItemLabel(person.displayName, isSelected: controls.googleVideoGeneration?.personGeneration == person)
-                }
-            }
-        }
-
-        // generateAudio is only a valid parameter for Vertex AI Veo 3 models.
-        // Gemini API Veo 3+ models generate audio natively by default.
-        if isVertexProvider, isVeo3 {
-            Toggle(
-                "Generate audio",
-                isOn: Binding(
+            GoogleVideoGenerationMenuView(
+                isVeo3: GoogleVideoGenerationCore.isVeo3OrLater(conversationEntity.modelID),
+                isVertexProvider: providerType == .vertexai,
+                isConfigured: isVideoGenerationConfigured,
+                currentDurationSeconds: controls.googleVideoGeneration?.durationSeconds,
+                currentAspectRatio: controls.googleVideoGeneration?.aspectRatio,
+                currentResolution: controls.googleVideoGeneration?.resolution,
+                currentPersonGeneration: controls.googleVideoGeneration?.personGeneration,
+                generateAudioBinding: Binding(
                     get: { controls.googleVideoGeneration?.generateAudio ?? false },
                     set: { newValue in
                         updateGoogleVideoGeneration { $0.generateAudio = newValue ? true : nil }
                     }
-                )
+                ),
+                menuItemLabel: { title, isSelected in
+                    menuItemLabel(title, isSelected: isSelected)
+                },
+                onSetDurationSeconds: { value in
+                    updateGoogleVideoGeneration { $0.durationSeconds = value }
+                },
+                onSetAspectRatio: { value in
+                    updateGoogleVideoGeneration { $0.aspectRatio = value }
+                },
+                onSetResolution: { value in
+                    updateGoogleVideoGeneration { $0.resolution = value }
+                },
+                onSetPersonGeneration: { value in
+                    updateGoogleVideoGeneration { $0.personGeneration = value }
+                },
+                onReset: {
+                    controls.googleVideoGeneration = nil
+                    persistControlsToConversation()
+                }
             )
-        }
-
-        if isVideoGenerationConfigured {
-            Divider()
-            Button("Reset", role: .destructive) {
-                controls.googleVideoGeneration = nil
-                persistControlsToConversation()
-            }
-        }
-    }
-
-    @ViewBuilder
-    private var xaiVideoGenerationMenuContent: some View {
-        Text("xAI Video")
-            .font(.caption)
-            .foregroundStyle(.secondary)
-
-        Divider()
-
-        Menu("Duration") {
-            Button { updateXAIVideoGeneration { $0.duration = nil } } label: {
-                menuItemLabel("Default (8s)", isSelected: controls.xaiVideoGeneration?.duration == nil)
-            }
-            ForEach([3, 5, 8, 10, 15], id: \.self) { seconds in
-                Button { updateXAIVideoGeneration { $0.duration = seconds } } label: {
-                    menuItemLabel("\(seconds)s", isSelected: controls.xaiVideoGeneration?.duration == seconds)
+        case .xai:
+            XAIVideoGenerationMenuView(
+                isConfigured: isVideoGenerationConfigured,
+                currentDuration: controls.xaiVideoGeneration?.duration,
+                currentAspectRatio: controls.xaiVideoGeneration?.aspectRatio,
+                currentResolution: controls.xaiVideoGeneration?.resolution,
+                menuItemLabel: { title, isSelected in
+                    menuItemLabel(title, isSelected: isSelected)
+                },
+                onSetDuration: { value in
+                    updateXAIVideoGeneration { $0.duration = value }
+                },
+                onSetAspectRatio: { value in
+                    updateXAIVideoGeneration { $0.aspectRatio = value }
+                },
+                onSetResolution: { value in
+                    updateXAIVideoGeneration { $0.resolution = value }
+                },
+                onReset: {
+                    controls.xaiVideoGeneration = nil
+                    persistControlsToConversation()
                 }
-            }
-        }
-
-        Menu("Aspect ratio") {
-            Button { updateXAIVideoGeneration { $0.aspectRatio = nil } } label: {
-                menuItemLabel("Default (16:9)", isSelected: controls.xaiVideoGeneration?.aspectRatio == nil)
-            }
-            ForEach(
-                [XAIAspectRatio.ratio1x1, .ratio16x9, .ratio9x16, .ratio4x3, .ratio3x4, .ratio3x2, .ratio2x3],
-                id: \.self
-            ) { ratio in
-                Button { updateXAIVideoGeneration { $0.aspectRatio = ratio } } label: {
-                    menuItemLabel(ratio.displayName, isSelected: controls.xaiVideoGeneration?.aspectRatio == ratio)
-                }
-            }
-        }
-
-        Menu("Resolution") {
-            Button { updateXAIVideoGeneration { $0.resolution = nil } } label: {
-                menuItemLabel("Default (480p)", isSelected: controls.xaiVideoGeneration?.resolution == nil)
-            }
-            ForEach(XAIVideoResolution.allCases, id: \.self) { res in
-                Button { updateXAIVideoGeneration { $0.resolution = res } } label: {
-                    menuItemLabel(res.displayName, isSelected: controls.xaiVideoGeneration?.resolution == res)
-                }
-            }
-        }
-
-        if isVideoGenerationConfigured {
-            Divider()
-            Button("Reset", role: .destructive) {
-                controls.xaiVideoGeneration = nil
-                persistControlsToConversation()
-            }
+            )
+        default:
+            EmptyView()
         }
     }
 
@@ -6012,16 +4745,14 @@ struct ChatView: View {
     }
 
     private func openImageGenerationEditor() {
-        var current = controls.imageGeneration ?? ImageGenerationControls()
-        if let ratio = current.aspectRatio, !supportedCurrentModelImageAspectRatios.contains(ratio) {
-            current.aspectRatio = nil
-        }
-        if let size = current.imageSize, !supportedCurrentModelImageSizes.contains(size) {
-            current.imageSize = nil
-        }
-        imageGenerationDraft = current
-        imageGenerationSeedDraft = current.seed.map(String.init) ?? ""
-        imageGenerationCompressionQualityDraft = current.vertexCompressionQuality.map(String.init) ?? ""
+        let prepared = ChatEditorDraftSupport.prepareImageGenerationEditorDraft(
+            current: controls.imageGeneration,
+            supportedAspectRatios: supportedCurrentModelImageAspectRatios,
+            supportedImageSizes: supportedCurrentModelImageSizes
+        )
+        imageGenerationDraft = prepared.draft
+        imageGenerationSeedDraft = prepared.seedDraft
+        imageGenerationCompressionQualityDraft = prepared.compressionQualityDraft
         imageGenerationDraftError = nil
         showingImageGenerationSheet = true
     }
@@ -6053,29 +4784,21 @@ struct ChatView: View {
     }
 
     private func applyCodexSessionSettingsDraft() {
-        let trimmed = codexWorkingDirectoryDraft.trimmingCharacters(in: .whitespacesAndNewlines)
-        if trimmed.isEmpty {
-            controls.codexWorkingDirectory = nil
-            controls.codexSandboxMode = codexSandboxModeDraft
-            controls.codexPersonality = codexPersonalityDraft
+        switch ChatEditorDraftSupport.applyCodexSessionSettingsDraft(
+            workingDirectoryDraft: codexWorkingDirectoryDraft,
+            sandboxModeDraft: codexSandboxModeDraft,
+            personalityDraft: codexPersonalityDraft,
+            controls: controls
+        ) {
+        case .success(let result):
+            controls = result.controls
             persistControlsToConversation()
+            codexWorkingDirectoryDraft = result.normalizedPath ?? ""
             codexWorkingDirectoryDraftError = nil
             showingCodexSessionSettingsSheet = false
-            return
+        case .failure(let error):
+            codexWorkingDirectoryDraftError = error.localizedDescription
         }
-
-        guard let normalized = normalizedCodexWorkingDirectoryPath(from: trimmed) else {
-            codexWorkingDirectoryDraftError = "Choose an existing local folder (absolute path or ~/path)."
-            return
-        }
-
-        controls.codexWorkingDirectory = normalized
-        controls.codexSandboxMode = codexSandboxModeDraft
-        controls.codexPersonality = codexPersonalityDraft
-        persistControlsToConversation()
-        codexWorkingDirectoryDraft = normalized
-        codexWorkingDirectoryDraftError = nil
-        showingCodexSessionSettingsSheet = false
     }
 
     private func resolveCodexInteraction(_ item: PendingCodexInteraction, response: CodexInteractionResponse) {
@@ -6086,87 +4809,49 @@ struct ChatView: View {
     }
 
     private func normalizedCodexWorkingDirectoryPath(from raw: String) -> String? {
-        CodexWorkingDirectoryPresetsStore.normalizedDirectoryPath(from: raw, requireExistingDirectory: true)
+        ChatEditorDraftSupport.normalizedCodexWorkingDirectoryPath(from: raw)
     }
 
     private var isImageGenerationDraftValid: Bool {
-        let seedText = imageGenerationSeedDraft.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !seedText.isEmpty, Int(seedText) == nil {
-            return false
-        }
-
-        let qualityText = imageGenerationCompressionQualityDraft.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !qualityText.isEmpty {
-            guard let quality = Int(qualityText), (0...100).contains(quality) else {
-                return false
-            }
-        }
-
-        return true
+        ChatEditorDraftSupport.isImageGenerationDraftValid(
+            seedDraft: imageGenerationSeedDraft,
+            compressionQualityDraft: imageGenerationCompressionQualityDraft
+        )
     }
 
     @discardableResult
     private func applyImageGenerationDraft() -> Bool {
-        var draft = imageGenerationDraft
-
-        let seedText = imageGenerationSeedDraft.trimmingCharacters(in: .whitespacesAndNewlines)
-        if seedText.isEmpty {
-            draft.seed = nil
-        } else if let seed = Int(seedText) {
-            draft.seed = seed
-        } else {
-            imageGenerationDraftError = "Seed must be an integer."
-            return false
-        }
-
-        let qualityText = imageGenerationCompressionQualityDraft.trimmingCharacters(in: .whitespacesAndNewlines)
-        if qualityText.isEmpty {
-            draft.vertexCompressionQuality = nil
-        } else if let quality = Int(qualityText), (0...100).contains(quality) {
-            draft.vertexCompressionQuality = quality
-        } else {
-            imageGenerationDraftError = "JPEG quality must be an integer between 0 and 100."
-            return false
-        }
-
-        if !supportsCurrentModelImageSizeControl {
-            draft.imageSize = nil
-        } else if let size = draft.imageSize, !supportedCurrentModelImageSizes.contains(size) {
-            draft.imageSize = nil
-        }
-
-        if let ratio = draft.aspectRatio, !supportedCurrentModelImageAspectRatios.contains(ratio) {
-            draft.aspectRatio = nil
-        }
-
-        if providerType != .vertexai {
-            draft.vertexPersonGeneration = nil
-            draft.vertexOutputMIMEType = nil
-            draft.vertexCompressionQuality = nil
-        }
-
-        if draft.isEmpty {
-            controls.imageGeneration = nil
-        } else {
+        switch ChatEditorDraftSupport.applyImageGenerationDraft(
+            draft: imageGenerationDraft,
+            seedDraft: imageGenerationSeedDraft,
+            compressionQualityDraft: imageGenerationCompressionQualityDraft,
+            supportsCurrentModelImageSizeControl: supportsCurrentModelImageSizeControl,
+            supportedCurrentModelImageSizes: supportedCurrentModelImageSizes,
+            supportedCurrentModelImageAspectRatios: supportedCurrentModelImageAspectRatios,
+            providerType: providerType
+        ) {
+        case .success(let draft):
             controls.imageGeneration = draft
+            persistControlsToConversation()
+            imageGenerationDraftError = nil
+            return true
+        case .failure(let error):
+            imageGenerationDraftError = error.localizedDescription
+            return false
         }
-
-        persistControlsToConversation()
-        imageGenerationDraftError = nil
-        return true
     }
 
     private func openContextCacheEditor() {
-        let defaultMode: ContextCacheMode = (providerType == .anthropic) ? .implicit : .off
-        contextCacheDraft = controls.contextCache ?? ContextCacheControls(mode: defaultMode)
-        contextCacheTTLPreset = ContextCacheTTLPreset.from(ttl: contextCacheDraft.ttl)
-        if case .customSeconds(let seconds) = contextCacheDraft.ttl {
-            contextCacheCustomTTLDraft = "\(seconds)"
-        } else {
-            contextCacheCustomTTLDraft = ""
-        }
-        contextCacheMinTokensDraft = contextCacheDraft.minTokensThreshold.map(String.init) ?? ""
-        contextCacheAdvancedExpanded = shouldExpandContextCacheAdvancedOptions(for: contextCacheDraft)
+        let prepared = ChatAuxiliaryControlSupport.prepareContextCacheEditorDraft(
+            current: controls.contextCache,
+            providerType: providerType,
+            supportsContextCacheTTL: supportsContextCacheTTL
+        )
+        contextCacheDraft = prepared.draft
+        contextCacheTTLPreset = prepared.ttlPreset
+        contextCacheCustomTTLDraft = prepared.customTTLDraft
+        contextCacheMinTokensDraft = prepared.minTokensDraft
+        contextCacheAdvancedExpanded = prepared.advancedExpanded
         contextCacheDraftError = nil
         showingContextCacheSheet = true
     }
@@ -6180,225 +4865,77 @@ struct ChatView: View {
         )
     }
 
-    private func normalizeAnthropicDomainFilters() {
-        let allowed = AnthropicWebSearchDomainUtils.normalizedDomains(controls.webSearch?.allowedDomains)
-        let blocked = AnthropicWebSearchDomainUtils.normalizedDomains(controls.webSearch?.blockedDomains)
-
-        if !allowed.isEmpty {
-            controls.webSearch?.allowedDomains = allowed
-            controls.webSearch?.blockedDomains = nil
-        } else if !blocked.isEmpty {
-            controls.webSearch?.allowedDomains = nil
-            controls.webSearch?.blockedDomains = blocked
-        } else {
-            controls.webSearch?.allowedDomains = nil
-            controls.webSearch?.blockedDomains = nil
-        }
-    }
-
     private func openAnthropicWebSearchEditor() {
-        let ws = controls.webSearch
-        let allowed = AnthropicWebSearchDomainUtils.normalizedDomains(ws?.allowedDomains)
-        let blocked = AnthropicWebSearchDomainUtils.normalizedDomains(ws?.blockedDomains)
-
-        anthropicWebSearchAllowedDomainsDraft = allowed.joined(separator: "\n")
-        anthropicWebSearchBlockedDomainsDraft = blocked.joined(separator: "\n")
-
-        if anthropicWebSearchDomainMode == .blocked, !blocked.isEmpty {
-            anthropicWebSearchDomainMode = .blocked
-        } else if !allowed.isEmpty {
-            anthropicWebSearchDomainMode = .allowed
-        } else if !blocked.isEmpty {
-            anthropicWebSearchDomainMode = .blocked
-        } else {
-            anthropicWebSearchDomainMode = .none
-        }
-        anthropicWebSearchLocationDraft = ws?.userLocation ?? WebSearchUserLocation()
+        let prepared = ChatAuxiliaryControlSupport.prepareAnthropicWebSearchEditorDraft(
+            webSearch: controls.webSearch,
+            currentMode: anthropicWebSearchDomainMode
+        )
+        anthropicWebSearchAllowedDomainsDraft = prepared.allowedDomainsDraft
+        anthropicWebSearchBlockedDomainsDraft = prepared.blockedDomainsDraft
+        anthropicWebSearchDomainMode = prepared.domainMode
+        anthropicWebSearchLocationDraft = prepared.locationDraft
         anthropicWebSearchDraftError = nil
         showingAnthropicWebSearchSheet = true
     }
 
     private func applyAnthropicWebSearchDraft() {
-        let allowedDomains = AnthropicWebSearchDomainUtils.normalizedDomains(
-            AnthropicWebSearchDomainUtils.splitInput(anthropicWebSearchAllowedDomainsDraft)
-        )
-        let blockedDomains = AnthropicWebSearchDomainUtils.normalizedDomains(
-            AnthropicWebSearchDomainUtils.splitInput(anthropicWebSearchBlockedDomainsDraft)
-        )
-
-        switch anthropicWebSearchDomainMode {
-        case .none:
+        switch ChatAuxiliaryControlSupport.applyAnthropicWebSearchDraft(
+            domainMode: anthropicWebSearchDomainMode,
+            allowedDomainsDraft: anthropicWebSearchAllowedDomainsDraft,
+            blockedDomainsDraft: anthropicWebSearchBlockedDomainsDraft,
+            locationDraft: anthropicWebSearchLocationDraft,
+            controls: controls
+        ) {
+        case .success(let updatedControls):
+            controls = updatedControls
             anthropicWebSearchDraftError = nil
-            controls.webSearch?.allowedDomains = nil
-            controls.webSearch?.blockedDomains = nil
-        case .allowed:
-            if allowedDomains.isEmpty {
-                anthropicWebSearchDraftError = nil
-                controls.webSearch?.allowedDomains = nil
-                controls.webSearch?.blockedDomains = nil
-            } else {
-                if let validationError = AnthropicWebSearchDomainUtils.firstValidationError(in: allowedDomains) {
-                    anthropicWebSearchDraftError = validationError
-                    return
-                }
-                anthropicWebSearchDraftError = nil
-                controls.webSearch?.allowedDomains = allowedDomains
-                controls.webSearch?.blockedDomains = nil
-            }
-        case .blocked:
-            if blockedDomains.isEmpty {
-                anthropicWebSearchDraftError = nil
-                controls.webSearch?.allowedDomains = nil
-                controls.webSearch?.blockedDomains = nil
-            } else {
-                if let validationError = AnthropicWebSearchDomainUtils.firstValidationError(in: blockedDomains) {
-                    anthropicWebSearchDraftError = validationError
-                    return
-                }
-                anthropicWebSearchDraftError = nil
-                controls.webSearch?.allowedDomains = nil
-                controls.webSearch?.blockedDomains = blockedDomains
-            }
+            persistControlsToConversation()
+            showingAnthropicWebSearchSheet = false
+        case .failure(let error):
+            anthropicWebSearchDraftError = error.localizedDescription
         }
-        normalizeAnthropicDomainFilters()
-
-        let loc = anthropicWebSearchLocationDraft
-        controls.webSearch?.userLocation = loc.isEmpty ? nil : loc
-
-        persistControlsToConversation()
-        showingAnthropicWebSearchSheet = false
     }
 
     private func shouldExpandContextCacheAdvancedOptions(for draft: ContextCacheControls) -> Bool {
-        guard draft.mode != .off else { return false }
-
-        if supportsContextCacheTTL,
-           let ttl = draft.ttl,
-           ttl != .providerDefault {
-            return true
-        }
-
-        if providerType == .xai {
-            if let cacheKey = draft.cacheKey?.trimmingCharacters(in: .whitespacesAndNewlines),
-               !cacheKey.isEmpty {
-                return true
-            }
-        }
-
-        if providerType == .xai,
-           let conversationID = draft.conversationID?.trimmingCharacters(in: .whitespacesAndNewlines),
-           !conversationID.isEmpty {
-            return true
-        }
-
-        return false
+        ChatAuxiliaryControlSupport.shouldExpandContextCacheAdvancedOptions(
+            for: draft,
+            providerType: providerType,
+            supportsContextCacheTTL: supportsContextCacheTTL
+        )
     }
 
     private var isContextCacheDraftValid: Bool {
-        if contextCacheTTLPreset == .custom {
-            let trimmed = contextCacheCustomTTLDraft.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard let value = Int(trimmed), value > 0 else { return false }
-        }
-
-        let minTokensTrimmed = contextCacheMinTokensDraft.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !minTokensTrimmed.isEmpty {
-            guard let value = Int(minTokensTrimmed), value > 0 else { return false }
-        }
-
-        if supportsExplicitContextCacheMode, contextCacheDraft.mode == .explicit {
-            let name = (contextCacheDraft.cachedContentName ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-            return !name.isEmpty
-        }
-
-        return true
+        ChatAuxiliaryControlSupport.isContextCacheDraftValid(
+            contextCacheDraft: contextCacheDraft,
+            ttlPreset: contextCacheTTLPreset,
+            customTTLDraft: contextCacheCustomTTLDraft,
+            minTokensDraft: contextCacheMinTokensDraft,
+            supportsExplicitContextCacheMode: supportsExplicitContextCacheMode
+        )
     }
 
     @discardableResult
     private func applyContextCacheDraft() -> Bool {
-        var draft = contextCacheDraft
-
-        if supportsContextCacheTTL {
-            switch contextCacheTTLPreset {
-            case .providerDefault:
-                draft.ttl = .providerDefault
-            case .minutes5:
-                draft.ttl = .minutes5
-            case .hour1:
-                draft.ttl = .hour1
-            case .custom:
-                let trimmed = contextCacheCustomTTLDraft.trimmingCharacters(in: .whitespacesAndNewlines)
-                guard let value = Int(trimmed), value > 0 else {
-                    contextCacheDraftError = "Custom TTL must be a positive integer (seconds)."
-                    return false
-                }
-                draft.ttl = .customSeconds(value)
-            }
-        } else {
-            draft.ttl = nil
-        }
-
-        let minTokensTrimmed = contextCacheMinTokensDraft.trimmingCharacters(in: .whitespacesAndNewlines)
-        if minTokensTrimmed.isEmpty {
-            draft.minTokensThreshold = nil
-        } else if let value = Int(minTokensTrimmed), value > 0 {
-            draft.minTokensThreshold = value
-        } else {
-            contextCacheDraftError = "Min tokens threshold must be a positive integer."
+        switch ChatAuxiliaryControlSupport.applyContextCacheDraft(
+            draft: contextCacheDraft,
+            ttlPreset: contextCacheTTLPreset,
+            customTTLDraft: contextCacheCustomTTLDraft,
+            minTokensDraft: contextCacheMinTokensDraft,
+            supportsContextCacheTTL: supportsContextCacheTTL,
+            supportsContextCacheStrategy: supportsContextCacheStrategy,
+            supportsExplicitContextCacheMode: supportsExplicitContextCacheMode,
+            providerType: providerType
+        ) {
+        case .success(let draft):
+            controls.contextCache = draft
+            normalizeControlsForCurrentSelection()
+            persistControlsToConversation()
+            contextCacheDraftError = nil
+            return true
+        case .failure(let error):
+            contextCacheDraftError = error.localizedDescription
             return false
         }
-
-        draft.cacheKey = draft.cacheKey?.trimmingCharacters(in: .whitespacesAndNewlines)
-        if draft.cacheKey?.isEmpty == true {
-            draft.cacheKey = nil
-        }
-
-        draft.conversationID = draft.conversationID?.trimmingCharacters(in: .whitespacesAndNewlines)
-        if draft.conversationID?.isEmpty == true {
-            draft.conversationID = nil
-        }
-
-        draft.cachedContentName = draft.cachedContentName?.trimmingCharacters(in: .whitespacesAndNewlines)
-        if draft.cachedContentName?.isEmpty == true {
-            draft.cachedContentName = nil
-        }
-
-        if !supportsContextCacheStrategy {
-            draft.strategy = nil
-        } else if draft.strategy == nil {
-            draft.strategy = .systemOnly
-        }
-
-        if !supportsExplicitContextCacheMode, draft.mode == .explicit {
-            draft.mode = .implicit
-        }
-
-        if providerType != .openai && providerType != .openaiWebSocket && providerType != .xai {
-            draft.cacheKey = nil
-        }
-        if providerType != .xai {
-            draft.minTokensThreshold = nil
-        }
-        if providerType != .xai {
-            draft.conversationID = nil
-        }
-        if providerType != .gemini && providerType != .vertexai {
-            draft.cachedContentName = nil
-        }
-
-        if draft.mode == .off {
-            if providerType == .anthropic {
-                controls.contextCache = ContextCacheControls(mode: .off)
-            } else {
-                controls.contextCache = nil
-            }
-        } else {
-            controls.contextCache = draft
-        }
-
-        normalizeControlsForCurrentSelection()
-        persistControlsToConversation()
-        contextCacheDraftError = nil
-        return true
     }
 
     private func mcpServerSelectionBinding(serverID: String) -> Binding<Bool> {
@@ -6407,110 +4944,48 @@ struct ChatView: View {
                 selectedMCPServerIDs.contains(serverID)
             },
             set: { isOn in
-                if controls.mcpTools == nil {
-                    controls.mcpTools = MCPToolsControls(enabled: true, enabledServerIDs: nil)
-                }
-
-                let eligibleIDs = Set(eligibleMCPServers.map(\.id))
-                var selected = Set(controls.mcpTools?.enabledServerIDs ?? Array(eligibleIDs))
-                if isOn {
-                    selected.insert(serverID)
-                } else {
-                    selected.remove(serverID)
-                }
-
-                let normalized = selected.intersection(eligibleIDs)
-                if normalized == eligibleIDs {
-                    controls.mcpTools?.enabledServerIDs = nil
-                } else {
-                    controls.mcpTools?.enabledServerIDs = Array(normalized).sorted()
-                }
-
+                controls = ChatAuxiliaryControlSupport.toggleMCPServerSelection(
+                    controls: controls,
+                    eligibleServers: eligibleMCPServers,
+                    serverID: serverID,
+                    isOn: isOn
+                )
                 persistControlsToConversation()
             }
         )
     }
 
     private func resetMCPServerSelection() {
-        if controls.mcpTools == nil {
-            controls.mcpTools = MCPToolsControls(enabled: true, enabledServerIDs: nil)
-        } else {
-            controls.mcpTools?.enabled = true
-            controls.mcpTools?.enabledServerIDs = nil
-        }
+        controls = ChatAuxiliaryControlSupport.resetMCPServerSelection(controls: controls)
         persistControlsToConversation()
     }
 
     private func resolvedMCPServerConfigs(for controlsToUse: GenerationControls) throws -> [MCPServerConfig] {
-        guard supportsMCPToolsControl else { return [] }
-        guard controlsToUse.mcpTools?.enabled == true else { return [] }
-
-        let eligibleServers = mcpServers
-            .filter { $0.isEnabled && $0.runToolsAutomatically }
-            .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
-
-        let eligibleIDs = Set(eligibleServers.map(\.id))
-        let allowlist = controlsToUse.mcpTools?.enabledServerIDs
-        let selectedIDs = allowlist.map(Set.init) ?? eligibleIDs
-        let resolvedIDs = selectedIDs.intersection(eligibleIDs)
-
-        return try eligibleServers
-            .filter { resolvedIDs.contains($0.id) }
-            .map { try $0.toConfig() }
+        try ChatAuxiliaryControlSupport.resolvedMCPServerConfigs(
+            controls: controlsToUse,
+            supportsMCPToolsControl: supportsMCPToolsControl,
+            servers: mcpServers
+        )
     }
 
     private func ensureModelThreadsInitializedIfNeeded() {
-        var didMutate = false
-
-        if conversationEntity.modelThreads.isEmpty {
-            let controlsData = conversationEntity.modelConfigData
-            let thread = ConversationModelThreadEntity(
-                providerID: conversationEntity.providerID,
-                modelID: conversationEntity.modelID,
-                modelConfigData: controlsData,
-                displayOrder: 0,
-                isSelected: true,
-                isPrimary: true
-            )
-            thread.conversation = conversationEntity
-            conversationEntity.modelThreads.append(thread)
-            conversationEntity.activeThreadID = thread.id
-            activeThreadID = thread.id
-            didMutate = true
-        }
-
-        guard let fallbackThread = activeModelThread ?? sortedModelThreads.first else { return }
-        for message in conversationEntity.messages where message.contextThreadID == nil {
-            message.contextThreadID = fallbackThread.id
-            didMutate = true
-        }
-
-        if let currentActive = conversationEntity.activeThreadID,
-           !sortedModelThreads.contains(where: { $0.id == currentActive }) {
-            conversationEntity.activeThreadID = fallbackThread.id
-            didMutate = true
-        }
-
-        if sortedModelThreads.filter(\.isSelected).isEmpty,
-           let first = sortedModelThreads.first {
-            first.isSelected = true
-            didMutate = true
-        }
-
-        if didMutate {
-            try? modelContext.save()
-        }
+        ChatConversationStateSupport.ensureModelThreadsInitializedIfNeeded(
+            conversationEntity: conversationEntity,
+            activeThreadID: &activeThreadID,
+            modelContext: modelContext,
+            activeModelThread: { activeModelThread },
+            sortedModelThreads: { sortedModelThreads }
+        )
     }
 
     private func syncActiveThreadSelection() {
-        if let current = activeModelThread {
-            synchronizeLegacyConversationModelFields(with: current)
-            return
-        }
-
-        if let first = sortedModelThreads.first {
-            synchronizeLegacyConversationModelFields(with: first)
-        }
+        ChatConversationStateSupport.syncActiveThreadSelection(
+            activeModelThread: activeModelThread,
+            sortedModelThreads: sortedModelThreads,
+            synchronizeLegacyConversationModelFields: { thread in
+                synchronizeLegacyConversationModelFields(with: thread)
+            }
+        )
     }
 
     private func loadControlsFromConversation() {
@@ -6521,94 +4996,33 @@ struct ChatView: View {
             canonicalizeThreadModelIDIfNeeded(activeThread)
         }
 
-        let controlsData = activeModelThread?.modelConfigData ?? conversationEntity.modelConfigData
-        if let decoded = try? JSONDecoder().decode(GenerationControls.self, from: controlsData) {
-            controls = decoded
-        } else {
-            controls = GenerationControls()
-        }
-
+        controls = ChatConversationStateSupport.loadControlsFromConversation(
+            conversationEntity: conversationEntity,
+            activeThread: activeModelThread
+        )
         normalizeControlsForCurrentSelection()
     }
 
     private func refreshExtensionCredentialsStatus() async {
-        let defaults = UserDefaults.standard
-
-        func hasStoredKey(_ key: String) -> Bool {
-            let trimmed = (defaults.string(forKey: key) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-            return !trimmed.isEmpty
-        }
-
-        let mistralConfigured = hasStoredKey(AppPreferenceKeys.pluginMistralOCRAPIKey)
-        let deepSeekConfigured = hasStoredKey(AppPreferenceKeys.pluginDeepSeekOCRAPIKey)
-
-        let ttsProvider = try? SpeechPluginConfigFactory.currentTTSProvider(defaults: defaults)
-        let sttProvider = try? SpeechPluginConfigFactory.currentSTTProvider(defaults: defaults)
-
-        let ttsKeyConfigured = {
-            guard let ttsProvider else { return false }
-            let key: String
-            switch ttsProvider {
-            case .elevenlabs:
-                key = AppPreferenceKeys.ttsElevenLabsAPIKey
-            case .openai:
-                key = AppPreferenceKeys.ttsOpenAIAPIKey
-            case .groq:
-                key = AppPreferenceKeys.ttsGroqAPIKey
-            }
-            return hasStoredKey(key)
-        }()
-
-        let sttKeyConfigured = {
-            guard let sttProvider else { return false }
-            let key: String
-            switch sttProvider {
-            case .openai:
-                key = AppPreferenceKeys.sttOpenAIAPIKey
-            case .groq:
-                key = AppPreferenceKeys.sttGroqAPIKey
-            case .mistral:
-                key = AppPreferenceKeys.sttMistralAPIKey
-            }
-            return hasStoredKey(key)
-        }()
-
-        let ttsConfigured: Bool
-        if ttsProvider == .elevenlabs {
-            let voiceID = (defaults.string(forKey: AppPreferenceKeys.ttsElevenLabsVoiceID) ?? "")
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            ttsConfigured = ttsKeyConfigured && !voiceID.isEmpty
-        } else {
-            ttsConfigured = ttsKeyConfigured
-        }
-
-        let mistralEnabled = AppPreferences.isPluginEnabled("mistral_ocr", defaults: defaults)
-        let deepSeekEnabled = AppPreferences.isPluginEnabled("deepseek_ocr", defaults: defaults)
-        let ttsEnabled = AppPreferences.isPluginEnabled("text_to_speech", defaults: defaults)
-        let sttEnabled = AppPreferences.isPluginEnabled("speech_to_text", defaults: defaults)
-        let webSearchSettings = WebSearchPluginSettingsStore.load(defaults: defaults)
-        let webSearchEnabled = webSearchSettings.isEnabled
-        let webSearchConfigured = SearchPluginProvider.allCases.contains {
-            webSearchSettings.hasConfiguredCredential(for: $0)
-        }
+        let status = ChatConversationStateSupport.resolveExtensionCredentialStatus()
 
         await MainActor.run {
-            mistralOCRConfigured = mistralConfigured
-            deepSeekOCRConfigured = deepSeekConfigured
-            textToSpeechConfigured = ttsConfigured
-            speechToTextConfigured = sttKeyConfigured
-            webSearchPluginConfigured = webSearchConfigured
+            mistralOCRConfigured = status.mistralOCRConfigured
+            deepSeekOCRConfigured = status.deepSeekOCRConfigured
+            textToSpeechConfigured = status.textToSpeechConfigured
+            speechToTextConfigured = status.speechToTextConfigured
+            webSearchPluginConfigured = status.webSearchPluginConfigured
 
-            mistralOCRPluginEnabled = mistralEnabled
-            deepSeekOCRPluginEnabled = deepSeekEnabled
-            textToSpeechPluginEnabled = ttsEnabled
-            speechToTextPluginEnabled = sttEnabled
-            webSearchPluginEnabled = webSearchEnabled
+            mistralOCRPluginEnabled = status.mistralOCRPluginEnabled
+            deepSeekOCRPluginEnabled = status.deepSeekOCRPluginEnabled
+            textToSpeechPluginEnabled = status.textToSpeechPluginEnabled
+            speechToTextPluginEnabled = status.speechToTextPluginEnabled
+            webSearchPluginEnabled = status.webSearchPluginEnabled
 
-            if !ttsEnabled {
+            if !status.textToSpeechPluginEnabled {
                 ttsPlaybackManager.stop()
             }
-            if !sttEnabled {
+            if !status.speechToTextPluginEnabled {
                 speechToTextManager.cancelAndCleanup()
             }
         }
@@ -6654,22 +5068,15 @@ struct ChatView: View {
 
     private func persistControlsToConversation() {
         do {
-            var persistedControls = controls
-            if let activeThread = activeModelThread,
-               let storedControls = storedGenerationControls(for: activeThread) {
-                persistedControls.codexResumeThreadID = storedControls.codexResumeThreadID
-                persistedControls.codexPendingRollbackTurns = storedControls.codexPendingRollbackTurns
-            }
-
-            let data = try JSONEncoder().encode(persistedControls)
-            if let activeThread = activeModelThread {
-                activeThread.modelConfigData = data
-                activeThread.updatedAt = Date()
-                conversationEntity.modelConfigData = data
-            } else {
-                conversationEntity.modelConfigData = data
-            }
-            try modelContext.save()
+            try ChatConversationStateSupport.persistControlsToConversation(
+                controls: controls,
+                activeThread: activeModelThread,
+                storedGenerationControls: { thread in
+                    storedGenerationControls(for: thread)
+                },
+                conversationEntity: conversationEntity,
+                modelContext: modelContext
+            )
         } catch {
             errorMessage = error.localizedDescription
             showingError = true
@@ -6677,34 +5084,25 @@ struct ChatView: View {
     }
 
     private func setReasoningOff() {
-        if reasoningMustRemainEnabled {
-            updateReasoning { reasoning in
-                reasoning.enabled = true
-                if selectedReasoningConfig?.type == .effort,
-                   (reasoning.effort == nil || reasoning.effort == ReasoningEffort.none) {
-                    reasoning.effort = selectedReasoningConfig?.defaultEffort ?? .medium
-                }
-            }
-            persistControlsToConversation()
-            return
-        }
-
-        updateReasoning { reasoning in
-            reasoning.enabled = false
-        }
-        if providerType == .anthropic {
-            normalizeAnthropicReasoningAndMaxTokens()
-        }
+        ChatReasoningSupport.setReasoningOff(
+            controls: &controls,
+            reasoningMustRemainEnabled: reasoningMustRemainEnabled,
+            selectedReasoningConfig: selectedReasoningConfig,
+            providerType: providerType,
+            modelID: conversationEntity.modelID,
+            defaultBudget: anthropicDefaultBudgetTokens
+        )
         persistControlsToConversation()
     }
 
     private func setReasoningOn() {
-        updateReasoning { reasoning in
-            reasoning.enabled = true
-        }
-        if providerType == .anthropic {
-            normalizeAnthropicReasoningAndMaxTokens()
-        }
+        ChatReasoningSupport.setReasoningOn(
+            controls: &controls,
+            providerType: providerType,
+            modelID: conversationEntity.modelID,
+            defaultEffort: selectedReasoningConfig?.defaultEffort ?? .high,
+            defaultBudget: anthropicDefaultBudgetTokens
+        )
         persistControlsToConversation()
     }
 
@@ -6714,65 +5112,61 @@ struct ChatView: View {
             return
         }
 
-        updateReasoning { reasoning in
-            reasoning.enabled = true
-            reasoning.effort = effort
-            reasoning.budgetTokens = nil
-            if supportsReasoningSummaryControl, reasoning.summary == nil {
-                reasoning.summary = .auto
-            }
-        }
+        ChatReasoningSupport.setReasoningEffort(
+            controls: &controls,
+            effort: effort,
+            supportsReasoningSummaryControl: supportsReasoningSummaryControl
+        )
         persistControlsToConversation()
     }
 
     private func setAnthropicThinkingBudget(_ budgetTokens: Int) {
-        updateReasoning { reasoning in
-            reasoning.enabled = true
-            reasoning.effort = nil
-            reasoning.budgetTokens = budgetTokens
-            reasoning.summary = nil
-        }
-        normalizeAnthropicReasoningAndMaxTokens()
+        ChatReasoningSupport.setAnthropicThinkingBudget(
+            controls: &controls,
+            budgetTokens: budgetTokens,
+            providerType: providerType,
+            modelID: conversationEntity.modelID,
+            defaultEffort: selectedReasoningConfig?.defaultEffort ?? .high,
+            defaultBudget: anthropicDefaultBudgetTokens
+        )
         persistControlsToConversation()
     }
 
     private var thinkingBudgetDraftInt: Int? {
-        Int(thinkingBudgetDraft.trimmingCharacters(in: .whitespacesAndNewlines))
+        ChatEditorDraftSupport.thinkingBudgetDraftInt(from: thinkingBudgetDraft)
     }
 
     private var anthropicUsesAdaptiveThinking: Bool {
-        guard providerType == .anthropic else { return false }
-        return AnthropicModelLimits.supportsAdaptiveThinking(for: conversationEntity.modelID)
+        ChatReasoningSupport.anthropicUsesAdaptiveThinking(
+            providerType: providerType,
+            modelID: conversationEntity.modelID
+        )
     }
 
     private var anthropicUsesEffortMode: Bool {
-        guard providerType == .anthropic else { return false }
-        return AnthropicModelLimits.supportsEffort(for: conversationEntity.modelID)
+        ChatReasoningSupport.anthropicUsesEffortMode(
+            providerType: providerType,
+            modelID: conversationEntity.modelID
+        )
     }
 
     private var anthropicEffortBinding: Binding<ReasoningEffort> {
         Binding(
             get: {
-                let value = controls.reasoning?.effort ?? selectedReasoningConfig?.defaultEffort ?? .high
-                switch value {
-                case .none, .minimal:
-                    return .low
-                case .low, .medium, .high, .xhigh:
-                    return value
-                }
+                ChatReasoningSupport.normalizedAnthropicEffort(
+                    currentEffort: controls.reasoning?.effort,
+                    defaultEffort: selectedReasoningConfig?.defaultEffort ?? .high
+                )
             },
             set: { newValue in
-                updateReasoning { reasoning in
-                    reasoning.enabled = true
-                    reasoning.effort = newValue
-                    reasoning.summary = nil
-                    // Only clear budgetTokens for adaptive-only (4.6) models.
-                    // Opus 4.5/4.1 use effort + budget_tokens together.
-                    if anthropicUsesAdaptiveThinking {
-                        reasoning.budgetTokens = nil
-                    }
-                }
-                normalizeAnthropicReasoningAndMaxTokens()
+                ChatReasoningSupport.setAnthropicEffort(
+                    controls: &controls,
+                    newValue: newValue,
+                    anthropicUsesAdaptiveThinking: anthropicUsesAdaptiveThinking,
+                    modelID: conversationEntity.modelID,
+                    defaultEffort: selectedReasoningConfig?.defaultEffort ?? .high,
+                    defaultBudget: anthropicDefaultBudgetTokens
+                )
                 persistControlsToConversation()
             }
         )
@@ -6783,193 +5177,104 @@ struct ChatView: View {
     }
 
     private var maxTokensDraftInt: Int? {
-        let trimmed = maxTokensDraft.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty, let value = Int(trimmed), value > 0 else { return nil }
-        return value
+        ChatEditorDraftSupport.maxTokensDraftInt(from: maxTokensDraft)
     }
 
     private var isThinkingBudgetDraftValid: Bool {
-        if !anthropicUsesAdaptiveThinking {
-            guard let budget = thinkingBudgetDraftInt, budget > 0 else { return false }
-        }
-        guard providerType == .anthropic else { return true }
-        guard let maxTokens = maxTokensDraftInt else { return false }
-        if let modelMax = AnthropicModelLimits.maxOutputTokens(for: conversationEntity.modelID), maxTokens > modelMax {
-            return false
-        }
-        return true
+        ChatEditorDraftSupport.isThinkingBudgetDraftValid(
+            anthropicUsesAdaptiveThinking: anthropicUsesAdaptiveThinking,
+            providerType: providerType,
+            modelID: conversationEntity.modelID,
+            thinkingBudgetDraft: thinkingBudgetDraft,
+            maxTokensDraft: maxTokensDraft
+        )
     }
 
     private var thinkingBudgetValidationWarning: String? {
-        guard providerType == .anthropic else { return nil }
-        if !anthropicUsesAdaptiveThinking {
-            guard let budget = thinkingBudgetDraftInt else { return "Enter an integer token budget (e.g., 4096)." }
-
-            if budget <= 0 {
-                return "Thinking budget must be a positive integer."
-            }
-
-            if let maxTokens = maxTokensDraftInt, maxTokens > 0, budget >= maxTokens {
-                return "Recommended: keep budget tokens below max output tokens."
-            }
-        }
-
-        if maxTokensDraftInt == nil {
-            return "Enter a valid positive max output token value."
-        }
-
-        if let modelMax = AnthropicModelLimits.maxOutputTokens(for: conversationEntity.modelID),
-           let maxTokens = maxTokensDraftInt,
-           maxTokens > modelMax {
-            return "This model allows at most \(modelMax) max output tokens."
-        }
-
-        return nil
+        ChatEditorDraftSupport.thinkingBudgetValidationWarning(
+            providerType: providerType,
+            anthropicUsesAdaptiveThinking: anthropicUsesAdaptiveThinking,
+            modelID: conversationEntity.modelID,
+            thinkingBudgetDraft: thinkingBudgetDraft,
+            maxTokensDraft: maxTokensDraft
+        )
     }
 
     private func openThinkingBudgetEditor() {
-        if anthropicUsesAdaptiveThinking {
-            thinkingBudgetDraft = ""
-        } else {
-            let budget = controls.reasoning?.budgetTokens
-                ?? selectedReasoningConfig?.defaultBudget
-                ?? anthropicDefaultBudgetTokens
-            thinkingBudgetDraft = "\(budget)"
-        }
-
-        if providerType == .anthropic {
-            let resolvedMax = AnthropicModelLimits.resolvedMaxTokens(
-                requested: controls.maxTokens,
-                for: conversationEntity.modelID,
-                fallback: 4096
-            )
-            maxTokensDraft = "\(resolvedMax)"
-        } else {
-            maxTokensDraft = controls.maxTokens.map(String.init) ?? ""
-        }
-
+        let prepared = ChatEditorDraftSupport.prepareThinkingBudgetEditorDraft(
+            anthropicUsesAdaptiveThinking: anthropicUsesAdaptiveThinking,
+            budgetTokens: controls.reasoning?.budgetTokens ?? selectedReasoningConfig?.defaultBudget,
+            defaultBudget: anthropicDefaultBudgetTokens,
+            providerType: providerType,
+            requestedMaxTokens: controls.maxTokens,
+            modelID: conversationEntity.modelID
+        )
+        thinkingBudgetDraft = prepared.thinkingBudgetDraft
+        maxTokensDraft = prepared.maxTokensDraft
         showingThinkingBudgetSheet = true
     }
 
     private func applyThinkingBudgetDraft() {
-        guard providerType != .anthropic || maxTokensDraftInt != nil else { return }
-
-        controls.maxTokens = maxTokensDraftInt
-
-        if anthropicUsesAdaptiveThinking {
-            normalizeAnthropicReasoningAndMaxTokens()
-        } else if anthropicUsesEffortMode {
-            // Opus 4.5/4.1: apply budget_tokens while preserving the user's effort selection.
-            // Do NOT call setAnthropicThinkingBudget here — it clears effort.
-            guard let budgetTokens = thinkingBudgetDraftInt else { return }
-            updateReasoning { reasoning in
-                reasoning.enabled = true
-                reasoning.budgetTokens = budgetTokens
-            }
-            normalizeAnthropicReasoningAndMaxTokens()
-        } else {
-            guard let budgetTokens = thinkingBudgetDraftInt else { return }
-            setAnthropicThinkingBudget(budgetTokens)
+        let resolvedMaxTokensDraft = ChatReasoningSupport.applyThinkingBudgetDraft(
+            controls: &controls,
+            providerType: providerType,
+            modelID: conversationEntity.modelID,
+            anthropicUsesAdaptiveThinking: anthropicUsesAdaptiveThinking,
+            anthropicUsesEffortMode: anthropicUsesEffortMode,
+            budgetTokens: thinkingBudgetDraftInt,
+            maxTokens: maxTokensDraftInt,
+            defaultEffort: selectedReasoningConfig?.defaultEffort ?? .high,
+            defaultBudget: anthropicDefaultBudgetTokens
+        )
+        if providerType == .anthropic, let resolvedMaxTokensDraft {
+            maxTokensDraft = resolvedMaxTokensDraft
         }
-
-        if providerType == .anthropic {
-            let resolvedMax = AnthropicModelLimits.resolvedMaxTokens(
-                requested: controls.maxTokens,
-                for: conversationEntity.modelID,
-                fallback: 4096
-            )
-            maxTokensDraft = "\(resolvedMax)"
-        }
-
         persistControlsToConversation()
     }
 
     private func normalizeAnthropicReasoningAndMaxTokens() {
-        guard providerType == .anthropic else { return }
-        guard var reasoning = controls.reasoning else { return }
-
-        var maxTokens = controls.maxTokens
-        AnthropicReasoningNormalizer.normalize(
-            reasoning: &reasoning,
-            maxTokens: &maxTokens,
+        ChatReasoningSupport.normalizeAnthropicReasoningAndMaxTokens(
+            controls: &controls,
+            providerType: providerType,
             modelID: conversationEntity.modelID,
-            defaults: .init(
-                effort: selectedReasoningConfig?.defaultEffort ?? .high,
-                budgetTokens: anthropicDefaultBudgetTokens
-            )
+            defaultEffort: selectedReasoningConfig?.defaultEffort ?? .high,
+            defaultBudget: anthropicDefaultBudgetTokens
         )
-        controls.reasoning = reasoning
-        controls.maxTokens = maxTokens
     }
 
     private func setReasoningSummary(_ summary: ReasoningSummary) {
-        updateReasoning { reasoning in
-            reasoning.enabled = true
-            reasoning.summary = summary
-            if supportsReasoningSummaryControl,
-               (reasoning.effort ?? ReasoningEffort.none) == ReasoningEffort.none {
-                reasoning.effort = selectedReasoningConfig?.defaultEffort ?? .medium
-            }
-        }
+        ChatReasoningSupport.setReasoningSummary(
+            controls: &controls,
+            summary: summary,
+            supportsReasoningSummaryControl: supportsReasoningSummaryControl,
+            defaultEffort: selectedReasoningConfig?.defaultEffort ?? .medium
+        )
         persistControlsToConversation()
     }
 
     private func updateReasoning(_ mutate: (inout ReasoningControls) -> Void) {
-        var reasoning = controls.reasoning ?? ReasoningControls(enabled: false)
-        mutate(&reasoning)
-        controls.reasoning = reasoning
+        ChatReasoningSupport.updateReasoning(
+            controls: &controls,
+            mutate: mutate
+        )
     }
 
     private func defaultWebSearchControls(enabled: Bool) -> WebSearchControls {
-        guard enabled else { return WebSearchControls(enabled: false) }
-
-        switch providerType {
-        case .openai, .openaiWebSocket:
-            return WebSearchControls(enabled: true, contextSize: .medium, sources: nil)
-        case .perplexity:
-            // Perplexity defaults `search_context_size` to `low` when omitted.
-            return WebSearchControls(enabled: true, contextSize: nil, sources: nil)
-        case .xai:
-            return WebSearchControls(enabled: true, contextSize: nil, sources: [.web])
-        case .anthropic:
-            return WebSearchControls(enabled: true)
-        case .codexAppServer, .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter, .groq,
-             .cohere, .mistral, .deepinfra, .together, .gemini, .vertexai, .deepseek,
-             .zhipuCodingPlan, .fireworks, .cerebras, .sambanova, .none:
-            return WebSearchControls(enabled: true, contextSize: nil, sources: nil)
-        }
+        ChatControlNormalizationSupport.defaultWebSearchControls(
+            enabled: enabled,
+            providerType: providerType
+        )
     }
 
     private func ensureValidWebSearchDefaultsIfEnabled() {
-        guard controls.webSearch?.enabled == true else { return }
-        switch providerType {
-        case .openai, .openaiWebSocket:
-            controls.webSearch?.sources = nil
-            if controls.webSearch?.contextSize == nil {
-                controls.webSearch?.contextSize = .medium
-            }
-        case .perplexity:
-            controls.webSearch?.sources = nil
-            // Leave contextSize nil to use Perplexity defaults unless explicitly set.
-        case .xai:
-            controls.webSearch?.contextSize = nil
-            let sources = controls.webSearch?.sources ?? []
-            if sources.isEmpty {
-                controls.webSearch?.sources = [.web]
-            }
-        case .anthropic:
-            controls.webSearch?.contextSize = nil
-            controls.webSearch?.sources = nil
-            normalizeAnthropicDomainFilters()
-        case .codexAppServer, .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter, .groq,
-             .cohere, .mistral, .deepinfra, .together, .gemini, .vertexai, .deepseek,
-             .zhipuCodingPlan, .fireworks, .cerebras, .sambanova, .none:
-            controls.webSearch?.contextSize = nil
-            controls.webSearch?.sources = nil
-        }
+        ChatControlNormalizationSupport.ensureValidWebSearchDefaultsIfEnabled(
+            controls: &controls,
+            providerType: providerType
+        )
     }
 
     private func normalizeControlsForCurrentSelection() {
+
         let originalData = (try? JSONEncoder().encode(controls)) ?? Data()
 
         normalizeMaxTokensForModel()
@@ -6995,26 +5300,23 @@ struct ChatView: View {
     }
 
     private func normalizeMaxTokensForModel() {
-        if let modelMaxOutput = resolvedModelSettings?.maxOutputTokens,
-           let requested = controls.maxTokens,
-           requested > modelMaxOutput {
-            controls.maxTokens = modelMaxOutput
-        }
+        ChatControlNormalizationSupport.normalizeMaxTokensForModel(
+            controls: &controls,
+            modelMaxOutputTokens: resolvedModelSettings?.maxOutputTokens
+        )
     }
 
     private func normalizeMediaGenerationOverrides() {
-        guard supportsMediaGenerationControl else { return }
-        if !supportsReasoningControl {
-            controls.reasoning = nil
-        }
-        if !supportsWebSearchControl {
-            controls.webSearch = nil
-        }
-        controls.searchPlugin = nil
-        controls.mcpTools = nil
+        ChatControlNormalizationSupport.normalizeMediaGenerationOverrides(
+            controls: &controls,
+            supportsMediaGenerationControl: supportsMediaGenerationControl,
+            supportsReasoningControl: supportsReasoningControl,
+            supportsWebSearchControl: supportsWebSearchControl
+        )
     }
 
     private func normalizeReasoningControls() {
+
         if supportsReasoningControl, let reasoningConfig = selectedReasoningConfig {
             switch reasoningConfig.type {
             case .effort:
@@ -7102,83 +5404,41 @@ struct ChatView: View {
     }
 
     private func normalizeVertexAIGenerationConfig() {
-        guard providerType == .vertexai,
-              var generationConfig = controls.providerSpecific["generationConfig"]?.value as? [String: Any] else {
-            return
-        }
-
-        var mutated = false
-
-        if lowerModelID == "gemini-3-pro-image-preview"
-            || lowerModelID == "gemini-3.1-flash-image-preview" {
-            if generationConfig["thinkingConfig"] != nil {
-                generationConfig.removeValue(forKey: "thinkingConfig")
-                mutated = true
-            }
-        } else if Self.vertexGemini25TextModelIDs.contains(lowerModelID),
-                  var thinkingConfig = generationConfig["thinkingConfig"] as? [String: Any],
-                  thinkingConfig["thinkingLevel"] != nil {
-            thinkingConfig.removeValue(forKey: "thinkingLevel")
-            if thinkingConfig.isEmpty {
-                generationConfig.removeValue(forKey: "thinkingConfig")
-            } else {
-                generationConfig["thinkingConfig"] = thinkingConfig
-            }
-            mutated = true
-        }
-
-        guard mutated else { return }
-        if generationConfig.isEmpty {
-            controls.providerSpecific.removeValue(forKey: "generationConfig")
-        } else {
-            controls.providerSpecific["generationConfig"] = AnyCodable(generationConfig)
-        }
+        ChatControlNormalizationSupport.normalizeVertexAIGenerationConfig(
+            controls: &controls,
+            providerType: providerType,
+            lowerModelID: lowerModelID,
+            vertexGemini25TextModelIDs: Self.vertexGemini25TextModelIDs
+        )
     }
 
     private func normalizeFireworksProviderSpecific() {
-        guard providerType == .fireworks else { return }
-
-        if isFireworksMiniMaxM2FamilyModel(conversationEntity.modelID) {
-            controls.providerSpecific.removeValue(forKey: "reasoning_effort")
-        }
-
-        if let rawHistory = controls.providerSpecific["reasoning_history"]?.value as? String {
-            let normalized = rawHistory.lowercased()
-            if fireworksReasoningHistoryOptions.contains(normalized) {
-                controls.providerSpecific["reasoning_history"] = AnyCodable(normalized)
-            } else {
-                controls.providerSpecific.removeValue(forKey: "reasoning_history")
-            }
-        } else if controls.providerSpecific["reasoning_history"] != nil {
-            controls.providerSpecific.removeValue(forKey: "reasoning_history")
-        }
+        ChatControlNormalizationSupport.normalizeFireworksProviderSpecific(
+            controls: &controls,
+            providerType: providerType,
+            isMiniMaxM2FamilyModel: isFireworksMiniMaxM2FamilyModel(conversationEntity.modelID),
+            fireworksReasoningHistoryOptions: fireworksReasoningHistoryOptions
+        )
     }
 
     private func normalizeCodexProviderSpecific() {
-        guard providerType == .codexAppServer else {
-            Self.sanitizeProviderSpecificForProvider(providerType, controls: &controls)
-            return
-        }
-
-        controls.normalizeCodexProviderSpecific(for: providerType)
+        ChatControlNormalizationSupport.normalizeCodexProviderSpecific(
+            controls: &controls,
+            providerType: providerType
+        )
     }
 
     private func normalizeOpenAIServiceTierControls() {
-        if controls.openAIServiceTier == nil,
-           let legacyRaw = controls.providerSpecific["service_tier"]?.value as? String,
-           let legacy = OpenAIServiceTier.normalized(rawValue: legacyRaw) {
-            controls.openAIServiceTier = legacy
-        }
-
-        if controls.providerSpecific["service_tier"] != nil {
-            controls.providerSpecific.removeValue(forKey: "service_tier")
-        }
+        ChatControlNormalizationSupport.normalizeOpenAIServiceTierControls(
+            controls: &controls
+        )
     }
 
     nonisolated private static func sanitizeProviderSpecificForProvider(_ providerType: ProviderType?, controls: inout GenerationControls) {
-        guard providerType != .codexAppServer else { return }
-
-        controls.removeCodexProviderSpecificKeys()
+        ChatControlNormalizationSupport.sanitizeProviderSpecificForProvider(
+            providerType,
+            controls: &controls
+        )
     }
 
     private func normalizeWebSearchControls() {
@@ -7192,204 +5452,66 @@ struct ChatView: View {
     }
 
     private func normalizeSearchPluginControls() {
-        if !modelSupportsBuiltinSearchPluginControl {
-            controls.searchPlugin = nil
-            return
-        }
-
-        guard controls.webSearch?.enabled == true else {
-            return
-        }
-
-        guard var plugin = controls.searchPlugin else {
-            return
-        }
-
-        if let maxResults = plugin.maxResults {
-            plugin.maxResults = max(1, min(50, maxResults))
-        }
-        if let recencyDays = plugin.recencyDays {
-            plugin.recencyDays = max(1, min(365, recencyDays))
-        }
-
-        controls.searchPlugin = plugin
+        ChatControlNormalizationSupport.normalizeSearchPluginControls(
+            controls: &controls,
+            modelSupportsBuiltinSearchPluginControl: modelSupportsBuiltinSearchPluginControl
+        )
     }
 
     private func normalizeContextCacheControls() {
-        if supportsContextCacheControl {
-            if var contextCache = controls.contextCache {
-                if !supportsExplicitContextCacheMode, contextCache.mode == .explicit {
-                    contextCache.mode = .implicit
-                    contextCache.cachedContentName = nil
-                }
-                if !supportsContextCacheStrategy {
-                    contextCache.strategy = nil
-                } else if contextCache.strategy == nil {
-                    contextCache.strategy = .systemOnly
-                }
-                if !supportsContextCacheTTL {
-                    contextCache.ttl = nil
-                }
-                if providerType != .openai && providerType != .openaiWebSocket && providerType != .xai {
-                    contextCache.cacheKey = nil
-                }
-                if providerType != .xai {
-                    contextCache.minTokensThreshold = nil
-                }
-                if providerType != .xai {
-                    contextCache.conversationID = nil
-                }
-                if providerType != .gemini && providerType != .vertexai {
-                    contextCache.cachedContentName = nil
-                }
-                if contextCache.mode == .off, providerType != .anthropic {
-                    controls.contextCache = nil
-                } else {
-                    controls.contextCache = contextCache
-                }
-            }
-        } else {
-            controls.contextCache = nil
-        }
+        ChatControlNormalizationSupport.normalizeContextCacheControls(
+            controls: &controls,
+            supportsContextCacheControl: supportsContextCacheControl,
+            supportsExplicitContextCacheMode: supportsExplicitContextCacheMode,
+            supportsContextCacheStrategy: supportsContextCacheStrategy,
+            supportsContextCacheTTL: supportsContextCacheTTL,
+            providerType: providerType
+        )
     }
 
     private func normalizeMCPToolsControls() {
-        if supportsMCPToolsControl {
-            if controls.mcpTools == nil {
-                controls.mcpTools = MCPToolsControls(enabled: true, enabledServerIDs: nil)
-            } else if controls.mcpTools?.enabledServerIDs?.isEmpty == true {
-                controls.mcpTools?.enabledServerIDs = nil
-            }
-        } else {
-            controls.mcpTools = nil
-        }
+        ChatControlNormalizationSupport.normalizeMCPToolsControls(
+            controls: &controls,
+            supportsMCPToolsControl: supportsMCPToolsControl
+        )
     }
 
     private func normalizeAnthropicMaxTokens() {
-        if !supportsReasoningControl, providerType == .anthropic {
-            controls.maxTokens = nil
-        }
-        if providerType == .anthropic,
-           controls.maxTokens != nil,
-           controls.reasoning?.enabled != true {
-            controls.maxTokens = nil
-        }
+        ChatControlNormalizationSupport.normalizeAnthropicMaxTokens(
+            controls: &controls,
+            supportsReasoningControl: supportsReasoningControl,
+            providerType: providerType
+        )
     }
 
     private func normalizeImageGenerationControls() {
-        if supportsImageGenerationControl {
-            if providerType == .openai || providerType == .openaiWebSocket {
-                controls.imageGeneration = nil
-                controls.xaiImageGeneration = nil
-                if var openaiImage = controls.openaiImageGeneration {
-                    normalizeOpenAIImageControls(&openaiImage)
-                    controls.openaiImageGeneration = openaiImage.isEmpty ? nil : openaiImage
-                }
-            } else if providerType == .xai {
-                controls.imageGeneration = nil
-                controls.openaiImageGeneration = nil
-                if var xaiImage = controls.xaiImageGeneration {
-                    xaiImage.quality = nil
-                    xaiImage.style = nil
-                    if xaiImage.aspectRatio != nil {
-                        xaiImage.size = nil
-                    }
-                    controls.xaiImageGeneration = xaiImage.isEmpty ? nil : xaiImage
-                }
-            } else {
-                if !supportsCurrentModelImageSizeControl {
-                    controls.imageGeneration?.imageSize = nil
-                } else if let size = controls.imageGeneration?.imageSize,
-                          !supportedCurrentModelImageSizes.contains(size) {
-                    controls.imageGeneration?.imageSize = nil
-                }
-                if let ratio = controls.imageGeneration?.aspectRatio,
-                   !supportedCurrentModelImageAspectRatios.contains(ratio) {
-                    controls.imageGeneration?.aspectRatio = nil
-                }
-                if providerType != .vertexai {
-                    controls.imageGeneration?.vertexPersonGeneration = nil
-                    controls.imageGeneration?.vertexOutputMIMEType = nil
-                    controls.imageGeneration?.vertexCompressionQuality = nil
-                }
-                if controls.imageGeneration?.isEmpty == true {
-                    controls.imageGeneration = nil
-                }
-                controls.xaiImageGeneration = nil
-                controls.openaiImageGeneration = nil
-            }
-        } else {
-            controls.imageGeneration = nil
-            controls.xaiImageGeneration = nil
-            controls.openaiImageGeneration = nil
-        }
+        ChatControlNormalizationSupport.normalizeImageGenerationControls(
+            controls: &controls,
+            supportsImageGenerationControl: supportsImageGenerationControl,
+            providerType: providerType,
+            supportsCurrentModelImageSizeControl: supportsCurrentModelImageSizeControl,
+            supportedCurrentModelImageSizes: supportedCurrentModelImageSizes,
+            supportedCurrentModelImageAspectRatios: supportedCurrentModelImageAspectRatios,
+            lowerModelID: lowerModelID
+        )
     }
 
-    /// Prune model-incompatible fields from OpenAI image generation controls.
-    ///
-    /// Different OpenAI image models support different parameter subsets:
-    /// - GPT Image models: all params except `style`
-    /// - DALL-E 3: `size`, `quality` (standard/hd), `style` only
-    /// - DALL-E 2: `size` only (quality must be `standard`)
     private func normalizeOpenAIImageControls(_ controls: inout OpenAIImageGenerationControls) {
-        let isGPTImage = lowerModelID.hasPrefix("gpt-image")
-        let isDallE3 = lowerModelID.hasPrefix("dall-e-3")
-        let isDallE2 = lowerModelID.hasPrefix("dall-e-2")
-
-        if isGPTImage {
-            // GPT Image models don't support style
-            controls.style = nil
-        } else if isDallE3 {
-            // DALL-E 3: no GPT-image-specific params, no input fidelity
-            controls.background = nil
-            controls.outputFormat = nil
-            controls.outputCompression = nil
-            controls.moderation = nil
-            controls.inputFidelity = nil
-            // quality must be standard or hd
-            if let quality = controls.quality, quality != .standard && quality != .hd {
-                controls.quality = nil
-            }
-        } else if isDallE2 {
-            // DALL-E 2: minimal params
-            controls.background = nil
-            controls.outputFormat = nil
-            controls.outputCompression = nil
-            controls.moderation = nil
-            controls.inputFidelity = nil
-            controls.style = nil
-            // quality must be standard
-            if let quality = controls.quality, quality != .standard {
-                controls.quality = nil
-            }
-            // size must be dall-e-2 compatible
-            if let size = controls.size, !OpenAIImageSize.dallE2Sizes.contains(size) {
-                controls.size = nil
-            }
-        }
-
-        // input_fidelity is only for gpt-image-1
-        if lowerModelID != "gpt-image-1" {
-            controls.inputFidelity = nil
-        }
-
-        // Clear compression if format doesn't support it
-        if controls.outputFormat == nil || controls.outputFormat == .png {
-            controls.outputCompression = nil
-        }
+        ChatControlNormalizationSupport.normalizeOpenAIImageControls(
+            &controls,
+            lowerModelID: lowerModelID
+        )
     }
 
     private func normalizeVideoGenerationControls() {
-        if supportsVideoGenerationControl {
-            if controls.xaiVideoGeneration?.isEmpty == true {
-                controls.xaiVideoGeneration = nil
-            }
-        } else {
-            controls.xaiVideoGeneration = nil
-        }
+        ChatControlNormalizationSupport.normalizeVideoGenerationControls(
+            controls: &controls,
+            supportsVideoGenerationControl: supportsVideoGenerationControl
+        )
     }
 
     private var builtinSearchIncludeRawBinding: Binding<Bool> {
+
         Binding(
             get: {
                 controls.searchPlugin?.includeRawContent ?? false
