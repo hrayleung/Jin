@@ -69,6 +69,27 @@ function sanitizeMarkup(markup, options = {}) {
 function renderHTML(content) {
   clearContainer()
   setStatus('')
+
+  if (/<script[\s>]/i.test(content)) {
+    const iframe = document.createElement('iframe')
+    iframe.sandbox = 'allow-scripts'
+    iframe.style.cssText = 'width:100%;border:none;background:transparent;'
+    iframe.srcdoc = content
+    rootEl.style.padding = '0'
+    rootEl?.appendChild(iframe)
+
+    const resizeIframe = () => {
+      iframe.style.height = rootEl.clientHeight + 'px'
+    }
+    resizeIframe()
+    currentResizeObserver = new ResizeObserver(resizeIframe)
+    currentResizeObserver.observe(rootEl)
+    currentCleanup = () => {
+      rootEl.style.padding = ''
+    }
+    return
+  }
+
   rootEl.innerHTML = sanitizeMarkup(content, {
     USE_PROFILES: { html: true }
   })
