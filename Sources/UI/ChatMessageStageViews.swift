@@ -6,6 +6,30 @@ struct ChatThreadRenderContext {
     let toolResultsByCallID: [String: ToolResult]
 }
 
+struct EditSlashCommandContext {
+    let servers: [SlashCommandMCPServerItem]
+    let isActive: Bool
+    let filterText: String
+    let highlightedIndex: Int
+    let perMessageChips: [SlashCommandMCPServerItem]
+    let onSelectServer: (String) -> Void
+    let onDismiss: () -> Void
+    let onRemovePerMessageServer: (String) -> Void
+    let onInterceptKeyDown: ((UInt16) -> Bool)?
+
+    static let inactive = EditSlashCommandContext(
+        servers: [],
+        isActive: false,
+        filterText: "",
+        highlightedIndex: 0,
+        perMessageChips: [],
+        onSelectServer: { _ in },
+        onDismiss: {},
+        onRemovePerMessageServer: { _ in },
+        onInterceptKeyDown: nil
+    )
+}
+
 struct ChatMessageInteractionContext {
     let actionsEnabled: Bool
     let textToSpeechEnabled: Bool
@@ -22,6 +46,7 @@ struct ChatMessageInteractionContext {
     let onEditUserMessage: (MessageEntity) -> Void
     let onSubmitUserEdit: (MessageEntity) -> Void
     let onCancelUserEdit: () -> Void
+    let editSlashCommand: EditSlashCommandContext
 }
 
 struct ChatMessageTimelineView: View {
@@ -94,6 +119,7 @@ struct ChatMessageTimelineView: View {
                     interaction.onSubmitUserEdit(entity)
                 },
                 onCancelUserEdit: interaction.onCancelUserEdit,
+                editSlashCommand: interaction.editSlashCommand,
                 onActivate: {
                     if let threadID = message.contextThreadID {
                         onActivateThreadForMessage(threadID)

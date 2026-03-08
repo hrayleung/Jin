@@ -87,6 +87,13 @@ struct ChatView: View {
     @State var codexPersonalityDraft: CodexPersonality?
     @State var pendingCodexInteractions: [PendingCodexInteraction] = []
 
+    private enum SlashCommandTarget { case composer, editMessage }
+    @State private var isSlashMCPPopoverVisible = false
+    @State private var slashMCPFilterText = ""
+    @State private var slashMCPHighlightedIndex = 0
+    @State private var slashCommandTarget: SlashCommandTarget = .composer
+    @State private var perMessageMCPServerIDs: Set<String> = []
+
     @State var showingContextCacheSheet = false
     @State var showingAnthropicWebSearchSheet = false
     @State var anthropicWebSearchDomainMode: AnthropicDomainFilterMode = .none
@@ -199,9 +206,21 @@ struct ChatView: View {
             onCancel: handleComposerCancel,
             onRemoveAttachment: removeDraftAttachment,
             onExpand: { isExpandedComposerPresented = true },
-            onSend: sendMessage
+            onSend: sendMessage,
+            slashCommandServers: slashCommandMCPItems,
+            isSlashCommandActive: isSlashMCPPopoverVisible,
+            slashCommandFilterText: slashMCPFilterText,
+            slashCommandHighlightedIndex: slashMCPHighlightedIndex,
+            perMessageMCPChips: perMessageMCPChips,
+            onSlashCommandSelectServer: handleSlashCommandSelectServer,
+            onSlashCommandDismiss: dismissSlashCommandPopover,
+            onRemovePerMessageMCPServer: removePerMessageMCPServer,
+            onInterceptKeyDown: isSlashMCPPopoverVisible ? handleSlashCommandKeyDown : nil
         ) {
             composerControlsRow
+        }
+        .onChange(of: messageText) { _, newValue in
+            updateSlashCommandState(for: newValue, target: .composer)
         }
     }
 
@@ -409,7 +428,23 @@ struct ChatView: View {
             },
             onCancelUserEdit: {
                 cancelEditingUserMessage()
-            }
+            },
+            editSlashCommand: editSlashCommandContext
+        )
+    }
+
+    private var editSlashCommandContext: EditSlashCommandContext {
+        let isEditTarget = slashCommandTarget == .editMessage
+        return EditSlashCommandContext(
+            servers: slashCommandMCPItems,
+            isActive: isSlashMCPPopoverVisible && isEditTarget,
+            filterText: isEditTarget ? slashMCPFilterText : "",
+            highlightedIndex: isEditTarget ? slashMCPHighlightedIndex : 0,
+            perMessageChips: perMessageMCPChips,
+            onSelectServer: handleSlashCommandSelectServer,
+            onDismiss: dismissSlashCommandPopover,
+            onRemovePerMessageServer: removePerMessageMCPServer,
+            onInterceptKeyDown: (isSlashMCPPopoverVisible && isEditTarget) ? handleSlashCommandKeyDown : nil
         )
     }
 
@@ -530,6 +565,9 @@ struct ChatView: View {
         .onAppear(perform: handleChatAppear)
         .onChange(of: conversationEntity.id) { _, _ in
             handleConversationSwitch()
+        }
+        .onChange(of: editingUserMessageText) { _, newValue in
+            updateSlashCommandState(for: newValue, target: .editMessage)
         }
         .onChange(of: conversationEntity.messages.count) { _, _ in
             rebuildMessageCachesIfNeeded()
@@ -680,9 +718,25 @@ struct ChatView: View {
     }
 
     private var floatingComposer: some View {
-        composerOverlay
-            .padding(.horizontal, 16)
-            .padding(.bottom, 16)
+        VStack(spacing: JinSpacing.small) {
+            if isSlashMCPPopoverVisible, slashCommandTarget == .composer {
+                SlashCommandMCPPopover(
+                    servers: slashCommandMCPItems,
+                    filterText: slashMCPFilterText,
+                    highlightedIndex: slashMCPHighlightedIndex,
+                    onSelectServer: handleSlashCommandSelectServer,
+                    onDismiss: dismissSlashCommandPopover
+                )
+                .padding(.horizontal, JinSpacing.medium)
+                .frame(maxWidth: 800)
+                .transition(.opacity.combined(with: .move(edge: .bottom)))
+            }
+
+            composerOverlay
+        }
+        .animation(.easeOut(duration: 0.15), value: isSlashMCPPopoverVisible)
+        .padding(.horizontal, 16)
+        .padding(.bottom, 16)
             .background {
                 GeometryReader { geo in
                     Color.clear.preference(key: ComposerHeightPreferenceKey.self, value: geo.size.height)
@@ -693,6 +747,7 @@ struct ChatView: View {
     @ViewBuilder
     private var expandedComposerOverlay: some View {
         if isExpandedComposerPresented {
+            let isComposerTarget = slashCommandTarget == .composer
             ExpandedComposerOverlay(
                 messageText: $messageText,
                 remoteVideoURLText: $remoteVideoInputURLText,
@@ -708,7 +763,16 @@ struct ChatView: View {
                 },
                 onDropFileURLs: handleDroppedFileURLs,
                 onDropImages: handleDroppedImages,
-                onRemoveAttachment: removeDraftAttachment
+                onRemoveAttachment: removeDraftAttachment,
+                slashCommandServers: slashCommandMCPItems,
+                isSlashCommandActive: isSlashMCPPopoverVisible && isComposerTarget,
+                slashCommandFilterText: isComposerTarget ? slashMCPFilterText : "",
+                slashCommandHighlightedIndex: isComposerTarget ? slashMCPHighlightedIndex : 0,
+                perMessageMCPChips: perMessageMCPChips,
+                onSlashCommandSelectServer: handleSlashCommandSelectServer,
+                onSlashCommandDismiss: dismissSlashCommandPopover,
+                onRemovePerMessageMCPServer: removePerMessageMCPServer,
+                onInterceptKeyDown: (isSlashMCPPopoverVisible && isComposerTarget) ? handleSlashCommandKeyDown : nil
             )
             .transition(.opacity.combined(with: .scale(scale: 0.96, anchor: .bottom)))
         }
@@ -2955,5 +3019,128 @@ struct ChatView: View {
         rebuildMessageCaches()
         try? modelContext.save()
     }
-    
+
+    // MARK: - Slash Command MCP
+
+    private var slashCommandMCPItems: [SlashCommandMCPServerItem] {
+        eligibleMCPServers.map { server in
+            SlashCommandMCPServerItem(
+                id: server.id,
+                name: server.name,
+                isSelected: perMessageMCPServerIDs.contains(server.id)
+            )
+        }
+    }
+
+    private var perMessageMCPChips: [SlashCommandMCPServerItem] {
+        let eligible = Set(eligibleMCPServers.map(\.id))
+        return perMessageMCPServerIDs
+            .filter { eligible.contains($0) }
+            .compactMap { id in
+                eligibleMCPServers.first { $0.id == id }
+            }
+            .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+            .map { SlashCommandMCPServerItem(id: $0.id, name: $0.name, isSelected: true) }
+    }
+
+    private func updateSlashCommandState(for text: String, target: SlashCommandTarget) {
+        guard supportsMCPToolsControl, !eligibleMCPServers.isEmpty else {
+            if isSlashMCPPopoverVisible {
+                isSlashMCPPopoverVisible = false
+            }
+            return
+        }
+
+        if let filter = SlashCommandDetection.detectFilter(in: text) {
+            slashMCPFilterText = filter
+            slashCommandTarget = target
+            if !isSlashMCPPopoverVisible {
+                slashMCPHighlightedIndex = 0
+                isSlashMCPPopoverVisible = true
+            }
+            let count = SlashCommandDetection.filteredCount(
+                servers: slashCommandMCPItems,
+                filterText: filter
+            )
+            if count > 0, slashMCPHighlightedIndex >= count {
+                slashMCPHighlightedIndex = count - 1
+            }
+        } else if isSlashMCPPopoverVisible, slashCommandTarget == target {
+            isSlashMCPPopoverVisible = false
+            slashMCPFilterText = ""
+            slashMCPHighlightedIndex = 0
+        }
+    }
+
+    private func handleSlashCommandSelectServer(_ serverID: String) {
+        if perMessageMCPServerIDs.contains(serverID) {
+            perMessageMCPServerIDs.remove(serverID)
+        } else {
+            perMessageMCPServerIDs.insert(serverID)
+        }
+
+        switch slashCommandTarget {
+        case .composer:
+            messageText = SlashCommandDetection.removeSlashToken(from: messageText)
+        case .editMessage:
+            editingUserMessageText = SlashCommandDetection.removeSlashToken(from: editingUserMessageText)
+        }
+        isSlashMCPPopoverVisible = false
+        slashMCPFilterText = ""
+        slashMCPHighlightedIndex = 0
+    }
+
+    private func removePerMessageMCPServer(_ serverID: String) {
+        perMessageMCPServerIDs.remove(serverID)
+    }
+
+    private func dismissSlashCommandPopover() {
+        switch slashCommandTarget {
+        case .composer:
+            messageText = SlashCommandDetection.removeSlashToken(from: messageText)
+        case .editMessage:
+            editingUserMessageText = SlashCommandDetection.removeSlashToken(from: editingUserMessageText)
+        }
+        isSlashMCPPopoverVisible = false
+        slashMCPFilterText = ""
+        slashMCPHighlightedIndex = 0
+    }
+
+    private func handleSlashCommandKeyDown(_ keyCode: UInt16) -> Bool {
+        let items = slashCommandMCPItems
+        let count = SlashCommandDetection.filteredCount(
+            servers: items,
+            filterText: slashMCPFilterText
+        )
+        guard count > 0 else {
+            if keyCode == 53 {
+                dismissSlashCommandPopover()
+                return true
+            }
+            return false
+        }
+
+        switch keyCode {
+        case 126:
+            slashMCPHighlightedIndex = max(0, slashMCPHighlightedIndex - 1)
+            return true
+        case 125:
+            slashMCPHighlightedIndex = min(count - 1, slashMCPHighlightedIndex + 1)
+            return true
+        case 36, 76, 48:
+            if let serverID = SlashCommandDetection.highlightedServerID(
+                servers: items,
+                filterText: slashMCPFilterText,
+                highlightedIndex: slashMCPHighlightedIndex
+            ) {
+                handleSlashCommandSelectServer(serverID)
+            }
+            return true
+        case 53:
+            dismissSlashCommandPopover()
+            return true
+        default:
+            return false
+        }
+    }
 }
