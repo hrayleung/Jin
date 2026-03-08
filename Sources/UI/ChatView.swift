@@ -2638,8 +2638,13 @@ struct ChatView: View {
     private func regenerateFromUserMessage(_ messageEntity: MessageEntity) {
         guard let threadID = messageEntity.contextThreadID ?? activeModelThread?.id else { return }
         guard let keepCount = keepCountForRegeneratingUserMessage(messageEntity, threadID: threadID) else { return }
-        // Snapshot and clear per-message MCP before streaming so the state is consumed exactly once.
-        let mcpSnapshot = perMessageMCPServerIDs
+        // Use in-memory per-message IDs if set (from edit flow), otherwise restore from the message entity.
+        var mcpSnapshot = perMessageMCPServerIDs
+        if mcpSnapshot.isEmpty,
+           let idsData = messageEntity.perMessageMCPServerIDsData,
+           let savedIDs = try? JSONDecoder().decode([String].self, from: idsData) {
+            mcpSnapshot = Set(savedIDs)
+        }
         perMessageMCPServerIDs = []
         let askedAt = Date()
         truncateConversation(keepingMessages: keepCount, in: threadID)
@@ -2928,12 +2933,41 @@ struct ChatView: View {
                         onPersistConversationIfNeeded()
                     }
 
+                    // Only annotate MCP metadata on threads whose model supports tool calling.
+                    let mcpCapableThreadIDs: Set<UUID> = {
+                        guard perMessageMCPNamesSnapshot != nil else { return [] }
+                        var capable = Set<UUID>()
+                        for thread in targetThreads {
+                            let pt = providerType(forProviderID: thread.providerID)
+                            guard pt != .codexAppServer else { continue }
+                            let pe = providers.first(where: { $0.id == thread.providerID })
+                            let mid = effectiveModelID(for: thread.modelID, providerEntity: pe, providerType: pt)
+                            let mi = resolvedModelInfo(for: mid, providerEntity: pe, providerType: pt)
+                            let nmi = mi.map { normalizedModelInfo($0, for: pt) }
+                            let settings = nmi.map { ModelSettingsResolver.resolve(model: $0, providerType: pt) }
+                            if settings?.capabilities.contains(.imageGeneration) == true
+                                || settings?.capabilities.contains(.videoGeneration) == true { continue }
+                            if settings?.capabilities.contains(.toolCalling) == true {
+                                capable.insert(thread.id)
+                            }
+                        }
+                        return capable
+                    }()
+
                     for prepared in preparedMessages {
-                        let message = Message(role: .user, content: prepared.parts, timestamp: askedAt, perMessageMCPServerNames: perMessageMCPNamesSnapshot)
+                        let threadSupportsMCP = mcpCapableThreadIDs.contains(prepared.threadID)
+                        let message = Message(
+                            role: .user,
+                            content: prepared.parts,
+                            timestamp: askedAt,
+                            perMessageMCPServerNames: threadSupportsMCP ? perMessageMCPNamesSnapshot : nil
+                        )
                         guard let messageEntity = try? MessageEntity.fromDomain(message) else { continue }
                         messageEntity.contextThreadID = prepared.threadID
                         messageEntity.turnID = turnID
-                        messageEntity.perMessageMCPServerIDsData = try? JSONEncoder().encode(perMessageMCPIDsSnapshot)
+                        if threadSupportsMCP {
+                            messageEntity.perMessageMCPServerIDsData = try? JSONEncoder().encode(perMessageMCPIDsSnapshot)
+                        }
                         messageEntity.conversation = conversationEntity
                         conversationEntity.messages.append(messageEntity)
                     }
