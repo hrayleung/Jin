@@ -60,4 +60,26 @@ final class AppShortcutsStoreTests: XCTestCase {
         XCTAssertFalse(store.disabledActions.contains(.newChat))
         XCTAssertFalse(store.isCustomized(.newChat))
     }
+
+    func testLoadPreservesPersistedCustomBindingWhenItConflictsWithNewDefault() throws {
+        let state = PersistedShortcutState(
+            customBindings: [
+                AppShortcutAction.attachFiles.rawValue: .command("p", modifiers: [.shift, .command])
+            ],
+            disabledActionIDs: []
+        )
+        let data = try JSONEncoder().encode(state)
+        defaults.set(data, forKey: AppPreferenceKeys.keyboardShortcuts)
+
+        let store = AppShortcutsStore(defaults: defaults)
+
+        XCTAssertEqual(store.binding(for: .attachFiles), .command("p", modifiers: [.shift, .command]))
+        XCTAssertNil(store.binding(for: .addModelToChat))
+        XCTAssertTrue(store.disabledActions.contains(.addModelToChat))
+    }
+}
+
+private struct PersistedShortcutState: Codable {
+    var customBindings: [String: AppShortcutBinding]
+    var disabledActionIDs: [String]
 }

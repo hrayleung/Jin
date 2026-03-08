@@ -415,6 +415,7 @@ private struct AssistantSettingsEditorView: View {
                     .frame(width: 56, height: 56)
             }
             .buttonStyle(.plain)
+            .accessibilityLabel("Change icon")
             .help("Change icon")
             .sheet(isPresented: $isIconPickerPresented) {
                 IconPickerSheet(selectedIcon: iconBinding)

@@ -469,18 +469,31 @@ final class AppShortcutsStore: ObservableObject {
     }
 
     private func normalizeConflictsIfNeeded() {
-        var used: [AppShortcutBinding: AppShortcutAction] = [:]
+        struct ResolvedBinding {
+            let action: AppShortcutAction
+            let isCustom: Bool
+        }
+
+        var used: [AppShortcutBinding: ResolvedBinding] = [:]
         var needsPersist = false
 
         for action in AppShortcutAction.allCases {
             guard let binding = binding(for: action) else { continue }
-            if used[binding] == nil {
-                used[binding] = action
+            let current = ResolvedBinding(action: action, isCustom: customBindings[action] != nil)
+
+            guard let existing = used[binding] else {
+                used[binding] = current
                 continue
             }
 
-            customBindings.removeValue(forKey: action)
-            disabledActions.insert(action)
+            if current.isCustom && !existing.isCustom {
+                customBindings.removeValue(forKey: existing.action)
+                disabledActions.insert(existing.action)
+                used[binding] = current
+            } else {
+                customBindings.removeValue(forKey: action)
+                disabledActions.insert(action)
+            }
             needsPersist = true
         }
 
