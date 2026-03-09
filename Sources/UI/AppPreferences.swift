@@ -143,6 +143,18 @@ enum AppPreferenceKeys {
     static let sttMistralResponseFormat = "sttMistralResponseFormat"
     static let sttMistralTemperature = "sttMistralTemperature"
     static let sttMistralTimestampGranularitiesJSON = "sttMistralTimestampGranularitiesJSON"
+
+    // WhisperKit STT (On-Device)
+    static let sttWhisperKitModel = "sttWhisperKitModel"
+    static let sttWhisperKitLanguage = "sttWhisperKitLanguage"
+    static let sttWhisperKitTranslateToEnglish = "sttWhisperKitTranslateToEnglish"
+
+    // TTSKit (On-Device)
+    static let ttsTTSKitModel = "ttsTTSKitModel"
+    static let ttsTTSKitLanguage = "ttsTTSKitLanguage"
+    static let ttsTTSKitVoice = "ttsTTSKitVoice"
+    static let ttsTTSKitPlaybackMode = "ttsTTSKitPlaybackMode"
+    static let ttsTTSKitStyleInstruction = "ttsTTSKitStyleInstruction"
 }
 
 enum NewChatModelMode: String, CaseIterable, Identifiable {

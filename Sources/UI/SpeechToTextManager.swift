@@ -44,10 +44,17 @@ final class SpeechToTextManager: NSObject, ObservableObject {
         let timestampGranularities: [String]?
     }
 
+    struct WhisperKitConfig: Sendable {
+        let model: String
+        let language: String?
+        let translateToEnglish: Bool
+    }
+
     enum TranscriptionConfig: Sendable {
         case openai(OpenAIConfig)
         case groq(GroqConfig)
         case mistral(MistralConfig)
+        case whisperKit(WhisperKitConfig)
     }
 
     struct RecordedClip: Sendable {
@@ -116,16 +123,19 @@ final class SpeechToTextManager: NSObject, ObservableObject {
         recorder.stop()
         self.recorder = nil
 
-        let fileData: Data
         do {
-            fileData = try Data(contentsOf: recordingURL)
-        } catch {
-            cancelAndCleanup()
-            throw SpeechExtensionError.speechRecordingFailed
-        }
-
-        do {
-            let text = try await transcribe(data: fileData, config: config)
+            let text: String
+            if case .whisperKit(let whisperConfig) = config {
+                text = try await transcribeWithWhisperKit(audioPath: recordingURL.path, config: whisperConfig)
+            } else {
+                let fileData: Data
+                do {
+                    fileData = try Data(contentsOf: recordingURL)
+                } catch {
+                    throw SpeechExtensionError.speechRecordingFailed
+                }
+                text = try await transcribe(data: fileData, config: config)
+            }
             cleanupRecordingFile()
             state = .idle
             return text.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -181,6 +191,16 @@ final class SpeechToTextManager: NSObject, ObservableObject {
     }
 
     // MARK: - Private
+
+    private func transcribeWithWhisperKit(audioPath: String, config: WhisperKitConfig) async throws -> String {
+        let service = WhisperKitService.shared
+        try await service.loadModel(config.model)
+        return try await service.transcribe(
+            audioPath: audioPath,
+            language: config.language,
+            translateToEnglish: config.translateToEnglish
+        )
+    }
 
     private func transcribe(data: Data, config: TranscriptionConfig) async throws -> String {
         switch config {
@@ -249,6 +269,10 @@ final class SpeechToTextManager: NSObject, ObservableObject {
                 temperature: mistral.temperature,
                 timestampGranularities: mistral.timestampGranularities
             )
+
+        case .whisperKit:
+            // Handled via file-path transcription in stopAndTranscribe; unreachable
+            fatalError("WhisperKit transcription should not use data-based path")
         }
     }
 
