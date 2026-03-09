@@ -195,7 +195,7 @@ extension XAIAdapter {
             if let rawURL = item.resolvedURL,
                let url = URL(string: rawURL) {
                 let mime = item.mimeType ?? inferImageMIMEType(from: url) ?? "image/png"
-                out.append(ImageContent(mimeType: mime, data: nil, url: url))
+                out.append(ImageContent(mimeType: mime, data: nil, url: url, assetDisposition: .managed))
             }
         }
 

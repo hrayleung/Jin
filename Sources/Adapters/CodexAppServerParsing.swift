@@ -79,7 +79,7 @@ extension CodexAppServerAdapter {
             case "inputimage", "input_image":
                 let rawURL = trimmedValue(object.string(at: ["imageUrl"]) ?? object.string(at: ["image_url"]))
                 if let rawURL, let url = URL(string: rawURL) {
-                    parts.append(.image(ImageContent(mimeType: "image/png", url: url)))
+                    parts.append(.image(ImageContent(mimeType: "image/png", url: url, assetDisposition: .externalReference)))
                 }
             default:
                 break
