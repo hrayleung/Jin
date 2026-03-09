@@ -19,10 +19,6 @@ extension GeminiAdapter {
                 do {
                     let modelPath = modelIDForPath(modelID)
                     let endpoint = "\(baseURL)/models/\(modelPath):predictLongRunning"
-                    var request = URLRequest(url: try validatedURL(endpoint))
-                    request.httpMethod = "POST"
-                    request.addValue(apiKey, forHTTPHeaderField: "x-goog-api-key")
-                    request.addValue("application/json", forHTTPHeaderField: "Content-Type")
 
                     var instance: [String: Any] = ["prompt": prompt]
 
@@ -45,7 +41,11 @@ extension GeminiAdapter {
                         "instances": [instance],
                         "parameters": parameters
                     ]
-                    request.httpBody = try JSONSerialization.data(withJSONObject: body)
+                    let request = try NetworkRequestFactory.makeJSONRequest(
+                        url: validatedURL(endpoint),
+                        headers: geminiHeaders(),
+                        body: body
+                    )
 
                     let (startData, _) = try await networkManager.sendRequest(request)
                     let rawStart = try? JSONSerialization.jsonObject(with: startData) as? [String: Any]
@@ -87,9 +87,10 @@ extension GeminiAdapter {
                 try await Task.sleep(nanoseconds: pollIntervalNanoseconds)
             }
 
-            var pollRequest = URLRequest(url: try validatedURL("\(baseURL)/\(operationName)"))
-            pollRequest.httpMethod = "GET"
-            pollRequest.addValue(apiKey, forHTTPHeaderField: "x-goog-api-key")
+            let pollRequest = NetworkRequestFactory.makeRequest(
+                url: try validatedURL("\(baseURL)/\(operationName)"),
+                headers: geminiHeaders()
+            )
 
             let (pollData, pollResponse) = try await networkManager.sendRawRequest(pollRequest)
             guard let pollJSON = try? JSONSerialization.jsonObject(with: pollData) as? [String: Any] else {

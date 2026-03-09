@@ -53,10 +53,11 @@ actor CohereAdapter: LLMProviderAdapter {
     }
 
     func fetchAvailableModels() async throws -> [ModelInfo] {
-        var request = URLRequest(url: try validatedURL("\(baseURL)/models"))
-        request.httpMethod = "GET"
-        request.addValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-        request.addValue("application/json", forHTTPHeaderField: "Accept")
+        let request = makeGETRequest(
+            url: try validatedURL("\(baseURL)/models"),
+            apiKey: apiKey,
+            includeUserAgent: false
+        )
 
         let (data, _) = try await networkManager.sendRequest(request)
 
@@ -119,12 +120,6 @@ actor CohereAdapter: LLMProviderAdapter {
         tools: [ToolDefinition],
         streaming: Bool
     ) throws -> URLRequest {
-        var request = URLRequest(url: try validatedURL("\(baseURL)/chat"))
-        request.httpMethod = "POST"
-        request.addValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.addValue(streaming ? "text/event-stream" : "application/json", forHTTPHeaderField: "Accept")
-
         var body: [String: Any] = [
             "model": modelID,
             "messages": translateMessages(messages),
@@ -152,8 +147,13 @@ actor CohereAdapter: LLMProviderAdapter {
             body[key] = value.value
         }
 
-        request.httpBody = try JSONSerialization.data(withJSONObject: body)
-        return request
+        return try makeAuthorizedJSONRequest(
+            url: validatedURL("\(baseURL)/chat"),
+            apiKey: apiKey,
+            body: body,
+            accept: streaming ? "text/event-stream" : "application/json",
+            includeUserAgent: false
+        )
     }
 
     private func translateMessages(_ messages: [Message]) -> [[String: Any]] {

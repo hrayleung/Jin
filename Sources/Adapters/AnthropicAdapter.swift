@@ -80,10 +80,10 @@ actor AnthropicAdapter: LLMProviderAdapter {
     }
 
     func validateAPIKey(_ key: String) async throws -> Bool {
-        var request = URLRequest(url: try validatedURL("\(baseURL)/models"))
-        request.httpMethod = "GET"
-        request.addValue(key, forHTTPHeaderField: "x-api-key")
-        request.addValue(anthropicVersion, forHTTPHeaderField: "anthropic-version")
+        let request = NetworkRequestFactory.makeRequest(
+            url: try validatedURL("\(baseURL)/models"),
+            headers: anthropicHeaders(apiKey: key)
+        )
 
         do {
             _ = try await networkManager.sendRequest(request)
@@ -112,10 +112,10 @@ actor AnthropicAdapter: LLMProviderAdapter {
                 throw LLMError.invalidRequest(message: "Invalid Anthropic models URL")
             }
 
-            var request = URLRequest(url: url)
-            request.httpMethod = "GET"
-            request.addValue(apiKey, forHTTPHeaderField: "x-api-key")
-            request.addValue(anthropicVersion, forHTTPHeaderField: "anthropic-version")
+            let request = NetworkRequestFactory.makeRequest(
+                url: url,
+                headers: anthropicHeaders(apiKey: apiKey)
+            )
 
             let (data, _) = try await networkManager.sendRequest(request)
 
@@ -174,6 +174,22 @@ actor AnthropicAdapter: LLMProviderAdapter {
 
     private var anthropicVersion: String {
         "2023-06-01"
+    }
+
+    private func anthropicHeaders(apiKey: String, contentType: String? = nil, betaHeader: String? = nil) -> [String: String] {
+        var headers: [String: String] = [
+            "x-api-key": apiKey,
+            "anthropic-version": anthropicVersion
+        ]
+
+        if let contentType {
+            headers["Content-Type"] = contentType
+        }
+        if let betaHeader {
+            headers["anthropic-beta"] = betaHeader
+        }
+
+        return headers
     }
 
     private func supportsNativePDF(_ modelID: String) -> Bool {
@@ -349,14 +365,7 @@ actor AnthropicAdapter: LLMProviderAdapter {
             strategy: cacheStrategy
         )
 
-        var request = URLRequest(url: try validatedURL("\(baseURL)/messages"))
-        request.httpMethod = "POST"
-        request.addValue(apiKey, forHTTPHeaderField: "x-api-key")
-        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.addValue(anthropicVersion, forHTTPHeaderField: "anthropic-version")
-        if let betaHeader = extractAnthropicBetaHeader(from: controls) {
-            request.addValue(betaHeader, forHTTPHeaderField: "anthropic-beta")
-        }
+        let betaHeader = extractAnthropicBetaHeader(from: controls)
 
         let nonSystemMessages = normalizedMessages.filter { $0.role != .system }
         var translatedMessages: [[String: Any]] = []
@@ -394,8 +403,11 @@ actor AnthropicAdapter: LLMProviderAdapter {
         appendToolSpecs(to: &body, controls: controls, tools: tools, modelID: modelID)
         applyProviderSpecificOverrides(to: &body, controls: controls, modelID: modelID)
 
-        request.httpBody = try JSONSerialization.data(withJSONObject: body)
-        return request
+        return try NetworkRequestFactory.makeJSONRequest(
+            url: validatedURL("\(baseURL)/messages"),
+            headers: anthropicHeaders(apiKey: apiKey, betaHeader: betaHeader),
+            body: body
+        )
     }
 
     private func appendSystemPrompt(to body: inout [String: Any], from messages: [Message], cacheControl: [String: Any]?) {

@@ -1,4 +1,5 @@
 import Foundation
+import Alamofire
 
 actor ElevenLabsTTSClient {
     enum Constants {
@@ -86,10 +87,12 @@ actor ElevenLabsTTSClient {
     }
 
     func listVoices(timeoutSeconds: TimeInterval = 30) async throws -> [Voice] {
-        var request = URLRequest(url: baseURL.appendingPathComponent("voices"))
-        request.httpMethod = "GET"
-        request.timeoutInterval = timeoutSeconds
-        request.setValue(apiKey, forHTTPHeaderField: "xi-api-key")
+        let request = NetworkRequestFactory.makeRequest(
+            url: baseURL.appendingPathComponent("voices"),
+            method: .get,
+            timeoutSeconds: timeoutSeconds,
+            headers: [HTTPHeader(name: "xi-api-key", value: apiKey)]
+        )
 
         let (data, _) = try await networkManager.sendRequest(request)
         do {
@@ -154,14 +157,12 @@ actor ElevenLabsTTSClient {
             nextRequestIds: nextRequestIds
         )
 
-        let requestBody = try JSONEncoder().encode(body)
-
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.timeoutInterval = timeoutSeconds
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue(apiKey, forHTTPHeaderField: "xi-api-key")
-        request.httpBody = requestBody
+        let request = try NetworkRequestFactory.makeJSONRequest(
+            url: url,
+            timeoutSeconds: timeoutSeconds,
+            headers: [HTTPHeader(name: "xi-api-key", value: apiKey)],
+            body: body
+        )
 
         let (data, _) = try await networkManager.sendRequest(request)
         return data

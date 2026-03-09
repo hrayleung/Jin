@@ -38,10 +38,10 @@ actor GeminiAdapter: LLMProviderAdapter {
     }
 
     func listCachedContents() async throws -> [CachedContentResource] {
-        var request = URLRequest(url: try validatedURL("\(baseURL)/cachedContents"))
-        request.httpMethod = "GET"
-        request.addValue(apiKey, forHTTPHeaderField: "x-goog-api-key")
-        request.addValue("application/json", forHTTPHeaderField: "Accept")
+        let request = NetworkRequestFactory.makeRequest(
+            url: try validatedURL("\(baseURL)/cachedContents"),
+            headers: geminiHeaders(accept: "application/json")
+        )
 
         let (data, _) = try await networkManager.sendRequest(request)
         let decoder = JSONDecoder()
@@ -52,10 +52,10 @@ actor GeminiAdapter: LLMProviderAdapter {
 
     func getCachedContent(named name: String) async throws -> CachedContentResource {
         let path = normalizedCachedContentName(name)
-        var request = URLRequest(url: try validatedURL("\(baseURL)/\(path)"))
-        request.httpMethod = "GET"
-        request.addValue(apiKey, forHTTPHeaderField: "x-goog-api-key")
-        request.addValue("application/json", forHTTPHeaderField: "Accept")
+        let request = NetworkRequestFactory.makeRequest(
+            url: try validatedURL("\(baseURL)/\(path)"),
+            headers: geminiHeaders(accept: "application/json")
+        )
 
         let (data, _) = try await networkManager.sendRequest(request)
         let decoder = JSONDecoder()
@@ -68,11 +68,11 @@ actor GeminiAdapter: LLMProviderAdapter {
             throw LLMError.invalidRequest(message: "Invalid cachedContent payload.")
         }
 
-        var request = URLRequest(url: try validatedURL("\(baseURL)/cachedContents"))
-        request.httpMethod = "POST"
-        request.addValue(apiKey, forHTTPHeaderField: "x-goog-api-key")
-        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = try JSONSerialization.data(withJSONObject: payload)
+        let request = try NetworkRequestFactory.makeJSONRequest(
+            url: validatedURL("\(baseURL)/cachedContents"),
+            headers: geminiHeaders(),
+            body: payload
+        )
 
         let (data, _) = try await networkManager.sendRequest(request)
         let decoder = JSONDecoder()
@@ -93,11 +93,12 @@ actor GeminiAdapter: LLMProviderAdapter {
             throw LLMError.invalidRequest(message: "Invalid cachedContent URL.")
         }
 
-        var request = URLRequest(url: url)
-        request.httpMethod = "PATCH"
-        request.addValue(apiKey, forHTTPHeaderField: "x-goog-api-key")
-        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = try JSONSerialization.data(withJSONObject: payload)
+        let request = try NetworkRequestFactory.makeJSONRequest(
+            url: url,
+            method: "PATCH",
+            headers: geminiHeaders(),
+            body: payload
+        )
 
         let (data, _) = try await networkManager.sendRequest(request)
         let decoder = JSONDecoder()
@@ -106,9 +107,11 @@ actor GeminiAdapter: LLMProviderAdapter {
     }
 
     func deleteCachedContent(named name: String) async throws {
-        var request = URLRequest(url: try validatedURL("\(baseURL)/\(normalizedCachedContentName(name))"))
-        request.httpMethod = "DELETE"
-        request.addValue(apiKey, forHTTPHeaderField: "x-goog-api-key")
+        let request = NetworkRequestFactory.makeRequest(
+            url: try validatedURL("\(baseURL)/\(normalizedCachedContentName(name))"),
+            method: "DELETE",
+            headers: geminiHeaders()
+        )
         _ = try await networkManager.sendRequest(request)
     }
 
@@ -281,9 +284,10 @@ actor GeminiAdapter: LLMProviderAdapter {
                 throw LLMError.invalidRequest(message: "Invalid Gemini models URL")
             }
 
-            var request = URLRequest(url: url)
-            request.httpMethod = "GET"
-            request.addValue(apiKey, forHTTPHeaderField: "x-goog-api-key")
+            let request = NetworkRequestFactory.makeRequest(
+                url: url,
+                headers: geminiHeaders()
+            )
 
             let (data, _) = try await networkManager.sendRequest(request)
 
@@ -322,6 +326,17 @@ actor GeminiAdapter: LLMProviderAdapter {
         providerConfig.baseURL ?? ProviderType.gemini.defaultBaseURL ?? "https://generativelanguage.googleapis.com/v1beta"
     }
 
+    func geminiHeaders(apiKey: String? = nil, accept: String? = nil, contentType: String? = nil) -> [String: String] {
+        var headers: [String: String] = ["x-goog-api-key": apiKey ?? self.apiKey]
+        if let accept {
+            headers["Accept"] = accept
+        }
+        if let contentType {
+            headers["Content-Type"] = contentType
+        }
+        return headers
+    }
+
     private func buildRequest(
         messages: [Message],
         modelID: String,
@@ -332,11 +347,6 @@ actor GeminiAdapter: LLMProviderAdapter {
         let modelPath = modelIDForPath(modelID)
         let method = streaming ? "streamGenerateContent?alt=sse" : "generateContent"
         let endpoint = "\(baseURL)/models/\(modelPath):\(method)"
-
-        var request = URLRequest(url: try validatedURL(endpoint))
-        request.httpMethod = "POST"
-        request.addValue(apiKey, forHTTPHeaderField: "x-goog-api-key")
-        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
 
         let allowNativePDF = (controls.pdfProcessingMode ?? .native) == .native
         let nativePDFEnabled = allowNativePDF && supportsNativePDF(modelID)
@@ -381,8 +391,11 @@ actor GeminiAdapter: LLMProviderAdapter {
             deepMergeDictionary(into: &body, additional: controls.providerSpecific.mapValues { $0.value })
         }
 
-        request.httpBody = try JSONSerialization.data(withJSONObject: body)
-        return request
+        return try NetworkRequestFactory.makeJSONRequest(
+            url: validatedURL(endpoint),
+            headers: geminiHeaders(),
+            body: body
+        )
     }
 
     private func systemInstructionText(from messages: [Message]) -> String? {

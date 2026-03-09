@@ -42,10 +42,11 @@ actor TogetherAdapter: LLMProviderAdapter {
     }
 
     func validateAPIKey(_ key: String) async throws -> Bool {
-        var request = URLRequest(url: try validatedURL("\(baseURL)/models"))
-        request.httpMethod = "GET"
-        request.addValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
-        request.addValue("application/json", forHTTPHeaderField: "Accept")
+        let request = makeGETRequest(
+            url: try validatedURL("\(baseURL)/models"),
+            apiKey: key,
+            includeUserAgent: false
+        )
 
         do {
             _ = try await networkManager.sendRequest(request)
@@ -60,10 +61,11 @@ actor TogetherAdapter: LLMProviderAdapter {
     }
 
     func fetchAvailableModels() async throws -> [ModelInfo] {
-        var request = URLRequest(url: try validatedURL("\(baseURL)/models"))
-        request.httpMethod = "GET"
-        request.addValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-        request.addValue("application/json", forHTTPHeaderField: "Accept")
+        let request = makeGETRequest(
+            url: try validatedURL("\(baseURL)/models"),
+            apiKey: apiKey,
+            includeUserAgent: false
+        )
 
         let (data, _) = try await networkManager.sendRequest(request)
         let decoder = JSONDecoder()
@@ -106,12 +108,6 @@ actor TogetherAdapter: LLMProviderAdapter {
         tools: [ToolDefinition],
         streaming: Bool
     ) throws -> URLRequest {
-        var request = URLRequest(url: try validatedURL("\(baseURL)/chat/completions"))
-        request.httpMethod = "POST"
-        request.addValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.addValue("application/json", forHTTPHeaderField: "Accept")
-
         var body: [String: Any] = [
             "model": modelID,
             "messages": try translateMessages(messages),
@@ -138,8 +134,12 @@ actor TogetherAdapter: LLMProviderAdapter {
             body[key] = value.value
         }
 
-        request.httpBody = try JSONSerialization.data(withJSONObject: body)
-        return request
+        return try makeAuthorizedJSONRequest(
+            url: validatedURL("\(baseURL)/chat/completions"),
+            apiKey: apiKey,
+            body: body,
+            includeUserAgent: false
+        )
     }
 
     private func applyReasoning(to body: inout [String: Any], controls: GenerationControls, modelID: String) {

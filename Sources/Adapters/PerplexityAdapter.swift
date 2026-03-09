@@ -40,12 +40,6 @@ actor PerplexityAdapter: LLMProviderAdapter {
 
     func validateAPIKey(_ key: String) async throws -> Bool {
         // Perplexity does not expose a lightweight auth check; use a minimal completion with small max_tokens.
-        var request = URLRequest(url: try validatedURL("\(baseURL)/chat/completions"))
-        request.httpMethod = "POST"
-        request.addValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
-        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.addValue("application/json", forHTTPHeaderField: "Accept")
-
         let body: [String: Any] = [
             "model": "sonar",
             "messages": [["role": "user", "content": "ping"]],
@@ -53,7 +47,12 @@ actor PerplexityAdapter: LLMProviderAdapter {
             "stream": false
         ]
 
-        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        let request = try makeAuthorizedJSONRequest(
+            url: validatedURL("\(baseURL)/chat/completions"),
+            apiKey: key,
+            body: body,
+            includeUserAgent: false
+        )
 
         do {
             _ = try await networkManager.sendRequest(request)
@@ -115,12 +114,6 @@ actor PerplexityAdapter: LLMProviderAdapter {
         tools: [ToolDefinition],
         streaming: Bool
     ) throws -> URLRequest {
-        var request = URLRequest(url: try validatedURL("\(baseURL)/chat/completions"))
-        request.httpMethod = "POST"
-        request.addValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.addValue("application/json", forHTTPHeaderField: "Accept")
-
         var body: [String: Any] = [
             "model": modelID,
             "messages": try translateMessages(messages),
@@ -163,8 +156,12 @@ actor PerplexityAdapter: LLMProviderAdapter {
             deepMergeDictionary(into: &body, additional: controls.providerSpecific.mapValues { $0.value })
         }
 
-        request.httpBody = try JSONSerialization.data(withJSONObject: body)
-        return request
+        return try makeAuthorizedJSONRequest(
+            url: validatedURL("\(baseURL)/chat/completions"),
+            apiKey: apiKey,
+            body: body,
+            includeUserAgent: false
+        )
     }
 
     private func translateMessages(_ messages: [Message]) throws -> [[String: Any]] {

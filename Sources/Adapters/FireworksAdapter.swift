@@ -51,9 +51,12 @@ actor FireworksAdapter: LLMProviderAdapter {
     }
 
     func fetchAvailableModels() async throws -> [ModelInfo] {
-        var request = URLRequest(url: try validatedURL("\(baseURL)/models"))
-        request.httpMethod = "GET"
-        request.addValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        let request = makeGETRequest(
+            url: try validatedURL("\(baseURL)/models"),
+            apiKey: apiKey,
+            accept: nil,
+            includeUserAgent: false
+        )
 
         let (data, _) = try await networkManager.sendRequest(request)
         let response = try JSONDecoder().decode(OpenAIModelsResponse.self, from: data)
@@ -75,11 +78,6 @@ actor FireworksAdapter: LLMProviderAdapter {
         tools: [ToolDefinition],
         streaming: Bool
     ) throws -> URLRequest {
-        var request = URLRequest(url: try validatedURL("\(baseURL)/chat/completions"))
-        request.httpMethod = "POST"
-        request.addValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
-
         var body: [String: Any] = [
             "model": modelID,
             "messages": try translateMessages(messages),
@@ -132,8 +130,13 @@ actor FireworksAdapter: LLMProviderAdapter {
             body[key] = value.value
         }
 
-        request.httpBody = try JSONSerialization.data(withJSONObject: body)
-        return request
+        return try makeAuthorizedJSONRequest(
+            url: validatedURL("\(baseURL)/chat/completions"),
+            apiKey: apiKey,
+            body: body,
+            accept: nil,
+            includeUserAgent: false
+        )
     }
 
     private func translateMessages(_ messages: [Message]) throws -> [[String: Any]] {

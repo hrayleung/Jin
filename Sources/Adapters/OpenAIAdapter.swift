@@ -140,9 +140,12 @@ actor OpenAIAdapter: LLMProviderAdapter {
     }
 
     func fetchAvailableModels() async throws -> [ModelInfo] {
-        var request = URLRequest(url: try validatedURL("\(baseURL)/models"))
-        request.httpMethod = "GET"
-        request.addValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        let request = makeGETRequest(
+            url: try validatedURL("\(baseURL)/models"),
+            apiKey: apiKey,
+            accept: nil,
+            includeUserAgent: false
+        )
 
         let (data, _) = try await networkManager.sendRequest(request)
         let response = try JSONDecoder().decode(ModelsResponse.self, from: data)
@@ -196,11 +199,6 @@ actor OpenAIAdapter: LLMProviderAdapter {
         tools: [ToolDefinition],
         streaming: Bool
     ) throws -> URLRequest {
-        var request = URLRequest(url: try validatedURL("\(baseURL)/responses"))
-        request.httpMethod = "POST"
-        request.addValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
-
         let supportsNativeFileInput = supportsNativePDF(modelID)
         let allowNativePDF = (controls.pdfProcessingMode ?? .native) == .native
 
@@ -294,8 +292,13 @@ actor OpenAIAdapter: LLMProviderAdapter {
             body["include"] = mergedIncludeFields(body["include"], adding: "web_search_call.action.sources")
         }
 
-        request.httpBody = try JSONSerialization.data(withJSONObject: body)
-        return request
+        return try makeAuthorizedJSONRequest(
+            url: validatedURL("\(baseURL)/responses"),
+            apiKey: apiKey,
+            body: body,
+            accept: nil,
+            includeUserAgent: false
+        )
     }
 
     private func mergedIncludeFields(_ existing: Any?, adding field: String) -> [String] {

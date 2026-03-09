@@ -640,31 +640,95 @@ func unsupportedVideoInputNotice(_ video: VideoContent, providerName: String, ap
 
 // MARK: - Request Builder Helpers
 
+private func makeRequestHeaders(
+    authHeader: (key: String, value: String)?,
+    accept: String?,
+    contentType: String?,
+    includeUserAgent: Bool,
+    additionalHeaders: [String: String]
+) -> [String: String] {
+    var headers: [String: String] = [:]
+
+    if let authHeader {
+        headers[authHeader.key] = authHeader.value
+    }
+    if let accept {
+        headers["Accept"] = accept
+    }
+    if let contentType {
+        headers["Content-Type"] = contentType
+    }
+    if includeUserAgent {
+        headers["User-Agent"] = jinUserAgent
+    }
+
+    for (key, value) in additionalHeaders {
+        headers[key] = value
+    }
+
+    return headers
+}
+
 func makeAuthorizedJSONRequest(
     url: URL,
     method: String = "POST",
     apiKey: String,
-    body: [String: Any]? = nil
+    body: [String: Any]? = nil,
+    accept: String? = "application/json",
+    additionalHeaders: [String: String] = [:],
+    includeUserAgent: Bool = true,
+    timeoutSeconds: TimeInterval? = nil
 ) throws -> URLRequest {
-    var request = URLRequest(url: url)
-    request.httpMethod = method
-    request.addValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-    request.addValue("application/json", forHTTPHeaderField: "Content-Type")
-    request.addValue("application/json", forHTTPHeaderField: "Accept")
-    request.addValue(jinUserAgent, forHTTPHeaderField: "User-Agent")
     if let body {
-        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        return try NetworkRequestFactory.makeJSONRequest(
+            url: url,
+            method: method,
+            timeoutSeconds: timeoutSeconds,
+            headers: makeRequestHeaders(
+                authHeader: (key: "Authorization", value: "Bearer \(apiKey)"),
+                accept: accept,
+                contentType: nil,
+                includeUserAgent: includeUserAgent,
+                additionalHeaders: additionalHeaders
+            ),
+            body: body
+        )
     }
-    return request
+
+    return NetworkRequestFactory.makeRequest(
+        url: url,
+        method: method,
+        timeoutSeconds: timeoutSeconds,
+        headers: makeRequestHeaders(
+            authHeader: (key: "Authorization", value: "Bearer \(apiKey)"),
+            accept: accept,
+            contentType: "application/json",
+            includeUserAgent: includeUserAgent,
+            additionalHeaders: additionalHeaders
+        )
+    )
 }
 
-func makeGETRequest(url: URL, apiKey: String) -> URLRequest {
-    var request = URLRequest(url: url)
-    request.httpMethod = "GET"
-    request.addValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-    request.addValue("application/json", forHTTPHeaderField: "Accept")
-    request.addValue(jinUserAgent, forHTTPHeaderField: "User-Agent")
-    return request
+func makeGETRequest(
+    url: URL,
+    apiKey: String,
+    accept: String? = "application/json",
+    additionalHeaders: [String: String] = [:],
+    includeUserAgent: Bool = true,
+    timeoutSeconds: TimeInterval? = nil
+) -> URLRequest {
+    NetworkRequestFactory.makeRequest(
+        url: url,
+        method: "GET",
+        timeoutSeconds: timeoutSeconds,
+        headers: makeRequestHeaders(
+            authHeader: (key: "Authorization", value: "Bearer \(apiKey)"),
+            accept: accept,
+            contentType: nil,
+            includeUserAgent: includeUserAgent,
+            additionalHeaders: additionalHeaders
+        )
+    )
 }
 
 /// Validates an API key by making a GET request to a models endpoint.
@@ -673,14 +737,23 @@ func validateAPIKeyViaGET(
     url: URL,
     apiKey: String,
     networkManager: NetworkManager,
-    authHeader: (key: String, value: String)? = nil
+    authHeader: (key: String, value: String)? = nil,
+    accept: String? = "application/json",
+    additionalHeaders: [String: String] = [:],
+    includeUserAgent: Bool = true
 ) async -> Bool {
-    var request = URLRequest(url: url)
-    request.httpMethod = "GET"
     let auth = authHeader ?? (key: "Authorization", value: "Bearer \(apiKey)")
-    request.addValue(auth.value, forHTTPHeaderField: auth.key)
-    request.addValue("application/json", forHTTPHeaderField: "Accept")
-    request.addValue(jinUserAgent, forHTTPHeaderField: "User-Agent")
+    let request = NetworkRequestFactory.makeRequest(
+        url: url,
+        method: "GET",
+        headers: makeRequestHeaders(
+            authHeader: auth,
+            accept: accept,
+            contentType: nil,
+            includeUserAgent: includeUserAgent,
+            additionalHeaders: additionalHeaders
+        )
+    )
 
     do {
         _ = try await networkManager.sendRequest(request)

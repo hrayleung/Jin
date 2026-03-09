@@ -88,9 +88,12 @@ extension XAIAdapter {
                 try await Task.sleep(nanoseconds: pollIntervalNanoseconds)
             }
 
-            var pollRequest = URLRequest(url: try validatedURL("\(baseURL)/videos/\(requestID)"))
-            pollRequest.httpMethod = "GET"
-            pollRequest.addValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+            let pollRequest = makeGETRequest(
+                url: try validatedURL("\(baseURL)/videos/\(requestID)"),
+                apiKey: apiKey,
+                accept: nil,
+                includeUserAgent: false
+            )
 
             let (pollData, pollHTTPResponse) = try await networkManager.sendRawRequest(pollRequest)
             let rawBody = String(data: pollData, encoding: .utf8) ?? "(non-UTF-8)"
@@ -361,11 +364,6 @@ extension XAIAdapter {
         let isVideoEdit = videoURL?.isEmpty == false
         let endpoint = isVideoEdit ? "videos/edits" : "videos/generations"
 
-        var request = URLRequest(url: try validatedURL("\(baseURL)/\(endpoint)"))
-        request.httpMethod = "POST"
-        request.addValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
-
         let videoControls = controls.xaiVideoGeneration
 
         var body: [String: Any] = [
@@ -398,8 +396,13 @@ extension XAIAdapter {
 
         applyProviderSpecificOverrides(controls: controls, body: &body)
 
-        request.httpBody = try JSONSerialization.data(withJSONObject: body)
-        return request
+        return try makeAuthorizedJSONRequest(
+            url: validatedURL("\(baseURL)/\(endpoint)"),
+            apiKey: apiKey,
+            body: body,
+            accept: nil,
+            includeUserAgent: false
+        )
     }
 
     func downloadVideoToLocal(from url: URL) async throws -> (URL, String) {

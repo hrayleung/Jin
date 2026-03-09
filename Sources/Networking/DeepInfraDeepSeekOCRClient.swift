@@ -85,14 +85,12 @@ Return only the Markdown with no surrounding commentary.
             temperature: temperature
         )
 
-        let requestBody = try JSONEncoder().encode(body)
-
-        var request = URLRequest(url: baseURL.appendingPathComponent("chat/completions"))
-        request.httpMethod = "POST"
-        request.timeoutInterval = timeoutSeconds
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-        request.httpBody = requestBody
+        let request = try NetworkRequestFactory.makeJSONRequest(
+            url: baseURL.appendingPathComponent("chat/completions"),
+            timeoutSeconds: timeoutSeconds,
+            headers: NetworkRequestFactory.bearerHeaders(apiKey: apiKey),
+            body: body
+        )
 
         let (data, _) = try await networkManager.sendRequest(request)
         do {

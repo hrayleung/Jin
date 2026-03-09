@@ -53,10 +53,12 @@ actor OpenAICompatibleAdapter: LLMProviderAdapter {
             return try await validateGitHubModelsToken(key)
         }
 
-        var request = URLRequest(url: try validatedURL(modelsListURLString))
-        request.httpMethod = "GET"
-        request.addValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
-        request.addValue(acceptHeaderValue, forHTTPHeaderField: "Accept")
+        var request = makeGETRequest(
+            url: try validatedURL(modelsListURLString),
+            apiKey: key,
+            accept: acceptHeaderValue,
+            includeUserAgent: false
+        )
         applyProviderHeaders(to: &request)
 
         do {
@@ -68,10 +70,12 @@ actor OpenAICompatibleAdapter: LLMProviderAdapter {
     }
 
     func fetchAvailableModels() async throws -> [ModelInfo] {
-        var request = URLRequest(url: try validatedURL(modelsListURLString))
-        request.httpMethod = "GET"
-        request.addValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-        request.addValue(acceptHeaderValue, forHTTPHeaderField: "Accept")
+        var request = makeGETRequest(
+            url: try validatedURL(modelsListURLString),
+            apiKey: apiKey,
+            accept: acceptHeaderValue,
+            includeUserAgent: false
+        )
         applyProviderHeaders(to: &request)
 
         let (data, _) = try await networkManager.sendRequest(request)
@@ -148,14 +152,6 @@ actor OpenAICompatibleAdapter: LLMProviderAdapter {
         tools: [ToolDefinition],
         streaming: Bool
     ) throws -> URLRequest {
-        var request = URLRequest(url: try validatedURL("\(baseURL)/chat/completions"))
-        request.httpMethod = "POST"
-        request.addValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.addValue(acceptHeaderValue, forHTTPHeaderField: "Accept")
-        applyProviderHeaders(to: &request)
-        applyCloudflareGatewayCacheHeaders(to: &request, controls: controls)
-
         var body: [String: Any] = [
             "model": modelID,
             "messages": try translateMessages(messages),
@@ -200,7 +196,15 @@ actor OpenAICompatibleAdapter: LLMProviderAdapter {
             body[key] = value.value
         }
 
-        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        var request = try makeAuthorizedJSONRequest(
+            url: validatedURL("\(baseURL)/chat/completions"),
+            apiKey: apiKey,
+            body: body,
+            accept: acceptHeaderValue,
+            includeUserAgent: false
+        )
+        applyProviderHeaders(to: &request)
+        applyCloudflareGatewayCacheHeaders(to: &request, controls: controls)
         return request
     }
 
@@ -212,10 +216,12 @@ actor OpenAICompatibleAdapter: LLMProviderAdapter {
     }
 
     private func validateGitHubModelsToken(_ key: String) async throws -> Bool {
-        var request = URLRequest(url: try validatedURL(modelsListURLString))
-        request.httpMethod = "GET"
-        request.addValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
-        request.addValue(acceptHeaderValue, forHTTPHeaderField: "Accept")
+        var request = makeGETRequest(
+            url: try validatedURL(modelsListURLString),
+            apiKey: key,
+            accept: acceptHeaderValue,
+            includeUserAgent: false
+        )
         applyProviderHeaders(to: &request)
 
         do {

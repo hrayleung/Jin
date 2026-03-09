@@ -105,11 +105,6 @@ extension OpenAIAdapter {
         let isImageEdit = modelSupportsEdit && (imageURL?.isEmpty == false)
         let endpoint = isImageEdit ? "images/edits" : "images/generations"
 
-        var request = URLRequest(url: try validatedURL("\(baseURL)/\(endpoint)"))
-        request.httpMethod = "POST"
-        request.addValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
-
         let imageControls = controls.openaiImageGeneration
         let isGPTImageModel = lowerModel.hasPrefix("gpt-image")
         let isDallE3 = lowerModel.hasPrefix("dall-e-3")
@@ -190,8 +185,13 @@ extension OpenAIAdapter {
             body[key] = value.value
         }
 
-        request.httpBody = try JSONSerialization.data(withJSONObject: body)
-        return request
+        return try makeAuthorizedJSONRequest(
+            url: validatedURL("\(baseURL)/\(endpoint)"),
+            apiKey: apiKey,
+            body: body,
+            accept: nil,
+            includeUserAgent: false
+        )
     }
 
     // MARK: - Prompt Extraction

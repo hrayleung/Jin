@@ -1,4 +1,5 @@
 import Foundation
+import Alamofire
 
 actor MistralOCRClient {
     enum Constants {
@@ -73,9 +74,11 @@ actor MistralOCRClient {
     }
 
     func validateAPIKey() async throws {
-        var request = URLRequest(url: baseURL.appendingPathComponent("models"))
-        request.httpMethod = "GET"
-        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        let request = NetworkRequestFactory.makeRequest(
+            url: baseURL.appendingPathComponent("models"),
+            method: .get,
+            headers: NetworkRequestFactory.bearerHeaders(apiKey: apiKey)
+        )
 
         _ = try await networkManager.sendRequest(request)
     }
@@ -97,14 +100,12 @@ actor MistralOCRClient {
             includeImageBase64: includeImageBase64
         )
 
-        let requestBody = try JSONEncoder().encode(body)
-
-        var request = URLRequest(url: baseURL.appendingPathComponent("ocr"))
-        request.httpMethod = "POST"
-        request.timeoutInterval = timeoutSeconds
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-        request.httpBody = requestBody
+        let request = try NetworkRequestFactory.makeJSONRequest(
+            url: baseURL.appendingPathComponent("ocr"),
+            timeoutSeconds: timeoutSeconds,
+            headers: NetworkRequestFactory.bearerHeaders(apiKey: apiKey),
+            body: body
+        )
 
         let (data, _) = try await networkManager.sendRequest(request)
         do {

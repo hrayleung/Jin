@@ -21,10 +21,6 @@ extension VertexAIAdapter {
                 do {
                     // 1. Build and submit the generation request
                     let endpoint = "\(baseURL)/projects/\(serviceAccountJSON.projectID)/locations/\(location)/publishers/google/models/\(modelID):predictLongRunning"
-                    var request = URLRequest(url: try validatedURL(endpoint))
-                    request.httpMethod = "POST"
-                    request.addValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
-                    request.addValue("application/json", forHTTPHeaderField: "Content-Type")
 
                     var instance: [String: Any] = ["prompt": prompt]
 
@@ -45,7 +41,11 @@ extension VertexAIAdapter {
                         "instances": [instance],
                         "parameters": parameters
                     ]
-                    request.httpBody = try JSONSerialization.data(withJSONObject: body)
+                    let request = try NetworkRequestFactory.makeJSONRequest(
+                        url: validatedURL(endpoint),
+                        headers: vertexHeaders(accessToken: accessToken),
+                        body: body
+                    )
 
                     let (startData, _) = try await networkManager.sendRequest(request)
                     let rawStart = try? JSONSerialization.jsonObject(with: startData) as? [String: Any]
@@ -71,13 +71,12 @@ extension VertexAIAdapter {
 
                         // Vertex uses POST fetchPredictOperation instead of GET on the operation URL
                         let pollEndpoint = "\(baseURL)/projects/\(serviceAccountJSON.projectID)/locations/\(location)/publishers/google/models/\(modelID):fetchPredictOperation"
-                        var pollRequest = URLRequest(url: try validatedURL(pollEndpoint))
-                        pollRequest.httpMethod = "POST"
-                        pollRequest.addValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
-                        pollRequest.addValue("application/json", forHTTPHeaderField: "Content-Type")
-
                         let pollBody: [String: Any] = ["operationName": operationName]
-                        pollRequest.httpBody = try JSONSerialization.data(withJSONObject: pollBody)
+                        let pollRequest = try NetworkRequestFactory.makeJSONRequest(
+                            url: validatedURL(pollEndpoint),
+                            headers: vertexHeaders(accessToken: accessToken),
+                            body: pollBody
+                        )
 
                         let (pollData, pollResponse) = try await networkManager.sendRawRequest(pollRequest)
                         guard let pollJSON = try? JSONSerialization.jsonObject(with: pollData) as? [String: Any] else {

@@ -1,4 +1,5 @@
 import Foundation
+import Alamofire
 
 actor GroqAudioClient {
     enum Constants {
@@ -19,10 +20,6 @@ actor GroqAudioClient {
         }
     }
 
-    private struct TranscriptionJSONResponse: Decodable {
-        let text: String?
-    }
-
     private let apiKey: String
     private let baseURL: URL
     private let networkManager: NetworkManager
@@ -38,10 +35,12 @@ actor GroqAudioClient {
     }
 
     func validateAPIKey(timeoutSeconds: TimeInterval = 30) async throws {
-        var request = URLRequest(url: baseURL.appendingPathComponent("models"))
-        request.httpMethod = "GET"
-        request.timeoutInterval = timeoutSeconds
-        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        let request = NetworkRequestFactory.makeRequest(
+            url: baseURL.appendingPathComponent("models"),
+            method: .get,
+            timeoutSeconds: timeoutSeconds,
+            headers: NetworkRequestFactory.bearerHeaders(apiKey: apiKey)
+        )
 
         _ = try await networkManager.sendRequest(request)
     }
@@ -60,14 +59,12 @@ actor GroqAudioClient {
             responseFormat: responseFormat
         )
 
-        let requestBody = try JSONEncoder().encode(body)
-
-        var request = URLRequest(url: baseURL.appendingPathComponent("audio/speech"))
-        request.httpMethod = "POST"
-        request.timeoutInterval = timeoutSeconds
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-        request.httpBody = requestBody
+        let request = try NetworkRequestFactory.makeJSONRequest(
+            url: baseURL.appendingPathComponent("audio/speech"),
+            timeoutSeconds: timeoutSeconds,
+            headers: NetworkRequestFactory.bearerHeaders(apiKey: apiKey),
+            body: body
+        )
 
         let (data, _) = try await networkManager.sendRequest(request)
         return data
@@ -85,49 +82,29 @@ actor GroqAudioClient {
         timestampGranularities: [String]? = nil,
         timeoutSeconds: TimeInterval = 120
     ) async throws -> String {
-        var form = MultipartFormDataBuilder()
-        form.addFileField(name: "file", filename: filename, mimeType: mimeType, data: fileData)
-        form.addField(name: "model", value: model)
+        let fields = OpenAICompatibleAudioClientSupport.transcriptionFields(
+            model: model,
+            language: language,
+            prompt: prompt,
+            responseFormat: responseFormat,
+            temperature: temperature,
+            timestampGranularities: timestampGranularities
+        )
 
-        if let language, !language.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            form.addField(name: "language", value: language)
+        let request = try NetworkRequestFactory.makeMultipartRequest(
+            url: baseURL.appendingPathComponent("audio/transcriptions"),
+            timeoutSeconds: timeoutSeconds,
+            headers: NetworkRequestFactory.bearerHeaders(apiKey: apiKey)
+        ) { formData in
+            formData.append(fileData, withName: "file", fileName: filename, mimeType: mimeType)
+            OpenAICompatibleAudioClientSupport.append(fields, to: formData)
         }
-        if let prompt, !prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            form.addField(name: "prompt", value: prompt)
-        }
-        if let responseFormat, !responseFormat.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            form.addField(name: "response_format", value: responseFormat)
-        }
-        if let temperature {
-            form.addField(name: "temperature", value: String(temperature))
-        }
-        if let timestampGranularities, !timestampGranularities.isEmpty {
-            for granularity in timestampGranularities {
-                form.addField(name: "timestamp_granularities[]", value: granularity)
-            }
-        }
-
-        var request = URLRequest(url: baseURL.appendingPathComponent("audio/transcriptions"))
-        request.httpMethod = "POST"
-        request.timeoutInterval = timeoutSeconds
-        request.setValue(form.contentTypeHeader(), forHTTPHeaderField: "Content-Type")
-        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-        request.httpBody = form.buildBody()
 
         let (data, _) = try await networkManager.sendRequest(request)
-
-        let format = (responseFormat ?? "json").trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        if format != "json" && format != "verbose_json" {
-            return String(data: data, encoding: .utf8) ?? ""
-        }
-
-        do {
-            let decoded = try JSONDecoder().decode(TranscriptionJSONResponse.self, from: data)
-            return decoded.text ?? ""
-        } catch {
-            let message = String(data: data, encoding: .utf8) ?? error.localizedDescription
-            throw LLMError.decodingError(message: message)
-        }
+        return try OpenAICompatibleAudioClientSupport.decodeTranscriptionResponse(
+            data,
+            responseFormat: responseFormat
+        )
     }
 
     func createTranslation(
@@ -140,40 +117,26 @@ actor GroqAudioClient {
         temperature: Double? = nil,
         timeoutSeconds: TimeInterval = 120
     ) async throws -> String {
-        var form = MultipartFormDataBuilder()
-        form.addFileField(name: "file", filename: filename, mimeType: mimeType, data: fileData)
-        form.addField(name: "model", value: model)
+        let fields = OpenAICompatibleAudioClientSupport.translationFields(
+            model: model,
+            prompt: prompt,
+            responseFormat: responseFormat,
+            temperature: temperature
+        )
 
-        if let prompt, !prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            form.addField(name: "prompt", value: prompt)
+        let request = try NetworkRequestFactory.makeMultipartRequest(
+            url: baseURL.appendingPathComponent("audio/translations"),
+            timeoutSeconds: timeoutSeconds,
+            headers: NetworkRequestFactory.bearerHeaders(apiKey: apiKey)
+        ) { formData in
+            formData.append(fileData, withName: "file", fileName: filename, mimeType: mimeType)
+            OpenAICompatibleAudioClientSupport.append(fields, to: formData)
         }
-        if let responseFormat, !responseFormat.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            form.addField(name: "response_format", value: responseFormat)
-        }
-        if let temperature {
-            form.addField(name: "temperature", value: String(temperature))
-        }
-
-        var request = URLRequest(url: baseURL.appendingPathComponent("audio/translations"))
-        request.httpMethod = "POST"
-        request.timeoutInterval = timeoutSeconds
-        request.setValue(form.contentTypeHeader(), forHTTPHeaderField: "Content-Type")
-        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-        request.httpBody = form.buildBody()
 
         let (data, _) = try await networkManager.sendRequest(request)
-
-        let format = (responseFormat ?? "json").trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        if format != "json" && format != "verbose_json" {
-            return String(data: data, encoding: .utf8) ?? ""
-        }
-
-        do {
-            let decoded = try JSONDecoder().decode(TranscriptionJSONResponse.self, from: data)
-            return decoded.text ?? ""
-        } catch {
-            let message = String(data: data, encoding: .utf8) ?? error.localizedDescription
-            throw LLMError.decodingError(message: message)
-        }
+        return try OpenAICompatibleAudioClientSupport.decodeTranscriptionResponse(
+            data,
+            responseFormat: responseFormat
+        )
     }
 }

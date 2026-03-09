@@ -31,10 +31,10 @@ actor VertexAIAdapter: LLMProviderAdapter {
 
     func listCachedContents() async throws -> [CachedContentResource] {
         let token = try await getAccessToken()
-        var request = URLRequest(url: try validatedURL(cachedContentsCollectionEndpoint))
-        request.httpMethod = "GET"
-        request.addValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        request.addValue("application/json", forHTTPHeaderField: "Accept")
+        let request = NetworkRequestFactory.makeRequest(
+            url: try validatedURL(cachedContentsCollectionEndpoint),
+            headers: vertexHeaders(accessToken: token, accept: "application/json")
+        )
 
         let (data, _) = try await networkManager.sendRequest(request)
         let decoder = JSONDecoder()
@@ -45,10 +45,10 @@ actor VertexAIAdapter: LLMProviderAdapter {
 
     func getCachedContent(named name: String) async throws -> CachedContentResource {
         let token = try await getAccessToken()
-        var request = URLRequest(url: try validatedURL(cachedContentEndpoint(for: name)))
-        request.httpMethod = "GET"
-        request.addValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        request.addValue("application/json", forHTTPHeaderField: "Accept")
+        let request = NetworkRequestFactory.makeRequest(
+            url: try validatedURL(cachedContentEndpoint(for: name)),
+            headers: vertexHeaders(accessToken: token, accept: "application/json")
+        )
 
         let (data, _) = try await networkManager.sendRequest(request)
         let decoder = JSONDecoder()
@@ -62,11 +62,11 @@ actor VertexAIAdapter: LLMProviderAdapter {
         }
 
         let token = try await getAccessToken()
-        var request = URLRequest(url: try validatedURL(cachedContentsCollectionEndpoint))
-        request.httpMethod = "POST"
-        request.addValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = try JSONSerialization.data(withJSONObject: payload)
+        let request = try NetworkRequestFactory.makeJSONRequest(
+            url: validatedURL(cachedContentsCollectionEndpoint),
+            headers: vertexHeaders(accessToken: token),
+            body: payload
+        )
 
         let (data, _) = try await networkManager.sendRequest(request)
         let decoder = JSONDecoder()
@@ -88,11 +88,12 @@ actor VertexAIAdapter: LLMProviderAdapter {
             throw LLMError.invalidRequest(message: "Invalid cachedContent URL.")
         }
 
-        var request = URLRequest(url: url)
-        request.httpMethod = "PATCH"
-        request.addValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = try JSONSerialization.data(withJSONObject: payload)
+        let request = try NetworkRequestFactory.makeJSONRequest(
+            url: url,
+            method: "PATCH",
+            headers: vertexHeaders(accessToken: token),
+            body: payload
+        )
 
         let (data, _) = try await networkManager.sendRequest(request)
         let decoder = JSONDecoder()
@@ -102,9 +103,11 @@ actor VertexAIAdapter: LLMProviderAdapter {
 
     func deleteCachedContent(named name: String) async throws {
         let token = try await getAccessToken()
-        var request = URLRequest(url: try validatedURL(cachedContentEndpoint(for: name)))
-        request.httpMethod = "DELETE"
-        request.addValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        let request = NetworkRequestFactory.makeRequest(
+            url: try validatedURL(cachedContentEndpoint(for: name)),
+            method: "DELETE",
+            headers: vertexHeaders(accessToken: token)
+        )
         _ = try await networkManager.sendRequest(request)
     }
 
@@ -337,12 +340,13 @@ actor VertexAIAdapter: LLMProviderAdapter {
     }
 
     private func exchangeJWTForToken(_ jwt: String) async throws -> TokenResponse {
-        var request = URLRequest(url: try validatedURL(serviceAccountJSON.tokenURI))
-        request.httpMethod = "POST"
-        request.addValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
-
         let body = "grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer&assertion=\(jwt)"
-        request.httpBody = body.data(using: .utf8)
+        let request = NetworkRequestFactory.makeRequest(
+            url: try validatedURL(serviceAccountJSON.tokenURI),
+            method: "POST",
+            headers: ["Content-Type": "application/x-www-form-urlencoded"],
+            body: body.data(using: .utf8)
+        )
 
         let (data, _) = try await networkManager.sendRequest(request)
         return try JSONDecoder().decode(TokenResponse.self, from: data)
@@ -358,13 +362,7 @@ actor VertexAIAdapter: LLMProviderAdapter {
     ) throws -> URLRequest {
         let method = streaming ? "streamGenerateContent" : "generateContent"
         let endpoint = "\(baseURL)/projects/\(serviceAccountJSON.projectID)/locations/\(location)/publishers/google/models/\(modelID):\(method)"
-        var request = URLRequest(url: try validatedURL(endpoint))
-        request.httpMethod = "POST"
-        request.addValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
-        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
-        if let timeout = requestTimeoutInterval(for: modelID, controls: controls) {
-            request.timeoutInterval = timeout
-        }
+        let timeout = requestTimeoutInterval(for: modelID, controls: controls)
 
         let systemText: String? = messages
             .first(where: { $0.role == .system })?
@@ -418,8 +416,23 @@ actor VertexAIAdapter: LLMProviderAdapter {
             deepMergeDictionary(into: &body, additional: controls.providerSpecific.mapValues { $0.value })
         }
 
-        request.httpBody = try JSONSerialization.data(withJSONObject: body)
-        return request
+        return try NetworkRequestFactory.makeJSONRequest(
+            url: validatedURL(endpoint),
+            timeoutSeconds: timeout,
+            headers: vertexHeaders(accessToken: accessToken),
+            body: body
+        )
+    }
+
+    func vertexHeaders(accessToken: String, accept: String? = nil, contentType: String? = nil) -> [String: String] {
+        var headers: [String: String] = ["Authorization": "Bearer \(accessToken)"]
+        if let accept {
+            headers["Accept"] = accept
+        }
+        if let contentType {
+            headers["Content-Type"] = contentType
+        }
+        return headers
     }
 
     private func isImageGenerationModel(_ modelID: String) -> Bool {

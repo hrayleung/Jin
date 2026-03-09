@@ -43,12 +43,12 @@ actor OpenRouterAdapter: LLMProviderAdapter {
     }
 
     func validateAPIKey(_ key: String) async throws -> Bool {
-        var request = URLRequest(url: try validatedURL("\(baseURL)/key"))
-        request.httpMethod = "GET"
-        request.addValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
-        request.addValue("application/json", forHTTPHeaderField: "Accept")
-        request.addValue("https://jin.app", forHTTPHeaderField: "HTTP-Referer")
-        request.addValue("Jin", forHTTPHeaderField: "X-Title")
+        let request = makeGETRequest(
+            url: try validatedURL("\(baseURL)/key"),
+            apiKey: key,
+            additionalHeaders: openRouterHeaders,
+            includeUserAgent: false
+        )
 
         do {
             _ = try await networkManager.sendRequest(request)
@@ -59,12 +59,12 @@ actor OpenRouterAdapter: LLMProviderAdapter {
     }
 
     func fetchAvailableModels() async throws -> [ModelInfo] {
-        var request = URLRequest(url: try validatedURL("\(baseURL)/models"))
-        request.httpMethod = "GET"
-        request.addValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-        request.addValue("application/json", forHTTPHeaderField: "Accept")
-        request.addValue("https://jin.app", forHTTPHeaderField: "HTTP-Referer")
-        request.addValue("Jin", forHTTPHeaderField: "X-Title")
+        let request = makeGETRequest(
+            url: try validatedURL("\(baseURL)/models"),
+            apiKey: apiKey,
+            additionalHeaders: openRouterHeaders,
+            includeUserAgent: false
+        )
 
         let (data, _) = try await networkManager.sendRequest(request)
         let decoder = JSONDecoder()
@@ -98,6 +98,13 @@ actor OpenRouterAdapter: LLMProviderAdapter {
         return trimmed
     }
 
+    private var openRouterHeaders: [String: String] {
+        [
+            "HTTP-Referer": "https://jin.app",
+            "X-Title": "Jin"
+        ]
+    }
+
     private func buildRequest(
         messages: [Message],
         modelID: String,
@@ -105,14 +112,6 @@ actor OpenRouterAdapter: LLMProviderAdapter {
         tools: [ToolDefinition],
         streaming: Bool
     ) throws -> URLRequest {
-        var request = URLRequest(url: try validatedURL("\(baseURL)/chat/completions"))
-        request.httpMethod = "POST"
-        request.addValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.addValue("application/json", forHTTPHeaderField: "Accept")
-        request.addValue("https://jin.app", forHTTPHeaderField: "HTTP-Referer")
-        request.addValue("Jin", forHTTPHeaderField: "X-Title")
-
         var body: [String: Any] = [
             "model": modelID,
             "messages": try translateMessages(messages),
@@ -154,8 +153,13 @@ actor OpenRouterAdapter: LLMProviderAdapter {
             body[key] = value.value
         }
 
-        request.httpBody = try JSONSerialization.data(withJSONObject: body)
-        return request
+        return try makeAuthorizedJSONRequest(
+            url: validatedURL("\(baseURL)/chat/completions"),
+            apiKey: apiKey,
+            body: body,
+            additionalHeaders: openRouterHeaders,
+            includeUserAgent: false
+        )
     }
 
     private func translateMessages(_ messages: [Message]) throws -> [[String: Any]] {

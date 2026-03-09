@@ -11,11 +11,10 @@ enum VideoAttachmentUtility {
     ) async throws -> (localURL: URL, mimeType: String) {
         let dir = try attachmentsDirectory()
 
-        var request = URLRequest(url: url)
-        request.httpMethod = "GET"
-        if let auth = authHeader {
-            request.addValue(auth.value, forHTTPHeaderField: auth.key)
-        }
+        let request = NetworkRequestFactory.makeRequest(
+            url: url,
+            headers: authHeader.map { [$0.key: $0.value] } ?? [:]
+        )
 
         let (videoData, response) = try await networkManager.sendRequest(request)
 

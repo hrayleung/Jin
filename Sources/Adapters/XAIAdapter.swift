@@ -82,9 +82,12 @@ actor XAIAdapter: LLMProviderAdapter {
     }
 
     func fetchAvailableModels() async throws -> [ModelInfo] {
-        var request = URLRequest(url: try validatedURL("\(baseURL)/models"))
-        request.httpMethod = "GET"
-        request.addValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        let request = makeGETRequest(
+            url: try validatedURL("\(baseURL)/models"),
+            apiKey: apiKey,
+            accept: nil,
+            includeUserAgent: false
+        )
 
         let (data, _) = try await networkManager.sendRequest(request)
 
@@ -240,13 +243,9 @@ actor XAIAdapter: LLMProviderAdapter {
         tools: [ToolDefinition],
         streaming: Bool
     ) throws -> URLRequest {
-        var request = URLRequest(url: try validatedURL("\(baseURL)/responses"))
-        request.httpMethod = "POST"
-        request.addValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
-
         let allowNativePDF = (controls.pdfProcessingMode ?? .native) == .native
         let nativePDFEnabled = allowNativePDF && supportsNativePDF(modelID)
+        let conversationID = normalizedTrimmedString(controls.contextCache?.conversationID)
 
         var body: [String: Any] = [
             "model": modelID,
@@ -255,9 +254,6 @@ actor XAIAdapter: LLMProviderAdapter {
         ]
 
         if controls.contextCache?.mode != .off {
-            if let conversationID = normalizedTrimmedString(controls.contextCache?.conversationID) {
-                request.setValue(conversationID, forHTTPHeaderField: "x-grok-conv-id")
-            }
             if let cacheKey = normalizedTrimmedString(controls.contextCache?.cacheKey) {
                 body["prompt_cache_key"] = cacheKey
             }
@@ -310,8 +306,19 @@ actor XAIAdapter: LLMProviderAdapter {
 
         applyProviderSpecificOverrides(controls: controls, body: &body)
 
-        request.httpBody = try JSONSerialization.data(withJSONObject: body)
-        return request
+        var additionalHeaders: [String: String] = [:]
+        if let conversationID {
+            additionalHeaders["x-grok-conv-id"] = conversationID
+        }
+
+        return try makeAuthorizedJSONRequest(
+            url: validatedURL("\(baseURL)/responses"),
+            apiKey: apiKey,
+            body: body,
+            accept: nil,
+            additionalHeaders: additionalHeaders,
+            includeUserAgent: false
+        )
     }
 
     // MARK: - Image Generation
@@ -377,11 +384,6 @@ actor XAIAdapter: LLMProviderAdapter {
         let isImageEdit = imageURL?.isEmpty == false
         let endpoint = isImageEdit ? "images/edits" : "images/generations"
 
-        var request = URLRequest(url: try validatedURL("\(baseURL)/\(endpoint)"))
-        request.httpMethod = "POST"
-        request.addValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
-
         let imageControls = controls.xaiImageGeneration
 
         var body: [String: Any] = [
@@ -408,8 +410,13 @@ actor XAIAdapter: LLMProviderAdapter {
 
         applyProviderSpecificOverrides(controls: controls, body: &body)
 
-        request.httpBody = try JSONSerialization.data(withJSONObject: body)
-        return request
+        return try makeAuthorizedJSONRequest(
+            url: validatedURL("\(baseURL)/\(endpoint)"),
+            apiKey: apiKey,
+            body: body,
+            accept: nil,
+            includeUserAgent: false
+        )
     }
 
     // MARK: - Capability / Model Inference

@@ -249,9 +249,12 @@ actor OpenAIWebSocketAdapter: LLMProviderAdapter {
     }
 
     func fetchAvailableModels() async throws -> [ModelInfo] {
-        var request = URLRequest(url: try validatedURL("\(resolvedHTTPBaseURLString())/models"))
-        request.httpMethod = "GET"
-        request.addValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        let request = makeGETRequest(
+            url: try validatedURL("\(resolvedHTTPBaseURLString())/models"),
+            apiKey: apiKey,
+            accept: nil,
+            includeUserAgent: false
+        )
 
         let (data, _) = try await networkManager.sendRequest(request)
         let response = try JSONDecoder().decode(ModelsResponse.self, from: data)
