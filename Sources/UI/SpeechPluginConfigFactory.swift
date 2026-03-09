@@ -8,6 +8,20 @@ enum SpeechPluginConfigFactory {
 
     static func speechToTextConfig(defaults: UserDefaults = .standard) throws -> SpeechToTextManager.TranscriptionConfig {
         let provider = try resolvedSpeechToTextProvider(defaults: defaults)
+
+        if case .whisperKit = provider {
+            let model = defaults.string(forKey: AppPreferenceKeys.sttWhisperKitModel) ?? "base"
+            let language = normalized(defaults.string(forKey: AppPreferenceKeys.sttWhisperKitLanguage))
+            let translateToEnglish = defaults.bool(forKey: AppPreferenceKeys.sttWhisperKitTranslateToEnglish)
+            return .whisperKit(
+                SpeechToTextManager.WhisperKitConfig(
+                    model: model,
+                    language: language,
+                    translateToEnglish: translateToEnglish
+                )
+            )
+        }
+
         let apiKeyPreferenceKey = speechToTextAPIKeyPreferenceKey(for: provider)
 
         let apiKey = trimmed(defaults.string(forKey: apiKeyPreferenceKey))
@@ -98,6 +112,10 @@ enum SpeechPluginConfigFactory {
                     timestampGranularities: timestampGranularities
                 )
             )
+
+        case .whisperKit:
+            // Handled by early return above; unreachable
+            fatalError("WhisperKit config should be handled before this switch")
         }
     }
 
@@ -105,6 +123,30 @@ enum SpeechPluginConfigFactory {
 
     static func textToSpeechConfig(defaults: UserDefaults = .standard) throws -> TextToSpeechPlaybackManager.SynthesisConfig {
         let provider = try resolvedTextToSpeechProvider(defaults: defaults)
+
+        if case .whisperKit = provider {
+            let model = TTSKitModelCatalog.normalizedModelID(
+                defaults.string(forKey: AppPreferenceKeys.ttsTTSKitModel)
+            )
+            let voice = normalized(defaults.string(forKey: AppPreferenceKeys.ttsTTSKitVoice))
+            let language = normalized(defaults.string(forKey: AppPreferenceKeys.ttsTTSKitLanguage))
+            let styleInstruction = TTSKitModelCatalog.preset(for: model)?.supportsStyleInstruction == true
+                ? normalized(defaults.string(forKey: AppPreferenceKeys.ttsTTSKitStyleInstruction))
+                : nil
+            let playbackMode = TTSKitPlaybackMode.resolved(
+                defaults.string(forKey: AppPreferenceKeys.ttsTTSKitPlaybackMode)
+            )
+            return .ttsKit(
+                TextToSpeechPlaybackManager.TTSKitConfig(
+                    model: model,
+                    voice: voice,
+                    language: language,
+                    styleInstruction: styleInstruction,
+                    playbackMode: playbackMode
+                )
+            )
+        }
+
         let apiKeyPreferenceKey = textToSpeechAPIKeyPreferenceKey(for: provider)
 
         let apiKey = trimmed(defaults.string(forKey: apiKeyPreferenceKey))
@@ -172,6 +214,9 @@ enum SpeechPluginConfigFactory {
                     voiceSettings: voiceSettings
                 )
             )
+
+        case .whisperKit:
+            fatalError("TTSKit config should be handled before this switch")
         }
     }
 
@@ -246,6 +291,7 @@ enum SpeechPluginConfigFactory {
         case .openai: return AppPreferenceKeys.sttOpenAIAPIKey
         case .groq: return AppPreferenceKeys.sttGroqAPIKey
         case .mistral: return AppPreferenceKeys.sttMistralAPIKey
+        case .whisperKit: return ""
         }
     }
 
@@ -254,6 +300,7 @@ enum SpeechPluginConfigFactory {
         case .elevenlabs: return AppPreferenceKeys.ttsElevenLabsAPIKey
         case .openai: return AppPreferenceKeys.ttsOpenAIAPIKey
         case .groq: return AppPreferenceKeys.ttsGroqAPIKey
+        case .whisperKit: return ""
         }
     }
 }

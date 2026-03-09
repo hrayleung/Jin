@@ -18,13 +18,21 @@ private func embedMarkdownBootstrap(
     in html: String,
     markdown: String,
     streaming: Bool,
-    deferCodeHighlightUpgrade: Bool
+    deferCodeHighlightUpgrade: Bool,
+    codeBlockDisplayMode: String = CodeBlockDisplayMode.expanded.rawValue,
+    codeBlockShowLineNumbers: Bool = false,
+    codeBlockCollapseLineThreshold: Int = 25
 ) -> String {
     guard let data = markdown.data(using: .utf8) else { return html }
     let base64 = data.base64EncodedString()
     let fn = streaming ? "updateStreamingContent" : "updateContent"
     let options = deferCodeHighlightUpgrade ? "{deferCodeHighlightUpgrade:true}" : "{}"
-    let script = "<script>\(fn)('\(base64)',\(options));</script>"
+    let modeEscaped = codeBlockDisplayMode.replacingOccurrences(of: "'", with: "\\'")
+    let codeBlockSettings = codeBlockSettingsJavaScript(
+        showLineNumbers: codeBlockShowLineNumbers,
+        collapseLineThreshold: codeBlockCollapseLineThreshold
+    )
+    let script = "<script>setCodeBlockDisplayMode('\(modeEscaped)');\(codeBlockSettings)\(fn)('\(base64)',\(options));</script>"
     return html.replacingOccurrences(of: "</body>", with: script + "\n</body>")
 }
 
@@ -80,6 +88,12 @@ private func fontUpdateJavaScript(bodyCSS: String, codeCSS: String, fontSizeCSS:
     + "document.documentElement.style.setProperty('--body-font-size',\"\(fontSizeCSS)px\");"
 }
 
+private func codeBlockSettingsJavaScript(showLineNumbers: Bool, collapseLineThreshold: Int) -> String {
+    return "if(typeof window.applyCodeBlockSettings==='function'){"
+    + "window.applyCodeBlockSettings({showLineNumbers:\(showLineNumbers),collapseLineThreshold:\(collapseLineThreshold)});"
+    + "}"
+}
+
 /// Per-window drop forwarding reference. Each ChatView creates one and
 /// injects it into the environment so that all MarkdownWKWebView instances
 /// within that window forward drops to the correct attachment pipeline.
@@ -106,6 +120,9 @@ struct MarkdownWebRenderer: View {
 
     @AppStorage(AppPreferenceKeys.appFontFamily) private var appFontFamily = JinTypography.systemFontPreferenceValue
     @AppStorage(AppPreferenceKeys.codeFontFamily) private var codeFontFamily = JinTypography.systemFontPreferenceValue
+    @AppStorage(AppPreferenceKeys.codeBlockShowLineNumbers) private var codeBlockShowLineNumbers = false
+    @AppStorage(AppPreferenceKeys.codeBlockCollapseLineThreshold) private var codeBlockCollapseLineThreshold = 25
+    @AppStorage(AppPreferenceKeys.codeBlockDisplayMode) private var codeBlockDisplayMode = CodeBlockDisplayMode.expanded.rawValue
 
     @State private var contentHeight: CGFloat
 
@@ -124,7 +141,10 @@ struct MarkdownWebRenderer: View {
             deferCodeHighlightUpgrade: deferCodeHighlightUpgrade,
             contentHeight: $contentHeight,
             appFontFamily: appFontFamily,
-            codeFontFamily: codeFontFamily
+            codeFontFamily: codeFontFamily,
+            codeBlockShowLineNumbers: codeBlockShowLineNumbers,
+            codeBlockCollapseLineThreshold: codeBlockCollapseLineThreshold,
+            codeBlockDisplayMode: codeBlockDisplayMode
         )
         .frame(height: contentHeight)
     }
@@ -178,6 +198,9 @@ private struct MarkdownWebRendererRepresentable: NSViewRepresentable {
     let appFontFamily: String
     @Environment(\.dropForwarderRef) private var dropForwarderRef
     let codeFontFamily: String
+    let codeBlockShowLineNumbers: Bool
+    let codeBlockCollapseLineThreshold: Int
+    let codeBlockDisplayMode: String
 
     func makeCoordinator() -> Coordinator { Coordinator() }
 
@@ -213,7 +236,10 @@ private struct MarkdownWebRendererRepresentable: NSViewRepresentable {
         context.coordinator.appFontFamily = appFontFamily
         context.coordinator.codeFontFamily = codeFontFamily
         context.coordinator.deferCodeHighlightUpgrade = deferCodeHighlightUpgrade
-        context.coordinator.startObservingFontPreferences()
+        context.coordinator.codeBlockShowLineNumbers = codeBlockShowLineNumbers
+        context.coordinator.codeBlockCollapseLineThreshold = codeBlockCollapseLineThreshold
+        context.coordinator.codeBlockDisplayMode = codeBlockDisplayMode
+        context.coordinator.startObservingPreferences()
 
         // For non-streaming messages, embed the markdown directly in the HTML
         // so the browser renders content during the initial page load instead
@@ -241,6 +267,11 @@ private struct MarkdownWebRendererRepresentable: NSViewRepresentable {
         context.coordinator.deferCodeHighlightUpgrade = deferCodeHighlightUpgrade
         context.coordinator.appFontFamily = appFontFamily
         context.coordinator.codeFontFamily = codeFontFamily
+        context.coordinator.codeBlockShowLineNumbers = codeBlockShowLineNumbers
+        context.coordinator.codeBlockCollapseLineThreshold = codeBlockCollapseLineThreshold
+
+        let modeChanged = context.coordinator.codeBlockDisplayMode != codeBlockDisplayMode
+        context.coordinator.codeBlockDisplayMode = codeBlockDisplayMode
 
         if context.coordinator.isReady {
             let didUpdateFonts = context.coordinator.applyFontUpdateIfNeeded(
@@ -248,10 +279,18 @@ private struct MarkdownWebRendererRepresentable: NSViewRepresentable {
                 codeFontFamily: codeFontFamily,
                 webView: webView
             )
+            let didUpdateCodeBlockSettings = context.coordinator.applyCodeBlockSettingsIfNeeded(
+                showLineNumbers: codeBlockShowLineNumbers,
+                collapseLineThreshold: codeBlockCollapseLineThreshold,
+                webView: webView
+            )
+            if modeChanged {
+                context.coordinator.applyCodeBlockDisplayMode(webView: webView)
+            }
             context.coordinator.renderMarkdownIfNeeded(
                 markdownText,
                 in: webView,
-                force: didUpdateFonts,
+                force: didUpdateFonts || didUpdateCodeBlockSettings || modeChanged,
                 deferCodeHighlightUpgrade: deferCodeHighlightUpgrade
             )
         } else {
@@ -267,7 +306,10 @@ private struct MarkdownWebRendererRepresentable: NSViewRepresentable {
                     in: html,
                     markdown: markdown,
                     streaming: isStreaming,
-                    deferCodeHighlightUpgrade: deferCodeHighlightUpgrade
+                    deferCodeHighlightUpgrade: deferCodeHighlightUpgrade,
+                    codeBlockDisplayMode: codeBlockDisplayMode,
+                    codeBlockShowLineNumbers: codeBlockShowLineNumbers,
+                    codeBlockCollapseLineThreshold: codeBlockCollapseLineThreshold
                 )
             }
             webView.loadHTMLString(html, baseURL: cached.baseURL)
@@ -291,10 +333,15 @@ private struct MarkdownWebRendererRepresentable: NSViewRepresentable {
         private(set) var lastRenderedDeferCodeHighlightUpgrade: Bool?
         var appFontFamily: String = JinTypography.systemFontPreferenceValue
         var codeFontFamily: String = JinTypography.systemFontPreferenceValue
+        var codeBlockDisplayMode: String = CodeBlockDisplayMode.expanded.rawValue
         var deferCodeHighlightUpgrade: Bool = false
+        var codeBlockShowLineNumbers: Bool = false
+        var codeBlockCollapseLineThreshold: Int = 25
         var lastBodyFont: String = ""
         var lastCodeFont: String = ""
         var lastFontSize: CGFloat = 0
+        var lastCodeBlockShowLineNumbers: Bool?
+        var lastCodeBlockCollapseLineThreshold: Int?
         private var isObservingDefaults = false
         private var pendingHeightUpdate: CGFloat?
         private var isHeightUpdateEnqueued = false
@@ -321,12 +368,15 @@ private struct MarkdownWebRendererRepresentable: NSViewRepresentable {
             )
         }
 
-        func startObservingFontPreferences() {
+        func startObservingPreferences() {
             guard !isObservingDefaults else { return }
             isObservingDefaults = true
             let defaults = UserDefaults.standard
             defaults.addObserver(self, forKeyPath: AppPreferenceKeys.appFontFamily, options: [.new], context: nil)
             defaults.addObserver(self, forKeyPath: AppPreferenceKeys.codeFontFamily, options: [.new], context: nil)
+            defaults.addObserver(self, forKeyPath: AppPreferenceKeys.codeBlockDisplayMode, options: [.new], context: nil)
+            defaults.addObserver(self, forKeyPath: AppPreferenceKeys.codeBlockShowLineNumbers, options: [.new], context: nil)
+            defaults.addObserver(self, forKeyPath: AppPreferenceKeys.codeBlockCollapseLineThreshold, options: [.new], context: nil)
         }
 
         deinit {
@@ -334,6 +384,9 @@ private struct MarkdownWebRendererRepresentable: NSViewRepresentable {
                 let defaults = UserDefaults.standard
                 defaults.removeObserver(self, forKeyPath: AppPreferenceKeys.appFontFamily)
                 defaults.removeObserver(self, forKeyPath: AppPreferenceKeys.codeFontFamily)
+                defaults.removeObserver(self, forKeyPath: AppPreferenceKeys.codeBlockDisplayMode)
+                defaults.removeObserver(self, forKeyPath: AppPreferenceKeys.codeBlockShowLineNumbers)
+                defaults.removeObserver(self, forKeyPath: AppPreferenceKeys.codeBlockCollapseLineThreshold)
             }
         }
 
@@ -341,6 +394,12 @@ private struct MarkdownWebRendererRepresentable: NSViewRepresentable {
             if keyPath == AppPreferenceKeys.appFontFamily || keyPath == AppPreferenceKeys.codeFontFamily {
                 DispatchQueue.main.async { [weak self] in
                     self?.handleFontPreferenceChange()
+                }
+            } else if keyPath == AppPreferenceKeys.codeBlockDisplayMode
+                        || keyPath == AppPreferenceKeys.codeBlockShowLineNumbers
+                        || keyPath == AppPreferenceKeys.codeBlockCollapseLineThreshold {
+                DispatchQueue.main.async { [weak self] in
+                    self?.handleCodeBlockPreferenceChange()
                 }
             } else {
                 super.observeValue(forKeyPath: keyPath, of: object, change: change, context: context)
@@ -368,6 +427,42 @@ private struct MarkdownWebRendererRepresentable: NSViewRepresentable {
                     deferCodeHighlightUpgrade: deferCodeHighlightUpgrade
                 )
             }
+        }
+
+        private func handleCodeBlockPreferenceChange() {
+            guard isReady, let webView else { return }
+
+            let defaults = UserDefaults.standard
+            let mode = defaults.string(forKey: AppPreferenceKeys.codeBlockDisplayMode) ?? CodeBlockDisplayMode.expanded.rawValue
+            let showLineNumbers = AppPreferences.boolValue(
+                forKey: AppPreferenceKeys.codeBlockShowLineNumbers,
+                default: false,
+                defaults: defaults
+            )
+            let collapseLineThreshold = defaults.object(forKey: AppPreferenceKeys.codeBlockCollapseLineThreshold) as? Int ?? 25
+            codeBlockDisplayMode = mode
+            codeBlockShowLineNumbers = showLineNumbers
+            codeBlockCollapseLineThreshold = collapseLineThreshold
+            applyCodeBlockDisplayMode(webView: webView)
+            _ = applyCodeBlockSettingsIfNeeded(
+                showLineNumbers: showLineNumbers,
+                collapseLineThreshold: collapseLineThreshold,
+                webView: webView
+            )
+
+            if let md = currentMarkdown {
+                renderMarkdownIfNeeded(
+                    md,
+                    in: webView,
+                    force: true,
+                    deferCodeHighlightUpgrade: deferCodeHighlightUpgrade
+                )
+            }
+        }
+
+        func applyCodeBlockDisplayMode(webView: WKWebView) {
+            let escaped = codeBlockDisplayMode.replacingOccurrences(of: "'", with: "\\'")
+            webView.evaluateJavaScript("setCodeBlockDisplayMode('\(escaped)')", completionHandler: nil)
         }
 
         func renderMarkdownIfNeeded(
@@ -415,6 +510,27 @@ private struct MarkdownWebRendererRepresentable: NSViewRepresentable {
             return true
         }
 
+        @discardableResult
+        func applyCodeBlockSettingsIfNeeded(
+            showLineNumbers: Bool,
+            collapseLineThreshold: Int,
+            webView: WKWebView
+        ) -> Bool {
+            guard showLineNumbers != lastCodeBlockShowLineNumbers
+                    || collapseLineThreshold != lastCodeBlockCollapseLineThreshold else {
+                return false
+            }
+
+            lastCodeBlockShowLineNumbers = showLineNumbers
+            lastCodeBlockCollapseLineThreshold = collapseLineThreshold
+            let js = codeBlockSettingsJavaScript(
+                showLineNumbers: showLineNumbers,
+                collapseLineThreshold: collapseLineThreshold
+            )
+            webView.evaluateJavaScript(js, completionHandler: nil)
+            return true
+        }
+
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
             isReady = true
             _ = applyFontUpdateIfNeeded(
@@ -422,6 +538,12 @@ private struct MarkdownWebRendererRepresentable: NSViewRepresentable {
                 codeFontFamily: codeFontFamily,
                 webView: webView
             )
+            _ = applyCodeBlockSettingsIfNeeded(
+                showLineNumbers: codeBlockShowLineNumbers,
+                collapseLineThreshold: codeBlockCollapseLineThreshold,
+                webView: webView
+            )
+            applyCodeBlockDisplayMode(webView: webView)
             if let pending = pendingMarkdown {
                 pendingMarkdown = nil
                 currentMarkdown = pending

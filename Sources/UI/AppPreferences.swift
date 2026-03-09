@@ -27,7 +27,10 @@ enum AppPreferenceKeys {
     static let keyboardShortcuts = "keyboardShortcuts.v1"
     static let thinkingBlockDisplayMode = "thinkingBlockDisplayMode"
     static let codexToolDisplayMode = "codexToolDisplayMode"
+    static let codeBlockDisplayMode = "codeBlockDisplayMode"
     static let codexWorkingDirectoryPresetsJSON = "codexWorkingDirectoryPresetsJSON"
+    static let codeBlockShowLineNumbers = "codeBlockShowLineNumbers"
+    static let codeBlockCollapseLineThreshold = "codeBlockCollapseLineThreshold"
 
     // MARK: - Updates
 
@@ -143,6 +146,18 @@ enum AppPreferenceKeys {
     static let sttMistralResponseFormat = "sttMistralResponseFormat"
     static let sttMistralTemperature = "sttMistralTemperature"
     static let sttMistralTimestampGranularitiesJSON = "sttMistralTimestampGranularitiesJSON"
+
+    // WhisperKit STT (On-Device)
+    static let sttWhisperKitModel = "sttWhisperKitModel"
+    static let sttWhisperKitLanguage = "sttWhisperKitLanguage"
+    static let sttWhisperKitTranslateToEnglish = "sttWhisperKitTranslateToEnglish"
+
+    // TTSKit (On-Device)
+    static let ttsTTSKitModel = "ttsTTSKitModel"
+    static let ttsTTSKitLanguage = "ttsTTSKitLanguage"
+    static let ttsTTSKitVoice = "ttsTTSKitVoice"
+    static let ttsTTSKitPlaybackMode = "ttsTTSKitPlaybackMode"
+    static let ttsTTSKitStyleInstruction = "ttsTTSKitStyleInstruction"
 }
 
 enum NewChatModelMode: String, CaseIterable, Identifiable {
@@ -278,6 +293,29 @@ enum ThinkingBlockDisplayMode: String, CaseIterable, Identifiable {
     }
 }
 
+enum CodeBlockDisplayMode: String, CaseIterable, Identifiable {
+    case expanded
+    case collapsible
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .expanded: return "Always Expanded"
+        case .collapsible: return "Smart Fold Long Blocks"
+        }
+    }
+
+    var description: String {
+        switch self {
+        case .expanded:
+            return "Code blocks always show their full content."
+        case .collapsible:
+            return "Only long code blocks start condensed, with a fade and a simple Show more control."
+        }
+    }
+}
+
 enum GeneralSettingsCategory: String, CaseIterable, Identifiable {
     case appearance
     case chat
@@ -312,8 +350,8 @@ enum GeneralSettingsCategory: String, CaseIterable, Identifiable {
 
     var subtitle: String {
         switch self {
-        case .appearance: return "App icon, theme, and fonts."
-        case .chat: return "Send behavior and background-completion notifications."
+        case .appearance: return "App icon, theme, fonts, and content display modes."
+        case .chat: return "Send behavior, network trace, and notifications."
         case .shortcuts: return "Show and customize keyboard shortcuts."
         case .defaults: return "Model and MCP defaults for new chats."
         case .updates: return "Automatic updates and pre-release channel."
@@ -323,6 +361,13 @@ enum GeneralSettingsCategory: String, CaseIterable, Identifiable {
 }
 
 enum AppPreferences {
+    static func boolValue(forKey key: String, default defaultValue: Bool, defaults: UserDefaults = .standard) -> Bool {
+        if let value = defaults.object(forKey: key) as? Bool {
+            return value
+        }
+        return defaultValue
+    }
+
     static func pluginEnabledPreferenceKey(for pluginID: String) -> String? {
         switch pluginID {
         case "text_to_speech":

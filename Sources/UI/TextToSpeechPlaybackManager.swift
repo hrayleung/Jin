@@ -39,16 +39,37 @@ final class TextToSpeechPlaybackManager: NSObject, ObservableObject {
         let voiceSettings: ElevenLabsTTSClient.VoiceSettings?
     }
 
+    struct TTSKitConfig: Sendable {
+        let model: String
+        let voice: String?
+        let language: String?
+        let styleInstruction: String?
+        let playbackMode: TTSKitPlaybackMode
+    }
+
     enum SynthesisConfig: Sendable {
         case openai(OpenAIConfig)
         case groq(GroqConfig)
         case elevenlabs(ElevenLabsConfig)
+        case ttsKit(TTSKitConfig)
+
+        var usesNativeStreamingPlayback: Bool {
+            if case .ttsKit = self {
+                return true
+            }
+            return false
+        }
     }
 
     struct PlaybackContext: Equatable {
         let conversationID: UUID
         let conversationTitle: String
         let textPreview: String
+    }
+
+    private enum PlaybackBackend {
+        case queuedClips
+        case nativeTTSKit
     }
 
     @Published private(set) var state: State = .idle
@@ -60,6 +81,7 @@ final class TextToSpeechPlaybackManager: NSObject, ObservableObject {
     private var currentMessageID: UUID?
     private var currentErrorHandler: ((Error) -> Void)?
     private var didFinishSynthesis = true
+    private var currentPlaybackBackend: PlaybackBackend?
 
     func toggleSpeak(
         messageID: UUID,
@@ -69,7 +91,11 @@ final class TextToSpeechPlaybackManager: NSObject, ObservableObject {
         onError: @escaping (Error) -> Void
     ) {
         if case .playing(let id) = state, id == messageID {
-            pause(messageID: messageID)
+            if currentPlaybackBackend == .nativeTTSKit {
+                stop(messageID: messageID)
+            } else {
+                pause(messageID: messageID)
+            }
             return
         }
         if case .paused(let id) = state, id == messageID {
@@ -91,6 +117,7 @@ final class TextToSpeechPlaybackManager: NSObject, ObservableObject {
         currentMessageID = messageID
         currentErrorHandler = onError
         playbackContext = context
+        currentPlaybackBackend = config.usesNativeStreamingPlayback ? .nativeTTSKit : .queuedClips
         state = .generating(messageID: messageID)
 
         synthesisTask = Task { [weak self] in
@@ -160,8 +187,15 @@ final class TextToSpeechPlaybackManager: NSObject, ObservableObject {
     }
 
     func stop() {
+        let playbackBackend = currentPlaybackBackend
         synthesisTask?.cancel()
         synthesisTask = nil
+
+        if playbackBackend == .nativeTTSKit {
+            Task {
+                await TTSKitService.shared.stopPlayback()
+            }
+        }
 
         player?.stop()
         player = nil
@@ -170,6 +204,7 @@ final class TextToSpeechPlaybackManager: NSObject, ObservableObject {
         currentErrorHandler = nil
         didFinishSynthesis = true
         playbackContext = nil
+        currentPlaybackBackend = nil
         state = .idle
     }
 
@@ -240,6 +275,22 @@ final class TextToSpeechPlaybackManager: NSObject, ObservableObject {
                     messageID: messageID
                 )
             }
+
+        case .ttsKit(let ttsKitConfig):
+            try await TTSKitService.shared.loadModel(ttsKitConfig.model)
+            try Task.checkCancellation()
+            try await TTSKitService.shared.playSpeech(
+                text: text,
+                voice: ttsKitConfig.voice,
+                language: ttsKitConfig.language,
+                styleInstruction: ttsKitConfig.styleInstruction,
+                playbackMode: ttsKitConfig.playbackMode,
+                onFirstAudioFrame: { [weak self] in
+                    Task { @MainActor [weak self] in
+                        self?.promoteNativePlaybackIfCurrent(messageID: messageID)
+                    }
+                }
+            )
         }
     }
 
@@ -257,11 +308,23 @@ final class TextToSpeechPlaybackManager: NSObject, ObservableObject {
         }
     }
 
+    private func promoteNativePlaybackIfCurrent(messageID: UUID) {
+        guard currentPlaybackBackend == .nativeTTSKit else { return }
+        guard currentMessageID == messageID else { return }
+        guard case .generating(let id) = state, id == messageID else { return }
+        state = .playing(messageID: messageID)
+    }
+
     private func completeSynthesisIfCurrent(messageID: UUID) {
         guard currentMessageID == messageID else { return }
 
         synthesisTask = nil
         didFinishSynthesis = true
+
+        if currentPlaybackBackend == .nativeTTSKit {
+            finishPlaybackSession()
+            return
+        }
 
         if case .generating(let id) = state, id == messageID {
             state = .playing(messageID: messageID)
@@ -287,6 +350,7 @@ final class TextToSpeechPlaybackManager: NSObject, ObservableObject {
         currentErrorHandler = nil
         didFinishSynthesis = true
         playbackContext = nil
+        currentPlaybackBackend = nil
         state = .idle
     }
 

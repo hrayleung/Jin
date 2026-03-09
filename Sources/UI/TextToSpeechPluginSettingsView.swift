@@ -27,6 +27,12 @@ struct TextToSpeechPluginSettingsView: View {
     @AppStorage(AppPreferenceKeys.ttsElevenLabsStyle) private var elevenLabsStyle = 0.0
     @AppStorage(AppPreferenceKeys.ttsElevenLabsUseSpeakerBoost) private var elevenLabsUseSpeakerBoost = true
 
+    @AppStorage(AppPreferenceKeys.ttsTTSKitModel) private var ttsKitModel = TTSKitModelCatalog.defaultModelID
+    @AppStorage(AppPreferenceKeys.ttsTTSKitVoice) private var ttsKitVoice = ""
+    @AppStorage(AppPreferenceKeys.ttsTTSKitLanguage) private var ttsKitLanguage = ""
+    @AppStorage(AppPreferenceKeys.ttsTTSKitPlaybackMode) private var ttsKitPlaybackMode = TTSKitPlaybackMode.auto.rawValue
+    @AppStorage(AppPreferenceKeys.ttsTTSKitStyleInstruction) private var ttsKitStyleInstruction = ""
+
     @State private var apiKey = ""
     @State private var isKeyVisible = false
     @State private var isTesting = false
@@ -54,6 +60,8 @@ struct TextToSpeechPluginSettingsView: View {
             return AppPreferenceKeys.ttsOpenAIAPIKey
         case .groq:
             return AppPreferenceKeys.ttsGroqAPIKey
+        case .whisperKit:
+            return nil
         }
     }
 
@@ -72,12 +80,15 @@ struct TextToSpeechPluginSettingsView: View {
                 .pickerStyle(.menu)
                 .onChange(of: providerRaw) { oldProviderRaw, _ in
                     autoSaveTask?.cancel()
-                    persistAPIKeyIfNeeded(forProviderRaw: oldProviderRaw, showSavedStatus: false)
+                    if TextToSpeechProvider(rawValue: oldProviderRaw)?.requiresAPIKey == true {
+                        persistAPIKeyIfNeeded(forProviderRaw: oldProviderRaw, showSavedStatus: false)
+                    }
                     Task { await loadExistingKeyAndMaybeVoices() }
                     NotificationCenter.default.post(name: .pluginCredentialsDidChange, object: nil)
                 }
             }
 
+            if provider?.requiresAPIKey != false {
             Section("API Key") {
                 HStack(spacing: 8) {
                     Group {
@@ -122,6 +133,7 @@ struct TextToSpeechPluginSettingsView: View {
                         .font(.caption)
                         .foregroundStyle(statusIsError ? Color.red : Color.secondary)
                 }
+            }
             }
 
             providerSpecificSettings
@@ -273,6 +285,15 @@ struct TextToSpeechPluginSettingsView: View {
                         .padding(.top, 6)
                     }
                 }
+
+            case .whisperKit:
+                TTSKitTextToSpeechSettingsSection(
+                    modelSelection: $ttsKitModel,
+                    voiceSelection: $ttsKitVoice,
+                    languageSelection: $ttsKitLanguage,
+                    styleInstruction: $ttsKitStyleInstruction,
+                    playbackModeRaw: $ttsKitPlaybackMode
+                )
             }
         } else {
             Section("Provider Error") {
@@ -317,6 +338,16 @@ struct TextToSpeechPluginSettingsView: View {
     }
 
     private func loadExistingKey() async {
+        if provider?.requiresAPIKey == false {
+            await MainActor.run {
+                apiKey = ""
+                lastPersistedAPIKey = ""
+                statusMessage = nil
+                statusIsError = false
+            }
+            return
+        }
+
         guard let preferenceKey = currentAPIKeyPreferenceKey else {
             await MainActor.run {
                 apiKey = ""
@@ -339,9 +370,8 @@ struct TextToSpeechPluginSettingsView: View {
         statusMessage = nil
         statusIsError = false
 
-        guard let preferenceKey = currentAPIKeyPreferenceKey else {
-            statusMessage = providerErrorMessage(for: providerRaw)
-            statusIsError = true
+        guard provider?.requiresAPIKey != false,
+              let preferenceKey = currentAPIKeyPreferenceKey else {
             return
         }
 
@@ -356,6 +386,8 @@ struct TextToSpeechPluginSettingsView: View {
 
     private func scheduleAutoSave() {
         autoSaveTask?.cancel()
+
+        guard provider?.requiresAPIKey != false else { return }
 
         let key = trimmedAPIKey
         guard let preferenceKey = currentAPIKeyPreferenceKey else {
@@ -423,6 +455,8 @@ struct TextToSpeechPluginSettingsView: View {
             return AppPreferenceKeys.ttsOpenAIAPIKey
         case .groq:
             return AppPreferenceKeys.ttsGroqAPIKey
+        case .whisperKit:
+            return nil
         }
     }
 
@@ -436,7 +470,7 @@ struct TextToSpeechPluginSettingsView: View {
 
     private func testConnection() {
         guard !trimmedAPIKey.isEmpty else { return }
-        guard let provider else {
+        guard let provider, provider.requiresAPIKey else {
             statusMessage = providerErrorMessage(for: providerRaw)
             statusIsError = true
             return
@@ -485,6 +519,8 @@ struct TextToSpeechPluginSettingsView: View {
                         enableLogging: elevenLabsEnableLogging,
                         voiceSettings: voiceSettings
                     )
+                case .whisperKit:
+                    return
                 }
 
                 await MainActor.run {
