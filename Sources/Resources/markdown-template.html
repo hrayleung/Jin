@@ -20,9 +20,9 @@
     --code-selection: light-dark(hsl(230, 1%, 90%), hsl(220, 13%, 28%));
     --code-header-top: light-dark(hsl(230, 1%, 98%), hsl(220, 13%, 20%));
     --code-header-bottom: light-dark(hsl(230, 1%, 96%), hsl(220, 13%, 18%));
-    --code-button-hover-bg: light-dark(hsla(221, 87%, 60%, 0.09), hsla(207, 82%, 66%, 0.16));
-    --code-button-hover-fg: light-dark(hsl(221, 87%, 60%), hsl(207, 82%, 66%));
-    --code-button-active-bg: light-dark(hsla(221, 87%, 60%, 0.13), hsla(207, 82%, 66%, 0.22));
+    --code-button-hover-bg: light-dark(hsla(230, 8%, 24%, 0.06), hsla(220, 14%, 71%, 0.08));
+    --code-button-hover-fg: light-dark(hsl(230, 8%, 24%), hsl(220, 14%, 82%));
+    --code-button-active-bg: light-dark(hsla(230, 8%, 24%, 0.10), hsla(220, 14%, 71%, 0.14));
     --code-shadow: light-dark(0 10px 24px rgba(15, 23, 42, 0.05), 0 12px 28px rgba(2, 8, 23, 0.28));
 }
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -318,7 +318,7 @@ pre code {
 .code-block .code-expand-pill:hover {
     background: var(--code-button-hover-bg);
     color: var(--code-button-hover-fg);
-    border-color: var(--code-button-hover-fg);
+    border-color: light-dark(hsla(230, 8%, 24%, 0.18), hsla(220, 14%, 71%, 0.18));
     box-shadow: 0 6px 14px rgba(15, 23, 42, 0.10);
 }
 .code-block .code-expand-pill svg {

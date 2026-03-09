@@ -123,7 +123,7 @@ struct MarkdownWebRenderer: View {
     @AppStorage(AppPreferenceKeys.appFontFamily) private var appFontFamily = JinTypography.systemFontPreferenceValue
     @AppStorage(AppPreferenceKeys.codeFontFamily) private var codeFontFamily = JinTypography.systemFontPreferenceValue
     @AppStorage(AppPreferenceKeys.codeBlockShowLineNumbers) private var codeBlockShowLineNumbers = false
-    @AppStorage(AppPreferenceKeys.codeBlockShowCollapseButton) private var codeBlockShowCollapseButton = false
+    @AppStorage(AppPreferenceKeys.codeBlockShowCollapseButton) private var codeBlockShowCollapseButton = true
     @AppStorage(AppPreferenceKeys.codeBlockDefaultCollapsed) private var codeBlockDefaultCollapsed = false
     @AppStorage(AppPreferenceKeys.codeBlockDisplayMode) private var codeBlockDisplayMode = CodeBlockDisplayMode.expanded.rawValue
 

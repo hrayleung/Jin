@@ -7,7 +7,7 @@ struct AppearanceSettingsView: View {
     @AppStorage(AppPreferenceKeys.codeFontFamily) private var codeFontFamily = JinTypography.systemFontPreferenceValue
     @AppStorage(AppPreferenceKeys.codeBlockDisplayMode) private var codeBlockDisplayModeRaw = CodeBlockDisplayMode.expanded.rawValue
     @AppStorage(AppPreferenceKeys.codeBlockShowLineNumbers) private var codeBlockShowLineNumbers = false
-    @AppStorage(AppPreferenceKeys.codeBlockShowCollapseButton) private var codeBlockShowCollapseButton = false
+    @AppStorage(AppPreferenceKeys.codeBlockShowCollapseButton) private var codeBlockShowCollapseButton = true
     @AppStorage(AppPreferenceKeys.codeBlockDefaultCollapsed) private var codeBlockDefaultCollapsed = false
     @AppStorage(AppPreferenceKeys.appIconVariant) private var appIconVariant: AppIconVariant = .roseQuartz
 
@@ -101,6 +101,7 @@ struct AppearanceSettingsView: View {
         }
         .onAppear {
             normalizeTypographyPreferences()
+            normalizeCodeBlockPreferences()
         }
         .onChange(of: codeBlockShowCollapseButton) { _, isEnabled in
             if !isEnabled {
@@ -120,6 +121,13 @@ struct AppearanceSettingsView: View {
     private func normalizeTypographyPreferences() {
         appFontFamily = JinTypography.normalizedFontPreference(appFontFamily)
         codeFontFamily = JinTypography.normalizedFontPreference(codeFontFamily)
+    }
+
+    private func normalizeCodeBlockPreferences() {
+        let defaults = UserDefaults.standard
+        if defaults.object(forKey: AppPreferenceKeys.codeBlockShowCollapseButton) == nil {
+            codeBlockShowCollapseButton = true
+        }
     }
 
     private func appIconButton(for variant: AppIconVariant) -> some View {
