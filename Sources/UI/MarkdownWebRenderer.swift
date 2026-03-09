@@ -106,6 +106,8 @@ struct MarkdownWebRenderer: View {
 
     @AppStorage(AppPreferenceKeys.appFontFamily) private var appFontFamily = JinTypography.systemFontPreferenceValue
     @AppStorage(AppPreferenceKeys.codeFontFamily) private var codeFontFamily = JinTypography.systemFontPreferenceValue
+    @AppStorage(AppPreferenceKeys.codeBlockShowLineNumbers) private var codeBlockShowLineNumbers = false
+    @AppStorage(AppPreferenceKeys.codeBlockDefaultCollapsed) private var codeBlockDefaultCollapsed = false
 
     @State private var contentHeight: CGFloat
 
@@ -124,7 +126,9 @@ struct MarkdownWebRenderer: View {
             deferCodeHighlightUpgrade: deferCodeHighlightUpgrade,
             contentHeight: $contentHeight,
             appFontFamily: appFontFamily,
-            codeFontFamily: codeFontFamily
+            codeFontFamily: codeFontFamily,
+            codeBlockShowLineNumbers: codeBlockShowLineNumbers,
+            codeBlockDefaultCollapsed: codeBlockDefaultCollapsed
         )
         .frame(height: contentHeight)
     }
@@ -178,6 +182,8 @@ private struct MarkdownWebRendererRepresentable: NSViewRepresentable {
     let appFontFamily: String
     @Environment(\.dropForwarderRef) private var dropForwarderRef
     let codeFontFamily: String
+    let codeBlockShowLineNumbers: Bool
+    let codeBlockDefaultCollapsed: Bool
 
     func makeCoordinator() -> Coordinator { Coordinator() }
 
@@ -213,6 +219,8 @@ private struct MarkdownWebRendererRepresentable: NSViewRepresentable {
         context.coordinator.appFontFamily = appFontFamily
         context.coordinator.codeFontFamily = codeFontFamily
         context.coordinator.deferCodeHighlightUpgrade = deferCodeHighlightUpgrade
+        context.coordinator.codeBlockShowLineNumbers = codeBlockShowLineNumbers
+        context.coordinator.codeBlockDefaultCollapsed = codeBlockDefaultCollapsed
         context.coordinator.startObservingFontPreferences()
 
         // For non-streaming messages, embed the markdown directly in the HTML
@@ -241,6 +249,8 @@ private struct MarkdownWebRendererRepresentable: NSViewRepresentable {
         context.coordinator.deferCodeHighlightUpgrade = deferCodeHighlightUpgrade
         context.coordinator.appFontFamily = appFontFamily
         context.coordinator.codeFontFamily = codeFontFamily
+        context.coordinator.codeBlockShowLineNumbers = codeBlockShowLineNumbers
+        context.coordinator.codeBlockDefaultCollapsed = codeBlockDefaultCollapsed
 
         if context.coordinator.isReady {
             let didUpdateFonts = context.coordinator.applyFontUpdateIfNeeded(
@@ -248,10 +258,15 @@ private struct MarkdownWebRendererRepresentable: NSViewRepresentable {
                 codeFontFamily: codeFontFamily,
                 webView: webView
             )
+            let didUpdateCodeBlockSettings = context.coordinator.applyCodeBlockSettingsIfNeeded(
+                showLineNumbers: codeBlockShowLineNumbers,
+                defaultCollapsed: codeBlockDefaultCollapsed,
+                webView: webView
+            )
             context.coordinator.renderMarkdownIfNeeded(
                 markdownText,
                 in: webView,
-                force: didUpdateFonts,
+                force: didUpdateFonts || didUpdateCodeBlockSettings,
                 deferCodeHighlightUpgrade: deferCodeHighlightUpgrade
             )
         } else {
@@ -292,9 +307,13 @@ private struct MarkdownWebRendererRepresentable: NSViewRepresentable {
         var appFontFamily: String = JinTypography.systemFontPreferenceValue
         var codeFontFamily: String = JinTypography.systemFontPreferenceValue
         var deferCodeHighlightUpgrade: Bool = false
+        var codeBlockShowLineNumbers: Bool = false
+        var codeBlockDefaultCollapsed: Bool = false
         var lastBodyFont: String = ""
         var lastCodeFont: String = ""
         var lastFontSize: CGFloat = 0
+        var lastCodeBlockShowLineNumbers: Bool?
+        var lastCodeBlockDefaultCollapsed: Bool?
         private var isObservingDefaults = false
         private var pendingHeightUpdate: CGFloat?
         private var isHeightUpdateEnqueued = false
@@ -415,11 +434,36 @@ private struct MarkdownWebRendererRepresentable: NSViewRepresentable {
             return true
         }
 
+        @discardableResult
+        func applyCodeBlockSettingsIfNeeded(
+            showLineNumbers: Bool,
+            defaultCollapsed: Bool,
+            webView: WKWebView
+        ) -> Bool {
+            guard showLineNumbers != lastCodeBlockShowLineNumbers
+                    || defaultCollapsed != lastCodeBlockDefaultCollapsed else {
+                return false
+            }
+
+            lastCodeBlockShowLineNumbers = showLineNumbers
+            lastCodeBlockDefaultCollapsed = defaultCollapsed
+            let js = "if(typeof window.applyCodeBlockSettings==='function'){"
+                + "window.applyCodeBlockSettings({showLineNumbers:\(showLineNumbers),defaultCollapsed:\(defaultCollapsed)});"
+                + "}"
+            webView.evaluateJavaScript(js, completionHandler: nil)
+            return true
+        }
+
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
             isReady = true
             _ = applyFontUpdateIfNeeded(
                 appFontFamily: appFontFamily,
                 codeFontFamily: codeFontFamily,
+                webView: webView
+            )
+            _ = applyCodeBlockSettingsIfNeeded(
+                showLineNumbers: codeBlockShowLineNumbers,
+                defaultCollapsed: codeBlockDefaultCollapsed,
                 webView: webView
             )
             if let pending = pendingMarkdown {

@@ -566,6 +566,8 @@ var codeIcon = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stro
 var foldIcon = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><polyline points="3.5 6 8 10 12.5 6"/></svg>';
 var lineNumbersIcon = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="1.5" y1="3.5" x2="3.5" y2="3.5"/><line x1="6" y1="3.5" x2="14.5" y2="3.5"/><line x1="1.5" y1="8" x2="3.5" y2="8"/><line x1="6" y1="8" x2="12" y2="8"/><line x1="1.5" y1="12.5" x2="3.5" y2="12.5"/><line x1="6" y1="12.5" x2="13.5" y2="12.5"/></svg>';
 
+var _codeBlockSettings = { showLineNumbers: false, defaultCollapsed: false };
+
 function escapeHTML(text) {
     return String(text)
         .replace(/&/g, '&amp;')
@@ -893,7 +895,7 @@ function isLikelySVGMarkup(code) {
     return /^<svg[\s>]/i.test(text);
 }
 
-function codeHeaderHTML(id, label, lang, renderKind) {
+function codeHeaderHTML(id, label, lang, renderKind, collapsed) {
     var logoURL = resolveLanguageLogoURL(lang, label);
     var fallbackText = String(label || '').slice(0, 2) || 'txt';
     var logo = logoURL
@@ -902,8 +904,14 @@ function codeHeaderHTML(id, label, lang, renderKind) {
     var renderButton = renderKind
         ? '<button type="button" class="render-btn" id="render-' + id + '" title="Render preview" aria-label="Render preview" aria-controls="preview-' + id + '" aria-pressed="false" onclick="toggleCodeRender(' + id + ')">' + renderIcon + '</button>'
         : '';
-    var lineNumbersButton = '<button type="button" class="line-numbers-btn" id="ln-' + id + '" title="Toggle line numbers" aria-label="Toggle line numbers" aria-pressed="false" onclick="toggleLineNumbers(' + id + ')">' + lineNumbersIcon + '</button>';
-    return '<div class="code-header"><span class="lang-label">' + logo + '<span class="lang-text">' + escapeHTML(label) + '</span></span><span class="code-actions">' + renderButton + lineNumbersButton + '<button type="button" class="fold-btn" id="fold-' + id + '" title="Collapse code block" aria-label="Collapse code block" aria-controls="content-' + id + '" aria-expanded="true" onclick="toggleCodeFold(' + id + ')">' + foldIcon + '</button><button type="button" class="copy-btn" id="copy-' + id + '" title="Copy code" aria-label="Copy code" onclick="copyCode(' + id + ')">' + copyIcon + '</button></span></div>';
+    var lineNumbersActive = _codeBlockSettings.showLineNumbers;
+    var lnClass = 'line-numbers-btn' + (lineNumbersActive ? ' is-active' : '');
+    var lnPressed = lineNumbersActive ? 'true' : 'false';
+    var lineNumbersButton = '<button type="button" class="' + lnClass + '" id="ln-' + id + '" title="Toggle line numbers" aria-label="Toggle line numbers" aria-pressed="' + lnPressed + '" onclick="toggleLineNumbers(' + id + ')">' + lineNumbersIcon + '</button>';
+    var foldClass = 'fold-btn' + (collapsed ? ' collapsed' : '');
+    var foldTitle = collapsed ? 'Expand code block' : 'Collapse code block';
+    var foldExpanded = collapsed ? 'false' : 'true';
+    return '<div class="code-header"><span class="lang-label">' + logo + '<span class="lang-text">' + escapeHTML(label) + '</span></span><span class="code-actions">' + renderButton + lineNumbersButton + '<button type="button" class="' + foldClass + '" id="fold-' + id + '" title="' + foldTitle + '" aria-label="' + foldTitle + '" aria-controls="content-' + id + '" aria-expanded="' + foldExpanded + '" onclick="toggleCodeFold(' + id + ')">' + foldIcon + '</button><button type="button" class="copy-btn" id="copy-' + id + '" title="Copy code" aria-label="Copy code" onclick="copyCode(' + id + ')">' + copyIcon + '</button></span></div>';
 }
 
 function generateGutterHTML(lineCount) {
@@ -914,10 +922,14 @@ function generateGutterHTML(lineCount) {
     return nums.join('\n');
 }
 
-function wrapCodeBlock(id, label, codeHTML, lang, renderKind, lineCount) {
+function wrapCodeBlock(id, label, codeHTML, lang, renderKind, lineCount, collapsed) {
     var preview = renderKind ? '<div class="code-preview" id="preview-' + id + '" hidden></div>' : '';
     var gutter = '<div class="line-numbers-gutter" id="gutter-' + id + '">' + generateGutterHTML(lineCount) + '</div>';
-    return '<div class="code-block" id="code-block-' + id + '">' + codeHeaderHTML(id, label, lang, renderKind) + '<div class="code-content" id="content-' + id + '"><div class="code-raw" id="raw-' + id + '">' + gutter + codeHTML + '</div>' + preview + '</div></div>';
+    var classes = 'code-block';
+    if (_codeBlockSettings.showLineNumbers) classes += ' show-line-numbers';
+    if (collapsed) classes += ' is-collapsed';
+    var contentHidden = collapsed ? ' hidden' : '';
+    return '<div class="' + classes + '" id="code-block-' + id + '">' + codeHeaderHTML(id, label, lang, renderKind, collapsed) + '<div class="code-content" id="content-' + id + '"' + contentHidden + '><div class="code-raw" id="raw-' + id + '">' + gutter + codeHTML + '</div>' + preview + '</div></div>';
 }
 
 function decodeBase64UTF8(base64) {
@@ -1331,13 +1343,14 @@ function highlightCodeBlock(str, lang) {
     _codeBlockSrc[id] = str;
     var label = resolveLanguageLabel(lang);
     var renderKind = detectRenderableKind(label, str);
+    var collapsed = !!_codeBlockSettings.defaultCollapsed;
     _codeBlockState[id] = {
         renderKind: renderKind,
         previewRendered: false,
         previewing: false,
         rendering: false,
-        collapsed: false,
-        lineNumbers: false
+        collapsed: collapsed,
+        lineNumbers: !!_codeBlockSettings.showLineNumbers
     };
 
     var candidates = buildHighlightLanguageCandidates(lang, label, renderKind);
@@ -1353,7 +1366,7 @@ function highlightCodeBlock(str, lang) {
         codeHTML = '<pre><code class="prism-code">' + escapeHTML(str) + '</code></pre>';
     }
     var lineCount = codeLineCount(str);
-    return wrapCodeBlock(id, label, codeHTML, lang, renderKind, lineCount);
+    return wrapCodeBlock(id, label, codeHTML, lang, renderKind, lineCount, collapsed);
 }
 
 function fenceLanguageFromInfo(info) {
@@ -1585,6 +1598,30 @@ if (contentEl) {
     resizeObserver.observe(contentEl);
 }
 resizeObserver.observe(document.body);
+
+window.applyCodeBlockSettings = function(settings) {
+    if (!settings) return;
+    _codeBlockSettings.showLineNumbers = !!settings.showLineNumbers;
+    _codeBlockSettings.defaultCollapsed = !!settings.defaultCollapsed;
+    // Toggle show-line-numbers class and per-block button state on existing code blocks
+    var blocks = document.querySelectorAll('.code-block');
+    for (var i = 0; i < blocks.length; i++) {
+        var block = blocks[i];
+        block.classList.toggle('show-line-numbers', _codeBlockSettings.showLineNumbers);
+        // Update per-block state and button
+        var blockId = block.id.replace('code-block-', '');
+        var state = _codeBlockState[blockId];
+        if (state) {
+            state.lineNumbers = _codeBlockSettings.showLineNumbers;
+        }
+        var btn = document.getElementById('ln-' + blockId);
+        if (btn) {
+            btn.classList.toggle('is-active', _codeBlockSettings.showLineNumbers);
+            btn.setAttribute('aria-pressed', _codeBlockSettings.showLineNumbers ? 'true' : 'false');
+        }
+    }
+    scheduleHeightReport();
+};
 
 window.updateWithBase64 = updateContent;
 window.updateWithText = updateContentText;

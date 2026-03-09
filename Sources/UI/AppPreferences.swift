@@ -28,6 +28,8 @@ enum AppPreferenceKeys {
     static let thinkingBlockDisplayMode = "thinkingBlockDisplayMode"
     static let codexToolDisplayMode = "codexToolDisplayMode"
     static let codexWorkingDirectoryPresetsJSON = "codexWorkingDirectoryPresetsJSON"
+    static let codeBlockShowLineNumbers = "codeBlockShowLineNumbers"
+    static let codeBlockDefaultCollapsed = "codeBlockDefaultCollapsed"
 
     // MARK: - Updates
 
