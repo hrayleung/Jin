@@ -220,6 +220,34 @@ pre code {
     background: light-dark(#fef2f2, #2a1212);
     color: light-dark(#991b1b, #fca5a5);
 }
+.code-block .line-numbers-gutter {
+    display: none;
+    flex: 0 0 auto;
+    padding: 0.95em 0.6em 1.05em 0.8em;
+    font-family: var(--code-font);
+    font-size: 0.85em;
+    line-height: 1.58;
+    color: var(--code-muted);
+    text-align: right;
+    white-space: pre;
+    user-select: none;
+    -webkit-user-select: none;
+    opacity: 0.55;
+    border-right: 1px solid var(--code-separator);
+}
+.code-block.show-line-numbers .code-raw {
+    display: flex;
+}
+.code-block.show-line-numbers .line-numbers-gutter {
+    display: block;
+}
+.code-block.show-line-numbers pre {
+    flex: 1;
+    min-width: 0;
+}
+.code-block.show-line-numbers .prism-code {
+    padding-left: 0.75em;
+}
 .code-block.is-collapsed {
     box-shadow: none;
 }
@@ -277,7 +305,8 @@ pre code {
 }
 .code-header .copy-btn,
 .code-header .render-btn,
-.code-header .fold-btn {
+.code-header .fold-btn,
+.code-header .line-numbers-btn {
     cursor: pointer;
     display: inline-flex;
     align-items: center;
@@ -297,13 +326,15 @@ pre code {
 }
 .code-header .copy-btn:hover,
 .code-header .render-btn:hover,
-.code-header .fold-btn:hover {
+.code-header .fold-btn:hover,
+.code-header .line-numbers-btn:hover {
     background: var(--code-button-hover-bg);
     color: var(--code-button-hover-fg);
 }
 .code-header .copy-btn:active,
 .code-header .render-btn:active,
-.code-header .fold-btn:active {
+.code-header .fold-btn:active,
+.code-header .line-numbers-btn:active {
     transform: translateY(0.5px);
 }
 .code-header .copy-btn.copied {
@@ -322,9 +353,15 @@ pre code {
 .code-header .fold-btn.collapsed svg {
     transform: rotate(-90deg);
 }
+.code-header .line-numbers-btn.is-active {
+    opacity: 1;
+    color: var(--code-button-hover-fg);
+    background: var(--code-button-active-bg);
+}
 .code-header .copy-btn svg,
 .code-header .render-btn svg,
-.code-header .fold-btn svg {
+.code-header .fold-btn svg,
+.code-header .line-numbers-btn svg {
     width: 14px;
     height: 14px;
     transition: transform 0.18s ease;
@@ -527,6 +564,7 @@ var checkIcon = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" str
 var renderIcon = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3.5 12.5 8 5 12.5 5 3.5"/></svg>';
 var codeIcon = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 3.5 1.5 8 6 12.5"/><polyline points="10 3.5 14.5 8 10 12.5"/></svg>';
 var foldIcon = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><polyline points="3.5 6 8 10 12.5 6"/></svg>';
+var lineNumbersIcon = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="1.5" y1="3.5" x2="3.5" y2="3.5"/><line x1="6" y1="3.5" x2="14.5" y2="3.5"/><line x1="1.5" y1="8" x2="3.5" y2="8"/><line x1="6" y1="8" x2="12" y2="8"/><line x1="1.5" y1="12.5" x2="3.5" y2="12.5"/><line x1="6" y1="12.5" x2="13.5" y2="12.5"/></svg>';
 
 function escapeHTML(text) {
     return String(text)
@@ -864,12 +902,22 @@ function codeHeaderHTML(id, label, lang, renderKind) {
     var renderButton = renderKind
         ? '<button type="button" class="render-btn" id="render-' + id + '" title="Render preview" aria-label="Render preview" aria-controls="preview-' + id + '" aria-pressed="false" onclick="toggleCodeRender(' + id + ')">' + renderIcon + '</button>'
         : '';
-    return '<div class="code-header"><span class="lang-label">' + logo + '<span class="lang-text">' + escapeHTML(label) + '</span></span><span class="code-actions">' + renderButton + '<button type="button" class="fold-btn" id="fold-' + id + '" title="Collapse code block" aria-label="Collapse code block" aria-controls="content-' + id + '" aria-expanded="true" onclick="toggleCodeFold(' + id + ')">' + foldIcon + '</button><button type="button" class="copy-btn" id="copy-' + id + '" title="Copy code" aria-label="Copy code" onclick="copyCode(' + id + ')">' + copyIcon + '</button></span></div>';
+    var lineNumbersButton = '<button type="button" class="line-numbers-btn" id="ln-' + id + '" title="Toggle line numbers" aria-label="Toggle line numbers" aria-pressed="false" onclick="toggleLineNumbers(' + id + ')">' + lineNumbersIcon + '</button>';
+    return '<div class="code-header"><span class="lang-label">' + logo + '<span class="lang-text">' + escapeHTML(label) + '</span></span><span class="code-actions">' + renderButton + lineNumbersButton + '<button type="button" class="fold-btn" id="fold-' + id + '" title="Collapse code block" aria-label="Collapse code block" aria-controls="content-' + id + '" aria-expanded="true" onclick="toggleCodeFold(' + id + ')">' + foldIcon + '</button><button type="button" class="copy-btn" id="copy-' + id + '" title="Copy code" aria-label="Copy code" onclick="copyCode(' + id + ')">' + copyIcon + '</button></span></div>';
 }
 
-function wrapCodeBlock(id, label, codeHTML, lang, renderKind) {
+function generateGutterHTML(lineCount) {
+    var nums = [];
+    for (var i = 1; i <= lineCount; i++) {
+        nums.push(String(i));
+    }
+    return nums.join('\n');
+}
+
+function wrapCodeBlock(id, label, codeHTML, lang, renderKind, lineCount) {
     var preview = renderKind ? '<div class="code-preview" id="preview-' + id + '" hidden></div>' : '';
-    return '<div class="code-block" id="code-block-' + id + '">' + codeHeaderHTML(id, label, lang, renderKind) + '<div class="code-content" id="content-' + id + '"><div class="code-raw" id="raw-' + id + '">' + codeHTML + '</div>' + preview + '</div></div>';
+    var gutter = '<div class="line-numbers-gutter" id="gutter-' + id + '">' + generateGutterHTML(lineCount) + '</div>';
+    return '<div class="code-block" id="code-block-' + id + '">' + codeHeaderHTML(id, label, lang, renderKind) + '<div class="code-content" id="content-' + id + '"><div class="code-raw" id="raw-' + id + '">' + gutter + codeHTML + '</div>' + preview + '</div></div>';
 }
 
 function decodeBase64UTF8(base64) {
@@ -1137,6 +1185,24 @@ function toggleCodeFold(id) {
     scheduleHeightReport();
 }
 
+function toggleLineNumbers(id) {
+    var state = _codeBlockState[id];
+    if (!state) return;
+
+    var block = document.getElementById('code-block-' + id);
+    var btn = document.getElementById('ln-' + id);
+    if (!block) return;
+
+    state.lineNumbers = !state.lineNumbers;
+    block.classList.toggle('show-line-numbers', !!state.lineNumbers);
+
+    if (btn) {
+        btn.classList.toggle('is-active', !!state.lineNumbers);
+        btn.setAttribute('aria-pressed', state.lineNumbers ? 'true' : 'false');
+    }
+    scheduleHeightReport();
+}
+
 async function toggleCodeRender(id) {
     var state = _codeBlockState[id];
     if (!state || !state.renderKind) return;
@@ -1270,7 +1336,8 @@ function highlightCodeBlock(str, lang) {
         previewRendered: false,
         previewing: false,
         rendering: false,
-        collapsed: false
+        collapsed: false,
+        lineNumbers: false
     };
 
     var candidates = buildHighlightLanguageCandidates(lang, label, renderKind);
@@ -1285,7 +1352,8 @@ function highlightCodeBlock(str, lang) {
     } else {
         codeHTML = '<pre><code class="prism-code">' + escapeHTML(str) + '</code></pre>';
     }
-    return wrapCodeBlock(id, label, codeHTML, lang, renderKind);
+    var lineCount = codeLineCount(str);
+    return wrapCodeBlock(id, label, codeHTML, lang, renderKind, lineCount);
 }
 
 function fenceLanguageFromInfo(info) {
