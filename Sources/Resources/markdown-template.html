@@ -122,6 +122,43 @@ pre code {
     background: var(--code-selection);
     color: inherit;
 }
+/* Line numbers */
+.code-block.show-line-numbers .prism-code {
+    padding-left: 0;
+}
+.code-block.show-line-numbers .prism-code .code-lines {
+    display: table;
+    width: 100%;
+}
+.code-block.show-line-numbers .prism-code .code-line {
+    display: table-row;
+    counter-increment: line-number;
+}
+.code-block.show-line-numbers .prism-code .code-line::before {
+    content: counter(line-number);
+    display: table-cell;
+    width: 1px;
+    white-space: nowrap;
+    padding: 0 0.8em 0 1.05em;
+    text-align: right;
+    color: var(--code-muted);
+    opacity: 0.5;
+    user-select: none;
+    -webkit-user-select: none;
+}
+.code-block.show-line-numbers .prism-code .code-line-content {
+    display: table-cell;
+    padding-left: 0.5em;
+    padding-right: 1.05em;
+}
+.code-block:not(.show-line-numbers) .prism-code .code-lines,
+.code-block:not(.show-line-numbers) .prism-code .code-line,
+.code-block:not(.show-line-numbers) .prism-code .code-line-content {
+    display: contents;
+}
+.code-block:not(.show-line-numbers) .prism-code .code-line::before {
+    display: none;
+}
 /* Prism One Light / One Dark token colors */
 .code-block .prism-code .token.comment,
 .code-block .prism-code .token.prolog,
@@ -528,6 +565,8 @@ var renderIcon = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" st
 var codeIcon = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 3.5 1.5 8 6 12.5"/><polyline points="10 3.5 14.5 8 10 12.5"/></svg>';
 var foldIcon = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><polyline points="3.5 6 8 10 12.5 6"/></svg>';
 
+var _codeBlockSettings = { showLineNumbers: false, defaultCollapsed: false };
+
 function escapeHTML(text) {
     return String(text)
         .replace(/&/g, '&amp;')
@@ -855,7 +894,7 @@ function isLikelySVGMarkup(code) {
     return /^<svg[\s>]/i.test(text);
 }
 
-function codeHeaderHTML(id, label, lang, renderKind) {
+function codeHeaderHTML(id, label, lang, renderKind, collapsed) {
     var logoURL = resolveLanguageLogoURL(lang, label);
     var fallbackText = String(label || '').slice(0, 2) || 'txt';
     var logo = logoURL
@@ -864,12 +903,19 @@ function codeHeaderHTML(id, label, lang, renderKind) {
     var renderButton = renderKind
         ? '<button type="button" class="render-btn" id="render-' + id + '" title="Render preview" aria-label="Render preview" aria-controls="preview-' + id + '" aria-pressed="false" onclick="toggleCodeRender(' + id + ')">' + renderIcon + '</button>'
         : '';
-    return '<div class="code-header"><span class="lang-label">' + logo + '<span class="lang-text">' + escapeHTML(label) + '</span></span><span class="code-actions">' + renderButton + '<button type="button" class="fold-btn" id="fold-' + id + '" title="Collapse code block" aria-label="Collapse code block" aria-controls="content-' + id + '" aria-expanded="true" onclick="toggleCodeFold(' + id + ')">' + foldIcon + '</button><button type="button" class="copy-btn" id="copy-' + id + '" title="Copy code" aria-label="Copy code" onclick="copyCode(' + id + ')">' + copyIcon + '</button></span></div>';
+    var foldClass = 'fold-btn' + (collapsed ? ' collapsed' : '');
+    var foldTitle = collapsed ? 'Expand code block' : 'Collapse code block';
+    var foldExpanded = collapsed ? 'false' : 'true';
+    return '<div class="code-header"><span class="lang-label">' + logo + '<span class="lang-text">' + escapeHTML(label) + '</span></span><span class="code-actions">' + renderButton + '<button type="button" class="' + foldClass + '" id="fold-' + id + '" title="' + foldTitle + '" aria-label="' + foldTitle + '" aria-controls="content-' + id + '" aria-expanded="' + foldExpanded + '" onclick="toggleCodeFold(' + id + ')">' + foldIcon + '</button><button type="button" class="copy-btn" id="copy-' + id + '" title="Copy code" aria-label="Copy code" onclick="copyCode(' + id + ')">' + copyIcon + '</button></span></div>';
 }
 
-function wrapCodeBlock(id, label, codeHTML, lang, renderKind) {
+function wrapCodeBlock(id, label, codeHTML, lang, renderKind, collapsed) {
     var preview = renderKind ? '<div class="code-preview" id="preview-' + id + '" hidden></div>' : '';
-    return '<div class="code-block" id="code-block-' + id + '">' + codeHeaderHTML(id, label, lang, renderKind) + '<div class="code-content" id="content-' + id + '"><div class="code-raw" id="raw-' + id + '">' + codeHTML + '</div>' + preview + '</div></div>';
+    var classes = 'code-block';
+    if (_codeBlockSettings.showLineNumbers) classes += ' show-line-numbers';
+    if (collapsed) classes += ' is-collapsed';
+    var contentHidden = collapsed ? ' hidden' : '';
+    return '<div class="' + classes + '" id="code-block-' + id + '">' + codeHeaderHTML(id, label, lang, renderKind, collapsed) + '<div class="code-content" id="content-' + id + '"' + contentHidden + '><div class="code-raw" id="raw-' + id + '">' + codeHTML + '</div>' + preview + '</div></div>';
 }
 
 function decodeBase64UTF8(base64) {
@@ -1260,17 +1306,31 @@ function shouldAttemptCodeHighlight(code) {
     return codeLineCount(text) <= MAX_HIGHLIGHT_CODE_LINES;
 }
 
+function wrapInLineElements(innerHTML, rawStr) {
+    if (!_codeBlockSettings.showLineNumbers) return innerHTML;
+    var lines = rawStr.split('\n');
+    // For highlighted code, split by newline preserving spans
+    var htmlLines = innerHTML.split('\n');
+    var result = '<div class="code-lines" style="counter-reset:line-number">';
+    for (var i = 0; i < htmlLines.length; i++) {
+        result += '<div class="code-line"><span class="code-line-content">' + (htmlLines[i] || '') + '</span></div>';
+    }
+    result += '</div>';
+    return result;
+}
+
 function highlightCodeBlock(str, lang) {
     var id = ++_codeBlockId;
     _codeBlockSrc[id] = str;
     var label = resolveLanguageLabel(lang);
     var renderKind = detectRenderableKind(label, str);
+    var collapsed = !!_codeBlockSettings.defaultCollapsed;
     _codeBlockState[id] = {
         renderKind: renderKind,
         previewRendered: false,
         previewing: false,
         rendering: false,
-        collapsed: false
+        collapsed: collapsed
     };
 
     var candidates = buildHighlightLanguageCandidates(lang, label, renderKind);
@@ -1279,13 +1339,9 @@ function highlightCodeBlock(str, lang) {
         highlightedInner = highlightCodeWithPrism(str, candidates);
     }
 
-    var codeHTML;
-    if (highlightedInner) {
-        codeHTML = '<pre><code class="prism-code">' + highlightedInner + '</code></pre>';
-    } else {
-        codeHTML = '<pre><code class="prism-code">' + escapeHTML(str) + '</code></pre>';
-    }
-    return wrapCodeBlock(id, label, codeHTML, lang, renderKind);
+    var rawInner = highlightedInner || escapeHTML(str);
+    var codeHTML = '<pre><code class="prism-code">' + wrapInLineElements(rawInner, str) + '</code></pre>';
+    return wrapCodeBlock(id, label, codeHTML, lang, renderKind, collapsed);
 }
 
 function fenceLanguageFromInfo(info) {
@@ -1517,6 +1573,17 @@ if (contentEl) {
     resizeObserver.observe(contentEl);
 }
 resizeObserver.observe(document.body);
+
+window.applyCodeBlockSettings = function(settings) {
+    if (!settings) return;
+    _codeBlockSettings.showLineNumbers = !!settings.showLineNumbers;
+    _codeBlockSettings.defaultCollapsed = !!settings.defaultCollapsed;
+    // Toggle show-line-numbers class on existing code blocks
+    var blocks = document.querySelectorAll('.code-block');
+    for (var i = 0; i < blocks.length; i++) {
+        blocks[i].classList.toggle('show-line-numbers', _codeBlockSettings.showLineNumbers);
+    }
+};
 
 window.updateWithBase64 = updateContent;
 window.updateWithText = updateContentText;
