@@ -1,6 +1,7 @@
 import SwiftUI
 import SwiftData
 import AppKit
+import Kingfisher
 
 @MainActor
 private final class JinAppDelegate: NSObject, NSApplicationDelegate {
@@ -32,6 +33,9 @@ struct JinApp: App {
             AppPreferenceKeys.updateAllowPreRelease: false,
             AppPreferenceKeys.codexWorkingDirectoryPresetsJSON: "[]"
         ])
+        ImageCache.default.memoryStorage.config.expiration = .seconds(3600)
+        ImageCache.default.diskStorage.config.expiration = .days(30)
+
         _updateManager = StateObject(wrappedValue: SparkleUpdateManager())
         do {
             modelContainer = try ModelContainer(
