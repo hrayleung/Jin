@@ -71,26 +71,56 @@ enum AttachmentImportPipeline {
         }
     }
 
-    /// Persist in-memory images to disk so they have stable file URLs.
-    static func persistImagesToDisk(_ parts: [ContentPart]) async -> [ContentPart] {
+    /// Persist managed images to disk so they have stable file URLs.
+    static func persistImagesToDisk(_ parts: [ContentPart], session: URLSession? = nil) async -> [ContentPart] {
         guard let storage = try? AttachmentStorageManager() else { return parts }
 
         var result: [ContentPart] = []
         result.reserveCapacity(parts.count)
 
         for part in parts {
-            guard case .image(let image) = part,
-                  image.url?.isFileURL != true,
-                  let data = image.data
-            else {
+            guard case .image(let image) = part else {
                 result.append(part)
                 continue
             }
 
-            let ext = AttachmentStorageManager.fileExtension(for: image.mimeType) ?? "png"
-            let filename = "generated-image.\(ext)"
-            if let stored = try? await storage.saveAttachment(data: data, filename: filename, mimeType: image.mimeType) {
-                result.append(.image(ImageContent(mimeType: image.mimeType, data: nil, url: stored.fileURL)))
+            guard image.assetDisposition == .managed else {
+                result.append(part)
+                continue
+            }
+
+            if image.url?.isFileURL == true {
+                result.append(.image(ImageContent(
+                    mimeType: image.mimeType,
+                    data: nil,
+                    url: image.url,
+                    assetDisposition: .managed
+                )))
+                continue
+            }
+
+            let storedURL: URL?
+            if let data = image.data {
+                let ext = AttachmentStorageManager.fileExtension(for: image.mimeType) ?? "png"
+                let filename = "generated-image.\(ext)"
+                storedURL = (try? await storage.saveAttachment(data: data, filename: filename, mimeType: image.mimeType))?.fileURL
+            } else if let remoteURL = image.remoteURL {
+                storedURL = await MessageMediaAssetPersistenceSupport.persistManagedRemoteImageToDisk(
+                    from: remoteURL,
+                    mimeType: image.mimeType,
+                    session: session
+                )
+            } else {
+                storedURL = nil
+            }
+
+            if let storedURL {
+                result.append(.image(ImageContent(
+                    mimeType: image.mimeType,
+                    data: nil,
+                    url: storedURL,
+                    assetDisposition: .managed
+                )))
             } else {
                 result.append(part)
             }

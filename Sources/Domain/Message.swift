@@ -132,29 +132,118 @@ struct RedactedThinkingBlock: Codable {
     }
 }
 
-/// Image content with base64 data or URL
-struct ImageContent: Codable {
-    let mimeType: String // image/jpeg, image/png, image/webp
-    let data: Data? // Base64 encoded
-    let url: URL? // Remote URL
+enum MediaAssetDisposition: String, Codable, Equatable, Sendable {
+    case managed
+    case externalReference
+}
 
-    init(mimeType: String, data: Data? = nil, url: URL? = nil) {
+private func inferredMediaAssetDisposition(data: Data?, url: URL?) -> MediaAssetDisposition {
+    if data != nil || url?.isFileURL == true {
+        return .managed
+    }
+    if url != nil {
+        return .externalReference
+    }
+    return .managed
+}
+
+/// Image content with in-memory data, a local attachment URL, or an external remote URL.
+struct ImageContent: Codable, Equatable, Sendable {
+    enum CodingKeys: String, CodingKey {
+        case mimeType
+        case data
+        case url
+        case assetDisposition
+    }
+
+    let mimeType: String // image/jpeg, image/png, image/webp
+    let data: Data?
+    let url: URL?
+    let assetDisposition: MediaAssetDisposition
+
+    var remoteURL: URL? {
+        guard let url, !url.isFileURL else { return nil }
+        return url
+    }
+
+    init(
+        mimeType: String,
+        data: Data? = nil,
+        url: URL? = nil,
+        assetDisposition: MediaAssetDisposition? = nil
+    ) {
         self.mimeType = mimeType
         self.data = data
         self.url = url
+        self.assetDisposition = assetDisposition ?? inferredMediaAssetDisposition(data: data, url: url)
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let mimeType = try container.decode(String.self, forKey: .mimeType)
+        let data = try container.decodeIfPresent(Data.self, forKey: .data)
+        let url = try container.decodeIfPresent(URL.self, forKey: .url)
+        let assetDisposition = try container.decodeIfPresent(MediaAssetDisposition.self, forKey: .assetDisposition)
+
+        self.init(mimeType: mimeType, data: data, url: url, assetDisposition: assetDisposition)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(mimeType, forKey: .mimeType)
+        try container.encodeIfPresent(data, forKey: .data)
+        try container.encodeIfPresent(url, forKey: .url)
+        try container.encode(assetDisposition, forKey: .assetDisposition)
     }
 }
 
-/// Video content with base64 data or URL
-struct VideoContent: Codable {
+/// Video content with in-memory data, a local attachment URL, or an external remote URL.
+struct VideoContent: Codable, Equatable, Sendable {
+    enum CodingKeys: String, CodingKey {
+        case mimeType
+        case data
+        case url
+        case assetDisposition
+    }
+
     let mimeType: String // video/mp4, video/webm
     let data: Data?
     let url: URL?
+    let assetDisposition: MediaAssetDisposition
 
-    init(mimeType: String, data: Data? = nil, url: URL? = nil) {
+    var remoteURL: URL? {
+        guard let url, !url.isFileURL else { return nil }
+        return url
+    }
+
+    init(
+        mimeType: String,
+        data: Data? = nil,
+        url: URL? = nil,
+        assetDisposition: MediaAssetDisposition? = nil
+    ) {
         self.mimeType = mimeType
         self.data = data
         self.url = url
+        self.assetDisposition = assetDisposition ?? inferredMediaAssetDisposition(data: data, url: url)
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let mimeType = try container.decode(String.self, forKey: .mimeType)
+        let data = try container.decodeIfPresent(Data.self, forKey: .data)
+        let url = try container.decodeIfPresent(URL.self, forKey: .url)
+        let assetDisposition = try container.decodeIfPresent(MediaAssetDisposition.self, forKey: .assetDisposition)
+
+        self.init(mimeType: mimeType, data: data, url: url, assetDisposition: assetDisposition)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(mimeType, forKey: .mimeType)
+        try container.encodeIfPresent(data, forKey: .data)
+        try container.encodeIfPresent(url, forKey: .url)
+        try container.encode(assetDisposition, forKey: .assetDisposition)
     }
 }
 
