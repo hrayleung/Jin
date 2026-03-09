@@ -283,10 +283,10 @@ pre code {
 .code-block .code-expand-bar {
     display: none;
     justify-content: center;
-    margin-top: -28px;
-    padding: 26px 0 12px;
+    margin-top: -34px;
+    padding: 30px 0 10px;
     background: linear-gradient(to bottom, transparent 0%, var(--code-surface-raised) 100%);
-    background: linear-gradient(to bottom, transparent 0%, color-mix(in srgb, var(--code-surface) 84%, transparent) 38%, var(--code-surface-raised) 100%);
+    background: linear-gradient(to bottom, color-mix(in srgb, var(--code-surface) 10%, transparent) 0%, color-mix(in srgb, var(--code-surface) 80%, transparent) 42%, var(--code-surface-raised) 100%);
     border-radius: 0 0 12px 12px;
     position: relative;
     z-index: 1;
@@ -297,30 +297,29 @@ pre code {
 .code-block .code-expand-pill {
     display: inline-flex;
     align-items: center;
-    gap: 5px;
-    padding: 6px 14px;
+    gap: 6px;
+    padding: 5px 11px;
     border-radius: 100px;
-    border: 1px solid var(--code-border);
-    background: var(--code-surface-raised);
-    background: color-mix(in srgb, var(--code-surface-raised) 94%, white 6%);
+    border: 1px solid color-mix(in srgb, var(--code-border) 72%, transparent);
+    background: color-mix(in srgb, var(--code-surface) 88%, transparent);
     color: var(--code-muted);
     font-family: var(--body-font);
-    font-size: 0.74em;
-    font-weight: 600;
+    font-size: 0.72em;
+    font-weight: 550;
     line-height: 1;
     cursor: pointer;
     user-select: none;
     -webkit-user-select: none;
-    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.10);
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
+    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
     transition: background 0.15s, color 0.15s, border-color 0.15s, box-shadow 0.15s, transform 0.15s;
 }
 .code-block .code-expand-pill:hover {
     background: var(--code-button-hover-bg);
     color: var(--code-button-hover-fg);
     border-color: var(--code-button-hover-fg);
-    box-shadow: 0 12px 26px rgba(15, 23, 42, 0.14);
+    box-shadow: 0 6px 14px rgba(15, 23, 42, 0.10);
 }
 .code-block .code-expand-pill svg {
     width: 12px;
@@ -644,9 +643,9 @@ var renderIcon = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" st
 var codeIcon = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 3.5 1.5 8 6 12.5"/><polyline points="10 3.5 14.5 8 10 12.5"/></svg>';
 var foldIcon = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><polyline points="3.5 6 8 10 12.5 6"/></svg>';
 var lineNumbersIcon = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="1.5" y1="3.5" x2="3.5" y2="3.5"/><line x1="6" y1="3.5" x2="14.5" y2="3.5"/><line x1="1.5" y1="8" x2="3.5" y2="8"/><line x1="6" y1="8" x2="12" y2="8"/><line x1="1.5" y1="12.5" x2="3.5" y2="12.5"/><line x1="6" y1="12.5" x2="13.5" y2="12.5"/></svg>';
-var expandIcon = '<svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 6.5 8 2.5 12 6.5"/><polyline points="4 9.5 8 13.5 12 9.5"/></svg>';
+var expandIcon = '<svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 6 8 10 12 6"/></svg>';
 
-var _codeBlockSettings = { showLineNumbers: false, defaultCollapsed: false };
+var _codeBlockSettings = { showLineNumbers: false, showCollapseButton: false };
 
 function escapeHTML(text) {
     return String(text)
@@ -991,7 +990,10 @@ function codeHeaderHTML(id, label, lang, renderKind, collapsed) {
     var foldClass = 'fold-btn' + (collapsed ? ' collapsed' : '');
     var foldTitle = collapsed ? 'Expand code block' : 'Collapse code block';
     var foldExpanded = collapsed ? 'false' : 'true';
-    return '<div class="code-header"><span class="lang-label">' + logo + '<span class="lang-text">' + escapeHTML(label) + '</span></span><span class="code-actions">' + renderButton + lineNumbersButton + '<button type="button" class="' + foldClass + '" id="fold-' + id + '" title="' + foldTitle + '" aria-label="' + foldTitle + '" aria-controls="wrapper-' + id + '" aria-expanded="' + foldExpanded + '" onclick="toggleCodeFold(' + id + ')">' + foldIcon + '</button><button type="button" class="copy-btn" id="copy-' + id + '" title="Copy code" aria-label="Copy code" onclick="copyCode(' + id + ')">' + copyIcon + '</button></span></div>';
+    var foldButton = _codeBlockSettings.showCollapseButton
+        ? '<button type="button" class="' + foldClass + '" id="fold-' + id + '" title="' + foldTitle + '" aria-label="' + foldTitle + '" aria-controls="wrapper-' + id + '" aria-expanded="' + foldExpanded + '" onclick="toggleCodeFold(' + id + ')">' + foldIcon + '</button>'
+        : '';
+    return '<div class="code-header"><span class="lang-label">' + logo + '<span class="lang-text">' + escapeHTML(label) + '</span></span><span class="code-actions">' + renderButton + lineNumbersButton + foldButton + '<button type="button" class="copy-btn" id="copy-' + id + '" title="Copy code" aria-label="Copy code" onclick="copyCode(' + id + ')">' + copyIcon + '</button></span></div>';
 }
 
 function generateGutterHTML(lineCount) {
@@ -1014,9 +1016,10 @@ function wrapCodeBlock(id, label, codeHTML, lang, renderKind, lineCount, collaps
     var hiddenLines = isCollapsible ? (lineCount - _codeBlockCollapseLineThreshold) : 0;
     var wrapperHidden = collapsed ? ' hidden' : '';
     var expandBarHidden = collapsed ? ' hidden' : '';
-    var expandLabel = hiddenLines > 0 ? 'Show ' + hiddenLines + ' more lines' : 'Show more';
+    var expandLabel = 'Show more';
+    var expandAria = hiddenLines > 0 ? 'Show ' + hiddenLines + ' more lines' : 'Show more';
     var expandBar = isCollapsible
-        ? '<div class="code-expand-bar" id="expand-bar-' + id + '"' + expandBarHidden + '><button type="button" class="code-expand-pill" id="expand-pill-' + id + '" title="Show more code" aria-label="Show more code" aria-controls="wrapper-' + id + '" aria-expanded="false" onclick="toggleCodeHeightCollapse(' + id + ')">' + expandIcon + ' <span id="expand-label-' + id + '">' + expandLabel + '</span></button></div>'
+        ? '<div class="code-expand-bar" id="expand-bar-' + id + '"' + expandBarHidden + '><button type="button" class="code-expand-pill" id="expand-pill-' + id + '" title="' + expandAria + '" aria-label="' + expandAria + '" aria-controls="wrapper-' + id + '" aria-expanded="false" onclick="toggleCodeHeightCollapse(' + id + ')">' + expandIcon + ' <span id="expand-label-' + id + '">' + expandLabel + '</span></button></div>'
         : '';
     return '<div class="' + blockClass + '" id="code-block-' + id + '">' + codeHeaderHTML(id, label, lang, renderKind, collapsed) + '<div class="' + wrapperClass + '" id="wrapper-' + id + '"' + wrapperHidden + '><div class="code-content" id="content-' + id + '"><div class="code-raw" id="raw-' + id + '">' + gutter + codeHTML + '</div>' + preview + '</div></div>' + expandBar + '</div>';
 }
@@ -1283,14 +1286,15 @@ function updateCodeHeightCollapseUI(id) {
     var hiddenLines = Math.max(0, (state.lineCount || 0) - _codeBlockCollapseLineThreshold);
     if (state.heightCollapsed) {
         expandPill.classList.remove('is-expanded');
-        expandPill.title = 'Show more code';
-        expandPill.setAttribute('aria-label', 'Show more code');
+        var showMoreAria = hiddenLines > 0 ? 'Show ' + hiddenLines + ' more lines' : 'Show more';
+        expandPill.title = showMoreAria;
+        expandPill.setAttribute('aria-label', showMoreAria);
         expandPill.setAttribute('aria-expanded', 'false');
-        expandLabel.textContent = hiddenLines > 0 ? 'Show ' + hiddenLines + ' more lines' : 'Show more';
+        expandLabel.textContent = 'Show more';
     } else {
         expandPill.classList.add('is-expanded');
-        expandPill.title = 'Show less code';
-        expandPill.setAttribute('aria-label', 'Show less code');
+        expandPill.title = 'Show less';
+        expandPill.setAttribute('aria-label', 'Show less');
         expandPill.setAttribute('aria-expanded', 'true');
         expandLabel.textContent = 'Show less';
     }
@@ -1505,7 +1509,6 @@ function highlightCodeBlock(str, lang) {
     _codeBlockSrc[id] = str;
     var label = resolveLanguageLabel(lang);
     var renderKind = detectRenderableKind(label, str);
-    var collapsed = !!_codeBlockSettings.defaultCollapsed;
     var lineCount = codeLineCount(str);
     var isCollapsible = _codeBlockDisplayMode === 'collapsible' && lineCount > _codeBlockCollapseLineThreshold;
     _codeBlockState[id] = {
@@ -1514,7 +1517,7 @@ function highlightCodeBlock(str, lang) {
         previewing: false,
         rendering: false,
         previewAutoExpanded: false,
-        collapsed: collapsed,
+        collapsed: false,
         lineNumbers: !!_codeBlockSettings.showLineNumbers,
         heightCollapsible: isCollapsible,
         heightCollapsed: isCollapsible,
@@ -1533,7 +1536,7 @@ function highlightCodeBlock(str, lang) {
     } else {
         codeHTML = '<pre><code class="prism-code">' + escapeHTML(str) + '</code></pre>';
     }
-    return wrapCodeBlock(id, label, codeHTML, lang, renderKind, lineCount, collapsed);
+    return wrapCodeBlock(id, label, codeHTML, lang, renderKind, lineCount, false);
 }
 
 function fenceLanguageFromInfo(info) {
@@ -1769,7 +1772,7 @@ resizeObserver.observe(document.body);
 window.applyCodeBlockSettings = function(settings) {
     if (!settings) return;
     _codeBlockSettings.showLineNumbers = !!settings.showLineNumbers;
-    _codeBlockSettings.defaultCollapsed = !!settings.defaultCollapsed;
+    _codeBlockSettings.showCollapseButton = !!settings.showCollapseButton;
     var blocks = document.querySelectorAll('.code-block');
     for (var i = 0; i < blocks.length; i++) {
         var block = blocks[i];
@@ -1778,29 +1781,11 @@ window.applyCodeBlockSettings = function(settings) {
         block.classList.toggle('show-line-numbers', _codeBlockSettings.showLineNumbers);
         if (state) {
             state.lineNumbers = _codeBlockSettings.showLineNumbers;
-            state.collapsed = _codeBlockSettings.defaultCollapsed;
         }
         var btn = document.getElementById('ln-' + blockId);
         if (btn) {
             btn.classList.toggle('is-active', _codeBlockSettings.showLineNumbers);
             btn.setAttribute('aria-pressed', _codeBlockSettings.showLineNumbers ? 'true' : 'false');
-        }
-        var foldButton = document.getElementById('fold-' + blockId);
-        var wrapper = document.getElementById('wrapper-' + blockId);
-        var content = document.getElementById('content-' + blockId);
-        if (wrapper) {
-            wrapper.hidden = !!_codeBlockSettings.defaultCollapsed;
-        }
-        if (content) {
-            content.hidden = !!_codeBlockSettings.defaultCollapsed;
-        }
-        block.classList.toggle('is-collapsed', !!_codeBlockSettings.defaultCollapsed);
-        if (foldButton) {
-            var foldTitle = _codeBlockSettings.defaultCollapsed ? 'Expand code block' : 'Collapse code block';
-            foldButton.classList.toggle('collapsed', !!_codeBlockSettings.defaultCollapsed);
-            foldButton.title = foldTitle;
-            foldButton.setAttribute('aria-label', foldTitle);
-            foldButton.setAttribute('aria-expanded', _codeBlockSettings.defaultCollapsed ? 'false' : 'true');
         }
         updateCodeHeightCollapseUI(blockId);
     }

@@ -30,7 +30,7 @@ enum AppPreferenceKeys {
     static let codeBlockDisplayMode = "codeBlockDisplayMode"
     static let codexWorkingDirectoryPresetsJSON = "codexWorkingDirectoryPresetsJSON"
     static let codeBlockShowLineNumbers = "codeBlockShowLineNumbers"
-    static let codeBlockDefaultCollapsed = "codeBlockDefaultCollapsed"
+    static let codeBlockShowCollapseButton = "codeBlockShowCollapseButton"
 
     // MARK: - Updates
 
@@ -299,7 +299,7 @@ enum CodeBlockDisplayMode: String, CaseIterable, Identifiable {
         case .expanded:
             return "Code blocks always show their full content."
         case .collapsible:
-            return "Only long code blocks start shortened. Use the footer to show more, then fold them back if needed."
+            return "Only long code blocks start condensed, with a fade and a simple Show more control."
         }
     }
 }

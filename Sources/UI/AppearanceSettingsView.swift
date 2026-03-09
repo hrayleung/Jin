@@ -7,7 +7,7 @@ struct AppearanceSettingsView: View {
     @AppStorage(AppPreferenceKeys.codeFontFamily) private var codeFontFamily = JinTypography.systemFontPreferenceValue
     @AppStorage(AppPreferenceKeys.codeBlockDisplayMode) private var codeBlockDisplayModeRaw = CodeBlockDisplayMode.expanded.rawValue
     @AppStorage(AppPreferenceKeys.codeBlockShowLineNumbers) private var codeBlockShowLineNumbers = false
-    @AppStorage(AppPreferenceKeys.codeBlockDefaultCollapsed) private var codeBlockDefaultCollapsed = false
+    @AppStorage(AppPreferenceKeys.codeBlockShowCollapseButton) private var codeBlockShowCollapseButton = false
     @AppStorage(AppPreferenceKeys.appIconVariant) private var appIconVariant: AppIconVariant = .roseQuartz
 
     @State private var showingAppFontPicker = false
@@ -68,13 +68,13 @@ struct AppearanceSettingsView: View {
                 }
 
                 Toggle("Show Line Numbers", isOn: $codeBlockShowLineNumbers)
-                Toggle("Start Folded", isOn: $codeBlockDefaultCollapsed)
+                Toggle("Show Header Collapse Button", isOn: $codeBlockShowCollapseButton)
 
                 Text(codeBlockDisplayMode.wrappedValue.description)
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
-                Text("Line numbers and folded state apply to all markdown code blocks.")
+                Text("Header collapse is optional. Leave it off to keep one clear expand/collapse pattern for long code blocks.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

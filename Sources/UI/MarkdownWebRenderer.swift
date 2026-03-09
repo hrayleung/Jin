@@ -21,7 +21,7 @@ private func embedMarkdownBootstrap(
     deferCodeHighlightUpgrade: Bool,
     codeBlockDisplayMode: String = CodeBlockDisplayMode.expanded.rawValue,
     codeBlockShowLineNumbers: Bool = false,
-    codeBlockDefaultCollapsed: Bool = false
+    codeBlockShowCollapseButton: Bool = false
 ) -> String {
     guard let data = markdown.data(using: .utf8) else { return html }
     let base64 = data.base64EncodedString()
@@ -30,7 +30,7 @@ private func embedMarkdownBootstrap(
     let modeEscaped = codeBlockDisplayMode.replacingOccurrences(of: "'", with: "\\'")
     let codeBlockSettings = codeBlockSettingsJavaScript(
         showLineNumbers: codeBlockShowLineNumbers,
-        defaultCollapsed: codeBlockDefaultCollapsed
+        showCollapseButton: codeBlockShowCollapseButton
     )
     let script = "<script>setCodeBlockDisplayMode('\(modeEscaped)');\(codeBlockSettings)\(fn)('\(base64)',\(options));</script>"
     return html.replacingOccurrences(of: "</body>", with: script + "\n</body>")
@@ -88,9 +88,9 @@ private func fontUpdateJavaScript(bodyCSS: String, codeCSS: String, fontSizeCSS:
     + "document.documentElement.style.setProperty('--body-font-size',\"\(fontSizeCSS)px\");"
 }
 
-private func codeBlockSettingsJavaScript(showLineNumbers: Bool, defaultCollapsed: Bool) -> String {
+private func codeBlockSettingsJavaScript(showLineNumbers: Bool, showCollapseButton: Bool) -> String {
     "if(typeof window.applyCodeBlockSettings==='function'){"
-    + "window.applyCodeBlockSettings({showLineNumbers:\(showLineNumbers),defaultCollapsed:\(defaultCollapsed)});"
+    + "window.applyCodeBlockSettings({showLineNumbers:\(showLineNumbers),showCollapseButton:\(showCollapseButton)});"
     + "}"
 }
 
@@ -121,7 +121,7 @@ struct MarkdownWebRenderer: View {
     @AppStorage(AppPreferenceKeys.appFontFamily) private var appFontFamily = JinTypography.systemFontPreferenceValue
     @AppStorage(AppPreferenceKeys.codeFontFamily) private var codeFontFamily = JinTypography.systemFontPreferenceValue
     @AppStorage(AppPreferenceKeys.codeBlockShowLineNumbers) private var codeBlockShowLineNumbers = false
-    @AppStorage(AppPreferenceKeys.codeBlockDefaultCollapsed) private var codeBlockDefaultCollapsed = false
+    @AppStorage(AppPreferenceKeys.codeBlockShowCollapseButton) private var codeBlockShowCollapseButton = false
     @AppStorage(AppPreferenceKeys.codeBlockDisplayMode) private var codeBlockDisplayMode = CodeBlockDisplayMode.expanded.rawValue
 
     @State private var contentHeight: CGFloat
@@ -143,7 +143,7 @@ struct MarkdownWebRenderer: View {
             appFontFamily: appFontFamily,
             codeFontFamily: codeFontFamily,
             codeBlockShowLineNumbers: codeBlockShowLineNumbers,
-            codeBlockDefaultCollapsed: codeBlockDefaultCollapsed,
+            codeBlockShowCollapseButton: codeBlockShowCollapseButton,
             codeBlockDisplayMode: codeBlockDisplayMode
         )
         .frame(height: contentHeight)
@@ -199,7 +199,7 @@ private struct MarkdownWebRendererRepresentable: NSViewRepresentable {
     @Environment(\.dropForwarderRef) private var dropForwarderRef
     let codeFontFamily: String
     let codeBlockShowLineNumbers: Bool
-    let codeBlockDefaultCollapsed: Bool
+    let codeBlockShowCollapseButton: Bool
     let codeBlockDisplayMode: String
 
     func makeCoordinator() -> Coordinator { Coordinator() }
@@ -237,7 +237,7 @@ private struct MarkdownWebRendererRepresentable: NSViewRepresentable {
         context.coordinator.codeFontFamily = codeFontFamily
         context.coordinator.deferCodeHighlightUpgrade = deferCodeHighlightUpgrade
         context.coordinator.codeBlockShowLineNumbers = codeBlockShowLineNumbers
-        context.coordinator.codeBlockDefaultCollapsed = codeBlockDefaultCollapsed
+        context.coordinator.codeBlockShowCollapseButton = codeBlockShowCollapseButton
         context.coordinator.codeBlockDisplayMode = codeBlockDisplayMode
         context.coordinator.startObservingPreferences()
 
@@ -268,7 +268,7 @@ private struct MarkdownWebRendererRepresentable: NSViewRepresentable {
         context.coordinator.appFontFamily = appFontFamily
         context.coordinator.codeFontFamily = codeFontFamily
         context.coordinator.codeBlockShowLineNumbers = codeBlockShowLineNumbers
-        context.coordinator.codeBlockDefaultCollapsed = codeBlockDefaultCollapsed
+        context.coordinator.codeBlockShowCollapseButton = codeBlockShowCollapseButton
 
         let modeChanged = context.coordinator.codeBlockDisplayMode != codeBlockDisplayMode
         context.coordinator.codeBlockDisplayMode = codeBlockDisplayMode
@@ -281,7 +281,7 @@ private struct MarkdownWebRendererRepresentable: NSViewRepresentable {
             )
             let didUpdateCodeBlockSettings = context.coordinator.applyCodeBlockSettingsIfNeeded(
                 showLineNumbers: codeBlockShowLineNumbers,
-                defaultCollapsed: codeBlockDefaultCollapsed,
+                showCollapseButton: codeBlockShowCollapseButton,
                 webView: webView
             )
             if modeChanged {
@@ -309,7 +309,7 @@ private struct MarkdownWebRendererRepresentable: NSViewRepresentable {
                     deferCodeHighlightUpgrade: deferCodeHighlightUpgrade,
                     codeBlockDisplayMode: codeBlockDisplayMode,
                     codeBlockShowLineNumbers: codeBlockShowLineNumbers,
-                    codeBlockDefaultCollapsed: codeBlockDefaultCollapsed
+                    codeBlockShowCollapseButton: codeBlockShowCollapseButton
                 )
             }
             webView.loadHTMLString(html, baseURL: cached.baseURL)
@@ -336,12 +336,12 @@ private struct MarkdownWebRendererRepresentable: NSViewRepresentable {
         var codeBlockDisplayMode: String = CodeBlockDisplayMode.expanded.rawValue
         var deferCodeHighlightUpgrade: Bool = false
         var codeBlockShowLineNumbers: Bool = false
-        var codeBlockDefaultCollapsed: Bool = false
+        var codeBlockShowCollapseButton: Bool = false
         var lastBodyFont: String = ""
         var lastCodeFont: String = ""
         var lastFontSize: CGFloat = 0
         var lastCodeBlockShowLineNumbers: Bool?
-        var lastCodeBlockDefaultCollapsed: Bool?
+        var lastCodeBlockShowCollapseButton: Bool?
         private var isObservingDefaults = false
         private var pendingHeightUpdate: CGFloat?
         private var isHeightUpdateEnqueued = false
@@ -376,7 +376,7 @@ private struct MarkdownWebRendererRepresentable: NSViewRepresentable {
             defaults.addObserver(self, forKeyPath: AppPreferenceKeys.codeFontFamily, options: [.new], context: nil)
             defaults.addObserver(self, forKeyPath: AppPreferenceKeys.codeBlockDisplayMode, options: [.new], context: nil)
             defaults.addObserver(self, forKeyPath: AppPreferenceKeys.codeBlockShowLineNumbers, options: [.new], context: nil)
-            defaults.addObserver(self, forKeyPath: AppPreferenceKeys.codeBlockDefaultCollapsed, options: [.new], context: nil)
+            defaults.addObserver(self, forKeyPath: AppPreferenceKeys.codeBlockShowCollapseButton, options: [.new], context: nil)
         }
 
         deinit {
@@ -386,7 +386,7 @@ private struct MarkdownWebRendererRepresentable: NSViewRepresentable {
                 defaults.removeObserver(self, forKeyPath: AppPreferenceKeys.codeFontFamily)
                 defaults.removeObserver(self, forKeyPath: AppPreferenceKeys.codeBlockDisplayMode)
                 defaults.removeObserver(self, forKeyPath: AppPreferenceKeys.codeBlockShowLineNumbers)
-                defaults.removeObserver(self, forKeyPath: AppPreferenceKeys.codeBlockDefaultCollapsed)
+                defaults.removeObserver(self, forKeyPath: AppPreferenceKeys.codeBlockShowCollapseButton)
             }
         }
 
@@ -397,7 +397,7 @@ private struct MarkdownWebRendererRepresentable: NSViewRepresentable {
                 }
             } else if keyPath == AppPreferenceKeys.codeBlockDisplayMode
                         || keyPath == AppPreferenceKeys.codeBlockShowLineNumbers
-                        || keyPath == AppPreferenceKeys.codeBlockDefaultCollapsed {
+                        || keyPath == AppPreferenceKeys.codeBlockShowCollapseButton {
                 DispatchQueue.main.async { [weak self] in
                     self?.handleCodeBlockPreferenceChange()
                 }
@@ -435,14 +435,14 @@ private struct MarkdownWebRendererRepresentable: NSViewRepresentable {
             let defaults = UserDefaults.standard
             let mode = defaults.string(forKey: AppPreferenceKeys.codeBlockDisplayMode) ?? CodeBlockDisplayMode.expanded.rawValue
             let showLineNumbers = defaults.bool(forKey: AppPreferenceKeys.codeBlockShowLineNumbers)
-            let defaultCollapsed = defaults.bool(forKey: AppPreferenceKeys.codeBlockDefaultCollapsed)
+            let showCollapseButton = defaults.bool(forKey: AppPreferenceKeys.codeBlockShowCollapseButton)
             codeBlockDisplayMode = mode
             codeBlockShowLineNumbers = showLineNumbers
-            codeBlockDefaultCollapsed = defaultCollapsed
+            codeBlockShowCollapseButton = showCollapseButton
             applyCodeBlockDisplayMode(webView: webView)
             _ = applyCodeBlockSettingsIfNeeded(
                 showLineNumbers: showLineNumbers,
-                defaultCollapsed: defaultCollapsed,
+                showCollapseButton: showCollapseButton,
                 webView: webView
             )
 
@@ -509,19 +509,19 @@ private struct MarkdownWebRendererRepresentable: NSViewRepresentable {
         @discardableResult
         func applyCodeBlockSettingsIfNeeded(
             showLineNumbers: Bool,
-            defaultCollapsed: Bool,
+            showCollapseButton: Bool,
             webView: WKWebView
         ) -> Bool {
             guard showLineNumbers != lastCodeBlockShowLineNumbers
-                    || defaultCollapsed != lastCodeBlockDefaultCollapsed else {
+                    || showCollapseButton != lastCodeBlockShowCollapseButton else {
                 return false
             }
 
             lastCodeBlockShowLineNumbers = showLineNumbers
-            lastCodeBlockDefaultCollapsed = defaultCollapsed
+            lastCodeBlockShowCollapseButton = showCollapseButton
             let js = codeBlockSettingsJavaScript(
                 showLineNumbers: showLineNumbers,
-                defaultCollapsed: defaultCollapsed
+                showCollapseButton: showCollapseButton
             )
             webView.evaluateJavaScript(js, completionHandler: nil)
             return true
@@ -536,7 +536,7 @@ private struct MarkdownWebRendererRepresentable: NSViewRepresentable {
             )
             _ = applyCodeBlockSettingsIfNeeded(
                 showLineNumbers: codeBlockShowLineNumbers,
-                defaultCollapsed: codeBlockDefaultCollapsed,
+                showCollapseButton: codeBlockShowCollapseButton,
                 webView: webView
             )
             applyCodeBlockDisplayMode(webView: webView)
