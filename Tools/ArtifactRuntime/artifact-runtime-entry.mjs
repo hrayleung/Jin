@@ -74,17 +74,49 @@ function renderHTML(content) {
     const iframe = document.createElement('iframe')
     iframe.sandbox = 'allow-scripts'
     iframe.style.cssText = 'width:100%;border:none;background:transparent;'
-    iframe.srcdoc = content
     rootEl.style.padding = '0'
-    rootEl?.appendChild(iframe)
 
-    const resizeIframe = () => {
-      iframe.style.height = rootEl.clientHeight + 'px'
+    // Inject a height-reporter script into the srcdoc so the iframe can
+    // communicate its content height to the parent via postMessage.
+    const heightReporter = `<script>(function(){` +
+      `var _t;function _r(){clearTimeout(_t);_t=setTimeout(function(){` +
+      `var h=document.documentElement.scrollHeight;` +
+      `window.parent.postMessage({type:'artifact-height',height:h},'*');` +
+      `},50)}` +
+      `new ResizeObserver(_r).observe(document.documentElement);` +
+      `window.addEventListener('load',_r);` +
+      `_r();` +
+      `})()<\/script>`
+    const closingBody = /<\/body\s*>/i
+    if (closingBody.test(content)) {
+      iframe.srcdoc = content.replace(closingBody, heightReporter + '</body>')
+    } else {
+      iframe.srcdoc = content + heightReporter
     }
-    resizeIframe()
-    currentResizeObserver = new ResizeObserver(resizeIframe)
+
+    // Use the parent container height as the initial minimum so that
+    // viewport-relative content (e.g. height:100vh) fills the panel.
+    let contentHeight = 0
+    const applyHeight = () => {
+      const minH = rootEl.clientHeight
+      iframe.style.height = Math.max(minH, contentHeight) + 'px'
+    }
+    applyHeight()
+
+    const onMessage = (e) => {
+      if (e.source !== iframe.contentWindow) return
+      if (e.data?.type !== 'artifact-height') return
+      contentHeight = e.data.height || 0
+      applyHeight()
+    }
+    window.addEventListener('message', onMessage)
+
+    currentResizeObserver = new ResizeObserver(applyHeight)
     currentResizeObserver.observe(rootEl)
+
+    rootEl?.appendChild(iframe)
     currentCleanup = () => {
+      window.removeEventListener('message', onMessage)
       rootEl.style.padding = ''
     }
     return
