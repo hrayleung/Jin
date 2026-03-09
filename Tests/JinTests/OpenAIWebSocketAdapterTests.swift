@@ -4,8 +4,8 @@ import XCTest
 
 final class OpenAIWebSocketAdapterTests: XCTestCase {
     func testOpenAIWebSocketAdapterFetchModelsAddsNativePDFForVisionFamilies() async throws {
-        let (session, protocolType) = makeMockedURLSession()
-        let networkManager = NetworkManager(urlSession: session)
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
 
         let providerConfig = ProviderConfig(
             id: "openai-websocket",
@@ -82,8 +82,8 @@ final class OpenAIWebSocketAdapterTests: XCTestCase {
     }
 
     func testOpenAIWebSocketAdapterFetchModelsPreservesAudioMetadataForKnownAudioIDs() async throws {
-        let (session, protocolType) = makeMockedURLSession()
-        let networkManager = NetworkManager(urlSession: session)
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
 
         let providerConfig = ProviderConfig(
             id: "openai-websocket",
@@ -209,8 +209,8 @@ private final class MockURLProtocol: URLProtocol {
     override func stopLoading() {}
 }
 
-private func makeMockedURLSession() -> (URLSession, MockURLProtocol.Type) {
+private func makeMockedSessionConfiguration() -> (URLSessionConfiguration, MockURLProtocol.Type) {
     let config = URLSessionConfiguration.ephemeral
     config.protocolClasses = [MockURLProtocol.self]
-    return (URLSession(configuration: config), MockURLProtocol.self)
+    return (config, MockURLProtocol.self)
 }

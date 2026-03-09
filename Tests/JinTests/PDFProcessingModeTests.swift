@@ -4,8 +4,8 @@ import XCTest
 
 final class PDFProcessingModeTests: XCTestCase {
     func testOpenAIAdapterSendsNativePDFWhenModeNative() async throws {
-        let (session, protocolType) = makeMockedURLSession()
-        let networkManager = NetworkManager(urlSession: session)
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
 
         let providerConfig = ProviderConfig(
             id: "o",
@@ -72,8 +72,8 @@ final class PDFProcessingModeTests: XCTestCase {
     }
 
     func testOpenAIAdapterDoesNotSendNativePDFForNonExactModelID() async throws {
-        let (session, protocolType) = makeMockedURLSession()
-        let networkManager = NetworkManager(urlSession: session)
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
 
         let providerConfig = ProviderConfig(
             id: "o",
@@ -145,8 +145,8 @@ final class PDFProcessingModeTests: XCTestCase {
     }
 
     func testOpenAIAdapterFallsBackToTextWhenModeNotNative() async throws {
-        let (session, protocolType) = makeMockedURLSession()
-        let networkManager = NetworkManager(urlSession: session)
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
 
         let providerConfig = ProviderConfig(
             id: "o",
@@ -219,8 +219,8 @@ final class PDFProcessingModeTests: XCTestCase {
     }
 
     func testOpenAIAdapterStillSendsNativeNonPDFWhenModeNotNative() async throws {
-        let (session, protocolType) = makeMockedURLSession()
-        let networkManager = NetworkManager(urlSession: session)
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
 
         let providerConfig = ProviderConfig(
             id: "o",
@@ -289,8 +289,8 @@ final class PDFProcessingModeTests: XCTestCase {
     }
 
     func testOpenAIAdapterFallsBackToTextForVideoInput() async throws {
-        let (session, protocolType) = makeMockedURLSession()
-        let networkManager = NetworkManager(urlSession: session)
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
 
         let providerConfig = ProviderConfig(
             id: "o",
@@ -353,8 +353,8 @@ final class PDFProcessingModeTests: XCTestCase {
     }
 
     func testXAIAdapterDoesNotSendNativePDFForNonExactModelID() async throws {
-        let (session, protocolType) = makeMockedURLSession()
-        let networkManager = NetworkManager(urlSession: session)
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
 
         let providerConfig = ProviderConfig(
             id: "x",
@@ -423,8 +423,8 @@ final class PDFProcessingModeTests: XCTestCase {
     }
 
     func testAnthropicAdapterDisablesNativePDFWhenModeNotNative() async throws {
-        let (session, protocolType) = makeMockedURLSession()
-        let networkManager = NetworkManager(urlSession: session)
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
 
         let providerConfig = ProviderConfig(
             id: "a",
@@ -491,8 +491,8 @@ final class PDFProcessingModeTests: XCTestCase {
     }
 
     func testAnthropicAdapterFallsBackToTextForVideoInput() async throws {
-        let (session, protocolType) = makeMockedURLSession()
-        let networkManager = NetworkManager(urlSession: session)
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
 
         let providerConfig = ProviderConfig(
             id: "a",
@@ -545,8 +545,8 @@ final class PDFProcessingModeTests: XCTestCase {
     }
 
     func testMistralOCRClientBuildsDocumentUrlRequest() async throws {
-        let (session, protocolType) = makeMockedURLSession()
-        let networkManager = NetworkManager(urlSession: session)
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
 
         protocolType.requestHandler = { request in
             XCTAssertEqual(request.url?.absoluteString, "https://example.com/v1/ocr")
@@ -590,8 +590,8 @@ final class PDFProcessingModeTests: XCTestCase {
     }
 
     func testDeepInfraDeepSeekOCRClientBuildsChatCompletionsRequest() async throws {
-        let (session, protocolType) = makeMockedURLSession()
-        let networkManager = NetworkManager(urlSession: session)
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
 
         protocolType.requestHandler = { request in
             XCTAssertEqual(request.url?.absoluteString, "https://example.com/v1/openai/chat/completions")
@@ -655,8 +655,8 @@ final class PDFProcessingModeTests: XCTestCase {
     }
 
     func testDeepInfraDeepSeekOCRClientValidateAPIKeyUsesJPEGImage() async throws {
-        let (session, protocolType) = makeMockedURLSession()
-        let networkManager = NetworkManager(urlSession: session)
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
 
         protocolType.requestHandler = { request in
             XCTAssertEqual(request.url?.absoluteString, "https://example.com/v1/openai/chat/completions")
@@ -736,10 +736,10 @@ private final class MockURLProtocol: URLProtocol {
     override func stopLoading() {}
 }
 
-private func makeMockedURLSession() -> (URLSession, MockURLProtocol.Type) {
+private func makeMockedSessionConfiguration() -> (URLSessionConfiguration, MockURLProtocol.Type) {
     let config = URLSessionConfiguration.ephemeral
     config.protocolClasses = [MockURLProtocol.self]
-    return (URLSession(configuration: config), MockURLProtocol.self)
+    return (config, MockURLProtocol.self)
 }
 
 private func requestBodyData(_ request: URLRequest) -> Data? {

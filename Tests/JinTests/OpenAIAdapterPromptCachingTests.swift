@@ -4,8 +4,8 @@ import XCTest
 
 final class OpenAIAdapterPromptCachingTests: XCTestCase {
     func testOpenAIAdapterSendsPromptCacheControlsAndParsesCachedTokens() async throws {
-        let (session, protocolType) = makeOpenAIMockedURLSession()
-        let networkManager = NetworkManager(urlSession: session)
+        let (configuration, protocolType) = makeOpenAIMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
 
         let providerConfig = ProviderConfig(
             id: "openai",
@@ -81,8 +81,8 @@ final class OpenAIAdapterPromptCachingTests: XCTestCase {
     }
 
     func testOpenAIAdapterClampsUnsupportedXHighEffortToHigh() async throws {
-        let (session, protocolType) = makeOpenAIMockedURLSession()
-        let networkManager = NetworkManager(urlSession: session)
+        let (configuration, protocolType) = makeOpenAIMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
 
         let providerConfig = ProviderConfig(
             id: "openai",
@@ -132,8 +132,8 @@ final class OpenAIAdapterPromptCachingTests: XCTestCase {
     }
 
     func testOpenAIAdapterOmitsSamplingParametersForGPT53ChatLatest() async throws {
-        let (session, protocolType) = makeOpenAIMockedURLSession()
-        let networkManager = NetworkManager(urlSession: session)
+        let (configuration, protocolType) = makeOpenAIMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
 
         let providerConfig = ProviderConfig(
             id: "openai",
@@ -190,8 +190,8 @@ final class OpenAIAdapterPromptCachingTests: XCTestCase {
     }
 
     func testOpenAIAdapterSendsPriorityServiceTierWhenConfigured() async throws {
-        let (session, protocolType) = makeOpenAIMockedURLSession()
-        let networkManager = NetworkManager(urlSession: session)
+        let (configuration, protocolType) = makeOpenAIMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
 
         let providerConfig = ProviderConfig(
             id: "openai",
@@ -240,8 +240,8 @@ final class OpenAIAdapterPromptCachingTests: XCTestCase {
     }
 
     func testOpenAIAdapterSupportsLegacyProviderSpecificServiceTier() async throws {
-        let (session, protocolType) = makeOpenAIMockedURLSession()
-        let networkManager = NetworkManager(urlSession: session)
+        let (configuration, protocolType) = makeOpenAIMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
 
         let providerConfig = ProviderConfig(
             id: "openai",
@@ -294,8 +294,8 @@ final class OpenAIAdapterPromptCachingTests: XCTestCase {
     }
 
     func testOpenAIAdapterNonStreamingEmitsWebSearchActivityFromOutputItems() async throws {
-        let (session, protocolType) = makeOpenAIMockedURLSession()
-        let networkManager = NetworkManager(urlSession: session)
+        let (configuration, protocolType) = makeOpenAIMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
 
         let providerConfig = ProviderConfig(
             id: "openai",
@@ -361,8 +361,8 @@ final class OpenAIAdapterPromptCachingTests: XCTestCase {
     }
 
     func testOpenAIAdapterNonStreamingEmitsCitationSearchActivityFromMessageAnnotations() async throws {
-        let (session, protocolType) = makeOpenAIMockedURLSession()
-        let networkManager = NetworkManager(urlSession: session)
+        let (configuration, protocolType) = makeOpenAIMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
 
         let providerConfig = ProviderConfig(
             id: "openai",
@@ -438,8 +438,8 @@ final class OpenAIAdapterPromptCachingTests: XCTestCase {
     }
 
     func testOpenAIAdapterStreamingEmitsWebSearchLifecycleEvents() async throws {
-        let (session, protocolType) = makeOpenAIMockedURLSession()
-        let networkManager = NetworkManager(urlSession: session)
+        let (configuration, protocolType) = makeOpenAIMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
 
         let providerConfig = ProviderConfig(
             id: "openai",
@@ -506,8 +506,8 @@ final class OpenAIAdapterPromptCachingTests: XCTestCase {
     }
 
     func testOpenAIAdapterStreamingEmitsCitationSearchActivityFromMessageItemDone() async throws {
-        let (session, protocolType) = makeOpenAIMockedURLSession()
-        let networkManager = NetworkManager(urlSession: session)
+        let (configuration, protocolType) = makeOpenAIMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
 
         let providerConfig = ProviderConfig(
             id: "openai",
@@ -564,8 +564,8 @@ final class OpenAIAdapterPromptCachingTests: XCTestCase {
     }
 
     func testOpenAIAdapterStreamingHandlesCompletedEventWithoutUsage() async throws {
-        let (session, protocolType) = makeOpenAIMockedURLSession()
-        let networkManager = NetworkManager(urlSession: session)
+        let (configuration, protocolType) = makeOpenAIMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
 
         let providerConfig = ProviderConfig(
             id: "openai",
@@ -632,8 +632,8 @@ final class OpenAIAdapterPromptCachingTests: XCTestCase {
     }
 
     func testOpenAIAdapterStreamingAppendsNoticeForIncompleteResponse() async throws {
-        let (session, protocolType) = makeOpenAIMockedURLSession()
-        let networkManager = NetworkManager(urlSession: session)
+        let (configuration, protocolType) = makeOpenAIMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
 
         let providerConfig = ProviderConfig(
             id: "openai",
@@ -698,8 +698,8 @@ final class OpenAIAdapterPromptCachingTests: XCTestCase {
     }
 
     func testOpenAIAdapterCitationSearchActivityCarriesSnippetFromAnnotationOffsets() async throws {
-        let (session, protocolType) = makeOpenAIMockedURLSession()
-        let networkManager = NetworkManager(urlSession: session)
+        let (configuration, protocolType) = makeOpenAIMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
 
         let providerConfig = ProviderConfig(
             id: "openai",
@@ -768,8 +768,8 @@ final class OpenAIAdapterPromptCachingTests: XCTestCase {
     }
 
     func testOpenAIAdapterCitationSearchActivityParsesNestedURLCitationWithoutExplicitType() async throws {
-        let (session, protocolType) = makeOpenAIMockedURLSession()
-        let networkManager = NetworkManager(urlSession: session)
+        let (configuration, protocolType) = makeOpenAIMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
 
         let providerConfig = ProviderConfig(
             id: "openai",
@@ -839,8 +839,8 @@ final class OpenAIAdapterPromptCachingTests: XCTestCase {
     }
 
     func testOpenAIAdapterStreamingSkipsMalformedEventsInsteadOfFailing() async throws {
-        let (session, protocolType) = makeOpenAIMockedURLSession()
-        let networkManager = NetworkManager(urlSession: session)
+        let (configuration, protocolType) = makeOpenAIMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
 
         let providerConfig = ProviderConfig(
             id: "openai",
@@ -935,10 +935,10 @@ private final class OpenAIPromptCachingMockURLProtocol: URLProtocol {
     override func stopLoading() {}
 }
 
-private func makeOpenAIMockedURLSession() -> (URLSession, OpenAIPromptCachingMockURLProtocol.Type) {
+private func makeOpenAIMockedSessionConfiguration() -> (URLSessionConfiguration, OpenAIPromptCachingMockURLProtocol.Type) {
     let config = URLSessionConfiguration.ephemeral
     config.protocolClasses = [OpenAIPromptCachingMockURLProtocol.self]
-    return (URLSession(configuration: config), OpenAIPromptCachingMockURLProtocol.self)
+    return (config, OpenAIPromptCachingMockURLProtocol.self)
 }
 
 private func openAIRequestBodyData(_ request: URLRequest) -> Data? {

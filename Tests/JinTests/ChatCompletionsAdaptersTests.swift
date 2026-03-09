@@ -4,8 +4,8 @@ import XCTest
 
 final class ChatCompletionsAdaptersTests: XCTestCase {
     func testFireworksAdapterBuildsRequestWithReasoningContentToolCallsAndToolResults() async throws {
-        let (session, protocolType) = makeMockedURLSession()
-        let networkManager = NetworkManager(urlSession: session)
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
 
         let providerConfig = ProviderConfig(
             id: "fw",
@@ -132,8 +132,8 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
     }
 
     func testFireworksAdapterOmitsReasoningEffortNoneForMiniMaxM2Family() async throws {
-        let (session, protocolType) = makeMockedURLSession()
-        let networkManager = NetworkManager(urlSession: session)
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
 
         let providerConfig = ProviderConfig(
             id: "fw",
@@ -181,8 +181,8 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
     }
 
     func testFireworksAdapterSanitizesMiniMaxProviderSpecificReasoningOverrides() async throws {
-        let (session, protocolType) = makeMockedURLSession()
-        let networkManager = NetworkManager(urlSession: session)
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
 
         let providerConfig = ProviderConfig(
             id: "fw",
@@ -237,8 +237,8 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
     }
 
     func testFireworksAdapterFetchModelsMapsKnownMetadata() async throws {
-        let (session, protocolType) = makeMockedURLSession()
-        let networkManager = NetworkManager(urlSession: session)
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
 
         let providerConfig = ProviderConfig(
             id: "fw",
@@ -320,8 +320,8 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
     }
 
     func testSambaNovaAdapterMapsReasoningOffToLowEffortForGptOss() async throws {
-        let (session, protocolType) = makeMockedURLSession()
-        let networkManager = NetworkManager(urlSession: session)
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
 
         let providerConfig = ProviderConfig(
             id: "sn",
@@ -369,8 +369,8 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
     }
 
     func testSambaNovaAdapterUsesEnableThinkingToggleForDeepSeekV31() async throws {
-        let (session, protocolType) = makeMockedURLSession()
-        let networkManager = NetworkManager(urlSession: session)
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
 
         let providerConfig = ProviderConfig(
             id: "sn",
@@ -423,8 +423,8 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
     }
 
     func testSambaNovaAdapterOmitsReasoningToggleForDeepSeekR1Family() async throws {
-        let (session, protocolType) = makeMockedURLSession()
-        let networkManager = NetworkManager(urlSession: session)
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
 
         let providerConfig = ProviderConfig(
             id: "sn",
@@ -478,8 +478,8 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
     }
 
     func testSambaNovaAdapterFetchModelsMarksDeepSeekR1DistillAsToolCallable() async throws {
-        let (session, protocolType) = makeMockedURLSession()
-        let networkManager = NetworkManager(urlSession: session)
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
 
         let providerConfig = ProviderConfig(
             id: "sn",
@@ -510,8 +510,8 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
     }
 
     func testSambaNovaAdapterFetchModelsUsesCatalogDisplayNameForKnownModel() async throws {
-        let (session, protocolType) = makeMockedURLSession()
-        let networkManager = NetworkManager(urlSession: session)
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
 
         let providerConfig = ProviderConfig(
             id: "sn",
@@ -540,8 +540,8 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
     }
 
     func testSambaNovaAdapterFetchModelsSkipsDeepSeekV32() async throws {
-        let (session, protocolType) = makeMockedURLSession()
-        let networkManager = NetworkManager(urlSession: session)
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
 
         let providerConfig = ProviderConfig(
             id: "sn",
@@ -570,8 +570,8 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
     }
 
     func testOpenAIAdapterFetchModelsAddsNativePDFForVisionFamilies() async throws {
-        let (session, protocolType) = makeMockedURLSession()
-        let networkManager = NetworkManager(urlSession: session)
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
 
         let providerConfig = ProviderConfig(
             id: "openai",
@@ -643,8 +643,8 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
     }
 
     func testOpenAIAdapterFetchModelsPreservesAudioMetadataForKnownAudioIDs() async throws {
-        let (session, protocolType) = makeMockedURLSession()
-        let networkManager = NetworkManager(urlSession: session)
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
 
         let providerConfig = ProviderConfig(
             id: "openai",
@@ -677,8 +677,8 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
     }
 
     func testVertexAIAdapterFetchModelsUsesKnownContextWindows() async throws {
-        let (session, _) = makeMockedURLSession()
-        let networkManager = NetworkManager(urlSession: session)
+        let (configuration, _) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
 
         let providerConfig = ProviderConfig(
             id: "vertex",
@@ -712,8 +712,8 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
     }
 
     func testCerebrasAdapterClampsTemperatureAndSendsReasoningField() async throws {
-        let (session, protocolType) = makeMockedURLSession()
-        let networkManager = NetworkManager(urlSession: session)
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
 
         let providerConfig = ProviderConfig(
             id: "c",
@@ -783,8 +783,8 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
     }
 
     func testDeepSeekAdapterUsesV1RouteAndParsesReasoningAndToolCalls() async throws {
-        let (session, protocolType) = makeMockedURLSession()
-        let networkManager = NetworkManager(urlSession: session)
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
 
         let providerConfig = ProviderConfig(
             id: "ds",
@@ -884,8 +884,8 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
     }
 
     func testDeepSeekAdapterUsesBetaRouteForV32ExpModelOnDefaultHost() async throws {
-        let (session, protocolType) = makeMockedURLSession()
-        let networkManager = NetworkManager(urlSession: session)
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
 
         let providerConfig = ProviderConfig(
             id: "ds",
@@ -938,8 +938,8 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
     }
 
     func testOpenRouterAdapterBuildsChatCompletionsRequestWithReasoningAndWebPlugin() async throws {
-        let (session, protocolType) = makeMockedURLSession()
-        let networkManager = NetworkManager(urlSession: session)
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
 
         let providerConfig = ProviderConfig(
             id: "or",
@@ -1028,8 +1028,8 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
     }
 
     func testOpenRouterAdapterOmitsWebPluginWhenModelWebSearchOverrideIsDisabled() async throws {
-        let (session, protocolType) = makeMockedURLSession()
-        let networkManager = NetworkManager(urlSession: session)
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
 
         let providerConfig = ProviderConfig(
             id: "or",
@@ -1088,8 +1088,8 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
     }
 
     func testOpenRouterAdapterSendsXHighEffortForGPT52Models() async throws {
-        let (session, protocolType) = makeMockedURLSession()
-        let networkManager = NetworkManager(urlSession: session)
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
 
         let providerConfig = ProviderConfig(
             id: "or",
@@ -1136,8 +1136,8 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
     }
 
     func testOpenRouterAdapterClampsUnsupportedXHighEffortToHigh() async throws {
-        let (session, protocolType) = makeMockedURLSession()
-        let networkManager = NetworkManager(urlSession: session)
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
 
         let providerConfig = ProviderConfig(
             id: "or",
@@ -1184,8 +1184,8 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
     }
 
     func testOpenRouterAdapterParsesReasoningDetailsWhenReasoningFieldIsMissing() async throws {
-        let (session, protocolType) = makeMockedURLSession()
-        let networkManager = NetworkManager(urlSession: session)
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
 
         let providerConfig = ProviderConfig(
             id: "or",
@@ -1244,8 +1244,8 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
 
 
     func testOpenAICompatibleAdapterNormalizesRootBaseURLAndParsesReasoningContent() async throws {
-        let (session, protocolType) = makeMockedURLSession()
-        let networkManager = NetworkManager(urlSession: session)
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
 
         let providerConfig = ProviderConfig(
             id: "oac",
@@ -1315,8 +1315,8 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
     }
 
     func testOpenAICompatibleAdapterSendsXHighEffortForGPT52Models() async throws {
-        let (session, protocolType) = makeMockedURLSession()
-        let networkManager = NetworkManager(urlSession: session)
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
 
         let providerConfig = ProviderConfig(
             id: "oac",
@@ -1363,8 +1363,8 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
     }
 
     func testOpenAICompatibleAdapterClampsUnsupportedXHighEffortToHigh() async throws {
-        let (session, protocolType) = makeMockedURLSession()
-        let networkManager = NetworkManager(urlSession: session)
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
 
         let providerConfig = ProviderConfig(
             id: "oac",
@@ -1411,8 +1411,8 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
     }
 
     func testOpenAICompatibleAdapterDoesNotInferAnthropicShapeFromModelName() async throws {
-        let (session, protocolType) = makeMockedURLSession()
-        let networkManager = NetworkManager(urlSession: session)
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
 
         let providerConfig = ProviderConfig(
             id: "oac",
@@ -1479,8 +1479,8 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
     }
 
     func testOpenAICompatibleAdapterOmitsReasoningWhenModelOverrideDisablesReasoning() async throws {
-        let (session, protocolType) = makeMockedURLSession()
-        let networkManager = NetworkManager(urlSession: session)
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
 
         let providerConfig = ProviderConfig(
             id: "oac",
@@ -1541,8 +1541,8 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
     }
 
     func testOpenAICompatibleAdapterOmitsReasoningForUnrecognizedNonReasoningModel() async throws {
-        let (session, protocolType) = makeMockedURLSession()
-        let networkManager = NetworkManager(urlSession: session)
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
 
         let providerConfig = ProviderConfig(
             id: "oac",
@@ -1591,8 +1591,8 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
     }
 
     func testCloudflareAIGatewayAdapterDefaultsPromptCacheTTLToFiveMinutes() async throws {
-        let (session, protocolType) = makeMockedURLSession()
-        let networkManager = NetworkManager(urlSession: session)
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
 
         let providerConfig = ProviderConfig(
             id: "cf",
@@ -1636,8 +1636,8 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
     }
 
     func testCloudflareAIGatewayAdapterNormalizesLegacyProviderPlaceholderToCompat() async throws {
-        let (session, protocolType) = makeMockedURLSession()
-        let networkManager = NetworkManager(urlSession: session)
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
 
         let providerConfig = ProviderConfig(
             id: "cf",
@@ -1680,8 +1680,8 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
     }
 
     func testCloudflareAIGatewayAdapterMapsContextCacheTTLToHeader() async throws {
-        let (session, protocolType) = makeMockedURLSession()
-        let networkManager = NetworkManager(urlSession: session)
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
 
         let providerConfig = ProviderConfig(
             id: "cf",
@@ -1726,8 +1726,8 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
     }
 
     func testCloudflareAIGatewayAdapterSendsSkipCacheHeaderWhenContextCacheOff() async throws {
-        let (session, protocolType) = makeMockedURLSession()
-        let networkManager = NetworkManager(urlSession: session)
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
 
         let providerConfig = ProviderConfig(
             id: "cf",
@@ -1772,8 +1772,8 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
     }
 
     func testOpenAICompatibleAdapterFetchModelsNormalizesAPIBaseURL() async throws {
-        let (session, protocolType) = makeMockedURLSession()
-        let networkManager = NetworkManager(urlSession: session)
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
 
         let providerConfig = ProviderConfig(
             id: "oac",
@@ -1806,8 +1806,8 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
     }
 
     func testOpenAICompatibleAdapterFetchModelsForVercelUsesCatalogWhenKnown() async throws {
-        let (session, protocolType) = makeMockedURLSession()
-        let networkManager = NetworkManager(urlSession: session)
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
 
         let providerConfig = ProviderConfig(
             id: "vercel",
@@ -1851,8 +1851,8 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
     }
 
     func testOpenAICompatibleAdapterFetchModelsForVercelDerivesConservativeMetadataWhenUnknown() async throws {
-        let (session, protocolType) = makeMockedURLSession()
-        let networkManager = NetworkManager(urlSession: session)
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
 
         let providerConfig = ProviderConfig(
             id: "vercel",
@@ -1908,8 +1908,8 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
     }
 
     func testTogetherAdapterFetchModelsUsesArrayShapeWithoutFilteringByModelType() async throws {
-        let (session, protocolType) = makeMockedURLSession()
-        let networkManager = NetworkManager(urlSession: session)
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
 
         let providerConfig = ProviderConfig(
             id: "together",
@@ -1960,8 +1960,8 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
     }
 
     func testTogetherAdapterAppliesReasoningTogglePayloadForToggleModels() async throws {
-        let (session, protocolType) = makeMockedURLSession()
-        let networkManager = NetworkManager(urlSession: session)
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
 
         let providerConfig = ProviderConfig(
             id: "together",
@@ -2010,8 +2010,8 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
     }
 
     func testTogetherAdapterEncodesInputAudioInUserContent() async throws {
-        let (session, protocolType) = makeMockedURLSession()
-        let networkManager = NetworkManager(urlSession: session)
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
 
         let providerConfig = ProviderConfig(
             id: "together",
@@ -2074,8 +2074,8 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
     }
 
     func testTogetherAdapterValidateAPIKeyRethrowsCancellation() async throws {
-        let (session, protocolType) = makeMockedURLSession()
-        let networkManager = NetworkManager(urlSession: session)
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
 
         let providerConfig = ProviderConfig(
             id: "together",
@@ -2103,8 +2103,8 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
     }
 
     func testOpenRouterAdapterNormalizesRootBaseURLForKeyValidation() async throws {
-        let (session, protocolType) = makeMockedURLSession()
-        let networkManager = NetworkManager(urlSession: session)
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
 
         let providerConfig = ProviderConfig(
             id: "or",
@@ -2128,8 +2128,8 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
     }
 
     func testOpenRouterAdapterUsesUnifiedReasoningForGeminiModelIDs() async throws {
-        let (session, protocolType) = makeMockedURLSession()
-        let networkManager = NetworkManager(urlSession: session)
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
 
         let providerConfig = ProviderConfig(
             id: "or",
@@ -2193,8 +2193,8 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
     }
 
     func testOpenRouterAdapterOmitsReasoningWhenModelOverrideDisablesReasoning() async throws {
-        let (session, protocolType) = makeMockedURLSession()
-        let networkManager = NetworkManager(urlSession: session)
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
 
         let providerConfig = ProviderConfig(
             id: "or",
@@ -2254,8 +2254,8 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
     }
 
     func testOpenRouterAdapterOmitsReasoningForUnrecognizedNonReasoningModel() async throws {
-        let (session, protocolType) = makeMockedURLSession()
-        let networkManager = NetworkManager(urlSession: session)
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
 
         let providerConfig = ProviderConfig(
             id: "or",
@@ -2303,8 +2303,8 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
     }
 
     func testZhipuCodingPlanAdapterUsesDedicatedEndpointAndThinkingPayload() async throws {
-        let (session, protocolType) = makeMockedURLSession()
-        let networkManager = NetworkManager(urlSession: session)
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
 
         let providerConfig = ProviderConfig(
             id: "zhipu-coding-plan",
@@ -2381,8 +2381,8 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
     }
 
     func testZhipuCodingPlanAdapterKeepsThinkingEnabledWhenEffortIsNil() async throws {
-        let (session, protocolType) = makeMockedURLSession()
-        let networkManager = NetworkManager(urlSession: session)
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
 
         let providerConfig = ProviderConfig(
             id: "zhipu-coding-plan",
@@ -2432,8 +2432,8 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
     }
 
     func testCohereAdapterBuildsChatRequestAndParsesToolCalls() async throws {
-        let (session, protocolType) = makeMockedURLSession()
-        let networkManager = NetworkManager(urlSession: session)
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
 
         let providerConfig = ProviderConfig(
             id: "co",
@@ -2618,10 +2618,10 @@ private final class MockURLProtocol: URLProtocol {
     override func stopLoading() {}
 }
 
-private func makeMockedURLSession() -> (URLSession, MockURLProtocol.Type) {
+private func makeMockedSessionConfiguration() -> (URLSessionConfiguration, MockURLProtocol.Type) {
     let config = URLSessionConfiguration.ephemeral
     config.protocolClasses = [MockURLProtocol.self]
-    return (URLSession(configuration: config), MockURLProtocol.self)
+    return (config, MockURLProtocol.self)
 }
 
 private func requestBodyData(_ request: URLRequest) -> Data? {

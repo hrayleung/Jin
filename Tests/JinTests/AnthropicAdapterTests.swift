@@ -4,8 +4,8 @@ import XCTest
 
 final class AnthropicAdapterTests: XCTestCase {
     func testAnthropicAdapterDefaultsMaxTokensToClaude45ModelLimitWhenMissing() async throws {
-        let (session, protocolType) = makeMockedURLSession()
-        let networkManager = NetworkManager(urlSession: session)
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
 
         let providerConfig = ProviderConfig(
             id: "anthropic",
@@ -44,8 +44,8 @@ final class AnthropicAdapterTests: XCTestCase {
     }
 
     func testAnthropicAdapterCapsMaxTokensToClaude45ModelLimit() async throws {
-        let (session, protocolType) = makeMockedURLSession()
-        let networkManager = NetworkManager(urlSession: session)
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
 
         let providerConfig = ProviderConfig(
             id: "anthropic",
@@ -84,8 +84,8 @@ final class AnthropicAdapterTests: XCTestCase {
     }
 
     func testAnthropicOpus46ForcesAdaptiveThinkingEvenWhenBudgetTokensIsSet() async throws {
-        let (session, protocolType) = makeMockedURLSession()
-        let networkManager = NetworkManager(urlSession: session)
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
 
         let providerConfig = ProviderConfig(
             id: "anthropic",
@@ -131,8 +131,8 @@ final class AnthropicAdapterTests: XCTestCase {
     }
 
     func testAnthropicOpus46BuildsAdaptiveThinkingAndEffortRequest() async throws {
-        let (session, protocolType) = makeMockedURLSession()
-        let networkManager = NetworkManager(urlSession: session)
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
 
         let providerConfig = ProviderConfig(
             id: "anthropic",
@@ -222,8 +222,8 @@ final class AnthropicAdapterTests: XCTestCase {
     }
 
     func testAnthropicSonnet46BuildsAdaptiveThinkingWithoutMaxEffort() async throws {
-        let (session, protocolType) = makeMockedURLSession()
-        let networkManager = NetworkManager(urlSession: session)
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
 
         let providerConfig = ProviderConfig(
             id: "anthropic",
@@ -277,8 +277,8 @@ final class AnthropicAdapterTests: XCTestCase {
     }
 
     func testAnthropicOpus45BuildsBudgetThinkingWithoutEffortWhenNoEffortSet() async throws {
-        let (session, protocolType) = makeMockedURLSession()
-        let networkManager = NetworkManager(urlSession: session)
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
 
         let providerConfig = ProviderConfig(
             id: "anthropic",
@@ -327,8 +327,8 @@ final class AnthropicAdapterTests: XCTestCase {
     }
 
     func testAnthropicOpus45BuildsBudgetThinkingWithEffortWhenEffortSet() async throws {
-        let (session, protocolType) = makeMockedURLSession()
-        let networkManager = NetworkManager(urlSession: session)
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
 
         let providerConfig = ProviderConfig(
             id: "anthropic",
@@ -377,8 +377,8 @@ final class AnthropicAdapterTests: XCTestCase {
     }
 
     func testAnthropicWebSearchDynamicFilteringRequires46Model() async throws {
-        let (session, protocolType) = makeMockedURLSession()
-        let networkManager = NetworkManager(urlSession: session)
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
 
         let providerConfig = ProviderConfig(
             id: "anthropic",
@@ -422,8 +422,8 @@ final class AnthropicAdapterTests: XCTestCase {
     }
 
     func testAnthropicWebSearchPayloadKeepsDomainFiltersMutuallyExclusive() async throws {
-        let (session, protocolType) = makeMockedURLSession()
-        let networkManager = NetworkManager(urlSession: session)
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
 
         let providerConfig = ProviderConfig(
             id: "anthropic",
@@ -471,8 +471,8 @@ final class AnthropicAdapterTests: XCTestCase {
     }
 
     func testAnthropicProviderSpecificToolsAreSanitizedForWebSearchConstraints() async throws {
-        let (session, protocolType) = makeMockedURLSession()
-        let networkManager = NetworkManager(urlSession: session)
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
 
         let providerConfig = ProviderConfig(
             id: "anthropic",
@@ -525,8 +525,8 @@ final class AnthropicAdapterTests: XCTestCase {
     }
 
     func testAnthropicPrefixWindowUsesTopLevelCacheControl() async throws {
-        let (session, protocolType) = makeMockedURLSession()
-        let networkManager = NetworkManager(urlSession: session)
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
 
         let providerConfig = ProviderConfig(
             id: "anthropic",
@@ -583,8 +583,8 @@ final class AnthropicAdapterTests: XCTestCase {
     }
 
     func testAnthropicCacheControlsDoNotUseOpenAIPromptCacheFields() async throws {
-        let (session, protocolType) = makeMockedURLSession()
-        let networkManager = NetworkManager(urlSession: session)
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
 
         let providerConfig = ProviderConfig(
             id: "anthropic",
@@ -640,8 +640,8 @@ final class AnthropicAdapterTests: XCTestCase {
     }
 
     func testAnthropicSystemOnlyUsesBlockLevelCacheControl() async throws {
-        let (session, protocolType) = makeMockedURLSession()
-        let networkManager = NetworkManager(urlSession: session)
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
 
         let providerConfig = ProviderConfig(
             id: "anthropic",
@@ -698,8 +698,8 @@ final class AnthropicAdapterTests: XCTestCase {
     }
 
     func testAnthropicStreamingUsageParsingIncludesInputOutputAndCacheRead() async throws {
-        let (session, protocolType) = makeMockedURLSession()
-        let networkManager = NetworkManager(urlSession: session)
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
 
         let providerConfig = ProviderConfig(
             id: "anthropic",
@@ -783,8 +783,8 @@ final class AnthropicAdapterTests: XCTestCase {
     }
 
     func testAnthropicStreamingSkipsMalformedEventsInsteadOfFailing() async throws {
-        let (session, protocolType) = makeMockedURLSession()
-        let networkManager = NetworkManager(urlSession: session)
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
 
         let providerConfig = ProviderConfig(
             id: "anthropic",
@@ -837,8 +837,8 @@ final class AnthropicAdapterTests: XCTestCase {
     }
 
     func testAnthropicStreamingEmitsServerToolUseAsSearchActivity() async throws {
-        let (session, protocolType) = makeMockedURLSession()
-        let networkManager = NetworkManager(urlSession: session)
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
 
         let providerConfig = ProviderConfig(
             id: "anthropic",
@@ -902,8 +902,8 @@ final class AnthropicAdapterTests: XCTestCase {
     }
 
     func testAnthropicStreamingReassemblesFragmentedServerToolInputJSONDelta() async throws {
-        let (session, protocolType) = makeMockedURLSession()
-        let networkManager = NetworkManager(urlSession: session)
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
 
         let providerConfig = ProviderConfig(
             id: "anthropic",
@@ -970,8 +970,8 @@ final class AnthropicAdapterTests: XCTestCase {
     }
 
     func testAnthropicStreamingEmitsWebSearchToolResultURLs() async throws {
-        let (session, protocolType) = makeMockedURLSession()
-        let networkManager = NetworkManager(urlSession: session)
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
 
         let providerConfig = ProviderConfig(
             id: "anthropic",
@@ -1037,8 +1037,8 @@ final class AnthropicAdapterTests: XCTestCase {
     }
 
     func testAnthropicStreamingEmitsCitationSnippetFromCitedText() async throws {
-        let (session, protocolType) = makeMockedURLSession()
-        let networkManager = NetworkManager(urlSession: session)
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
 
         let providerConfig = ProviderConfig(
             id: "anthropic",
@@ -1137,8 +1137,8 @@ final class AnthropicAdapterTests: XCTestCase {
     // MARK: - Thinking Block Filtering
 
     func testAnthropicDropsThinkingBlocksWithNilSignature() async throws {
-        let (session, protocolType) = makeMockedURLSession()
-        let networkManager = NetworkManager(urlSession: session)
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
 
         let providerConfig = ProviderConfig(
             id: "anthropic",
@@ -1195,8 +1195,8 @@ final class AnthropicAdapterTests: XCTestCase {
     }
 
     func testAnthropicDropsThinkingBlocksWithEmptySignature() async throws {
-        let (session, protocolType) = makeMockedURLSession()
-        let networkManager = NetworkManager(urlSession: session)
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
 
         let providerConfig = ProviderConfig(
             id: "anthropic",
@@ -1247,8 +1247,8 @@ final class AnthropicAdapterTests: XCTestCase {
     }
 
     func testAnthropicPreservesThinkingBlocksWithValidSignature() async throws {
-        let (session, protocolType) = makeMockedURLSession()
-        let networkManager = NetworkManager(urlSession: session)
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
 
         let providerConfig = ProviderConfig(
             id: "anthropic",
@@ -1301,8 +1301,8 @@ final class AnthropicAdapterTests: XCTestCase {
     }
 
     func testAnthropicDropsEmptyRedactedThinkingBlocks() async throws {
-        let (session, protocolType) = makeMockedURLSession()
-        let networkManager = NetworkManager(urlSession: session)
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
 
         let providerConfig = ProviderConfig(
             id: "anthropic",
@@ -1353,8 +1353,8 @@ final class AnthropicAdapterTests: XCTestCase {
     }
 
     func testAnthropicPreservesValidRedactedThinkingBlocks() async throws {
-        let (session, protocolType) = makeMockedURLSession()
-        let networkManager = NetworkManager(urlSession: session)
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
 
         let providerConfig = ProviderConfig(
             id: "anthropic",
@@ -1409,8 +1409,8 @@ final class AnthropicAdapterTests: XCTestCase {
     }
 
     func testAnthropicMixedProviderThinkingBlocksOnlyKeepsAnthropicOnes() async throws {
-        let (session, protocolType) = makeMockedURLSession()
-        let networkManager = NetworkManager(urlSession: session)
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
 
         let providerConfig = ProviderConfig(
             id: "anthropic",
@@ -1475,8 +1475,8 @@ final class AnthropicAdapterTests: XCTestCase {
     }
 
     func testAnthropicDropsGeminiThinkingBlocksWithForeignSignature() async throws {
-        let (session, protocolType) = makeMockedURLSession()
-        let networkManager = NetworkManager(urlSession: session)
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
 
         let providerConfig = ProviderConfig(
             id: "anthropic",
@@ -1531,8 +1531,8 @@ final class AnthropicAdapterTests: XCTestCase {
     }
 
     func testAnthropicDropsVertexAIThinkingBlocksWithForeignSignature() async throws {
-        let (session, protocolType) = makeMockedURLSession()
-        let networkManager = NetworkManager(urlSession: session)
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
 
         let providerConfig = ProviderConfig(
             id: "anthropic",
@@ -1583,8 +1583,8 @@ final class AnthropicAdapterTests: XCTestCase {
     }
 
     func testAnthropicDropsThinkingBlocksWithNilProvider() async throws {
-        let (session, protocolType) = makeMockedURLSession()
-        let networkManager = NetworkManager(urlSession: session)
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
 
         let providerConfig = ProviderConfig(
             id: "anthropic",
@@ -1641,8 +1641,8 @@ final class AnthropicAdapterTests: XCTestCase {
         // the API return a 400. This is the correct behavior: the user sees an error and can
         // retry (generating fresh thinking blocks). Adding a client-side format heuristic would
         // risk false positives when Anthropic changes their signature format.
-        let (session, protocolType) = makeMockedURLSession()
-        let networkManager = NetworkManager(urlSession: session)
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
 
         let providerConfig = ProviderConfig(
             id: "anthropic",
@@ -1727,10 +1727,10 @@ private final class MockURLProtocol: URLProtocol {
     override func stopLoading() {}
 }
 
-private func makeMockedURLSession() -> (URLSession, MockURLProtocol.Type) {
+private func makeMockedSessionConfiguration() -> (URLSessionConfiguration, MockURLProtocol.Type) {
     let config = URLSessionConfiguration.ephemeral
     config.protocolClasses = [MockURLProtocol.self]
-    return (URLSession(configuration: config), MockURLProtocol.self)
+    return (config, MockURLProtocol.self)
 }
 
 private func requestBodyData(_ request: URLRequest) -> Data? {

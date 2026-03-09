@@ -4,8 +4,8 @@ import XCTest
 
 final class GeminiAdapterTests: XCTestCase {
     func testGeminiAdapterBuildsGenerateContentRequestWithToolsThinkingAndNativePDF() async throws {
-        let (session, protocolType) = makeMockedURLSession()
-        let networkManager = NetworkManager(urlSession: session)
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
 
         let providerConfig = ProviderConfig(
             id: "g",
@@ -114,8 +114,8 @@ final class GeminiAdapterTests: XCTestCase {
     }
 
     func testGeminiAdapterParsesThoughtAndFunctionCallAndUsage() async throws {
-        let (session, protocolType) = makeMockedURLSession()
-        let networkManager = NetworkManager(urlSession: session)
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
 
         let providerConfig = ProviderConfig(
             id: "g",
@@ -209,8 +209,8 @@ final class GeminiAdapterTests: XCTestCase {
     }
 
     func testGeminiAdapterEmitsSearchActivitiesFromGroundingMetadata() async throws {
-        let (session, protocolType) = makeMockedURLSession()
-        let networkManager = NetworkManager(urlSession: session)
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
 
         let providerConfig = ProviderConfig(
             id: "g",
@@ -286,8 +286,8 @@ final class GeminiAdapterTests: XCTestCase {
     }
 
     func testGeminiAdapterEmitsSearchActivitiesFromTopLevelGroundingMetadataFallback() async throws {
-        let (session, protocolType) = makeMockedURLSession()
-        let networkManager = NetworkManager(urlSession: session)
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
 
         let providerConfig = ProviderConfig(
             id: "g",
@@ -343,8 +343,8 @@ final class GeminiAdapterTests: XCTestCase {
     }
 
     func testGeminiAdapterEmitsSearchActivitiesFromRetrievalQueriesWithoutDuplicates() async throws {
-        let (session, protocolType) = makeMockedURLSession()
-        let networkManager = NetworkManager(urlSession: session)
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
 
         let providerConfig = ProviderConfig(
             id: "g",
@@ -398,8 +398,8 @@ final class GeminiAdapterTests: XCTestCase {
     }
 
     func testGeminiAdapterFallsBackToSearchEntryPointSDKBlobWhenChunkURLsMissing() async throws {
-        let (session, protocolType) = makeMockedURLSession()
-        let networkManager = NetworkManager(urlSession: session)
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
 
         let providerConfig = ProviderConfig(
             id: "g",
@@ -464,8 +464,8 @@ final class GeminiAdapterTests: XCTestCase {
     }
 
     func testGeminiAdapterFallsBackToTextWhenModeNotNative() async throws {
-        let (session, protocolType) = makeMockedURLSession()
-        let networkManager = NetworkManager(urlSession: session)
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
 
         let providerConfig = ProviderConfig(
             id: "g",
@@ -531,8 +531,8 @@ final class GeminiAdapterTests: XCTestCase {
     }
 
     func testGeminiAdapterClampsProMinimalThinkingLevelToLow() async throws {
-        let (session, protocolType) = makeMockedURLSession()
-        let networkManager = NetworkManager(urlSession: session)
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
 
         let providerConfig = ProviderConfig(
             id: "g",
@@ -579,8 +579,8 @@ final class GeminiAdapterTests: XCTestCase {
     }
 
     func testGeminiAdapterKeeps31ProMediumThinkingLevel() async throws {
-        let (session, protocolType) = makeMockedURLSession()
-        let networkManager = NetworkManager(urlSession: session)
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
 
         let providerConfig = ProviderConfig(
             id: "g",
@@ -627,8 +627,8 @@ final class GeminiAdapterTests: XCTestCase {
     }
 
     func testGeminiAdapterBuildsInlineDataForVideoInput() async throws {
-        let (session, protocolType) = makeMockedURLSession()
-        let networkManager = NetworkManager(urlSession: session)
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
 
         let providerConfig = ProviderConfig(
             id: "g",
@@ -690,8 +690,8 @@ final class GeminiAdapterTests: XCTestCase {
     }
 
     func testGeminiAdapterStreamingParsesSSEChunksAndEmitsUsage() async throws {
-        let (session, protocolType) = makeMockedURLSession()
-        let networkManager = NetworkManager(urlSession: session)
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
 
         let providerConfig = ProviderConfig(
             id: "g",
@@ -741,8 +741,8 @@ final class GeminiAdapterTests: XCTestCase {
     }
 
     func testGeminiAdapterSendsExplicitCachedContentWhenConfigured() async throws {
-        let (session, protocolType) = makeMockedURLSession()
-        let networkManager = NetworkManager(urlSession: session)
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
 
         let providerConfig = ProviderConfig(
             id: "g",
@@ -787,8 +787,8 @@ final class GeminiAdapterTests: XCTestCase {
     }
 
     func testGeminiAdapterAddsResponseModalitiesForImageModels() async throws {
-        let (session, protocolType) = makeMockedURLSession()
-        let networkManager = NetworkManager(urlSession: session)
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
 
         let providerConfig = ProviderConfig(
             id: "g",
@@ -840,8 +840,8 @@ final class GeminiAdapterTests: XCTestCase {
     }
 
     func testGeminiProImageOmitsThinkingConfigWhenReasoningControlsArePresent() async throws {
-        let (session, protocolType) = makeMockedURLSession()
-        let networkManager = NetworkManager(urlSession: session)
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
 
         let providerConfig = ProviderConfig(
             id: "g",
@@ -887,8 +887,8 @@ final class GeminiAdapterTests: XCTestCase {
     }
 
     func testGemini25FlashImageDoesNotSendToolsOrGoogleSearch() async throws {
-        let (session, protocolType) = makeMockedURLSession()
-        let networkManager = NetworkManager(urlSession: session)
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
 
         let providerConfig = ProviderConfig(
             id: "g",
@@ -950,8 +950,8 @@ final class GeminiAdapterTests: XCTestCase {
     }
 
     func testGeminiAdapterUsesImageGenerationControlsForImageModels() async throws {
-        let (session, protocolType) = makeMockedURLSession()
-        let networkManager = NetworkManager(urlSession: session)
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
 
         let providerConfig = ProviderConfig(
             id: "g",
@@ -1034,8 +1034,8 @@ final class GeminiAdapterTests: XCTestCase {
     }
 
     func testGeminiAdapterParsesInlineDataImageAsContentDeltaImage() async throws {
-        let (session, protocolType) = makeMockedURLSession()
-        let networkManager = NetworkManager(urlSession: session)
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
 
         let providerConfig = ProviderConfig(
             id: "g",
@@ -1097,8 +1097,8 @@ final class GeminiAdapterTests: XCTestCase {
     }
 
     func testGeminiAdapterFetchModelsAppliesImageFallbackContextWindows() async throws {
-        let (session, protocolType) = makeMockedURLSession()
-        let networkManager = NetworkManager(urlSession: session)
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
 
         let providerConfig = ProviderConfig(
             id: "g",
@@ -1186,10 +1186,10 @@ private final class MockURLProtocol: URLProtocol {
     override func stopLoading() {}
 }
 
-private func makeMockedURLSession() -> (URLSession, MockURLProtocol.Type) {
+private func makeMockedSessionConfiguration() -> (URLSessionConfiguration, MockURLProtocol.Type) {
     let config = URLSessionConfiguration.ephemeral
     config.protocolClasses = [MockURLProtocol.self]
-    return (URLSession(configuration: config), MockURLProtocol.self)
+    return (config, MockURLProtocol.self)
 }
 
 private func requestBodyData(_ request: URLRequest) -> Data? {
