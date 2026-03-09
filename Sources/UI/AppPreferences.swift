@@ -338,8 +338,8 @@ enum GeneralSettingsCategory: String, CaseIterable, Identifiable {
 
     var subtitle: String {
         switch self {
-        case .appearance: return "App icon, theme, fonts, and code block presentation."
-        case .chat: return "Send behavior, activity visibility, and notifications."
+        case .appearance: return "App icon, theme, fonts, and content display modes."
+        case .chat: return "Send behavior, network trace, and notifications."
         case .shortcuts: return "Show and customize keyboard shortcuts."
         case .defaults: return "Model and MCP defaults for new chats."
         case .updates: return "Automatic updates and pre-release channel."

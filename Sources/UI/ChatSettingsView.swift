@@ -5,52 +5,12 @@ struct ChatSettingsView: View {
     @EnvironmentObject private var responseCompletionNotifier: ResponseCompletionNotifier
     @AppStorage(AppPreferenceKeys.sendWithCommandEnter) private var sendWithCommandEnter = false
     @AppStorage(AppPreferenceKeys.notifyOnBackgroundResponseCompletion) private var notifyOnBackgroundResponseCompletion = false
-    @AppStorage(AppPreferenceKeys.thinkingBlockDisplayMode) private var thinkingDisplayModeRaw = ThinkingBlockDisplayMode.expanded.rawValue
-    @AppStorage(AppPreferenceKeys.codexToolDisplayMode) private var codexToolDisplayModeRaw = CodexToolDisplayMode.expanded.rawValue
     @AppStorage(AppPreferenceKeys.networkDebugLoggingEnabled) private var networkDebugLoggingEnabled = false
-
-    private var thinkingDisplayMode: Binding<ThinkingBlockDisplayMode> {
-        Binding(
-            get: { ThinkingBlockDisplayMode(rawValue: thinkingDisplayModeRaw) ?? .expanded },
-            set: { thinkingDisplayModeRaw = $0.rawValue }
-        )
-    }
-
-    private var codexToolDisplayMode: Binding<CodexToolDisplayMode> {
-        Binding(
-            get: { CodexToolDisplayMode(rawValue: codexToolDisplayModeRaw) ?? .expanded },
-            set: { codexToolDisplayModeRaw = $0.rawValue }
-        )
-    }
 
     var body: some View {
         Form {
             Section("Send Behavior") {
                 Toggle("Use \u{2318}Return to send", isOn: $sendWithCommandEnter)
-            }
-
-            Section("Thinking Blocks") {
-                Picker("Display Mode", selection: thinkingDisplayMode) {
-                    ForEach(ThinkingBlockDisplayMode.allCases) { mode in
-                        Text(mode.label).tag(mode)
-                    }
-                }
-
-                Text(thinkingDisplayMode.wrappedValue.description)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
-            Section("Codex Tool Activities") {
-                Picker("Display Mode", selection: codexToolDisplayMode) {
-                    ForEach(CodexToolDisplayMode.allCases) { mode in
-                        Text(mode.label).tag(mode)
-                    }
-                }
-
-                Text(codexToolDisplayMode.wrappedValue.description)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
             }
 
             Section {

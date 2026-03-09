@@ -8,6 +8,8 @@ struct AppearanceSettingsView: View {
     @AppStorage(AppPreferenceKeys.codeBlockDisplayMode) private var codeBlockDisplayModeRaw = CodeBlockDisplayMode.expanded.rawValue
     @AppStorage(AppPreferenceKeys.codeBlockShowLineNumbers) private var codeBlockShowLineNumbers = false
     @AppStorage(AppPreferenceKeys.codeBlockCollapseLineThreshold) private var codeBlockCollapseLineThreshold = 25
+    @AppStorage(AppPreferenceKeys.thinkingBlockDisplayMode) private var thinkingDisplayModeRaw = ThinkingBlockDisplayMode.expanded.rawValue
+    @AppStorage(AppPreferenceKeys.codexToolDisplayMode) private var codexToolDisplayModeRaw = CodexToolDisplayMode.expanded.rawValue
     @AppStorage(AppPreferenceKeys.appIconVariant) private var appIconVariant: AppIconVariant = .roseQuartz
 
     @State private var showingAppFontPicker = false
@@ -17,6 +19,20 @@ struct AppearanceSettingsView: View {
         Binding(
             get: { CodeBlockDisplayMode(rawValue: codeBlockDisplayModeRaw) ?? .expanded },
             set: { codeBlockDisplayModeRaw = $0.rawValue }
+        )
+    }
+
+    private var thinkingDisplayMode: Binding<ThinkingBlockDisplayMode> {
+        Binding(
+            get: { ThinkingBlockDisplayMode(rawValue: thinkingDisplayModeRaw) ?? .expanded },
+            set: { thinkingDisplayModeRaw = $0.rawValue }
+        )
+    }
+
+    private var codexToolDisplayMode: Binding<CodexToolDisplayMode> {
+        Binding(
+            get: { CodexToolDisplayMode(rawValue: codexToolDisplayModeRaw) ?? .expanded },
+            set: { codexToolDisplayModeRaw = $0.rawValue }
         )
     }
 
@@ -87,6 +103,30 @@ struct AppearanceSettingsView: View {
                 .disabled(codeBlockDisplayMode.wrappedValue == .expanded)
 
                 Text(codeBlockDisplayMode.wrappedValue.description)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Section("Thinking Blocks") {
+                Picker("Display Mode", selection: thinkingDisplayMode) {
+                    ForEach(ThinkingBlockDisplayMode.allCases) { mode in
+                        Text(mode.label).tag(mode)
+                    }
+                }
+
+                Text(thinkingDisplayMode.wrappedValue.description)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Section("Codex Tool Activities") {
+                Picker("Display Mode", selection: codexToolDisplayMode) {
+                    ForEach(CodexToolDisplayMode.allCases) { mode in
+                        Text(mode.label).tag(mode)
+                    }
+                }
+
+                Text(codexToolDisplayMode.wrappedValue.description)
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
