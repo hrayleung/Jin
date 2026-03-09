@@ -520,7 +520,7 @@ extension XAIAdapter {
             }
 
             let inferred = VideoAttachmentUtility.resolveVideoFormat(contentType: nil, url: url)
-            return VideoContent(mimeType: inferred.mimeType, data: nil, url: url)
+            return VideoContent(mimeType: inferred.mimeType, data: nil, url: url, assetDisposition: .externalReference)
         }
         return nil
     }

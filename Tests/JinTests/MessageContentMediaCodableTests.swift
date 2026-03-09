@@ -3,6 +3,26 @@ import XCTest
 @testable import Jin
 
 final class MessageContentMediaCodableTests: XCTestCase {
+    func testImageContentRoundTripPreservesAssetDisposition() throws {
+        let original: [ContentPart] = [
+            .image(ImageContent(
+                mimeType: "image/png",
+                data: nil,
+                url: URL(string: "https://example.com/generated.png"),
+                assetDisposition: .externalReference
+            ))
+        ]
+
+        let encoded = try JSONEncoder().encode(original)
+        let decoded = try JSONDecoder().decode([ContentPart].self, from: encoded)
+
+        guard case .image(let image) = decoded[0] else {
+            return XCTFail("Expected image content")
+        }
+        XCTAssertEqual(image.assetDisposition, MediaAssetDisposition.externalReference)
+        XCTAssertEqual(image.remoteURL?.absoluteString, "https://example.com/generated.png")
+    }
+
     func testContentPartVideoRoundTrip() throws {
         let original: [ContentPart] = [
             .text("hello"),
@@ -25,6 +45,7 @@ final class MessageContentMediaCodableTests: XCTestCase {
         XCTAssertEqual(video.mimeType, "video/mp4")
         XCTAssertEqual(video.data, Data([0x00, 0x01, 0x02]))
         XCTAssertNil(video.url)
+        XCTAssertEqual(video.assetDisposition, MediaAssetDisposition.managed)
     }
 
     func testGenerationControlsRoundTripIncludesXAIImageControls() throws {
@@ -164,5 +185,35 @@ final class MessageContentMediaCodableTests: XCTestCase {
         }
         XCTAssertEqual(image.mimeType, "image/png")
         XCTAssertEqual(image.data, Data([0x01, 0x02, 0x03]))
+        XCTAssertEqual(image.assetDisposition, MediaAssetDisposition.managed)
+    }
+
+    func testLegacyRemoteImageDefaultsToExternalReferenceDisposition() throws {
+        let legacyJSON = """
+        {
+          "mimeType":"image/png",
+          "data":null,
+          "url":"https://example.com/reference.png"
+        }
+        """.data(using: .utf8)!
+
+        let decoded = try JSONDecoder().decode(ImageContent.self, from: legacyJSON)
+        XCTAssertEqual(decoded.assetDisposition, MediaAssetDisposition.externalReference)
+        XCTAssertEqual(decoded.remoteURL?.absoluteString, "https://example.com/reference.png")
+    }
+
+    func testLegacyLocalVideoDefaultsToManagedDisposition() throws {
+        let localURL = URL(fileURLWithPath: "/tmp/sample.mp4")
+        let legacyJSON = """
+        {
+          "mimeType":"video/mp4",
+          "data":null,
+          "url":"\(localURL.absoluteString)"
+        }
+        """.data(using: .utf8)!
+
+        let decoded = try JSONDecoder().decode(VideoContent.self, from: legacyJSON)
+        XCTAssertEqual(decoded.assetDisposition, MediaAssetDisposition.managed)
+        XCTAssertEqual(decoded.url, localURL)
     }
 }

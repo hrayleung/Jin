@@ -509,23 +509,10 @@ private struct WebsiteFaviconView: View {
             }
         }
         .task(id: host) {
-            await resolveFavicon(for: host)
-        }
-    }
-
-    private func resolveFavicon(for host: String) async {
-        await MainActor.run {
-            faviconImage = nil
-        }
-
-        let faviconData = await WebsiteFaviconRepository.shared.faviconData(for: host)
-        guard !Task.isCancelled else { return }
-
-        let image = faviconData.flatMap(NSImage.init(data:))
-        guard !Task.isCancelled else { return }
-
-        await MainActor.run {
-            faviconImage = image
+            await MainActor.run { faviconImage = nil }
+            let image = await FaviconLoader.shared.favicon(for: host)
+            guard !Task.isCancelled else { return }
+            await MainActor.run { faviconImage = image }
         }
     }
 

@@ -20,9 +20,9 @@
     --code-selection: light-dark(hsl(230, 1%, 90%), hsl(220, 13%, 28%));
     --code-header-top: light-dark(hsl(230, 1%, 98%), hsl(220, 13%, 20%));
     --code-header-bottom: light-dark(hsl(230, 1%, 96%), hsl(220, 13%, 18%));
-    --code-button-hover-bg: light-dark(hsla(221, 87%, 60%, 0.09), hsla(207, 82%, 66%, 0.16));
-    --code-button-hover-fg: light-dark(hsl(221, 87%, 60%), hsl(207, 82%, 66%));
-    --code-button-active-bg: light-dark(hsla(221, 87%, 60%, 0.13), hsla(207, 82%, 66%, 0.22));
+    --code-button-hover-bg: light-dark(rgba(0, 0, 0, 0.045), rgba(255, 255, 255, 0.06));
+    --code-button-hover-fg: light-dark(hsl(0, 0%, 22%), hsl(0, 0%, 84%));
+    --code-button-active-bg: light-dark(rgba(0, 0, 0, 0.07), rgba(255, 255, 255, 0.10));
     --code-shadow: light-dark(0 10px 24px rgba(15, 23, 42, 0.05), 0 12px 28px rgba(2, 8, 23, 0.28));
 }
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -97,6 +97,9 @@ pre code {
     background: var(--code-surface);
 }
 .code-block .code-content[hidden] {
+    display: none !important;
+}
+.code-block .code-content-wrapper[hidden] {
     display: none !important;
 }
 .code-block .code-raw[hidden],
@@ -220,11 +223,109 @@ pre code {
     background: light-dark(#fef2f2, #2a1212);
     color: light-dark(#991b1b, #fca5a5);
 }
-.code-block.is-collapsed {
-    box-shadow: none;
+.code-block .line-numbers-gutter {
+    display: none;
+    flex: 0 0 auto;
+    padding: 0.95em 0.6em 1.05em 0.8em;
+    font-family: var(--code-font);
+    font-size: 0.85em;
+    line-height: 1.58;
+    color: var(--code-muted);
+    text-align: right;
+    white-space: pre;
+    user-select: none;
+    -webkit-user-select: none;
+    opacity: 0.55;
+    border-right: 1px solid var(--code-separator);
 }
-.code-block.is-collapsed .code-header {
-    border-bottom-color: transparent;
+.code-block.show-line-numbers .code-raw {
+    display: flex;
+}
+.code-block.show-line-numbers .line-numbers-gutter {
+    display: block;
+}
+.code-block.show-line-numbers pre {
+    flex: 1;
+    min-width: 0;
+}
+.code-block.show-line-numbers .prism-code {
+    padding-left: 0.75em;
+}
+/* Collapsible (height-limited) code block */
+.code-block .code-content-wrapper {
+    position: relative;
+}
+.code-block .code-content-wrapper.is-height-collapsed .code-content {
+    max-height: var(--code-collapse-height, 480px);
+    overflow: hidden;
+}
+.code-block .code-content-wrapper.is-height-collapsed::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 88px;
+    background: linear-gradient(to bottom, transparent 0%, var(--code-surface) 100%);
+    background: linear-gradient(to bottom, transparent 0%, color-mix(in srgb, var(--code-surface) 78%, transparent) 62%, var(--code-surface) 100%);
+    pointer-events: none;
+    border-radius: 0 0 12px 12px;
+}
+.code-block .code-expand-bar {
+    display: none;
+    justify-content: center;
+    padding: 30px 0 10px;
+    margin-top: -34px;
+    background: linear-gradient(to bottom, transparent 0%, var(--code-surface-raised) 100%);
+    background: linear-gradient(to bottom, color-mix(in srgb, var(--code-surface) 10%, transparent) 0%, color-mix(in srgb, var(--code-surface) 80%, transparent) 42%, var(--code-surface-raised) 100%);
+    border-radius: 0 0 12px 12px;
+    position: relative;
+    z-index: 1;
+}
+.code-block.is-height-collapsible .code-expand-bar {
+    display: flex;
+}
+.code-block .code-expand-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 11px;
+    border-radius: 100px;
+    border: 1px solid color-mix(in srgb, var(--code-border) 72%, transparent);
+    background: color-mix(in srgb, var(--code-surface) 88%, transparent);
+    color: var(--code-muted);
+    font-family: var(--body-font);
+    font-size: 0.72em;
+    font-weight: 550;
+    line-height: 1;
+    cursor: pointer;
+    user-select: none;
+    -webkit-user-select: none;
+    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    transition: background 0.15s, color 0.15s, border-color 0.15s, box-shadow 0.15s;
+    outline: none;
+    -webkit-tap-highlight-color: transparent;
+}
+.code-block .code-expand-pill:hover {
+    background: var(--code-button-hover-bg);
+    color: var(--code-button-hover-fg);
+    border-color: light-dark(rgba(0, 0, 0, 0.12), rgba(255, 255, 255, 0.12));
+    box-shadow: 0 6px 14px rgba(15, 23, 42, 0.10);
+}
+.code-block .code-expand-pill:focus { outline: none; }
+.code-block .code-expand-pill:focus-visible {
+    box-shadow: 0 0 0 2px light-dark(rgba(0, 0, 0, 0.1), rgba(255, 255, 255, 0.12));
+}
+.code-block .code-expand-pill svg {
+    width: 12px;
+    height: 12px;
+    flex: 0 0 auto;
+    transition: transform 0.18s ease;
+}
+.code-block .code-expand-pill.is-expanded svg {
+    transform: rotate(180deg);
 }
 .code-header {
     display: flex;
@@ -238,6 +339,12 @@ pre code {
     color: var(--code-muted);
     user-select: none;
     -webkit-user-select: none;
+}
+.code-header .code-header-leading {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
 }
 .code-header .lang-label {
     display: inline-flex;
@@ -277,6 +384,26 @@ pre code {
 }
 .code-header .copy-btn,
 .code-header .render-btn,
+.code-header .line-numbers-btn {
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    justify-content: center;
+    width: 2em;
+    height: 2em;
+    padding: 0;
+    border-radius: 6px;
+    border: none;
+    background: transparent;
+    color: var(--code-muted);
+    font-size: 0.95em;
+    line-height: 1;
+    opacity: 0.7;
+    transition: opacity 0.15s ease, background 0.15s ease, color 0.15s ease;
+    outline: none;
+    -webkit-tap-highlight-color: transparent;
+}
 .code-header .fold-btn {
     cursor: pointer;
     display: inline-flex;
@@ -292,26 +419,43 @@ pre code {
     color: var(--code-muted);
     font-size: 0.95em;
     line-height: 1;
-    opacity: 0.92;
-    transition: opacity 0.15s, background 0.15s, color 0.15s, transform 0.15s;
+    opacity: 0.7;
+    transition: opacity 0.15s ease, background 0.15s ease, color 0.15s ease;
+    outline: none;
+    -webkit-tap-highlight-color: transparent;
 }
 .code-header .copy-btn:hover,
 .code-header .render-btn:hover,
-.code-header .fold-btn:hover {
+.code-header .fold-btn:hover,
+.code-header .line-numbers-btn:hover {
+    opacity: 1;
     background: var(--code-button-hover-bg);
     color: var(--code-button-hover-fg);
 }
 .code-header .copy-btn:active,
 .code-header .render-btn:active,
-.code-header .fold-btn:active {
-    transform: translateY(0.5px);
+.code-header .fold-btn:active,
+.code-header .line-numbers-btn:active {
+    background: var(--code-button-active-bg);
+}
+.code-header .copy-btn:focus,
+.code-header .render-btn:focus,
+.code-header .fold-btn:focus,
+.code-header .line-numbers-btn:focus {
+    outline: none;
+}
+.code-header .copy-btn:focus-visible,
+.code-header .render-btn:focus-visible,
+.code-header .fold-btn:focus-visible,
+.code-header .line-numbers-btn:focus-visible {
+    box-shadow: 0 0 0 2px light-dark(rgba(0, 0, 0, 0.1), rgba(255, 255, 255, 0.12));
 }
 .code-header .copy-btn.copied {
     opacity: 1;
     color: light-dark(hsl(119, 34%, 40%), hsl(95, 38%, 62%));
 }
 .code-header .render-btn.is-active {
-    opacity: 1;
+    opacity: 0.88;
     color: var(--code-button-hover-fg);
     background: var(--code-button-active-bg);
 }
@@ -319,12 +463,18 @@ pre code {
     opacity: 0.55;
     cursor: progress;
 }
-.code-header .fold-btn.collapsed svg {
+.code-header .fold-btn.is-folded svg {
     transform: rotate(-90deg);
+}
+.code-header .line-numbers-btn.is-active {
+    opacity: 0.88;
+    color: var(--code-button-hover-fg);
+    background: var(--code-button-active-bg);
 }
 .code-header .copy-btn svg,
 .code-header .render-btn svg,
-.code-header .fold-btn svg {
+.code-header .fold-btn svg,
+.code-header .line-numbers-btn svg {
     width: 14px;
     height: 14px;
     transition: transform 0.18s ease;
@@ -352,6 +502,8 @@ img { max-width: 100%%; height: auto; border-radius: 6px; }
 var _codeBlockId = 0;
 var _codeBlockSrc = {};
 var _codeBlockState = {};
+var _codeBlockDisplayMode = 'expanded';
+var _codeBlockCollapseLineThreshold = 25;
 var _latestStableBase64 = '';
 var _stableRenderTicket = 0;
 var _latestStreamBase64 = '';
@@ -527,6 +679,10 @@ var checkIcon = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" str
 var renderIcon = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3.5 12.5 8 5 12.5 5 3.5"/></svg>';
 var codeIcon = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 3.5 1.5 8 6 12.5"/><polyline points="10 3.5 14.5 8 10 12.5"/></svg>';
 var foldIcon = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><polyline points="3.5 6 8 10 12.5 6"/></svg>';
+var lineNumbersIcon = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="1.5" y1="3.5" x2="3.5" y2="3.5"/><line x1="6" y1="3.5" x2="14.5" y2="3.5"/><line x1="1.5" y1="8" x2="3.5" y2="8"/><line x1="6" y1="8" x2="12" y2="8"/><line x1="1.5" y1="12.5" x2="3.5" y2="12.5"/><line x1="6" y1="12.5" x2="13.5" y2="12.5"/></svg>';
+var expandIcon = '<svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 6 8 10 12 6"/></svg>';
+
+var _codeBlockSettings = { showLineNumbers: false, collapseLineThreshold: 25 };
 
 function escapeHTML(text) {
     return String(text)
@@ -774,7 +930,7 @@ var languageLogoURLs = {
     coq: 'https://api.iconify.design/mdi/function-variant.svg?color=%23d4a752',
     raku: 'https://api.iconify.design/simple-icons/raku.svg?color=%230298be',
     hack: 'https://api.iconify.design/simple-icons/hacklang.svg?color=%23878787',
-    lean: 'https://api.iconify.design/mdi/function-variant.svg?color=%23404040',
+    lean: 'https://api.iconify.design/mdi/lambda.svg?color=%23b30000',
     idris: 'https://api.iconify.design/mdi/lambda.svg?color=%23b30000',
     fennel: 'https://api.iconify.design/mdi/flower-outline.svg?color=%23fff3b5',
     janet: 'https://api.iconify.design/mdi/flower-tulip-outline.svg?color=%2369539e',
@@ -855,7 +1011,7 @@ function isLikelySVGMarkup(code) {
     return /^<svg[\s>]/i.test(text);
 }
 
-function codeHeaderHTML(id, label, lang, renderKind) {
+function codeHeaderHTML(id, label, lang, renderKind, isCollapsible, isHeightCollapsed) {
     var logoURL = resolveLanguageLogoURL(lang, label);
     var fallbackText = String(label || '').slice(0, 2) || 'txt';
     var logo = logoURL
@@ -864,12 +1020,42 @@ function codeHeaderHTML(id, label, lang, renderKind) {
     var renderButton = renderKind
         ? '<button type="button" class="render-btn" id="render-' + id + '" title="Render preview" aria-label="Render preview" aria-controls="preview-' + id + '" aria-pressed="false" onclick="toggleCodeRender(' + id + ')">' + renderIcon + '</button>'
         : '';
-    return '<div class="code-header"><span class="lang-label">' + logo + '<span class="lang-text">' + escapeHTML(label) + '</span></span><span class="code-actions">' + renderButton + '<button type="button" class="fold-btn" id="fold-' + id + '" title="Collapse code block" aria-label="Collapse code block" aria-controls="content-' + id + '" aria-expanded="true" onclick="toggleCodeFold(' + id + ')">' + foldIcon + '</button><button type="button" class="copy-btn" id="copy-' + id + '" title="Copy code" aria-label="Copy code" onclick="copyCode(' + id + ')">' + copyIcon + '</button></span></div>';
+    var lineNumbersActive = _codeBlockSettings.showLineNumbers;
+    var lnClass = 'line-numbers-btn' + (lineNumbersActive ? ' is-active' : '');
+    var lnPressed = lineNumbersActive ? 'true' : 'false';
+    var lineNumbersButton = '<button type="button" class="' + lnClass + '" id="ln-' + id + '" title="Toggle line numbers" aria-label="Toggle line numbers" aria-pressed="' + lnPressed + '" onclick="toggleLineNumbers(' + id + ')">' + lineNumbersIcon + '</button>';
+    var foldButton = '';
+    if (isCollapsible) {
+        var foldClass = 'fold-btn' + (isHeightCollapsed ? ' is-folded' : '');
+        var foldTitle = isHeightCollapsed ? 'Show all lines' : 'Collapse code';
+        foldButton = '<button type="button" class="' + foldClass + '" id="fold-' + id + '" title="' + foldTitle + '" aria-label="' + foldTitle + '" aria-expanded="' + (isHeightCollapsed ? 'false' : 'true') + '" onclick="toggleCodeHeightFold(' + id + ')">' + foldIcon + '</button>';
+    }
+    return '<div class="code-header"><span class="code-header-leading"><span class="lang-label">' + logo + '<span class="lang-text">' + escapeHTML(label) + '</span></span></span><span class="code-actions">' + renderButton + foldButton + lineNumbersButton + '<button type="button" class="copy-btn" id="copy-' + id + '" title="Copy code" aria-label="Copy code" onclick="copyCode(' + id + ')">' + copyIcon + '</button></span></div>';
 }
 
-function wrapCodeBlock(id, label, codeHTML, lang, renderKind) {
+function generateGutterHTML(lineCount) {
+    var nums = [];
+    for (var i = 1; i <= lineCount; i++) {
+        nums.push(String(i));
+    }
+    return nums.join('\n');
+}
+
+function wrapCodeBlock(id, label, codeHTML, lang, renderKind, lineCount) {
     var preview = renderKind ? '<div class="code-preview" id="preview-' + id + '" hidden></div>' : '';
-    return '<div class="code-block" id="code-block-' + id + '">' + codeHeaderHTML(id, label, lang, renderKind) + '<div class="code-content" id="content-' + id + '"><div class="code-raw" id="raw-' + id + '">' + codeHTML + '</div>' + preview + '</div></div>';
+    var gutter = '<div class="line-numbers-gutter" id="gutter-' + id + '">' + generateGutterHTML(lineCount) + '</div>';
+    var isCollapsible = _codeBlockDisplayMode === 'collapsible' && lineCount > _codeBlockCollapseLineThreshold;
+    var wrapperClass = 'code-content-wrapper' + (isCollapsible ? ' is-height-collapsed' : '');
+    var blockClass = 'code-block';
+    if (isCollapsible) blockClass += ' is-height-collapsible';
+    if (_codeBlockSettings.showLineNumbers) blockClass += ' show-line-numbers';
+    var hiddenLines = isCollapsible ? (lineCount - _codeBlockCollapseLineThreshold) : 0;
+    var expandLabel = hiddenLines > 0 ? hiddenLines + ' more lines' : 'Show more';
+    var expandAria = hiddenLines > 0 ? 'Show ' + hiddenLines + ' more lines' : 'Show more';
+    var expandBar = isCollapsible
+        ? '<div class="code-expand-bar" id="expand-bar-' + id + '"><button type="button" class="code-expand-pill" id="expand-pill-' + id + '" title="' + expandAria + '" aria-label="' + expandAria + '" aria-controls="wrapper-' + id + '" aria-expanded="false" onclick="toggleCodeHeightFold(' + id + ')">' + expandIcon + ' <span id="expand-label-' + id + '">' + expandLabel + '</span></button></div>'
+        : '';
+    return '<div class="' + blockClass + '" id="code-block-' + id + '">' + codeHeaderHTML(id, label, lang, renderKind, isCollapsible, isCollapsible) + '<div class="' + wrapperClass + '" id="wrapper-' + id + '"><div class="code-content" id="content-' + id + '"><div class="code-raw" id="raw-' + id + '">' + gutter + codeHTML + '</div>' + preview + '</div></div>' + expandBar + '</div>';
 }
 
 function decodeBase64UTF8(base64) {
@@ -1109,42 +1295,103 @@ function scheduleHeightReport() {
     setTimeout(reportHeight, 0);
 }
 
-function toggleCodeFold(id) {
+function updateCodeHeightCollapseUI(id) {
     var state = _codeBlockState[id];
     if (!state) return;
 
     var block = document.getElementById('code-block-' + id);
-    var content = document.getElementById('content-' + id);
+    var wrapper = document.getElementById('wrapper-' + id);
     var foldButton = document.getElementById('fold-' + id);
-    if (!content || !foldButton) return;
+    var expandPill = document.getElementById('expand-pill-' + id);
+    var expandLabel = document.getElementById('expand-label-' + id);
+    var isHeightCollapsible = !!state.heightCollapsible;
 
-    state.collapsed = !state.collapsed;
-    content.hidden = !!state.collapsed;
-    foldButton.setAttribute('aria-expanded', state.collapsed ? 'false' : 'true');
     if (block) {
-        block.classList.toggle('is-collapsed', !!state.collapsed);
+        block.classList.toggle('is-height-collapsible', isHeightCollapsible);
+    }
+    if (wrapper) {
+        wrapper.classList.toggle('is-height-collapsed', !!state.heightCollapsed);
     }
 
-    if (state.collapsed) {
-        foldButton.classList.add('collapsed');
-        foldButton.title = 'Expand code block';
-        foldButton.setAttribute('aria-label', 'Expand code block');
-    } else {
-        foldButton.classList.remove('collapsed');
-        foldButton.title = 'Collapse code block';
-        foldButton.setAttribute('aria-label', 'Collapse code block');
+    var hiddenLines = Math.max(0, (state.lineCount || 0) - _codeBlockCollapseLineThreshold);
+    if (foldButton) {
+        if (state.heightCollapsed) {
+            foldButton.classList.add('is-folded');
+            foldButton.title = 'Show all lines';
+            foldButton.setAttribute('aria-label', 'Show all lines');
+            foldButton.setAttribute('aria-expanded', 'false');
+        } else {
+            foldButton.classList.remove('is-folded');
+            foldButton.title = 'Collapse code';
+            foldButton.setAttribute('aria-label', 'Collapse code');
+            foldButton.setAttribute('aria-expanded', 'true');
+        }
+    }
+    if (expandPill && expandLabel) {
+        if (state.heightCollapsed) {
+            expandPill.classList.remove('is-expanded');
+            var showMoreAria = hiddenLines > 0 ? 'Show ' + hiddenLines + ' more lines' : 'Show more';
+            expandPill.title = showMoreAria;
+            expandPill.setAttribute('aria-label', showMoreAria);
+            expandPill.setAttribute('aria-expanded', 'false');
+            expandLabel.textContent = hiddenLines > 0 ? hiddenLines + ' more lines' : 'Show more';
+        } else {
+            expandPill.classList.add('is-expanded');
+            expandPill.title = 'Show less';
+            expandPill.setAttribute('aria-label', 'Show less');
+            expandPill.setAttribute('aria-expanded', 'true');
+            expandLabel.textContent = 'Show less';
+        }
+    }
+}
+
+function setCodeHeightCollapsed(id, collapsed) {
+    var state = _codeBlockState[id];
+    if (!state || !state.heightCollapsible) return;
+
+    state.heightCollapsed = !!collapsed;
+    updateCodeHeightCollapseUI(id);
+}
+
+function toggleCodeHeightFold(id) {
+    var state = _codeBlockState[id];
+    if (!state || !state.heightCollapsible) return;
+
+    state.heightCollapsed = !state.heightCollapsed;
+    updateCodeHeightCollapseUI(id);
+    scheduleHeightReport();
+}
+
+function toggleLineNumbers(id) {
+    var state = _codeBlockState[id];
+    if (!state) return;
+
+    var block = document.getElementById('code-block-' + id);
+    var btn = document.getElementById('ln-' + id);
+    if (!block) return;
+
+    state.lineNumbers = !state.lineNumbers;
+    block.classList.toggle('show-line-numbers', !!state.lineNumbers);
+
+    if (btn) {
+        btn.classList.toggle('is-active', !!state.lineNumbers);
+        btn.setAttribute('aria-pressed', state.lineNumbers ? 'true' : 'false');
     }
     scheduleHeightReport();
+}
+
+function toggleCodeHeightCollapse(id) {
+    toggleCodeHeightFold(id);
+}
+
+function setCodeBlockDisplayMode(mode) {
+    _codeBlockDisplayMode = mode || 'expanded';
 }
 
 async function toggleCodeRender(id) {
     var state = _codeBlockState[id];
     if (!state || !state.renderKind) return;
     if (state.rendering) return;
-
-    if (state.collapsed) {
-        toggleCodeFold(id);
-    }
 
     var raw = document.getElementById('raw-' + id);
     var preview = document.getElementById('preview-' + id);
@@ -1160,8 +1407,18 @@ async function toggleCodeRender(id) {
         renderButton.title = 'Render preview';
         renderButton.setAttribute('aria-label', 'Render preview');
         renderButton.setAttribute('aria-pressed', 'false');
+        if (state.previewAutoExpanded) {
+            state.previewAutoExpanded = false;
+            setCodeHeightCollapsed(id, true);
+        }
         scheduleHeightReport();
         return;
+    }
+
+    state.previewAutoExpanded = false;
+    if (state.heightCollapsible && state.heightCollapsed) {
+        state.previewAutoExpanded = true;
+        setCodeHeightCollapsed(id, false);
     }
 
     if (!state.previewRendered) {
@@ -1246,9 +1503,14 @@ function highlightCodeWithPrism(code, candidates) {
 
 function codeLineCount(text) {
     if (!text) return 0;
+    // Strip a single trailing newline — markdown-it fence tokens always
+    // include one, but it doesn't represent a visible line.
+    var s = text;
+    if (s.charCodeAt(s.length - 1) === 10) s = s.slice(0, -1);
+    if (!s) return 1;
     var count = 1;
-    for (var i = 0; i < text.length; i += 1) {
-        if (text.charCodeAt(i) === 10) count += 1;
+    for (var i = 0; i < s.length; i += 1) {
+        if (s.charCodeAt(i) === 10) count += 1;
     }
     return count;
 }
@@ -1265,12 +1527,18 @@ function highlightCodeBlock(str, lang) {
     _codeBlockSrc[id] = str;
     var label = resolveLanguageLabel(lang);
     var renderKind = detectRenderableKind(label, str);
+    var lineCount = codeLineCount(str);
+    var isCollapsible = _codeBlockDisplayMode === 'collapsible' && lineCount > _codeBlockCollapseLineThreshold;
     _codeBlockState[id] = {
         renderKind: renderKind,
         previewRendered: false,
         previewing: false,
         rendering: false,
-        collapsed: false
+        previewAutoExpanded: false,
+        lineNumbers: !!_codeBlockSettings.showLineNumbers,
+        heightCollapsible: isCollapsible,
+        heightCollapsed: isCollapsible,
+        lineCount: lineCount
     };
 
     var candidates = buildHighlightLanguageCandidates(lang, label, renderKind);
@@ -1285,7 +1553,7 @@ function highlightCodeBlock(str, lang) {
     } else {
         codeHTML = '<pre><code class="prism-code">' + escapeHTML(str) + '</code></pre>';
     }
-    return wrapCodeBlock(id, label, codeHTML, lang, renderKind);
+    return wrapCodeBlock(id, label, codeHTML, lang, renderKind, lineCount);
 }
 
 function fenceLanguageFromInfo(info) {
@@ -1347,7 +1615,6 @@ function containsLikelyMath(markdownText) {
     if (text.indexOf('\\') === -1 && text.indexOf('$') === -1) return false;
     if (/\\begin\{[a-zA-Z*]+\}/.test(text)) return true;
     if (/\\\((?:[\s\S]*?)\\\)/.test(text)) return true;
-    if (/\\\[(?:[\s\S]*?)\\\]/.test(text)) return true;
     if (/\$\$[\s\S]+?\$\$/.test(text)) return true;
     return /(^|[^\\])\$(?:[^$\n\\]|\\.)+?\$(?!\$)/.test(text);
 }
@@ -1517,6 +1784,41 @@ if (contentEl) {
     resizeObserver.observe(contentEl);
 }
 resizeObserver.observe(document.body);
+
+window.applyCodeBlockSettings = function(settings) {
+    if (!settings) return;
+    _codeBlockSettings.showLineNumbers = !!settings.showLineNumbers;
+    var newThreshold = parseInt(settings.collapseLineThreshold, 10);
+    if (newThreshold > 0) {
+        _codeBlockSettings.collapseLineThreshold = newThreshold;
+        _codeBlockCollapseLineThreshold = newThreshold;
+        document.documentElement.style.setProperty('--code-collapse-height', (_codeBlockCollapseLineThreshold * 19.2 + 16) + 'px');
+    }
+    var blocks = document.querySelectorAll('.code-block');
+    for (var i = 0; i < blocks.length; i++) {
+        var block = blocks[i];
+        var blockId = block.id.replace('code-block-', '');
+        var state = _codeBlockState[blockId];
+        block.classList.toggle('show-line-numbers', _codeBlockSettings.showLineNumbers);
+        if (state) {
+            state.lineNumbers = _codeBlockSettings.showLineNumbers;
+            var wasCollapsible = state.heightCollapsible;
+            state.heightCollapsible = _codeBlockDisplayMode === 'collapsible' && (state.lineCount || 0) > _codeBlockCollapseLineThreshold;
+            if (state.heightCollapsible && !wasCollapsible) {
+                state.heightCollapsed = true;
+            } else if (!state.heightCollapsible) {
+                state.heightCollapsed = false;
+            }
+        }
+        var btn = document.getElementById('ln-' + blockId);
+        if (btn) {
+            btn.classList.toggle('is-active', _codeBlockSettings.showLineNumbers);
+            btn.setAttribute('aria-pressed', _codeBlockSettings.showLineNumbers ? 'true' : 'false');
+        }
+        updateCodeHeightCollapseUI(blockId);
+    }
+    scheduleHeightReport();
+};
 
 window.updateWithBase64 = updateContent;
 window.updateWithText = updateContentText;

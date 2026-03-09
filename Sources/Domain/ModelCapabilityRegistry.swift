@@ -155,6 +155,8 @@ enum ModelCapabilityRegistry {
             return supportedGeminiThinkingEfforts(lowerModelID: lowerModelID)
         case .perplexity:
             return defaultGeminiReasoningEfforts
+        case .anthropic:
+            return supportedAnthropicEfforts(lowerModelID: lowerModelID)
         default:
             break
         }
@@ -168,6 +170,13 @@ enum ModelCapabilityRegistry {
             efforts.append(.xhigh)
         }
         return efforts
+    }
+
+    private static func supportedAnthropicEfforts(lowerModelID: String) -> [ReasoningEffort] {
+        if AnthropicModelLimits.supportsMaxEffort(for: lowerModelID) {
+            return [.low, .medium, .high, .xhigh]
+        }
+        return defaultReasoningEfforts
     }
 
     private static func supportedGeminiThinkingEfforts(lowerModelID: String) -> [ReasoningEffort] {
