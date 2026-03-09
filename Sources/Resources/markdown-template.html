@@ -99,6 +99,12 @@ pre code {
 .code-block .code-content[hidden] {
     display: none !important;
 }
+.code-block .code-content-wrapper[hidden] {
+    display: none !important;
+}
+.code-block .code-expand-bar[hidden] {
+    display: none !important;
+}
 .code-block .code-raw[hidden],
 .code-block .code-preview[hidden] {
     display: none !important;
@@ -254,6 +260,77 @@ pre code {
 .code-block.is-collapsed .code-header {
     border-bottom-color: transparent;
 }
+/* Collapsible (height-limited) code block */
+.code-block .code-content-wrapper {
+    position: relative;
+}
+.code-block .code-content-wrapper.is-height-collapsed .code-content {
+    max-height: var(--code-collapse-height, 480px);
+    overflow: hidden;
+}
+.code-block .code-content-wrapper.is-height-collapsed::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 88px;
+    background: linear-gradient(to bottom, transparent 0%, var(--code-surface) 100%);
+    background: linear-gradient(to bottom, transparent 0%, color-mix(in srgb, var(--code-surface) 78%, transparent) 62%, var(--code-surface) 100%);
+    pointer-events: none;
+    border-radius: 0 0 12px 12px;
+}
+.code-block .code-expand-bar {
+    display: none;
+    justify-content: center;
+    margin-top: -28px;
+    padding: 26px 0 12px;
+    background: linear-gradient(to bottom, transparent 0%, var(--code-surface-raised) 100%);
+    background: linear-gradient(to bottom, transparent 0%, color-mix(in srgb, var(--code-surface) 84%, transparent) 38%, var(--code-surface-raised) 100%);
+    border-radius: 0 0 12px 12px;
+    position: relative;
+    z-index: 1;
+}
+.code-block.is-height-collapsible .code-expand-bar {
+    display: flex;
+}
+.code-block .code-expand-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 6px 14px;
+    border-radius: 100px;
+    border: 1px solid var(--code-border);
+    background: var(--code-surface-raised);
+    background: color-mix(in srgb, var(--code-surface-raised) 94%, white 6%);
+    color: var(--code-muted);
+    font-family: var(--body-font);
+    font-size: 0.74em;
+    font-weight: 600;
+    line-height: 1;
+    cursor: pointer;
+    user-select: none;
+    -webkit-user-select: none;
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.10);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    transition: background 0.15s, color 0.15s, border-color 0.15s, box-shadow 0.15s, transform 0.15s;
+}
+.code-block .code-expand-pill:hover {
+    background: var(--code-button-hover-bg);
+    color: var(--code-button-hover-fg);
+    border-color: var(--code-button-hover-fg);
+    box-shadow: 0 12px 26px rgba(15, 23, 42, 0.14);
+}
+.code-block .code-expand-pill svg {
+    width: 12px;
+    height: 12px;
+    flex: 0 0 auto;
+    transition: transform 0.18s ease;
+}
+.code-block .code-expand-pill.is-expanded svg {
+    transform: rotate(180deg);
+}
 .code-header {
     display: flex;
     justify-content: space-between;
@@ -389,6 +466,8 @@ img { max-width: 100%%; height: auto; border-radius: 6px; }
 var _codeBlockId = 0;
 var _codeBlockSrc = {};
 var _codeBlockState = {};
+var _codeBlockDisplayMode = 'expanded';
+var _codeBlockCollapseLineThreshold = 25;
 var _latestStableBase64 = '';
 var _stableRenderTicket = 0;
 var _latestStreamBase64 = '';
@@ -565,6 +644,7 @@ var renderIcon = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" st
 var codeIcon = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 3.5 1.5 8 6 12.5"/><polyline points="10 3.5 14.5 8 10 12.5"/></svg>';
 var foldIcon = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><polyline points="3.5 6 8 10 12.5 6"/></svg>';
 var lineNumbersIcon = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="1.5" y1="3.5" x2="3.5" y2="3.5"/><line x1="6" y1="3.5" x2="14.5" y2="3.5"/><line x1="1.5" y1="8" x2="3.5" y2="8"/><line x1="6" y1="8" x2="12" y2="8"/><line x1="1.5" y1="12.5" x2="3.5" y2="12.5"/><line x1="6" y1="12.5" x2="13.5" y2="12.5"/></svg>';
+var expandIcon = '<svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 6.5 8 2.5 12 6.5"/><polyline points="4 9.5 8 13.5 12 9.5"/></svg>';
 
 var _codeBlockSettings = { showLineNumbers: false, defaultCollapsed: false };
 
@@ -911,7 +991,7 @@ function codeHeaderHTML(id, label, lang, renderKind, collapsed) {
     var foldClass = 'fold-btn' + (collapsed ? ' collapsed' : '');
     var foldTitle = collapsed ? 'Expand code block' : 'Collapse code block';
     var foldExpanded = collapsed ? 'false' : 'true';
-    return '<div class="code-header"><span class="lang-label">' + logo + '<span class="lang-text">' + escapeHTML(label) + '</span></span><span class="code-actions">' + renderButton + lineNumbersButton + '<button type="button" class="' + foldClass + '" id="fold-' + id + '" title="' + foldTitle + '" aria-label="' + foldTitle + '" aria-controls="content-' + id + '" aria-expanded="' + foldExpanded + '" onclick="toggleCodeFold(' + id + ')">' + foldIcon + '</button><button type="button" class="copy-btn" id="copy-' + id + '" title="Copy code" aria-label="Copy code" onclick="copyCode(' + id + ')">' + copyIcon + '</button></span></div>';
+    return '<div class="code-header"><span class="lang-label">' + logo + '<span class="lang-text">' + escapeHTML(label) + '</span></span><span class="code-actions">' + renderButton + lineNumbersButton + '<button type="button" class="' + foldClass + '" id="fold-' + id + '" title="' + foldTitle + '" aria-label="' + foldTitle + '" aria-controls="wrapper-' + id + '" aria-expanded="' + foldExpanded + '" onclick="toggleCodeFold(' + id + ')">' + foldIcon + '</button><button type="button" class="copy-btn" id="copy-' + id + '" title="Copy code" aria-label="Copy code" onclick="copyCode(' + id + ')">' + copyIcon + '</button></span></div>';
 }
 
 function generateGutterHTML(lineCount) {
@@ -925,11 +1005,20 @@ function generateGutterHTML(lineCount) {
 function wrapCodeBlock(id, label, codeHTML, lang, renderKind, lineCount, collapsed) {
     var preview = renderKind ? '<div class="code-preview" id="preview-' + id + '" hidden></div>' : '';
     var gutter = '<div class="line-numbers-gutter" id="gutter-' + id + '">' + generateGutterHTML(lineCount) + '</div>';
-    var classes = 'code-block';
-    if (_codeBlockSettings.showLineNumbers) classes += ' show-line-numbers';
-    if (collapsed) classes += ' is-collapsed';
-    var contentHidden = collapsed ? ' hidden' : '';
-    return '<div class="' + classes + '" id="code-block-' + id + '">' + codeHeaderHTML(id, label, lang, renderKind, collapsed) + '<div class="code-content" id="content-' + id + '"' + contentHidden + '><div class="code-raw" id="raw-' + id + '">' + gutter + codeHTML + '</div>' + preview + '</div></div>';
+    var isCollapsible = _codeBlockDisplayMode === 'collapsible' && lineCount > _codeBlockCollapseLineThreshold;
+    var wrapperClass = 'code-content-wrapper' + (isCollapsible ? ' is-height-collapsed' : '');
+    var blockClass = 'code-block';
+    if (isCollapsible) blockClass += ' is-height-collapsible';
+    if (_codeBlockSettings.showLineNumbers) blockClass += ' show-line-numbers';
+    if (collapsed) blockClass += ' is-collapsed';
+    var hiddenLines = isCollapsible ? (lineCount - _codeBlockCollapseLineThreshold) : 0;
+    var wrapperHidden = collapsed ? ' hidden' : '';
+    var expandBarHidden = collapsed ? ' hidden' : '';
+    var expandLabel = hiddenLines > 0 ? 'Show ' + hiddenLines + ' more lines' : 'Show more';
+    var expandBar = isCollapsible
+        ? '<div class="code-expand-bar" id="expand-bar-' + id + '"' + expandBarHidden + '><button type="button" class="code-expand-pill" id="expand-pill-' + id + '" title="Show more code" aria-label="Show more code" aria-controls="wrapper-' + id + '" aria-expanded="false" onclick="toggleCodeHeightCollapse(' + id + ')">' + expandIcon + ' <span id="expand-label-' + id + '">' + expandLabel + '</span></button></div>'
+        : '';
+    return '<div class="' + blockClass + '" id="code-block-' + id + '">' + codeHeaderHTML(id, label, lang, renderKind, collapsed) + '<div class="' + wrapperClass + '" id="wrapper-' + id + '"' + wrapperHidden + '><div class="code-content" id="content-' + id + '"><div class="code-raw" id="raw-' + id + '">' + gutter + codeHTML + '</div>' + preview + '</div></div>' + expandBar + '</div>';
 }
 
 function decodeBase64UTF8(base64) {
@@ -1169,17 +1258,67 @@ function scheduleHeightReport() {
     setTimeout(reportHeight, 0);
 }
 
+function updateCodeHeightCollapseUI(id) {
+    var state = _codeBlockState[id];
+    if (!state) return;
+
+    var block = document.getElementById('code-block-' + id);
+    var wrapper = document.getElementById('wrapper-' + id);
+    var expandBar = document.getElementById('expand-bar-' + id);
+    var expandPill = document.getElementById('expand-pill-' + id);
+    var expandLabel = document.getElementById('expand-label-' + id);
+    var isHeightCollapsible = !!state.heightCollapsible;
+
+    if (block) {
+        block.classList.toggle('is-height-collapsible', isHeightCollapsible);
+    }
+    if (wrapper) {
+        wrapper.classList.toggle('is-height-collapsed', !!state.heightCollapsed);
+    }
+    if (expandBar) {
+        expandBar.hidden = !isHeightCollapsible || !!state.collapsed;
+    }
+    if (!isHeightCollapsible || !expandPill || !expandLabel) return;
+
+    var hiddenLines = Math.max(0, (state.lineCount || 0) - _codeBlockCollapseLineThreshold);
+    if (state.heightCollapsed) {
+        expandPill.classList.remove('is-expanded');
+        expandPill.title = 'Show more code';
+        expandPill.setAttribute('aria-label', 'Show more code');
+        expandPill.setAttribute('aria-expanded', 'false');
+        expandLabel.textContent = hiddenLines > 0 ? 'Show ' + hiddenLines + ' more lines' : 'Show more';
+    } else {
+        expandPill.classList.add('is-expanded');
+        expandPill.title = 'Show less code';
+        expandPill.setAttribute('aria-label', 'Show less code');
+        expandPill.setAttribute('aria-expanded', 'true');
+        expandLabel.textContent = 'Show less';
+    }
+}
+
+function setCodeHeightCollapsed(id, collapsed) {
+    var state = _codeBlockState[id];
+    if (!state || !state.heightCollapsible) return;
+
+    state.heightCollapsed = !!collapsed;
+    updateCodeHeightCollapseUI(id);
+}
+
 function toggleCodeFold(id) {
     var state = _codeBlockState[id];
     if (!state) return;
 
     var block = document.getElementById('code-block-' + id);
     var content = document.getElementById('content-' + id);
+    var wrapper = document.getElementById('wrapper-' + id);
     var foldButton = document.getElementById('fold-' + id);
     if (!content || !foldButton) return;
 
     state.collapsed = !state.collapsed;
     content.hidden = !!state.collapsed;
+    if (wrapper) {
+        wrapper.hidden = !!state.collapsed;
+    }
     foldButton.setAttribute('aria-expanded', state.collapsed ? 'false' : 'true');
     if (block) {
         block.classList.toggle('is-collapsed', !!state.collapsed);
@@ -1194,6 +1333,7 @@ function toggleCodeFold(id) {
         foldButton.title = 'Collapse code block';
         foldButton.setAttribute('aria-label', 'Collapse code block');
     }
+    updateCodeHeightCollapseUI(id);
     scheduleHeightReport();
 }
 
@@ -1213,6 +1353,18 @@ function toggleLineNumbers(id) {
         btn.setAttribute('aria-pressed', state.lineNumbers ? 'true' : 'false');
     }
     scheduleHeightReport();
+}
+
+function toggleCodeHeightCollapse(id) {
+    var state = _codeBlockState[id];
+    if (!state || !state.heightCollapsible) return;
+
+    setCodeHeightCollapsed(id, !state.heightCollapsed);
+    scheduleHeightReport();
+}
+
+function setCodeBlockDisplayMode(mode) {
+    _codeBlockDisplayMode = mode || 'expanded';
 }
 
 async function toggleCodeRender(id) {
@@ -1238,8 +1390,18 @@ async function toggleCodeRender(id) {
         renderButton.title = 'Render preview';
         renderButton.setAttribute('aria-label', 'Render preview');
         renderButton.setAttribute('aria-pressed', 'false');
+        if (state.previewAutoExpanded) {
+            state.previewAutoExpanded = false;
+            setCodeHeightCollapsed(id, true);
+        }
         scheduleHeightReport();
         return;
+    }
+
+    state.previewAutoExpanded = false;
+    if (state.heightCollapsible && state.heightCollapsed) {
+        state.previewAutoExpanded = true;
+        setCodeHeightCollapsed(id, false);
     }
 
     if (!state.previewRendered) {
@@ -1344,13 +1506,19 @@ function highlightCodeBlock(str, lang) {
     var label = resolveLanguageLabel(lang);
     var renderKind = detectRenderableKind(label, str);
     var collapsed = !!_codeBlockSettings.defaultCollapsed;
+    var lineCount = codeLineCount(str);
+    var isCollapsible = _codeBlockDisplayMode === 'collapsible' && lineCount > _codeBlockCollapseLineThreshold;
     _codeBlockState[id] = {
         renderKind: renderKind,
         previewRendered: false,
         previewing: false,
         rendering: false,
+        previewAutoExpanded: false,
         collapsed: collapsed,
-        lineNumbers: !!_codeBlockSettings.showLineNumbers
+        lineNumbers: !!_codeBlockSettings.showLineNumbers,
+        heightCollapsible: isCollapsible,
+        heightCollapsed: isCollapsible,
+        lineCount: lineCount
     };
 
     var candidates = buildHighlightLanguageCandidates(lang, label, renderKind);
@@ -1365,7 +1533,6 @@ function highlightCodeBlock(str, lang) {
     } else {
         codeHTML = '<pre><code class="prism-code">' + escapeHTML(str) + '</code></pre>';
     }
-    var lineCount = codeLineCount(str);
     return wrapCodeBlock(id, label, codeHTML, lang, renderKind, lineCount, collapsed);
 }
 
@@ -1603,22 +1770,39 @@ window.applyCodeBlockSettings = function(settings) {
     if (!settings) return;
     _codeBlockSettings.showLineNumbers = !!settings.showLineNumbers;
     _codeBlockSettings.defaultCollapsed = !!settings.defaultCollapsed;
-    // Toggle show-line-numbers class and per-block button state on existing code blocks
     var blocks = document.querySelectorAll('.code-block');
     for (var i = 0; i < blocks.length; i++) {
         var block = blocks[i];
-        block.classList.toggle('show-line-numbers', _codeBlockSettings.showLineNumbers);
-        // Update per-block state and button
         var blockId = block.id.replace('code-block-', '');
         var state = _codeBlockState[blockId];
+        block.classList.toggle('show-line-numbers', _codeBlockSettings.showLineNumbers);
         if (state) {
             state.lineNumbers = _codeBlockSettings.showLineNumbers;
+            state.collapsed = _codeBlockSettings.defaultCollapsed;
         }
         var btn = document.getElementById('ln-' + blockId);
         if (btn) {
             btn.classList.toggle('is-active', _codeBlockSettings.showLineNumbers);
             btn.setAttribute('aria-pressed', _codeBlockSettings.showLineNumbers ? 'true' : 'false');
         }
+        var foldButton = document.getElementById('fold-' + blockId);
+        var wrapper = document.getElementById('wrapper-' + blockId);
+        var content = document.getElementById('content-' + blockId);
+        if (wrapper) {
+            wrapper.hidden = !!_codeBlockSettings.defaultCollapsed;
+        }
+        if (content) {
+            content.hidden = !!_codeBlockSettings.defaultCollapsed;
+        }
+        block.classList.toggle('is-collapsed', !!_codeBlockSettings.defaultCollapsed);
+        if (foldButton) {
+            var foldTitle = _codeBlockSettings.defaultCollapsed ? 'Expand code block' : 'Collapse code block';
+            foldButton.classList.toggle('collapsed', !!_codeBlockSettings.defaultCollapsed);
+            foldButton.title = foldTitle;
+            foldButton.setAttribute('aria-label', foldTitle);
+            foldButton.setAttribute('aria-expanded', _codeBlockSettings.defaultCollapsed ? 'false' : 'true');
+        }
+        updateCodeHeightCollapseUI(blockId);
     }
     scheduleHeightReport();
 };

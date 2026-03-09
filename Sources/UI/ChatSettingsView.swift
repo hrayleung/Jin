@@ -7,8 +7,6 @@ struct ChatSettingsView: View {
     @AppStorage(AppPreferenceKeys.notifyOnBackgroundResponseCompletion) private var notifyOnBackgroundResponseCompletion = false
     @AppStorage(AppPreferenceKeys.thinkingBlockDisplayMode) private var thinkingDisplayModeRaw = ThinkingBlockDisplayMode.expanded.rawValue
     @AppStorage(AppPreferenceKeys.codexToolDisplayMode) private var codexToolDisplayModeRaw = CodexToolDisplayMode.expanded.rawValue
-    @AppStorage(AppPreferenceKeys.codeBlockShowLineNumbers) private var codeBlockShowLineNumbers = false
-    @AppStorage(AppPreferenceKeys.codeBlockDefaultCollapsed) private var codeBlockDefaultCollapsed = false
     @AppStorage(AppPreferenceKeys.networkDebugLoggingEnabled) private var networkDebugLoggingEnabled = false
 
     private var thinkingDisplayMode: Binding<ThinkingBlockDisplayMode> {
@@ -37,11 +35,10 @@ struct ChatSettingsView: View {
                         Text(mode.label).tag(mode)
                     }
                 }
-            }
 
-            Section("Code Blocks") {
-                Toggle("Show Line Numbers", isOn: $codeBlockShowLineNumbers)
-                Toggle("Collapse by Default", isOn: $codeBlockDefaultCollapsed)
+                Text(thinkingDisplayMode.wrappedValue.description)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
 
             Section("Codex Tool Activities") {
@@ -50,6 +47,10 @@ struct ChatSettingsView: View {
                         Text(mode.label).tag(mode)
                     }
                 }
+
+                Text(codexToolDisplayMode.wrappedValue.description)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
 
             Section {

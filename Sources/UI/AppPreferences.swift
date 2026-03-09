@@ -27,6 +27,7 @@ enum AppPreferenceKeys {
     static let keyboardShortcuts = "keyboardShortcuts.v1"
     static let thinkingBlockDisplayMode = "thinkingBlockDisplayMode"
     static let codexToolDisplayMode = "codexToolDisplayMode"
+    static let codeBlockDisplayMode = "codeBlockDisplayMode"
     static let codexWorkingDirectoryPresetsJSON = "codexWorkingDirectoryPresetsJSON"
     static let codeBlockShowLineNumbers = "codeBlockShowLineNumbers"
     static let codeBlockDefaultCollapsed = "codeBlockDefaultCollapsed"
@@ -280,6 +281,29 @@ enum ThinkingBlockDisplayMode: String, CaseIterable, Identifiable {
     }
 }
 
+enum CodeBlockDisplayMode: String, CaseIterable, Identifiable {
+    case expanded
+    case collapsible
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .expanded: return "Always Expanded"
+        case .collapsible: return "Smart Fold Long Blocks"
+        }
+    }
+
+    var description: String {
+        switch self {
+        case .expanded:
+            return "Code blocks always show their full content."
+        case .collapsible:
+            return "Only long code blocks start shortened. Use the footer to show more, then fold them back if needed."
+        }
+    }
+}
+
 enum GeneralSettingsCategory: String, CaseIterable, Identifiable {
     case appearance
     case chat
@@ -314,8 +338,8 @@ enum GeneralSettingsCategory: String, CaseIterable, Identifiable {
 
     var subtitle: String {
         switch self {
-        case .appearance: return "App icon, theme, and fonts."
-        case .chat: return "Send behavior and background-completion notifications."
+        case .appearance: return "App icon, theme, fonts, and code block presentation."
+        case .chat: return "Send behavior, activity visibility, and notifications."
         case .shortcuts: return "Show and customize keyboard shortcuts."
         case .defaults: return "Model and MCP defaults for new chats."
         case .updates: return "Automatic updates and pre-release channel."
