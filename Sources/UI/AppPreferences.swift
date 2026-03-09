@@ -30,8 +30,7 @@ enum AppPreferenceKeys {
     static let codeBlockDisplayMode = "codeBlockDisplayMode"
     static let codexWorkingDirectoryPresetsJSON = "codexWorkingDirectoryPresetsJSON"
     static let codeBlockShowLineNumbers = "codeBlockShowLineNumbers"
-    static let codeBlockShowCollapseButton = "codeBlockShowCollapseButton"
-    static let codeBlockDefaultCollapsed = "codeBlockDefaultCollapsed"
+    static let codeBlockCollapseLineThreshold = "codeBlockCollapseLineThreshold"
 
     // MARK: - Updates
 

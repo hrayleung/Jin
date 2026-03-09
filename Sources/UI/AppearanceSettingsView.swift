@@ -7,8 +7,7 @@ struct AppearanceSettingsView: View {
     @AppStorage(AppPreferenceKeys.codeFontFamily) private var codeFontFamily = JinTypography.systemFontPreferenceValue
     @AppStorage(AppPreferenceKeys.codeBlockDisplayMode) private var codeBlockDisplayModeRaw = CodeBlockDisplayMode.expanded.rawValue
     @AppStorage(AppPreferenceKeys.codeBlockShowLineNumbers) private var codeBlockShowLineNumbers = false
-    @AppStorage(AppPreferenceKeys.codeBlockShowCollapseButton) private var codeBlockShowCollapseButton = true
-    @AppStorage(AppPreferenceKeys.codeBlockDefaultCollapsed) private var codeBlockDefaultCollapsed = false
+    @AppStorage(AppPreferenceKeys.codeBlockCollapseLineThreshold) private var codeBlockCollapseLineThreshold = 25
     @AppStorage(AppPreferenceKeys.appIconVariant) private var appIconVariant: AppIconVariant = .roseQuartz
 
     @State private var showingAppFontPicker = false
@@ -69,15 +68,25 @@ struct AppearanceSettingsView: View {
                 }
 
                 Toggle("Show Line Numbers", isOn: $codeBlockShowLineNumbers)
-                Toggle("Show Top-Left Collapse Button", isOn: $codeBlockShowCollapseButton)
-                Toggle("Start Entire Blocks Collapsed", isOn: $codeBlockDefaultCollapsed)
-                    .disabled(!codeBlockShowCollapseButton)
+
+                HStack {
+                    Text("Collapse After")
+                    TextField(
+                        "",
+                        value: $codeBlockCollapseLineThreshold,
+                        format: .number
+                    )
+                    .frame(width: 52)
+                    .textFieldStyle(.roundedBorder)
+                    .multilineTextAlignment(.center)
+                    .onSubmit {
+                        codeBlockCollapseLineThreshold = max(1, codeBlockCollapseLineThreshold)
+                    }
+                    Text("Lines")
+                }
+                .disabled(codeBlockDisplayMode.wrappedValue == .expanded)
 
                 Text(codeBlockDisplayMode.wrappedValue.description)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-
-                Text("Header collapse controls the whole block. The footer Show more control only expands long code inside an open block.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -101,12 +110,6 @@ struct AppearanceSettingsView: View {
         }
         .onAppear {
             normalizeTypographyPreferences()
-            normalizeCodeBlockPreferences()
-        }
-        .onChange(of: codeBlockShowCollapseButton) { _, isEnabled in
-            if !isEnabled {
-                codeBlockDefaultCollapsed = false
-            }
         }
     }
 
@@ -121,13 +124,6 @@ struct AppearanceSettingsView: View {
     private func normalizeTypographyPreferences() {
         appFontFamily = JinTypography.normalizedFontPreference(appFontFamily)
         codeFontFamily = JinTypography.normalizedFontPreference(codeFontFamily)
-    }
-
-    private func normalizeCodeBlockPreferences() {
-        let defaults = UserDefaults.standard
-        if defaults.object(forKey: AppPreferenceKeys.codeBlockShowCollapseButton) == nil {
-            codeBlockShowCollapseButton = true
-        }
     }
 
     private func appIconButton(for variant: AppIconVariant) -> some View {

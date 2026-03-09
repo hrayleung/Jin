@@ -26,10 +26,10 @@ final class MarkdownTemplateExportsTests: XCTestCase {
 
         XCTAssertTrue(html.contains("function updateCodeHeightCollapseUI"), "Expected code block height folding UI helper")
         XCTAssertTrue(html.contains("function setCodeHeightCollapsed"), "Expected reversible code block height folding state helper")
-        XCTAssertTrue(html.contains("Show less"), "Expected code block footer copy for re-collapsing expanded code")
+        XCTAssertTrue(html.contains("more lines"), "Expected expand bar with line count")
         XCTAssertTrue(html.contains("previewAutoExpanded"), "Expected preview mode to preserve height folding state")
         XCTAssertTrue(html.contains("showLineNumbers"), "Expected merged code block line-number setting support")
-        XCTAssertTrue(html.contains("showCollapseButton"), "Expected optional header collapse-button setting support")
-        XCTAssertTrue(html.contains("defaultCollapsed"), "Expected default whole-block collapsed setting support")
+        XCTAssertTrue(html.contains("collapseLineThreshold"), "Expected collapse line threshold setting support")
+        XCTAssertTrue(html.contains("toggleCodeHeightFold"), "Expected header fold button to control height collapse")
     }
 }

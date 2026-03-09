@@ -35,13 +35,8 @@ final class AppPreferencesPluginDefaultsTests: XCTestCase {
     }
 
     func testBoolValueFallsBackToProvidedDefaultWhenUnset() {
-        XCTAssertTrue(AppPreferences.boolValue(
-            forKey: AppPreferenceKeys.codeBlockShowCollapseButton,
-            default: true,
-            defaults: defaults
-        ))
         XCTAssertFalse(AppPreferences.boolValue(
-            forKey: AppPreferenceKeys.codeBlockDefaultCollapsed,
+            forKey: AppPreferenceKeys.codeBlockShowLineNumbers,
             default: false,
             defaults: defaults
         ))
