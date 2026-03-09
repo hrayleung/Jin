@@ -33,4 +33,17 @@ final class AppPreferencesPluginDefaultsTests: XCTestCase {
         XCTAssertTrue(AppPreferences.isPluginEnabled("deepseek_ocr", defaults: defaults))
         XCTAssertTrue(AppPreferences.isPluginEnabled("web_search_builtin", defaults: defaults))
     }
+
+    func testBoolValueFallsBackToProvidedDefaultWhenUnset() {
+        XCTAssertTrue(AppPreferences.boolValue(
+            forKey: AppPreferenceKeys.codeBlockShowCollapseButton,
+            default: true,
+            defaults: defaults
+        ))
+        XCTAssertFalse(AppPreferences.boolValue(
+            forKey: AppPreferenceKeys.codeBlockDefaultCollapsed,
+            default: false,
+            defaults: defaults
+        ))
+    }
 }

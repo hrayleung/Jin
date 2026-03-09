@@ -350,6 +350,13 @@ enum GeneralSettingsCategory: String, CaseIterable, Identifiable {
 }
 
 enum AppPreferences {
+    static func boolValue(forKey key: String, default defaultValue: Bool, defaults: UserDefaults = .standard) -> Bool {
+        if let value = defaults.object(forKey: key) as? Bool {
+            return value
+        }
+        return defaultValue
+    }
+
     static func pluginEnabledPreferenceKey(for pluginID: String) -> String? {
         switch pluginID {
         case "text_to_speech":

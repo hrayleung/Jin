@@ -69,7 +69,7 @@ struct AppearanceSettingsView: View {
                 }
 
                 Toggle("Show Line Numbers", isOn: $codeBlockShowLineNumbers)
-                Toggle("Show Header Collapse Button", isOn: $codeBlockShowCollapseButton)
+                Toggle("Show Top-Left Collapse Button", isOn: $codeBlockShowCollapseButton)
                 Toggle("Start Entire Blocks Collapsed", isOn: $codeBlockDefaultCollapsed)
                     .disabled(!codeBlockShowCollapseButton)
 

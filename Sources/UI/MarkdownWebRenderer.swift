@@ -91,8 +91,9 @@ private func fontUpdateJavaScript(bodyCSS: String, codeCSS: String, fontSizeCSS:
 }
 
 private func codeBlockSettingsJavaScript(showLineNumbers: Bool, showCollapseButton: Bool, defaultCollapsed: Bool) -> String {
-    "if(typeof window.applyCodeBlockSettings==='function'){"
-    + "window.applyCodeBlockSettings({showLineNumbers:\(showLineNumbers),showCollapseButton:\(showCollapseButton),defaultCollapsed:\(defaultCollapsed)});"
+    let effectiveDefaultCollapsed = showCollapseButton && defaultCollapsed
+    return "if(typeof window.applyCodeBlockSettings==='function'){"
+    + "window.applyCodeBlockSettings({showLineNumbers:\(showLineNumbers),showCollapseButton:\(showCollapseButton),defaultCollapsed:\(effectiveDefaultCollapsed)});"
     + "}"
 }
 
@@ -448,18 +449,31 @@ private struct MarkdownWebRendererRepresentable: NSViewRepresentable {
 
             let defaults = UserDefaults.standard
             let mode = defaults.string(forKey: AppPreferenceKeys.codeBlockDisplayMode) ?? CodeBlockDisplayMode.expanded.rawValue
-            let showLineNumbers = defaults.bool(forKey: AppPreferenceKeys.codeBlockShowLineNumbers)
-            let showCollapseButton = defaults.bool(forKey: AppPreferenceKeys.codeBlockShowCollapseButton)
-            let defaultCollapsed = defaults.bool(forKey: AppPreferenceKeys.codeBlockDefaultCollapsed)
+            let showLineNumbers = AppPreferences.boolValue(
+                forKey: AppPreferenceKeys.codeBlockShowLineNumbers,
+                default: false,
+                defaults: defaults
+            )
+            let showCollapseButton = AppPreferences.boolValue(
+                forKey: AppPreferenceKeys.codeBlockShowCollapseButton,
+                default: true,
+                defaults: defaults
+            )
+            let defaultCollapsed = AppPreferences.boolValue(
+                forKey: AppPreferenceKeys.codeBlockDefaultCollapsed,
+                default: false,
+                defaults: defaults
+            )
+            let effectiveDefaultCollapsed = showCollapseButton && defaultCollapsed
             codeBlockDisplayMode = mode
             codeBlockShowLineNumbers = showLineNumbers
             codeBlockShowCollapseButton = showCollapseButton
-            codeBlockDefaultCollapsed = defaultCollapsed
+            codeBlockDefaultCollapsed = effectiveDefaultCollapsed
             applyCodeBlockDisplayMode(webView: webView)
             _ = applyCodeBlockSettingsIfNeeded(
                 showLineNumbers: showLineNumbers,
                 showCollapseButton: showCollapseButton,
-                defaultCollapsed: defaultCollapsed,
+                defaultCollapsed: effectiveDefaultCollapsed,
                 webView: webView
             )
 
