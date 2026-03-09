@@ -217,7 +217,16 @@ enum ChatMessagePreparationSupport {
                     message: "Remote video URL is only supported by video-capable models. (\(profile.modelName))"
                 )
             }
-            parts.append(.video(VideoContent(mimeType: inferredVideoMIMEType(from: remoteVideoURL), data: nil, url: remoteVideoURL)))
+            parts.append(
+                .video(
+                    VideoContent(
+                        mimeType: inferredVideoMIMEType(from: remoteVideoURL),
+                        data: nil,
+                        url: remoteVideoURL,
+                        assetDisposition: .externalReference
+                    )
+                )
+            )
         }
 
         let pdfCount = attachments.filter(\.isPDF).count

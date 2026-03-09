@@ -2,61 +2,8 @@ import SwiftUI
 import AppKit
 import AVFoundation
 import AVKit
-import CryptoKit
 import Foundation
-
-// MARK: - Video Helpers
-
-private func persistVideoToDisk(from url: URL) async -> URL? {
-    guard let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else { return nil }
-    let dir = appSupport.appendingPathComponent("Jin/Attachments", isDirectory: true)
-    try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-
-    do {
-        var request = URLRequest(url: url)
-        request.httpMethod = "GET"
-        let (data, response) = try await NetworkDebugRequestExecutor.data(
-            for: request,
-            mode: "attachment_video_download"
-        )
-
-        let contentType = (response as? HTTPURLResponse)?
-            .value(forHTTPHeaderField: "Content-Type")?
-            .components(separatedBy: ";").first?
-            .trimmingCharacters(in: .whitespaces)
-            .lowercased()
-
-        let ext = videoFileExtension(contentType: contentType, url: url)
-
-        let filename = "\(UUID().uuidString).\(ext)"
-        let destination = dir.appendingPathComponent(filename)
-        try data.write(to: destination, options: .atomic)
-        return destination
-    } catch {
-        return nil
-    }
-}
-
-private func videoFileExtension(contentType: String?, url: URL) -> String {
-    let mimeToExt: [String: String] = [
-        "video/mp4": "mp4",
-        "video/quicktime": "mov",
-        "video/webm": "webm",
-        "video/x-msvideo": "avi",
-        "video/x-matroska": "mkv",
-    ]
-
-    if let ct = contentType, let ext = mimeToExt[ct] {
-        return ext
-    }
-
-    let urlExt = url.pathExtension.lowercased()
-    if !urlExt.isEmpty {
-        return urlExt
-    }
-
-    return "mp4"
-}
+import Kingfisher
 
 // MARK: - JinAVPlayerView (AppKit subclass with context menu)
 
@@ -108,7 +55,7 @@ private final class JinAVPlayerView: AVPlayerView {
             NSWorkspace.shared.activateFileViewerSelecting([url])
         } else {
             Task {
-                if let localURL = await persistVideoToDisk(from: url) {
+                if let localURL = await MessageMediaAssetPersistenceSupport.persistRemoteVideoToDisk(from: url) {
                     await MainActor.run {
                         NSWorkspace.shared.activateFileViewerSelecting([localURL])
                     }
@@ -785,9 +732,8 @@ struct ContentPartView: View {
                 renderedImage(nsImage, fileURL: fileURL, imageData: data, mimeType: image.mimeType)
             } else if let fileURL, let nsImage = NSImage(contentsOf: fileURL) {
                 renderedImage(nsImage, fileURL: fileURL, imageData: nil, mimeType: image.mimeType)
-            } else if let url = image.url {
-                Link(url.absoluteString, destination: url)
-                    .font(.caption)
+            } else if let url = image.remoteURL {
+                RemoteMessageImageView(image: image, url: url)
             }
 
         case .video(let video):
@@ -943,7 +889,11 @@ struct ContentPartView: View {
                 Button {
                     if let fileURL {
                         NSWorkspace.shared.activateFileViewerSelecting([fileURL])
-                    } else if let savedURL = Self.persistImageToDisk(data: imageData, image: image, mimeType: mimeType) {
+                    } else if let savedURL = MessageMediaAssetPersistenceSupport.persistImageToDisk(
+                        data: imageData,
+                        image: image,
+                        mimeType: mimeType
+                    ) {
                         NSWorkspace.shared.activateFileViewerSelecting([savedURL])
                     }
                 } label: {
@@ -971,38 +921,86 @@ struct ContentPartView: View {
                 }
             }
     }
+}
 
-    private static func persistImageToDisk(data: Data?, image: NSImage, mimeType: String) -> URL? {
-        let imageData: Data
-        if let data {
-            imageData = data
-        } else if let tiff = image.tiffRepresentation,
-                  let rep = NSBitmapImageRep(data: tiff),
-                  let png = rep.representation(using: .png, properties: [:]) {
-            imageData = png
-        } else {
-            return nil
+private struct RemoteMessageImageView: View {
+    let image: ImageContent
+    let url: URL
+
+    @State private var loadFailed = false
+
+    var body: some View {
+        Group {
+            if loadFailed {
+                fallbackView
+            } else {
+                KFImage(source: .network(KF.ImageResource(downloadURL: url)))
+                    .placeholder { _ in placeholderView }
+                    .cancelOnDisappear(true)
+                    .fade(duration: 0.15)
+                    .onSuccess { _ in loadFailed = false }
+                    .onFailure { _ in loadFailed = true }
+                    .resizable()
+                    .scaledToFit()
+                    .frame(maxWidth: 500)
+                    .clipShape(RoundedRectangle(cornerRadius: JinRadius.small, style: .continuous))
+            }
         }
-
-        let ext = AttachmentStorageManager.fileExtension(for: mimeType) ?? "png"
-        let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
-        guard let dir = appSupport?.appendingPathComponent("Jin/Attachments", isDirectory: true) else { return nil }
-        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-
-        let hash = SHA256.hash(data: imageData)
-        let hashString = hash.compactMap { String(format: "%02x", $0) }.joined()
-        let url = dir.appendingPathComponent("\(hashString).\(ext)")
-
-        if FileManager.default.fileExists(atPath: url.path) {
-            return url
+        .task(id: url) {
+            loadFailed = false
         }
-
-        do {
-            try imageData.write(to: url, options: [.atomic])
-            return url
-        } catch {
-            return nil
+        .onDrag {
+            NSItemProvider(object: url as NSURL)
         }
+        .contextMenu {
+            Button {
+                NSWorkspace.shared.open(url)
+            } label: {
+                Label("Open", systemImage: "arrow.up.right.square")
+            }
+
+            Button {
+                let pasteboard = NSPasteboard.general
+                pasteboard.clearContents()
+                pasteboard.setString(url.absoluteString, forType: .string)
+            } label: {
+                Label("Copy URL", systemImage: "doc.on.doc")
+            }
+
+            if image.assetDisposition == .externalReference {
+                Divider()
+
+                Text("External reference")
+            }
+        }
+    }
+
+    private var placeholderView: some View {
+        VStack(spacing: JinSpacing.small) {
+            ProgressView()
+                .controlSize(.small)
+            Text("Loading image…")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: 500, minHeight: 120)
+        .padding(JinSpacing.medium)
+        .jinSurface(.neutral, cornerRadius: JinRadius.small)
+    }
+
+    private var fallbackView: some View {
+        VStack(alignment: .leading, spacing: JinSpacing.small) {
+            Label("Unable to load image preview", systemImage: "photo")
+                .font(.callout.weight(.medium))
+            Text(url.absoluteString)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .textSelection(.enabled)
+                .lineLimit(2)
+        }
+        .frame(maxWidth: 500, alignment: .leading)
+        .padding(JinSpacing.medium)
+        .jinSurface(.neutral, cornerRadius: JinRadius.small)
     }
 }
 

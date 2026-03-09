@@ -278,7 +278,7 @@ extension OpenAIAdapter {
             }
             if let urlString = item.url, let url = URL(string: urlString) {
                 let mime = inferImageMIMEType(from: url) ?? defaultMIME
-                return ImageContent(mimeType: mime, data: nil, url: url)
+                return ImageContent(mimeType: mime, data: nil, url: url, assetDisposition: .managed)
             }
             return nil
         }
