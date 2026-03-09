@@ -8,6 +8,7 @@ struct AppearanceSettingsView: View {
     @AppStorage(AppPreferenceKeys.codeBlockDisplayMode) private var codeBlockDisplayModeRaw = CodeBlockDisplayMode.expanded.rawValue
     @AppStorage(AppPreferenceKeys.codeBlockShowLineNumbers) private var codeBlockShowLineNumbers = false
     @AppStorage(AppPreferenceKeys.codeBlockShowCollapseButton) private var codeBlockShowCollapseButton = false
+    @AppStorage(AppPreferenceKeys.codeBlockDefaultCollapsed) private var codeBlockDefaultCollapsed = false
     @AppStorage(AppPreferenceKeys.appIconVariant) private var appIconVariant: AppIconVariant = .roseQuartz
 
     @State private var showingAppFontPicker = false
@@ -69,12 +70,14 @@ struct AppearanceSettingsView: View {
 
                 Toggle("Show Line Numbers", isOn: $codeBlockShowLineNumbers)
                 Toggle("Show Header Collapse Button", isOn: $codeBlockShowCollapseButton)
+                Toggle("Start Entire Blocks Collapsed", isOn: $codeBlockDefaultCollapsed)
+                    .disabled(!codeBlockShowCollapseButton)
 
                 Text(codeBlockDisplayMode.wrappedValue.description)
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
-                Text("Header collapse is optional. Leave it off to keep one clear expand/collapse pattern for long code blocks.")
+                Text("Header collapse controls the whole block. The footer Show more control only expands long code inside an open block.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -98,6 +101,11 @@ struct AppearanceSettingsView: View {
         }
         .onAppear {
             normalizeTypographyPreferences()
+        }
+        .onChange(of: codeBlockShowCollapseButton) { _, isEnabled in
+            if !isEnabled {
+                codeBlockDefaultCollapsed = false
+            }
         }
     }
 

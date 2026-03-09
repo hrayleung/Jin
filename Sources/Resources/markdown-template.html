@@ -343,6 +343,12 @@ pre code {
     user-select: none;
     -webkit-user-select: none;
 }
+.code-header .code-header-leading {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+}
 .code-header .lang-label {
     display: inline-flex;
     align-items: center;
@@ -645,7 +651,7 @@ var foldIcon = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stro
 var lineNumbersIcon = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="1.5" y1="3.5" x2="3.5" y2="3.5"/><line x1="6" y1="3.5" x2="14.5" y2="3.5"/><line x1="1.5" y1="8" x2="3.5" y2="8"/><line x1="6" y1="8" x2="12" y2="8"/><line x1="1.5" y1="12.5" x2="3.5" y2="12.5"/><line x1="6" y1="12.5" x2="13.5" y2="12.5"/></svg>';
 var expandIcon = '<svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 6 8 10 12 6"/></svg>';
 
-var _codeBlockSettings = { showLineNumbers: false, showCollapseButton: false };
+var _codeBlockSettings = { showLineNumbers: false, showCollapseButton: false, defaultCollapsed: false };
 
 function escapeHTML(text) {
     return String(text)
@@ -993,7 +999,7 @@ function codeHeaderHTML(id, label, lang, renderKind, collapsed) {
     var foldButton = _codeBlockSettings.showCollapseButton
         ? '<button type="button" class="' + foldClass + '" id="fold-' + id + '" title="' + foldTitle + '" aria-label="' + foldTitle + '" aria-controls="wrapper-' + id + '" aria-expanded="' + foldExpanded + '" onclick="toggleCodeFold(' + id + ')">' + foldIcon + '</button>'
         : '';
-    return '<div class="code-header"><span class="lang-label">' + logo + '<span class="lang-text">' + escapeHTML(label) + '</span></span><span class="code-actions">' + renderButton + lineNumbersButton + foldButton + '<button type="button" class="copy-btn" id="copy-' + id + '" title="Copy code" aria-label="Copy code" onclick="copyCode(' + id + ')">' + copyIcon + '</button></span></div>';
+    return '<div class="code-header"><span class="code-header-leading">' + foldButton + '<span class="lang-label">' + logo + '<span class="lang-text">' + escapeHTML(label) + '</span></span></span><span class="code-actions">' + renderButton + lineNumbersButton + '<button type="button" class="copy-btn" id="copy-' + id + '" title="Copy code" aria-label="Copy code" onclick="copyCode(' + id + ')">' + copyIcon + '</button></span></div>';
 }
 
 function generateGutterHTML(lineCount) {
@@ -1509,6 +1515,7 @@ function highlightCodeBlock(str, lang) {
     _codeBlockSrc[id] = str;
     var label = resolveLanguageLabel(lang);
     var renderKind = detectRenderableKind(label, str);
+    var collapsed = !!_codeBlockSettings.defaultCollapsed;
     var lineCount = codeLineCount(str);
     var isCollapsible = _codeBlockDisplayMode === 'collapsible' && lineCount > _codeBlockCollapseLineThreshold;
     _codeBlockState[id] = {
@@ -1517,7 +1524,7 @@ function highlightCodeBlock(str, lang) {
         previewing: false,
         rendering: false,
         previewAutoExpanded: false,
-        collapsed: false,
+        collapsed: collapsed,
         lineNumbers: !!_codeBlockSettings.showLineNumbers,
         heightCollapsible: isCollapsible,
         heightCollapsed: isCollapsible,
@@ -1536,7 +1543,7 @@ function highlightCodeBlock(str, lang) {
     } else {
         codeHTML = '<pre><code class="prism-code">' + escapeHTML(str) + '</code></pre>';
     }
-    return wrapCodeBlock(id, label, codeHTML, lang, renderKind, lineCount, false);
+    return wrapCodeBlock(id, label, codeHTML, lang, renderKind, lineCount, collapsed);
 }
 
 function fenceLanguageFromInfo(info) {
@@ -1773,6 +1780,7 @@ window.applyCodeBlockSettings = function(settings) {
     if (!settings) return;
     _codeBlockSettings.showLineNumbers = !!settings.showLineNumbers;
     _codeBlockSettings.showCollapseButton = !!settings.showCollapseButton;
+    _codeBlockSettings.defaultCollapsed = !!settings.defaultCollapsed;
     var blocks = document.querySelectorAll('.code-block');
     for (var i = 0; i < blocks.length; i++) {
         var block = blocks[i];
@@ -1781,11 +1789,29 @@ window.applyCodeBlockSettings = function(settings) {
         block.classList.toggle('show-line-numbers', _codeBlockSettings.showLineNumbers);
         if (state) {
             state.lineNumbers = _codeBlockSettings.showLineNumbers;
+            state.collapsed = _codeBlockSettings.defaultCollapsed;
         }
         var btn = document.getElementById('ln-' + blockId);
         if (btn) {
             btn.classList.toggle('is-active', _codeBlockSettings.showLineNumbers);
             btn.setAttribute('aria-pressed', _codeBlockSettings.showLineNumbers ? 'true' : 'false');
+        }
+        var foldButton = document.getElementById('fold-' + blockId);
+        var wrapper = document.getElementById('wrapper-' + blockId);
+        var content = document.getElementById('content-' + blockId);
+        if (wrapper) {
+            wrapper.hidden = !!_codeBlockSettings.defaultCollapsed;
+        }
+        if (content) {
+            content.hidden = !!_codeBlockSettings.defaultCollapsed;
+        }
+        block.classList.toggle('is-collapsed', !!_codeBlockSettings.defaultCollapsed);
+        if (foldButton) {
+            var foldTitle = _codeBlockSettings.defaultCollapsed ? 'Expand code block' : 'Collapse code block';
+            foldButton.classList.toggle('collapsed', !!_codeBlockSettings.defaultCollapsed);
+            foldButton.title = foldTitle;
+            foldButton.setAttribute('aria-label', foldTitle);
+            foldButton.setAttribute('aria-expanded', _codeBlockSettings.defaultCollapsed ? 'false' : 'true');
         }
         updateCodeHeightCollapseUI(blockId);
     }

@@ -31,6 +31,7 @@ enum AppPreferenceKeys {
     static let codexWorkingDirectoryPresetsJSON = "codexWorkingDirectoryPresetsJSON"
     static let codeBlockShowLineNumbers = "codeBlockShowLineNumbers"
     static let codeBlockShowCollapseButton = "codeBlockShowCollapseButton"
+    static let codeBlockDefaultCollapsed = "codeBlockDefaultCollapsed"
 
     // MARK: - Updates
 
