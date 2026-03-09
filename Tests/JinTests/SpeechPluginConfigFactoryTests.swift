@@ -85,4 +85,38 @@ final class SpeechPluginConfigFactoryTests: XCTestCase {
             }
         }
     }
+
+    func testTextToSpeechConfigNormalizesLegacyTTSKitModelAndPlaybackSettings() throws {
+        defaults.set(TextToSpeechProvider.whisperKit.rawValue, forKey: AppPreferenceKeys.ttsProvider)
+        defaults.set("qwen3-tts-0.6b", forKey: AppPreferenceKeys.ttsTTSKitModel)
+        defaults.set("serena", forKey: AppPreferenceKeys.ttsTTSKitVoice)
+        defaults.set("chinese", forKey: AppPreferenceKeys.ttsTTSKitLanguage)
+        defaults.set("generate_first", forKey: AppPreferenceKeys.ttsTTSKitPlaybackMode)
+        defaults.set("calm documentary narration", forKey: AppPreferenceKeys.ttsTTSKitStyleInstruction)
+
+        let config = try SpeechPluginConfigFactory.textToSpeechConfig(defaults: defaults)
+        guard case .ttsKit(let ttsKit) = config else {
+            return XCTFail("Expected TTSKit config, got \(config)")
+        }
+
+        XCTAssertEqual(ttsKit.model, "0.6b")
+        XCTAssertEqual(ttsKit.voice, "serena")
+        XCTAssertEqual(ttsKit.language, "chinese")
+        XCTAssertEqual(ttsKit.playbackMode, .generateFirst)
+        XCTAssertNil(ttsKit.styleInstruction)
+    }
+
+    func testTextToSpeechConfigAllowsStyleInstructionForTTSKit17B() throws {
+        defaults.set(TextToSpeechProvider.whisperKit.rawValue, forKey: AppPreferenceKeys.ttsProvider)
+        defaults.set("1.7b", forKey: AppPreferenceKeys.ttsTTSKitModel)
+        defaults.set("warm audiobook", forKey: AppPreferenceKeys.ttsTTSKitStyleInstruction)
+
+        let config = try SpeechPluginConfigFactory.textToSpeechConfig(defaults: defaults)
+        guard case .ttsKit(let ttsKit) = config else {
+            return XCTFail("Expected TTSKit config, got \(config)")
+        }
+
+        XCTAssertEqual(ttsKit.styleInstruction, "warm audiobook")
+        XCTAssertEqual(ttsKit.playbackMode, .auto)
+    }
 }

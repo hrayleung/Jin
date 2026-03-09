@@ -30,6 +30,10 @@ struct SpeechToTextPluginSettingsView: View {
     @AppStorage(AppPreferenceKeys.sttMistralTemperature) private var mistralTemperature = 0.0
     @AppStorage(AppPreferenceKeys.sttMistralTimestampGranularitiesJSON) private var mistralTimestampGranularitiesJSON = "[]"
 
+    @AppStorage(AppPreferenceKeys.sttWhisperKitModel) private var whisperKitModel = "base"
+    @AppStorage(AppPreferenceKeys.sttWhisperKitLanguage) private var whisperKitLanguage = ""
+    @AppStorage(AppPreferenceKeys.sttWhisperKitTranslateToEnglish) private var whisperKitTranslateToEnglish = false
+
     @State private var apiKey = ""
     @State private var isKeyVisible = false
     @State private var isTesting = false
@@ -52,6 +56,8 @@ struct SpeechToTextPluginSettingsView: View {
             return AppPreferenceKeys.sttGroqAPIKey
         case .mistral:
             return AppPreferenceKeys.sttMistralAPIKey
+        case .whisperKit:
+            return nil
         }
     }
 
@@ -70,7 +76,9 @@ struct SpeechToTextPluginSettingsView: View {
                 .pickerStyle(.menu)
                 .onChange(of: providerRaw) { oldProviderRaw, _ in
                     autoSaveTask?.cancel()
-                    persistAPIKeyIfNeeded(forProviderRaw: oldProviderRaw, showSavedStatus: false)
+                    if SpeechToTextProvider(rawValue: oldProviderRaw)?.requiresAPIKey == true {
+                        persistAPIKeyIfNeeded(forProviderRaw: oldProviderRaw, showSavedStatus: false)
+                    }
                     Task { await loadExistingKey() }
                     NotificationCenter.default.post(name: .pluginCredentialsDidChange, object: nil)
                 }
@@ -80,49 +88,51 @@ struct SpeechToTextPluginSettingsView: View {
 
             }
 
-            Section("API Key") {
-                HStack(spacing: 8) {
-                    Group {
-                        if isKeyVisible {
-                            TextField("API Key", text: $apiKey)
-                                .textContentType(.password)
-                        } else {
-                            SecureField("API Key", text: $apiKey)
-                                .textContentType(.password)
+            if provider?.requiresAPIKey != false {
+                Section("API Key") {
+                    HStack(spacing: 8) {
+                        Group {
+                            if isKeyVisible {
+                                TextField("API Key", text: $apiKey)
+                                    .textContentType(.password)
+                            } else {
+                                SecureField("API Key", text: $apiKey)
+                                    .textContentType(.password)
+                            }
+                        }
+
+                        Button {
+                            isKeyVisible.toggle()
+                        } label: {
+                            Image(systemName: isKeyVisible ? "eye.slash" : "eye")
+                                .foregroundStyle(.secondary)
+                                .frame(width: 22, height: 22)
+                        }
+                        .buttonStyle(.plain)
+                        .help(isKeyVisible ? "Hide API key" : "Show API key")
+                        .disabled(apiKey.isEmpty)
+                    }
+
+                    HStack(spacing: 12) {
+                        Button("Test Connection") { testConnection() }
+                            .disabled(trimmedAPIKey.isEmpty || isTesting)
+
+                        Button("Clear", role: .destructive) { clearKey() }
+                            .disabled(isTesting)
+
+                        Spacer()
+
+                        if isTesting {
+                            ProgressView()
+                                .controlSize(.small)
                         }
                     }
 
-                    Button {
-                        isKeyVisible.toggle()
-                    } label: {
-                        Image(systemName: isKeyVisible ? "eye.slash" : "eye")
-                            .foregroundStyle(.secondary)
-                            .frame(width: 22, height: 22)
+                    if let statusMessage {
+                        Text(statusMessage)
+                            .font(.caption)
+                            .foregroundStyle(statusIsError ? Color.red : Color.secondary)
                     }
-                    .buttonStyle(.plain)
-                    .help(isKeyVisible ? "Hide API key" : "Show API key")
-                    .disabled(apiKey.isEmpty)
-                }
-
-                HStack(spacing: 12) {
-                    Button("Test Connection") { testConnection() }
-                        .disabled(trimmedAPIKey.isEmpty || isTesting)
-
-                    Button("Clear", role: .destructive) { clearKey() }
-                        .disabled(isTesting)
-
-                    Spacer()
-
-                    if isTesting {
-                        ProgressView()
-                            .controlSize(.small)
-                    }
-                }
-
-                if let statusMessage {
-                    Text(statusMessage)
-                        .font(.caption)
-                        .foregroundStyle(statusIsError ? Color.red : Color.secondary)
                 }
             }
 
@@ -263,6 +273,13 @@ struct SpeechToTextPluginSettingsView: View {
                         Toggle("Word timestamps", isOn: timestampBinding(provider: .mistral, granularity: "word"))
                     }
                 }
+
+            case .whisperKit:
+                WhisperKitSpeechToTextSettingsSection(
+                    modelSelection: $whisperKitModel,
+                    language: $whisperKitLanguage,
+                    translateToEnglish: $whisperKitTranslateToEnglish
+                )
             }
         } else {
             Section("Provider Error") {
@@ -301,6 +318,8 @@ struct SpeechToTextPluginSettingsView: View {
             return groqTimestampGranularitiesJSON
         case .mistral:
             return mistralTimestampGranularitiesJSON
+        case .whisperKit:
+            return "[]"
         }
     }
 
@@ -312,10 +331,22 @@ struct SpeechToTextPluginSettingsView: View {
             groqTimestampGranularitiesJSON = value
         case .mistral:
             mistralTimestampGranularitiesJSON = value
+        case .whisperKit:
+            break
         }
     }
 
     private func loadExistingKey() async {
+        if provider?.requiresAPIKey == false {
+            await MainActor.run {
+                apiKey = ""
+                lastPersistedAPIKey = ""
+                statusMessage = nil
+                statusIsError = false
+            }
+            return
+        }
+
         guard let preferenceKey = currentAPIKeyPreferenceKey else {
             await MainActor.run {
                 apiKey = ""
@@ -338,9 +369,8 @@ struct SpeechToTextPluginSettingsView: View {
         statusMessage = nil
         statusIsError = false
 
-        guard let preferenceKey = currentAPIKeyPreferenceKey else {
-            statusMessage = providerErrorMessage(for: providerRaw)
-            statusIsError = true
+        guard provider?.requiresAPIKey != false,
+              let preferenceKey = currentAPIKeyPreferenceKey else {
             return
         }
 
@@ -354,6 +384,8 @@ struct SpeechToTextPluginSettingsView: View {
 
     private func scheduleAutoSave() {
         autoSaveTask?.cancel()
+
+        guard provider?.requiresAPIKey != false else { return }
 
         let key = trimmedAPIKey
         guard let preferenceKey = currentAPIKeyPreferenceKey else {
@@ -374,8 +406,6 @@ struct SpeechToTextPluginSettingsView: View {
 
     private func persistAPIKeyIfNeeded(forProviderRaw rawValue: String, showSavedStatus: Bool) {
         guard let preferenceKey = apiKeyPreferenceKey(for: rawValue) else {
-            statusMessage = providerErrorMessage(for: rawValue)
-            statusIsError = true
             return
         }
         let key = trimmedAPIKey
@@ -421,6 +451,8 @@ struct SpeechToTextPluginSettingsView: View {
             return AppPreferenceKeys.sttGroqAPIKey
         case .mistral:
             return AppPreferenceKeys.sttMistralAPIKey
+        case .whisperKit:
+            return nil
         }
     }
 
@@ -434,7 +466,7 @@ struct SpeechToTextPluginSettingsView: View {
 
     private func testConnection() {
         guard !trimmedAPIKey.isEmpty else { return }
-        guard let provider else {
+        guard let provider, provider.requiresAPIKey else {
             statusMessage = providerErrorMessage(for: providerRaw)
             statusIsError = true
             return
@@ -460,6 +492,8 @@ struct SpeechToTextPluginSettingsView: View {
                     let base = URL(string: mistralBaseURL.trimmingCharacters(in: .whitespacesAndNewlines)) ?? defaultBase
                     let client = OpenAIAudioClient(apiKey: trimmedAPIKey, baseURL: base)
                     try await client.validateAPIKey()
+                case .whisperKit:
+                    return
                 }
 
                 await MainActor.run {
