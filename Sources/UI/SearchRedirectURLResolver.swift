@@ -1,3 +1,4 @@
+import Alamofire
 import Foundation
 
 actor SearchRedirectURLResolver {
@@ -74,22 +75,18 @@ actor SearchRedirectURLResolver {
     private var inFlightByRawURL: [String: Task<String?, Never>] = [:]
     private let cacheFileURL: URL?
     private let fileManager: FileManager
-    private let overrideSession: URLSession?
+    private let overrideAlamofireSession: Session?
     private let now: () -> Date
-
-    private var session: URLSession {
-        overrideSession ?? .shared
-    }
 
     init(
         fileManager: FileManager = .default,
         cacheFileURL: URL? = nil,
-        session: URLSession? = nil,
+        alamofireSession: Session? = nil,
         now: @escaping () -> Date = Date.init
     ) {
         self.fileManager = fileManager
         self.cacheFileURL = cacheFileURL ?? Self.defaultCacheFileURL(fileManager: fileManager)
-        self.overrideSession = session
+        self.overrideAlamofireSession = alamofireSession
         self.now = now
         cacheByRawURL = Self.loadCacheFromDisk(
             cacheFileURL: self.cacheFileURL,
@@ -248,7 +245,7 @@ actor SearchRedirectURLResolver {
             let (_, response) = try await NetworkDebugRequestExecutor.data(
                 for: request,
                 mode: mode,
-                session: session
+                alamofireSession: overrideAlamofireSession
             )
             return response.url
         } catch {

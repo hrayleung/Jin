@@ -1,3 +1,4 @@
+import Alamofire
 import AppKit
 import CryptoKit
 import Foundation
@@ -6,10 +7,10 @@ enum MessageMediaAssetPersistenceSupport {
     static func persistManagedRemoteImageToDisk(
         from url: URL,
         mimeType: String,
-        session: URLSession? = nil
+        alamofireSession: Session? = nil
     ) async -> URL? {
         do {
-            let (data, response) = try await remoteData(from: url, mode: "attachment_image_download", session: session)
+            let (data, response) = try await remoteData(from: url, mode: "attachment_image_download", alamofireSession: alamofireSession)
             guard let httpResponse = response as? HTTPURLResponse,
                   (200...299).contains(httpResponse.statusCode),
                   !data.isEmpty else {
@@ -28,9 +29,9 @@ enum MessageMediaAssetPersistenceSupport {
         }
     }
 
-    static func persistRemoteVideoToDisk(from url: URL, session: URLSession? = nil) async -> URL? {
+    static func persistRemoteVideoToDisk(from url: URL, alamofireSession: Session? = nil) async -> URL? {
         do {
-            let (data, response) = try await remoteData(from: url, mode: "attachment_video_download", session: session)
+            let (data, response) = try await remoteData(from: url, mode: "attachment_video_download", alamofireSession: alamofireSession)
             guard let httpResponse = response as? HTTPURLResponse,
                   (200...299).contains(httpResponse.statusCode),
                   !data.isEmpty else {
@@ -88,10 +89,10 @@ enum MessageMediaAssetPersistenceSupport {
         }
     }
 
-    private static func remoteData(from url: URL, mode: String, session: URLSession?) async throws -> (Data, URLResponse) {
+    private static func remoteData(from url: URL, mode: String, alamofireSession: Session?) async throws -> (Data, URLResponse) {
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
-        return try await NetworkDebugRequestExecutor.data(for: request, mode: mode, session: session)
+        return try await NetworkDebugRequestExecutor.data(for: request, mode: mode, alamofireSession: alamofireSession)
     }
 
     private static func fallbackExtension(from url: URL, defaultValue: String) -> String {

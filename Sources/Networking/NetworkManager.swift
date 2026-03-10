@@ -72,12 +72,18 @@ actor NetworkManager {
         )
     }
 
+    /// Maximum bytes to capture from a stream response for error/logging purposes.
+    /// Beyond this limit the body is truncated and flagged accordingly.
+    private static let maxStreamCaptureBytes = 512 * 1024 // 512 KB
+
     /// Stream request with custom parser
     func streamRequest<P: StreamParser>(
         _ request: URLRequest,
         parser: P
     ) -> AsyncThrowingStream<P.Event, Error> {
         var parserCopy = parser
+        let shouldCaptureSuccessBody = NetworkDebugLogger.isLoggingEnabled
+        let captureLimit = Self.maxStreamCaptureBytes
 
         return AsyncThrowingStream { continuation in
             let requestIDTask = Task {
@@ -87,6 +93,7 @@ actor NetworkManager {
             var didFinish = false
             var response: HTTPURLResponse?
             var capturedResponseData = Data()
+            var responseBodyTruncated = false
 
             let dataStreamRequest = session.streamRequest(
                 request,
@@ -104,7 +111,21 @@ actor NetworkManager {
 
                 switch stream.event {
                 case .stream(.success(let chunk)):
-                    capturedResponseData.append(chunk)
+                    let isError = response.map { $0.statusCode >= 400 } ?? false
+                    let shouldCapture = isError || shouldCaptureSuccessBody
+
+                    if shouldCapture, !responseBodyTruncated {
+                        let remaining = captureLimit - capturedResponseData.count
+                        if remaining > 0 {
+                            let bytesToAppend = min(chunk.count, remaining)
+                            capturedResponseData.append(chunk.prefix(bytesToAppend))
+                            if bytesToAppend < chunk.count {
+                                responseBodyTruncated = true
+                            }
+                        } else {
+                            responseBodyTruncated = true
+                        }
+                    }
 
                     guard let httpResponse = response, httpResponse.statusCode < 400 else { return }
 
@@ -119,6 +140,7 @@ actor NetworkManager {
                     didFinish = true
                     let finalResponse = completion.response ?? response
                     let responseBody = capturedResponseData.isEmpty ? nil : capturedResponseData
+                    let wasTruncated = responseBodyTruncated
 
                     Task {
                         let requestID = await requestIDTask.value
@@ -134,7 +156,7 @@ actor NetworkManager {
                                 requestID: requestID,
                                 response: finalResponse,
                                 responseBody: responseBody,
-                                responseBodyTruncated: false,
+                                responseBodyTruncated: wasTruncated,
                                 error: nil
                             )
                             continuation.finish()
@@ -144,7 +166,7 @@ actor NetworkManager {
                                 requestID: requestID,
                                 response: failure.response,
                                 responseBody: failure.responseBody,
-                                responseBodyTruncated: false,
+                                responseBodyTruncated: wasTruncated,
                                 error: failure.underlyingError
                             )
                             continuation.finish(throwing: failure.underlyingError)
@@ -334,7 +356,7 @@ actor NetworkManager {
         // Alamofire can surface both a response and an error when the transfer
         // fails after headers arrive. Preserve URLSession-style semantics by
         // preferring transport and cancellation errors over any partial payload.
-        if let transportErr = extractTransportError(from: afError) {
+        if let transportErr = extractAlamofireTransportError(from: afError) {
             if isCancellation(transportErr) {
                 return RequestExecutionFailure(
                     underlyingError: CancellationError(),
@@ -366,48 +388,6 @@ actor NetworkManager {
             response: nil,
             responseBody: responseBody
         )
-    }
-
-    /// Extracts the underlying error from an AFError if it represents a transport-level
-    /// failure (task failed, session invalidated/deinitialized, or explicit cancellation).
-    /// Returns nil for non-transport errors (serialization, validation) which are safe to
-    /// ignore since we handle HTTP status codes and raw data ourselves.
-    private nonisolated func extractTransportError(from afError: AFError?) -> Error? {
-        guard let afError else { return nil }
-        switch afError {
-        case .sessionTaskFailed(let error):
-            return error
-        case .sessionInvalidated(let error):
-            return error ?? afError
-        case .sessionDeinitialized:
-            return afError
-        case .explicitlyCancelled:
-            return afError
-        case .requestRetryFailed(_, let originalError):
-            if let afOriginal = originalError as? AFError {
-                return extractTransportError(from: afOriginal)
-            }
-            return originalError
-        case .createURLRequestFailed,
-             .invalidURL,
-             .multipartEncodingFailed,
-             .parameterEncodingFailed,
-             .parameterEncoderFailed,
-             .requestAdaptationFailed,
-             .responseSerializationFailed,
-             .responseValidationFailed,
-             .urlRequestValidationFailed:
-            return nil
-        #if canImport(Security)
-        case .serverTrustEvaluationFailed:
-            return afError
-        #endif
-        case .createUploadableFailed,
-             .downloadedFileMoveFailed:
-            return nil
-        @unknown default:
-            return nil
-        }
     }
 
     private nonisolated func isCancellation(_ error: Error) -> Bool {
