@@ -332,7 +332,7 @@ actor TTSKitService {
         voice: String?,
         language: String?,
         styleInstruction: String?,
-        onProgress: (@Sendable (GeneratedSpeechChunk) -> Void)? = nil
+        onProgress: (@Sendable (GeneratedSpeechChunk) async -> Void)? = nil
     ) async throws {
         cancelIdleUnload()
         defer { scheduleIdleUnload() }
@@ -349,18 +349,33 @@ actor TTSKitService {
         var options = GenerationOptions()
         options.instruction = resolvedInstruction
 
-        _ = try await pipe.generate(
-            text: text,
-            voice: resolvedVoice,
-            language: resolvedLanguage,
-            options: options,
-            callback: { progress in
-                if !progress.audio.isEmpty {
-                    onProgress?(GeneratedSpeechChunk(samples: progress.audio, sampleRate: sampleRate))
+        let progressCallbacks = AsyncProgressCallbackQueue()
+
+        do {
+            _ = try await pipe.generate(
+                text: text,
+                voice: resolvedVoice,
+                language: resolvedLanguage,
+                options: options,
+                callback: { progress in
+                    if !progress.audio.isEmpty, let onProgress {
+                        progressCallbacks.enqueue {
+                            await onProgress(
+                                GeneratedSpeechChunk(
+                                    samples: progress.audio,
+                                    sampleRate: sampleRate
+                                )
+                            )
+                        }
+                    }
+                    return true
                 }
-                return true
-            }
-        )
+            )
+            await progressCallbacks.waitForCompletion()
+        } catch {
+            await progressCallbacks.waitForCompletion()
+            throw error
+        }
     }
 
     func stopPlayback() async {
@@ -395,6 +410,27 @@ actor TTSKitService {
             }
             return lhs.id.localizedCaseInsensitiveCompare(rhs.id) == .orderedAscending
         }
+    }
+}
+
+private final class AsyncProgressCallbackQueue: @unchecked Sendable {
+    private let lock = NSLock()
+    private var tailTask: Task<Void, Never>?
+
+    func enqueue(_ operation: @escaping @Sendable () async -> Void) {
+        lock.withLock {
+            let previousTask = tailTask
+            let nextTask = Task {
+                _ = await previousTask?.result
+                await operation()
+            }
+            tailTask = nextTask
+        }
+    }
+
+    func waitForCompletion() async {
+        let task = lock.withLock { tailTask }
+        _ = await task?.result
     }
 }
 
