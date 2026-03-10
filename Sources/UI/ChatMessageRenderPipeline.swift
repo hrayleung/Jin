@@ -97,6 +97,9 @@ enum ChatMessageRenderPipeline {
         let decoder = JSONDecoder()
 
         for snapshot in orderedMessages {
+            if Task.isCancelled {
+                break
+            }
             guard snapshot.role != "tool" else { continue }
             guard let message = snapshot.toDomain(using: decoder) else { continue }
 
@@ -271,6 +274,9 @@ enum ChatMessageRenderPipeline {
 
         let decoder = JSONDecoder()
         for snapshot in messageSnapshots where snapshot.role == "tool" {
+            if Task.isCancelled {
+                break
+            }
             guard let data = snapshot.toolResultsData,
                   let toolResults = try? decoder.decode([ToolResult].self, from: data) else {
                 continue

@@ -12,6 +12,11 @@ struct ChatView: View {
     static let pinnedBottomRefreshDelays: [TimeInterval] = [0, 0.04, 0.14]
     static let asyncCacheBuildMessageThreshold = 80
 
+    private enum PrepareToSendCancellationReason {
+        case userCancelled
+        case conversationSwitch
+    }
+
     struct PendingCodexInteraction: Identifiable {
         let localThreadID: UUID
         let request: CodexInteractionRequest
@@ -79,6 +84,8 @@ struct ChatView: View {
     @State private var lastCacheRebuildUpdatedAt: Date = .distantPast
     @State private var updatedAtDebounceTask: Task<Void, Never>?
     @State private var renderContextBuildTask: Task<Void, Never>?
+    @State private var renderContextDecodeTask: Task<ChatDecodedRenderContext, Never>?
+    @State private var activeRenderContextBuildToken = UUID()
     @State private var isArtifactPaneVisible = false
     @State private var selectedArtifactIDByThreadID: [UUID: String] = [:]
     @State private var selectedArtifactVersionByThreadID: [UUID: Int] = [:]
@@ -135,6 +142,7 @@ struct ChatView: View {
     @State private var isPreparingToSend = false
     @State private var prepareToSendStatus: String?
     @State private var prepareToSendTask: Task<Void, Never>?
+    @State private var prepareToSendCancellationReason: PrepareToSendCancellationReason?
     @EnvironmentObject var ttsPlaybackManager: TextToSpeechPlaybackManager
     @StateObject var speechToTextManager = SpeechToTextManager()
 
@@ -621,8 +629,7 @@ struct ChatView: View {
         .onDisappear {
             updatedAtDebounceTask?.cancel()
             updatedAtDebounceTask = nil
-            renderContextBuildTask?.cancel()
-            renderContextBuildTask = nil
+            cancelRenderContextBuild()
         }
         .onChange(of: conversationEntity.id) { _, _ in
             handleConversationSwitch()
@@ -932,6 +939,7 @@ struct ChatView: View {
 
         // Editing / composer
         cancelEditingUserMessage()
+        speechToTextManager.cancelAndCleanup()
         messageText = ""
         draftAttachments = []
         composerTextContentHeight = 36
@@ -943,6 +951,7 @@ struct ChatView: View {
         perMessageMCPServerIDs = []
 
         // Prepare-to-send
+        prepareToSendCancellationReason = .conversationSwitch
         prepareToSendTask?.cancel()
         isPreparingToSend = false
         prepareToSendStatus = nil
@@ -975,8 +984,7 @@ struct ChatView: View {
         // Cancel any pending debounced rebuild from the previous conversation.
         updatedAtDebounceTask?.cancel()
         updatedAtDebounceTask = nil
-        renderContextBuildTask?.cancel()
-        renderContextBuildTask = nil
+        cancelRenderContextBuild()
 
         // Clear caches synchronously so stale content is never shown, then
         // load controls (lightweight) so the header reflects the new chat.
@@ -2416,8 +2424,7 @@ struct ChatView: View {
         let targetUpdatedAt = conversationEntity.updatedAt
         let fallbackModelLabel = currentModelName
 
-        renderContextBuildTask?.cancel()
-        renderContextBuildTask = nil
+        cancelRenderContextBuild()
 
         let messageEntitiesByID = Dictionary(uniqueKeysWithValues: ordered.map { ($0.id, $0) })
         if ordered.count < Self.asyncCacheBuildMessageThreshold {
@@ -2446,19 +2453,29 @@ struct ChatView: View {
         let targetConversationID = conversationEntity.id
         let targetThreadID = threadID
         let messageCount = ordered.count
+        let buildToken = UUID()
+        activeRenderContextBuildToken = buildToken
+
+        let decodeTask = Task.detached(priority: .userInitiated) {
+            ChatMessageRenderPipeline.makeDecodedRenderContext(
+                from: snapshots,
+                fallbackModelLabel: fallbackModelLabel,
+                assistantProviderIconsByID: providerIconsByID
+            )
+        }
+        renderContextDecodeTask = decodeTask
 
         renderContextBuildTask = Task { @MainActor in
-            defer { renderContextBuildTask = nil }
+            defer {
+                if activeRenderContextBuildToken == buildToken {
+                    renderContextBuildTask = nil
+                    renderContextDecodeTask = nil
+                }
+            }
 
-            let decoded = await Task.detached(priority: .userInitiated) {
-                ChatMessageRenderPipeline.makeDecodedRenderContext(
-                    from: snapshots,
-                    fallbackModelLabel: fallbackModelLabel,
-                    assistantProviderIconsByID: providerIconsByID
-                )
-            }.value
-
+            let decoded = await decodeTask.value
             guard !Task.isCancelled else { return }
+            guard activeRenderContextBuildToken == buildToken else { return }
             guard conversationEntity.id == targetConversationID else { return }
             guard activeModelThread?.id == targetThreadID else { return }
             guard conversationEntity.updatedAt == targetUpdatedAt else { return }
@@ -2470,6 +2487,14 @@ struct ChatView: View {
                 updatedAt: targetUpdatedAt
             )
         }
+    }
+
+    private func cancelRenderContextBuild() {
+        activeRenderContextBuildToken = UUID()
+        renderContextBuildTask?.cancel()
+        renderContextBuildTask = nil
+        renderContextDecodeTask?.cancel()
+        renderContextDecodeTask = nil
     }
 
     private func applyDecodedRenderContext(
@@ -2821,6 +2846,7 @@ struct ChatView: View {
         }
 
         if isPreparingToSend {
+            prepareToSendCancellationReason = .userCancelled
             prepareToSendTask?.cancel()
             return
         }
@@ -2878,6 +2904,7 @@ struct ChatView: View {
 
         isPreparingToSend = true
         prepareToSendStatus = nil
+        prepareToSendCancellationReason = nil
 
         let task = Task {
             do {
@@ -2927,6 +2954,7 @@ struct ChatView: View {
                     isPreparingToSend = false
                     prepareToSendStatus = nil
                     prepareToSendTask = nil
+                    prepareToSendCancellationReason = nil
                     perMessageMCPServerIDs = []
                     for threadID in targetThreadIDs {
                         startStreamingResponse(
@@ -2939,12 +2967,16 @@ struct ChatView: View {
                 }
             } catch {
                 await MainActor.run {
+                    let cancellationReason = prepareToSendCancellationReason
                     isPreparingToSend = false
                     prepareToSendStatus = nil
                     prepareToSendTask = nil
-                    messageText = messageTextSnapshot
-                    remoteVideoInputURLText = remoteVideoURLTextSnapshot
-                    draftAttachments = attachmentsSnapshot
+                    prepareToSendCancellationReason = nil
+                    if !(error is CancellationError) || cancellationReason == .userCancelled {
+                        messageText = messageTextSnapshot
+                        remoteVideoInputURLText = remoteVideoURLTextSnapshot
+                        draftAttachments = attachmentsSnapshot
+                    }
                     if !(error is CancellationError) {
                         errorMessage = error.localizedDescription
                         showingError = true
