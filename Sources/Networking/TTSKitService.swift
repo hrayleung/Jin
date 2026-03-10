@@ -301,6 +301,7 @@ actor TTSKitService {
         let resolvedLanguage = Self.normalizedOptionalString(language)
         let resolvedInstruction = Self.normalizedOptionalString(styleInstruction)
         let sampleRate = pipe.sampleRate
+        let firstAudioFrameGate = FirstAudioFrameGate()
 
         var options = GenerationOptions()
         options.instruction = resolvedInstruction
@@ -314,7 +315,9 @@ actor TTSKitService {
                 playbackStrategy: playbackMode.playbackStrategy,
                 callback: { progress in
                     if !progress.audio.isEmpty {
-                        onFirstAudioFrame?()
+                        firstAudioFrameGate.emitIfNeeded {
+                            onFirstAudioFrame?()
+                        }
                         onProgress?(progress.audio, sampleRate)
                     }
                     return true
@@ -409,6 +412,22 @@ actor TTSKitService {
                 return lhsIndex < rhsIndex
             }
             return lhs.id.localizedCaseInsensitiveCompare(rhs.id) == .orderedAscending
+        }
+    }
+}
+
+private final class FirstAudioFrameGate: @unchecked Sendable {
+    private let lock = NSLock()
+    private var didEmitFirstAudioFrame = false
+
+    func emitIfNeeded(_ action: () -> Void) {
+        let shouldEmit = lock.withLock {
+            guard !didEmitFirstAudioFrame else { return false }
+            didEmitFirstAudioFrame = true
+            return true
+        }
+        if shouldEmit {
+            action()
         }
     }
 }

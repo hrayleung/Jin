@@ -532,8 +532,7 @@ private final class TTSWaveformLayerView: NSView {
         layer = CALayer()
         layer?.backgroundColor = NSColor.clear.cgColor
 
-        remainingLayer.contentsScale = NSScreen.main?.backingScaleFactor ?? 2
-        playedLayer.contentsScale = NSScreen.main?.backingScaleFactor ?? 2
+        updateContentsScale()
 
         layer?.addSublayer(remainingLayer)
         layer?.addSublayer(playedLayer)
@@ -552,6 +551,12 @@ private final class TTSWaveformLayerView: NSView {
 
     override func viewDidChangeEffectiveAppearance() {
         super.viewDidChangeEffectiveAppearance()
+        updatePaths()
+    }
+
+    override func viewDidChangeBackingProperties() {
+        super.viewDidChangeBackingProperties()
+        updateContentsScale()
         updatePaths()
     }
 
@@ -616,5 +621,12 @@ private final class TTSWaveformLayerView: NSView {
             ? NSColor.labelColor.withAlphaComponent(0.95)
             : NSColor.labelColor.withAlphaComponent(0.8)).cgColor
         remainingLayer.fillColor = NSColor.labelColor.withAlphaComponent(0.16).cgColor
+    }
+
+    private func updateContentsScale() {
+        let scale = window?.backingScaleFactor ?? NSScreen.main?.backingScaleFactor ?? 2
+        layer?.contentsScale = scale
+        remainingLayer.contentsScale = scale
+        playedLayer.contentsScale = scale
     }
 }
