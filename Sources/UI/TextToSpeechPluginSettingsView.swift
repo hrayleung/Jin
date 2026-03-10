@@ -2,6 +2,7 @@ import SwiftUI
 import AVFoundation
 
 struct TextToSpeechPluginSettingsView: View {
+    @AppStorage(AppPreferenceKeys.ttsMiniPlayerEnabled) private var miniPlayerEnabled = true
     @AppStorage(AppPreferenceKeys.ttsProvider) private var providerRaw = TextToSpeechProvider.openai.rawValue
 
     @AppStorage(AppPreferenceKeys.ttsOpenAIBaseURL) private var openAIBaseURL = OpenAIAudioClient.Constants.defaultBaseURL.absoluteString
@@ -71,6 +72,11 @@ struct TextToSpeechPluginSettingsView: View {
 
     var body: some View {
         Form {
+            Section("Playback") {
+                Toggle("Show floating mini player", isOn: $miniPlayerEnabled)
+                    .help("Show a floating mini player at the top of the chat when speech is playing.")
+            }
+
             Section("Provider") {
                 Picker("Provider", selection: $providerRaw) {
                     ForEach(TextToSpeechProvider.allCases) { provider in

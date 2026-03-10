@@ -83,6 +83,7 @@ enum AppPreferenceKeys {
     static let chatNamingModelID = "chatNamingModelID"
 
     // Text to Speech
+    static let ttsMiniPlayerEnabled = "ttsMiniPlayerEnabled"
     static let ttsProvider = "ttsProvider"
 
     static let ttsOpenAIAPIKey = "ttsOpenAIAPIKey"
