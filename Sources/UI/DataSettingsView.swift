@@ -280,9 +280,6 @@ struct DataSettingsView: View {
 
     private func deleteAllChats() {
         Task {
-            // Clear attachment files first (not cascade-deleted from SwiftData)
-            try? await calculator.clearCategory(.attachments)
-
             await MainActor.run {
                 for conversation in conversations {
                     modelContext.delete(conversation)

@@ -72,8 +72,15 @@ actor StorageSizeCalculator {
         }
     }
 
-    func clearCategory(_ category: StorageCategory) throws {
+    func clearCategory(_ category: StorageCategory) async throws {
         guard category.isClearable else { return }
+
+        // Network logs must be cleared through the logger to reset in-flight state
+        if category == .networkLogs {
+            try await NetworkDebugLogger.shared.clearLogs()
+            return
+        }
+
         guard let url = directoryURL(for: category),
               fileManager.fileExists(atPath: url.path) else { return }
 
@@ -84,9 +91,9 @@ actor StorageSizeCalculator {
 
         // Recreate the directory for categories that expect it to exist
         switch category {
-        case .attachments, .networkLogs, .mcpData:
+        case .attachments, .mcpData:
             try fileManager.createDirectory(at: url, withIntermediateDirectories: true)
-        case .speechModels, .database:
+        case .speechModels, .database, .networkLogs:
             break
         }
     }
