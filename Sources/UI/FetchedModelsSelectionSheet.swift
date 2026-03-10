@@ -126,12 +126,14 @@ struct FetchedModelsSelectionSheet: View {
                 } description: {
                     Text("This provider did not return models for the current credentials.")
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if visibleModels.isEmpty {
                 ContentUnavailableView {
                     Label("No models match", systemImage: "magnifyingglass")
                 } description: {
                     Text("Try a different search term or filter.")
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 List(visibleModels) { model in
                     modelRow(model)
