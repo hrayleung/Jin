@@ -333,13 +333,12 @@ final class TextToSpeechPlaybackManager: NSObject, ObservableObject {
                 language: ttsKitConfig.language,
                 styleInstruction: ttsKitConfig.styleInstruction,
                 onProgress: { [weak self] chunk in
-                    Task { @MainActor [weak self] in
-                        self?.appendTTSKitGeneratedSamples(
-                            chunk.samples,
-                            sampleRate: chunk.sampleRate,
-                            messageID: messageID
-                        )
-                    }
+                    guard let self else { return }
+                    await self.appendTTSKitGeneratedSamples(
+                        chunk.samples,
+                        sampleRate: chunk.sampleRate,
+                        messageID: messageID
+                    )
                 }
             )
             flushPendingTTSKitSamplesIfNeeded(messageID: messageID, force: true)

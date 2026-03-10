@@ -257,18 +257,22 @@ struct MessageRow: View {
                                 )
                             }
 
-                            ForEach(Array(item.renderedBlocks.enumerated()), id: \.offset) { _, block in
-                                switch block {
-                                case .content(let part):
-                                    ContentPartView(
-                                        part: part,
-                                        isUser: isUser,
-                                        deferCodeHighlightUpgrade: deferCodeHighlightUpgrade
-                                    )
+                            if isUser {
+                                userBlocksView(blocks: item.renderedBlocks)
+                            } else {
+                                ForEach(Array(item.renderedBlocks.enumerated()), id: \.offset) { _, block in
+                                    switch block {
+                                    case .content(let part):
+                                        ContentPartView(
+                                            part: part,
+                                            isUser: false,
+                                            deferCodeHighlightUpgrade: deferCodeHighlightUpgrade
+                                        )
 
-                                case .artifact(let artifact):
-                                    MessageArtifactCardView(artifact: artifact) {
-                                        onOpenArtifact(artifact, item.contextThreadID)
+                                    case .artifact(let artifact):
+                                        MessageArtifactCardView(artifact: artifact) {
+                                            onOpenArtifact(artifact, item.contextThreadID)
+                                        }
                                     }
                                 }
                             }
@@ -446,6 +450,37 @@ struct MessageRow: View {
                         }
                         .disabled(!actionsEnabled)
                     }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func userBlocksView(blocks: [RenderedMessageBlock]) -> some View {
+        let imageBlocks = blocks.compactMap { block -> ContentPart? in
+            if case .content(let part) = block, case .image = part { return part }
+            return nil
+        }
+        let nonImageBlocks = blocks.filter { block in
+            if case .content(let part) = block, case .image = part { return false }
+            return true
+        }
+
+        if !imageBlocks.isEmpty {
+            HStack(spacing: JinSpacing.small) {
+                ForEach(Array(imageBlocks.enumerated()), id: \.offset) { _, part in
+                    ContentPartView(part: part, isUser: true, deferCodeHighlightUpgrade: deferCodeHighlightUpgrade)
+                }
+            }
+        }
+
+        ForEach(Array(nonImageBlocks.enumerated()), id: \.offset) { _, block in
+            switch block {
+            case .content(let part):
+                ContentPartView(part: part, isUser: true, deferCodeHighlightUpgrade: deferCodeHighlightUpgrade)
+            case .artifact(let artifact):
+                MessageArtifactCardView(artifact: artifact) {
+                    onOpenArtifact(artifact, item.contextThreadID)
                 }
             }
         }
@@ -733,7 +768,7 @@ struct ContentPartView: View {
             } else if let fileURL, let nsImage = NSImage(contentsOf: fileURL) {
                 renderedImage(nsImage, fileURL: fileURL, imageData: nil, mimeType: image.mimeType)
             } else if let url = image.remoteURL {
-                RemoteMessageImageView(image: image, url: url)
+                RemoteMessageImageView(image: image, url: url, isUser: isUser)
             }
 
         case .video(let video):
@@ -866,6 +901,48 @@ struct ContentPartView: View {
 
     @ViewBuilder
     private func renderedImage(_ image: NSImage, fileURL: URL?, imageData: Data?, mimeType: String) -> some View {
+        if isUser {
+            userImageThumbnail(image, fileURL: fileURL, imageData: imageData, mimeType: mimeType)
+        } else {
+            fullSizeImage(image, fileURL: fileURL, imageData: imageData, mimeType: mimeType)
+        }
+    }
+
+    @ViewBuilder
+    private func userImageThumbnail(_ image: NSImage, fileURL: URL?, imageData: Data?, mimeType: String) -> some View {
+        Image(nsImage: image)
+            .resizable()
+            .scaledToFill()
+            .frame(width: 80, height: 80)
+            .clipShape(RoundedRectangle(cornerRadius: JinRadius.small, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: JinRadius.small, style: .continuous)
+                    .stroke(Color.primary.opacity(0.08), lineWidth: JinStrokeWidth.hairline)
+            )
+            .onTapGesture {
+                if let fileURL {
+                    NSWorkspace.shared.open(fileURL)
+                } else if let savedURL = MessageMediaAssetPersistenceSupport.persistImageToDisk(
+                    data: imageData,
+                    image: image,
+                    mimeType: mimeType
+                ) {
+                    NSWorkspace.shared.open(savedURL)
+                }
+            }
+            .onDrag {
+                if let fileURL {
+                    return NSItemProvider(contentsOf: fileURL) ?? NSItemProvider(object: fileURL as NSURL)
+                }
+                return NSItemProvider(object: image)
+            }
+            .contextMenu {
+                imageContextMenu(image: image, fileURL: fileURL, imageData: imageData, mimeType: mimeType)
+            }
+    }
+
+    @ViewBuilder
+    private func fullSizeImage(_ image: NSImage, fileURL: URL?, imageData: Data?, mimeType: String) -> some View {
         Image(nsImage: image)
             .resizable()
             .scaledToFit()
@@ -878,54 +955,60 @@ struct ContentPartView: View {
                 return NSItemProvider(object: image)
             }
             .contextMenu {
-                if let fileURL {
-                    Button {
-                        NSWorkspace.shared.open(fileURL)
-                    } label: {
-                        Label("Open", systemImage: "arrow.up.right.square")
-                    }
-                }
-
-                Button {
-                    if let fileURL {
-                        NSWorkspace.shared.activateFileViewerSelecting([fileURL])
-                    } else if let savedURL = MessageMediaAssetPersistenceSupport.persistImageToDisk(
-                        data: imageData,
-                        image: image,
-                        mimeType: mimeType
-                    ) {
-                        NSWorkspace.shared.activateFileViewerSelecting([savedURL])
-                    }
-                } label: {
-                    Label("Reveal in Finder", systemImage: "folder")
-                }
-
-                Divider()
-
-                Button {
-                    let pasteboard = NSPasteboard.general
-                    pasteboard.clearContents()
-                    pasteboard.writeObjects([image])
-                } label: {
-                    Label("Copy Image", systemImage: "doc.on.doc")
-                }
-
-                if let fileURL {
-                    Button {
-                        let pasteboard = NSPasteboard.general
-                        pasteboard.clearContents()
-                        pasteboard.setString(fileURL.path, forType: .string)
-                    } label: {
-                        Label("Copy Path", systemImage: "doc.on.doc")
-                    }
-                }
+                imageContextMenu(image: image, fileURL: fileURL, imageData: imageData, mimeType: mimeType)
             }
+    }
+
+    @ViewBuilder
+    private func imageContextMenu(image: NSImage, fileURL: URL?, imageData: Data?, mimeType: String) -> some View {
+        if let fileURL {
+            Button {
+                NSWorkspace.shared.open(fileURL)
+            } label: {
+                Label("Open", systemImage: "arrow.up.right.square")
+            }
+        }
+
+        Button {
+            if let fileURL {
+                NSWorkspace.shared.activateFileViewerSelecting([fileURL])
+            } else if let savedURL = MessageMediaAssetPersistenceSupport.persistImageToDisk(
+                data: imageData,
+                image: image,
+                mimeType: mimeType
+            ) {
+                NSWorkspace.shared.activateFileViewerSelecting([savedURL])
+            }
+        } label: {
+            Label("Reveal in Finder", systemImage: "folder")
+        }
+
+        Divider()
+
+        Button {
+            let pasteboard = NSPasteboard.general
+            pasteboard.clearContents()
+            pasteboard.writeObjects([image])
+        } label: {
+            Label("Copy Image", systemImage: "doc.on.doc")
+        }
+
+        if let fileURL {
+            Button {
+                let pasteboard = NSPasteboard.general
+                pasteboard.clearContents()
+                pasteboard.setString(fileURL.path, forType: .string)
+            } label: {
+                Label("Copy Path", systemImage: "doc.on.doc")
+            }
+        }
     }
 }
 
 private struct RemoteMessageImageView: View {
     let image: ImageContent
     let url: URL
+    var isUser: Bool = false
 
     @State private var loadFailed = false
 
@@ -933,6 +1016,24 @@ private struct RemoteMessageImageView: View {
         Group {
             if loadFailed {
                 fallbackView
+            } else if isUser {
+                KFImage(source: .network(KF.ImageResource(downloadURL: url)))
+                    .placeholder { _ in userPlaceholderView }
+                    .cancelOnDisappear(true)
+                    .fade(duration: 0.15)
+                    .onSuccess { _ in loadFailed = false }
+                    .onFailure { _ in loadFailed = true }
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: 80, height: 80)
+                    .clipShape(RoundedRectangle(cornerRadius: JinRadius.small, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: JinRadius.small, style: .continuous)
+                            .stroke(Color.primary.opacity(0.08), lineWidth: JinStrokeWidth.hairline)
+                    )
+                    .onTapGesture {
+                        NSWorkspace.shared.open(url)
+                    }
             } else {
                 KFImage(source: .network(KF.ImageResource(downloadURL: url)))
                     .placeholder { _ in placeholderView }
@@ -973,6 +1074,13 @@ private struct RemoteMessageImageView: View {
                 Text("External reference")
             }
         }
+    }
+
+    private var userPlaceholderView: some View {
+        ProgressView()
+            .controlSize(.small)
+            .frame(width: 80, height: 80)
+            .jinSurface(.neutral, cornerRadius: JinRadius.small)
     }
 
     private var placeholderView: some View {

@@ -266,6 +266,7 @@ final class TTSMiniPlayerNativeView: NSView {
     fileprivate func apply(snapshot: TTSMiniPlayerSnapshot) {
         toolTip = snapshot.title
         timeLabel.stringValue = snapshot.timeText
+        let primaryActionLabel = snapshot.isPlaying ? "Pause playback" : "Resume playback"
 
         if snapshot.showsPrimarySpinner {
             primarySpinner.isHidden = false
@@ -278,8 +279,11 @@ final class TTSMiniPlayerNativeView: NSView {
             primaryButton.image = symbolImage(
                 name: snapshot.isPlaying ? "pause.fill" : "play.fill",
                 pointSize: 13,
-                weight: .bold
+                weight: .bold,
+                accessibilityDescription: primaryActionLabel
             )
+            primaryButton.toolTip = primaryActionLabel
+            primaryButton.setAccessibilityLabel(primaryActionLabel)
         }
 
         if snapshot.showsWaveformSpinner {
@@ -429,13 +433,15 @@ final class TTSMiniPlayerNativeView: NSView {
             navigateButton,
             symbol: "arrow.up.right",
             toolTip: "Jump to chat",
+            accessibilityLabel: "Jump to chat",
             action: #selector(handleNavigate)
         )
 
         configureAuxiliaryButton(
             closeButton,
             symbol: "xmark",
-            toolTip: "Stop",
+            toolTip: "Stop playback",
+            accessibilityLabel: "Stop playback",
             action: #selector(handleStop)
         )
     }
@@ -444,17 +450,24 @@ final class TTSMiniPlayerNativeView: NSView {
         _ button: NSButton,
         symbol: String,
         toolTip: String,
+        accessibilityLabel: String,
         action: Selector
     ) {
         button.translatesAutoresizingMaskIntoConstraints = false
         button.isBordered = false
         button.focusRingType = .none
         button.imagePosition = .imageOnly
-        button.image = symbolImage(name: symbol, pointSize: 11, weight: .semibold)
+        button.image = symbolImage(
+            name: symbol,
+            pointSize: 11,
+            weight: .semibold,
+            accessibilityDescription: accessibilityLabel
+        )
         button.contentTintColor = .secondaryLabelColor
         button.target = self
         button.action = action
         button.toolTip = toolTip
+        button.setAccessibilityLabel(accessibilityLabel)
         button.widthAnchor.constraint(equalToConstant: 22).isActive = true
         button.heightAnchor.constraint(equalToConstant: 22).isActive = true
     }
@@ -469,9 +482,14 @@ final class TTSMiniPlayerNativeView: NSView {
         layer?.shadowOffset = CGSize(width: 0, height: -6)
     }
 
-    private func symbolImage(name: String, pointSize: CGFloat, weight: NSFont.Weight) -> NSImage? {
+    private func symbolImage(
+        name: String,
+        pointSize: CGFloat,
+        weight: NSFont.Weight,
+        accessibilityDescription: String
+    ) -> NSImage? {
         let configuration = NSImage.SymbolConfiguration(pointSize: pointSize, weight: weight)
-        return NSImage(systemSymbolName: name, accessibilityDescription: nil)?
+        return NSImage(systemSymbolName: name, accessibilityDescription: accessibilityDescription)?
             .withSymbolConfiguration(configuration)
     }
 
@@ -514,8 +532,7 @@ private final class TTSWaveformLayerView: NSView {
         layer = CALayer()
         layer?.backgroundColor = NSColor.clear.cgColor
 
-        remainingLayer.contentsScale = NSScreen.main?.backingScaleFactor ?? 2
-        playedLayer.contentsScale = NSScreen.main?.backingScaleFactor ?? 2
+        updateContentsScale()
 
         layer?.addSublayer(remainingLayer)
         layer?.addSublayer(playedLayer)
@@ -534,6 +551,12 @@ private final class TTSWaveformLayerView: NSView {
 
     override func viewDidChangeEffectiveAppearance() {
         super.viewDidChangeEffectiveAppearance()
+        updatePaths()
+    }
+
+    override func viewDidChangeBackingProperties() {
+        super.viewDidChangeBackingProperties()
+        updateContentsScale()
         updatePaths()
     }
 
@@ -598,5 +621,12 @@ private final class TTSWaveformLayerView: NSView {
             ? NSColor.labelColor.withAlphaComponent(0.95)
             : NSColor.labelColor.withAlphaComponent(0.8)).cgColor
         remainingLayer.fillColor = NSColor.labelColor.withAlphaComponent(0.16).cgColor
+    }
+
+    private func updateContentsScale() {
+        let scale = window?.backingScaleFactor ?? NSScreen.main?.backingScaleFactor ?? 2
+        layer?.contentsScale = scale
+        remainingLayer.contentsScale = scale
+        playedLayer.contentsScale = scale
     }
 }

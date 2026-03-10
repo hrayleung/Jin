@@ -203,7 +203,7 @@ struct ContentView: View {
                             ? nil
                             : { conversationID in
                                 if let conv = conversations.first(where: { $0.id == conversationID }) {
-                                    selectedConversation = conv
+                                    selectConversation(conv)
                                 }
                             }
                     )
@@ -347,7 +347,7 @@ struct ContentView: View {
                     return
                 }
 
-                selectedConversation = newValue
+                selectConversation(newValue)
             }
         )
     }
@@ -648,7 +648,7 @@ struct ContentView: View {
         conversation.modelThreads.append(initialThread)
         conversation.activeThreadID = initialThread.id
 
-        selectedConversation = conversation
+        selectConversation(conversation)
     }
 
     private func modelsForProvider(_ providerID: String) -> [ModelInfo] {
@@ -783,6 +783,19 @@ struct ContentView: View {
             if let selectedConversation, selectedConversation.assistant?.id != assistant.id {
                 self.selectedConversation = nil
             }
+        }
+    }
+
+    private func selectConversation(_ conversation: ConversationEntity) {
+        let assistant = conversation.assistant
+            ?? assistants.first(where: { $0.id == "default" })
+            ?? assistants.first
+
+        withAnimation(.easeInOut(duration: 0.15)) {
+            if let assistant {
+                selectedAssistant = assistant
+            }
+            selectedConversation = conversation
         }
     }
 
