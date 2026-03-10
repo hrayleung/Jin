@@ -1,5 +1,18 @@
 import Foundation
 import AVFoundation
+import CoreGraphics
+
+@MainActor
+final class TTSMiniPlayerState: ObservableObject {
+    @Published fileprivate(set) var waveformPeaks: [CGFloat]
+    @Published fileprivate(set) var clipProgress: Double = 0
+    @Published fileprivate(set) var clipCurrentTime: TimeInterval = 0
+    @Published fileprivate(set) var clipDuration: TimeInterval = 0
+
+    init(sampleCount: Int) {
+        waveformPeaks = Array(repeating: 0, count: sampleCount)
+    }
+}
 
 @MainActor
 final class TextToSpeechPlaybackManager: NSObject, ObservableObject {
@@ -54,9 +67,6 @@ final class TextToSpeechPlaybackManager: NSObject, ObservableObject {
         case ttsKit(TTSKitConfig)
 
         var usesNativeStreamingPlayback: Bool {
-            if case .ttsKit = self {
-                return true
-            }
             return false
         }
     }
@@ -72,16 +82,36 @@ final class TextToSpeechPlaybackManager: NSObject, ObservableObject {
         case nativeTTSKit
     }
 
+    private struct QueuedClip {
+        let audioData: Data
+        let duration: TimeInterval
+        let waveformPeaks: [CGFloat]
+    }
+
+    static let waveformDisplaySampleCount = 56
+    private static let waveformSecondsPerPeak: TimeInterval = 0.06
+    private static let playbackRefreshInterval: TimeInterval = 1.0 / 15.0
+    private static let ttsKitInitialBatchDuration: TimeInterval = 0.12
+    private static let ttsKitClipBatchDuration: TimeInterval = 0.9
+
     @Published private(set) var state: State = .idle
     @Published private(set) var playbackContext: PlaybackContext?
+    let miniPlayerState = TTSMiniPlayerState(sampleCount: 56)
 
     private var synthesisTask: Task<Void, Never>?
     private var player: AVAudioPlayer?
-    private var queue: [Data] = []
+    private var queue: [QueuedClip] = []
+    private var activeClip: QueuedClip?
     private var currentMessageID: UUID?
     private var currentErrorHandler: ((Error) -> Void)?
     private var didFinishSynthesis = true
     private var currentPlaybackBackend: PlaybackBackend?
+    private var meteringTimer: Timer?
+    private var accumulatedWaveformPeaks: [CGFloat] = []
+    private var generatedDuration: TimeInterval = 0
+    private var playedDuration: TimeInterval = 0
+    private var pendingTTSKitSamples: [Float] = []
+    private var pendingTTSKitSampleRate: Int?
 
     func toggleSpeak(
         messageID: UUID,
@@ -112,7 +142,6 @@ final class TextToSpeechPlaybackManager: NSObject, ObservableObject {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
 
-        queue = []
         didFinishSynthesis = false
         currentMessageID = messageID
         currentErrorHandler = onError
@@ -164,8 +193,10 @@ final class TextToSpeechPlaybackManager: NSObject, ObservableObject {
 
         if let player, player.isPlaying {
             player.pause()
+            updateQueuedPlaybackMetrics()
         }
 
+        stopMeteringTimer()
         state = .paused(messageID: messageID)
     }
 
@@ -176,6 +207,7 @@ final class TextToSpeechPlaybackManager: NSObject, ObservableObject {
 
         if let player, !player.isPlaying {
             player.play()
+            startMeteringTimer()
         }
 
         playNextClipIfNeeded()
@@ -197,14 +229,23 @@ final class TextToSpeechPlaybackManager: NSObject, ObservableObject {
             }
         }
 
+        stopMeteringTimer()
         player?.stop()
         player = nil
         queue = []
+        activeClip = nil
         currentMessageID = nil
         currentErrorHandler = nil
         didFinishSynthesis = true
         playbackContext = nil
         currentPlaybackBackend = nil
+        accumulatedWaveformPeaks = []
+        generatedDuration = 0
+        playedDuration = 0
+        pendingTTSKitSamples = []
+        pendingTTSKitSampleRate = nil
+        miniPlayerState.waveformPeaks = Array(repeating: 0, count: Self.waveformDisplaySampleCount)
+        updatePublishedPlaybackMetrics(currentTime: 0)
         state = .idle
     }
 
@@ -225,7 +266,7 @@ final class TextToSpeechPlaybackManager: NSObject, ObservableObject {
 
             for chunk in chunks {
                 try Task.checkCancellation()
-                let clip = try await client.createSpeech(
+                let clipData = try await client.createSpeech(
                     input: chunk,
                     model: openAI.model,
                     voice: openAI.voice,
@@ -234,8 +275,11 @@ final class TextToSpeechPlaybackManager: NSObject, ObservableObject {
                     instructions: openAI.instructions?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == true ? nil : openAI.instructions,
                     streamFormat: nil
                 )
+                let clip = await prepareQueuedClip(
+                    from: wrappingOpenAIPCMIfNeeded(clipData, responseFormat: format)
+                )
                 enqueueClipIfCurrent(
-                    wrappingOpenAIPCMIfNeeded(clip, responseFormat: format),
+                    clip,
                     messageID: messageID
                 )
             }
@@ -246,12 +290,13 @@ final class TextToSpeechPlaybackManager: NSObject, ObservableObject {
 
             for chunk in chunks {
                 try Task.checkCancellation()
-                let clip = try await client.createSpeech(
+                let clipData = try await client.createSpeech(
                     input: chunk,
                     model: groq.model,
                     voice: groq.voice,
                     responseFormat: groq.responseFormat
                 )
+                let clip = await prepareQueuedClip(from: clipData)
                 enqueueClipIfCurrent(clip, messageID: messageID)
             }
 
@@ -261,7 +306,7 @@ final class TextToSpeechPlaybackManager: NSObject, ObservableObject {
 
             for chunk in chunks {
                 try Task.checkCancellation()
-                let clip = try await client.createSpeech(
+                let clipData = try await client.createSpeech(
                     text: chunk,
                     voiceId: eleven.voiceId,
                     modelId: eleven.modelId,
@@ -270,8 +315,11 @@ final class TextToSpeechPlaybackManager: NSObject, ObservableObject {
                     enableLogging: eleven.enableLogging,
                     voiceSettings: eleven.voiceSettings
                 )
+                let clip = await prepareQueuedClip(
+                    from: wrappingElevenLabsPCMIfNeeded(clipData, outputFormat: eleven.outputFormat)
+                )
                 enqueueClipIfCurrent(
-                    wrappingElevenLabsPCMIfNeeded(clip, outputFormat: eleven.outputFormat),
+                    clip,
                     messageID: messageID
                 )
             }
@@ -279,25 +327,63 @@ final class TextToSpeechPlaybackManager: NSObject, ObservableObject {
         case .ttsKit(let ttsKitConfig):
             try await TTSKitService.shared.loadModel(ttsKitConfig.model)
             try Task.checkCancellation()
-            try await TTSKitService.shared.playSpeech(
+            try await TTSKitService.shared.generateSpeech(
                 text: text,
                 voice: ttsKitConfig.voice,
                 language: ttsKitConfig.language,
                 styleInstruction: ttsKitConfig.styleInstruction,
-                playbackMode: ttsKitConfig.playbackMode,
-                onFirstAudioFrame: { [weak self] in
+                onProgress: { [weak self] chunk in
                     Task { @MainActor [weak self] in
-                        self?.promoteNativePlaybackIfCurrent(messageID: messageID)
+                        self?.appendTTSKitGeneratedSamples(
+                            chunk.samples,
+                            sampleRate: chunk.sampleRate,
+                            messageID: messageID
+                        )
                     }
                 }
             )
+            flushPendingTTSKitSamplesIfNeeded(messageID: messageID, force: true)
         }
     }
 
-    private func enqueueClipIfCurrent(_ clip: Data, messageID: UUID) {
+    private func prepareQueuedClip(from data: Data) async -> QueuedClip {
+        let secondsPerPeak = Self.waveformSecondsPerPeak
+        let analysis = await Task.detached(priority: .utility) {
+            AudioWaveformExtractor.analyze(
+                data: data,
+                secondsPerPeak: secondsPerPeak
+            )
+        }.value
+
+        let duration = analysis?.duration ?? max(0, (try? AVAudioPlayer(data: data).duration) ?? 0)
+        return QueuedClip(
+            audioData: data,
+            duration: duration,
+            waveformPeaks: analysis?.rawPeaks ?? []
+        )
+    }
+
+    private func makeQueuedClip(fromFloatSamples samples: [Float], sampleRate: Int) -> QueuedClip {
+        let duration = Double(samples.count) / Double(sampleRate)
+        return QueuedClip(
+            audioData: WAVContainer.wrapFloat32Mono(samples: samples, sampleRate: sampleRate),
+            duration: duration,
+            waveformPeaks: []
+        )
+    }
+
+    private func enqueueClipIfCurrent(_ clip: QueuedClip, messageID: UUID, updateMetrics: Bool = true) {
         guard currentMessageID == messageID else { return }
 
         queue.append(clip)
+        if updateMetrics {
+            generatedDuration += clip.duration
+            if !clip.waveformPeaks.isEmpty {
+                accumulatedWaveformPeaks.append(contentsOf: clip.waveformPeaks)
+                refreshDisplayedWaveform()
+            }
+            updatePublishedPlaybackMetrics(currentTime: miniPlayerState.clipCurrentTime)
+        }
 
         if case .generating(let id) = state, id == messageID {
             state = .playing(messageID: messageID)
@@ -308,23 +394,11 @@ final class TextToSpeechPlaybackManager: NSObject, ObservableObject {
         }
     }
 
-    private func promoteNativePlaybackIfCurrent(messageID: UUID) {
-        guard currentPlaybackBackend == .nativeTTSKit else { return }
-        guard currentMessageID == messageID else { return }
-        guard case .generating(let id) = state, id == messageID else { return }
-        state = .playing(messageID: messageID)
-    }
-
     private func completeSynthesisIfCurrent(messageID: UUID) {
         guard currentMessageID == messageID else { return }
 
         synthesisTask = nil
         didFinishSynthesis = true
-
-        if currentPlaybackBackend == .nativeTTSKit {
-            finishPlaybackSession()
-            return
-        }
 
         if case .generating(let id) = state, id == messageID {
             state = .playing(messageID: messageID)
@@ -343,15 +417,7 @@ final class TextToSpeechPlaybackManager: NSObject, ObservableObject {
     }
 
     private func finishPlaybackSession() {
-        synthesisTask = nil
-        player = nil
-        queue = []
-        currentMessageID = nil
-        currentErrorHandler = nil
-        didFinishSynthesis = true
-        playbackContext = nil
-        currentPlaybackBackend = nil
-        state = .idle
+        stop()
     }
 
     private func playNextClipIfNeeded() {
@@ -374,16 +440,124 @@ final class TextToSpeechPlaybackManager: NSObject, ObservableObject {
 
         let clip = queue.removeFirst()
         do {
-            let audioPlayer = try AVAudioPlayer(data: clip)
+            let audioPlayer = try AVAudioPlayer(data: clip.audioData)
             audioPlayer.delegate = self
             audioPlayer.prepareToPlay()
             player = audioPlayer
+            activeClip = clip
             state = .playing(messageID: messageID)
+            updateQueuedPlaybackMetrics()
             audioPlayer.play()
+            startMeteringTimer()
         } catch {
             currentErrorHandler?(error)
             stop()
         }
+    }
+
+    private func startMeteringTimer() {
+        stopMeteringTimer()
+        meteringTimer = Timer.scheduledTimer(withTimeInterval: Self.playbackRefreshInterval, repeats: true) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.pollMeteringData()
+            }
+        }
+    }
+
+    private func stopMeteringTimer() {
+        meteringTimer?.invalidate()
+        meteringTimer = nil
+    }
+
+    private func pollMeteringData() {
+        switch currentPlaybackBackend {
+        case .queuedClips:
+            updateQueuedPlaybackMetrics()
+        case .nativeTTSKit:
+            Task { [weak self] in
+                guard let self else { return }
+                let currentTime = await TTSKitService.shared.currentPlaybackTime()
+                await MainActor.run {
+                    guard self.currentPlaybackBackend == .nativeTTSKit else { return }
+                    self.updatePublishedPlaybackMetrics(currentTime: currentTime)
+                }
+            }
+        case .none:
+            break
+        }
+    }
+
+    private func appendTTSKitGeneratedSamples(
+        _ samples: [Float],
+        sampleRate: Int,
+        messageID: UUID
+    ) {
+        guard currentMessageID == messageID else { return }
+        guard !samples.isEmpty, sampleRate > 0 else { return }
+
+        pendingTTSKitSampleRate = sampleRate
+        pendingTTSKitSamples.append(contentsOf: samples)
+        accumulatedWaveformPeaks.append(
+            contentsOf: AudioWaveformExtractor.rawPeaks(
+                from: samples,
+                sampleRate: Double(sampleRate),
+                secondsPerPeak: Self.waveformSecondsPerPeak
+            )
+        )
+        generatedDuration += Double(samples.count) / Double(sampleRate)
+        refreshDisplayedWaveform()
+        updatePublishedPlaybackMetrics(currentTime: miniPlayerState.clipCurrentTime)
+        flushPendingTTSKitSamplesIfNeeded(messageID: messageID, force: false)
+    }
+
+    private func flushPendingTTSKitSamplesIfNeeded(messageID: UUID, force: Bool) {
+        guard currentMessageID == messageID else { return }
+        guard let sampleRate = pendingTTSKitSampleRate, sampleRate > 0 else { return }
+        guard !pendingTTSKitSamples.isEmpty else { return }
+
+        let duration = Double(pendingTTSKitSamples.count) / Double(sampleRate)
+        let shouldPrimePlayback = player == nil && queue.isEmpty
+        let requiredDuration = shouldPrimePlayback
+            ? Self.ttsKitInitialBatchDuration
+            : Self.ttsKitClipBatchDuration
+        guard force || duration >= requiredDuration else { return }
+
+        let clip = makeQueuedClip(fromFloatSamples: pendingTTSKitSamples, sampleRate: sampleRate)
+        pendingTTSKitSamples.removeAll(keepingCapacity: true)
+        enqueueClipIfCurrent(clip, messageID: messageID, updateMetrics: false)
+    }
+
+    private func updateQueuedPlaybackMetrics() {
+        guard let player else {
+            updatePublishedPlaybackMetrics(currentTime: playedDuration)
+            return
+        }
+        updatePublishedPlaybackMetrics(currentTime: playedDuration + player.currentTime)
+    }
+
+    private func updatePublishedPlaybackMetrics(currentTime: TimeInterval) {
+        let clampedCurrent = max(0, currentTime)
+        let newDuration = max(generatedDuration, clampedCurrent)
+        let newProgress = newDuration > 0 ? min(1, clampedCurrent / newDuration) : 0
+
+        if abs(miniPlayerState.clipCurrentTime - clampedCurrent) > 0.001 {
+            miniPlayerState.clipCurrentTime = clampedCurrent
+        }
+        if abs(miniPlayerState.clipDuration - newDuration) > 0.001 {
+            miniPlayerState.clipDuration = newDuration
+        }
+        if abs(miniPlayerState.clipProgress - newProgress) > 0.0001 {
+            miniPlayerState.clipProgress = newProgress
+        }
+    }
+
+    private func refreshDisplayedWaveform() {
+        miniPlayerState.waveformPeaks = AudioWaveformExtractor.normalize(
+            peaks: AudioWaveformExtractor.resample(
+                peaks: accumulatedWaveformPeaks,
+                targetCount: Self.waveformDisplaySampleCount
+            )
+        )
     }
 
     private func wrappingElevenLabsPCMIfNeeded(_ data: Data, outputFormat: String?) -> Data {
@@ -417,6 +591,16 @@ final class TextToSpeechPlaybackManager: NSObject, ObservableObject {
 }
 
 private enum WAVContainer {
+    static func wrapFloat32Mono(samples: [Float], sampleRate: Int) -> Data {
+        var pcmData = Data(capacity: samples.count * MemoryLayout<Int16>.size)
+        for sample in samples {
+            let clamped = max(-1.0, min(1.0, sample))
+            let intValue = Int16((clamped * Float(Int16.max)).rounded())
+            pcmData.appendUInt16LE(UInt16(bitPattern: intValue))
+        }
+        return wrapPCM16LEMono(pcmData: pcmData, sampleRate: sampleRate)
+    }
+
     static func wrapPCM16LEMono(pcmData: Data, sampleRate: Int) -> Data {
         let numChannels: UInt16 = 1
         let bitsPerSample: UInt16 = 16
@@ -470,6 +654,11 @@ extension TextToSpeechPlaybackManager: AVAudioPlayerDelegate {
             guard let self else { return }
             if self.player === player {
                 self.player = nil
+            }
+            if let activeClip = self.activeClip {
+                self.playedDuration += activeClip.duration
+                self.activeClip = nil
+                self.updatePublishedPlaybackMetrics(currentTime: self.playedDuration)
             }
             playNextClipIfNeeded()
         }
