@@ -140,6 +140,20 @@ final class AdapterUtilitiesTests: XCTestCase {
         XCTAssertFalse(supportsOpenAIResponsesSamplingParameters(modelID: "gpt-5", reasoningEnabled: false))
     }
 
+    func testMakeAuthorizedJSONRequestWithoutBodyOmitsContentType() throws {
+        let request = try makeAuthorizedJSONRequest(
+            url: URL(string: "https://example.com/request")!,
+            method: "POST",
+            apiKey: "test-key"
+        )
+
+        XCTAssertEqual(request.httpMethod, "POST")
+        XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer test-key")
+        XCTAssertEqual(request.value(forHTTPHeaderField: "Accept"), "application/json")
+        XCTAssertNil(request.value(forHTTPHeaderField: "Content-Type"))
+        XCTAssertNil(request.httpBody)
+    }
+
     func testNormalizedMIMETypeTrimsAndLowercasesForSetMembership() {
         let normalized = normalizedMIMEType(" Application/PDF \n")
         XCTAssertEqual(normalized, "application/pdf")

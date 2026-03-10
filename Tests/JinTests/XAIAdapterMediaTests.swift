@@ -1598,6 +1598,64 @@ final class XAIAdapterMediaTests: XCTestCase {
         XCTAssertEqual(finalUsage?.cachedTokens, 6)
     }
 
+    func testXAIResponsesContextCacheOffOmitsConversationHeaderAndCacheFields() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        let providerConfig = ProviderConfig(
+            id: "x",
+            name: "xAI",
+            type: .xai,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://example.com/responses")
+            XCTAssertNil(request.value(forHTTPHeaderField: "x-grok-conv-id"))
+
+            let body = try XCTUnwrap(requestBodyData(request))
+            let root = try XCTUnwrap(try JSONSerialization.jsonObject(with: body) as? [String: Any])
+            XCTAssertNil(root["prompt_cache_key"])
+            XCTAssertNil(root["prompt_cache_retention"])
+            XCTAssertNil(root["prompt_cache_min_tokens"])
+
+            let response: [String: Any] = [
+                "id": "resp_uncached_1",
+                "output": [
+                    [
+                        "type": "message",
+                        "content": [
+                            ["type": "output_text", "text": "ok"]
+                        ]
+                    ]
+                ]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = XAIAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hi")])],
+            modelID: "grok-4-1",
+            controls: GenerationControls(
+                contextCache: ContextCacheControls(
+                    mode: .off,
+                    ttl: .hour1,
+                    cacheKey: "stable-prefix",
+                    conversationID: "conv-123",
+                    minTokensThreshold: 1024
+                )
+            ),
+            tools: [],
+            streaming: false
+        )
+
+        for try await _ in stream {}
+    }
+
     func testXAIResponsesNonStreamingEmitsCitationSearchActivityFromCitations() async throws {
         let (configuration, protocolType) = makeMockedSessionConfiguration()
         let networkManager = NetworkManager(configuration: configuration)

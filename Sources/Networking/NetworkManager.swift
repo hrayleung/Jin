@@ -56,9 +56,10 @@ actor NetworkManager {
         eventMonitors: [any EventMonitor] = []
     ) -> Session {
         let monitors = [AlamofireNotifications()] + eventMonitors
-        let rootQueue = DispatchQueue(label: "jin.network.alamofire.root")
-        let requestQueue = DispatchQueue(label: "jin.network.alamofire.request", target: rootQueue)
-        let serializationQueue = DispatchQueue(label: "jin.network.alamofire.serialization", target: rootQueue)
+        let queueID = UUID().uuidString
+        let rootQueue = DispatchQueue(label: "jin.network.alamofire.\(queueID).root")
+        let requestQueue = DispatchQueue(label: "jin.network.alamofire.\(queueID).request", target: rootQueue)
+        let serializationQueue = DispatchQueue(label: "jin.network.alamofire.\(queueID).serialization", target: rootQueue)
 
         return Session(
             configuration: configuration,

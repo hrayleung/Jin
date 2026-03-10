@@ -307,7 +307,7 @@ actor XAIAdapter: LLMProviderAdapter {
         applyProviderSpecificOverrides(controls: controls, body: &body)
 
         var additionalHeaders: [String: String] = [:]
-        if let conversationID {
+        if controls.contextCache?.mode != .off, let conversationID {
             additionalHeaders["x-grok-conv-id"] = conversationID
         }
 

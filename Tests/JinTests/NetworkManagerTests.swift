@@ -139,6 +139,85 @@ final class NetworkManagerTests: XCTestCase {
         XCTAssertEqual(String(decoding: data, as: UTF8.self), "uploaded")
     }
 
+    func testSendRequestUploadsHTTPBodyStreamData() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        protocolType.requestHandler = { urlProtocol in
+            let request = urlProtocol.request
+            let client = try XCTUnwrap(urlProtocol.client)
+
+            XCTAssertEqual(request.httpMethod, "POST")
+            XCTAssertEqual(requestBodyData(request), Data("stream-payload".utf8))
+
+            let response = try Self.makeResponse(url: request.url!, statusCode: 200)
+            client.urlProtocol(urlProtocol, didReceive: response, cacheStoragePolicy: .notAllowed)
+            client.urlProtocol(urlProtocol, didLoad: Data("uploaded-stream".utf8))
+            client.urlProtocolDidFinishLoading(urlProtocol)
+        }
+
+        let networkManager = NetworkManager(configuration: configuration)
+        var request = Self.makeRequest(path: "/upload-stream")
+        request.httpMethod = "POST"
+        request.httpBodyStream = InputStream(data: Data("stream-payload".utf8))
+
+        let (data, response) = try await networkManager.sendRequest(request)
+
+        XCTAssertEqual(response.statusCode, 200)
+        XCTAssertEqual(String(decoding: data, as: UTF8.self), "uploaded-stream")
+    }
+
+    func testSendRequestReturnsRateLimitExceededWithRetryAfter() async {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        protocolType.requestHandler = { urlProtocol in
+            let request = urlProtocol.request
+            let client = try XCTUnwrap(urlProtocol.client)
+            let response = try XCTUnwrap(
+                HTTPURLResponse(
+                    url: request.url!,
+                    statusCode: 429,
+                    httpVersion: nil,
+                    headerFields: [
+                        "Content-Type": "text/plain",
+                        "Retry-After": "12"
+                    ]
+                )
+            )
+
+            client.urlProtocol(urlProtocol, didReceive: response, cacheStoragePolicy: .notAllowed)
+            client.urlProtocol(urlProtocol, didLoad: Data("slow down".utf8))
+            client.urlProtocolDidFinishLoading(urlProtocol)
+        }
+
+        let networkManager = NetworkManager(configuration: configuration)
+
+        do {
+            _ = try await networkManager.sendRequest(Self.makeRequest(path: "/rate-limit"))
+            XCTFail("Expected rate limit error")
+        } catch let LLMError.rateLimitExceeded(retryAfter) {
+            XCTAssertEqual(retryAfter, 12)
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+    }
+
+    func testSendRequestThrowsBadServerResponseWhenResponseMissing() async {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        protocolType.requestHandler = { urlProtocol in
+            let client = try XCTUnwrap(urlProtocol.client)
+            client.urlProtocolDidFinishLoading(urlProtocol)
+        }
+
+        let networkManager = NetworkManager(configuration: configuration)
+
+        do {
+            _ = try await networkManager.sendRequest(Self.makeRequest(path: "/no-response"))
+            XCTFail("Expected bad server response error")
+        } catch let LLMError.networkError(underlying) {
+            XCTAssertFalse(underlying is CancellationError)
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+    }
+
     func testStreamRequestParsesChunkedResponseData() async throws {
         let (configuration, protocolType) = makeMockedSessionConfiguration()
         protocolType.requestHandler = { urlProtocol in
@@ -191,6 +270,43 @@ final class NetworkManagerTests: XCTestCase {
         } catch {
             XCTFail("Unexpected error: \(error)")
         }
+    }
+
+    func testStreamRequestCancellationCancelsUnderlyingTransport() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let requestStarted = expectation(description: "request started")
+        let requestCancelled = expectation(description: "request cancelled")
+
+        protocolType.requestHandler = { urlProtocol in
+            let request = urlProtocol.request
+            let client = try XCTUnwrap(urlProtocol.client)
+            let response = try Self.makeResponse(url: request.url!, statusCode: 200)
+
+            client.urlProtocol(urlProtocol, didReceive: response, cacheStoragePolicy: .notAllowed)
+            client.urlProtocol(urlProtocol, didLoad: Data("partial".utf8))
+            requestStarted.fulfill()
+        }
+        protocolType.stopLoadingHandler = {
+            requestCancelled.fulfill()
+        }
+
+        let networkManager = NetworkManager(configuration: configuration)
+        let stream = await networkManager.streamRequest(Self.makeRequest(path: "/cancel-stream"), parser: NewlineParser())
+
+        let consumer = Task {
+            do {
+                for try await _ in stream {}
+            } catch is CancellationError {
+                // Expected when the consuming task is cancelled.
+            } catch {
+                XCTFail("Unexpected error: \(error)")
+            }
+        }
+
+        await fulfillment(of: [requestStarted], timeout: 1.0)
+        consumer.cancel()
+        await fulfillment(of: [requestCancelled], timeout: 1.0)
+        _ = await consumer.result
     }
 
     func testSessionInterceptorAppliesToDataAndStreamRequests() async throws {

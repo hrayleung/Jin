@@ -702,7 +702,7 @@ func makeAuthorizedJSONRequest(
         headers: makeRequestHeaders(
             authHeader: (key: "Authorization", value: "Bearer \(apiKey)"),
             accept: accept,
-            contentType: "application/json",
+            contentType: nil,
             includeUserAgent: includeUserAgent,
             additionalHeaders: additionalHeaders
         )
