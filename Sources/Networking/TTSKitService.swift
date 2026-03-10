@@ -4,6 +4,11 @@ import TTSKit
 actor TTSKitService {
     static let shared = TTSKitService()
 
+    struct GeneratedSpeechChunk: Sendable {
+        let samples: [Float]
+        let sampleRate: Int
+    }
+
     struct LocalModel: Identifiable, Sendable, Equatable {
         let id: String
         let repositoryRootURL: URL
@@ -282,6 +287,7 @@ actor TTSKitService {
         language: String?,
         styleInstruction: String?,
         playbackMode: TTSKitPlaybackMode,
+        onProgress: (@Sendable ([Float], Int) -> Void)? = nil,
         onFirstAudioFrame: (@Sendable () -> Void)? = nil
     ) async throws {
         cancelIdleUnload()
@@ -294,6 +300,7 @@ actor TTSKitService {
         let resolvedVoice = Self.normalizedOptionalString(voice)
         let resolvedLanguage = Self.normalizedOptionalString(language)
         let resolvedInstruction = Self.normalizedOptionalString(styleInstruction)
+        let sampleRate = pipe.sampleRate
 
         var options = GenerationOptions()
         options.instruction = resolvedInstruction
@@ -308,6 +315,7 @@ actor TTSKitService {
                 callback: { progress in
                     if !progress.audio.isEmpty {
                         onFirstAudioFrame?()
+                        onProgress?(progress.audio, sampleRate)
                     }
                     return true
                 }
@@ -319,9 +327,50 @@ actor TTSKitService {
         }
     }
 
+    func generateSpeech(
+        text: String,
+        voice: String?,
+        language: String?,
+        styleInstruction: String?,
+        onProgress: (@Sendable (GeneratedSpeechChunk) -> Void)? = nil
+    ) async throws {
+        cancelIdleUnload()
+        defer { scheduleIdleUnload() }
+
+        guard let pipe = ttsKit else {
+            throw SpeechExtensionError.ttsKitModelNotLoaded
+        }
+
+        let resolvedVoice = Self.normalizedOptionalString(voice)
+        let resolvedLanguage = Self.normalizedOptionalString(language)
+        let resolvedInstruction = Self.normalizedOptionalString(styleInstruction)
+        let sampleRate = pipe.sampleRate
+
+        var options = GenerationOptions()
+        options.instruction = resolvedInstruction
+
+        _ = try await pipe.generate(
+            text: text,
+            voice: resolvedVoice,
+            language: resolvedLanguage,
+            options: options,
+            callback: { progress in
+                if !progress.audio.isEmpty {
+                    onProgress?(GeneratedSpeechChunk(samples: progress.audio, sampleRate: sampleRate))
+                }
+                return true
+            }
+        )
+    }
+
     func stopPlayback() async {
         guard let pipe = ttsKit else { return }
         await pipe.audioOutput.stopPlayback(waitForCompletion: false)
+    }
+
+    func currentPlaybackTime() -> TimeInterval {
+        guard let pipe = ttsKit else { return 0 }
+        return pipe.audioOutput.currentPlaybackTime
     }
 
     // MARK: - Private

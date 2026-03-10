@@ -34,6 +34,7 @@ struct ContentView: View {
     @Query private var providers: [ProviderConfigEntity]
 
     @StateObject private var ttsPlaybackManager = TextToSpeechPlaybackManager()
+    @AppStorage(AppPreferenceKeys.ttsMiniPlayerEnabled) private var miniPlayerEnabled = true
 
     @State private var selectedAssistant: AssistantEntity?
     @State private var selectedConversation: ConversationEntity?
@@ -121,20 +122,6 @@ struct ContentView: View {
             }
         } detail: {
             VStack(spacing: 0) {
-                if ttsPlaybackManager.state != .idle,
-                   let ctx = ttsPlaybackManager.playbackContext,
-                   ctx.conversationID != selectedConversation?.id {
-                    TTSMiniPlayerView(
-                        manager: ttsPlaybackManager,
-                        onNavigate: { conversationID in
-                            if let conv = conversations.first(where: { $0.id == conversationID }) {
-                                selectedConversation = conv
-                            }
-                        }
-                    )
-                    .transition(.move(edge: .top).combined(with: .opacity))
-                }
-
                 if let conversation = selectedConversation {
                     ChatView(
                         conversationEntity: conversation,
@@ -193,7 +180,6 @@ struct ContentView: View {
                 }
             }
             .background { JinSemanticColor.detailSurface.ignoresSafeArea() }
-            .animation(.easeInOut(duration: 0.2), value: ttsPlaybackManager.state != .idle)
             .overlay(alignment: .leading) {
                 LinearGradient(
                     stops: [
@@ -207,6 +193,36 @@ struct ContentView: View {
                 .frame(width: 20)
                 .allowsHitTesting(false)
             }
+            .overlay(alignment: .top) {
+                if miniPlayerEnabled,
+                   ttsPlaybackManager.state != .idle,
+                   let ctx = ttsPlaybackManager.playbackContext {
+                    TTSMiniPlayerView(
+                        manager: ttsPlaybackManager,
+                        onNavigate: ctx.conversationID == selectedConversation?.id
+                            ? nil
+                            : { conversationID in
+                                if let conv = conversations.first(where: { $0.id == conversationID }) {
+                                    selectedConversation = conv
+                                }
+                            }
+                    )
+                    .frame(width: TTSMiniPlayerMetrics.width, height: TTSMiniPlayerMetrics.height)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding(.top, TTSMiniPlayerMetrics.topOffset)
+                    .transition(
+                        .asymmetric(
+                            insertion: .scale(scale: 0.92, anchor: .top)
+                                .combined(with: .opacity)
+                                .combined(with: .offset(y: -8)),
+                            removal: .scale(scale: 0.96, anchor: .top)
+                                .combined(with: .opacity)
+                        )
+                    )
+                    .zIndex(1)
+                }
+            }
+            .animation(.spring(response: 0.4, dampingFraction: 0.82), value: miniPlayerEnabled && ttsPlaybackManager.state != .idle)
         }
             .toolbar(removing: .sidebarToggle)
             .hideWindowToolbarCompat()
