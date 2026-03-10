@@ -77,6 +77,9 @@ actor StorageSizeCalculator {
         guard let url = directoryURL(for: category),
               fileManager.fileExists(atPath: url.path) else { return }
 
+        // Hard guard: never allow deleting the Application Support root
+        if let appSupport = applicationSupportURL(), url == appSupport { return }
+
         try fileManager.removeItem(at: url)
 
         // Recreate the directory for categories that expect it to exist

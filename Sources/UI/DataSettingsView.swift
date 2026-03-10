@@ -279,12 +279,20 @@ struct DataSettingsView: View {
     }
 
     private func deleteAllChats() {
-        for conversation in conversations {
-            modelContext.delete(conversation)
-        }
-        // Refresh sizes after deletion (database size may change)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-            recalculate()
+        Task {
+            // Clear attachment files first (not cascade-deleted from SwiftData)
+            try? await calculator.clearCategory(.attachments)
+
+            await MainActor.run {
+                for conversation in conversations {
+                    modelContext.delete(conversation)
+                }
+                try? modelContext.save()
+            }
+
+            // Refresh sizes after deletion
+            try? await Task.sleep(for: .milliseconds(500))
+            await MainActor.run { recalculate() }
         }
     }
 
