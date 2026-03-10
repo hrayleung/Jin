@@ -355,7 +355,7 @@ enum GeneralSettingsCategory: String, CaseIterable, Identifiable {
         case .shortcuts: return "Show and customize keyboard shortcuts."
         case .defaults: return "Model and MCP defaults for new chats."
         case .updates: return "Automatic updates and pre-release channel."
-        case .data: return "Inspect and manage local chat data."
+        case .data: return "Storage usage, cache management, and local data."
         }
     }
 }
