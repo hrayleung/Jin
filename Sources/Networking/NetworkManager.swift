@@ -21,10 +21,10 @@ actor NetworkManager {
         makeSession(configuration: makeDefaultSessionConfiguration())
     }()
 
-    /// Shared Alamofire session for one-shot and streaming requests.
+    /// Shared session for one-shot and streaming requests.
     ///
-    /// The session is configured once so request interception, event monitoring,
-    /// and transport behavior remain consistent across every request mode.
+    /// Configured once so interception, monitoring, and transport behavior
+    /// remain consistent across every request mode.
     private let session: Session
 
     init(
@@ -55,7 +55,7 @@ actor NetworkManager {
         interceptor: (any RequestInterceptor)? = nil,
         eventMonitors: [any EventMonitor] = []
     ) -> Session {
-        let monitors = [AlamofireNotifications()] + eventMonitors
+        let monitors = eventMonitors
         let queueID = UUID().uuidString
         let rootQueue = DispatchQueue(label: "jin.network.alamofire.\(queueID).root")
         let requestQueue = DispatchQueue(label: "jin.network.alamofire.\(queueID).request", target: rootQueue)
@@ -408,7 +408,9 @@ actor NetworkManager {
             let retryAfter = (headers["Retry-After"] as? String).flatMap(TimeInterval.init)
             return .rateLimitExceeded(retryAfter: retryAfter)
         default:
-            let message = String(data: data, encoding: .utf8) ?? "Unknown error"
+            let message = normalizedTrimmedString(String(data: data, encoding: .utf8))
+                .map { String($0.prefix(2000)) }
+                ?? "Unknown error"
             return .providerError(code: "\(statusCode)", message: message)
         }
     }

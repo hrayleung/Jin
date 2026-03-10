@@ -1,4 +1,3 @@
-import Alamofire
 import XCTest
 import Foundation
 @testable import Jin
@@ -8,13 +7,13 @@ final class SearchRedirectURLResolverTests: XCTestCase {
         let rawURL = "https://vertexaisearch.cloud.google.com/search?q=test&url=https%3A%2F%2Fexample.com%2Ffinal"
         let expected = "https://example.com/final"
 
-        let (session, protocolType) = makeMockedAlamofireSession()
+        let (session, protocolType) = makeMockedDataProvider()
         protocolType.requestHandler = { _ in
             XCTFail("Query redirect should be resolved locally without network")
             throw URLError(.badURL)
         }
 
-        let resolver = SearchRedirectURLResolver(alamofireSession: session)
+        let resolver = SearchRedirectURLResolver(dataProvider: session)
         let resolved = await resolver.resolveIfNeeded(rawURL: rawURL)
 
         XCTAssertEqual(resolved, expected)
@@ -47,7 +46,7 @@ final class SearchRedirectURLResolverTests: XCTestCase {
         let data = try JSONSerialization.data(withJSONObject: payload)
         try data.write(to: cacheURL)
 
-        let (session, protocolType) = makeMockedAlamofireSession()
+        let (session, protocolType) = makeMockedDataProvider()
         protocolType.requestHandler = { _ in
             XCTFail("Cached redirect should be used without issuing network request")
             throw URLError(.badURL)
@@ -55,7 +54,7 @@ final class SearchRedirectURLResolverTests: XCTestCase {
 
         let resolver = SearchRedirectURLResolver(
             cacheFileURL: cacheURL,
-            alamofireSession: session,
+            dataProvider: session,
             now: { now }
         )
 
@@ -92,7 +91,7 @@ final class SearchRedirectURLResolverTests: XCTestCase {
         try data.write(to: cacheURL)
 
         let htmlResponse = ""
-        let (session, protocolType) = makeMockedAlamofireSession()
+        let (session, protocolType) = makeMockedDataProvider()
         protocolType.requestHandler = { request in
             let response = HTTPURLResponse(
                 url: request.url!,
@@ -105,7 +104,7 @@ final class SearchRedirectURLResolverTests: XCTestCase {
 
         let resolver = SearchRedirectURLResolver(
             cacheFileURL: cacheURL,
-            alamofireSession: session,
+            dataProvider: session,
             now: { now }
         )
 
@@ -144,18 +143,12 @@ private final class MockURLProtocol: URLProtocol {
     override func stopLoading() {}
 }
 
-private func makeMockedAlamofireSession() -> (Session, MockURLProtocol.Type) {
+private func makeMockedDataProvider() -> (HTTPDataProvider, MockURLProtocol.Type) {
     let config = URLSessionConfiguration.ephemeral
     config.protocolClasses = [MockURLProtocol.self]
-    let rootQueue = DispatchQueue(label: "jin.tests.search-redirect.root")
-    let requestQueue = DispatchQueue(label: "jin.tests.search-redirect.request", target: rootQueue)
-    let serializationQueue = DispatchQueue(label: "jin.tests.search-redirect.serialization", target: rootQueue)
-    let session = Session(
-        configuration: config,
-        rootQueue: rootQueue,
-        requestSetup: .lazy,
-        requestQueue: requestQueue,
-        serializationQueue: serializationQueue
-    )
-    return (session, MockURLProtocol.self)
+    let session = URLSession(configuration: config)
+    let provider: HTTPDataProvider = { request in
+        try await session.data(for: request)
+    }
+    return (provider, MockURLProtocol.self)
 }

@@ -1,4 +1,3 @@
-import Alamofire
 import Foundation
 import XCTest
 @testable import Jin
@@ -84,7 +83,7 @@ final class AttachmentImportPipelineMediaPersistenceTests: XCTestCase {
             ))
         ]
 
-        let persisted = await AttachmentImportPipeline.persistImagesToDisk(parts, alamofireSession: makeAlamofireSession())
+        let persisted = await AttachmentImportPipeline.persistImagesToDisk(parts, dataProvider: makeDataProvider())
 
         guard case .image(let image) = persisted[0] else {
             return XCTFail("Expected image content")
@@ -110,7 +109,7 @@ final class AttachmentImportPipelineMediaPersistenceTests: XCTestCase {
             ))
         ]
 
-        let persisted = await AttachmentImportPipeline.persistImagesToDisk(parts, alamofireSession: makeAlamofireSession())
+        let persisted = await AttachmentImportPipeline.persistImagesToDisk(parts, dataProvider: makeDataProvider())
 
         guard case .image(let image) = persisted[0] else {
             return XCTFail("Expected image content")
@@ -140,7 +139,7 @@ final class AttachmentImportPipelineMediaPersistenceTests: XCTestCase {
             url: remoteURL,
             assetDisposition: .managed
         )
-        let persisted = await AttachmentImportPipeline.persistImagesToDisk([.image(original)], alamofireSession: makeAlamofireSession())
+        let persisted = await AttachmentImportPipeline.persistImagesToDisk([.image(original)], dataProvider: makeDataProvider())
 
         guard case .image(let image) = persisted[0] else {
             return XCTFail("Expected image content")
@@ -149,18 +148,12 @@ final class AttachmentImportPipelineMediaPersistenceTests: XCTestCase {
         XCTAssertEqual(image.assetDisposition, MediaAssetDisposition.managed)
     }
 
-    private func makeAlamofireSession() -> Session {
+    private func makeDataProvider() -> HTTPDataProvider {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [AttachmentImportPipelineMockURLProtocol.self]
-        let rootQueue = DispatchQueue(label: "jin.tests.attachment-import.root")
-        let requestQueue = DispatchQueue(label: "jin.tests.attachment-import.request", target: rootQueue)
-        let serializationQueue = DispatchQueue(label: "jin.tests.attachment-import.serialization", target: rootQueue)
-        return Session(
-            configuration: configuration,
-            rootQueue: rootQueue,
-            requestSetup: .lazy,
-            requestQueue: requestQueue,
-            serializationQueue: serializationQueue
-        )
+        let session = URLSession(configuration: configuration)
+        return { request in
+            try await session.data(for: request)
+        }
     }
 }

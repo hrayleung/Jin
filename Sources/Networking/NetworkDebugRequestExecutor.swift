@@ -1,6 +1,10 @@
 import Foundation
 import Alamofire
 
+/// Closure that fetches raw HTTP data for a request, used to decouple
+/// UI/Persistence layers from Alamofire. Matches `URLSession.data(for:)`.
+typealias HTTPDataProvider = @Sendable (URLRequest) async throws -> (Data, URLResponse)
+
 /// Shared helper for one-shot requests outside `NetworkManager`.
 /// It intentionally skips trace logging to avoid noisy non-LLM network traffic.
 enum NetworkDebugRequestExecutor {
@@ -19,12 +23,26 @@ enum NetworkDebugRequestExecutor {
         )
     }()
 
+    /// Execute a one-shot data request.
+    ///
+    /// - Parameters:
+    ///   - dataProvider: Optional closure that bypasses the internal Alamofire session.
+    ///     Allows UI/Persistence callers (and their tests) to inject a plain `URLSession`
+    ///     without importing Alamofire.
+    ///   - alamofireSession: Optional Alamofire session override for Networking-layer tests
+    ///     that verify Alamofire-specific behavior (transport error extraction, etc.).
+    ///     Ignored when `dataProvider` is set.
     static func data(
         for request: URLRequest,
         mode: String,
+        dataProvider: HTTPDataProvider? = nil,
         alamofireSession: Session? = nil
     ) async throws -> (Data, URLResponse) {
         _ = mode
+
+        if let dataProvider {
+            return try await dataProvider(request)
+        }
 
         let response = await (alamofireSession ?? defaultSession)
             .request(request)

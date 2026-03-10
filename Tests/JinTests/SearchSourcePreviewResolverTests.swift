@@ -1,4 +1,3 @@
-import Alamofire
 import XCTest
 import Foundation
 @testable import Jin
@@ -119,7 +118,7 @@ final class SearchSourcePreviewResolverTests: XCTestCase {
             </html>
             """
 
-        let (session, protocolType) = makeMockedAlamofireSession()
+        let (session, protocolType) = makeMockedDataProvider()
         protocolType.requestHandler = { request in
             guard let url = request.url else {
                 throw URLError(.badURL)
@@ -137,7 +136,7 @@ final class SearchSourcePreviewResolverTests: XCTestCase {
 
         let resolver = SearchSourcePreviewResolver(
             cacheFileURL: cacheURL,
-            alamofireSession: session,
+            dataProvider: session,
             now: { now }
         )
 
@@ -178,7 +177,7 @@ final class SearchSourcePreviewResolverTests: XCTestCase {
             </html>
             """
 
-        let (session, protocolType) = makeMockedAlamofireSession()
+        let (session, protocolType) = makeMockedDataProvider()
         var didHitNetwork = false
         protocolType.requestHandler = { request in
             didHitNetwork = true
@@ -198,7 +197,7 @@ final class SearchSourcePreviewResolverTests: XCTestCase {
 
         let resolver = SearchSourcePreviewResolver(
             cacheFileURL: cacheURL,
-            alamofireSession: session,
+            dataProvider: session,
             now: { now }
         )
 
@@ -240,7 +239,7 @@ final class SearchSourcePreviewResolverTests: XCTestCase {
             </html>
             """
 
-        let (session, protocolType) = makeMockedAlamofireSession()
+        let (session, protocolType) = makeMockedDataProvider()
         var didHitNetwork = false
         protocolType.requestHandler = { request in
             didHitNetwork = true
@@ -260,7 +259,7 @@ final class SearchSourcePreviewResolverTests: XCTestCase {
 
         let resolver = SearchSourcePreviewResolver(
             cacheFileURL: cacheURL,
-            alamofireSession: session,
+            dataProvider: session,
             now: { now }
         )
 
@@ -301,18 +300,12 @@ private final class MockURLProtocol: URLProtocol {
     override func stopLoading() {}
 }
 
-private func makeMockedAlamofireSession() -> (Session, MockURLProtocol.Type) {
+private func makeMockedDataProvider() -> (HTTPDataProvider, MockURLProtocol.Type) {
     let config = URLSessionConfiguration.ephemeral
     config.protocolClasses = [MockURLProtocol.self]
-    let rootQueue = DispatchQueue(label: "jin.tests.search-source-preview.root")
-    let requestQueue = DispatchQueue(label: "jin.tests.search-source-preview.request", target: rootQueue)
-    let serializationQueue = DispatchQueue(label: "jin.tests.search-source-preview.serialization", target: rootQueue)
-    let session = Session(
-        configuration: config,
-        rootQueue: rootQueue,
-        requestSetup: .lazy,
-        requestQueue: requestQueue,
-        serializationQueue: serializationQueue
-    )
-    return (session, MockURLProtocol.self)
+    let session = URLSession(configuration: config)
+    let provider: HTTPDataProvider = { request in
+        try await session.data(for: request)
+    }
+    return (provider, MockURLProtocol.self)
 }

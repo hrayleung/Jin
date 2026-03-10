@@ -1,4 +1,3 @@
-import Alamofire
 import Foundation
 
 actor SearchSourcePreviewResolver {
@@ -115,19 +114,19 @@ actor SearchSourcePreviewResolver {
     private var cacheByURL: [String: CacheEntry] = [:]
     private var inFlightByURL: [String: Task<String?, Never>] = [:]
     private let cacheFileURL: URL?
-    private let overrideAlamofireSession: Session?
+    private let overrideDataProvider: HTTPDataProvider?
     private let fileManager: FileManager
     private let now: () -> Date
 
     init(
         fileManager: FileManager = .default,
         cacheFileURL: URL? = nil,
-        alamofireSession: Session? = nil,
+        dataProvider: HTTPDataProvider? = nil,
         now: @escaping () -> Date = Date.init
     ) {
         self.fileManager = fileManager
         self.cacheFileURL = cacheFileURL ?? Self.defaultCacheFileURL(fileManager: fileManager)
-        self.overrideAlamofireSession = alamofireSession
+        self.overrideDataProvider = dataProvider
         self.now = now
         cacheByURL = Self.loadCacheFromDisk(
             cacheFileURL: self.cacheFileURL,
@@ -260,7 +259,7 @@ actor SearchSourcePreviewResolver {
             let (data, response) = try await NetworkDebugRequestExecutor.data(
                 for: request,
                 mode: "search_preview",
-                alamofireSession: overrideAlamofireSession
+                dataProvider: overrideDataProvider
             )
             guard !Task.isCancelled else { return nil }
             guard let http = response as? HTTPURLResponse else { return nil }
@@ -353,7 +352,7 @@ actor SearchSourcePreviewResolver {
             let (data, response) = try await NetworkDebugRequestExecutor.data(
                 for: request,
                 mode: "search_preview_oembed",
-                alamofireSession: overrideAlamofireSession
+                dataProvider: overrideDataProvider
             )
             guard !Task.isCancelled else { return nil }
             guard let http = response as? HTTPURLResponse else { return nil }

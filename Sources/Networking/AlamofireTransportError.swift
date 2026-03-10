@@ -1,9 +1,15 @@
 import Alamofire
 
 /// Extracts the underlying error from an `AFError` when it represents a transport-level
-/// failure (task failed, session invalidated/deinitialized, or explicit cancellation).
-/// Returns `nil` for non-transport errors (serialization, validation) which are safe to
-/// ignore since we handle HTTP status codes and raw data ourselves.
+/// failure (task failed, session invalidated/deinitialized, explicit cancellation, or
+/// server trust evaluation failure).
+///
+/// Returns `nil` for non-transport errors. This is safe because:
+/// - `responseSerializationFailed` / `responseValidationFailed`: We never enable
+///   Alamofire's built-in validation or typed serialization — `NetworkManager` handles
+///   HTTP status codes and raw `Data` directly.
+/// - `parameterEncodingFailed` / `requestAdaptationFailed` / etc.: We build `URLRequest`
+///   objects ourselves, so these encoding/adaptation paths are not exercised.
 ///
 /// Shared between `NetworkManager` and `NetworkDebugRequestExecutor` to keep
 /// cancellation / transport mapping in sync.
