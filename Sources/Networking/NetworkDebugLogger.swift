@@ -90,18 +90,7 @@ actor NetworkDebugLogger {
         guard Self.isLoggingEnabled else { return }
         guard let requestID else { return }
 
-        let metadata = activeRequests.removeValue(forKey: requestID)
-            ?? ActiveRequest(
-                mode: "unknown",
-                context: NetworkDebugLogScope.current ?? NetworkDebugLogContext(),
-                startedAt: Date(),
-                requestRecord: ["ts": timestamp()],
-                fileURL: Self.logFileURL(
-                    for: NetworkDebugLogScope.current ?? NetworkDebugLogContext(),
-                    startedAt: Date(),
-                    requestID: requestID
-                )
-            )
+        guard let metadata = activeRequests.removeValue(forKey: requestID) else { return }
 
         let responseHeaders = response.map { headers(from: stringifyHeaders($0.allHeaderFields)) } ?? [:]
         let body = bodyValue(
