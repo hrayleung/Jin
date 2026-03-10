@@ -3,6 +3,11 @@ import SwiftUI
 
 /// Tracks in-flight streaming generations per conversation so they can continue
 /// even when the user navigates away, and so the sidebar can show activity.
+///
+/// Only **session lifecycle events** (begin / end) publish through
+/// `objectWillChange`.  Internal mutations such as attaching a task or
+/// updating a model label are silent, so views that merely check
+/// `isStreaming` are not invalidated on every streaming token.
 @MainActor
 final class ConversationStreamingStore: ObservableObject {
     private typealias SessionMap = [UUID: Session]
@@ -16,7 +21,11 @@ final class ConversationStreamingStore: ObservableObject {
         var startedAt: Date
     }
 
-    @Published private var sessionsByConversationID: [UUID: SessionMap] = [:]
+    /// Intentionally **not** `@Published` — we send `objectWillChange`
+    /// manually so that only session creation / removal triggers view updates.
+    private var sessionsByConversationID: [UUID: SessionMap] = [:]
+
+    // MARK: - Queries (no side-effects)
 
     func isStreaming(conversationID: UUID) -> Bool {
         !sessions(for: conversationID).isEmpty
@@ -42,11 +51,13 @@ final class ConversationStreamingStore: ObservableObject {
         session(conversationID: conversationID, threadID: threadID)?.modelLabel
     }
 
+    // MARK: - Lifecycle (publishes objectWillChange)
+
     /// Creates (or returns) a streaming session for a conversation thread.
     @discardableResult
     func beginSession(conversationID: UUID, threadID: UUID, modelLabel: String?) -> StreamingMessageState {
         if let existing = session(conversationID: conversationID, threadID: threadID) {
-            // Update label if we have a better one.
+            // Update label if we have a better one — silent, no publish.
             if existing.modelLabel == nil, modelLabel != nil {
                 updateSession(conversationID: conversationID, threadID: threadID) { session in
                     session.modelLabel = modelLabel
@@ -63,6 +74,7 @@ final class ConversationStreamingStore: ObservableObject {
             task: nil,
             startedAt: Date()
         )
+        objectWillChange.send()
         storeSession(createdSession)
         return createdSession.state
     }
@@ -72,6 +84,20 @@ final class ConversationStreamingStore: ObservableObject {
     func beginSession(conversationID: UUID, modelLabel: String?) -> StreamingMessageState {
         beginSession(conversationID: conversationID, threadID: conversationID, modelLabel: modelLabel)
     }
+
+    func endSession(conversationID: UUID) {
+        guard sessionsByConversationID[conversationID] != nil else { return }
+        objectWillChange.send()
+        sessionsByConversationID.removeValue(forKey: conversationID)
+    }
+
+    func endSession(conversationID: UUID, threadID: UUID) {
+        guard session(conversationID: conversationID, threadID: threadID) != nil else { return }
+        objectWillChange.send()
+        removeSession(conversationID: conversationID, threadID: threadID)
+    }
+
+    // MARK: - Silent mutations (no publish)
 
     func attachTask(_ task: Task<Void, Never>, conversationID: UUID, threadID: UUID) {
         updateSession(conversationID: conversationID, threadID: threadID) { session in
@@ -93,13 +119,7 @@ final class ConversationStreamingStore: ObservableObject {
         session(conversationID: conversationID, threadID: threadID)?.task?.cancel()
     }
 
-    func endSession(conversationID: UUID) {
-        sessionsByConversationID.removeValue(forKey: conversationID)
-    }
-
-    func endSession(conversationID: UUID, threadID: UUID) {
-        removeSession(conversationID: conversationID, threadID: threadID)
-    }
+    // MARK: - Private helpers
 
     private func sessions(for conversationID: UUID) -> SessionMap {
         sessionsByConversationID[conversationID] ?? [:]

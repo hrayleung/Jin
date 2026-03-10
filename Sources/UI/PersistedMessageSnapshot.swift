@@ -10,6 +10,12 @@ struct PersistedMessageSnapshot: Sendable {
     let toolCallsData: Data?
     let toolResultsData: Data?
     let searchActivitiesData: Data?
+    let codexToolActivitiesData: Data?
+    let perMessageMCPServerNamesData: Data?
+    let responseMetricsData: Data?
+    let generatedProviderID: String?
+    let generatedModelID: String?
+    let generatedModelName: String?
 
     init(_ entity: MessageEntity) {
         self.id = entity.id
@@ -21,6 +27,12 @@ struct PersistedMessageSnapshot: Sendable {
         self.toolCallsData = entity.toolCallsData
         self.toolResultsData = entity.toolResultsData
         self.searchActivitiesData = entity.searchActivitiesData
+        self.codexToolActivitiesData = entity.codexToolActivitiesData
+        self.perMessageMCPServerNamesData = entity.perMessageMCPServerNamesData
+        self.responseMetricsData = entity.responseMetricsData
+        self.generatedProviderID = entity.generatedProviderID
+        self.generatedModelID = entity.generatedModelID
+        self.generatedModelName = entity.generatedModelName
     }
 
     func toDomain(using decoder: JSONDecoder) -> Message? {
@@ -30,6 +42,8 @@ struct PersistedMessageSnapshot: Sendable {
         let toolCalls = toolCallsData.flatMap { try? decoder.decode([ToolCall].self, from: $0) }
         let toolResults = toolResultsData.flatMap { try? decoder.decode([ToolResult].self, from: $0) }
         let searchActivities = searchActivitiesData.flatMap { try? decoder.decode([SearchActivity].self, from: $0) }
+        let codexToolActivities = codexToolActivitiesData.flatMap { try? decoder.decode([CodexToolActivity].self, from: $0) }
+        let perMessageMCPServerNames = perMessageMCPServerNamesData.flatMap { try? decoder.decode([String].self, from: $0) }
 
         return Message(
             id: id,
@@ -38,7 +52,13 @@ struct PersistedMessageSnapshot: Sendable {
             toolCalls: toolCalls,
             toolResults: toolResults,
             searchActivities: searchActivities,
-            timestamp: timestamp
+            codexToolActivities: codexToolActivities,
+            timestamp: timestamp,
+            perMessageMCPServerNames: perMessageMCPServerNames
         )
+    }
+
+    func responseMetrics(using decoder: JSONDecoder) -> ResponseMetrics? {
+        responseMetricsData.flatMap { try? decoder.decode(ResponseMetrics.self, from: $0) }
     }
 }

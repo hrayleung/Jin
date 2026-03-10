@@ -7,6 +7,12 @@ struct ChatThreadRenderContext {
     let artifactCatalog: ArtifactCatalog
 }
 
+struct ChatDecodedRenderContext: Sendable {
+    let visibleMessages: [MessageRenderItem]
+    let toolResultsByCallID: [String: ToolResult]
+    let artifactCatalog: ArtifactCatalog
+}
+
 struct EditSlashCommandContext {
     let servers: [SlashCommandMCPServerItem]
     let isActive: Bool

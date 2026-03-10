@@ -122,7 +122,7 @@ struct UserMessageMCPBadgeRow: View {
 
 // MARK: - Render Models
 
-struct MessageRenderItem: Identifiable {
+struct MessageRenderItem: Identifiable, Sendable {
     let id: UUID
     let contextThreadID: UUID?
     let role: String

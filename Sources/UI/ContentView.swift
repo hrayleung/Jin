@@ -136,6 +136,10 @@ struct ContentView: View {
                         onToggleSidebar: toggleSidebarVisibility,
                         onNewChat: createNewConversation
                     )
+                        // ChatView owns substantial conversation-local @State and
+                        // async callbacks. Keep its lifecycle keyed to the
+                        // selected conversation so caches and transient UI state
+                        // cannot bleed across chats.
                         .id(conversation.id)
                         .background(JinSemanticColor.detailSurface)
                         .environmentObject(ttsPlaybackManager)
@@ -1309,46 +1313,16 @@ extension ContentView {
             ForEach(groupedConversations, id: \.key) { period, convs in
                 Section(period) {
                     ForEach(convs) { conversation in
-                        let isRegeneratingTitle = regeneratingConversationID == conversation.id
-                        let isStarred = conversation.isStarred == true
-                        NavigationLink(value: conversation) {
-                            ConversationRowView(
-                                title: conversation.title,
-                                isStarred: isStarred,
-                                subtitle: "\(providerName(for: conversation.providerID)) • \(modelName(id: conversation.modelID, providerID: conversation.providerID))",
-                                providerIconID: providerIconID(for: conversation.providerID),
-                                updatedAt: conversation.updatedAt,
-                                isStreaming: streamingStore.isStreaming(conversationID: conversation.id)
-                            )
-                        }
-                        .contextMenu {
-                            Button {
-                                toggleConversationStar(conversation)
-                            } label: {
-                                Label(isStarred ? "Unstar Chat" : "Star Chat", systemImage: isStarred ? "star.slash" : "star")
-                            }
-
-                            Button {
-                                requestRenameConversation(conversation)
-                            } label: {
-                                Label("Rename Chat", systemImage: "pencil")
-                            }
-
-                            Button {
-                                Task { await regenerateConversationTitle(conversation) }
-                            } label: {
-                                Label(isRegeneratingTitle ? "Regenerating Title…" : "Regenerate Title", systemImage: "wand.and.stars")
-                            }
-                            .disabled(streamingStore.isStreaming(conversationID: conversation.id) || isRegeneratingTitle)
-
-                            Divider()
-
-                            Button(role: .destructive) {
-                                requestDeleteConversation(conversation)
-                            } label: {
-                                Label("Delete Chat", systemImage: "trash")
-                            }
-                        }
+                        SidebarConversationItem(
+                            conversation: conversation,
+                            subtitle: "\(providerName(for: conversation.providerID)) • \(modelName(id: conversation.modelID, providerID: conversation.providerID))",
+                            providerIconID: providerIconID(for: conversation.providerID),
+                            isRegeneratingTitle: regeneratingConversationID == conversation.id,
+                            onToggleStar: { toggleConversationStar(conversation) },
+                            onRename: { requestRenameConversation(conversation) },
+                            onRegenerateTitle: { Task { await regenerateConversationTitle(conversation) } },
+                            onDelete: { requestDeleteConversation(conversation) }
+                        )
                     }
                     .onDelete { indexSet in
                         deleteConversations(at: indexSet, in: convs)

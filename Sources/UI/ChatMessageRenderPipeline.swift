@@ -83,6 +83,70 @@ enum ChatMessageRenderPipeline {
         )
     }
 
+    static func makeDecodedRenderContext(
+        from orderedMessages: [PersistedMessageSnapshot],
+        fallbackModelLabel: String,
+        assistantProviderIconsByID: [String: String?]
+    ) -> ChatDecodedRenderContext {
+        var renderedItems: [MessageRenderItem] = []
+        renderedItems.reserveCapacity(orderedMessages.count)
+
+        var artifactVersionCounts: [String: Int] = [:]
+        var artifactOrder: [String] = []
+        var artifactVersionsByID: [String: [RenderedArtifactVersion]] = [:]
+        let decoder = JSONDecoder()
+
+        for snapshot in orderedMessages {
+            guard snapshot.role != "tool" else { continue }
+            guard let message = snapshot.toDomain(using: decoder) else { continue }
+
+            let renderedBlocks = renderedBlocks(
+                content: message.content,
+                role: message.role,
+                messageID: snapshot.id,
+                timestamp: snapshot.timestamp,
+                artifactVersionCounts: &artifactVersionCounts,
+                artifactOrder: &artifactOrder,
+                artifactVersionsByID: &artifactVersionsByID
+            )
+            renderedItems.append(
+                MessageRenderItem(
+                    id: snapshot.id,
+                    contextThreadID: snapshot.contextThreadID,
+                    role: snapshot.role,
+                    timestamp: snapshot.timestamp,
+                    renderedBlocks: renderedBlocks,
+                    toolCalls: message.toolCalls ?? [],
+                    searchActivities: message.searchActivities ?? [],
+                    codexToolActivities: message.codexToolActivities ?? [],
+                    assistantModelLabel: snapshot.role == "assistant"
+                        ? (snapshot.generatedModelName ?? snapshot.generatedModelID ?? fallbackModelLabel)
+                        : nil,
+                    assistantProviderIconID: snapshot.role == "assistant"
+                        ? (assistantProviderIconsByID[snapshot.generatedProviderID ?? ""] ?? nil)
+                        : nil,
+                    responseMetrics: snapshot.responseMetrics(using: decoder),
+                    copyText: copyableText(from: message, role: message.role),
+                    canEditUserMessage: snapshot.role == "user"
+                        && message.content.contains(where: { part in
+                            if case .text = part { return true }
+                            return false
+                        }),
+                    perMessageMCPServerNames: message.perMessageMCPServerNames ?? []
+                )
+            )
+        }
+
+        return ChatDecodedRenderContext(
+            visibleMessages: renderedItems,
+            toolResultsByCallID: toolResultsByToolCallID(in: orderedMessages),
+            artifactCatalog: ArtifactCatalog(
+                orderedArtifactIDs: artifactOrder,
+                versionsByArtifactID: artifactVersionsByID
+            )
+        )
+    }
+
     static func editableUserText(from message: Message) -> String? {
         let parts = message.content.compactMap { part -> String? in
             guard case .text(let text) = part else { return nil }
@@ -189,6 +253,25 @@ enum ChatMessageRenderPipeline {
         let decoder = JSONDecoder()
         for entity in messageEntities where entity.role == "tool" {
             guard let data = entity.toolResultsData,
+                  let toolResults = try? decoder.decode([ToolResult].self, from: data) else {
+                continue
+            }
+
+            for result in toolResults {
+                results[result.toolCallID] = result
+            }
+        }
+
+        return results
+    }
+
+    private static func toolResultsByToolCallID(in messageSnapshots: [PersistedMessageSnapshot]) -> [String: ToolResult] {
+        var results: [String: ToolResult] = [:]
+        results.reserveCapacity(8)
+
+        let decoder = JSONDecoder()
+        for snapshot in messageSnapshots where snapshot.role == "tool" {
+            guard let data = snapshot.toolResultsData,
                   let toolResults = try? decoder.decode([ToolResult].self, from: data) else {
                 continue
             }
