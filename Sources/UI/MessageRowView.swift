@@ -162,6 +162,8 @@ struct MessageRow: View {
     let onStopSpeakAssistantMessage: (UUID) -> Void
     let onRegenerate: (UUID) -> Void
     let onEditUserMessage: (UUID) -> Void
+    let onDeleteMessage: (UUID) -> Void
+    let onDeleteResponse: (UUID) -> Void
     let editingUserMessageID: UUID?
     let editingUserMessageText: Binding<String>
     let editingUserMessageFocused: Binding<Bool>
@@ -171,6 +173,9 @@ struct MessageRow: View {
     let onOpenArtifact: (RenderedArtifactVersion, UUID?) -> Void
     let onActivate: (() -> Void)?
     @State private var isResponseMetricsPopoverPresented = false
+    @State private var showingDeleteConfirmation = false
+    @State private var pendingDeleteAction: DeleteAction?
+    private enum DeleteAction { case message, response }
 
     var body: some View {
         let isUser = item.isUser
@@ -315,6 +320,25 @@ struct MessageRow: View {
         .onTapGesture {
             onActivate?()
         }
+        .alert(
+            pendingDeleteAction == .response ? "Delete response?" : "Delete message?",
+            isPresented: $showingDeleteConfirmation
+        ) {
+            Button("Delete", role: .destructive) {
+                switch pendingDeleteAction {
+                case .message:
+                    onDeleteMessage(item.id)
+                case .response:
+                    onDeleteResponse(item.id)
+                case .none:
+                    break
+                }
+                pendingDeleteAction = nil
+            }
+            Button("Cancel", role: .cancel) {
+                pendingDeleteAction = nil
+            }
+        }
     }
 
     @ViewBuilder
@@ -411,6 +435,25 @@ struct MessageRow: View {
                 }
                 .disabled(!actionsEnabled)
 
+                Menu {
+                    Button(role: .destructive) {
+                        pendingDeleteAction = .message
+                        showingDeleteConfirmation = true
+                    } label: {
+                        deleteActionMenuLabel("Delete message", systemImage: "trash")
+                    }
+                } label: {
+                    Image(systemName: "ellipsis")
+                        .font(.system(size: JinControlMetrics.iconButtonGlyphSize, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 20, height: 20)
+                }
+                .menuStyle(.borderlessButton)
+                .menuIndicator(.hidden)
+                .frame(width: 20)
+                .disabled(!actionsEnabled)
+                .help("More actions")
+
                 Spacer(minLength: 0)
 
                 Text(formattedTimestamp(item.timestamp))
@@ -450,6 +493,31 @@ struct MessageRow: View {
                         }
                         .disabled(!actionsEnabled)
                     }
+
+                    Menu {
+                        Button(role: .destructive) {
+                            pendingDeleteAction = .message
+                            showingDeleteConfirmation = true
+                        } label: {
+                            deleteActionMenuLabel("Delete message", systemImage: "trash")
+                        }
+                        Button(role: .destructive) {
+                            pendingDeleteAction = .response
+                            showingDeleteConfirmation = true
+                        } label: {
+                            deleteActionMenuLabel("Delete response", systemImage: "text.badge.minus")
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis")
+                            .font(.system(size: JinControlMetrics.iconButtonGlyphSize, weight: .semibold))
+                            .foregroundStyle(.secondary)
+                            .frame(width: 20, height: 20)
+                    }
+                    .menuStyle(.borderlessButton)
+                    .menuIndicator(.hidden)
+                    .frame(width: 20)
+                    .disabled(!actionsEnabled)
+                    .help("More actions")
                 }
             }
         }
@@ -495,6 +563,15 @@ struct MessageRow: View {
         }
         .buttonStyle(.plain)
         .help(helpText)
+    }
+
+    private func deleteActionMenuLabel(_ title: String, systemImage: String) -> some View {
+        Label {
+            Text(title)
+        } icon: {
+            Image(systemName: systemImage)
+                .frame(width: 14, alignment: .center)
+        }
     }
 
     private var textToSpeechIsActive: Bool {

@@ -445,6 +445,12 @@ struct ChatView: View {
             onCancelUserEdit: {
                 cancelEditingUserMessage()
             },
+            onDeleteMessage: { entity in
+                deleteMessage(entity)
+            },
+            onDeleteResponse: { entity in
+                deleteResponse(entity)
+            },
             editSlashCommand: editSlashCommandContext
         )
     }
@@ -2535,6 +2541,56 @@ struct ChatView: View {
         truncateConversation(keepingMessages: keepCount, in: threadID)
         activateThread(by: threadID)
         startStreamingResponse(for: threadID, triggeredByUserSend: false)
+    }
+
+    private func deleteMessage(_ messageEntity: MessageEntity) {
+        guard !isStreaming else { return }
+        cancelEditingUserMessage()
+
+        let threadID = messageEntity.contextThreadID ?? activeModelThread?.id
+        guard let threadID else { return }
+        let ordered = orderedConversationMessages(threadID: threadID)
+
+        let messagesToDelete: [MessageEntity]?
+        switch messageEntity.role {
+        case "user":
+            messagesToDelete = ChatMessageEditingSupport.messagesToDeleteForUserMessage(messageEntity, orderedMessages: ordered)
+        case "assistant":
+            messagesToDelete = ChatMessageEditingSupport.messagesToDeleteForAssistantMessage(messageEntity, orderedMessages: ordered)
+        default:
+            messagesToDelete = nil
+        }
+
+        guard let messagesToDelete, !messagesToDelete.isEmpty else { return }
+        deleteMessages(messagesToDelete, in: threadID)
+    }
+
+    private func deleteResponse(_ messageEntity: MessageEntity) {
+        guard !isStreaming else { return }
+        guard messageEntity.role == "user" else { return }
+        cancelEditingUserMessage()
+
+        let threadID = messageEntity.contextThreadID ?? activeModelThread?.id
+        guard let threadID else { return }
+        let ordered = orderedConversationMessages(threadID: threadID)
+
+        guard let messagesToDelete = ChatMessageEditingSupport.messagesToDeleteForResponse(
+            afterUserMessage: messageEntity,
+            orderedMessages: ordered
+        ) else { return }
+
+        deleteMessages(messagesToDelete, in: threadID)
+    }
+
+    private func deleteMessages(_ messages: [MessageEntity], in threadID: UUID) {
+        let idsToDelete = Set(messages.map(\.id))
+        recordCodexThreadHistoryMutation(forThreadID: threadID, removedMessages: messages)
+        for message in messages {
+            modelContext.delete(message)
+        }
+        conversationEntity.messages.removeAll { idsToDelete.contains($0.id) }
+        refreshConversationActivityTimestampFromLatestUserMessage()
+        rebuildMessageCaches()
     }
 
     private func keepCountForRegeneratingUserMessage(_ messageEntity: MessageEntity, threadID: UUID) -> Int? {
