@@ -801,14 +801,13 @@ extension CodexAppServerAdapter {
         var sourcesByURL: OrderedDictionary<String, [String: Any]> = [:]
         func appendSource(url candidateURL: String?, title: String?, snippet: String?) {
             guard let normalizedURL = trimmedValue(candidateURL) else { return }
-            let dedupeKey = normalizedURL.lowercased()
-            guard sourcesByURL[dedupeKey] == nil else { return }
+            let dedupeKey = urlDeduplicationKey(for: normalizedURL)
 
-            var source: [String: Any] = ["url": normalizedURL]
-            if let title = trimmedValue(title) {
+            var source = sourcesByURL[dedupeKey] ?? ["url": normalizedURL]
+            if source["title"] == nil, let title = trimmedValue(title) {
                 source["title"] = title
             }
-            if let snippet = trimmedValue(snippet) {
+            if source["snippet"] == nil, let snippet = trimmedValue(snippet) {
                 source["snippet"] = snippet
             }
             sourcesByURL[dedupeKey] = source
@@ -898,11 +897,21 @@ extension CodexAppServerAdapter {
             let url = nsText.substring(with: match.range)
                 .trimmingCharacters(in: CharacterSet(charactersIn: ".,;:!?)]}>\"'"))
             guard !url.isEmpty else { continue }
-            let key = url.lowercased()
+            let key = urlDeduplicationKey(for: url)
             guard resultsByKey[key] == nil else { continue }
             resultsByKey[key] = url
         }
         return Array(resultsByKey.values)
+    }
+
+    private nonisolated static func urlDeduplicationKey(for rawURL: String) -> String {
+        guard var components = URLComponents(string: rawURL) else {
+            return rawURL
+        }
+
+        components.scheme = components.scheme?.lowercased()
+        components.host = components.host?.lowercased()
+        return components.string ?? rawURL
     }
 
     private nonisolated static func parseCatalogMetadata(from modelObject: [String: JSONValue]) -> ModelCatalogMetadata? {
