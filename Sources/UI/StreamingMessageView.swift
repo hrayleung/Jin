@@ -74,6 +74,13 @@ struct StreamingMessageView: View {
                             )
                         }
 
+                        if !state.codeExecutionActivities.isEmpty {
+                            CodeExecutionTimelineView(
+                                activities: state.codeExecutionActivities,
+                                isStreaming: true
+                            )
+                        }
+
                         if !visibleToolCalls.isEmpty {
                             MCPToolTimelineView(
                                 toolCalls: visibleToolCalls,
@@ -98,7 +105,7 @@ struct StreamingMessageView: View {
                             ForEach(Array(state.artifacts.enumerated()), id: \.offset) { _, artifact in
                                 StreamingArtifactIndicator(artifact: artifact)
                             }
-                        } else if state.thinkingChunks.isEmpty && state.searchActivities.isEmpty && state.codexToolActivities.isEmpty && visibleToolCalls.isEmpty {
+                        } else if state.thinkingChunks.isEmpty && state.searchActivities.isEmpty && state.codexToolActivities.isEmpty && state.codeExecutionActivities.isEmpty && visibleToolCalls.isEmpty {
                             HStack(spacing: 6) {
                                 ProgressView().scaleEffect(0.5)
                                 Text("Generating...")
@@ -226,6 +233,7 @@ final class StreamingMessageState: ObservableObject {
     @Published private(set) var textChunks: [String] = []
     @Published private(set) var thinkingChunks: [String] = []
     @Published private(set) var searchActivities: [SearchActivity] = []
+    @Published private(set) var codeExecutionActivities: [CodeExecutionActivity] = []
     @Published private(set) var codexToolActivities: [CodexToolActivity] = []
     @Published private(set) var streamingToolCalls: [ToolCall] = []
     @Published private(set) var toolResultsByCallID: [String: ToolResult] = [:]
@@ -238,6 +246,7 @@ final class StreamingMessageState: ObservableObject {
     private var textStorage = ""
     private var thinkingStorage = ""
     private var searchActivitiesByID: OrderedDictionary<String, SearchActivity> = [:]
+    private var codeExecutionActivitiesByID: OrderedDictionary<String, CodeExecutionActivity> = [:]
     private var codexToolActivitiesByID: OrderedDictionary<String, CodexToolActivity> = [:]
 
     var textContent: String { textStorage }
@@ -249,10 +258,12 @@ final class StreamingMessageState: ObservableObject {
         textChunks = []
         thinkingChunks = []
         searchActivities = []
+        codeExecutionActivities = []
         codexToolActivities = []
         streamingToolCalls = []
         toolResultsByCallID = [:]
         searchActivitiesByID = [:]
+        codeExecutionActivitiesByID = [:]
         codexToolActivitiesByID = [:]
         visibleText = ""
         artifacts = []
@@ -313,6 +324,16 @@ final class StreamingMessageState: ObservableObject {
             searchActivitiesByID[activity.id] = activity
         }
         searchActivities = Array(searchActivitiesByID.values)
+        renderTick &+= 1
+    }
+
+    func upsertCodeExecutionActivity(_ activity: CodeExecutionActivity) {
+        if let existing = codeExecutionActivitiesByID[activity.id] {
+            codeExecutionActivitiesByID[activity.id] = existing.merged(with: activity)
+        } else {
+            codeExecutionActivitiesByID[activity.id] = activity
+        }
+        codeExecutionActivities = Array(codeExecutionActivitiesByID.values)
         renderTick &+= 1
     }
 

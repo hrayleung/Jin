@@ -256,6 +256,11 @@ enum ChatStreamingOrchestrator {
                             await MainActor.run {
                                 streamingState.upsertSearchActivity(activity)
                             }
+                        case .codeExecutionActivity(let activity):
+                            accumulator.upsertCodeExecutionActivity(activity)
+                            await MainActor.run {
+                                streamingState.upsertCodeExecutionActivity(activity)
+                            }
                         case .codexToolActivity(let activity):
                             accumulator.upsertCodexToolActivity(activity)
                             await MainActor.run {
@@ -289,16 +294,18 @@ enum ChatStreamingOrchestrator {
                     let toolCalls = accumulator.buildToolCalls()
                     let assistantParts = accumulator.buildAssistantParts()
                     let searchActivities = accumulator.buildSearchActivities()
+                    let codeExecutionActivities = accumulator.buildCodeExecutionActivities()
                     let codexToolActivities = accumulator.buildCodexToolActivities()
                     let responseMetrics = metricsCollector.metrics
                     var persistedAssistantMessageID: UUID?
-                    if !assistantParts.isEmpty || !toolCalls.isEmpty || !searchActivities.isEmpty || !codexToolActivities.isEmpty {
+                    if !assistantParts.isEmpty || !toolCalls.isEmpty || !searchActivities.isEmpty || !codeExecutionActivities.isEmpty || !codexToolActivities.isEmpty {
                         let persistedParts = await AttachmentImportPipeline.persistImagesToDisk(assistantParts)
                         let assistantMessage = Message(
                             role: .assistant,
                             content: persistedParts,
                             toolCalls: toolCalls.isEmpty ? nil : toolCalls,
                             searchActivities: searchActivities.isEmpty ? nil : searchActivities,
+                            codeExecutionActivities: codeExecutionActivities.isEmpty ? nil : codeExecutionActivities,
                             codexToolActivities: codexToolActivities.isEmpty ? nil : codexToolActivities
                         )
                         if let preview = AttachmentImportPipeline.completionNotificationPreview(from: persistedParts) {

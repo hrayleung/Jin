@@ -231,6 +231,18 @@ struct ResponsesAPIOutputItemAddedEvent: Codable {
         let status: String?
         let action: WebSearchAction?
         let content: [ResponsesAPIOutputContent]?
+        // Code interpreter fields
+        let code: String?
+        let containerId: String?
+        let outputs: [CodeInterpreterOutput]?
+    }
+
+    struct CodeInterpreterOutput: Codable {
+        let type: String
+        let logs: String?
+        let url: String?
+        // Image output may use image_url or url
+        let imageUrl: String?
     }
 
     struct WebSearchAction: Codable {
@@ -263,6 +275,34 @@ struct ResponsesAPIWebSearchCallStatusEvent: Codable {
     let sequenceNumber: Int?
 }
 
+// MARK: - Code Interpreter Streaming Events
+
+struct ResponsesAPICodeInterpreterStatusEvent: Codable {
+    let itemId: String
+    let outputIndex: Int?
+    let sequenceNumber: Int?
+}
+
+struct ResponsesAPICodeInterpreterCodeDeltaEvent: Codable {
+    let itemId: String
+    let delta: String
+    let outputIndex: Int?
+    let sequenceNumber: Int?
+}
+
+struct ResponsesAPICodeInterpreterCodeDoneEvent: Codable {
+    let itemId: String
+    let code: String?
+    let outputIndex: Int?
+    let sequenceNumber: Int?
+}
+
+/// Mutable state for tracking OpenAI code interpreter streaming progress.
+struct OpenAICodeInterpreterState {
+    var currentItemID: String?
+    var codeBuffer: String = ""
+}
+
 // MARK: - Output Item (used in non-streaming responses)
 
 struct ResponsesAPIOutputItem: Codable {
@@ -272,6 +312,10 @@ struct ResponsesAPIOutputItem: Codable {
     let action: ResponsesAPIOutputItemAddedEvent.WebSearchAction?
     let content: [ResponsesAPIOutputContent]?
     let summary: [ResponsesAPIOutputContent]?
+    // Code interpreter fields
+    let code: String?
+    let containerId: String?
+    let outputs: [ResponsesAPIOutputItemAddedEvent.CodeInterpreterOutput]?
 }
 
 // MARK: - Non-streaming Response

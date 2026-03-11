@@ -426,6 +426,36 @@ enum ModelCapabilityRegistry {
         }
     }
 
+    /// Whether the provider/model supports native code execution (OpenAI Code Interpreter, Anthropic Code Execution).
+    static func supportsCodeExecution(for providerType: ProviderType?, modelID: String) -> Bool {
+        let lowerModelID = modelID.lowercased()
+
+        switch providerType {
+        case .openai, .openaiWebSocket:
+            // OpenAI Responses API code_interpreter tool: GPT-4o, GPT-4.1, GPT-5 family, o3/o4 models
+            return supportsOpenAICodeInterpreter(lowerModelID: lowerModelID)
+        case .anthropic:
+            // Anthropic code_execution tool: Claude models with code execution support
+            return isAnthropicModelID(lowerModelID)
+        case .xai:
+            // xAI Responses API code_interpreter tool: Grok models
+            return !isLikelyMediaGenerationModelID(lowerModelID)
+        case .codexAppServer, .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway,
+             .openrouter, .perplexity, .groq, .cohere, .mistral, .deepinfra, .together,
+             .deepseek, .zhipuCodingPlan, .fireworks, .cerebras, .sambanova, .gemini, .vertexai, .none:
+            return false
+        }
+    }
+
+    private static func supportsOpenAICodeInterpreter(lowerModelID: String) -> Bool {
+        guard lowerModelID.hasPrefix("gpt-")
+            || lowerModelID.contains("/gpt-")
+            || hasPrefixOrScopedPrefix(lowerModelID, prefixes: ["o3", "o4"]) else {
+            return false
+        }
+        return !isLikelyMediaGenerationModelID(lowerModelID)
+    }
+
     /// Models that support the `web_search_20260209` tool with dynamic filtering.
     static func supportsWebSearchDynamicFiltering(for providerType: ProviderType?, modelID: String) -> Bool {
         guard providerType == .anthropic else { return false }

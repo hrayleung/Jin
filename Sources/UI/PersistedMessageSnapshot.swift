@@ -10,6 +10,7 @@ struct PersistedMessageSnapshot: Sendable {
     let toolCallsData: Data?
     let toolResultsData: Data?
     let searchActivitiesData: Data?
+    let codeExecutionActivitiesData: Data?
     let codexToolActivitiesData: Data?
     let perMessageMCPServerNamesData: Data?
     let responseMetricsData: Data?
@@ -27,6 +28,7 @@ struct PersistedMessageSnapshot: Sendable {
         self.toolCallsData = entity.toolCallsData
         self.toolResultsData = entity.toolResultsData
         self.searchActivitiesData = entity.searchActivitiesData
+        self.codeExecutionActivitiesData = entity.codeExecutionActivitiesData
         self.codexToolActivitiesData = entity.codexToolActivitiesData
         self.perMessageMCPServerNamesData = entity.perMessageMCPServerNamesData
         self.responseMetricsData = entity.responseMetricsData
@@ -42,6 +44,7 @@ struct PersistedMessageSnapshot: Sendable {
         let toolCalls = toolCallsData.flatMap { try? decoder.decode([ToolCall].self, from: $0) }
         let toolResults = toolResultsData.flatMap { try? decoder.decode([ToolResult].self, from: $0) }
         let searchActivities = searchActivitiesData.flatMap { try? decoder.decode([SearchActivity].self, from: $0) }
+        let codeExecutionActivities = codeExecutionActivitiesData.flatMap { try? decoder.decode([CodeExecutionActivity].self, from: $0) }
         let codexToolActivities = codexToolActivitiesData.flatMap { try? decoder.decode([CodexToolActivity].self, from: $0) }
         let perMessageMCPServerNames = perMessageMCPServerNamesData.flatMap { try? decoder.decode([String].self, from: $0) }
 
@@ -52,6 +55,7 @@ struct PersistedMessageSnapshot: Sendable {
             toolCalls: toolCalls,
             toolResults: toolResults,
             searchActivities: searchActivities,
+            codeExecutionActivities: codeExecutionActivities,
             codexToolActivities: codexToolActivities,
             timestamp: timestamp,
             perMessageMCPServerNames: perMessageMCPServerNames

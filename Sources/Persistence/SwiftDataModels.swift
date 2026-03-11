@@ -214,6 +214,7 @@ final class MessageEntity {
     var toolCallsData: Data?
     var toolResultsData: Data?
     var searchActivitiesData: Data?
+    var codeExecutionActivitiesData: Data?
     var codexToolActivitiesData: Data?
     var responseMetricsData: Data?
     var thinkingVisible: Bool
@@ -238,6 +239,7 @@ final class MessageEntity {
         toolCallsData: Data? = nil,
         toolResultsData: Data? = nil,
         searchActivitiesData: Data? = nil,
+        codeExecutionActivitiesData: Data? = nil,
         codexToolActivitiesData: Data? = nil,
         responseMetricsData: Data? = nil,
         generatedProviderID: String? = nil,
@@ -256,6 +258,7 @@ final class MessageEntity {
         self.toolCallsData = toolCallsData
         self.toolResultsData = toolResultsData
         self.searchActivitiesData = searchActivitiesData
+        self.codeExecutionActivitiesData = codeExecutionActivitiesData
         self.codexToolActivitiesData = codexToolActivitiesData
         self.responseMetricsData = responseMetricsData
         self.generatedProviderID = generatedProviderID
@@ -292,6 +295,7 @@ final class MessageEntity {
         let toolCalls = try toolCallsData.flatMap { try decoder.decode([ToolCall].self, from: $0) }
         let toolResults = try toolResultsData.flatMap { try decoder.decode([ToolResult].self, from: $0) }
         let searchActivities = try searchActivitiesData.flatMap { try decoder.decode([SearchActivity].self, from: $0) }
+        let codeExecutionActivities = try codeExecutionActivitiesData.flatMap { try decoder.decode([CodeExecutionActivity].self, from: $0) }
         let codexToolActivities = try codexToolActivitiesData.flatMap { try decoder.decode([CodexToolActivity].self, from: $0) }
         let perMessageMCPServerNames = try perMessageMCPServerNamesData.flatMap { try decoder.decode([String].self, from: $0) }
 
@@ -302,6 +306,7 @@ final class MessageEntity {
             toolCalls: toolCalls,
             toolResults: toolResults,
             searchActivities: searchActivities,
+            codeExecutionActivities: codeExecutionActivities,
             codexToolActivities: codexToolActivities,
             timestamp: timestamp,
             perMessageMCPServerNames: perMessageMCPServerNames
@@ -315,6 +320,7 @@ final class MessageEntity {
         let toolCallsData = try message.toolCalls.map { try encoder.encode($0) }
         let toolResultsData = try message.toolResults.map { try encoder.encode($0) }
         let searchActivitiesData = try message.searchActivities.map { try encoder.encode($0) }
+        let codeExecutionActivitiesData = try message.codeExecutionActivities.map { try encoder.encode($0) }
         let codexToolActivitiesData = try message.codexToolActivities.map { try encoder.encode($0) }
         let perMessageMCPServerNamesData = try message.perMessageMCPServerNames.map { try encoder.encode($0) }
 
@@ -326,6 +332,7 @@ final class MessageEntity {
             toolCallsData: toolCallsData,
             toolResultsData: toolResultsData,
             searchActivitiesData: searchActivitiesData,
+            codeExecutionActivitiesData: codeExecutionActivitiesData,
             codexToolActivitiesData: codexToolActivitiesData,
             perMessageMCPServerNamesData: perMessageMCPServerNamesData
         )

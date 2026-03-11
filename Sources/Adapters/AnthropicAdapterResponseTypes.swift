@@ -28,6 +28,8 @@ struct AnthropicStreamEvent: Decodable {
         let toolUseId: String?
         let webSearchResults: [WebSearchResult]?
         let citations: [TextCitation]?
+        // Code execution tool result fields
+        let codeExecutionContent: CodeExecutionResultContent?
 
         private enum CodingKeys: String, CodingKey {
             case type
@@ -52,7 +54,50 @@ struct AnthropicStreamEvent: Decodable {
             toolUseId = try container.decodeIfPresent(String.self, forKey: .toolUseId)
             webSearchResults = try? container.decode([WebSearchResult].self, forKey: .content)
             citations = try? container.decode([TextCitation].self, forKey: .citations)
+
+            // Parse code_execution_tool_result content (legacy and current API versions)
+            if type == "code_execution_tool_result"
+                || type == "bash_code_execution_tool_result"
+                || type == "text_editor_code_execution_tool_result" {
+                codeExecutionContent = try? container.decode(CodeExecutionResultContent.self, forKey: .content)
+            } else {
+                codeExecutionContent = nil
+            }
         }
+    }
+
+    struct CodeExecutionResultContent: Decodable {
+        let type: String?
+        let stdout: String?
+        let stderr: String?
+        let returnCode: Int?
+        let content: [CodeExecutionOutputFile]?
+        // Error fields
+        let errorCode: String?
+
+        private enum CodingKeys: String, CodingKey {
+            case type
+            case stdout
+            case stderr
+            case returnCode
+            case content
+            case errorCode
+        }
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            type = try container.decodeIfPresent(String.self, forKey: .type)
+            stdout = try container.decodeIfPresent(String.self, forKey: .stdout)
+            stderr = try container.decodeIfPresent(String.self, forKey: .stderr)
+            returnCode = try container.decodeIfPresent(Int.self, forKey: .returnCode)
+            content = try? container.decode([CodeExecutionOutputFile].self, forKey: .content)
+            errorCode = try container.decodeIfPresent(String.self, forKey: .errorCode)
+        }
+    }
+
+    struct CodeExecutionOutputFile: Decodable {
+        let type: String
+        let fileId: String?
     }
 
     struct Delta: Decodable {

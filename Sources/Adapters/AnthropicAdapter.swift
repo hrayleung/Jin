@@ -38,6 +38,8 @@ actor AnthropicAdapter: LLMProviderAdapter {
                     var currentBlockIndex: Int?
                     var currentToolUse: AnthropicToolCallBuilder?
                     var currentServerToolUse: AnthropicSearchActivityBuilder?
+                    var currentCodeExecutionID: String?
+                    var currentCodeExecutionCode: String = ""
                     var currentContentBlockType: String?
                     var currentThinkingSignature: String?
                     var usageAccumulator = AnthropicUsageAccumulator()
@@ -52,6 +54,8 @@ actor AnthropicAdapter: LLMProviderAdapter {
                                     currentBlockIndex: &currentBlockIndex,
                                     currentToolUse: &currentToolUse,
                                     currentServerToolUse: &currentServerToolUse,
+                                    currentCodeExecutionID: &currentCodeExecutionID,
+                                    currentCodeExecutionCode: &currentCodeExecutionCode,
                                     currentContentBlockType: &currentContentBlockType,
                                     currentThinkingSignature: &currentThinkingSignature,
                                     usageAccumulator: &usageAccumulator
@@ -466,6 +470,13 @@ actor AnthropicAdapter: LLMProviderAdapter {
 
         if controls.webSearch?.enabled == true, supportsWebSearch(modelID) {
             toolSpecs.append(buildWebSearchToolSpec(controls: controls, modelID: modelID))
+        }
+
+        if controls.codeExecution?.enabled == true {
+            toolSpecs.append([
+                "type": "code_execution_20250825",
+                "name": "code_execution"
+            ])
         }
 
         if !tools.isEmpty, let customTools = translateTools(tools) as? [[String: Any]] {

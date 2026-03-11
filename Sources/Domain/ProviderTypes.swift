@@ -280,10 +280,11 @@ struct ModelCapability: OptionSet, Codable, Equatable {
     static let nativePDF = ModelCapability(rawValue: 1 << 6)
     static let imageGeneration = ModelCapability(rawValue: 1 << 7)
     static let videoGeneration = ModelCapability(rawValue: 1 << 8)
+    static let codeExecution = ModelCapability(rawValue: 1 << 9)
 
     static let all: ModelCapability = [
         .streaming, .toolCalling, .vision, .audio, .reasoning,
-        .promptCaching, .nativePDF, .imageGeneration, .videoGeneration
+        .promptCaching, .nativePDF, .imageGeneration, .videoGeneration, .codeExecution
     ]
 }
 

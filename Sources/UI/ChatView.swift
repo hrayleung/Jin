@@ -326,6 +326,17 @@ struct ChatView: View {
                 }
             }
 
+            if supportsCodeExecutionControl {
+                composerButtonControl(
+                    systemName: "chevron.left.forwardslash.chevron.right",
+                    isActive: isCodeExecutionEnabled,
+                    badgeText: nil,
+                    help: isCodeExecutionEnabled ? "Code Execution: On" : "Code Execution: Off"
+                ) {
+                    codeExecutionEnabledBinding.wrappedValue.toggle()
+                }
+            }
+
             if supportsContextCacheControl {
                 composerMenuControl(
                     systemName: "archivebox",
@@ -1790,6 +1801,27 @@ struct ChatView: View {
 
     var supportsWebSearchControl: Bool {
         supportsNativeWebSearchControl || supportsBuiltinSearchPluginControl
+    }
+
+    var supportsCodeExecutionControl: Bool {
+        guard let modelID = selectedModelInfo?.id else { return false }
+        return ModelCapabilityRegistry.supportsCodeExecution(for: providerType, modelID: modelID)
+    }
+
+    var isCodeExecutionEnabled: Bool {
+        controls.codeExecution?.enabled == true
+    }
+
+    var codeExecutionEnabledBinding: Binding<Bool> {
+        Binding(
+            get: { controls.codeExecution?.enabled ?? false },
+            set: { enabled in
+                var updated = controls.codeExecution ?? CodeExecutionControls()
+                updated.enabled = enabled
+                controls.codeExecution = updated
+                persistControlsToConversation()
+            }
+        )
     }
 
     var supportsContextCacheControl: Bool {

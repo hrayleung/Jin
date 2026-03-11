@@ -10,6 +10,8 @@ extension AnthropicAdapter {
         currentBlockIndex: inout Int?,
         currentToolUse: inout AnthropicToolCallBuilder?,
         currentServerToolUse: inout AnthropicSearchActivityBuilder?,
+        currentCodeExecutionID: inout String?,
+        currentCodeExecutionCode: inout String,
         currentContentBlockType: inout String?,
         currentThinkingSignature: inout String?,
         usageAccumulator: inout AnthropicUsageAccumulator
@@ -48,6 +50,21 @@ extension AnthropicAdapter {
                     let id = contentBlock.id ?? UUID().uuidString
                     let name = contentBlock.name ?? "server_tool_use"
                     let arguments = contentBlock.input ?? [:]
+
+                    // Route code_execution server tool use as a code execution activity
+                    // Handles both legacy ("code_execution") and current sub-tools
+                    // ("bash_code_execution", "text_editor_code_execution")
+                    if name == "code_execution"
+                        || name == "bash_code_execution"
+                        || name == "text_editor_code_execution" {
+                        currentCodeExecutionID = id
+                        currentCodeExecutionCode = ""
+                        return .codeExecutionActivity(CodeExecutionActivity(
+                            id: id,
+                            status: .inProgress
+                        ))
+                    }
+
                     let builder = AnthropicSearchActivityBuilder(id: id, type: name, arguments: arguments)
                     currentServerToolUse = builder
                     return .searchActivity(
@@ -60,6 +77,18 @@ extension AnthropicAdapter {
                             sequenceNumber: index
                         )
                     )
+                }
+
+                if contentBlock.type == "code_execution_tool_result"
+                    || contentBlock.type == "bash_code_execution_tool_result"
+                    || contentBlock.type == "text_editor_code_execution_tool_result" {
+                    let activity = codeExecutionActivityFromToolResult(
+                        contentBlock: contentBlock,
+                        outputIndex: index
+                    )
+                    if let activity {
+                        return .codeExecutionActivity(activity)
+                    }
                 }
 
                 if contentBlock.type == "web_search_tool_result",
@@ -101,6 +130,17 @@ extension AnthropicAdapter {
                     return .thinkingDelta(.thinking(textDelta: "", signature: currentThinkingSignature))
                 } else if delta.type == "input_json_delta", let partialJSON = delta.partialJson {
                     if currentContentBlockType == "server_tool_use",
+                       let codeExecID = currentCodeExecutionID {
+                        // Accumulate code from the code_execution server tool input
+                        currentCodeExecutionCode.append(partialJSON)
+                        // Try to extract code from the accumulated JSON so far
+                        let extractedCode = extractCodeFromPartialJSON(currentCodeExecutionCode)
+                        return .codeExecutionActivity(CodeExecutionActivity(
+                            id: codeExecID,
+                            status: .writingCode,
+                            code: extractedCode
+                        ))
+                    } else if currentContentBlockType == "server_tool_use",
                        let currentServerToolUse {
                         currentServerToolUse.appendArguments(partialJSON)
                         if let updated = currentServerToolUse.build(status: .searching, outputIndex: currentBlockIndex) {
@@ -117,6 +157,21 @@ extension AnthropicAdapter {
         case "content_block_stop":
             if currentContentBlockType == "thinking" {
                 currentThinkingSignature = nil
+            }
+
+            if currentContentBlockType == "server_tool_use",
+               let codeExecID = currentCodeExecutionID {
+                let extractedCode = extractCodeFromPartialJSON(currentCodeExecutionCode)
+                currentCodeExecutionID = nil
+                currentCodeExecutionCode = ""
+                currentContentBlockType = nil
+                currentBlockIndex = nil
+                self.currentToolCleanup(currentToolUse: &currentToolUse, currentServerToolUse: &currentServerToolUse)
+                return .codeExecutionActivity(CodeExecutionActivity(
+                    id: codeExecID,
+                    status: .interpreting,
+                    code: extractedCode
+                ))
             }
 
             if currentContentBlockType == "server_tool_use",
@@ -286,6 +341,103 @@ extension AnthropicAdapter {
         }
 
         return arguments
+    }
+
+    // MARK: - Code Execution Activity Building
+
+    func codeExecutionActivityFromToolResult(
+        contentBlock: AnthropicStreamEvent.ContentBlock,
+        outputIndex: Int
+    ) -> CodeExecutionActivity? {
+        let id = contentBlock.toolUseId ?? contentBlock.id ?? "anthropic_code_exec_\(outputIndex)"
+
+        guard let resultContent = contentBlock.codeExecutionContent else {
+            return CodeExecutionActivity(
+                id: id,
+                status: .completed
+            )
+        }
+
+        // Check for error (legacy and current API versions)
+        if resultContent.type == "code_execution_tool_result_error"
+            || resultContent.type == "bash_code_execution_tool_result_error"
+            || resultContent.type == "text_editor_code_execution_tool_result_error" {
+            return CodeExecutionActivity(
+                id: id,
+                status: .failed,
+                stderr: resultContent.errorCode
+            )
+        }
+
+        let status: CodeExecutionStatus = (resultContent.returnCode ?? 0) == 0 ? .completed : .failed
+
+        return CodeExecutionActivity(
+            id: id,
+            status: status,
+            stdout: resultContent.stdout,
+            stderr: resultContent.stderr,
+            returnCode: resultContent.returnCode
+        )
+    }
+
+    // MARK: - Code Execution JSON Extraction
+
+    /// Extracts code from accumulated partial JSON.
+    /// Handles both legacy `{"code":"..."}` and current `{"command":"..."}` formats.
+    /// Since the JSON arrives incrementally, we do a best-effort extraction.
+    func extractCodeFromPartialJSON(_ buffer: String) -> String? {
+        // Try full JSON parse first
+        if let data = buffer.data(using: .utf8),
+           let dict = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+            // Try "command" first (current bash_code_execution), then "code" (legacy)
+            if let code = dict["command"] as? String { return code }
+            if let code = dict["code"] as? String { return code }
+        }
+
+        // Best-effort: find the "command" or "code" key and extract the string value
+        let codeKeyRange = buffer.range(of: "\"command\"") ?? buffer.range(of: "\"code\"")
+        guard let codeKeyRange else { return nil }
+        let afterKey = buffer[codeKeyRange.upperBound...]
+
+        // Skip whitespace and colon
+        guard let colonIndex = afterKey.firstIndex(of: ":") else { return nil }
+        let afterColon = afterKey[afterKey.index(after: colonIndex)...].drop(while: { $0.isWhitespace })
+
+        // Must start with quote
+        guard afterColon.first == "\"" else { return nil }
+        let stringStart = afterColon.index(after: afterColon.startIndex)
+        let remainder = afterColon[stringStart...]
+
+        // Collect characters, handling escape sequences
+        var result = ""
+        var i = remainder.startIndex
+        while i < remainder.endIndex {
+            let ch = remainder[i]
+            if ch == "\\" {
+                let next = remainder.index(after: i)
+                if next < remainder.endIndex {
+                    let escaped = remainder[next]
+                    switch escaped {
+                    case "n": result.append("\n")
+                    case "t": result.append("\t")
+                    case "r": result.append("\r")
+                    case "\"": result.append("\"")
+                    case "\\": result.append("\\")
+                    default: result.append(ch); result.append(escaped)
+                    }
+                    i = remainder.index(after: next)
+                } else {
+                    break
+                }
+            } else if ch == "\"" {
+                break
+            } else {
+                result.append(ch)
+                i = remainder.index(after: i)
+            }
+        }
+
+        return result.isEmpty ? nil : result
     }
 
     // MARK: - Model Info

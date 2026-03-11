@@ -10,6 +10,7 @@ struct AppearanceSettingsView: View {
     @AppStorage(AppPreferenceKeys.codeBlockCollapseLineThreshold) private var codeBlockCollapseLineThreshold = 25
     @AppStorage(AppPreferenceKeys.thinkingBlockDisplayMode) private var thinkingDisplayModeRaw = ThinkingBlockDisplayMode.expanded.rawValue
     @AppStorage(AppPreferenceKeys.codexToolDisplayMode) private var codexToolDisplayModeRaw = CodexToolDisplayMode.expanded.rawValue
+    @AppStorage(AppPreferenceKeys.codeExecutionDisplayMode) private var codeExecutionDisplayModeRaw = CodeExecutionDisplayMode.expanded.rawValue
     @AppStorage(AppPreferenceKeys.appIconVariant) private var appIconVariant: AppIconVariant = .roseQuartz
 
     @State private var showingAppFontPicker = false
@@ -33,6 +34,13 @@ struct AppearanceSettingsView: View {
         Binding(
             get: { CodexToolDisplayMode(rawValue: codexToolDisplayModeRaw) ?? .expanded },
             set: { codexToolDisplayModeRaw = $0.rawValue }
+        )
+    }
+
+    private var codeExecutionDisplayMode: Binding<CodeExecutionDisplayMode> {
+        Binding(
+            get: { CodeExecutionDisplayMode(rawValue: codeExecutionDisplayModeRaw) ?? .expanded },
+            set: { codeExecutionDisplayModeRaw = $0.rawValue }
         )
     }
 
@@ -115,6 +123,18 @@ struct AppearanceSettingsView: View {
                 }
 
                 Text(thinkingDisplayMode.wrappedValue.description)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Section("Code Execution") {
+                Picker("Display Mode", selection: codeExecutionDisplayMode) {
+                    ForEach(CodeExecutionDisplayMode.allCases) { mode in
+                        Text(mode.label).tag(mode)
+                    }
+                }
+
+                Text(codeExecutionDisplayMode.wrappedValue.description)
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

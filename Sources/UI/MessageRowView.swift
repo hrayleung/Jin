@@ -130,6 +130,7 @@ struct MessageRenderItem: Identifiable, Sendable {
     let renderedBlocks: [RenderedMessageBlock]
     let toolCalls: [ToolCall]
     let searchActivities: [SearchActivity]
+    let codeExecutionActivities: [CodeExecutionActivity]
     let codexToolActivities: [CodexToolActivity]
     let assistantModelLabel: String?
     let assistantProviderIconID: String?
@@ -260,6 +261,13 @@ struct MessageRow: View {
                             if !item.codexToolActivities.isEmpty {
                                 CodexToolTimelineView(
                                     activities: item.codexToolActivities,
+                                    isStreaming: false
+                                )
+                            }
+
+                            if !item.codeExecutionActivities.isEmpty {
+                                CodeExecutionTimelineView(
+                                    activities: item.codeExecutionActivities,
                                     isStreaming: false
                                 )
                             }

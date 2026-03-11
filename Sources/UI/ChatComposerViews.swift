@@ -196,6 +196,7 @@ struct ComposerControlIconLabel: View {
                     Circle()
                         .stroke(isActive ? JinSemanticColor.separator.opacity(0.45) : Color.clear, lineWidth: JinStrokeWidth.hairline)
                 )
+                .shadow(color: isActive ? activeColor.opacity(0.35) : Color.clear, radius: 6, x: 0, y: 0)
 
             if let badgeText, !badgeText.isEmpty {
                 Text(badgeText)

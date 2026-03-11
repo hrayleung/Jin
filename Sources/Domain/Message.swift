@@ -291,6 +291,7 @@ struct Message: Identifiable, Codable, Sendable {
     let toolCalls: [ToolCall]?
     let toolResults: [ToolResult]?
     let searchActivities: [SearchActivity]?
+    let codeExecutionActivities: [CodeExecutionActivity]?
     let codexToolActivities: [CodexToolActivity]?
     let timestamp: Date
     /// MCP server names selected via slash command for this specific message.
@@ -303,6 +304,7 @@ struct Message: Identifiable, Codable, Sendable {
         toolCalls: [ToolCall]? = nil,
         toolResults: [ToolResult]? = nil,
         searchActivities: [SearchActivity]? = nil,
+        codeExecutionActivities: [CodeExecutionActivity]? = nil,
         codexToolActivities: [CodexToolActivity]? = nil,
         timestamp: Date = Date(),
         perMessageMCPServerNames: [String]? = nil
@@ -313,6 +315,7 @@ struct Message: Identifiable, Codable, Sendable {
         self.toolCalls = toolCalls
         self.toolResults = toolResults
         self.searchActivities = searchActivities
+        self.codeExecutionActivities = codeExecutionActivities
         self.codexToolActivities = codexToolActivities
         self.timestamp = timestamp
         self.perMessageMCPServerNames = perMessageMCPServerNames

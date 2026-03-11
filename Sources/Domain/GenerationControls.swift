@@ -28,6 +28,7 @@ struct GenerationControls: Codable {
     var xaiImageGeneration: XAIImageGenerationControls?
     var xaiVideoGeneration: XAIVideoGenerationControls?
     var googleVideoGeneration: GoogleVideoGenerationControls?
+    var codeExecution: CodeExecutionControls?
     var providerSpecific: [String: AnyCodable] = [:]
 
     init(
@@ -46,6 +47,7 @@ struct GenerationControls: Codable {
         xaiImageGeneration: XAIImageGenerationControls? = nil,
         xaiVideoGeneration: XAIVideoGenerationControls? = nil,
         googleVideoGeneration: GoogleVideoGenerationControls? = nil,
+        codeExecution: CodeExecutionControls? = nil,
         providerSpecific: [String: AnyCodable] = [:]
     ) {
         self.temperature = temperature
@@ -63,6 +65,7 @@ struct GenerationControls: Codable {
         self.xaiImageGeneration = xaiImageGeneration
         self.xaiVideoGeneration = xaiVideoGeneration
         self.googleVideoGeneration = googleVideoGeneration
+        self.codeExecution = codeExecution
         self.providerSpecific = providerSpecific
     }
 }

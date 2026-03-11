@@ -178,6 +178,7 @@ actor XAIAdapter: LLMProviderAdapter {
             Task {
                 do {
                     var functionCallsByItemID: [String: ResponsesAPIFunctionCallState] = [:]
+                    var codeInterpreterState = OpenAICodeInterpreterState()
                     var streamedOutputText = ""
                     var didEmitTerminalMessageEnd = false
 
@@ -212,7 +213,8 @@ actor XAIAdapter: LLMProviderAdapter {
                             if let streamEvent = try parseSSEEvent(
                                 type: type,
                                 data: data,
-                                functionCallsByItemID: &functionCallsByItemID
+                                functionCallsByItemID: &functionCallsByItemID,
+                                codeInterpreterState: &codeInterpreterState
                             ) {
                                 if case .contentDelta(.text(let delta)) = streamEvent {
                                     streamedOutputText.append(delta)
@@ -296,12 +298,23 @@ actor XAIAdapter: LLMProviderAdapter {
             }
         }
 
+        if controls.codeExecution?.enabled == true {
+            toolObjects.append(["type": "code_interpreter"])
+        }
+
         if !tools.isEmpty, let functionTools = translateTools(tools) as? [[String: Any]] {
             toolObjects.append(contentsOf: functionTools)
         }
 
         if !toolObjects.isEmpty {
             body["tools"] = toolObjects
+        }
+
+        // Include code interpreter outputs (logs, images) in the response.
+        if controls.codeExecution?.enabled == true {
+            var includeFields = (body["include"] as? [String]) ?? []
+            includeFields.append("code_interpreter_call.outputs")
+            body["include"] = includeFields
         }
 
         applyProviderSpecificOverrides(controls: controls, body: &body)
@@ -679,7 +692,8 @@ actor XAIAdapter: LLMProviderAdapter {
     private func parseSSEEvent(
         type: String,
         data: String,
-        functionCallsByItemID: inout [String: ResponsesAPIFunctionCallState]
+        functionCallsByItemID: inout [String: ResponsesAPIFunctionCallState],
+        codeInterpreterState: inout OpenAICodeInterpreterState
     ) throws -> StreamEvent? {
         guard let jsonData = data.data(using: .utf8) else {
             return nil
@@ -707,6 +721,17 @@ actor XAIAdapter: LLMProviderAdapter {
 
         case "response.output_item.added":
             let event = try decoder.decode(ResponsesAPIOutputItemAddedEvent.self, from: jsonData)
+
+            if event.item.type == "code_interpreter_call",
+               let itemID = event.item.id {
+                codeInterpreterState.currentItemID = itemID
+                codeInterpreterState.codeBuffer = ""
+                return .codeExecutionActivity(CodeExecutionActivity(
+                    id: itemID,
+                    status: .inProgress
+                ))
+            }
+
             guard event.item.type == "function_call",
                   let itemID = event.item.id,
                   let callID = event.item.callId,
@@ -736,6 +761,58 @@ actor XAIAdapter: LLMProviderAdapter {
             let event = try decoder.decode(ResponsesAPICompletedEvent.self, from: jsonData)
             return .messageEnd(usage: event.response.toUsage())
 
+        case "response.code_interpreter_call.in_progress":
+            let event = try decoder.decode(ResponsesAPICodeInterpreterStatusEvent.self, from: jsonData)
+            return .codeExecutionActivity(CodeExecutionActivity(
+                id: event.itemId,
+                status: .inProgress
+            ))
+
+        case "response.code_interpreter_call_code.delta":
+            let event = try decoder.decode(ResponsesAPICodeInterpreterCodeDeltaEvent.self, from: jsonData)
+            codeInterpreterState.codeBuffer += event.delta
+            return .codeExecutionActivity(CodeExecutionActivity(
+                id: event.itemId,
+                status: .writingCode,
+                code: codeInterpreterState.codeBuffer
+            ))
+
+        case "response.code_interpreter_call_code.done":
+            let event = try decoder.decode(ResponsesAPICodeInterpreterCodeDoneEvent.self, from: jsonData)
+            let finalCode = event.code ?? codeInterpreterState.codeBuffer
+            codeInterpreterState.codeBuffer = finalCode
+            return .codeExecutionActivity(CodeExecutionActivity(
+                id: event.itemId,
+                status: .writingCode,
+                code: finalCode
+            ))
+
+        case "response.code_interpreter_call.interpreting":
+            let event = try decoder.decode(ResponsesAPICodeInterpreterStatusEvent.self, from: jsonData)
+            return .codeExecutionActivity(CodeExecutionActivity(
+                id: event.itemId,
+                status: .interpreting,
+                code: codeInterpreterState.codeBuffer
+            ))
+
+        case "response.code_interpreter_call.completed":
+            let event = try decoder.decode(ResponsesAPICodeInterpreterStatusEvent.self, from: jsonData)
+            return .codeExecutionActivity(CodeExecutionActivity(
+                id: event.itemId,
+                status: .completed,
+                code: codeInterpreterState.codeBuffer
+            ))
+
+        case "response.output_item.done":
+            if data.contains("\"code_interpreter_call\"") {
+                let event = try decoder.decode(ResponsesAPIOutputItemDoneEvent.self, from: jsonData)
+                let item = event.item
+                if let activity = parseCodeInterpreterOutputItem(item, state: &codeInterpreterState) {
+                    return .codeExecutionActivity(activity)
+                }
+            }
+            return nil
+
         case "response.failed":
             if let errorEvent = try? decoder.decode(ResponsesAPIFailedEvent.self, from: jsonData),
                let message = errorEvent.response.error?.message {
@@ -746,5 +823,62 @@ actor XAIAdapter: LLMProviderAdapter {
         default:
             return nil
         }
+    }
+
+    private func parseCodeInterpreterOutputItem(
+        _ item: ResponsesAPIOutputItemAddedEvent.Item,
+        state: inout OpenAICodeInterpreterState
+    ) -> CodeExecutionActivity? {
+        guard let id = item.id else { return nil }
+
+        var stdout: String?
+        var outputImages: [CodeExecutionOutputImage]?
+
+        if let outputs = item.outputs {
+            var logLines: [String] = []
+            var images: [CodeExecutionOutputImage] = []
+
+            for output in outputs {
+                if output.type == "logs", let logs = output.logs {
+                    logLines.append(logs)
+                } else if output.type == "image" {
+                    if let url = output.url ?? output.imageUrl {
+                        images.append(CodeExecutionOutputImage(url: url))
+                    }
+                }
+            }
+
+            if !logLines.isEmpty {
+                stdout = logLines.joined(separator: "\n")
+            }
+            if !images.isEmpty {
+                outputImages = images
+            }
+        }
+
+        let status: CodeExecutionStatus
+        switch item.status {
+        case "completed":
+            status = .completed
+        case "failed":
+            status = .failed
+        case "incomplete":
+            status = .incomplete
+        case "interpreting":
+            status = .interpreting
+        default:
+            status = .completed
+        }
+
+        state.currentItemID = nil
+
+        return CodeExecutionActivity(
+            id: id,
+            status: status,
+            code: item.code ?? state.codeBuffer,
+            stdout: stdout,
+            outputImages: outputImages,
+            containerID: item.containerId
+        )
     }
 }

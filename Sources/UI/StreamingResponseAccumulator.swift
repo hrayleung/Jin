@@ -13,6 +13,7 @@ struct StreamingResponseAccumulator {
     private var assistantThinkingSegments: [ThinkingBlockAccumulator] = []
     private var toolCallsByID: OrderedDictionary<String, ToolCall> = [:]
     private var searchActivitiesByID: OrderedDictionary<String, SearchActivity> = [:]
+    private var codeExecutionActivitiesByID: OrderedDictionary<String, CodeExecutionActivity> = [:]
     private var codexToolActivitiesByID: OrderedDictionary<String, CodexToolActivity> = [:]
 
     /// The provider type string for tagging thinking blocks (e.g. "anthropic", "gemini").
@@ -137,6 +138,18 @@ struct StreamingResponseAccumulator {
 
     func buildSearchActivities() -> [SearchActivity] {
         Array(searchActivitiesByID.values)
+    }
+
+    mutating func upsertCodeExecutionActivity(_ activity: CodeExecutionActivity) {
+        if let existing = codeExecutionActivitiesByID[activity.id] {
+            codeExecutionActivitiesByID[activity.id] = existing.merged(with: activity)
+        } else {
+            codeExecutionActivitiesByID[activity.id] = activity
+        }
+    }
+
+    func buildCodeExecutionActivities() -> [CodeExecutionActivity] {
+        Array(codeExecutionActivitiesByID.values)
     }
 
     mutating func upsertCodexToolActivity(_ activity: CodexToolActivity) {

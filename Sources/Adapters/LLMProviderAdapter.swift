@@ -15,6 +15,7 @@ enum StreamEvent: Sendable {
     case toolCallDelta(id: String, argumentsDelta: String)
     case toolCallEnd(ToolCall)
     case searchActivity(SearchActivity)
+    case codeExecutionActivity(CodeExecutionActivity)
     case codexToolActivity(CodexToolActivity)
     case codexInteractionRequest(CodexInteractionRequest)
     case codexThreadState(CodexThreadState)
