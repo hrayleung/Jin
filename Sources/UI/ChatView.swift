@@ -1278,17 +1278,29 @@ struct ChatView: View {
         }
 
         let didSchedule = ChatDropHandlingSupport.processDropProviders(providers) { [self] result in
-            isFullPageDropTargeted = false
+            Task { @MainActor in
+                if !result.textChunks.isEmpty {
+                    appendTextChunksToComposer(result.textChunks)
+                }
 
-            if !result.fileURLs.isEmpty {
-                Task { await importAttachments(from: result.fileURLs) }
-            }
-            if !result.textChunks.isEmpty {
-                appendTextChunksToComposer(result.textChunks)
-            }
-            if !result.errors.isEmpty {
-                errorMessage = result.errors.joined(separator: "\n")
-                showingError = true
+                var allErrors = result.errors
+
+                if !result.fileURLs.isEmpty {
+                    let (newAttachments, importErrors) = await ChatDropHandlingSupport.importAttachments(
+                        from: result.fileURLs,
+                        currentAttachmentCount: draftAttachments.count,
+                        maxAttachments: AttachmentConstants.maxDraftAttachments
+                    )
+                    if !newAttachments.isEmpty {
+                        draftAttachments.append(contentsOf: newAttachments)
+                    }
+                    allErrors.append(contentsOf: importErrors)
+                }
+
+                if !allErrors.isEmpty {
+                    errorMessage = allErrors.joined(separator: "\n")
+                    showingError = true
+                }
             }
         }
 
