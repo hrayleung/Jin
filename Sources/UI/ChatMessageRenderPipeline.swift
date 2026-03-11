@@ -140,6 +140,11 @@ enum ChatMessageRenderPipeline {
                             if case .text = part { return true }
                             return false
                         }),
+                    canDeleteResponse: snapshot.role == MessageRole.user.rawValue
+                        && messagesToDeleteForResponse(
+                            afterUserMessage: snapshot,
+                            orderedMessages: orderedMessages
+                        ) != nil,
                     perMessageMCPServerNames: message.perMessageMCPServerNames ?? []
                 )
             )
@@ -226,6 +231,26 @@ enum ChatMessageRenderPipeline {
         }
 
         return blocks
+    }
+
+    private static func messagesToDeleteForResponse(
+        afterUserMessage message: PersistedMessageSnapshot,
+        orderedMessages: [PersistedMessageSnapshot]
+    ) -> [PersistedMessageSnapshot]? {
+        guard let index = orderedMessages.firstIndex(where: { $0.id == message.id }) else { return nil }
+        let startIndex = index + 1
+        guard startIndex < orderedMessages.count else { return nil }
+
+        var result: [PersistedMessageSnapshot] = []
+        for i in startIndex..<orderedMessages.count {
+            let msg = orderedMessages[i]
+            if msg.role == MessageRole.user.rawValue { break }
+            if msg.role == MessageRole.assistant.rawValue || msg.role == MessageRole.tool.rawValue {
+                result.append(msg)
+            }
+        }
+
+        return result.isEmpty ? nil : result
     }
 
     private static func copyableText(from message: Message, role: MessageRole) -> String {
