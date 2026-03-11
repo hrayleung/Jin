@@ -1,3 +1,4 @@
+import Collections
 import Foundation
 
 enum ChatMessageRenderPipeline {
@@ -27,8 +28,7 @@ enum ChatMessageRenderPipeline {
         renderedItems.reserveCapacity(orderedMessages.count)
 
         var artifactVersionCounts: [String: Int] = [:]
-        var artifactOrder: [String] = []
-        var artifactVersionsByID: [String: [RenderedArtifactVersion]] = [:]
+        var artifactVersionsByID: OrderedDictionary<String, [RenderedArtifactVersion]> = [:]
 
         for entity in orderedMessages {
             messageEntitiesByID[entity.id] = entity
@@ -41,7 +41,6 @@ enum ChatMessageRenderPipeline {
                 messageID: entity.id,
                 timestamp: entity.timestamp,
                 artifactVersionCounts: &artifactVersionCounts,
-                artifactOrder: &artifactOrder,
                 artifactVersionsByID: &artifactVersionsByID
             )
             renderedItems.append(
@@ -82,8 +81,8 @@ enum ChatMessageRenderPipeline {
             messageEntitiesByID: messageEntitiesByID,
             toolResultsByCallID: toolResultsByToolCallID(in: orderedMessages),
             artifactCatalog: ArtifactCatalog(
-                orderedArtifactIDs: artifactOrder,
-                versionsByArtifactID: artifactVersionsByID
+                orderedArtifactIDs: Array(artifactVersionsByID.keys),
+                versionsByArtifactID: Dictionary(uniqueKeysWithValues: artifactVersionsByID.map { ($0.key, $0.value) })
             )
         )
     }
@@ -97,8 +96,7 @@ enum ChatMessageRenderPipeline {
         renderedItems.reserveCapacity(orderedMessages.count)
 
         var artifactVersionCounts: [String: Int] = [:]
-        var artifactOrder: [String] = []
-        var artifactVersionsByID: [String: [RenderedArtifactVersion]] = [:]
+        var artifactVersionsByID: OrderedDictionary<String, [RenderedArtifactVersion]> = [:]
         let decoder = JSONDecoder()
 
         for snapshot in orderedMessages {
@@ -114,7 +112,6 @@ enum ChatMessageRenderPipeline {
                 messageID: snapshot.id,
                 timestamp: snapshot.timestamp,
                 artifactVersionCounts: &artifactVersionCounts,
-                artifactOrder: &artifactOrder,
                 artifactVersionsByID: &artifactVersionsByID
             )
             renderedItems.append(
@@ -154,8 +151,8 @@ enum ChatMessageRenderPipeline {
             visibleMessages: renderedItems,
             toolResultsByCallID: toolResultsByToolCallID(in: orderedMessages),
             artifactCatalog: ArtifactCatalog(
-                orderedArtifactIDs: artifactOrder,
-                versionsByArtifactID: artifactVersionsByID
+                orderedArtifactIDs: Array(artifactVersionsByID.keys),
+                versionsByArtifactID: Dictionary(uniqueKeysWithValues: artifactVersionsByID.map { ($0.key, $0.value) })
             )
         )
     }
@@ -177,8 +174,7 @@ enum ChatMessageRenderPipeline {
         messageID: UUID,
         timestamp: Date,
         artifactVersionCounts: inout [String: Int],
-        artifactOrder: inout [String],
-        artifactVersionsByID: inout [String: [RenderedArtifactVersion]]
+        artifactVersionsByID: inout OrderedDictionary<String, [RenderedArtifactVersion]>
     ) -> [RenderedMessageBlock] {
         var blocks: [RenderedMessageBlock] = []
 
@@ -205,11 +201,6 @@ enum ChatMessageRenderPipeline {
                         let artifact = artifacts[i]
                         let nextVersion = (artifactVersionCounts[artifact.artifactID] ?? 0) + 1
                         artifactVersionCounts[artifact.artifactID] = nextVersion
-
-                        if artifactVersionsByID[artifact.artifactID] == nil {
-                            artifactOrder.append(artifact.artifactID)
-                            artifactVersionsByID[artifact.artifactID] = []
-                        }
 
                         let version = RenderedArtifactVersion(
                             artifactID: artifact.artifactID,

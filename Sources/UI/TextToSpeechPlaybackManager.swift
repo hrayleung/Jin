@@ -1,3 +1,4 @@
+import Collections
 import Foundation
 import AVFoundation
 import CoreGraphics
@@ -100,7 +101,7 @@ final class TextToSpeechPlaybackManager: NSObject, ObservableObject {
 
     private var synthesisTask: Task<Void, Never>?
     private var player: AVAudioPlayer?
-    private var queue: [QueuedClip] = []
+    private var queue: Deque<QueuedClip> = []
     private var activeClip: QueuedClip?
     private var currentMessageID: UUID?
     private var currentErrorHandler: ((Error) -> Void)?
@@ -437,7 +438,7 @@ final class TextToSpeechPlaybackManager: NSObject, ObservableObject {
             return
         }
 
-        let clip = queue.removeFirst()
+        guard let clip = queue.popFirst() else { return }
         do {
             let audioPlayer = try AVAudioPlayer(data: clip.audioData)
             audioPlayer.delegate = self

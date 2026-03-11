@@ -1,9 +1,10 @@
+import Collections
 import Foundation
 
 /// Server-Sent Events (SSE) parser for OpenAI and xAI
 struct SSEParser: StreamParser {
     private var buffer = Data()
-    private var events: [SSEEvent] = []
+    private var events: Deque<SSEEvent> = []
 
     mutating func append(_ byte: UInt8) {
         buffer.append(byte)
@@ -27,7 +28,7 @@ struct SSEParser: StreamParser {
     }
 
     mutating func nextEvent() -> SSEEvent? {
-        events.isEmpty ? nil : events.removeFirst()
+        events.popFirst()
     }
 
     private mutating func parseEvent() {
@@ -76,7 +77,7 @@ enum SSEEvent: Sendable {
 /// JSON Lines parser for Anthropic and Vertex AI
 struct JSONLineParser: StreamParser {
     private var buffer = Data()
-    private var events: [String] = []
+    private var events: Deque<String> = []
 
     mutating func append(_ byte: UInt8) {
         buffer.append(byte)
@@ -88,7 +89,7 @@ struct JSONLineParser: StreamParser {
     }
 
     mutating func nextEvent() -> String? {
-        events.isEmpty ? nil : events.removeFirst()
+        events.popFirst()
     }
 
     private mutating func parseLine() {

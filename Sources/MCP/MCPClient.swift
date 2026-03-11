@@ -1,3 +1,4 @@
+import Collections
 import Foundation
 import MCP
 
@@ -352,14 +353,12 @@ actor MCPClient {
             .split(separator: ":", omittingEmptySubsequences: true)
             .map(String.init)
 
-        var seen = Set<String>()
-        var merged: [String] = []
+        var merged = OrderedSet<String>()
 
         func append(_ entry: String) {
             let trimmed = entry.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !trimmed.isEmpty, !seen.contains(trimmed) else { return }
+            guard !trimmed.isEmpty else { return }
             merged.append(trimmed)
-            seen.insert(trimmed)
         }
 
         for entry in existingComponents {
@@ -374,7 +373,7 @@ actor MCPClient {
             append(entry)
         }
 
-        return merged.joined(separator: ":")
+        return merged.elements.joined(separator: ":")
     }
 
     private func applyNodeIsolationIfNeeded(

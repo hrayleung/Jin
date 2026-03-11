@@ -1,3 +1,4 @@
+import Collections
 import SwiftUI
 import SwiftData
 import AppKit
@@ -29,7 +30,7 @@ struct ChatView: View {
             get: { pendingCodexInteractions.first },
             set: { newValue in
                 guard newValue == nil, !pendingCodexInteractions.isEmpty else { return }
-                pendingCodexInteractions.removeFirst()
+                _ = pendingCodexInteractions.popFirst()
             }
         )
     }
@@ -102,7 +103,7 @@ struct ChatView: View {
     @State var codexWorkingDirectoryDraftError: String?
     @State var codexSandboxModeDraft: CodexSandboxMode = .default
     @State var codexPersonalityDraft: CodexPersonality?
-    @State var pendingCodexInteractions: [PendingCodexInteraction] = []
+    @State var pendingCodexInteractions: Deque<PendingCodexInteraction> = []
 
     private enum SlashCommandTarget { case composer, editMessage }
     @State private var isSlashMCPPopoverVisible = false
@@ -1198,8 +1199,10 @@ struct ChatView: View {
     }
 
     private func handleDroppedFileURLs(_ urls: [URL]) -> Bool {
-        var seen = Set<URL>()
-        let uniqueURLs = urls.filter { seen.insert($0).inserted }
+        var uniqueURLs = OrderedSet<URL>()
+        for url in urls {
+            uniqueURLs.append(url)
+        }
         guard !uniqueURLs.isEmpty else { return false }
 
         if isBusy {
@@ -1208,7 +1211,7 @@ struct ChatView: View {
             return true
         }
 
-        Task { await importAttachments(from: uniqueURLs) }
+        Task { await importAttachments(from: Array(uniqueURLs)) }
         return true
     }
 
@@ -3550,13 +3553,9 @@ struct ChatView: View {
             existingActivities = []
         }
 
-        var order: [String] = []
-        var byID: [String: SearchActivity] = [:]
+        var byID: OrderedDictionary<String, SearchActivity> = [:]
 
         for activity in existingActivities {
-            if byID[activity.id] == nil {
-                order.append(activity.id)
-            }
             byID[activity.id] = activity
         }
 
@@ -3564,12 +3563,11 @@ struct ChatView: View {
             if let existing = byID[activity.id] {
                 byID[activity.id] = existing.merged(with: activity)
             } else {
-                order.append(activity.id)
                 byID[activity.id] = activity
             }
         }
 
-        let mergedActivities = order.compactMap { byID[$0] }
+        let mergedActivities = Array(byID.values)
         entity.searchActivitiesData = mergedActivities.isEmpty ? nil : (try? encoder.encode(mergedActivities))
         conversationEntity.updatedAt = Date()
         rebuildMessageCaches()

@@ -1,3 +1,4 @@
+import Collections
 import SwiftUI
 
 // MARK: - Streaming Accumulation Types
@@ -236,10 +237,8 @@ final class StreamingMessageState: ObservableObject {
 
     private var textStorage = ""
     private var thinkingStorage = ""
-    private var searchActivitiesByID: [String: SearchActivity] = [:]
-    private var searchActivityOrder: [String] = []
-    private var codexToolActivitiesByID: [String: CodexToolActivity] = [:]
-    private var codexToolActivityOrder: [String] = []
+    private var searchActivitiesByID: OrderedDictionary<String, SearchActivity> = [:]
+    private var codexToolActivitiesByID: OrderedDictionary<String, CodexToolActivity> = [:]
 
     var textContent: String { textStorage }
     var thinkingContent: String { thinkingStorage }
@@ -254,9 +253,7 @@ final class StreamingMessageState: ObservableObject {
         streamingToolCalls = []
         toolResultsByCallID = [:]
         searchActivitiesByID = [:]
-        searchActivityOrder = []
         codexToolActivitiesByID = [:]
-        codexToolActivityOrder = []
         visibleText = ""
         artifacts = []
         hasVisibleText = false
@@ -313,10 +310,9 @@ final class StreamingMessageState: ObservableObject {
         if let existing = searchActivitiesByID[activity.id] {
             searchActivitiesByID[activity.id] = existing.merged(with: activity)
         } else {
-            searchActivityOrder.append(activity.id)
             searchActivitiesByID[activity.id] = activity
         }
-        searchActivities = searchActivityOrder.compactMap { searchActivitiesByID[$0] }
+        searchActivities = Array(searchActivitiesByID.values)
         renderTick &+= 1
     }
 
@@ -324,10 +320,9 @@ final class StreamingMessageState: ObservableObject {
         if let existing = codexToolActivitiesByID[activity.id] {
             codexToolActivitiesByID[activity.id] = existing.merged(with: activity)
         } else {
-            codexToolActivityOrder.append(activity.id)
             codexToolActivitiesByID[activity.id] = activity
         }
-        codexToolActivities = codexToolActivityOrder.compactMap { codexToolActivitiesByID[$0] }
+        codexToolActivities = Array(codexToolActivitiesByID.values)
         renderTick &+= 1
     }
 

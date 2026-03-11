@@ -1,3 +1,4 @@
+import Collections
 import SwiftUI
 import SwiftData
 
@@ -215,18 +216,15 @@ struct MCPToolTimelineView: View {
     }
 
     private var serverIDs: [String] {
-        var seen: Set<String> = []
-        var ordered: [String] = []
+        var ordered = OrderedSet<String>()
 
         for entry in entries {
             let serverID = parseFunctionName(entry.call.name).serverID
             let normalized = serverID.isEmpty ? "mcp" : serverID
-            if seen.insert(normalized).inserted {
-                ordered.append(normalized)
-            }
+            ordered.append(normalized)
         }
 
-        return ordered
+        return Array(ordered)
     }
 
     private var serverSummary: String {

@@ -1,3 +1,4 @@
+import Collections
 import Foundation
 
 /// OpenAI provider adapter (Responses API)
@@ -311,14 +312,13 @@ actor OpenAIAdapter: LLMProviderAdapter {
             existingStrings = []
         }
 
-        var seen: Set<String> = []
-        var out: [String] = []
+        var out = OrderedSet<String>()
         for raw in existingStrings + [field] {
             let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !trimmed.isEmpty, seen.insert(trimmed).inserted else { continue }
+            guard !trimmed.isEmpty else { continue }
             out.append(trimmed)
         }
-        return out
+        return Array(out)
     }
 
     private func mapReasoningEffort(_ effort: ReasoningEffort, modelID: String) -> String {

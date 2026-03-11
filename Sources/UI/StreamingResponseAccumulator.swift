@@ -1,3 +1,4 @@
+import Collections
 import Foundation
 
 /// Accumulates streaming response parts (text, images, videos, thinking, tool calls, search activities)
@@ -10,12 +11,9 @@ struct StreamingResponseAccumulator {
     private var assistantImageSegments: [ImageContent] = []
     private var assistantVideoSegments: [VideoContent] = []
     private var assistantThinkingSegments: [ThinkingBlockAccumulator] = []
-    private var toolCallsByID: [String: ToolCall] = [:]
-    private var toolCallOrder: [String] = []
-    private var searchActivitiesByID: [String: SearchActivity] = [:]
-    private var searchActivityOrder: [String] = []
-    private var codexToolActivitiesByID: [String: CodexToolActivity] = [:]
-    private var codexToolActivityOrder: [String] = []
+    private var toolCallsByID: OrderedDictionary<String, ToolCall> = [:]
+    private var searchActivitiesByID: OrderedDictionary<String, SearchActivity> = [:]
+    private var codexToolActivitiesByID: OrderedDictionary<String, CodexToolActivity> = [:]
 
     /// The provider type string for tagging thinking blocks (e.g. "anthropic", "gemini").
     private let providerTypeRawValue: String?
@@ -84,14 +82,12 @@ struct StreamingResponseAccumulator {
         if let existing = searchActivitiesByID[activity.id] {
             searchActivitiesByID[activity.id] = existing.merged(with: activity)
         } else {
-            searchActivityOrder.append(activity.id)
             searchActivitiesByID[activity.id] = activity
         }
     }
 
     mutating func upsertToolCall(_ call: ToolCall) {
         if toolCallsByID[call.id] == nil {
-            toolCallOrder.append(call.id)
             toolCallsByID[call.id] = call
             return
         }
@@ -140,23 +136,22 @@ struct StreamingResponseAccumulator {
     }
 
     func buildSearchActivities() -> [SearchActivity] {
-        searchActivityOrder.compactMap { searchActivitiesByID[$0] }
+        Array(searchActivitiesByID.values)
     }
 
     mutating func upsertCodexToolActivity(_ activity: CodexToolActivity) {
         if let existing = codexToolActivitiesByID[activity.id] {
             codexToolActivitiesByID[activity.id] = existing.merged(with: activity)
         } else {
-            codexToolActivityOrder.append(activity.id)
             codexToolActivitiesByID[activity.id] = activity
         }
     }
 
     func buildCodexToolActivities() -> [CodexToolActivity] {
-        codexToolActivityOrder.compactMap { codexToolActivitiesByID[$0] }
+        Array(codexToolActivitiesByID.values)
     }
 
     func buildToolCalls() -> [ToolCall] {
-        toolCallOrder.compactMap { toolCallsByID[$0] }
+        Array(toolCallsByID.values)
     }
 }

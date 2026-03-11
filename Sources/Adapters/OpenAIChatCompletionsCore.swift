@@ -1,3 +1,4 @@
+import Collections
 import Foundation
 
 enum OpenAIChatCompletionsReasoningField {
@@ -344,13 +345,14 @@ enum OpenAIChatCompletionsCore {
         }
 
         if let searchResults {
-            var seenURLs = Set<String>()
+            var seenURLs = OrderedSet<String>()
             var lines: [String] = ["\n\n---\n\n### Sources"]
 
             var index = 0
             for raw in searchResults {
                 guard let url = trimmedNonEmpty(raw.url) else { continue }
-                guard seenURLs.insert(url).inserted else { continue }
+                guard !seenURLs.contains(url) else { continue }
+                seenURLs.append(url)
 
                 index += 1
 
@@ -372,20 +374,20 @@ enum OpenAIChatCompletionsCore {
         }
 
         if let citations {
-            var seen = Set<String>()
-            var unique: [String] = []
+            var unique = OrderedSet<String>()
             unique.reserveCapacity(citations.count)
             for raw in citations {
                 let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
                 guard !trimmed.isEmpty else { continue }
-                guard seen.insert(trimmed).inserted else { continue }
-                unique.append(trimmed)
+                if !unique.contains(trimmed) {
+                    unique.append(trimmed)
+                }
             }
 
             guard !unique.isEmpty else { return nil }
 
             var lines: [String] = ["\n\n---\n\n### Sources"]
-            for (idx, citation) in unique.enumerated() {
+            for (idx, citation) in unique.elements.enumerated() {
                 if citation.lowercased().hasPrefix("http") {
                     lines.append("\(idx + 1). <\(citation)>")
                 } else {

@@ -1,3 +1,4 @@
+import Collections
 import SwiftUI
 import SwiftData
 import AppKit
@@ -249,12 +250,13 @@ struct JinApp: App {
         }
 
         // Provider responses may occasionally include duplicate IDs; keep first in fetch order.
-        var seenLatestIDs = Set<String>()
+        var seenLatestIDs = OrderedSet<String>()
         var merged: [ModelInfo] = []
         merged.reserveCapacity(latestModels.count)
 
         for model in latestModels {
-            guard seenLatestIDs.insert(model.id).inserted else { continue }
+            guard !seenLatestIDs.contains(model.id) else { continue }
+            seenLatestIDs.append(model.id)
 
             let existing = existingByID[model.id]
             merged.append(

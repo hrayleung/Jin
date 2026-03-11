@@ -1,3 +1,4 @@
+import Collections
 import Foundation
 
 struct BuiltinToolRouteSnapshot: Sendable {
@@ -280,7 +281,7 @@ actor BuiltinSearchToolHub {
         let pageCount = Int(ceil(Double(desiredMaxResults) / Double(BraveSearchAPI.maxCount)))
         let maxPages = min(pageCount, BraveSearchAPI.maxOffset + 1)
 
-        var seenURLs = Set<String>()
+        var seenURLs = OrderedSet<String>()
         var rows: [SearchCitationRow] = []
         rows.reserveCapacity(desiredMaxResults)
 
@@ -316,7 +317,8 @@ actor BuiltinSearchToolHub {
                 guard rows.count < desiredMaxResults else { break }
 
                 guard let url = firstString(in: item, keys: ["url", "profile", "link"]) else { continue }
-                guard seenURLs.insert(url).inserted else { continue }
+                guard !seenURLs.contains(url) else { continue }
+                seenURLs.append(url)
 
                 let title = firstString(in: item, keys: ["title"]) ?? URL(string: url)?.host ?? url
                 let snippet = braveSnippet(from: item, includeExtraSnippets: shouldIncludeExtraSnippets)
@@ -936,26 +938,23 @@ actor BuiltinSearchToolHub {
     }
 
     private func braveSnippet(from item: [String: Any], includeExtraSnippets: Bool) -> String? {
-        var parts: [String] = []
-        var seenParts = Set<String>()
+        var parts = OrderedSet<String>()
 
         for value in [
             firstString(in: item, keys: ["description"]),
             firstString(in: item, keys: ["snippet"])
         ].compactMap({ $0 }) {
-            if seenParts.insert(value).inserted {
-                parts.append(value)
-            }
+            parts.append(value)
         }
 
         if includeExtraSnippets {
             let extras = firstStringArray(in: item, keys: ["extra_snippets"])
-            for extra in extras where seenParts.insert(extra).inserted {
+            for extra in extras {
                 parts.append(extra)
             }
         }
 
-        let joined = parts
+        let joined = parts.elements
             .joined(separator: "\n")
             .trimmingCharacters(in: .whitespacesAndNewlines)
         guard !joined.isEmpty else { return nil }

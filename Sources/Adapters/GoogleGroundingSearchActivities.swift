@@ -1,3 +1,4 @@
+import Collections
 import Foundation
 
 /// Shared search-activity generation for Google grounding metadata (Gemini + Vertex AI).
@@ -68,31 +69,28 @@ enum GoogleGroundingSearchActivities {
             )
         }
 
-        var sourceEvents: [StreamEvent] = []
-        var seenSourceURLKeys: Set<String> = []
+        var sourceEventsByURLKey: OrderedDictionary<String, StreamEvent> = [:]
         var sourceSequence = 0
         let sourceSequenceBase = orderedQueries.count
         func appendSourceActivity(url rawURL: String?, title rawTitle: String?, idPrefix: String) {
             let url = rawURL?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             guard !url.isEmpty else { return }
             let dedupeKey = url.lowercased()
-            guard seenSourceURLKeys.insert(dedupeKey).inserted else { return }
+            guard sourceEventsByURLKey[dedupeKey] == nil else { return }
 
             var args: [String: AnyCodable] = ["url": AnyCodable(url)]
             if let title = rawTitle?.trimmingCharacters(in: .whitespacesAndNewlines), !title.isEmpty {
                 args["title"] = AnyCodable(title)
             }
 
-            sourceEvents.append(
-                .searchActivity(
-                    SearchActivity(
-                        id: activityID(prefix: idPrefix, value: url, index: sourceSequence),
-                        type: "open_page",
-                        status: .completed,
-                        arguments: args,
-                        outputIndex: nil,
-                        sequenceNumber: sourceSequenceBase + sourceSequence
-                    )
+            sourceEventsByURLKey[dedupeKey] = .searchActivity(
+                SearchActivity(
+                    id: activityID(prefix: idPrefix, value: url, index: sourceSequence),
+                    type: "open_page",
+                    status: .completed,
+                    arguments: args,
+                    outputIndex: nil,
+                    sequenceNumber: sourceSequenceBase + sourceSequence
                 )
             )
             sourceSequence += 1
@@ -106,13 +104,13 @@ enum GoogleGroundingSearchActivities {
             )
         }
 
-        if sourceEvents.isEmpty {
+        if sourceEventsByURLKey.isEmpty {
             for suggestion in GoogleGroundingSearchSuggestionParser.parse(sdkBlob: grounding.searchEntryPoint?.sdkBlob) {
                 appendSourceActivity(url: suggestion.url, title: suggestion.query, idPrefix: searchURLPrefix)
             }
         }
 
-        out.append(contentsOf: sourceEvents)
+        out.append(contentsOf: sourceEventsByURLKey.values)
         return out
     }
 
