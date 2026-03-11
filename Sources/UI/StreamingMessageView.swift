@@ -29,8 +29,7 @@ struct StreamingMessageView: View {
     @AppStorage(AppPreferenceKeys.codeFontFamily) private var codeFontFamily = JinTypography.systemFontPreferenceValue
 
     var body: some View {
-        let parseResult = ArtifactMarkupParser.parse(state.textContent, hidesTrailingIncompleteArtifact: true)
-        let visibleText = parseResult.visibleText
+        let visibleText = state.visibleText
         let showsCopyButton = !visibleText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         let visibleToolCalls = state.streamingToolCalls.filter { call in
             !BuiltinSearchToolHub.isBuiltinSearchFunctionName(call.name)
@@ -94,8 +93,8 @@ struct StreamingMessageView: View {
                             MarkdownWebRenderer(markdownText: visibleText, isStreaming: true)
                         }
 
-                        if !parseResult.artifacts.isEmpty {
-                            ForEach(Array(parseResult.artifacts.enumerated()), id: \.offset) { _, artifact in
+                        if !state.artifacts.isEmpty {
+                            ForEach(Array(state.artifacts.enumerated()), id: \.offset) { _, artifact in
                                 StreamingArtifactIndicator(artifact: artifact)
                             }
                         } else if state.thinkingChunks.isEmpty && state.searchActivities.isEmpty && state.codexToolActivities.isEmpty && visibleToolCalls.isEmpty {
@@ -119,6 +118,7 @@ struct StreamingMessageView: View {
                         .padding(.top, JinSpacing.xSmall - 2)
                     }
                 }
+                .layoutValue(key: ConstrainedWidthContentVersionKey.self, value: .version(state.renderTick))
             }
             .padding(.horizontal, JinSpacing.large)
 
@@ -229,6 +229,8 @@ final class StreamingMessageState: ObservableObject {
     @Published private(set) var streamingToolCalls: [ToolCall] = []
     @Published private(set) var toolResultsByCallID: [String: ToolResult] = [:]
     @Published private(set) var renderTick: Int = 0
+    @Published private(set) var visibleText: String = ""
+    @Published private(set) var artifacts: [ParsedArtifact] = []
     @Published private(set) var hasVisibleText: Bool = false
     @Published private(set) var isThinkingComplete: Bool = false
 
@@ -255,6 +257,8 @@ final class StreamingMessageState: ObservableObject {
         searchActivityOrder = []
         codexToolActivitiesByID = [:]
         codexToolActivityOrder = []
+        visibleText = ""
+        artifacts = []
         hasVisibleText = false
         isThinkingComplete = false
         renderTick = 0
@@ -262,17 +266,15 @@ final class StreamingMessageState: ObservableObject {
 
     func appendDeltas(textDelta: String, thinkingDelta: String) {
         var didMutate = false
+        var didChangeText = false
 
         if !textDelta.isEmpty {
             textStorage.append(textDelta)
-            if !hasVisibleText,
-               textDelta.rangeOfCharacter(from: CharacterSet.whitespacesAndNewlines.inverted) != nil {
-                hasVisibleText = true
-            }
             if !isThinkingComplete, !thinkingChunks.isEmpty {
                 isThinkingComplete = true
             }
             appendDelta(textDelta, to: &textChunks, maxChunkSize: Self.maxChunkSize)
+            didChangeText = true
             didMutate = true
         }
 
@@ -280,6 +282,10 @@ final class StreamingMessageState: ObservableObject {
             thinkingStorage.append(thinkingDelta)
             appendDelta(thinkingDelta, to: &thinkingChunks, maxChunkSize: Self.maxChunkSize)
             didMutate = true
+        }
+
+        if didChangeText {
+            updateParsedStreamingContent()
         }
 
         if didMutate {
@@ -335,6 +341,13 @@ final class StreamingMessageState: ObservableObject {
         guard streamingToolCalls.contains(where: { $0.id == result.toolCallID }) else { return }
         toolResultsByCallID[result.toolCallID] = result
         renderTick &+= 1
+    }
+
+    private func updateParsedStreamingContent() {
+        let parseResult = ArtifactMarkupParser.parse(textStorage, hidesTrailingIncompleteArtifact: true)
+        visibleText = parseResult.visibleText
+        artifacts = parseResult.artifacts
+        hasVisibleText = !visibleText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     private func appendDelta(_ delta: String, to chunks: inout [String], maxChunkSize: Int) {

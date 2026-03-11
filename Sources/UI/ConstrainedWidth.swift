@@ -1,11 +1,31 @@
 import SwiftUI
 
+struct ConstrainedWidthCacheInvalidation: Equatable {
+    enum Mode: Equatable {
+        case automatic
+        case version(Int)
+    }
+
+    let mode: Mode
+
+    static let automatic = ConstrainedWidthCacheInvalidation(mode: .automatic)
+
+    static func version(_ value: Int) -> ConstrainedWidthCacheInvalidation {
+        ConstrainedWidthCacheInvalidation(mode: .version(value))
+    }
+}
+
+struct ConstrainedWidthContentVersionKey: LayoutValueKey {
+    static let defaultValue: ConstrainedWidthCacheInvalidation = .automatic
+}
+
 struct ConstrainedWidth: Layout {
     let maxWidth: CGFloat
 
     struct Cache {
         var measuredSize: CGSize?
         var measuredWidth: CGFloat?
+        var invalidation: ConstrainedWidthCacheInvalidation = ConstrainedWidthContentVersionKey.defaultValue
     }
 
     init(_ maxWidth: CGFloat) {
@@ -13,11 +33,32 @@ struct ConstrainedWidth: Layout {
     }
 
     func makeCache(subviews: Subviews) -> Cache {
-        Cache()
+        var cache = Cache()
+        if let subview = subviews.first {
+            cache.invalidation = subview[ConstrainedWidthContentVersionKey.self]
+        }
+        return cache
     }
 
     func updateCache(_ cache: inout Cache, subviews: Subviews) {
-        cache = Cache()
+        guard let subview = subviews.first else {
+            cache = Cache()
+            return
+        }
+        let invalidation = subview[ConstrainedWidthContentVersionKey.self]
+
+        switch invalidation.mode {
+        case .automatic:
+            // Preserve SwiftUI's default cache semantics for non-streaming content so
+            // ordinary message rows still remeasure when their subtree changes shape.
+            cache = makeCache(subviews: subviews)
+
+        case .version:
+            guard invalidation != cache.invalidation else { return }
+            cache.measuredSize = nil
+            cache.measuredWidth = nil
+            cache.invalidation = invalidation
+        }
     }
 
     func sizeThatFits(
