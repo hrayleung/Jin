@@ -1,3 +1,4 @@
+import Collections
 import Foundation
 
 enum JinResourceBundle {
@@ -107,9 +108,13 @@ enum JinResourceBundle {
     }
 
     private static func deduplicated(_ urls: [URL]) -> [URL] {
-        var seenPaths = Set<String>()
-        return urls.filter { url in
-            seenPaths.insert(url.standardizedFileURL.path).inserted
+        var urlsByPath: OrderedDictionary<String, URL> = [:]
+        for url in urls {
+            let path = url.standardizedFileURL.path
+            if urlsByPath[path] == nil {
+                urlsByPath[path] = url
+            }
         }
+        return Array(urlsByPath.values)
     }
 }

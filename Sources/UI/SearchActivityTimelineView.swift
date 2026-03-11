@@ -1,3 +1,4 @@
+import Collections
 import SwiftUI
 import Foundation
 import AppKit
@@ -333,17 +334,15 @@ private struct SearchActivityPresentation {
     let sources: [SearchSource]
 
     init(activities: [SearchActivity]) {
-        var collectedQueries: [String] = []
-        var querySeen: Set<String> = []
-        var sourceByID: [String: SearchSource] = [:]
-        var sourceOrder: [String] = []
+        var queriesByKey: OrderedDictionary<String, String> = [:]
+        var sourceByID: OrderedDictionary<String, SearchSource> = [:]
 
         func appendQuery(_ raw: String) {
             guard let normalized = raw.trimmedNonEmpty else { return }
             let key = normalized.lowercased()
-            guard !querySeen.contains(key) else { return }
-            querySeen.insert(key)
-            collectedQueries.append(normalized)
+            if queriesByKey[key] == nil {
+                queriesByKey[key] = normalized
+            }
         }
 
         func upsertSource(url: String, title: String?, previewText: String?) {
@@ -353,7 +352,6 @@ private struct SearchActivityPresentation {
                 return
             }
             sourceByID[source.id] = source
-            sourceOrder.append(source.id)
         }
 
         for activity in activities {
@@ -377,8 +375,8 @@ private struct SearchActivityPresentation {
             }
         }
 
-        queries = collectedQueries
-        sources = sourceOrder.compactMap { sourceByID[$0] }
+        queries = Array(queriesByKey.values)
+        sources = Array(sourceByID.values)
     }
 }
 

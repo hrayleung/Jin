@@ -1,3 +1,4 @@
+import Collections
 import Foundation
 
 enum GoogleGroundingSearchSuggestionParser {
@@ -17,8 +18,7 @@ enum GoogleGroundingSearchSuggestionParser {
             return []
         }
 
-        var suggestions: [Suggestion] = []
-        var seenURLKeys: Set<String> = []
+        var suggestionsByURLKey: OrderedDictionary<String, Suggestion> = [:]
 
         func normalizedURL(from raw: Any?) -> String? {
             guard let raw = raw as? String else { return nil }
@@ -41,8 +41,8 @@ enum GoogleGroundingSearchSuggestionParser {
         func appendSuggestion(urlRaw: Any?, queryRaw: Any?) {
             guard let url = normalizedURL(from: urlRaw) else { return }
             let dedupeKey = url.lowercased()
-            guard seenURLKeys.insert(dedupeKey).inserted else { return }
-            suggestions.append(Suggestion(query: normalizedQuery(from: queryRaw), url: url))
+            guard suggestionsByURLKey[dedupeKey] == nil else { return }
+            suggestionsByURLKey[dedupeKey] = Suggestion(query: normalizedQuery(from: queryRaw), url: url)
         }
 
         func walk(_ node: Any) {
@@ -65,7 +65,7 @@ enum GoogleGroundingSearchSuggestionParser {
         }
 
         walk(root)
-        return suggestions
+        return Array(suggestionsByURLKey.values)
     }
 
     private static func decodeBase64Payload(_ raw: String) -> Data? {
