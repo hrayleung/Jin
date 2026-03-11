@@ -9,7 +9,7 @@ typealias HTTPDataProvider = @Sendable (URLRequest) async throws -> (Data, URLRe
 /// It intentionally skips trace logging to avoid noisy non-LLM network traffic.
 enum NetworkDebugRequestExecutor {
     private static let defaultSession: Session = {
-        let configuration = NetworkManager.makeDefaultSessionConfiguration()
+        let configuration = makeDefaultSessionConfiguration()
         let rootQueue = DispatchQueue(label: "jin.network.utility.alamofire.root")
         let requestQueue = DispatchQueue(label: "jin.network.utility.alamofire.request", target: rootQueue)
         let serializationQueue = DispatchQueue(label: "jin.network.utility.alamofire.serialization", target: rootQueue)
@@ -22,6 +22,14 @@ enum NetworkDebugRequestExecutor {
             serializationQueue: serializationQueue
         )
     }()
+
+    nonisolated static func makeDefaultSessionConfiguration() -> URLSessionConfiguration {
+        let sharedConfiguration = URLSession.shared.configuration
+        let configuration = URLSessionConfiguration.default
+        configuration.timeoutIntervalForRequest = sharedConfiguration.timeoutIntervalForRequest
+        configuration.timeoutIntervalForResource = sharedConfiguration.timeoutIntervalForResource
+        return configuration
+    }
 
     /// Execute a one-shot data request.
     ///

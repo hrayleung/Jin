@@ -9,6 +9,23 @@ final class NetworkDebugRequestExecutorTests: XCTestCase {
         super.tearDown()
     }
 
+    func testDefaultSessionConfigurationUsesShortLivedSystemTimeouts() {
+        let configuration = NetworkDebugRequestExecutor.makeDefaultSessionConfiguration()
+
+        XCTAssertEqual(
+            configuration.timeoutIntervalForRequest,
+            URLSession.shared.configuration.timeoutIntervalForRequest
+        )
+        XCTAssertEqual(
+            configuration.timeoutIntervalForResource,
+            URLSession.shared.configuration.timeoutIntervalForResource
+        )
+        XCTAssertLessThan(
+            configuration.timeoutIntervalForRequest,
+            NetworkManager.defaultRequestTimeoutInterval
+        )
+    }
+
     func testDataReturnsHTTPErrorResponsesWithoutThrowing() async throws {
         let (configuration, protocolType) = makeMockedSessionConfiguration()
         let alamofireSession = makeAlamofireSession(configuration: configuration)
