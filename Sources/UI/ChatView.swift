@@ -58,6 +58,7 @@ struct ChatView: View {
     @State private var isFileImporterPresented = false
     @State private var isComposerDropTargeted = false
     @State private var isFullPageDropTargeted = false
+    @State private var dropAttachmentImportInFlightCount = 0
     @State private var dropForwarderRef = DropForwarderRef()
     @State private var isComposerFocused = false
     @State private var editingUserMessageID: UUID?
@@ -154,6 +155,10 @@ struct ChatView: View {
 
     private var isBusy: Bool {
         isStreaming || isPreparingToSend
+    }
+
+    private var isImportingDropAttachments: Bool {
+        dropAttachmentImportInFlightCount > 0
     }
 
     private var streamingMessage: StreamingMessageState? {
@@ -948,6 +953,7 @@ struct ChatView: View {
         speechToTextManager.cancelAndCleanup()
         messageText = ""
         draftAttachments = []
+        dropAttachmentImportInFlightCount = 0
         composerTextContentHeight = 36
         remoteVideoInputURLText = ""
         isExpandedComposerPresented = false
@@ -1041,7 +1047,7 @@ struct ChatView: View {
     }
 
     private var canSendDraft: Bool {
-        !trimmedMessageText.isEmpty || !draftAttachments.isEmpty
+        (!trimmedMessageText.isEmpty || !draftAttachments.isEmpty) && !isImportingDropAttachments
     }
 
     private var speechToTextManagerActive: Bool {
@@ -1239,7 +1245,7 @@ struct ChatView: View {
     }
 
     private func handleComposerSubmit() {
-        guard !isBusy else { return }
+        guard canSendDraft, !isBusy else { return }
         sendMessage()
     }
 
@@ -1293,6 +1299,8 @@ struct ChatView: View {
                 if !result.fileURLs.isEmpty {
                     let maxAttachments = AttachmentConstants.maxDraftAttachments
                     let attachmentCountAtDrop = draftAttachments.count
+                    dropAttachmentImportInFlightCount += 1
+                    defer { dropAttachmentImportInFlightCount = max(0, dropAttachmentImportInFlightCount - 1) }
                     let (newAttachments, importErrors) = await ChatDropHandlingSupport.importAttachments(
                         from: result.fileURLs,
                         currentAttachmentCount: attachmentCountAtDrop,
@@ -2953,6 +2961,7 @@ struct ChatView: View {
             return
         }
 
+        guard !isImportingDropAttachments else { return }
         guard canSendDraft else { return }
         endEditingUI()
         ensureModelThreadsInitializedIfNeeded()
