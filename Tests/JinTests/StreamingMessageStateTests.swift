@@ -10,6 +10,8 @@ final class StreamingMessageStateTests: XCTestCase {
         XCTAssertEqual(state.renderTick, 1)
         XCTAssertEqual(state.textContent, "hello")
         XCTAssertEqual(state.thinkingContent, "world")
+        XCTAssertEqual(state.visibleText, "hello")
+        XCTAssertTrue(state.artifacts.isEmpty)
     }
 
     func testAppendDeltasTracksVisibleText() {
@@ -42,8 +44,42 @@ final class StreamingMessageStateTests: XCTestCase {
         XCTAssertEqual(state.thinkingChunks, [])
         XCTAssertEqual(state.textContent, "")
         XCTAssertEqual(state.thinkingContent, "")
+        XCTAssertEqual(state.visibleText, "")
+        XCTAssertEqual(state.artifacts, [])
         XCTAssertEqual(state.streamingToolCalls.count, 0)
         XCTAssertEqual(state.toolResultsByCallID.count, 0)
+    }
+
+    func testAppendDeltasCachesVisibleTextAndArtifactsForStreaming() {
+        let state = StreamingMessageState()
+
+        state.appendDeltas(
+            textDelta: """
+            Intro
+            <jinArtifact artifact_id="demo" title="Demo" contentType="text/html">
+            <div>Hello</div>
+            </jinArtifact>
+            """,
+            thinkingDelta: ""
+        )
+
+        XCTAssertEqual(state.visibleText.trimmingCharacters(in: .whitespacesAndNewlines), "Intro")
+        XCTAssertEqual(state.artifacts.count, 1)
+        XCTAssertEqual(state.artifacts.first?.artifactID, "demo")
+        XCTAssertTrue(state.hasVisibleText)
+    }
+
+    func testAppendDeltasHidesTrailingIncompleteArtifactFromVisibleText() {
+        let state = StreamingMessageState()
+
+        state.appendDeltas(
+            textDelta: "Before<jinArtifact artifact_id=\"demo\" title=\"Demo\" contentType=\"text/html\"><div>",
+            thinkingDelta: ""
+        )
+
+        XCTAssertEqual(state.visibleText, "Before")
+        XCTAssertTrue(state.artifacts.isEmpty)
+        XCTAssertTrue(state.hasVisibleText)
     }
 
     func testUpsertSearchActivityMergesByIDAndIncrementsRenderTick() {
