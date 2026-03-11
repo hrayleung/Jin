@@ -327,6 +327,11 @@ pre code {
 .code-block .code-expand-pill.is-expanded svg {
     transform: rotate(180deg);
 }
+.code-block .code-expand-bar:has(.is-expanded) {
+    margin-top: 0;
+    padding-top: 10px;
+    background: var(--code-surface-raised);
+}
 .code-header {
     display: flex;
     justify-content: space-between;
