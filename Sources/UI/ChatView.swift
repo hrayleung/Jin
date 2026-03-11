@@ -1300,7 +1300,11 @@ struct ChatView: View {
                     let maxAttachments = AttachmentConstants.maxDraftAttachments
                     let attachmentCountAtDrop = draftAttachments.count
                     dropAttachmentImportInFlightCount += 1
-                    defer { dropAttachmentImportInFlightCount = max(0, dropAttachmentImportInFlightCount - 1) }
+                    defer {
+                        if conversationEntity.id == dropConversationID {
+                            dropAttachmentImportInFlightCount = max(0, dropAttachmentImportInFlightCount - 1)
+                        }
+                    }
                     let (newAttachments, importErrors) = await ChatDropHandlingSupport.importAttachments(
                         from: result.fileURLs,
                         currentAttachmentCount: attachmentCountAtDrop,
