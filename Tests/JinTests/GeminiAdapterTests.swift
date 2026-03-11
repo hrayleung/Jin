@@ -15,7 +15,54 @@ final class GeminiAdapterTests: XCTestCase {
             baseURL: "https://example.com"
         )
 
+        var sawUploadStart = false
+        var sawUploadFinalize = false
+
         protocolType.requestHandler = { request in
+            if request.url?.absoluteString == "https://example.com/upload/files" {
+                sawUploadStart = true
+                XCTAssertEqual(request.httpMethod, "POST")
+                XCTAssertEqual(request.value(forHTTPHeaderField: "x-goog-api-key"), "test-key")
+                XCTAssertEqual(request.value(forHTTPHeaderField: "X-Goog-Upload-Protocol"), "resumable")
+                XCTAssertEqual(request.value(forHTTPHeaderField: "X-Goog-Upload-Command"), "start")
+                XCTAssertEqual(request.value(forHTTPHeaderField: "X-Goog-Upload-Header-Content-Type"), "application/pdf")
+
+                let body = try XCTUnwrap(requestBodyData(request))
+                let root = try XCTUnwrap(try JSONSerialization.jsonObject(with: body) as? [String: Any])
+                let file = try XCTUnwrap(root["file"] as? [String: Any])
+                XCTAssertEqual(file["display_name"] as? String, "a.pdf")
+
+                return (
+                    HTTPURLResponse(
+                        url: request.url!,
+                        statusCode: 200,
+                        httpVersion: nil,
+                        headerFields: ["X-Goog-Upload-URL": "https://upload.example.com/gemini-session-1"]
+                    )!,
+                    Data()
+                )
+            }
+
+            if request.url?.absoluteString == "https://upload.example.com/gemini-session-1" {
+                sawUploadFinalize = true
+                XCTAssertEqual(request.httpMethod, "POST")
+                XCTAssertEqual(request.value(forHTTPHeaderField: "X-Goog-Upload-Offset"), "0")
+                XCTAssertEqual(request.value(forHTTPHeaderField: "X-Goog-Upload-Command"), "upload, finalize")
+
+                let response: [String: Any] = [
+                    "file": [
+                        "name": "files/gemini-native-123",
+                        "uri": "https://files.example.com/gemini-native-123",
+                        "mime_type": "application/pdf"
+                    ]
+                ]
+                let data = try JSONSerialization.data(withJSONObject: response)
+                return (
+                    HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                    data
+                )
+            }
+
             XCTAssertEqual(request.url?.absoluteString, "https://example.com/models/gemini-3-flash-preview:generateContent")
             XCTAssertEqual(request.httpMethod, "POST")
             XCTAssertEqual(request.value(forHTTPHeaderField: "x-goog-api-key"), "test-key")
@@ -36,9 +83,10 @@ final class GeminiAdapterTests: XCTestCase {
 
             let parts = try XCTUnwrap(first["parts"] as? [[String: Any]])
             XCTAssertEqual(parts.count, 1)
-            let inlineData = try XCTUnwrap(parts.first?["inlineData"] as? [String: Any])
-            XCTAssertEqual(inlineData["mimeType"] as? String, "application/pdf")
-            XCTAssertNotNil(inlineData["data"] as? String)
+            let fileData = try XCTUnwrap(parts.first?["fileData"] as? [String: Any])
+            XCTAssertEqual(fileData["mimeType"] as? String, "application/pdf")
+            XCTAssertEqual(fileData["fileUri"] as? String, "https://files.example.com/gemini-native-123")
+            XCTAssertNil(parts.first?["inlineData"])
 
             let generationConfig = try XCTUnwrap(root["generationConfig"] as? [String: Any])
             let thinkingConfig = try XCTUnwrap(generationConfig["thinkingConfig"] as? [String: Any])
@@ -61,14 +109,17 @@ final class GeminiAdapterTests: XCTestCase {
                             ]
                         ]
                     ]
-                ],
+                ]
+            ]
+            let responseWithUsage: [String: Any] = [
+                "candidates": response["candidates"]!,
                 "usageMetadata": [
                     "promptTokenCount": 1,
                     "candidatesTokenCount": 2,
                     "totalTokenCount": 3
                 ]
             ]
-            let data = try JSONSerialization.data(withJSONObject: response)
+            let data = try JSONSerialization.data(withJSONObject: responseWithUsage)
             return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
         }
 
@@ -111,6 +162,8 @@ final class GeminiAdapterTests: XCTestCase {
         )
 
         for try await _ in stream {}
+        XCTAssertTrue(sawUploadStart)
+        XCTAssertTrue(sawUploadFinalize)
     }
 
     func testGeminiAdapterParsesThoughtAndFunctionCallAndUsage() async throws {
@@ -206,6 +259,125 @@ final class GeminiAdapterTests: XCTestCase {
         XCTAssertEqual(usage?.inputTokens, 3)
         XCTAssertEqual(usage?.outputTokens, 4)
         XCTAssertEqual(usage?.cachedTokens, 2)
+    }
+
+    func testGeminiAdapterUploadsPDFViaFilesAPIAndUsesFileDataURI() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        let providerConfig = ProviderConfig(
+            id: "g",
+            name: "Gemini",
+            type: .gemini,
+            apiKey: "ignored",
+            baseURL: "https://example.com/v1beta"
+        )
+
+        var sawUploadStart = false
+        var sawUploadFinalize = false
+
+        protocolType.requestHandler = { request in
+            if request.url?.absoluteString == "https://example.com/upload/v1beta/files" {
+                sawUploadStart = true
+                XCTAssertEqual(request.value(forHTTPHeaderField: "x-goog-api-key"), "test-key")
+                XCTAssertEqual(request.value(forHTTPHeaderField: "X-Goog-Upload-Protocol"), "resumable")
+                XCTAssertEqual(request.value(forHTTPHeaderField: "X-Goog-Upload-Command"), "start")
+                XCTAssertEqual(request.value(forHTTPHeaderField: "X-Goog-Upload-Header-Content-Type"), "application/pdf")
+
+                let body = try XCTUnwrap(requestBodyData(request))
+                let root = try XCTUnwrap(try JSONSerialization.jsonObject(with: body) as? [String: Any])
+                let file = try XCTUnwrap(root["file"] as? [String: Any])
+                XCTAssertEqual(file["display_name"] as? String, "paper.pdf")
+
+                return (
+                    HTTPURLResponse(
+                        url: request.url!,
+                        statusCode: 200,
+                        httpVersion: nil,
+                        headerFields: ["X-Goog-Upload-URL": "https://upload.example.com/session-1"]
+                    )!,
+                    Data()
+                )
+            }
+
+            if request.url?.absoluteString == "https://upload.example.com/session-1" {
+                sawUploadFinalize = true
+                XCTAssertEqual(request.value(forHTTPHeaderField: "X-Goog-Upload-Offset"), "0")
+                XCTAssertEqual(request.value(forHTTPHeaderField: "X-Goog-Upload-Command"), "upload, finalize")
+
+                let response: [String: Any] = [
+                    "file": [
+                        "name": "files/gemini-123",
+                        "uri": "https://files.example.com/gemini-123",
+                        "mime_type": "application/pdf"
+                    ]
+                ]
+                let data = try JSONSerialization.data(withJSONObject: response)
+                return (
+                    HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                    data
+                )
+            }
+
+            XCTAssertEqual(request.url?.absoluteString, "https://example.com/v1beta/models/gemini-3-flash-preview:generateContent")
+
+            let body = try XCTUnwrap(requestBodyData(request))
+            let root = try XCTUnwrap(try JSONSerialization.jsonObject(with: body) as? [String: Any])
+            let contents = try XCTUnwrap(root["contents"] as? [[String: Any]])
+            let parts = try XCTUnwrap(contents.first?["parts"] as? [[String: Any]])
+            let fileData = try XCTUnwrap(parts.first?["fileData"] as? [String: Any])
+            XCTAssertEqual(fileData["mimeType"] as? String, "application/pdf")
+            XCTAssertEqual(fileData["fileUri"] as? String, "https://files.example.com/gemini-123")
+            XCTAssertNil(parts.first?["inlineData"])
+
+            let response: [String: Any] = [
+                "candidates": [
+                    [
+                        "content": [
+                            "parts": [
+                                ["text": "OK"]
+                            ]
+                        ]
+                    ]
+                ],
+                "usageMetadata": [
+                    "promptTokenCount": 1,
+                    "candidatesTokenCount": 2,
+                    "totalTokenCount": 3
+                ]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (
+                HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                data
+            )
+        }
+
+        let adapter = GeminiAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [
+                Message(
+                    role: .user,
+                    content: [
+                        .file(FileContent(
+                            mimeType: "application/pdf",
+                            filename: "paper.pdf",
+                            data: Data([0x25, 0x50, 0x44, 0x46]),
+                            url: nil,
+                            extractedText: "PDF"
+                        ))
+                    ]
+                )
+            ],
+            modelID: "gemini-3-flash-preview",
+            controls: GenerationControls(pdfProcessingMode: .native),
+            tools: [],
+            streaming: false
+        )
+
+        for try await _ in stream {}
+        XCTAssertTrue(sawUploadStart)
+        XCTAssertTrue(sawUploadFinalize)
     }
 
     func testGeminiAdapterEmitsSearchActivitiesFromGroundingMetadata() async throws {

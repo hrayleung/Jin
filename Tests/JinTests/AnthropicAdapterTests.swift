@@ -524,6 +524,96 @@ final class AnthropicAdapterTests: XCTestCase {
         for try await _ in stream {}
     }
 
+    func testAnthropicAdapterUploadsPDFViaFilesAPIAndUsesFileSource() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        let providerConfig = ProviderConfig(
+            id: "anthropic",
+            name: "Anthropic",
+            type: .anthropic,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        var uploadCount = 0
+
+        protocolType.requestHandler = { request in
+            switch request.url?.path {
+            case "/files":
+                uploadCount += 1
+                XCTAssertEqual(request.httpMethod, "POST")
+                XCTAssertEqual(request.value(forHTTPHeaderField: "x-api-key"), "test-key")
+                XCTAssertEqual(request.value(forHTTPHeaderField: "anthropic-version"), "2023-06-01")
+
+                let body = try XCTUnwrap(requestBodyData(request))
+                let bodyString = String(decoding: body, as: UTF8.self)
+                XCTAssertTrue(bodyString.contains("name=\"purpose\""))
+                XCTAssertTrue(bodyString.contains("user_data"))
+                XCTAssertTrue(bodyString.contains("filename=\"paper.pdf\""))
+
+                let response: [String: Any] = [
+                    "id": "file_ant_123",
+                    "filename": "paper.pdf",
+                    "mime_type": "application/pdf"
+                ]
+                let data = try JSONSerialization.data(withJSONObject: response)
+                return (
+                    HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                    data
+                )
+
+            case "/messages":
+                let body = try XCTUnwrap(requestBodyData(request))
+                let root = try XCTUnwrap(try JSONSerialization.jsonObject(with: body) as? [String: Any])
+                let messages = try XCTUnwrap(root["messages"] as? [[String: Any]])
+                let content = try XCTUnwrap(messages.first?["content"] as? [[String: Any]])
+                let document = try XCTUnwrap(content.first(where: { ($0["type"] as? String) == "document" }))
+                let source = try XCTUnwrap(document["source"] as? [String: Any])
+                XCTAssertEqual(source["type"] as? String, "file")
+                XCTAssertEqual(source["file_id"] as? String, "file_ant_123")
+
+                let response = Data("data: [DONE]\n\n".utf8)
+                return (
+                    HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                    response
+                )
+
+            default:
+                XCTFail("Unexpected request: \(request.url?.absoluteString ?? "<nil>")")
+                return (
+                    HTTPURLResponse(url: request.url ?? URL(string: "https://example.com")!, statusCode: 500, httpVersion: nil, headerFields: nil)!,
+                    Data()
+                )
+            }
+        }
+
+        let adapter = AnthropicAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [
+                Message(
+                    role: .user,
+                    content: [
+                        .file(FileContent(
+                            mimeType: "application/pdf",
+                            filename: "paper.pdf",
+                            data: Data([0x25, 0x50, 0x44, 0x46]),
+                            url: nil,
+                            extractedText: "PDF"
+                        ))
+                    ]
+                )
+            ],
+            modelID: "claude-opus-4-6",
+            controls: GenerationControls(pdfProcessingMode: .native),
+            tools: [],
+            streaming: true
+        )
+
+        for try await _ in stream {}
+        XCTAssertEqual(uploadCount, 1)
+    }
+
     func testAnthropicPrefixWindowUsesTopLevelCacheControl() async throws {
         let (configuration, protocolType) = makeMockedSessionConfiguration()
         let networkManager = NetworkManager(configuration: configuration)

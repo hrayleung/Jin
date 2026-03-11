@@ -43,7 +43,7 @@ actor OpenAIAdapter: LLMProviderAdapter {
             )
         }
 
-        let request = try buildRequest(
+        let request = try await buildRequest(
             messages: messages,
             modelID: modelID,
             controls: controls,
@@ -201,13 +201,13 @@ actor OpenAIAdapter: LLMProviderAdapter {
         controls: GenerationControls,
         tools: [ToolDefinition],
         streaming: Bool
-    ) throws -> URLRequest {
+    ) async throws -> URLRequest {
         let supportsNativeFileInput = supportsNativePDF(modelID)
         let allowNativePDF = (controls.pdfProcessingMode ?? .native) == .native
 
         var body: [String: Any] = [
             "model": modelID,
-            "input": try translateInput(
+            "input": try await translateInput(
                 messages,
                 supportsNativeFileInput: supportsNativeFileInput,
                 allowNativePDF: allowNativePDF
@@ -395,7 +395,7 @@ actor OpenAIAdapter: LLMProviderAdapter {
         _ messages: [Message],
         supportsNativeFileInput: Bool,
         allowNativePDF: Bool
-    ) throws -> [[String: Any]] {
+    ) async throws -> [[String: Any]] {
         var items: [[String: Any]] = []
 
         for message in messages {
@@ -412,7 +412,7 @@ actor OpenAIAdapter: LLMProviderAdapter {
                 }
 
             case .system, .user, .assistant:
-                if let translated = try translateMessage(
+                if let translated = try await translateMessage(
                     message,
                     supportsNativeFileInput: supportsNativeFileInput,
                     allowNativePDF: allowNativePDF
@@ -443,10 +443,10 @@ actor OpenAIAdapter: LLMProviderAdapter {
         _ message: Message,
         supportsNativeFileInput: Bool,
         allowNativePDF: Bool
-    ) throws -> [String: Any]? {
+    ) async throws -> [String: Any]? {
         var content: [[String: Any]] = []
         for part in message.content {
-            if let translated = try translateContentPart(
+            if let translated = try await translateContentPart(
                 part,
                 role: message.role,
                 supportsNativeFileInput: supportsNativeFileInput,
@@ -490,7 +490,7 @@ actor OpenAIAdapter: LLMProviderAdapter {
         role: MessageRole,
         supportsNativeFileInput: Bool,
         allowNativePDF: Bool
-    ) throws -> [String: Any]? {
+    ) async throws -> [String: Any]? {
         switch part {
         case .text(let text):
             // OpenAI Responses API: assistant uses output_text, others use input_text
@@ -538,6 +538,13 @@ actor OpenAIAdapter: LLMProviderAdapter {
                     ]
                 }
 
+                if let hostedFile = try await uploadHostedOpenAIFile(file) {
+                    return [
+                        "type": "input_file",
+                        "file_id": hostedFile.id
+                    ]
+                }
+
                 // Load data from file URL or use existing data
                 let fileData: Data?
                 if let data = file.data {
@@ -578,6 +585,22 @@ actor OpenAIAdapter: LLMProviderAdapter {
 
         case .thinking, .redactedThinking:
             return nil
+        }
+    }
+
+    private func uploadHostedOpenAIFile(_ file: FileContent) async throws -> HostedProviderFileReference? {
+        do {
+            return try await ProviderHostedFileStore.shared.uploadOpenAIFile(
+                file: file,
+                baseURL: baseURL,
+                apiKey: apiKey,
+                networkManager: networkManager
+            )
+        } catch {
+            if shouldFallbackFromHostedFileUpload(error) {
+                return nil
+            }
+            throw error
         }
     }
 
