@@ -58,6 +58,7 @@ struct ChatView: View {
     @State private var isFileImporterPresented = false
     @State private var isComposerDropTargeted = false
     @State private var isFullPageDropTargeted = false
+    @State private var dropAttachmentImportInFlightCount = 0
     @State private var dropForwarderRef = DropForwarderRef()
     @State private var isComposerFocused = false
     @State private var editingUserMessageID: UUID?
@@ -154,6 +155,10 @@ struct ChatView: View {
 
     private var isBusy: Bool {
         isStreaming || isPreparingToSend
+    }
+
+    private var isImportingDropAttachments: Bool {
+        dropAttachmentImportInFlightCount > 0
     }
 
     private var streamingMessage: StreamingMessageState? {
@@ -948,6 +953,7 @@ struct ChatView: View {
         speechToTextManager.cancelAndCleanup()
         messageText = ""
         draftAttachments = []
+        dropAttachmentImportInFlightCount = 0
         composerTextContentHeight = 36
         remoteVideoInputURLText = ""
         isExpandedComposerPresented = false
@@ -1041,7 +1047,7 @@ struct ChatView: View {
     }
 
     private var canSendDraft: Bool {
-        !trimmedMessageText.isEmpty || !draftAttachments.isEmpty
+        (!trimmedMessageText.isEmpty || !draftAttachments.isEmpty) && !isImportingDropAttachments
     }
 
     private var speechToTextManagerActive: Bool {
@@ -1239,7 +1245,7 @@ struct ChatView: View {
     }
 
     private func handleComposerSubmit() {
-        guard !isBusy else { return }
+        guard canSendDraft, !isBusy else { return }
         sendMessage()
     }
 
@@ -1277,18 +1283,64 @@ struct ChatView: View {
             return true
         }
 
-        let didSchedule = ChatDropHandlingSupport.processDropProviders(providers) { [self] result in
-            isFullPageDropTargeted = false
+        let dropConversationID = conversationEntity.id
 
-            if !result.fileURLs.isEmpty {
-                Task { await importAttachments(from: result.fileURLs) }
-            }
-            if !result.textChunks.isEmpty {
-                appendTextChunksToComposer(result.textChunks)
-            }
-            if !result.errors.isEmpty {
-                errorMessage = result.errors.joined(separator: "\n")
-                showingError = true
+        let didSchedule = ChatDropHandlingSupport.processDropProviders(providers) { [self] result in
+            Task { @MainActor in
+                guard conversationEntity.id == dropConversationID else { return }
+                guard !isBusy else { return }
+
+                if !result.textChunks.isEmpty {
+                    appendTextChunksToComposer(result.textChunks)
+                }
+
+                var allErrors = result.errors
+
+                if !result.fileURLs.isEmpty {
+                    let maxAttachments = AttachmentConstants.maxDraftAttachments
+                    let attachmentCountAtDrop = draftAttachments.count
+                    dropAttachmentImportInFlightCount += 1
+                    defer {
+                        if conversationEntity.id == dropConversationID {
+                            dropAttachmentImportInFlightCount = max(0, dropAttachmentImportInFlightCount - 1)
+                        }
+                    }
+                    let (newAttachments, importErrors) = await ChatDropHandlingSupport.importAttachments(
+                        from: result.fileURLs,
+                        currentAttachmentCount: attachmentCountAtDrop,
+                        maxAttachments: maxAttachments
+                    )
+
+                    guard conversationEntity.id == dropConversationID else { return }
+                    guard !isBusy else { return }
+
+                    allErrors.append(contentsOf: importErrors)
+
+                    if !newAttachments.isEmpty {
+                        let remainingSlots = max(0, maxAttachments - draftAttachments.count)
+                        let limitMessage = "You can attach up to \(maxAttachments) files per message."
+
+                        if remainingSlots <= 0 {
+                            if !allErrors.contains(limitMessage) {
+                                allErrors.append(limitMessage)
+                            }
+                        } else {
+                            let attachmentsToAppend = newAttachments.prefix(remainingSlots)
+                            if attachmentsToAppend.count < newAttachments.count, !allErrors.contains(limitMessage) {
+                                allErrors.append(limitMessage)
+                            }
+                            draftAttachments.append(contentsOf: attachmentsToAppend)
+                        }
+                    }
+                }
+
+                guard conversationEntity.id == dropConversationID else { return }
+                guard !isBusy else { return }
+
+                if !allErrors.isEmpty {
+                    errorMessage = allErrors.joined(separator: "\n")
+                    showingError = true
+                }
             }
         }
 
@@ -2913,6 +2965,7 @@ struct ChatView: View {
             return
         }
 
+        guard !isImportingDropAttachments else { return }
         guard canSendDraft else { return }
         endEditingUI()
         ensureModelThreadsInitializedIfNeeded()
