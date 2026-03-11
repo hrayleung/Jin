@@ -20,6 +20,12 @@ actor XAIAdapter: LLMProviderAdapter {
         "grok-4-1-fast-non-reasoning",
         "grok-4-1-fast-reasoning",
         "grok-4-1212",
+        "grok-4.20-beta-0309-reasoning",
+        "grok-4.20-beta-0309-non-reasoning",
+        "grok-4.20-multi-agent-beta-0309",
+    ]
+    private static let codeModelIDs: Set<String> = [
+        "grok-code-fast-1",
     ]
     static let imageGenerationModelIDs: Set<String> = [
         "grok-imagine-image",
@@ -452,6 +458,10 @@ actor XAIAdapter: LLMProviderAdapter {
 
         if Self.chatReasoningModelIDs.contains(lowerID) {
             caps.insert(.vision)
+            caps.insert(.reasoning)
+        }
+
+        if Self.codeModelIDs.contains(lowerID) {
             caps.insert(.reasoning)
         }
 

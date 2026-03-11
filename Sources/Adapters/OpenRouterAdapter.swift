@@ -287,7 +287,8 @@ actor OpenRouterAdapter: LLMProviderAdapter {
             || lower.contains("/gpt-4o")
             || lower.contains("/gpt-5")
             || lower.contains("/gemini")
-            || lower.contains("/claude") {
+            || lower.contains("/claude")
+            || lower.contains("x-ai/grok-4") {
             caps.insert(.vision)
         }
 
