@@ -1277,8 +1277,13 @@ struct ChatView: View {
             return true
         }
 
+        let dropConversationID = conversationEntity.id
+
         let didSchedule = ChatDropHandlingSupport.processDropProviders(providers) { [self] result in
             Task { @MainActor in
+                guard conversationEntity.id == dropConversationID else { return }
+                guard !isBusy else { return }
+
                 if !result.textChunks.isEmpty {
                     appendTextChunksToComposer(result.textChunks)
                 }
@@ -1286,16 +1291,39 @@ struct ChatView: View {
                 var allErrors = result.errors
 
                 if !result.fileURLs.isEmpty {
+                    let maxAttachments = AttachmentConstants.maxDraftAttachments
+                    let attachmentCountAtDrop = draftAttachments.count
                     let (newAttachments, importErrors) = await ChatDropHandlingSupport.importAttachments(
                         from: result.fileURLs,
-                        currentAttachmentCount: draftAttachments.count,
-                        maxAttachments: AttachmentConstants.maxDraftAttachments
+                        currentAttachmentCount: attachmentCountAtDrop,
+                        maxAttachments: maxAttachments
                     )
-                    if !newAttachments.isEmpty {
-                        draftAttachments.append(contentsOf: newAttachments)
-                    }
+
+                    guard conversationEntity.id == dropConversationID else { return }
+                    guard !isBusy else { return }
+
                     allErrors.append(contentsOf: importErrors)
+
+                    if !newAttachments.isEmpty {
+                        let remainingSlots = max(0, maxAttachments - draftAttachments.count)
+                        let limitMessage = "You can attach up to \(maxAttachments) files per message."
+
+                        if remainingSlots <= 0 {
+                            if !allErrors.contains(limitMessage) {
+                                allErrors.append(limitMessage)
+                            }
+                        } else {
+                            let attachmentsToAppend = newAttachments.prefix(remainingSlots)
+                            if attachmentsToAppend.count < newAttachments.count, !allErrors.contains(limitMessage) {
+                                allErrors.append(limitMessage)
+                            }
+                            draftAttachments.append(contentsOf: attachmentsToAppend)
+                        }
+                    }
                 }
+
+                guard conversationEntity.id == dropConversationID else { return }
+                guard !isBusy else { return }
 
                 if !allErrors.isEmpty {
                     errorMessage = allErrors.joined(separator: "\n")
