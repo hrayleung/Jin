@@ -1,3 +1,4 @@
+import Collections
 import Foundation
 
 /// MCP tool calling controls (app-provided tools via MCP servers).
@@ -206,21 +207,20 @@ enum AnthropicWebSearchDomainUtils {
     static func normalizedDomains(_ domains: [String]?) -> [String] {
         guard let domains else { return [] }
 
-        var seen: Set<String> = []
-        var normalized: [String] = []
-        normalized.reserveCapacity(domains.count)
+        var normalizedByKey: OrderedDictionary<String, String> = [:]
+        normalizedByKey.reserveCapacity(domains.count)
 
         for domain in domains {
             let trimmed = domain.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !trimmed.isEmpty else { continue }
 
             let key = trimmed.lowercased()
-            if seen.insert(key).inserted {
-                normalized.append(trimmed)
+            if normalizedByKey[key] == nil {
+                normalizedByKey[key] = trimmed
             }
         }
 
-        return normalized
+        return Array(normalizedByKey.values)
     }
 
     static func firstValidationError(in domains: [String]) -> String? {

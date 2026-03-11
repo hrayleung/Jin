@@ -1,3 +1,4 @@
+import Collections
 import SwiftUI
 import AppKit
 import UniformTypeIdentifiers
@@ -194,16 +195,15 @@ struct FileDropCaptureView: NSViewRepresentable {
                 }
             }
 
-            var fileURLs: [URL] = []
-            var textChunks: [String] = []
-            var seenFiles = Set<String>()
-            var seenText = Set<String>()
+            var fileURLsByPath: OrderedDictionary<String, URL> = [:]
+            var textChunks = OrderedSet<String>()
 
             func appendFileURL(_ url: URL) {
                 guard url.isFileURL else { return }
                 let key = url.standardizedFileURL.path
-                guard seenFiles.insert(key).inserted else { return }
-                fileURLs.append(url)
+                if fileURLsByPath[key] == nil {
+                    fileURLsByPath[key] = url
+                }
             }
 
             for value in rawValues {
@@ -212,7 +212,6 @@ struct FileDropCaptureView: NSViewRepresentable {
                     appendFileURL(url)
                 }
                 for text in parsed.textChunks {
-                    guard seenText.insert(text).inserted else { continue }
                     textChunks.append(text)
                 }
             }
@@ -223,7 +222,7 @@ struct FileDropCaptureView: NSViewRepresentable {
                 appendFileURL(url)
             }
 
-            return (fileURLs, textChunks)
+            return (Array(fileURLsByPath.values), Array(textChunks))
         }
 
         private func isImageType(_ type: NSPasteboard.PasteboardType) -> Bool {

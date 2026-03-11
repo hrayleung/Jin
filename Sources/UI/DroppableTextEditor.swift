@@ -1,3 +1,4 @@
+import Collections
 import SwiftUI
 import AppKit
 import UniformTypeIdentifiers
@@ -316,14 +317,14 @@ struct DroppableTextEditor: NSViewRepresentable {
         }
 
         private func readFileURLsFromURLAndTextRepresentations(from pasteboard: NSPasteboard) -> [URL] {
-            var result: [URL] = []
-            var seen = Set<String>()
+            var resultByPath: OrderedDictionary<String, URL> = [:]
 
             func append(_ url: URL) {
                 guard url.isFileURL else { return }
                 let key = url.standardizedFileURL.path
-                guard seen.insert(key).inserted else { return }
-                result.append(url)
+                if resultByPath[key] == nil {
+                    resultByPath[key] = url
+                }
             }
 
             let allURLs = (pasteboard.readObjects(forClasses: [NSURL.self], options: nil) as? [NSURL] ?? [])
@@ -361,7 +362,7 @@ struct DroppableTextEditor: NSViewRepresentable {
                 }
             }
 
-            return result
+            return Array(resultByPath.values)
         }
 
         private func readImages(from pasteboard: NSPasteboard) -> [NSImage] {

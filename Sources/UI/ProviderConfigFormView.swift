@@ -1,3 +1,4 @@
+import Collections
 import SwiftUI
 import SwiftData
 
@@ -1551,8 +1552,12 @@ struct ProviderConfigFormView: View {
             }
             let adapter = try await providerManager.createAdapter(for: config)
             let fetched = try await adapter.fetchAvailableModels()
-            var seenIDs = Set<String>()
-            let deduplicated = fetched.filter { seenIDs.insert($0.id).inserted }
+            var seenIDs = OrderedSet<String>()
+            let deduplicated = fetched.filter { model in
+                guard !seenIDs.contains(model.id) else { return false }
+                seenIDs.append(model.id)
+                return true
+            }
             let sorted = deduplicated.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
             await MainActor.run {
                 if sorted.isEmpty {

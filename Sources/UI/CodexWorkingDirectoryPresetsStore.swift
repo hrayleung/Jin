@@ -1,3 +1,4 @@
+import Collections
 import Foundation
 
 struct CodexWorkingDirectoryPreset: Identifiable, Codable, Equatable, Sendable {
@@ -46,7 +47,7 @@ enum CodexWorkingDirectoryPresetsStore {
     }
 
     static func normalized(_ presets: [CodexWorkingDirectoryPreset]) -> [CodexWorkingDirectoryPreset] {
-        var seenPaths = Set<String>()
+        var seenPaths = OrderedSet<String>()
         var result: [CodexWorkingDirectoryPreset] = []
         result.reserveCapacity(presets.count)
 
@@ -56,7 +57,8 @@ enum CodexWorkingDirectoryPresetsStore {
             }
 
             let dedupeKey = normalizedPath.lowercased()
-            guard seenPaths.insert(dedupeKey).inserted else { continue }
+            guard !seenPaths.contains(dedupeKey) else { continue }
+            seenPaths.append(dedupeKey)
 
             let trimmedName = preset.name.trimmingCharacters(in: .whitespacesAndNewlines)
             let fallbackName = URL(fileURLWithPath: normalizedPath, isDirectory: true).lastPathComponent

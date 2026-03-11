@@ -1,3 +1,4 @@
+import Collections
 import Foundation
 import Network
 
@@ -270,14 +271,13 @@ extension CodexAppServerAdapter {
         let id = trimmedValue(item.string(at: ["id"])) ?? UUID().uuidString
 
         var arguments: [String: AnyCodable] = [:]
-        var queries: [String] = []
-        var seenQueries = Set<String>()
+        var queriesByKey: OrderedDictionary<String, String> = [:]
 
         func appendQuery(_ raw: String?) {
             guard let query = trimmedValue(raw) else { return }
             let key = query.lowercased()
-            guard seenQueries.insert(key).inserted else { return }
-            queries.append(query)
+            guard queriesByKey[key] == nil else { return }
+            queriesByKey[key] = query
         }
 
         appendQuery(item.string(at: ["query"]))
@@ -297,9 +297,10 @@ extension CodexAppServerAdapter {
             }
         }
 
-        if let firstQuery = queries.first {
+        let queryList = Array(queriesByKey.values)
+        if let firstQuery = queryList.first {
             arguments["query"] = AnyCodable(firstQuery)
-            arguments["queries"] = AnyCodable(queries)
+            arguments["queries"] = AnyCodable(queryList)
         }
 
         let status: SearchActivityStatus
@@ -406,7 +407,7 @@ extension CodexAppServerAdapter {
 
         case "fileChange":
             if let changes = item.array(at: ["changes"]) {
-                var paths: [String] = []
+                var paths = OrderedSet<String>()
                 for change in changes {
                     if let obj = change.objectValue,
                        let path = trimmedValue(obj.string(at: ["path"])) {
@@ -414,7 +415,7 @@ extension CodexAppServerAdapter {
                     }
                 }
                 if !paths.isEmpty {
-                    arguments["paths"] = AnyCodable(paths)
+                    arguments["paths"] = AnyCodable(Array(paths))
                 }
             }
 
@@ -765,13 +766,12 @@ extension CodexAppServerAdapter {
     private nonisolated static func dynamicToolCallSearchArguments(from item: [String: JSONValue]) -> [String: AnyCodable] {
         var arguments: [String: AnyCodable] = [:]
 
-        var queries: [String] = []
-        var seenQueries = Set<String>()
+        var queriesByKey: OrderedDictionary<String, String> = [:]
         func appendQuery(_ candidate: String?) {
             guard let query = trimmedValue(candidate) else { return }
             let key = query.lowercased()
-            guard seenQueries.insert(key).inserted else { return }
-            queries.append(query)
+            guard queriesByKey[key] == nil else { return }
+            queriesByKey[key] = query
         }
 
         appendQuery(item.string(at: ["query"]))
@@ -792,17 +792,17 @@ extension CodexAppServerAdapter {
             appendQuery(queryValue.stringValue)
         }
 
-        if let firstQuery = queries.first {
+        let queryList = Array(queriesByKey.values)
+        if let firstQuery = queryList.first {
             arguments["query"] = AnyCodable(firstQuery)
-            arguments["queries"] = AnyCodable(queries)
+            arguments["queries"] = AnyCodable(queryList)
         }
 
-        var sources: [[String: Any]] = []
-        var seenURLs = Set<String>()
+        var sourcesByURL: OrderedDictionary<String, [String: Any]> = [:]
         func appendSource(url candidateURL: String?, title: String?, snippet: String?) {
             guard let normalizedURL = trimmedValue(candidateURL) else { return }
             let dedupeKey = normalizedURL.lowercased()
-            guard seenURLs.insert(dedupeKey).inserted else { return }
+            guard sourcesByURL[dedupeKey] == nil else { return }
 
             var source: [String: Any] = ["url": normalizedURL]
             if let title = trimmedValue(title) {
@@ -811,7 +811,7 @@ extension CodexAppServerAdapter {
             if let snippet = trimmedValue(snippet) {
                 source["snippet"] = snippet
             }
-            sources.append(source)
+            sourcesByURL[dedupeKey] = source
         }
 
         let sourceCandidatePaths: [[String]] = [
@@ -845,6 +845,7 @@ extension CodexAppServerAdapter {
             appendSource(url: url, title: nil, snippet: nil)
         }
 
+        let sources = Array(sourcesByURL.values)
         if !sources.isEmpty {
             arguments["sources"] = AnyCodable(sources)
             if let first = sources.first {
@@ -892,17 +893,16 @@ extension CodexAppServerAdapter {
         let nsText = text as NSString
         let matches = regex.matches(in: text, options: [], range: NSRange(location: 0, length: nsText.length))
 
-        var results: [String] = []
-        var seen = Set<String>()
+        var resultsByKey: OrderedDictionary<String, String> = [:]
         for match in matches {
             let url = nsText.substring(with: match.range)
                 .trimmingCharacters(in: CharacterSet(charactersIn: ".,;:!?)]}>\"'"))
             guard !url.isEmpty else { continue }
             let key = url.lowercased()
-            guard seen.insert(key).inserted else { continue }
-            results.append(url)
+            guard resultsByKey[key] == nil else { continue }
+            resultsByKey[key] = url
         }
-        return results
+        return Array(resultsByKey.values)
     }
 
     private nonisolated static func parseCatalogMetadata(from modelObject: [String: JSONValue]) -> ModelCatalogMetadata? {
@@ -929,7 +929,7 @@ extension CodexAppServerAdapter {
             return []
         }
 
-        var efforts: [ReasoningEffort] = []
+        var efforts = OrderedSet<ReasoningEffort>()
         for item in supported {
             if let effort = parseReasoningEffort(item.stringValue) {
                 efforts.append(effort)
@@ -944,8 +944,7 @@ extension CodexAppServerAdapter {
             }
         }
 
-        var seen = Set<ReasoningEffort>()
-        return efforts.filter { seen.insert($0).inserted }
+        return Array(efforts)
     }
 
     private nonisolated static func parseReasoningEffort(_ raw: String?) -> ReasoningEffort? {

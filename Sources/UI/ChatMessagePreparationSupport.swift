@@ -1,3 +1,4 @@
+import Collections
 import Foundation
 import AppKit
 
@@ -416,16 +417,13 @@ enum ChatMessagePreparationSupport {
             var totalAttachedImageBytes = 0
 
             if includeImageBase64 {
-                var base64ByID: [String: String] = [:]
-                var idsInPageOrder: [String] = []
-                var seenIDs = Set<String>()
+                var base64ByID: OrderedDictionary<String, String> = [:]
+                var idsInPageOrder = OrderedSet<String>()
 
                 for page in pages {
                     for image in page.images ?? [] {
                         let id = image.id
-                        if seenIDs.insert(id).inserted {
-                            idsInPageOrder.append(id)
-                        }
+                        idsInPageOrder.append(id)
                         if let base64 = image.imageBase64, !base64.isEmpty {
                             base64ByID[id] = base64
                         }
@@ -433,15 +431,13 @@ enum ChatMessagePreparationSupport {
                 }
 
                 let referencedIDs = MistralOCRMarkdown.referencedImageIDs(in: combinedMarkdown)
-                var orderedIDs: [String] = []
+                var orderedIDs = OrderedSet<String>()
                 orderedIDs.reserveCapacity(max(referencedIDs.count, idsInPageOrder.count))
-
-                var used = Set<String>()
                 for id in referencedIDs {
-                    if used.insert(id).inserted { orderedIDs.append(id) }
+                    orderedIDs.append(id)
                 }
                 for id in idsInPageOrder {
-                    if used.insert(id).inserted { orderedIDs.append(id) }
+                    orderedIDs.append(id)
                 }
 
                 for id in orderedIDs {

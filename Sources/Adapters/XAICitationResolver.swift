@@ -1,3 +1,4 @@
+import Collections
 import Foundation
 
 extension XAIAdapter {
@@ -92,9 +93,8 @@ extension XAIAdapter {
     func normalizedCitationCandidates(fromURLs urls: [String]) -> [CitationSourceCandidate] {
         guard !urls.isEmpty else { return [] }
 
-        var seen: Set<String> = []
-        var out: [CitationSourceCandidate] = []
-        out.reserveCapacity(urls.count)
+        var candidatesByURLKey: OrderedDictionary<String, CitationSourceCandidate> = [:]
+        candidatesByURLKey.reserveCapacity(urls.count)
 
         for raw in urls {
             let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -107,17 +107,15 @@ extension XAIAdapter {
 
             let canonical = url.absoluteString
             let dedupeKey = canonical.lowercased()
-            guard seen.insert(dedupeKey).inserted else { continue }
-            out.append(
-                CitationSourceCandidate(
-                    url: canonical,
-                    title: nil,
-                    snippet: nil
-                )
+            guard candidatesByURLKey[dedupeKey] == nil else { continue }
+            candidatesByURLKey[dedupeKey] = CitationSourceCandidate(
+                url: canonical,
+                title: nil,
+                snippet: nil
             )
         }
 
-        return out
+        return Array(candidatesByURLKey.values)
     }
 
     func markdownCitationURLs(from text: String) -> [String] {

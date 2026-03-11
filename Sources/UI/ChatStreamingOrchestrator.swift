@@ -1,3 +1,4 @@
+import Collections
 import Foundation
 
 /// Encapsulates the streaming response loop that was previously inline in ChatView's
@@ -348,14 +349,12 @@ enum ChatStreamingOrchestrator {
 
                     var toolResults: [ToolResult] = []
                     var toolOutputLines: [String] = []
-                    var toolSearchActivitiesByID: [String: SearchActivity] = [:]
-                    var toolSearchActivityOrder: [String] = []
+                    var toolSearchActivitiesByID: OrderedDictionary<String, SearchActivity> = [:]
 
                     func upsertToolSearchActivity(_ activity: SearchActivity) {
                         if let existing = toolSearchActivitiesByID[activity.id] {
                             toolSearchActivitiesByID[activity.id] = existing.merged(with: activity)
                         } else {
-                            toolSearchActivityOrder.append(activity.id)
                             toolSearchActivitiesByID[activity.id] = activity
                         }
                     }
@@ -451,7 +450,7 @@ enum ChatStreamingOrchestrator {
                         }
                     }
 
-                    let toolSearchActivities = toolSearchActivityOrder.compactMap { toolSearchActivitiesByID[$0] }
+                    let toolSearchActivities = Array(toolSearchActivitiesByID.values)
                     if let assistantMessageID = persistedAssistantMessageID, !toolSearchActivities.isEmpty {
                         await MainActor.run {
                             callbacks.mergeSearchActivities(assistantMessageID, toolSearchActivities)
