@@ -75,11 +75,32 @@ enum GoogleGroundingSearchActivities {
         func appendSourceActivity(url rawURL: String?, title rawTitle: String?, idPrefix: String) {
             let url = rawURL?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             guard !url.isEmpty else { return }
-            let dedupeKey = url.lowercased()
-            guard sourceEventsByURLKey[dedupeKey] == nil else { return }
+            let dedupeKey = SearchActivityURLDeduplication.key(for: url)
+            let title = rawTitle?.trimmingCharacters(in: .whitespacesAndNewlines)
+
+            if case .searchActivity(let existing)? = sourceEventsByURLKey[dedupeKey] {
+                guard let title, !title.isEmpty,
+                      existing.arguments["title"]?.value as? String == nil else {
+                    return
+                }
+
+                var mergedArguments = existing.arguments
+                mergedArguments["title"] = AnyCodable(title)
+                sourceEventsByURLKey[dedupeKey] = .searchActivity(
+                    SearchActivity(
+                        id: existing.id,
+                        type: existing.type,
+                        status: existing.status,
+                        arguments: mergedArguments,
+                        outputIndex: existing.outputIndex,
+                        sequenceNumber: existing.sequenceNumber
+                    )
+                )
+                return
+            }
 
             var args: [String: AnyCodable] = ["url": AnyCodable(url)]
-            if let title = rawTitle?.trimmingCharacters(in: .whitespacesAndNewlines), !title.isEmpty {
+            if let title, !title.isEmpty {
                 args["title"] = AnyCodable(title)
             }
 

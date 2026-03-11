@@ -27,6 +27,35 @@ final class NetworkManagerTests: XCTestCase {
         )
     }
 
+    func testMakeDebugLogResponseBodyOmitsRawPayloadContents() throws {
+        let payload = Data(#"{"secret":"token","output":"hello"}"#.utf8)
+        let response = try XCTUnwrap(
+            HTTPURLResponse(
+                url: URL(string: "https://example.com/chat")!,
+                statusCode: 200,
+                httpVersion: nil,
+                headerFields: ["Content-Type": "application/json; charset=utf-8"]
+            )
+        )
+
+        let summaryData = try XCTUnwrap(
+            NetworkManager.makeDebugLogResponseBody(payload, response: response, wasTruncated: true)
+        )
+        let summary = try XCTUnwrap(String(data: summaryData, encoding: .utf8))
+
+        XCTAssertTrue(summary.contains("response body omitted from network trace"))
+        XCTAssertTrue(summary.contains("\(payload.count) bytes"))
+        XCTAssertTrue(summary.contains("content-type: application/json; charset=utf-8"))
+        XCTAssertTrue(summary.contains("truncated while capturing"))
+        XCTAssertFalse(summary.contains("secret"))
+        XCTAssertFalse(summary.contains("hello"))
+    }
+
+    func testMakeDebugLogResponseBodyReturnsNilForEmptyPayload() {
+        let summary = NetworkManager.makeDebugLogResponseBody(nil, response: nil, wasTruncated: false)
+        XCTAssertNil(summary)
+    }
+
     func testSendRequestUsesMockedConfiguration() async throws {
         let (configuration, protocolType) = makeMockedSessionConfiguration()
         protocolType.requestHandler = { urlProtocol in

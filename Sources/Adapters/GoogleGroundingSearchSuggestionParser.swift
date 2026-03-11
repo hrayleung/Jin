@@ -40,9 +40,17 @@ enum GoogleGroundingSearchSuggestionParser {
 
         func appendSuggestion(urlRaw: Any?, queryRaw: Any?) {
             guard let url = normalizedURL(from: urlRaw) else { return }
-            let dedupeKey = url.lowercased()
-            guard suggestionsByURLKey[dedupeKey] == nil else { return }
-            suggestionsByURLKey[dedupeKey] = Suggestion(query: normalizedQuery(from: queryRaw), url: url)
+            let dedupeKey = SearchActivityURLDeduplication.key(for: url)
+            let query = normalizedQuery(from: queryRaw)
+
+            if let existing = suggestionsByURLKey[dedupeKey] {
+                if existing.query == nil, let query {
+                    suggestionsByURLKey[dedupeKey] = Suggestion(query: query, url: existing.url)
+                }
+                return
+            }
+
+            suggestionsByURLKey[dedupeKey] = Suggestion(query: query, url: url)
         }
 
         func walk(_ node: Any) {

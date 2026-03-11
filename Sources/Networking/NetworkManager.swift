@@ -5,6 +5,7 @@ import Alamofire
 actor NetworkManager {
     nonisolated static let defaultRequestTimeoutInterval: TimeInterval = 7 * 24 * 60 * 60
     nonisolated static let defaultResourceTimeoutInterval: TimeInterval = 7 * 24 * 60 * 60
+    private nonisolated static let debugLogBodySummaryLabel = "response body omitted from network trace"
 
     private enum HTTPErrorDisposition {
         case failOnErrorStatus
@@ -82,7 +83,7 @@ actor NetworkManager {
         parser: P
     ) -> AsyncThrowingStream<P.Event, Error> {
         var parserCopy = parser
-        let shouldCaptureSuccessBody = NetworkDebugLogger.isLoggingEnabled
+        let shouldCaptureSuccessBody = false
         let captureLimit = Self.maxStreamCaptureBytes
 
         return AsyncThrowingStream { continuation in
@@ -155,7 +156,11 @@ actor NetworkManager {
                             await NetworkDebugLogger.shared.endRequest(
                                 requestID: requestID,
                                 response: finalResponse,
-                                responseBody: responseBody,
+                                responseBody: Self.makeDebugLogResponseBody(
+                                    responseBody,
+                                    response: finalResponse,
+                                    wasTruncated: wasTruncated
+                                ),
                                 responseBodyTruncated: wasTruncated,
                                 error: nil
                             )
@@ -165,7 +170,11 @@ actor NetworkManager {
                             await NetworkDebugLogger.shared.endRequest(
                                 requestID: requestID,
                                 response: failure.response,
-                                responseBody: failure.responseBody,
+                                responseBody: Self.makeDebugLogResponseBody(
+                                    failure.responseBody,
+                                    response: failure.response,
+                                    wasTruncated: wasTruncated
+                                ),
                                 responseBodyTruncated: wasTruncated,
                                 error: failure.underlyingError
                             )
@@ -226,7 +235,11 @@ actor NetworkManager {
             await NetworkDebugLogger.shared.endRequest(
                 requestID: requestID,
                 response: result.1,
-                responseBody: result.0,
+                responseBody: Self.makeDebugLogResponseBody(
+                    result.0,
+                    response: result.1,
+                    wasTruncated: false
+                ),
                 responseBodyTruncated: false,
                 error: nil
             )
@@ -235,7 +248,11 @@ actor NetworkManager {
             await NetworkDebugLogger.shared.endRequest(
                 requestID: requestID,
                 response: failure.response,
-                responseBody: failure.responseBody,
+                responseBody: Self.makeDebugLogResponseBody(
+                    failure.responseBody,
+                    response: failure.response,
+                    wasTruncated: false
+                ),
                 responseBodyTruncated: false,
                 error: failure.underlyingError
             )
@@ -293,6 +310,26 @@ actor NetworkManager {
         uploadRequest.httpBody = nil
         uploadRequest.httpBodyStream = nil
         return uploadRequest
+    }
+
+    nonisolated static func makeDebugLogResponseBody(
+        _ responseBody: Data?,
+        response: HTTPURLResponse?,
+        wasTruncated: Bool
+    ) -> Data? {
+        guard let responseBody, !responseBody.isEmpty else { return nil }
+
+        var summary = "\(debugLogBodySummaryLabel) (\(responseBody.count) bytes"
+        if let contentType = response?.value(forHTTPHeaderField: "Content-Type")?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+           !contentType.isEmpty {
+            summary += ", content-type: \(contentType)"
+        }
+        if wasTruncated {
+            summary += ", truncated while capturing"
+        }
+        summary += ")"
+        return Data(summary.utf8)
     }
 
     private nonisolated func resolveStreamCompletion(
