@@ -1,7 +1,7 @@
 import Foundation
 
 /// Role of a message in the conversation
-enum MessageRole: String, Codable {
+enum MessageRole: String, Codable, Sendable {
     case user
     case assistant
     case system
@@ -9,7 +9,7 @@ enum MessageRole: String, Codable {
 }
 
 /// Content part supporting multimodal messages
-enum ContentPart: Codable {
+enum ContentPart: Codable, Sendable {
     case text(String)
     case image(ImageContent)
     case video(VideoContent)
@@ -106,7 +106,7 @@ enum ContentPart: Codable {
 }
 
 /// Provider reasoning block (e.g., OpenAI reasoning text; Anthropic thinking block with signature)
-struct ThinkingBlock: Codable {
+struct ThinkingBlock: Codable, Sendable {
     let text: String
     let signature: String?
     /// The provider type that originated this thinking block (e.g. "anthropic", "gemini").
@@ -121,7 +121,7 @@ struct ThinkingBlock: Codable {
 }
 
 /// Provider-redacted reasoning block (e.g., Anthropic redacted_thinking)
-struct RedactedThinkingBlock: Codable {
+struct RedactedThinkingBlock: Codable, Sendable {
     let data: String
     /// The provider type that originated this block.
     let provider: String?
@@ -248,7 +248,7 @@ struct VideoContent: Codable, Equatable, Sendable {
 }
 
 /// File content (PDFs, documents)
-struct FileContent: Codable {
+struct FileContent: Codable, Sendable {
     let mimeType: String
     let filename: String
     let data: Data?
@@ -271,7 +271,7 @@ struct FileContent: Codable {
 }
 
 /// Audio content (OpenAI only)
-struct AudioContent: Codable {
+struct AudioContent: Codable, Sendable {
     let mimeType: String // audio/mp3, audio/wav
     let data: Data?
     let url: URL?
@@ -284,7 +284,7 @@ struct AudioContent: Codable {
 }
 
 /// Message in the conversation
-struct Message: Identifiable, Codable {
+struct Message: Identifiable, Codable, Sendable {
     let id: UUID
     let role: MessageRole
     let content: [ContentPart]
@@ -335,7 +335,7 @@ struct ToolCall: Codable, Identifiable, Sendable {
 }
 
 /// Result from tool execution
-struct ToolResult: Codable, Identifiable {
+struct ToolResult: Codable, Identifiable, Sendable {
     let id: String
     let toolCallID: String
     let toolName: String?

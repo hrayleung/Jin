@@ -1,6 +1,6 @@
 import Foundation
 
-struct RenderedArtifactVersion: Identifiable, Hashable {
+struct RenderedArtifactVersion: Identifiable, Hashable, Sendable {
     let artifactID: String
     let version: Int
     let title: String
@@ -14,12 +14,12 @@ struct RenderedArtifactVersion: Identifiable, Hashable {
     }
 }
 
-enum RenderedMessageBlock {
+enum RenderedMessageBlock: Sendable {
     case content(ContentPart)
     case artifact(RenderedArtifactVersion)
 }
 
-struct ArtifactCatalog {
+struct ArtifactCatalog: Sendable {
     let orderedArtifactIDs: [String]
     let versionsByArtifactID: [String: [RenderedArtifactVersion]]
 

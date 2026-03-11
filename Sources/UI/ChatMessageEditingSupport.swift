@@ -57,6 +57,51 @@ enum ChatMessageEditingSupport {
         return keepCount
     }
 
+    static func messagesToDeleteForUserMessage(
+        _ messageEntity: MessageEntity,
+        orderedMessages: [MessageEntity]
+    ) -> [MessageEntity]? {
+        guard orderedMessages.contains(where: { $0.id == messageEntity.id }) else { return nil }
+        return [messageEntity]
+    }
+
+    static func messagesToDeleteForResponse(
+        afterUserMessage messageEntity: MessageEntity,
+        orderedMessages: [MessageEntity]
+    ) -> [MessageEntity]? {
+        guard let index = orderedMessages.firstIndex(where: { $0.id == messageEntity.id }) else { return nil }
+        let startIndex = index + 1
+        guard startIndex < orderedMessages.count else { return nil }
+
+        var result: [MessageEntity] = []
+        for i in startIndex..<orderedMessages.count {
+            let msg = orderedMessages[i]
+            if msg.role == MessageRole.user.rawValue { break }
+            if msg.role == MessageRole.assistant.rawValue || msg.role == MessageRole.tool.rawValue {
+                result.append(msg)
+            }
+        }
+        return result.isEmpty ? nil : result
+    }
+
+    static func messagesToDeleteForAssistantMessage(
+        _ messageEntity: MessageEntity,
+        orderedMessages: [MessageEntity]
+    ) -> [MessageEntity]? {
+        guard let index = orderedMessages.firstIndex(where: { $0.id == messageEntity.id }) else { return nil }
+
+        var result: [MessageEntity] = [messageEntity]
+        for i in (index + 1)..<orderedMessages.count {
+            let msg = orderedMessages[i]
+            if msg.role == MessageRole.tool.rawValue {
+                result.append(msg)
+            } else {
+                break
+            }
+        }
+        return result
+    }
+
     static func refreshConversationActivityTimestamp(conversation: ConversationEntity) {
         let latestUserTimestamp = conversation.messages
             .filter { $0.role == MessageRole.user.rawValue }

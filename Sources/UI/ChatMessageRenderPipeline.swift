@@ -67,6 +67,11 @@ enum ChatMessageRenderPipeline {
                             if case .text = part { return true }
                             return false
                         }),
+                    canDeleteResponse: entity.role == MessageRole.user.rawValue
+                        && ChatMessageEditingSupport.messagesToDeleteForResponse(
+                            afterUserMessage: entity,
+                            orderedMessages: orderedMessages
+                        ) != nil,
                     perMessageMCPServerNames: message.perMessageMCPServerNames ?? []
                 )
             )
@@ -75,6 +80,78 @@ enum ChatMessageRenderPipeline {
         return ChatThreadRenderContext(
             visibleMessages: renderedItems,
             messageEntitiesByID: messageEntitiesByID,
+            toolResultsByCallID: toolResultsByToolCallID(in: orderedMessages),
+            artifactCatalog: ArtifactCatalog(
+                orderedArtifactIDs: artifactOrder,
+                versionsByArtifactID: artifactVersionsByID
+            )
+        )
+    }
+
+    static func makeDecodedRenderContext(
+        from orderedMessages: [PersistedMessageSnapshot],
+        fallbackModelLabel: String,
+        assistantProviderIconsByID: [String: String?]
+    ) -> ChatDecodedRenderContext {
+        var renderedItems: [MessageRenderItem] = []
+        renderedItems.reserveCapacity(orderedMessages.count)
+
+        var artifactVersionCounts: [String: Int] = [:]
+        var artifactOrder: [String] = []
+        var artifactVersionsByID: [String: [RenderedArtifactVersion]] = [:]
+        let decoder = JSONDecoder()
+
+        for snapshot in orderedMessages {
+            if Task.isCancelled {
+                break
+            }
+            guard snapshot.role != "tool" else { continue }
+            guard let message = snapshot.toDomain(using: decoder) else { continue }
+
+            let renderedBlocks = renderedBlocks(
+                content: message.content,
+                role: message.role,
+                messageID: snapshot.id,
+                timestamp: snapshot.timestamp,
+                artifactVersionCounts: &artifactVersionCounts,
+                artifactOrder: &artifactOrder,
+                artifactVersionsByID: &artifactVersionsByID
+            )
+            renderedItems.append(
+                MessageRenderItem(
+                    id: snapshot.id,
+                    contextThreadID: snapshot.contextThreadID,
+                    role: snapshot.role,
+                    timestamp: snapshot.timestamp,
+                    renderedBlocks: renderedBlocks,
+                    toolCalls: message.toolCalls ?? [],
+                    searchActivities: message.searchActivities ?? [],
+                    codexToolActivities: message.codexToolActivities ?? [],
+                    assistantModelLabel: snapshot.role == "assistant"
+                        ? (snapshot.generatedModelName ?? snapshot.generatedModelID ?? fallbackModelLabel)
+                        : nil,
+                    assistantProviderIconID: snapshot.role == "assistant"
+                        ? (assistantProviderIconsByID[snapshot.generatedProviderID ?? ""] ?? nil)
+                        : nil,
+                    responseMetrics: snapshot.responseMetrics(using: decoder),
+                    copyText: copyableText(from: message, role: message.role),
+                    canEditUserMessage: snapshot.role == "user"
+                        && message.content.contains(where: { part in
+                            if case .text = part { return true }
+                            return false
+                        }),
+                    canDeleteResponse: snapshot.role == MessageRole.user.rawValue
+                        && messagesToDeleteForResponse(
+                            afterUserMessage: snapshot,
+                            orderedMessages: orderedMessages
+                        ) != nil,
+                    perMessageMCPServerNames: message.perMessageMCPServerNames ?? []
+                )
+            )
+        }
+
+        return ChatDecodedRenderContext(
+            visibleMessages: renderedItems,
             toolResultsByCallID: toolResultsByToolCallID(in: orderedMessages),
             artifactCatalog: ArtifactCatalog(
                 orderedArtifactIDs: artifactOrder,
@@ -156,6 +233,26 @@ enum ChatMessageRenderPipeline {
         return blocks
     }
 
+    private static func messagesToDeleteForResponse(
+        afterUserMessage message: PersistedMessageSnapshot,
+        orderedMessages: [PersistedMessageSnapshot]
+    ) -> [PersistedMessageSnapshot]? {
+        guard let index = orderedMessages.firstIndex(where: { $0.id == message.id }) else { return nil }
+        let startIndex = index + 1
+        guard startIndex < orderedMessages.count else { return nil }
+
+        var result: [PersistedMessageSnapshot] = []
+        for i in startIndex..<orderedMessages.count {
+            let msg = orderedMessages[i]
+            if msg.role == MessageRole.user.rawValue { break }
+            if msg.role == MessageRole.assistant.rawValue || msg.role == MessageRole.tool.rawValue {
+                result.append(msg)
+            }
+        }
+
+        return result.isEmpty ? nil : result
+    }
+
     private static func copyableText(from message: Message, role: MessageRole) -> String {
         let textParts = message.content.compactMap { part -> String? in
             guard case .text(let text) = part else { return nil }
@@ -189,6 +286,28 @@ enum ChatMessageRenderPipeline {
         let decoder = JSONDecoder()
         for entity in messageEntities where entity.role == "tool" {
             guard let data = entity.toolResultsData,
+                  let toolResults = try? decoder.decode([ToolResult].self, from: data) else {
+                continue
+            }
+
+            for result in toolResults {
+                results[result.toolCallID] = result
+            }
+        }
+
+        return results
+    }
+
+    private static func toolResultsByToolCallID(in messageSnapshots: [PersistedMessageSnapshot]) -> [String: ToolResult] {
+        var results: [String: ToolResult] = [:]
+        results.reserveCapacity(8)
+
+        let decoder = JSONDecoder()
+        for snapshot in messageSnapshots where snapshot.role == "tool" {
+            if Task.isCancelled {
+                break
+            }
+            guard let data = snapshot.toolResultsData,
                   let toolResults = try? decoder.decode([ToolResult].self, from: data) else {
                 continue
             }

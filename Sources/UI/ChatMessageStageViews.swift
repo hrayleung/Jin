@@ -7,6 +7,12 @@ struct ChatThreadRenderContext {
     let artifactCatalog: ArtifactCatalog
 }
 
+struct ChatDecodedRenderContext: Sendable {
+    let visibleMessages: [MessageRenderItem]
+    let toolResultsByCallID: [String: ToolResult]
+    let artifactCatalog: ArtifactCatalog
+}
+
 struct EditSlashCommandContext {
     let servers: [SlashCommandMCPServerItem]
     let isActive: Bool
@@ -47,6 +53,8 @@ struct ChatMessageInteractionContext {
     let onEditUserMessage: (MessageEntity) -> Void
     let onSubmitUserEdit: (MessageEntity) -> Void
     let onCancelUserEdit: () -> Void
+    let onDeleteMessage: (MessageEntity) -> Void
+    let onDeleteResponse: (MessageEntity) -> Void
     let editSlashCommand: EditSlashCommandContext
 }
 
@@ -112,6 +120,14 @@ struct ChatMessageTimelineView: View {
                 onEditUserMessage: { messageID in
                     guard let entity = messageEntitiesByID[messageID] else { return }
                     interaction.onEditUserMessage(entity)
+                },
+                onDeleteMessage: { messageID in
+                    guard let entity = messageEntitiesByID[messageID] else { return }
+                    interaction.onDeleteMessage(entity)
+                },
+                onDeleteResponse: { messageID in
+                    guard let entity = messageEntitiesByID[messageID] else { return }
+                    interaction.onDeleteResponse(entity)
                 },
                 editingUserMessageID: interaction.editingUserMessageID,
                 editingUserMessageText: interaction.editingUserMessageText,

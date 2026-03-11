@@ -1,6 +1,66 @@
 import SwiftUI
 import SwiftData
 
+/// Isolates the `streamingStore` read to a per-row boundary so that
+/// `ConversationStreamingStore.objectWillChange` only causes the affected
+/// row — not every visible row — to re-evaluate.
+struct SidebarConversationItem: View {
+    let conversation: ConversationEntity
+    let subtitle: String
+    let providerIconID: String?
+    let isRegeneratingTitle: Bool
+    let onToggleStar: () -> Void
+    let onRename: () -> Void
+    let onRegenerateTitle: () -> Void
+    let onDelete: () -> Void
+
+    @EnvironmentObject private var streamingStore: ConversationStreamingStore
+
+    var body: some View {
+        let isStreaming = streamingStore.isStreaming(conversationID: conversation.id)
+        let isStarred = conversation.isStarred == true
+
+        NavigationLink(value: conversation) {
+            ConversationRowView(
+                title: conversation.title,
+                isStarred: isStarred,
+                subtitle: subtitle,
+                providerIconID: providerIconID,
+                updatedAt: conversation.updatedAt,
+                isStreaming: isStreaming
+            )
+        }
+        .contextMenu {
+            Button {
+                onToggleStar()
+            } label: {
+                Label(isStarred ? "Unstar Chat" : "Star Chat", systemImage: isStarred ? "star.slash" : "star")
+            }
+
+            Button {
+                onRename()
+            } label: {
+                Label("Rename Chat", systemImage: "pencil")
+            }
+
+            Button {
+                onRegenerateTitle()
+            } label: {
+                Label(isRegeneratingTitle ? "Regenerating Title…" : "Regenerate Title", systemImage: "wand.and.stars")
+            }
+            .disabled(isStreaming || isRegeneratingTitle)
+
+            Divider()
+
+            Button(role: .destructive) {
+                onDelete()
+            } label: {
+                Label("Delete Chat", systemImage: "trash")
+            }
+        }
+    }
+}
+
 struct ConversationRowView: View {
     let title: String
     let isStarred: Bool
