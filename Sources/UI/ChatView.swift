@@ -2590,6 +2590,12 @@ struct ChatView: View {
         }
         conversationEntity.messages.removeAll { idsToDelete.contains($0.id) }
         refreshConversationActivityTimestampFromLatestUserMessage()
+        do {
+            try modelContext.save()
+        } catch {
+            errorMessage = error.localizedDescription
+            showingError = true
+        }
         rebuildMessageCaches()
     }
 

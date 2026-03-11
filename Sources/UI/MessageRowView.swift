@@ -136,6 +136,7 @@ struct MessageRenderItem: Identifiable {
     let responseMetrics: ResponseMetrics?
     let copyText: String
     let canEditUserMessage: Bool
+    let canDeleteResponse: Bool
     let perMessageMCPServerNames: [String]
 
     var isUser: Bool { role == "user" }
@@ -186,6 +187,7 @@ struct MessageRow: View {
         let copyText = item.copyText
         let showsCopyButton = (isUser || isAssistant) && !copyText.isEmpty
         let canEditUserMessage = item.canEditUserMessage
+        let canDeleteResponse = item.canDeleteResponse
         let visibleToolCalls = item.toolCalls.filter { call in
             !BuiltinSearchToolHub.isBuiltinSearchFunctionName(call.name)
         }
@@ -302,6 +304,7 @@ struct MessageRow: View {
                             showsCopyButton: showsCopyButton,
                             copyText: copyText,
                             canEditUserMessage: canEditUserMessage,
+                            canDeleteResponse: canDeleteResponse,
                             responseMetrics: item.responseMetrics
                         )
                         .padding(.top, 2)
@@ -383,6 +386,7 @@ struct MessageRow: View {
         showsCopyButton: Bool,
         copyText: String,
         canEditUserMessage: Bool,
+        canDeleteResponse: Bool,
         responseMetrics: ResponseMetrics?
     ) -> some View {
         if isAssistant {
@@ -501,11 +505,13 @@ struct MessageRow: View {
                         } label: {
                             deleteActionMenuLabel("Delete message", systemImage: "trash")
                         }
-                        Button(role: .destructive) {
-                            pendingDeleteAction = .response
-                            showingDeleteConfirmation = true
-                        } label: {
-                            deleteActionMenuLabel("Delete response", systemImage: "text.badge.minus")
+                        if canDeleteResponse {
+                            Button(role: .destructive) {
+                                pendingDeleteAction = .response
+                                showingDeleteConfirmation = true
+                            } label: {
+                                deleteActionMenuLabel("Delete response", systemImage: "text.badge.minus")
+                            }
                         }
                     } label: {
                         Image(systemName: "ellipsis")

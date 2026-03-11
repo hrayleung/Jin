@@ -67,6 +67,11 @@ enum ChatMessageRenderPipeline {
                             if case .text = part { return true }
                             return false
                         }),
+                    canDeleteResponse: entity.role == MessageRole.user.rawValue
+                        && ChatMessageEditingSupport.messagesToDeleteForResponse(
+                            afterUserMessage: entity,
+                            orderedMessages: orderedMessages
+                        ) != nil,
                     perMessageMCPServerNames: message.perMessageMCPServerNames ?? []
                 )
             )

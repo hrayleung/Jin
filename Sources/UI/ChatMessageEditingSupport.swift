@@ -77,7 +77,9 @@ enum ChatMessageEditingSupport {
         for i in startIndex..<orderedMessages.count {
             let msg = orderedMessages[i]
             if msg.role == MessageRole.user.rawValue { break }
-            result.append(msg)
+            if msg.role == MessageRole.assistant.rawValue || msg.role == MessageRole.tool.rawValue {
+                result.append(msg)
+            }
         }
         return result.isEmpty ? nil : result
     }
