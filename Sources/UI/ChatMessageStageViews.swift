@@ -252,7 +252,10 @@ struct ChatSingleThreadMessagesView: View {
                 }
             }
             .animation(.easeInOut(duration: 0.2), value: isPinnedToBottom)
-            .onScrollPinChange(isPinned: $isPinnedToBottom)
+            .onScrollPinChange(
+                isPinned: $isPinnedToBottom,
+                bottomTolerance: composerHeight + 32
+            )
             .onChange(of: messageRenderLimit) { _, _ in
                 guard let restoreID = pendingRestoreScrollMessageID else { return }
                 DispatchQueue.main.async {

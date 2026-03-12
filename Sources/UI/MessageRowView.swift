@@ -350,6 +350,10 @@ struct MessageRow: View {
                 pendingDeleteAction = nil
             }
         }
+        .onChange(of: actionsEnabled) { _, enabled in
+            guard !enabled else { return }
+            isResponseMetricsPopoverPresented = false
+        }
     }
 
     @ViewBuilder
@@ -449,6 +453,7 @@ struct MessageRow: View {
 
                 Menu {
                     Button(role: .destructive) {
+                        guard actionsEnabled else { return }
                         pendingDeleteAction = .message
                         showingDeleteConfirmation = true
                     } label: {
@@ -463,7 +468,6 @@ struct MessageRow: View {
                 .menuStyle(.borderlessButton)
                 .menuIndicator(.hidden)
                 .frame(width: 20)
-                .disabled(!actionsEnabled)
                 .help("More actions")
 
                 Spacer(minLength: 0)
@@ -508,13 +512,16 @@ struct MessageRow: View {
 
                     Menu {
                         Button(role: .destructive) {
+                            guard actionsEnabled else { return }
                             pendingDeleteAction = .message
                             showingDeleteConfirmation = true
                         } label: {
                             deleteActionMenuLabel("Delete message", systemImage: "trash")
                         }
+
                         if canDeleteResponse {
                             Button(role: .destructive) {
+                                guard actionsEnabled else { return }
                                 pendingDeleteAction = .response
                                 showingDeleteConfirmation = true
                             } label: {
@@ -530,7 +537,6 @@ struct MessageRow: View {
                     .menuStyle(.borderlessButton)
                     .menuIndicator(.hidden)
                     .frame(width: 20)
-                    .disabled(!actionsEnabled)
                     .help("More actions")
                 }
             }
