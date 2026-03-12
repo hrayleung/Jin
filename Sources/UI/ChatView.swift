@@ -332,21 +332,30 @@ struct ChatView: View {
             }
 
             if supportsCodeExecutionControl {
-                composerButtonControl(
-                    systemName: "chevron.left.forwardslash.chevron.right",
-                    isActive: isCodeExecutionEnabled,
-                    badgeText: codeExecutionBadgeText,
-                    help: codeExecutionHelpText
-                ) {
-                    codeExecutionEnabledBinding.wrappedValue.toggle()
-                }
-                .contextMenu {
-                    if hasCodeExecutionConfiguration {
+                if hasCodeExecutionConfiguration {
+                    composerButtonControl(
+                        systemName: "chevron.left.forwardslash.chevron.right",
+                        isActive: isCodeExecutionEnabled,
+                        badgeText: codeExecutionBadgeText,
+                        help: codeExecutionHelpText
+                    ) {
+                        codeExecutionEnabledBinding.wrappedValue.toggle()
+                    }
+                    .contextMenu {
                         Toggle("Code Execution", isOn: codeExecutionEnabledBinding)
                         Divider()
                         Button("Configure…") {
                             openCodeExecutionSheet()
                         }
+                    }
+                } else {
+                    composerButtonControl(
+                        systemName: "chevron.left.forwardslash.chevron.right",
+                        isActive: isCodeExecutionEnabled,
+                        badgeText: codeExecutionBadgeText,
+                        help: codeExecutionHelpText
+                    ) {
+                        codeExecutionEnabledBinding.wrappedValue.toggle()
                     }
                 }
             }

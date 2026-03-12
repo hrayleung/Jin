@@ -97,19 +97,33 @@ enum SpreadsheetTextExtractor {
         process.standardOutput = stdout
         process.standardError = stderr
 
+        var stdoutData = Data()
+        var stderrData = Data()
+
+        stdout.fileHandleForReading.readabilityHandler = { handle in
+            stdoutData.append(handle.availableData)
+        }
+        stderr.fileHandleForReading.readabilityHandler = { handle in
+            stderrData.append(handle.availableData)
+        }
+
         do {
             try process.run()
             process.waitUntilExit()
         } catch {
+            stdout.fileHandleForReading.readabilityHandler = nil
+            stderr.fileHandleForReading.readabilityHandler = nil
             return nil
         }
+
+        stdout.fileHandleForReading.readabilityHandler = nil
+        stderr.fileHandleForReading.readabilityHandler = nil
 
         guard process.terminationStatus == 0 else {
             return nil
         }
 
-        let data = stdout.fileHandleForReading.readDataToEndOfFile()
-        return data.isEmpty ? nil : data
+        return stdoutData.isEmpty ? nil : stdoutData
     }
 
     private static func normalizeWorksheetPath(_ target: String) -> String {
@@ -314,9 +328,8 @@ private final class WorksheetParser: NSObject, XMLParserDelegate {
             let line = (0...currentMaxColumn)
                 .map { currentRow[$0] ?? "" }
                 .joined(separator: "\t")
-                .trimmingCharacters(in: .whitespacesAndNewlines)
 
-            guard !line.isEmpty else { return }
+            guard line.contains(where: { !$0.isWhitespace }) else { return }
 
             rows.append(line)
 

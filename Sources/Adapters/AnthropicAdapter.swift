@@ -367,12 +367,15 @@ actor AnthropicAdapter: LLMProviderAdapter {
         return values.isEmpty ? nil : values.joined(separator: ",")
     }
 
-    private func requestUsesAnthropicFiles(_ messages: [Message]) -> Bool {
+    private func requestUsesAnthropicFiles(_ messages: [Message], codeExecutionEnabled: Bool) -> Bool {
+        let allowedMIMETypes = codeExecutionEnabled
+            ? anthropicHostedDocumentMIMETypes.union(anthropicCodeExecutionUploadMIMETypes)
+            : anthropicHostedDocumentMIMETypes
         for message in messages {
             for part in message.content {
                 guard case .file(let file) = part else { continue }
                 let mimeType = normalizedMIMEType(file.mimeType)
-                if anthropicHostedDocumentMIMETypes.contains(mimeType) {
+                if allowedMIMETypes.contains(mimeType) {
                     return true
                 }
             }
@@ -412,7 +415,7 @@ actor AnthropicAdapter: LLMProviderAdapter {
 
         let betaHeader = mergedAnthropicBetaHeader(
             extractAnthropicBetaHeader(from: controls),
-            additions: requestUsesAnthropicFiles(normalizedMessages) ? [anthropicFilesAPIBetaHeader] : []
+            additions: requestUsesAnthropicFiles(normalizedMessages, codeExecutionEnabled: codeExecutionEnabled) ? [anthropicFilesAPIBetaHeader] : []
         )
 
         let nonSystemMessages = normalizedMessages.filter { $0.role != .system }

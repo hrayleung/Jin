@@ -140,9 +140,11 @@ struct CodeExecutionSheetView: View {
                     "Container ID",
                     hint: "Reuse an existing OpenAI container. Jin sends this value directly as the code_interpreter container reference."
                 ) {
-                    TextField("cntr_...", text: openAIContainerIDBinding)
-                        .font(.system(.body, design: .monospaced))
-                        .textFieldStyle(.roundedBorder)
+                    TextField(text: openAIContainerIDBinding, prompt: Text("cntr_...")) {
+                        EmptyView()
+                    }
+                    .font(.system(.body, design: .monospaced))
+                    .textFieldStyle(.roundedBorder)
                 }
             } else {
                 fieldRow(
@@ -185,9 +187,11 @@ struct CodeExecutionSheetView: View {
                 "Container ID",
                 hint: "Optional. Reuse an existing Anthropic code execution container between requests."
             ) {
-                TextField("container_...", text: anthropicContainerIDBinding)
-                    .font(.system(.body, design: .monospaced))
-                    .textFieldStyle(.roundedBorder)
+                TextField(text: anthropicContainerIDBinding, prompt: Text("container_...")) {
+                    EmptyView()
+                }
+                .font(.system(.body, design: .monospaced))
+                .textFieldStyle(.roundedBorder)
             }
 
             Text("When code execution is enabled, Jin sends supported uploaded documents as container uploads so Claude can access them directly inside the execution sandbox.")
