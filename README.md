@@ -10,6 +10,10 @@ Conversation-first: fast, focused, and minimal.
 ![macOS 14+](https://img.shields.io/badge/macOS-14%2B-000000?logo=apple&logoColor=white)
 ![License: PolyForm Noncommercial](https://img.shields.io/badge/License-PolyForm%20NC%201.0-blue)
 
+<p align="center">
+  <img src="docs/screenshots/code-exec.png" alt="Code execution with generated visualization in chat" width="1200" />
+</p>
+
 ## Why Jin
 
 - **Conversation-first** — Built around high-quality chat flow, not workspace clutter
@@ -36,10 +40,6 @@ Conversation-first: fast, focused, and minimal.
 - **OpenAI service tier** — Choose between Default, Flex, Priority, and Scale processing tiers for OpenAI models
 
 ## Screenshots
-
-<p align="center">
-  <img src="docs/screenshots/code-exec.png" alt="Code execution with generated visualization in chat" width="1200" />
-</p>
 
 <p align="center">
   <img src="docs/screenshots/multi-model-chat.png" alt="Parallel multi-model conversation in one chat with side-by-side responses" width="1200" />
