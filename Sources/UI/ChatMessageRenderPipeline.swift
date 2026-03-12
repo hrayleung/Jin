@@ -43,6 +43,12 @@ enum ChatMessageRenderPipeline {
                 artifactVersionCounts: &artifactVersionCounts,
                 artifactVersionsByID: &artifactVersionsByID
             )
+            let copyText = copyableText(from: message, role: message.role)
+            let toolCalls = message.toolCalls ?? []
+            let searchActivities = message.searchActivities ?? []
+            let codeExecutionActivities = message.codeExecutionActivities ?? []
+            let codexToolActivities = message.codexToolActivities ?? []
+
             renderedItems.append(
                 MessageRenderItem(
                     id: entity.id,
@@ -50,10 +56,10 @@ enum ChatMessageRenderPipeline {
                     role: entity.role,
                     timestamp: entity.timestamp,
                     renderedBlocks: renderedBlocks,
-                    toolCalls: message.toolCalls ?? [],
-                    searchActivities: message.searchActivities ?? [],
-                    codeExecutionActivities: message.codeExecutionActivities ?? [],
-                    codexToolActivities: message.codexToolActivities ?? [],
+                    toolCalls: toolCalls,
+                    searchActivities: searchActivities,
+                    codeExecutionActivities: codeExecutionActivities,
+                    codexToolActivities: codexToolActivities,
                     assistantModelLabel: entity.role == "assistant"
                         ? (entity.generatedModelName ?? entity.generatedModelID ?? fallbackModelLabel)
                         : nil,
@@ -61,7 +67,7 @@ enum ChatMessageRenderPipeline {
                         ? assistantProviderIconID(entity.generatedProviderID ?? "")
                         : nil,
                     responseMetrics: entity.responseMetrics,
-                    copyText: copyableText(from: message, role: message.role),
+                    copyText: copyText,
                     canEditUserMessage: entity.role == "user"
                         && message.content.contains(where: { part in
                             if case .text = part { return true }
@@ -115,6 +121,12 @@ enum ChatMessageRenderPipeline {
                 artifactVersionCounts: &artifactVersionCounts,
                 artifactVersionsByID: &artifactVersionsByID
             )
+            let copyText = copyableText(from: message, role: message.role)
+            let toolCalls = message.toolCalls ?? []
+            let searchActivities = message.searchActivities ?? []
+            let codeExecutionActivities = message.codeExecutionActivities ?? []
+            let codexToolActivities = message.codexToolActivities ?? []
+
             renderedItems.append(
                 MessageRenderItem(
                     id: snapshot.id,
@@ -122,10 +134,10 @@ enum ChatMessageRenderPipeline {
                     role: snapshot.role,
                     timestamp: snapshot.timestamp,
                     renderedBlocks: renderedBlocks,
-                    toolCalls: message.toolCalls ?? [],
-                    searchActivities: message.searchActivities ?? [],
-                    codeExecutionActivities: message.codeExecutionActivities ?? [],
-                    codexToolActivities: message.codexToolActivities ?? [],
+                    toolCalls: toolCalls,
+                    searchActivities: searchActivities,
+                    codeExecutionActivities: codeExecutionActivities,
+                    codexToolActivities: codexToolActivities,
                     assistantModelLabel: snapshot.role == "assistant"
                         ? (snapshot.generatedModelName ?? snapshot.generatedModelID ?? fallbackModelLabel)
                         : nil,
@@ -133,7 +145,7 @@ enum ChatMessageRenderPipeline {
                         ? (assistantProviderIconsByID[snapshot.generatedProviderID ?? ""] ?? nil)
                         : nil,
                     responseMetrics: snapshot.responseMetrics(using: decoder),
-                    copyText: copyableText(from: message, role: message.role),
+                    copyText: copyText,
                     canEditUserMessage: snapshot.role == "user"
                         && message.content.contains(where: { part in
                             if case .text = part { return true }
