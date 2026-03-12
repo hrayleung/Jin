@@ -33,6 +33,19 @@ enum AppPreferenceKeys {
     static let codeBlockShowLineNumbers = "codeBlockShowLineNumbers"
     static let codeBlockCollapseLineThreshold = "codeBlockCollapseLineThreshold"
 
+    // Agent Mode
+    static let agentModeEnabled = "agentModeEnabled"
+    static let agentModeWorkingDirectory = "agentModeWorkingDirectory"
+    static let agentModeAllowedCommandPrefixesJSON = "agentModeAllowedCommandPrefixesJSON"
+    static let agentModeCommandTimeoutSeconds = "agentModeCommandTimeoutSeconds"
+    static let agentModeAutoApproveFileReads = "agentModeAutoApproveFileReads"
+    static let agentModeToolShell = "agentModeToolShell"
+    static let agentModeToolFileRead = "agentModeToolFileRead"
+    static let agentModeToolFileWrite = "agentModeToolFileWrite"
+    static let agentModeToolFileEdit = "agentModeToolFileEdit"
+    static let agentModeToolGlob = "agentModeToolGlob"
+    static let agentModeToolGrep = "agentModeToolGrep"
+
     // MARK: - Updates
 
     // Update checker
@@ -386,6 +399,8 @@ enum AppPreferences {
             return AppPreferenceKeys.pluginCloudflareR2UploadEnabled
         case "web_search_builtin":
             return AppPreferenceKeys.pluginWebSearchEnabled
+        case "agent_mode":
+            return AppPreferenceKeys.agentModeEnabled
         default:
             return nil
         }
@@ -396,7 +411,7 @@ enum AppPreferences {
         if let value = defaults.object(forKey: key) as? Bool {
             return value
         }
-        if pluginID == "chat_naming" || pluginID == "cloudflare_r2_upload" {
+        if pluginID == "chat_naming" || pluginID == "cloudflare_r2_upload" || pluginID == "agent_mode" {
             return false
         }
         return true

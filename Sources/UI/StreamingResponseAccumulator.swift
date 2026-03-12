@@ -15,6 +15,7 @@ struct StreamingResponseAccumulator {
     private var searchActivitiesByID: OrderedDictionary<String, SearchActivity> = [:]
     private var codeExecutionActivitiesByID: OrderedDictionary<String, CodeExecutionActivity> = [:]
     private var codexToolActivitiesByID: OrderedDictionary<String, CodexToolActivity> = [:]
+    private var agentToolActivitiesByID: OrderedDictionary<String, CodexToolActivity> = [:]
 
     /// The provider type string for tagging thinking blocks (e.g. "anthropic", "gemini").
     private let providerTypeRawValue: String?
@@ -162,6 +163,18 @@ struct StreamingResponseAccumulator {
 
     func buildCodexToolActivities() -> [CodexToolActivity] {
         Array(codexToolActivitiesByID.values)
+    }
+
+    mutating func upsertAgentToolActivity(_ activity: CodexToolActivity) {
+        if let existing = agentToolActivitiesByID[activity.id] {
+            agentToolActivitiesByID[activity.id] = existing.merged(with: activity)
+        } else {
+            agentToolActivitiesByID[activity.id] = activity
+        }
+    }
+
+    func buildAgentToolActivities() -> [CodexToolActivity] {
+        Array(agentToolActivitiesByID.values)
     }
 
     func buildToolCalls() -> [ToolCall] {

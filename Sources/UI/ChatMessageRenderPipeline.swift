@@ -54,6 +54,7 @@ enum ChatMessageRenderPipeline {
                     searchActivities: message.searchActivities ?? [],
                     codeExecutionActivities: message.codeExecutionActivities ?? [],
                     codexToolActivities: message.codexToolActivities ?? [],
+                    agentToolActivities: message.agentToolActivities ?? [],
                     assistantModelLabel: entity.role == "assistant"
                         ? (entity.generatedModelName ?? entity.generatedModelID ?? fallbackModelLabel)
                         : nil,
@@ -126,6 +127,7 @@ enum ChatMessageRenderPipeline {
                     searchActivities: message.searchActivities ?? [],
                     codeExecutionActivities: message.codeExecutionActivities ?? [],
                     codexToolActivities: message.codexToolActivities ?? [],
+                    agentToolActivities: message.agentToolActivities ?? [],
                     assistantModelLabel: snapshot.role == "assistant"
                         ? (snapshot.generatedModelName ?? snapshot.generatedModelID ?? fallbackModelLabel)
                         : nil,
