@@ -25,6 +25,23 @@ struct ChatView: View {
         var id: UUID { request.id }
     }
 
+    struct PendingAgentApproval: Identifiable {
+        let localThreadID: UUID
+        let request: AgentApprovalRequest
+
+        var id: UUID { request.id }
+    }
+
+    private var activeAgentApprovalBinding: Binding<PendingAgentApproval?> {
+        Binding(
+            get: { pendingAgentApprovals.first },
+            set: { newValue in
+                guard newValue == nil, !pendingAgentApprovals.isEmpty else { return }
+                _ = pendingAgentApprovals.popFirst()
+            }
+        )
+    }
+
     private var activeCodexInteractionBinding: Binding<PendingCodexInteraction?> {
         Binding(
             get: { pendingCodexInteractions.first },
@@ -109,6 +126,7 @@ struct ChatView: View {
     @State var codexSandboxModeDraft: CodexSandboxMode = .default
     @State var codexPersonalityDraft: CodexPersonality?
     @State var pendingCodexInteractions: Deque<PendingCodexInteraction> = []
+    @State var pendingAgentApprovals: Deque<PendingAgentApproval> = []
 
     private enum SlashCommandTarget { case composer, editMessage }
     @State private var isSlashMCPPopoverVisible = false
@@ -146,6 +164,8 @@ struct ChatView: View {
     @State var speechToTextPluginEnabled = true
     @State var webSearchPluginEnabled = true
     @State var webSearchPluginConfigured = false
+    @State var isAgentModeActive = false
+    @State private var isAgentModePopoverPresented = false
     @State private var isPreparingToSend = false
     @State private var prepareToSendStatus: String?
     @State private var prepareToSendTask: Task<Void, Never>?
@@ -390,6 +410,20 @@ struct ChatView: View {
                     help: codexSessionHelpText,
                     action: openCodexSessionSettingsEditor
                 )
+            }
+
+            if isAgentModeConfigured {
+                composerButtonControl(
+                    systemName: "terminal.fill",
+                    isActive: isAgentModeActive,
+                    badgeText: isAgentModeActive ? "On" : nil,
+                    help: isAgentModeActive ? "Agent Mode: On" : "Agent Mode: Off"
+                ) {
+                    isAgentModePopoverPresented.toggle()
+                }
+                .popover(isPresented: $isAgentModePopoverPresented, arrowEdge: .bottom) {
+                    AgentModePopoverView(isActive: $isAgentModeActive)
+                }
             }
 
             if supportsImageGenerationControl {
@@ -812,6 +846,11 @@ struct ChatView: View {
                 resolveCodexInteraction(item, response: response)
             }
         }
+        .sheet(item: activeAgentApprovalBinding) { item in
+            AgentApprovalView(request: item.request) { choice in
+                resolveAgentApproval(item, choice: choice)
+            }
+        }
         .task {
             // Chat-local state is already prepared in onAppear / onChange.
             // Avoid repeating these mutations here to prevent extra render churn.
@@ -1032,6 +1071,9 @@ struct ChatView: View {
 
         // Codex
         pendingCodexInteractions = []
+
+        // Agent
+        pendingAgentApprovals = []
 
         // Scroll / pagination
         messageRenderLimit = Self.initialMessageRenderLimit
@@ -1888,6 +1930,10 @@ struct ChatView: View {
             .split(whereSeparator: { $0 == "," || $0.isNewline })
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
+    }
+
+    var isAgentModeConfigured: Bool {
+        AppPreferences.isPluginEnabled("agent_mode")
     }
 
     var codeExecutionBadgeText: String? {
@@ -3468,6 +3514,7 @@ struct ChatView: View {
         )
         Self.sanitizeProviderSpecificForProvider(providerTypeSnapshot, controls: &controlsToUse)
         injectCodexThreadPersistence(into: &controlsToUse, from: thread)
+        controlsToUse.agentMode = Self.resolvedAgentModeControls(active: isAgentModeActive)
 
         let shouldTruncateMessages = assistant?.truncateMessages ?? false
         let maxHistoryMessages = assistant?.maxHistoryMessages
@@ -3577,6 +3624,9 @@ struct ChatView: View {
             mergeSearchActivities: { [self] messageID, activities in
                 mergeSearchActivitiesIntoAssistantMessage(messageID: messageID, newActivities: activities)
             },
+            mergeAgentToolActivities: { [self] messageID, activities in
+                mergeAgentToolActivitiesIntoAssistantMessage(messageID: messageID, newActivities: activities)
+            },
             maybeAutoRename: { [self] provider, targetModelID, history, assistantMessage in
                 await maybeAutoRenameConversation(
                     targetProvider: provider,
@@ -3584,6 +3634,9 @@ struct ChatView: View {
                     history: history,
                     finalAssistantMessage: assistantMessage
                 )
+            },
+            appendAgentApproval: { [self] request, localThreadID in
+                pendingAgentApprovals.append(PendingAgentApproval(localThreadID: localThreadID, request: request))
             },
             showError: { [self] message in
                 errorMessage = message
@@ -3602,6 +3655,7 @@ struct ChatView: View {
                 }
                 streamingStore.endSession(conversationID: conversationID, threadID: threadID)
                 pendingCodexInteractions.removeAll { $0.localThreadID == sessionThreadID }
+                pendingAgentApprovals.removeAll { $0.localThreadID == sessionThreadID }
             }
         )
 
@@ -3613,6 +3667,37 @@ struct ChatView: View {
             )
         }
         streamingStore.attachTask(task, conversationID: conversationID, threadID: threadID)
+    }
+
+    private static func resolvedAgentModeControls(active: Bool) -> AgentModeControls? {
+        guard active, AppPreferences.isPluginEnabled("agent_mode") else { return nil }
+        let defaults = UserDefaults.standard
+        let workingDir = defaults.string(forKey: AppPreferenceKeys.agentModeWorkingDirectory) ?? ""
+        let customPrefixesJSON = defaults.string(forKey: AppPreferenceKeys.agentModeAllowedCommandPrefixesJSON) ?? "[]"
+        let customPrefixes = (try? JSONDecoder().decode([String].self, from: Data(customPrefixesJSON.utf8))) ?? []
+        let safePrefixes = AgentCommandAllowlist.resolvedSafePrefixes(defaults: defaults)
+        let prefixes = safePrefixes + customPrefixes
+        let timeout = defaults.object(forKey: AppPreferenceKeys.agentModeCommandTimeoutSeconds) as? Int ?? 120
+        let autoApproveReads = defaults.object(forKey: AppPreferenceKeys.agentModeAutoApproveFileReads) as? Bool ?? true
+        let bypassPermissions = defaults.object(forKey: AppPreferenceKeys.agentModeBypassPermissions) as? Bool ?? false
+        let tools = AgentEnabledTools(
+            shellExecute: defaults.object(forKey: AppPreferenceKeys.agentModeToolShell) as? Bool ?? true,
+            fileRead: defaults.object(forKey: AppPreferenceKeys.agentModeToolFileRead) as? Bool ?? true,
+            fileWrite: defaults.object(forKey: AppPreferenceKeys.agentModeToolFileWrite) as? Bool ?? true,
+            fileEdit: defaults.object(forKey: AppPreferenceKeys.agentModeToolFileEdit) as? Bool ?? true,
+            globSearch: defaults.object(forKey: AppPreferenceKeys.agentModeToolGlob) as? Bool ?? true,
+            grepSearch: defaults.object(forKey: AppPreferenceKeys.agentModeToolGrep) as? Bool ?? true
+        )
+        return AgentModeControls(
+            enabled: true,
+            workingDirectory: workingDir.isEmpty ? nil : workingDir,
+            allowedCommandPrefixes: prefixes,
+            autoApproveFileReads: autoApproveReads,
+            bypassPermissions: bypassPermissions,
+            enabledTools: tools,
+            commandTimeoutSeconds: timeout,
+            maxOutputBytes: 102_400
+        )
     }
 
     private var isChatNamingPluginEnabled: Bool {
@@ -3726,6 +3811,45 @@ struct ChatView: View {
 
         let mergedActivities = Array(byID.values)
         entity.searchActivitiesData = mergedActivities.isEmpty ? nil : (try? encoder.encode(mergedActivities))
+        conversationEntity.updatedAt = Date()
+        rebuildMessageCaches()
+        try? modelContext.save()
+    }
+
+    private func mergeAgentToolActivitiesIntoAssistantMessage(
+        messageID: UUID,
+        newActivities: [CodexToolActivity]
+    ) {
+        guard !newActivities.isEmpty else { return }
+        guard let entity = conversationEntity.messages.first(where: { $0.id == messageID && $0.role == "assistant" }) else {
+            return
+        }
+
+        let decoder = JSONDecoder()
+        let encoder = JSONEncoder()
+
+        let existingActivities: [CodexToolActivity]
+        if let data = entity.agentToolActivitiesData,
+           let decoded = try? decoder.decode([CodexToolActivity].self, from: data) {
+            existingActivities = decoded
+        } else {
+            existingActivities = []
+        }
+
+        var byID: OrderedDictionary<String, CodexToolActivity> = [:]
+        for activity in existingActivities {
+            byID[activity.id] = activity
+        }
+        for activity in newActivities {
+            if let existing = byID[activity.id] {
+                byID[activity.id] = existing.merged(with: activity)
+            } else {
+                byID[activity.id] = activity
+            }
+        }
+
+        let mergedActivities = Array(byID.values)
+        entity.agentToolActivitiesData = mergedActivities.isEmpty ? nil : (try? encoder.encode(mergedActivities))
         conversationEntity.updatedAt = Date()
         rebuildMessageCaches()
         try? modelContext.save()

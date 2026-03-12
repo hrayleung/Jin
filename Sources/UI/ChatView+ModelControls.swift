@@ -750,6 +750,13 @@ extension ChatView {
         pendingCodexInteractions.removeAll { $0.id == item.id }
     }
 
+    func resolveAgentApproval(_ item: PendingAgentApproval, choice: AgentApprovalChoice) {
+        Task {
+            await item.request.resolve(choice)
+        }
+        pendingAgentApprovals.removeAll { $0.id == item.id }
+    }
+
     func normalizedCodexWorkingDirectoryPath(from raw: String) -> String? {
         ChatEditorDraftSupport.normalizedCodexWorkingDirectoryPath(from: raw)
     }

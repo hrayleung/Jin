@@ -34,6 +34,7 @@ struct StreamingMessageView: View {
         let showsCopyButton = !visibleText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         let visibleToolCalls = state.streamingToolCalls.filter { call in
             !BuiltinSearchToolHub.isBuiltinSearchFunctionName(call.name)
+            && !AgentToolHub.isAgentFunctionName(call.name)
         }
 
         HStack(alignment: .top, spacing: 0) {
@@ -74,6 +75,13 @@ struct StreamingMessageView: View {
                             )
                         }
 
+                        if !state.agentToolActivities.isEmpty {
+                            AgentToolTimelineView(
+                                activities: state.agentToolActivities,
+                                isStreaming: true
+                            )
+                        }
+
                         if !state.codeExecutionActivities.isEmpty {
                             CodeExecutionTimelineView(
                                 activities: state.codeExecutionActivities,
@@ -105,7 +113,7 @@ struct StreamingMessageView: View {
                             ForEach(Array(state.artifacts.enumerated()), id: \.offset) { _, artifact in
                                 StreamingArtifactIndicator(artifact: artifact)
                             }
-                        } else if state.thinkingChunks.isEmpty && state.searchActivities.isEmpty && state.codexToolActivities.isEmpty && state.codeExecutionActivities.isEmpty && visibleToolCalls.isEmpty {
+                        } else if state.thinkingChunks.isEmpty && state.searchActivities.isEmpty && state.codexToolActivities.isEmpty && state.agentToolActivities.isEmpty && state.codeExecutionActivities.isEmpty && visibleToolCalls.isEmpty {
                             HStack(spacing: 6) {
                                 ProgressView().scaleEffect(0.5)
                                 Text("Generating...")
@@ -235,6 +243,7 @@ final class StreamingMessageState: ObservableObject {
     @Published private(set) var searchActivities: [SearchActivity] = []
     @Published private(set) var codeExecutionActivities: [CodeExecutionActivity] = []
     @Published private(set) var codexToolActivities: [CodexToolActivity] = []
+    @Published private(set) var agentToolActivities: [CodexToolActivity] = []
     @Published private(set) var streamingToolCalls: [ToolCall] = []
     @Published private(set) var toolResultsByCallID: [String: ToolResult] = [:]
     @Published private(set) var renderTick: Int = 0
@@ -248,6 +257,7 @@ final class StreamingMessageState: ObservableObject {
     private var searchActivitiesByID: OrderedDictionary<String, SearchActivity> = [:]
     private var codeExecutionActivitiesByID: OrderedDictionary<String, CodeExecutionActivity> = [:]
     private var codexToolActivitiesByID: OrderedDictionary<String, CodexToolActivity> = [:]
+    private var agentToolActivitiesByID: OrderedDictionary<String, CodexToolActivity> = [:]
 
     var textContent: String { textStorage }
     var thinkingContent: String { thinkingStorage }
@@ -260,11 +270,13 @@ final class StreamingMessageState: ObservableObject {
         searchActivities = []
         codeExecutionActivities = []
         codexToolActivities = []
+        agentToolActivities = []
         streamingToolCalls = []
         toolResultsByCallID = [:]
         searchActivitiesByID = [:]
         codeExecutionActivitiesByID = [:]
         codexToolActivitiesByID = [:]
+        agentToolActivitiesByID = [:]
         visibleText = ""
         artifacts = []
         hasVisibleText = false
@@ -344,6 +356,16 @@ final class StreamingMessageState: ObservableObject {
             codexToolActivitiesByID[activity.id] = activity
         }
         codexToolActivities = Array(codexToolActivitiesByID.values)
+        renderTick &+= 1
+    }
+
+    func upsertAgentToolActivity(_ activity: CodexToolActivity) {
+        if let existing = agentToolActivitiesByID[activity.id] {
+            agentToolActivitiesByID[activity.id] = existing.merged(with: activity)
+        } else {
+            agentToolActivitiesByID[activity.id] = activity
+        }
+        agentToolActivities = Array(agentToolActivitiesByID.values)
         renderTick &+= 1
     }
 

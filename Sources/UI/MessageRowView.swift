@@ -132,6 +132,7 @@ struct MessageRenderItem: Identifiable, Sendable {
     let searchActivities: [SearchActivity]
     let codeExecutionActivities: [CodeExecutionActivity]
     let codexToolActivities: [CodexToolActivity]
+    let agentToolActivities: [CodexToolActivity]
     let assistantModelLabel: String?
     let assistantProviderIconID: String?
     let responseMetrics: ResponseMetrics?
@@ -190,6 +191,7 @@ struct MessageRow: View {
         let canDeleteResponse = item.canDeleteResponse
         let visibleToolCalls = item.toolCalls.filter { call in
             !BuiltinSearchToolHub.isBuiltinSearchFunctionName(call.name)
+            && !AgentToolHub.isAgentFunctionName(call.name)
         }
 
         HStack(alignment: .top, spacing: 0) {
@@ -260,6 +262,13 @@ struct MessageRow: View {
                             if !item.codexToolActivities.isEmpty {
                                 CodexToolTimelineView(
                                     activities: item.codexToolActivities,
+                                    isStreaming: false
+                                )
+                            }
+
+                            if !item.agentToolActivities.isEmpty {
+                                AgentToolTimelineView(
+                                    activities: item.agentToolActivities,
                                     isStreaming: false
                                 )
                             }

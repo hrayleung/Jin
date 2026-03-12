@@ -77,6 +77,12 @@ struct SettingsView: View {
             name: "Cloudflare R2 Upload",
             systemImage: "externaldrive.badge.icloud",
             summary: "Upload local videos to R2 for remote video URLs."
+        ),
+        PluginDescriptor(
+            id: "agent_mode",
+            name: "Agent Mode",
+            systemImage: "terminal",
+            summary: "Execute local shell commands and file operations."
         )
     ]
 
@@ -308,6 +314,10 @@ struct SettingsView: View {
                     case "cloudflare_r2_upload":
                         CloudflareR2UploadPluginSettingsView()
                             .id("cloudflare_r2_upload")
+                            .transition(settingsColumnTransition)
+                    case "agent_mode":
+                        AgentModeSettingsView()
+                            .id("agent_mode")
                             .transition(settingsColumnTransition)
                     default:
                         ContentUnavailableView("Select a Plugin", systemImage: "puzzlepiece.extension")

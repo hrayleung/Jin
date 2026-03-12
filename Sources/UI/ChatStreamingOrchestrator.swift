@@ -58,6 +58,9 @@ enum ChatStreamingOrchestrator {
         /// Merge search activities into a previously persisted assistant message.
         let mergeSearchActivities: @MainActor (_ messageID: UUID, _ activities: [SearchActivity]) -> Void
 
+        /// Merge agent tool activities into a previously persisted assistant message.
+        let mergeAgentToolActivities: @MainActor (_ messageID: UUID, _ activities: [CodexToolActivity]) -> Void
+
         /// Optionally auto-rename the conversation after the first assistant reply.
         let maybeAutoRename: @MainActor (
             _ provider: ProviderConfig,
@@ -65,6 +68,9 @@ enum ChatStreamingOrchestrator {
             _ history: [Message],
             _ assistantMessage: Message
         ) async -> Void
+
+        /// Queue an agent approval request for the user.
+        let appendAgentApproval: @MainActor (AgentApprovalRequest, _ localThreadID: UUID) -> Void
 
         /// Display an error to the user.
         let showError: @MainActor (String) -> Void
@@ -80,12 +86,14 @@ enum ChatStreamingOrchestrator {
         assistantPartCount: Int,
         searchActivityCount: Int,
         codeExecutionActivityCount: Int,
-        codexToolActivityCount: Int
+        codexToolActivityCount: Int,
+        agentToolActivityCount: Int = 0
     ) -> Bool {
         assistantPartCount > 0
             || searchActivityCount > 0
             || codeExecutionActivityCount > 0
             || codexToolActivityCount > 0
+            || agentToolActivityCount > 0
     }
 
     @Sendable
@@ -140,7 +148,10 @@ enum ChatStreamingOrchestrator {
                     for: ctx.controlsToUse,
                     useBuiltinSearch: ctx.shouldOfferBuiltinSearch
                 )
-                let allTools = mcpTools + builtinTools
+                let (agentTools, agentRoutes) = await AgentToolHub.shared.toolDefinitions(
+                    for: ctx.controlsToUse
+                )
+                let allTools = mcpTools + builtinTools + agentTools
                 let providerType = providerConfig.type
 
                 var requestControls = ctx.controlsToUse
@@ -157,7 +168,8 @@ enum ChatStreamingOrchestrator {
                 ChatControlNormalizationSupport.sanitizeProviderSpecificForProvider(providerType, controls: &requestControls)
 
                 var iteration = 0
-                let maxToolIterations = 8
+                let agentModeActive = ctx.controlsToUse.agentMode?.enabled == true
+                let maxToolIterations = agentModeActive ? 25 : 8
 
                 while iteration < maxToolIterations {
                     try Task.checkCancellation()
@@ -308,13 +320,15 @@ enum ChatStreamingOrchestrator {
                     let searchActivities = accumulator.buildSearchActivities()
                     let codeExecutionActivities = accumulator.buildCodeExecutionActivities()
                     let codexToolActivities = accumulator.buildCodexToolActivities()
+                    let agentToolActivities = accumulator.buildAgentToolActivities()
                     let responseMetrics = metricsCollector.metrics
                     var persistedAssistantMessageID: UUID?
                     let hasRenderableAssistantContent = hasRenderableAssistantContent(
                         assistantPartCount: assistantParts.count,
                         searchActivityCount: searchActivities.count,
                         codeExecutionActivityCount: codeExecutionActivities.count,
-                        codexToolActivityCount: codexToolActivities.count
+                        codexToolActivityCount: codexToolActivities.count,
+                        agentToolActivityCount: agentToolActivities.count
                     )
 
                     if hasRenderableAssistantContent || !toolCalls.isEmpty {
@@ -325,7 +339,8 @@ enum ChatStreamingOrchestrator {
                             toolCalls: toolCalls.isEmpty ? nil : toolCalls,
                             searchActivities: searchActivities.isEmpty ? nil : searchActivities,
                             codeExecutionActivities: codeExecutionActivities.isEmpty ? nil : codeExecutionActivities,
-                            codexToolActivities: codexToolActivities.isEmpty ? nil : codexToolActivities
+                            codexToolActivities: codexToolActivities.isEmpty ? nil : codexToolActivities,
+                            agentToolActivities: agentToolActivities.isEmpty ? nil : agentToolActivities
                         )
                         if let preview = AttachmentImportPipeline.completionNotificationPreview(from: persistedParts) {
                             completionPreview = preview
@@ -387,9 +402,84 @@ enum ChatStreamingOrchestrator {
 
                     for call in toolCalls {
                         let callStart = Date()
+                        let isAgentTool = agentRoutes.contains(functionName: call.name)
+
+                        // Track agent tool activity (running state)
+                        if isAgentTool {
+                            let runningActivity = CodexToolActivity(
+                                id: call.id,
+                                toolName: call.name,
+                                status: .running,
+                                arguments: call.arguments
+                            )
+                            accumulator.upsertAgentToolActivity(runningActivity)
+                            await MainActor.run {
+                                streamingState.upsertAgentToolActivity(runningActivity)
+                            }
+                        }
+
                         do {
                             let result: MCPToolCallResult
-                            if builtinRoutes.contains(functionName: call.name) {
+                            if isAgentTool {
+                                // Agent tool: check approval for shell commands and file writes
+                                let agentControls = ctx.controlsToUse.agentMode ?? AgentModeControls()
+                                let needsApproval = agentToolNeedsApproval(
+                                    functionName: call.name,
+                                    arguments: call.arguments,
+                                    controls: agentControls
+                                )
+
+                                if needsApproval {
+                                    let approvalRequest = makeAgentApprovalRequest(
+                                        functionName: call.name,
+                                        arguments: call.arguments,
+                                        controls: agentControls
+                                    )
+                                    await MainActor.run {
+                                        callbacks.appendAgentApproval(approvalRequest, ctx.threadID)
+                                    }
+                                    let choice = await approvalRequest.waitForResponse()
+                                    switch choice {
+                                    case .deny:
+                                        let deniedActivity = CodexToolActivity(
+                                            id: call.id,
+                                            toolName: call.name,
+                                            status: .failed,
+                                            arguments: call.arguments,
+                                            output: "Denied by user"
+                                        )
+                                        accumulator.upsertAgentToolActivity(deniedActivity)
+                                        await MainActor.run {
+                                            streamingState.upsertAgentToolActivity(deniedActivity)
+                                        }
+                                        let toolResult = ToolResult(
+                                            toolCallID: call.id,
+                                            toolName: call.name,
+                                            content: "User denied this tool call. Do not retry this exact action without permission.",
+                                            isError: true,
+                                            signature: call.signature,
+                                            durationSeconds: Date().timeIntervalSince(callStart)
+                                        )
+                                        toolResults.append(toolResult)
+                                        await MainActor.run {
+                                            streamingState.upsertToolResult(toolResult)
+                                        }
+                                        toolOutputLines.append("Tool \(call.name) denied by user.")
+                                        continue
+                                    case .cancel:
+                                        return
+                                    case .allow, .allowForSession:
+                                        break
+                                    }
+                                }
+
+                                result = try await AgentToolHub.shared.executeTool(
+                                    functionName: call.name,
+                                    arguments: call.arguments,
+                                    routes: agentRoutes,
+                                    controls: agentControls
+                                )
+                            } else if builtinRoutes.contains(functionName: call.name) {
                                 result = try await BuiltinSearchToolHub.shared.executeTool(
                                     functionName: call.name,
                                     arguments: call.arguments,
@@ -427,6 +517,21 @@ enum ChatStreamingOrchestrator {
                                 toolOutputLines.append("Tool \(call.name):\n\(normalizedContent)")
                             }
 
+                            // Track agent tool completion
+                            if isAgentTool {
+                                let completedActivity = CodexToolActivity(
+                                    id: call.id,
+                                    toolName: call.name,
+                                    status: result.isError ? .failed : .completed,
+                                    arguments: call.arguments,
+                                    output: String(normalizedContent.prefix(4096))
+                                )
+                                accumulator.upsertAgentToolActivity(completedActivity)
+                                await MainActor.run {
+                                    streamingState.upsertAgentToolActivity(completedActivity)
+                                }
+                            }
+
                             if builtinRoutes.contains(functionName: call.name),
                                let activity = ToolSearchActivityFactory.activityFromToolResult(
                                 call: call,
@@ -461,6 +566,21 @@ enum ChatStreamingOrchestrator {
                             }
                             toolOutputLines.append("Tool \(call.name) failed:\n\(llmErrorContent)")
 
+                            // Track agent tool failure
+                            if isAgentTool {
+                                let failedActivity = CodexToolActivity(
+                                    id: call.id,
+                                    toolName: call.name,
+                                    status: .failed,
+                                    arguments: call.arguments,
+                                    output: String(llmErrorContent.prefix(4096))
+                                )
+                                accumulator.upsertAgentToolActivity(failedActivity)
+                                await MainActor.run {
+                                    streamingState.upsertAgentToolActivity(failedActivity)
+                                }
+                            }
+
                             if builtinRoutes.contains(functionName: call.name),
                                let activity = ToolSearchActivityFactory.activityFromToolResult(
                                 call: call,
@@ -480,6 +600,13 @@ enum ChatStreamingOrchestrator {
                     if let assistantMessageID = persistedAssistantMessageID, !toolSearchActivities.isEmpty {
                         await MainActor.run {
                             callbacks.mergeSearchActivities(assistantMessageID, toolSearchActivities)
+                        }
+                    }
+
+                    let completedAgentActivities = accumulator.buildAgentToolActivities()
+                    if let assistantMessageID = persistedAssistantMessageID, !completedAgentActivities.isEmpty {
+                        await MainActor.run {
+                            callbacks.mergeAgentToolActivities(assistantMessageID, completedAgentActivities)
                         }
                     }
 
@@ -506,6 +633,69 @@ enum ChatStreamingOrchestrator {
             await MainActor.run {
                 callbacks.onSessionEnd(shouldNotifyNow, previewForNotification, ctx.threadID)
             }
+        }
+    }
+
+    // MARK: - Agent Approval Helpers
+
+    private static func agentToolNeedsApproval(
+        functionName: String,
+        arguments: [String: AnyCodable],
+        controls: AgentModeControls
+    ) -> Bool {
+        if controls.bypassPermissions { return false }
+
+        let raw = arguments.mapValues { $0.value }
+
+        switch functionName {
+        case "agent__shell_execute":
+            guard let command = raw["command"] as? String else { return true }
+            return !AgentCommandAllowlist.isCommandAllowed(
+                command,
+                allowedPrefixes: controls.allowedCommandPrefixes
+            )
+        case "agent__file_read":
+            return !controls.autoApproveFileReads
+        case "agent__file_write", "agent__file_edit":
+            return true
+        case "agent__glob_search", "agent__grep_search":
+            return false
+        default:
+            return true
+        }
+    }
+
+    private static func makeAgentApprovalRequest(
+        functionName: String,
+        arguments: [String: AnyCodable],
+        controls: AgentModeControls
+    ) -> AgentApprovalRequest {
+        let raw = arguments.mapValues { $0.value }
+
+        switch functionName {
+        case "agent__shell_execute":
+            let command = raw["command"] as? String ?? "(unknown)"
+            let cwd = raw["working_directory"] as? String ?? controls.workingDirectory
+            return AgentApprovalRequest(kind: .shellCommand(command: command, cwd: cwd))
+
+        case "agent__file_write":
+            let path = raw["path"] as? String ?? "(unknown)"
+            let content = raw["content"] as? String ?? ""
+            let preview = String(content.prefix(2048))
+            return AgentApprovalRequest(kind: .fileWrite(path: path, preview: preview))
+
+        case "agent__file_edit":
+            let path = raw["path"] as? String ?? "(unknown)"
+            let oldText = raw["old_text"] as? String ?? ""
+            let newText = raw["new_text"] as? String ?? ""
+            return AgentApprovalRequest(kind: .fileEdit(
+                path: path,
+                oldText: String(oldText.prefix(2048)),
+                newText: String(newText.prefix(2048))
+            ))
+
+        default:
+            return AgentApprovalRequest(kind: .shellCommand(command: "(unknown)", cwd: nil))
         }
     }
 }
