@@ -200,7 +200,7 @@ private struct CodeExecutionEntryView: View {
         case .failed, .incomplete:
             return .error
         case .unknown:
-            return .running
+            return .neutral
         }
     }
 
@@ -278,6 +278,10 @@ private struct CodeExecutionEntryView: View {
                 Image(systemName: "xmark")
                     .font(.system(size: 8.5, weight: .semibold))
                     .foregroundStyle(style.accent)
+            case .neutral:
+                Image(systemName: "questionmark")
+                    .font(.system(size: 8.5, weight: .semibold))
+                    .foregroundStyle(style.accent)
             }
         }
     }
@@ -321,9 +325,22 @@ private struct CodeExecutionEntryView: View {
                     .fill(style.accent)
                     .frame(width: 4.5, height: 4.5)
             } else {
-                Image(systemName: executionStatus == .success ? "checkmark.circle" : "xmark.circle")
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(style.accent)
+                switch executionStatus {
+                case .success:
+                    Image(systemName: "checkmark.circle")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(style.accent)
+                case .error:
+                    Image(systemName: "xmark.circle")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(style.accent)
+                case .neutral:
+                    Image(systemName: "questionmark.circle")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(style.accent)
+                case .running:
+                    EmptyView()
+                }
             }
 
             Text(statusLabel)
@@ -341,7 +358,8 @@ private struct CodeExecutionEntryView: View {
         case .completed: return "Done"
         case .failed: return "Failed"
         case .incomplete: return "Incomplete"
-        case .unknown: return "Running..."
+        case .unknown(let rawValue):
+            return rawValue.isEmpty ? "Unknown" : rawValue
         }
     }
 
@@ -436,6 +454,13 @@ private struct CodeExecutionEntryView: View {
                 nodeBackground: Color(nsColor: .systemOrange).opacity(0.14),
                 nodeBorder: Color(nsColor: .systemOrange).opacity(0.36)
             )
+        case .neutral:
+            return CodeExecVisualStyle(
+                accent: Color.secondary.opacity(0.85),
+                text: Color.secondary.opacity(0.85),
+                nodeBackground: Color.primary.opacity(0.05),
+                nodeBorder: JinSemanticColor.separator.opacity(0.6)
+            )
         }
     }
 
@@ -472,6 +497,7 @@ private enum CodeExecVisualStatus: Equatable {
     case running
     case success
     case error
+    case neutral
 }
 
 private struct CodeExecVisualStyle {
@@ -817,4 +843,3 @@ private enum CodeExecSyntaxHighlighter {
         }
     }
 }
-

@@ -127,6 +127,39 @@ enum ModelCapabilityRegistry {
         "gemini-2.0-flash-001",
     ]
 
+    /// Exact model IDs that OpenAI currently documents as supporting the built-in Code interpreter tool.
+    /// Keep this conservative: do not broaden to unlisted realtime/audio families.
+    private static let openAICodeInterpreterSupportedModelIDs: Set<String> = [
+        "gpt-4.1",
+        "gpt-4.1-2025-04-14",
+        "gpt-5",
+        "gpt-5-2025-08-07",
+        "gpt-5.2",
+        "gpt-5.2-2025-12-11",
+        "gpt-5.4",
+        "gpt-5.4-2026-03-05",
+        "gpt-5-mini",
+        "gpt-5-mini-2025-08-07",
+        "gpt-5-nano",
+        "gpt-5-nano-2025-08-07",
+        "o3",
+        "o4-mini",
+    ]
+
+    /// Exact model IDs that Anthropic currently documents as supporting the code execution tool.
+    private static let anthropicCodeExecutionSupportedModelIDs: Set<String> = [
+        "claude-opus-4-6",
+        "claude-sonnet-4-6",
+        "claude-sonnet-4-5-20250929",
+        "claude-opus-4-5-20251101",
+        "claude-haiku-4-5-20251001",
+        "claude-opus-4-1-20250805",
+        "claude-opus-4-20250514",
+        "claude-sonnet-4-20250514",
+        "claude-3-7-sonnet-20250219",
+        "claude-3-5-haiku-latest",
+    ]
+
     private static let reasoningEffortRank: [ReasoningEffort: Int] = [
         .none: 0,
         .minimal: 1,
@@ -483,12 +516,15 @@ enum ModelCapabilityRegistry {
         let lowerModelID = modelID.lowercased()
 
         switch providerType {
-        case .openai, .openaiWebSocket:
-            // OpenAI Responses API code_interpreter tool: GPT-4o, GPT-4.1, GPT-5 family, o3/o4 models
+        case .openai:
+            // OpenAI Responses API code_interpreter tool uses an exact documented model allowlist.
             return supportsOpenAICodeInterpreter(lowerModelID: lowerModelID)
+        case .openaiWebSocket:
+            // Realtime/WebSocket models expose function calling, not the Responses API code_interpreter tool.
+            return false
         case .anthropic:
-            // Anthropic code_execution tool: Claude models with code execution support
-            return isAnthropicModelID(lowerModelID)
+            // Anthropic code_execution tool uses an exact documented model allowlist.
+            return supportsAnthropicCodeExecution(lowerModelID: lowerModelID)
         case .xai:
             // xAI Responses API code_interpreter tool: Grok models
             return !isLikelyMediaGenerationModelID(lowerModelID)
@@ -506,12 +542,18 @@ enum ModelCapabilityRegistry {
     }
 
     private static func supportsOpenAICodeInterpreter(lowerModelID: String) -> Bool {
-        guard lowerModelID.hasPrefix("gpt-")
-            || lowerModelID.contains("/gpt-")
-            || hasPrefixOrScopedPrefix(lowerModelID, prefixes: ["o3", "o4"]) else {
-            return false
+        let canonical = canonicalOpenAIModelID(lowerModelID: lowerModelID)
+        return openAICodeInterpreterSupportedModelIDs.contains(canonical)
+    }
+
+    private static func supportsAnthropicCodeExecution(lowerModelID: String) -> Bool {
+        let canonical: String
+        if lowerModelID.hasPrefix("anthropic/") {
+            canonical = String(lowerModelID.dropFirst("anthropic/".count))
+        } else {
+            canonical = lowerModelID
         }
-        return !isLikelyMediaGenerationModelID(lowerModelID)
+        return anthropicCodeExecutionSupportedModelIDs.contains(canonical)
     }
 
     /// Models that support the `web_search_20260209` tool with dynamic filtering.

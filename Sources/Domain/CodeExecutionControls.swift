@@ -15,9 +15,9 @@ struct CodeExecutionControls: Codable {
 
 /// OpenAI code interpreter container configuration.
 struct CodeExecutionContainer: Codable {
-    /// Container type. Defaults to "auto".
+    /// Container type. When nil, the provider default is used.
     var type: String?
-    /// Memory limit (e.g., "1g", "4g"). Defaults to "1g".
+    /// Memory limit (e.g., "1g", "4g"). When nil, the provider default is used.
     var memoryLimit: String?
 
     init(type: String? = nil, memoryLimit: String? = nil) {
