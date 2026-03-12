@@ -38,7 +38,6 @@ struct EditSlashCommandContext {
 }
 
 struct ChatMessageInteractionContext {
-    let actionsEnabled: Bool
     let textToSpeechEnabled: Bool
     let textToSpeechConfigured: Bool
     let editingUserMessageID: UUID?
@@ -99,7 +98,6 @@ struct ChatMessageTimelineView: View {
                 providerIconID: providerIconID,
                 deferCodeHighlightUpgrade: index < eagerCodeHighlightStartIndex,
                 toolResultsByCallID: toolResultsByCallID,
-                actionsEnabled: interaction.actionsEnabled,
                 textToSpeechEnabled: interaction.textToSpeechEnabled,
                 textToSpeechConfigured: interaction.textToSpeechConfigured,
                 textToSpeechIsGenerating: interaction.textToSpeechIsGenerating(message.id),

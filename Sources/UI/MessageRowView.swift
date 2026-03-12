@@ -154,7 +154,6 @@ struct MessageRow: View {
     let providerIconID: String?
     let deferCodeHighlightUpgrade: Bool
     let toolResultsByCallID: [String: ToolResult]
-    let actionsEnabled: Bool
     let textToSpeechEnabled: Bool
     let textToSpeechConfigured: Bool
     let textToSpeechIsGenerating: Bool
@@ -350,12 +349,6 @@ struct MessageRow: View {
                 pendingDeleteAction = nil
             }
         }
-        .onChange(of: actionsEnabled) { _, enabled in
-            guard !enabled else { return }
-            isResponseMetricsPopoverPresented = false
-            showingDeleteConfirmation = false
-            pendingDeleteAction = nil
-        }
     }
 
     @ViewBuilder
@@ -408,7 +401,6 @@ struct MessageRow: View {
                 if showsCopyButton {
                     CopyToPasteboardButton(text: copyText, helpText: "Copy message", useProminentStyle: false)
                         .accessibilityLabel("Copy message")
-                        .disabled(!actionsEnabled)
                 }
 
                 if let responseMetrics {
@@ -418,7 +410,6 @@ struct MessageRow: View {
                     .popover(isPresented: $isResponseMetricsPopoverPresented, arrowEdge: .top) {
                         ResponseMetricsPopover(metrics: responseMetrics)
                     }
-                    .disabled(!actionsEnabled)
                 }
 
                 if textToSpeechEnabled {
@@ -438,30 +429,26 @@ struct MessageRow: View {
                     }
                     .buttonStyle(.plain)
                     .help(textToSpeechHelpText)
-                    .disabled(!actionsEnabled || copyText.isEmpty || !textToSpeechConfigured)
+                    .disabled(copyText.isEmpty || !textToSpeechConfigured)
 
                     if textToSpeechIsActive {
                         actionIconButton(systemName: "stop.circle", helpText: textToSpeechStopHelpText) {
                             onStopSpeakAssistantMessage(item.id)
                         }
-                        .disabled(!actionsEnabled)
                     }
                 }
 
                 actionIconButton(systemName: "arrow.clockwise", helpText: "Regenerate") {
                     onRegenerate(item.id)
                 }
-                .disabled(!actionsEnabled)
 
                 Menu {
                     Button(role: .destructive) {
-                        guard actionsEnabled else { return }
                         pendingDeleteAction = .message
                         showingDeleteConfirmation = true
                     } label: {
                         deleteActionMenuLabel("Delete message", systemImage: "trash")
                     }
-                    .disabled(!actionsEnabled)
                 } label: {
                     Image(systemName: "ellipsis")
                         .font(.system(size: JinControlMetrics.iconButtonGlyphSize, weight: .semibold))
@@ -471,7 +458,6 @@ struct MessageRow: View {
                 .menuStyle(.borderlessButton)
                 .menuIndicator(.hidden)
                 .frame(width: 20)
-                .disabled(!actionsEnabled)
                 .help("More actions")
 
                 Spacer(minLength: 0)
@@ -487,52 +473,43 @@ struct MessageRow: View {
                     actionIconButton(systemName: "xmark", helpText: "Cancel editing") {
                         onCancelUserEdit()
                     }
-                    .disabled(!actionsEnabled)
 
                     actionIconButton(systemName: "paperplane", helpText: "Resend") {
                         onSubmitUserEdit(item.id)
                     }
-                    .disabled(!actionsEnabled)
                 } else {
                     Spacer(minLength: 0)
 
                     if showsCopyButton {
                         CopyToPasteboardButton(text: copyText, helpText: "Copy message", useProminentStyle: false)
                             .accessibilityLabel("Copy message")
-                            .disabled(!actionsEnabled)
                     }
 
                     actionIconButton(systemName: "arrow.clockwise", helpText: "Regenerate") {
                         onRegenerate(item.id)
                     }
-                    .disabled(!actionsEnabled)
 
                     if canEditUserMessage {
                         actionIconButton(systemName: "pencil", helpText: "Edit") {
                             onEditUserMessage(item.id)
                         }
-                        .disabled(!actionsEnabled)
                     }
 
                     Menu {
                         Button(role: .destructive) {
-                            guard actionsEnabled else { return }
                             pendingDeleteAction = .message
                             showingDeleteConfirmation = true
                         } label: {
                             deleteActionMenuLabel("Delete message", systemImage: "trash")
                         }
-                        .disabled(!actionsEnabled)
 
                         if canDeleteResponse {
                             Button(role: .destructive) {
-                                guard actionsEnabled else { return }
                                 pendingDeleteAction = .response
                                 showingDeleteConfirmation = true
                             } label: {
                                 deleteActionMenuLabel("Delete response", systemImage: "text.badge.minus")
                             }
-                            .disabled(!actionsEnabled)
                         }
                     } label: {
                         Image(systemName: "ellipsis")
@@ -543,7 +520,6 @@ struct MessageRow: View {
                     .menuStyle(.borderlessButton)
                     .menuIndicator(.hidden)
                     .frame(width: 20)
-                    .disabled(!actionsEnabled)
                     .help("More actions")
                 }
             }
