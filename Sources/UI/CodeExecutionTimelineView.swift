@@ -28,12 +28,7 @@ struct CodeExecutionTimelineView: View {
                 VStack(spacing: 0) {
                     if isExpanded {
                         expandedContent
-                            .transition(
-                                .asymmetric(
-                                    insertion: .opacity.combined(with: .move(edge: .top)),
-                                    removal: .opacity
-                                )
-                            )
+                            .transition(.move(edge: .top).combined(with: .opacity))
                     }
                 }
                 .clipped()
@@ -41,20 +36,20 @@ struct CodeExecutionTimelineView: View {
             .padding(JinSpacing.small)
             .jinSurface(.subtleStrong, cornerRadius: JinRadius.medium)
             .clipped()
-            .animation(.spring(duration: 0.3, bounce: 0.05), value: isExpanded)
-            .animation(.easeInOut(duration: 0.25), value: animationSignature)
+            .animation(.spring(duration: 0.25, bounce: 0), value: isExpanded)
+            .animation(.easeInOut(duration: 0.2), value: animationSignature)
             .onChange(of: isStreaming) { _, streaming in
                 if streaming {
                     let mode = Self.resolveDisplayMode()
                     if mode.startsExpandedDuringStreaming {
-                        withAnimation(.spring(duration: 0.3, bounce: 0.05)) {
+                        withAnimation(.spring(duration: 0.25, bounce: 0)) {
                             isExpanded = true
                         }
                     }
                 } else {
                     let mode = Self.resolveDisplayMode()
                     if mode == .collapseOnComplete {
-                        withAnimation(.spring(duration: 0.3, bounce: 0.05)) {
+                        withAnimation(.spring(duration: 0.25, bounce: 0)) {
                             isExpanded = false
                         }
                     }
@@ -72,15 +67,14 @@ struct CodeExecutionTimelineView: View {
 
     private var headerRow: some View {
         Button {
-            withAnimation(.spring(duration: 0.3, bounce: 0.05)) {
+            withAnimation(.spring(duration: 0.25, bounce: 0)) {
                 isExpanded.toggle()
             }
         } label: {
             HStack(spacing: JinSpacing.small) {
                 Image(systemName: "chevron.left.forwardslash.chevron.right")
-                    .font(.system(size: 12, weight: .medium))
+                    .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(.secondary)
-                    .frame(width: 18, height: 18)
 
                 Text(headerTitle)
                     .font(.subheadline.weight(.medium))
@@ -90,21 +84,27 @@ struct CodeExecutionTimelineView: View {
                 Spacer(minLength: 0)
 
                 if isStreaming, hasActiveExecution {
-                    CodeExecActivityIndicator()
+                    ProgressView()
+                        .scaleEffect(0.5)
                 }
 
-                if let badge = statusBadge {
-                    CodeExecCompactStatusBadge(style: badge)
+                if let compactStatus = compactStatusStyle {
+                    HStack(spacing: 4) {
+                        Image(systemName: compactStatus.icon)
+                            .font(.system(size: 10, weight: .semibold))
+                        Text(compactStatus.text)
+                            .font(.caption2.weight(.semibold))
+                    }
+                    .foregroundStyle(compactStatus.color)
+                    .lineLimit(1)
                 }
 
-                Image(systemName: "chevron.right")
+                Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
                     .font(.caption2.weight(.semibold))
                     .foregroundStyle(.tertiary)
-                    .rotationEffect(.degrees(isExpanded ? 90 : 0))
-                    .animation(.spring(duration: 0.25, bounce: 0.15), value: isExpanded)
             }
             .padding(.horizontal, JinSpacing.small)
-            .padding(.vertical, 7)
+            .padding(.vertical, 6)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -126,7 +126,7 @@ struct CodeExecutionTimelineView: View {
         }
         .padding(.horizontal, JinSpacing.small)
         .padding(.top, JinSpacing.xSmall)
-        .padding(.bottom, JinSpacing.small)
+        .padding(.bottom, JinSpacing.xSmall)
     }
 
     // MARK: - Computed
@@ -149,31 +149,27 @@ struct CodeExecutionTimelineView: View {
         return "\(activities.count) Code Executions"
     }
 
-    private var statusBadge: CodeExecCompactStatusStyle? {
+    private var compactStatusStyle: (text: String, icon: String, color: Color)? {
         if hasActiveExecution {
-            let activeActivity = activities.first {
-                $0.status == .interpreting || $0.status == .writingCode || $0.status == .inProgress
-            }
-            let statusText: String
-            switch activeActivity?.status {
-            case .writingCode:
-                statusText = "Writing code..."
-            case .interpreting:
-                statusText = "Running..."
-            default:
-                statusText = "In progress..."
-            }
-            return CodeExecCompactStatusStyle(text: statusText, icon: "play.circle.fill", color: .accentColor)
+            return nil
         }
 
         let failedCount = activities.filter { $0.status == .failed }.count
         let completedCount = activities.filter { $0.status == .completed }.count
 
         if failedCount > 0 {
-            return CodeExecCompactStatusStyle(text: "Failed", icon: "xmark.circle.fill", color: Color(nsColor: .systemOrange))
+            return (
+                text: "Failed",
+                icon: "xmark.circle",
+                color: Color(nsColor: .systemOrange).opacity(0.95)
+            )
         }
         if completedCount > 0 {
-            return CodeExecCompactStatusStyle(text: "Done", icon: "checkmark.circle.fill", color: .secondary)
+            return (
+                text: "Done",
+                icon: "checkmark.circle",
+                color: Color(nsColor: .systemGreen).opacity(0.88)
+            )
         }
         return nil
     }
@@ -185,62 +181,6 @@ struct CodeExecutionTimelineView: View {
     }
 }
 
-// MARK: - Compact Status Style
-
-private struct CodeExecCompactStatusStyle {
-    let text: String
-    let icon: String
-    let color: Color
-}
-
-// MARK: - Compact Status Badge
-
-private struct CodeExecCompactStatusBadge: View {
-    let style: CodeExecCompactStatusStyle
-
-    var body: some View {
-        HStack(spacing: 4) {
-            Image(systemName: style.icon)
-                .font(.system(size: 10, weight: .semibold))
-            Text(style.text)
-                .font(.caption2.weight(.semibold))
-        }
-        .foregroundStyle(style.color.opacity(0.9))
-        .padding(.horizontal, 6)
-        .padding(.vertical, 3)
-        .background(
-            Capsule(style: .continuous)
-                .fill(style.color.opacity(0.1))
-        )
-        .lineLimit(1)
-    }
-}
-
-// MARK: - Activity Indicator (3-dot wave)
-
-private struct CodeExecActivityIndicator: View {
-    @State private var isAnimating = false
-
-    var body: some View {
-        HStack(spacing: 2.5) {
-            ForEach(0..<3, id: \.self) { index in
-                Circle()
-                    .fill(Color.secondary.opacity(0.6))
-                    .frame(width: 3.5, height: 3.5)
-                    .offset(y: isAnimating ? -2.5 : 2.5)
-                    .animation(
-                        .easeInOut(duration: 0.45)
-                            .repeatForever(autoreverses: true)
-                            .delay(Double(index) * 0.12),
-                        value: isAnimating
-                    )
-            }
-        }
-        .frame(height: 10)
-        .onAppear { isAnimating = true }
-    }
-}
-
 // MARK: - Code Execution Entry
 
 private struct CodeExecutionEntryView: View {
@@ -249,16 +189,7 @@ private struct CodeExecutionEntryView: View {
     let showsConnectorAbove: Bool
     let showsConnectorBelow: Bool
 
-    @State private var hasAppeared = false
     @State private var isRunningPulse = false
-
-    private struct StatusVisualStyle {
-        let accent: Color
-        let text: Color
-        let nodeBackground: Color
-        let nodeBorder: Color
-        let glowColor: Color
-    }
 
     private var executionStatus: CodeExecVisualStatus {
         switch activity.status {
@@ -282,16 +213,12 @@ private struct CodeExecutionEntryView: View {
                 entryBody
             }
             .padding(.horizontal, JinSpacing.medium)
-            .padding(.vertical, JinSpacing.small + 2)
+            .padding(.vertical, JinSpacing.small)
             .jinSurface(.neutral, cornerRadius: JinRadius.small)
         }
-        .opacity(hasAppeared ? 1 : 0)
-        .offset(y: hasAppeared ? 0 : 6)
+        .animation(.spring(duration: 0.25, bounce: 0), value: executionStatus)
         .onAppear {
             updatePulseAnimation(for: executionStatus)
-            withAnimation(.spring(duration: 0.4, bounce: 0.08).delay(Double(entryIndex) * 0.06)) {
-                hasAppeared = true
-            }
         }
         .onChange(of: executionStatus) { _, newValue in
             updatePulseAnimation(for: newValue)
@@ -302,53 +229,31 @@ private struct CodeExecutionEntryView: View {
 
     @ViewBuilder
     private var timelineRail: some View {
-        VStack(spacing: 0) {
-            connectorSegment(visible: showsConnectorAbove)
-            statusNode
-            connectorSegment(visible: showsConnectorBelow)
-        }
-        .frame(width: 20)
-        .padding(.top, JinSpacing.small)
-    }
+        VStack(spacing: 2) {
+            Rectangle()
+                .fill(JinSemanticColor.separator.opacity(0.7))
+                .frame(width: JinStrokeWidth.regular, height: 12)
+                .opacity(showsConnectorAbove ? 1 : 0)
 
-    @ViewBuilder
-    private func connectorSegment(visible: Bool) -> some View {
-        RoundedRectangle(cornerRadius: 0.5, style: .continuous)
-            .fill(
-                LinearGradient(
-                    colors: [
-                        JinSemanticColor.separator.opacity(0.35),
-                        JinSemanticColor.separator.opacity(0.6)
-                    ],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-            )
-            .frame(width: 1.5, height: 14)
-            .opacity(visible ? 1 : 0)
+            statusNode
+
+            Rectangle()
+                .fill(JinSemanticColor.separator.opacity(0.7))
+                .frame(width: JinStrokeWidth.regular, height: 12)
+                .opacity(showsConnectorBelow ? 1 : 0)
+        }
+        .frame(width: 16)
+        .padding(.top, JinSpacing.xSmall)
     }
 
     @ViewBuilder
     private var statusNode: some View {
         let style = visualStyle
-        let nodeSize: CGFloat = 18
 
         ZStack {
-            if executionStatus == .running {
-                Circle()
-                    .fill(style.glowColor)
-                    .frame(width: nodeSize + 8, height: nodeSize + 8)
-                    .blur(radius: 4)
-                    .opacity(isRunningPulse ? 0.5 : 0.15)
-                    .animation(
-                        .easeInOut(duration: 1.2).repeatForever(autoreverses: true),
-                        value: isRunningPulse
-                    )
-            }
-
             Circle()
                 .fill(style.nodeBackground)
-                .frame(width: nodeSize, height: nodeSize)
+                .frame(width: 16, height: 16)
                 .overlay(
                     Circle()
                         .stroke(style.nodeBorder, lineWidth: 0.75)
@@ -358,20 +263,20 @@ private struct CodeExecutionEntryView: View {
             case .running:
                 Circle()
                     .fill(style.accent)
-                    .frame(width: 7, height: 7)
-                    .scaleEffect(isRunningPulse ? 1.35 : 0.88)
-                    .opacity(isRunningPulse ? 0.4 : 1)
+                    .frame(width: 6, height: 6)
+                    .scaleEffect(isRunningPulse ? 1.4 : 0.85)
+                    .opacity(isRunningPulse ? 0.35 : 1)
                     .animation(
-                        .easeInOut(duration: 0.9).repeatForever(autoreverses: true),
+                        .easeInOut(duration: 0.85).repeatForever(autoreverses: true),
                         value: isRunningPulse
                     )
             case .success:
                 Image(systemName: "checkmark")
-                    .font(.system(size: 9, weight: .semibold))
+                    .font(.system(size: 8.5, weight: .semibold))
                     .foregroundStyle(style.accent)
             case .error:
                 Image(systemName: "xmark")
-                    .font(.system(size: 9, weight: .semibold))
+                    .font(.system(size: 8.5, weight: .semibold))
                     .foregroundStyle(style.accent)
             }
         }
@@ -416,7 +321,7 @@ private struct CodeExecutionEntryView: View {
                     .fill(style.accent)
                     .frame(width: 4.5, height: 4.5)
             } else {
-                Image(systemName: executionStatus == .success ? "checkmark.circle.fill" : "xmark.circle.fill")
+                Image(systemName: executionStatus == .success ? "checkmark.circle" : "xmark.circle")
                     .font(.system(size: 10, weight: .semibold))
                     .foregroundStyle(style.accent)
             }
@@ -425,12 +330,6 @@ private struct CodeExecutionEntryView: View {
         }
         .font(.caption2.weight(.semibold))
         .foregroundStyle(style.text)
-        .padding(.horizontal, 7)
-        .padding(.vertical, 3)
-        .background(
-            Capsule(style: .continuous)
-                .fill(style.accent.opacity(0.1))
-        )
         .lineLimit(1)
     }
 
@@ -518,27 +417,24 @@ private struct CodeExecutionEntryView: View {
         switch executionStatus {
         case .running:
             return CodeExecVisualStyle(
-                accent: Color.accentColor.opacity(0.88),
+                accent: .secondary,
                 text: .secondary,
-                nodeBackground: Color.accentColor.opacity(0.14),
-                nodeBorder: Color.accentColor.opacity(0.32),
-                glowColor: Color.accentColor.opacity(0.22)
+                nodeBackground: Color.primary.opacity(0.08),
+                nodeBorder: JinSemanticColor.separator.opacity(0.72)
             )
         case .success:
             return CodeExecVisualStyle(
-                accent: Color(nsColor: .systemGreen).opacity(0.9),
-                text: Color(nsColor: .systemGreen).opacity(0.9),
-                nodeBackground: Color(nsColor: .systemGreen).opacity(0.13),
-                nodeBorder: Color(nsColor: .systemGreen).opacity(0.3),
-                glowColor: Color(nsColor: .systemGreen).opacity(0.18)
+                accent: Color(nsColor: .systemGreen).opacity(0.88),
+                text: Color(nsColor: .systemGreen).opacity(0.88),
+                nodeBackground: Color(nsColor: .systemGreen).opacity(0.11),
+                nodeBorder: Color(nsColor: .systemGreen).opacity(0.26)
             )
         case .error:
             return CodeExecVisualStyle(
                 accent: Color(nsColor: .systemOrange).opacity(0.95),
                 text: Color(nsColor: .systemOrange).opacity(0.95),
-                nodeBackground: Color(nsColor: .systemOrange).opacity(0.15),
-                nodeBorder: Color(nsColor: .systemOrange).opacity(0.34),
-                glowColor: Color(nsColor: .systemOrange).opacity(0.2)
+                nodeBackground: Color(nsColor: .systemOrange).opacity(0.14),
+                nodeBorder: Color(nsColor: .systemOrange).opacity(0.36)
             )
         }
     }
@@ -583,7 +479,6 @@ private struct CodeExecVisualStyle {
     let text: Color
     let nodeBackground: Color
     let nodeBorder: Color
-    let glowColor: Color
 }
 
 // MARK: - Content Blocks
@@ -646,7 +541,7 @@ private struct CodeExecContentBlockView: View {
 
                 if showsExpandControl {
                     Button(isExpanded ? "Show Less" : "Show More") {
-                        withAnimation(.spring(duration: 0.25, bounce: 0.08)) {
+                        withAnimation(.spring(duration: 0.25, bounce: 0)) {
                             isExpanded.toggle()
                         }
                     }
@@ -655,14 +550,19 @@ private struct CodeExecContentBlockView: View {
                     .foregroundStyle(.secondary)
                 }
 
-                CodeExecCopyButton(text: text)
+                CopyToPasteboardButton(
+                    text: text,
+                    helpText: "Copy \(title.lowercased())",
+                    copiedHelpText: "\(title) copied",
+                    useProminentStyle: false
+                )
             }
             .padding(.horizontal, JinSpacing.medium - 2)
             .padding(.vertical, JinSpacing.xSmall)
             .background(style.headerBackground)
             .overlay(alignment: .bottom) {
                 Rectangle()
-                    .fill(style.borderColor.opacity(0.75))
+                    .fill(JinSemanticColor.separator.opacity(0.55))
                     .frame(height: JinStrokeWidth.hairline)
             }
 
@@ -737,7 +637,7 @@ private struct CodeExecContentBlockView: View {
         return (1...lineCount).map(String.init).joined(separator: "\n")
     }
 
-    private static let contentFont = Font.system(size: 12.5, weight: .regular, design: .monospaced)
+    private static let contentFont = Font.system(.caption, design: .monospaced)
 }
 
 private struct CodeExecContentBlockStyle {
@@ -754,13 +654,13 @@ private struct CodeExecContentBlockStyle {
 
     static let code = CodeExecContentBlockStyle(
         iconName: "chevron.left.forwardslash.chevron.right",
-        iconColor: Color.accentColor.opacity(0.9),
+        iconColor: .secondary.opacity(0.75),
         titleColor: .secondary,
-        badgeColor: Color.accentColor.opacity(0.9),
+        badgeColor: .secondary,
         textColor: .primary.opacity(0.88),
-        headerBackground: Color.accentColor.opacity(0.08),
+        headerBackground: JinSemanticColor.subtleSurfaceStrong,
         bodyBackground: JinSemanticColor.raisedSurface,
-        borderColor: Color.accentColor.opacity(0.18),
+        borderColor: JinSemanticColor.separator.opacity(0.75),
         showsLineNumbers: true,
         usesSyntaxHighlighting: true
     )
@@ -813,21 +713,6 @@ private enum CodeExecCodeLanguage: Equatable {
             return "Swift"
         case .generic:
             return "Code"
-        }
-    }
-
-    var badgeColor: Color {
-        switch self {
-        case .python:
-            return Color.accentColor.opacity(0.9)
-        case .javascript:
-            return Color(nsColor: .systemYellow).opacity(0.95)
-        case .shell:
-            return Color(nsColor: .systemGreen).opacity(0.9)
-        case .swift:
-            return Color(nsColor: .systemOrange).opacity(0.95)
-        case .generic:
-            return .secondary
         }
     }
 
@@ -933,48 +818,3 @@ private enum CodeExecSyntaxHighlighter {
     }
 }
 
-// MARK: - Copy Button with Animation
-
-private struct CodeExecCopyButton: View {
-    let text: String
-
-    @State private var didCopy = false
-    @State private var resetTask: Task<Void, Never>?
-
-    var body: some View {
-        Button {
-            copyToPasteboard()
-        } label: {
-            Image(systemName: didCopy ? "checkmark" : "doc.on.doc")
-                .font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(didCopy ? Color.accentColor : .secondary)
-                .frame(width: 20, height: 20)
-                .contentTransition(.symbolEffect(.replace))
-        }
-        .buttonStyle(JinIconButtonStyle())
-        .disabled(text.rangeOfCharacter(from: CharacterSet.whitespacesAndNewlines.inverted) == nil)
-    }
-
-    @MainActor
-    private func copyToPasteboard() {
-        let pasteboard = NSPasteboard.general
-        pasteboard.clearContents()
-        pasteboard.setString(text, forType: .string)
-
-        withAnimation(.easeInOut(duration: 0.15)) {
-            didCopy = true
-        }
-
-        resetTask?.cancel()
-        resetTask = Task { @MainActor in
-            do {
-                try await Task.sleep(nanoseconds: 1_500_000_000)
-            } catch {
-                return
-            }
-            withAnimation(.easeInOut(duration: 0.15)) {
-                didCopy = false
-            }
-        }
-    }
-}
