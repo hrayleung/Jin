@@ -15,37 +15,73 @@ final class PDFProcessingModeTests: XCTestCase {
             baseURL: "https://example.com"
         )
 
+        var uploadCount = 0
+
         protocolType.requestHandler = { request in
-            XCTAssertEqual(request.url?.absoluteString, "https://example.com/responses")
-            XCTAssertEqual(request.httpMethod, "POST")
-            XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer test-key")
+            switch request.url?.path {
+            case "/files":
+                uploadCount += 1
+                XCTAssertEqual(request.httpMethod, "POST")
+                XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer test-key")
 
-            let body = try XCTUnwrap(requestBodyData(request))
-            let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
-            let root = try XCTUnwrap(json)
+                let body = try XCTUnwrap(requestBodyData(request))
+                let bodyString = try XCTUnwrap(String(bytes: body, encoding: .utf8))
+                XCTAssertTrue(bodyString.contains("name=\"purpose\""))
+                XCTAssertTrue(bodyString.contains("user_data"))
+                XCTAssertTrue(bodyString.contains("name=\"file\""))
+                XCTAssertTrue(bodyString.contains("filename=\"a.pdf\""))
 
-            let input = try XCTUnwrap(root["input"] as? [[String: Any]])
-            let first = try XCTUnwrap(input.first)
-            let content = try XCTUnwrap(first["content"] as? [[String: Any]])
+                let response: [String: Any] = [
+                    "id": "file_pdf_123",
+                    "filename": "a.pdf"
+                ]
+                let data = try JSONSerialization.data(withJSONObject: response)
+                return (
+                    HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                    data
+                )
 
-            XCTAssertTrue(content.contains { ($0["type"] as? String) == "input_file" })
+            case "/responses":
+                XCTAssertEqual(request.httpMethod, "POST")
+                XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer test-key")
 
-            let response: [String: Any] = [
-                "id": "resp_1",
-                "output": [
-                    [
-                        "type": "message",
-                        "content": [
-                            ["type": "output_text", "text": "OK"]
+                let body = try XCTUnwrap(requestBodyData(request))
+                let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+                let root = try XCTUnwrap(json)
+
+                let input = try XCTUnwrap(root["input"] as? [[String: Any]])
+                let first = try XCTUnwrap(input.first)
+                let content = try XCTUnwrap(first["content"] as? [[String: Any]])
+                let inputFile = try XCTUnwrap(content.first { ($0["type"] as? String) == "input_file" })
+                XCTAssertEqual(inputFile["file_id"] as? String, "file_pdf_123")
+                XCTAssertNil(inputFile["file_data"])
+                XCTAssertFalse(content.contains { ($0["type"] as? String) == "input_text" })
+
+                let response: [String: Any] = [
+                    "id": "resp_1",
+                    "output": [
+                        [
+                            "type": "message",
+                            "content": [
+                                ["type": "output_text", "text": "OK"]
+                            ]
                         ]
                     ]
                 ]
-            ]
-            let data = try JSONSerialization.data(withJSONObject: response)
-            return (
-                HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
-                data
-            )
+                let data = try JSONSerialization.data(withJSONObject: response)
+                return (
+                    HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                    data
+                )
+
+            default:
+                XCTFail("Unexpected request: \(request.url?.absoluteString ?? "<nil>")")
+                let data = try JSONSerialization.data(withJSONObject: [:])
+                return (
+                    HTTPURLResponse(url: request.url ?? URL(string: "https://example.com")!, statusCode: 500, httpVersion: nil, headerFields: nil)!,
+                    data
+                )
+            }
         }
 
         let adapter = OpenAIAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
@@ -69,6 +105,7 @@ final class PDFProcessingModeTests: XCTestCase {
         )
 
         for try await _ in stream {}
+        XCTAssertEqual(uploadCount, 1)
     }
 
     func testOpenAIAdapterDoesNotSendNativePDFForNonExactModelID() async throws {
@@ -230,39 +267,71 @@ final class PDFProcessingModeTests: XCTestCase {
             baseURL: "https://example.com"
         )
 
+        var uploadCount = 0
+
         protocolType.requestHandler = { request in
-            XCTAssertEqual(request.url?.absoluteString, "https://example.com/responses")
+            switch request.url?.path {
+            case "/files":
+                uploadCount += 1
+                XCTAssertEqual(request.httpMethod, "POST")
+                XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer test-key")
 
-            let body = try XCTUnwrap(requestBodyData(request))
-            let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
-            let root = try XCTUnwrap(json)
+                let body = try XCTUnwrap(requestBodyData(request))
+                let bodyString = try XCTUnwrap(String(bytes: body, encoding: .utf8))
+                XCTAssertTrue(bodyString.contains("name=\"purpose\""))
+                XCTAssertTrue(bodyString.contains("user_data"))
+                XCTAssertTrue(bodyString.contains("name=\"file\""))
+                XCTAssertTrue(bodyString.contains("filename=\"a.docx\""))
 
-            let input = try XCTUnwrap(root["input"] as? [[String: Any]])
-            let first = try XCTUnwrap(input.first)
-            let content = try XCTUnwrap(first["content"] as? [[String: Any]])
+                let response: [String: Any] = [
+                    "id": "file_docx_123",
+                    "filename": "a.docx"
+                ]
+                let data = try JSONSerialization.data(withJSONObject: response)
+                return (
+                    HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                    data
+                )
 
-            let inputFile = try XCTUnwrap(content.first { ($0["type"] as? String) == "input_file" })
-            XCTAssertEqual(inputFile["filename"] as? String, "a.docx")
-            let fileData = try XCTUnwrap(inputFile["file_data"] as? String)
-            XCTAssertTrue(fileData.hasPrefix("data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64,"))
-            XCTAssertFalse(content.contains { ($0["type"] as? String) == "input_text" })
+            case "/responses":
+                let body = try XCTUnwrap(requestBodyData(request))
+                let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+                let root = try XCTUnwrap(json)
 
-            let response: [String: Any] = [
-                "id": "resp_1",
-                "output": [
-                    [
-                        "type": "message",
-                        "content": [
-                            ["type": "output_text", "text": "OK"]
+                let input = try XCTUnwrap(root["input"] as? [[String: Any]])
+                let first = try XCTUnwrap(input.first)
+                let content = try XCTUnwrap(first["content"] as? [[String: Any]])
+
+                let inputFile = try XCTUnwrap(content.first { ($0["type"] as? String) == "input_file" })
+                XCTAssertEqual(inputFile["file_id"] as? String, "file_docx_123")
+                XCTAssertNil(inputFile["file_data"])
+                XCTAssertFalse(content.contains { ($0["type"] as? String) == "input_text" })
+
+                let response: [String: Any] = [
+                    "id": "resp_1",
+                    "output": [
+                        [
+                            "type": "message",
+                            "content": [
+                                ["type": "output_text", "text": "OK"]
+                            ]
                         ]
                     ]
                 ]
-            ]
-            let data = try JSONSerialization.data(withJSONObject: response)
-            return (
-                HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
-                data
-            )
+                let data = try JSONSerialization.data(withJSONObject: response)
+                return (
+                    HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                    data
+                )
+
+            default:
+                XCTFail("Unexpected request: \(request.url?.absoluteString ?? "<nil>")")
+                let data = try JSONSerialization.data(withJSONObject: [:])
+                return (
+                    HTTPURLResponse(url: request.url ?? URL(string: "https://example.com")!, statusCode: 500, httpVersion: nil, headerFields: nil)!,
+                    data
+                )
+            }
         }
 
         let adapter = OpenAIAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
@@ -286,6 +355,7 @@ final class PDFProcessingModeTests: XCTestCase {
         )
 
         for try await _ in stream {}
+        XCTAssertEqual(uploadCount, 1)
     }
 
     func testOpenAIAdapterFallsBackToTextForVideoInput() async throws {

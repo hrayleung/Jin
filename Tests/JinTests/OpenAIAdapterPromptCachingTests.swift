@@ -239,6 +239,102 @@ final class OpenAIAdapterPromptCachingTests: XCTestCase {
         for try await _ in stream {}
     }
 
+    func testOpenAIAdapterUploadsLocalFileViaFilesAPIAndUsesFileID() async throws {
+        let (configuration, protocolType) = makeOpenAIMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        let providerConfig = ProviderConfig(
+            id: "openai",
+            name: "OpenAI",
+            type: .openai,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        var uploadCount = 0
+
+        protocolType.requestHandler = { request in
+            switch request.url?.path {
+            case "/files":
+                uploadCount += 1
+                XCTAssertEqual(request.httpMethod, "POST")
+                XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer test-key")
+
+                let body = try XCTUnwrap(openAIRequestBodyData(request))
+                let bodyString = String(decoding: body, as: UTF8.self)
+                XCTAssertTrue(bodyString.contains("name=\"purpose\""))
+                XCTAssertTrue(bodyString.contains("user_data"))
+                XCTAssertTrue(bodyString.contains("name=\"file\""))
+                XCTAssertTrue(bodyString.contains("filename=\"notes.md\""))
+
+                let response: [String: Any] = [
+                    "id": "file_openai_123",
+                    "filename": "notes.md"
+                ]
+                let data = try JSONSerialization.data(withJSONObject: response)
+                return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+
+            case "/responses":
+                let body = try XCTUnwrap(openAIRequestBodyData(request))
+                let root = try XCTUnwrap(try JSONSerialization.jsonObject(with: body) as? [String: Any])
+                let input = try XCTUnwrap(root["input"] as? [[String: Any]])
+                let userItem = try XCTUnwrap(input.first(where: { ($0["role"] as? String) == "user" }))
+                let content = try XCTUnwrap(userItem["content"] as? [[String: Any]])
+                let filePart = try XCTUnwrap(content.first(where: { ($0["type"] as? String) == "input_file" }))
+                XCTAssertEqual(filePart["file_id"] as? String, "file_openai_123")
+                XCTAssertNil(filePart["file_data"])
+
+                let response: [String: Any] = [
+                    "id": "resp_file",
+                    "output": [
+                        [
+                            "type": "message",
+                            "content": [
+                                ["type": "output_text", "text": "ok"]
+                            ]
+                        ]
+                    ],
+                    "usage": [
+                        "input_tokens": 3,
+                        "output_tokens": 1
+                    ]
+                ]
+                let data = try JSONSerialization.data(withJSONObject: response)
+                return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+
+            default:
+                XCTFail("Unexpected request: \(request.url?.absoluteString ?? "<nil>")")
+                let data = try JSONSerialization.data(withJSONObject: [:])
+                return (HTTPURLResponse(url: request.url ?? URL(string: "https://example.com")!, statusCode: 500, httpVersion: nil, headerFields: nil)!, data)
+            }
+        }
+
+        let adapter = OpenAIAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [
+                Message(
+                    role: .user,
+                    content: [
+                        .file(FileContent(
+                            mimeType: "text/markdown",
+                            filename: "notes.md",
+                            data: Data("# Notes".utf8),
+                            url: nil,
+                            extractedText: "# Notes"
+                        ))
+                    ]
+                )
+            ],
+            modelID: "gpt-5.2",
+            controls: GenerationControls(),
+            tools: [],
+            streaming: false
+        )
+
+        for try await _ in stream {}
+        XCTAssertEqual(uploadCount, 1)
+    }
+
     func testOpenAIAdapterSupportsLegacyProviderSpecificServiceTier() async throws {
         let (configuration, protocolType) = makeOpenAIMockedSessionConfiguration()
         let networkManager = NetworkManager(configuration: configuration)

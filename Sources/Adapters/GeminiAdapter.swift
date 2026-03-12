@@ -130,7 +130,7 @@ actor GeminiAdapter: LLMProviderAdapter {
             )
         }
 
-        let request = try buildRequest(
+        let request = try await buildRequest(
             messages: messages,
             modelID: modelID,
             controls: controls,
@@ -343,7 +343,7 @@ actor GeminiAdapter: LLMProviderAdapter {
         controls: GenerationControls,
         tools: [ToolDefinition],
         streaming: Bool
-    ) throws -> URLRequest {
+    ) async throws -> URLRequest {
         let modelPath = modelIDForPath(modelID)
         let method = streaming ? "streamGenerateContent?alt=sse" : "generateContent"
         let endpoint = "\(baseURL)/models/\(modelPath):\(method)"
@@ -352,7 +352,7 @@ actor GeminiAdapter: LLMProviderAdapter {
         let nativePDFEnabled = allowNativePDF && supportsNativePDF(modelID)
 
         var body: [String: Any] = [
-            "contents": try translateContents(messages, supportsNativePDF: nativePDFEnabled),
+            "contents": try await translateContents(messages, supportsNativePDF: nativePDFEnabled),
             "generationConfig": buildGenerationConfig(controls, modelID: modelID)
         ]
 

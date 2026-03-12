@@ -20,7 +20,7 @@ actor AnthropicAdapter: LLMProviderAdapter {
         tools: [ToolDefinition],
         streaming: Bool
     ) async throws -> AsyncThrowingStream<StreamEvent, Error> {
-        let request = try buildRequest(
+        let request = try await buildRequest(
             messages: messages,
             modelID: modelID,
             controls: controls,
@@ -355,7 +355,7 @@ actor AnthropicAdapter: LLMProviderAdapter {
         controls: GenerationControls,
         tools: [ToolDefinition],
         streaming: Bool
-    ) throws -> URLRequest {
+    ) async throws -> URLRequest {
         let normalizedMessages = AnthropicToolUseNormalizer.normalize(messages)
         let allowNativePDF = (controls.pdfProcessingMode ?? .native) == .native
         let supportsNativePDF = allowNativePDF && self.supportsNativePDF(modelID)
@@ -375,7 +375,7 @@ actor AnthropicAdapter: LLMProviderAdapter {
         var translatedMessages: [[String: Any]] = []
         translatedMessages.reserveCapacity(nonSystemMessages.count)
         for message in nonSystemMessages {
-            let translated = try translateMessage(
+            let translated = try await translateMessage(
                 message,
                 supportsNativePDF: supportsNativePDF,
                 cacheControl: blockCacheControl,
@@ -560,7 +560,7 @@ actor AnthropicAdapter: LLMProviderAdapter {
         supportsNativePDF: Bool,
         cacheControl: [String: Any]?,
         cacheStrategy: ContextCacheStrategy
-    ) throws -> [String: Any] {
+    ) async throws -> [String: Any] {
         var content: [[String: Any]] = []
 
         func maybeApplyCache(to block: inout [String: Any]) {
@@ -578,7 +578,7 @@ actor AnthropicAdapter: LLMProviderAdapter {
 
         appendToolResultBlocks(from: message, to: &content, applyCache: maybeApplyCache)
         appendThinkingBlocks(from: message, to: &content)
-        try appendUserFacingBlocks(from: message, supportsNativePDF: supportsNativePDF, to: &content, applyCache: maybeApplyCache)
+        try await appendUserFacingBlocks(from: message, supportsNativePDF: supportsNativePDF, to: &content, applyCache: maybeApplyCache)
         appendToolUseBlocks(from: message, to: &content)
 
         return [
@@ -648,7 +648,7 @@ actor AnthropicAdapter: LLMProviderAdapter {
         supportsNativePDF: Bool,
         to content: inout [[String: Any]],
         applyCache: (inout [String: Any]) -> Void
-    ) throws {
+    ) async throws {
         guard message.role != .tool else { return }
         for part in message.content {
             switch part {
@@ -661,7 +661,7 @@ actor AnthropicAdapter: LLMProviderAdapter {
                     content.append(imageBlock)
                 }
             case .file(let file):
-                try translateFileBlock(file, supportsNativePDF: supportsNativePDF, to: &content, applyCache: applyCache)
+                try await translateFileBlock(file, supportsNativePDF: supportsNativePDF, to: &content, applyCache: applyCache)
             case .video(let video):
                 var block: [String: Any] = [
                     "type": "text",
@@ -700,8 +700,26 @@ actor AnthropicAdapter: LLMProviderAdapter {
         supportsNativePDF: Bool,
         to content: inout [[String: Any]],
         applyCache: (inout [String: Any]) -> Void
-    ) throws {
-        if supportsNativePDF && file.mimeType == "application/pdf" {
+    ) async throws {
+        let normalizedFileMIMEType = normalizedMIMEType(file.mimeType)
+        let shouldUseHostedDocument =
+            anthropicHostedDocumentMIMETypes.contains(normalizedFileMIMEType) &&
+            (normalizedFileMIMEType != "application/pdf" || supportsNativePDF)
+
+        if shouldUseHostedDocument, let hostedFile = try await uploadHostedAnthropicFile(file) {
+            var block: [String: Any] = [
+                "type": "document",
+                "source": [
+                    "type": "file",
+                    "file_id": hostedFile.id
+                ]
+            ]
+            applyCache(&block)
+            content.append(block)
+            return
+        }
+
+        if supportsNativePDF && normalizedFileMIMEType == "application/pdf" {
             let pdfData: Data?
             if let data = file.data {
                 pdfData = data
@@ -730,6 +748,23 @@ actor AnthropicAdapter: LLMProviderAdapter {
         var block: [String: Any] = ["type": "text", "text": text]
         applyCache(&block)
         content.append(block)
+    }
+
+    private func uploadHostedAnthropicFile(_ file: FileContent) async throws -> HostedProviderFileReference? {
+        do {
+            return try await ProviderHostedFileStore.shared.uploadAnthropicFile(
+                file: file,
+                baseURL: baseURL,
+                apiKey: apiKey,
+                anthropicVersion: anthropicVersion,
+                networkManager: networkManager
+            )
+        } catch {
+            if shouldFallbackFromHostedFileUpload(error) {
+                return nil
+            }
+            throw error
+        }
     }
 
     private func appendToolUseBlocks(from message: Message, to content: inout [[String: Any]]) {

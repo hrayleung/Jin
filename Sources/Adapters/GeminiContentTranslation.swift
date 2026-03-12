@@ -4,7 +4,7 @@ extension GeminiAdapter {
 
     // MARK: - Content Translation
 
-    func translateContents(_ messages: [Message], supportsNativePDF: Bool) throws -> [[String: Any]] {
+    func translateContents(_ messages: [Message], supportsNativePDF: Bool) async throws -> [[String: Any]] {
         var out: [[String: Any]] = []
         out.reserveCapacity(messages.count + 4)
 
@@ -17,7 +17,7 @@ extension GeminiAdapter {
                     out.append(translateToolResults(toolResults))
                 }
             case .user, .assistant:
-                out.append(try translateNonToolMessage(message, supportsNativePDF: supportsNativePDF))
+                out.append(try await translateNonToolMessage(message, supportsNativePDF: supportsNativePDF))
 
                 if let toolResults = message.toolResults, !toolResults.isEmpty {
                     out.append(translateToolResults(toolResults))
@@ -28,7 +28,7 @@ extension GeminiAdapter {
         return out
     }
 
-    private func translateNonToolMessage(_ message: Message, supportsNativePDF: Bool) throws -> [String: Any] {
+    private func translateNonToolMessage(_ message: Message, supportsNativePDF: Bool) async throws -> [String: Any] {
         let role: String = (message.role == .assistant) ? "model" : "user"
 
         var parts: [[String: Any]] = []
@@ -69,7 +69,24 @@ extension GeminiAdapter {
                 }
 
             case .file(let file):
-                if supportsNativePDF, file.mimeType == "application/pdf" {
+                let normalizedFileMIMEType = normalizedMIMEType(file.mimeType)
+                let shouldUseHostedFile =
+                    googleHostedPromptFileMIMETypes.contains(normalizedFileMIMEType) &&
+                    (normalizedFileMIMEType != "application/pdf" || supportsNativePDF)
+
+                if shouldUseHostedFile,
+                   let hostedFile = try await uploadHostedGeminiFile(file),
+                   let uri = hostedFile.uri {
+                    parts.append([
+                        "fileData": [
+                            "mimeType": hostedFile.mimeType,
+                            "fileUri": uri
+                        ]
+                    ])
+                    continue
+                }
+
+                if supportsNativePDF, normalizedFileMIMEType == "application/pdf" {
                     let pdfData: Data?
                     if let data = file.data {
                         pdfData = data
@@ -158,6 +175,22 @@ extension GeminiAdapter {
 
     func inlineDataPart(mimeType: String, data: Data?, url: URL?) throws -> [String: Any]? {
         try GeminiModelConstants.inlineDataPart(mimeType: mimeType, data: data, url: url)
+    }
+
+    private func uploadHostedGeminiFile(_ file: FileContent) async throws -> HostedProviderFileReference? {
+        do {
+            return try await ProviderHostedFileStore.shared.uploadGeminiFile(
+                file: file,
+                baseURL: baseURL,
+                apiKey: apiKey,
+                networkManager: networkManager
+            )
+        } catch {
+            if shouldFallbackFromHostedFileUpload(error) {
+                return nil
+            }
+            throw error
+        }
     }
 
     // MARK: - Stream Event Parsing
