@@ -293,6 +293,7 @@ struct Message: Identifiable, Codable, Sendable {
     let searchActivities: [SearchActivity]?
     let codeExecutionActivities: [CodeExecutionActivity]?
     let codexToolActivities: [CodexToolActivity]?
+    let agentToolActivities: [CodexToolActivity]?
     let timestamp: Date
     /// MCP server names selected via slash command for this specific message.
     let perMessageMCPServerNames: [String]?
@@ -306,6 +307,7 @@ struct Message: Identifiable, Codable, Sendable {
         searchActivities: [SearchActivity]? = nil,
         codeExecutionActivities: [CodeExecutionActivity]? = nil,
         codexToolActivities: [CodexToolActivity]? = nil,
+        agentToolActivities: [CodexToolActivity]? = nil,
         timestamp: Date = Date(),
         perMessageMCPServerNames: [String]? = nil
     ) {
@@ -317,6 +319,7 @@ struct Message: Identifiable, Codable, Sendable {
         self.searchActivities = searchActivities
         self.codeExecutionActivities = codeExecutionActivities
         self.codexToolActivities = codexToolActivities
+        self.agentToolActivities = agentToolActivities
         self.timestamp = timestamp
         self.perMessageMCPServerNames = perMessageMCPServerNames
     }

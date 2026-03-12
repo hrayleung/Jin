@@ -48,6 +48,7 @@ enum ChatMessageRenderPipeline {
             let searchActivities = message.searchActivities ?? []
             let codeExecutionActivities = message.codeExecutionActivities ?? []
             let codexToolActivities = message.codexToolActivities ?? []
+            let agentToolActivities = message.agentToolActivities ?? []
 
             renderedItems.append(
                 MessageRenderItem(
@@ -60,6 +61,7 @@ enum ChatMessageRenderPipeline {
                     searchActivities: searchActivities,
                     codeExecutionActivities: codeExecutionActivities,
                     codexToolActivities: codexToolActivities,
+                    agentToolActivities: agentToolActivities,
                     assistantModelLabel: entity.role == "assistant"
                         ? (entity.generatedModelName ?? entity.generatedModelID ?? fallbackModelLabel)
                         : nil,
@@ -126,6 +128,7 @@ enum ChatMessageRenderPipeline {
             let searchActivities = message.searchActivities ?? []
             let codeExecutionActivities = message.codeExecutionActivities ?? []
             let codexToolActivities = message.codexToolActivities ?? []
+            let agentToolActivities = message.agentToolActivities ?? []
 
             renderedItems.append(
                 MessageRenderItem(
@@ -138,6 +141,7 @@ enum ChatMessageRenderPipeline {
                     searchActivities: searchActivities,
                     codeExecutionActivities: codeExecutionActivities,
                     codexToolActivities: codexToolActivities,
+                    agentToolActivities: agentToolActivities,
                     assistantModelLabel: snapshot.role == "assistant"
                         ? (snapshot.generatedModelName ?? snapshot.generatedModelID ?? fallbackModelLabel)
                         : nil,

@@ -11,6 +11,7 @@ struct AppearanceSettingsView: View {
     @AppStorage(AppPreferenceKeys.thinkingBlockDisplayMode) private var thinkingDisplayModeRaw = ThinkingBlockDisplayMode.expanded.rawValue
     @AppStorage(AppPreferenceKeys.codexToolDisplayMode) private var codexToolDisplayModeRaw = CodexToolDisplayMode.expanded.rawValue
     @AppStorage(AppPreferenceKeys.codeExecutionDisplayMode) private var codeExecutionDisplayModeRaw = CodeExecutionDisplayMode.expanded.rawValue
+    @AppStorage(AppPreferenceKeys.agentToolDisplayMode) private var agentToolDisplayModeRaw = AgentToolDisplayMode.expanded.rawValue
     @AppStorage(AppPreferenceKeys.appIconVariant) private var appIconVariant: AppIconVariant = .roseQuartz
 
     @State private var showingAppFontPicker = false
@@ -41,6 +42,13 @@ struct AppearanceSettingsView: View {
         Binding(
             get: { CodeExecutionDisplayMode(rawValue: codeExecutionDisplayModeRaw) ?? .expanded },
             set: { codeExecutionDisplayModeRaw = $0.rawValue }
+        )
+    }
+
+    private var agentToolDisplayMode: Binding<AgentToolDisplayMode> {
+        Binding(
+            get: { AgentToolDisplayMode(rawValue: agentToolDisplayModeRaw) ?? .expanded },
+            set: { agentToolDisplayModeRaw = $0.rawValue }
         )
     }
 
@@ -147,6 +155,18 @@ struct AppearanceSettingsView: View {
                 }
 
                 Text(codexToolDisplayMode.wrappedValue.description)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Section("Agent Tool Activities") {
+                Picker("Display Mode", selection: agentToolDisplayMode) {
+                    ForEach(AgentToolDisplayMode.allCases) { mode in
+                        Text(mode.label).tag(mode)
+                    }
+                }
+
+                Text(agentToolDisplayMode.wrappedValue.description)
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
