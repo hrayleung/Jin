@@ -350,6 +350,12 @@ struct MessageRow: View {
                 pendingDeleteAction = nil
             }
         }
+        .onChange(of: actionsEnabled) { _, enabled in
+            guard !enabled else { return }
+            isResponseMetricsPopoverPresented = false
+            showingDeleteConfirmation = false
+            pendingDeleteAction = nil
+        }
     }
 
     @ViewBuilder
@@ -449,11 +455,13 @@ struct MessageRow: View {
 
                 Menu {
                     Button(role: .destructive) {
+                        guard actionsEnabled else { return }
                         pendingDeleteAction = .message
                         showingDeleteConfirmation = true
                     } label: {
                         deleteActionMenuLabel("Delete message", systemImage: "trash")
                     }
+                    .disabled(!actionsEnabled)
                 } label: {
                     Image(systemName: "ellipsis")
                         .font(.system(size: JinControlMetrics.iconButtonGlyphSize, weight: .semibold))
@@ -508,18 +516,23 @@ struct MessageRow: View {
 
                     Menu {
                         Button(role: .destructive) {
+                            guard actionsEnabled else { return }
                             pendingDeleteAction = .message
                             showingDeleteConfirmation = true
                         } label: {
                             deleteActionMenuLabel("Delete message", systemImage: "trash")
                         }
+                        .disabled(!actionsEnabled)
+
                         if canDeleteResponse {
                             Button(role: .destructive) {
+                                guard actionsEnabled else { return }
                                 pendingDeleteAction = .response
                                 showingDeleteConfirmation = true
                             } label: {
                                 deleteActionMenuLabel("Delete response", systemImage: "text.badge.minus")
                             }
+                            .disabled(!actionsEnabled)
                         }
                     } label: {
                         Image(systemName: "ellipsis")
