@@ -91,6 +91,42 @@ enum ModelCapabilityRegistry {
     private static let proxiedGoogleSearchSupportedModelIDs: Set<String> =
         geminiGoogleSearchSupportedModelIDs.union(vertexGoogleSearchSupportedModelIDs)
 
+    /// Models documented by Google as supporting code execution in Gemini API.
+    private static let geminiCodeExecutionSupportedModelIDs: Set<String> = [
+        "gemini-3-pro",
+        "gemini-3-pro-preview",
+        "gemini-3.1-pro",
+        "gemini-3.1-pro-preview",
+        "gemini-3-flash",
+        "gemini-3-flash-preview",
+        "gemini-3.1-flash-lite",
+        "gemini-3.1-flash-lite-preview",
+        "gemini-2.5-pro",
+        "gemini-2.5-flash",
+        "gemini-2.5-flash-lite",
+        "gemini-2.0-flash",
+        "gemini-2.0-flash-001",
+    ]
+
+    /// Models documented by Google as supporting code execution in Vertex AI.
+    private static let vertexCodeExecutionSupportedModelIDs: Set<String> = [
+        "gemini-3-pro",
+        "gemini-3-pro-preview",
+        "gemini-3.1-pro",
+        "gemini-3.1-pro-preview",
+        "gemini-3-flash",
+        "gemini-3-flash-preview",
+        "gemini-3.1-flash-lite",
+        "gemini-3.1-flash-lite-preview",
+        "gemini-2.5-pro",
+        "gemini-2.5-flash",
+        "gemini-2.5-flash-lite",
+        "gemini-2.5-flash-preview",
+        "gemini-2.5-flash-lite-preview",
+        "gemini-2.0-flash",
+        "gemini-2.0-flash-001",
+    ]
+
     private static let reasoningEffortRank: [ReasoningEffort: Int] = [
         .none: 0,
         .minimal: 1,
@@ -398,6 +434,22 @@ enum ModelCapabilityRegistry {
         }
     }
 
+    private static func supportsGoogleCodeExecution(lowerModelID: String, providerType: ProviderType?) -> Bool {
+        let canonical = canonicalGoogleModelID(lowerModelID: lowerModelID)
+        return googleCodeExecutionSupportedModelIDs(for: providerType).contains(canonical)
+    }
+
+    private static func googleCodeExecutionSupportedModelIDs(for providerType: ProviderType?) -> Set<String> {
+        switch providerType {
+        case .gemini:
+            return geminiCodeExecutionSupportedModelIDs
+        case .vertexai:
+            return vertexCodeExecutionSupportedModelIDs
+        default:
+            return []
+        }
+    }
+
     private static func canonicalGoogleModelID(lowerModelID: String) -> String {
         for prefix in googleModelPrefixes where lowerModelID.hasPrefix(prefix) {
             return String(lowerModelID.dropFirst(prefix.count))
@@ -440,9 +492,15 @@ enum ModelCapabilityRegistry {
         case .xai:
             // xAI Responses API code_interpreter tool: Grok models
             return !isLikelyMediaGenerationModelID(lowerModelID)
+        case .gemini:
+            // Gemini API `tools.code_execution`
+            return supportsGoogleCodeExecution(lowerModelID: lowerModelID, providerType: .gemini)
+        case .vertexai:
+            // Vertex AI `tools.codeExecution`
+            return supportsGoogleCodeExecution(lowerModelID: lowerModelID, providerType: .vertexai)
         case .codexAppServer, .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway,
              .openrouter, .perplexity, .groq, .cohere, .mistral, .deepinfra, .together,
-             .deepseek, .zhipuCodingPlan, .fireworks, .cerebras, .sambanova, .gemini, .vertexai, .none:
+             .deepseek, .zhipuCodingPlan, .fireworks, .cerebras, .sambanova, .none:
             return false
         }
     }

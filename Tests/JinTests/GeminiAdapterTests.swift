@@ -208,6 +208,94 @@ final class GeminiAdapterTests: XCTestCase {
         XCTAssertEqual(usage?.cachedTokens, 2)
     }
 
+    func testGeminiAdapterBuildsCodeExecutionToolAndParsesExecutionParts() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        let providerConfig = ProviderConfig(
+            id: "g",
+            name: "Gemini",
+            type: .gemini,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://example.com/models/gemini-3.1-pro-preview:generateContent")
+
+            let body = try XCTUnwrap(requestBodyData(request))
+            let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+            let root = try XCTUnwrap(json)
+            let tools = try XCTUnwrap(root["tools"] as? [[String: Any]])
+
+            XCTAssertEqual(tools.count, 1)
+            XCTAssertNotNil(tools.first?["code_execution"])
+
+            let response: [String: Any] = [
+                "candidates": [
+                    [
+                        "content": [
+                            "parts": [
+                                [
+                                    "executableCode": [
+                                        "language": "PYTHON",
+                                        "code": "print(1)"
+                                    ]
+                                ],
+                                [
+                                    "codeExecutionResult": [
+                                        "outcome": "OUTCOME_OK",
+                                        "output": "1\n"
+                                    ]
+                                ],
+                                [
+                                    "text": "Done"
+                                ]
+                            ]
+                        ]
+                    ]
+                ]
+            ]
+
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = GeminiAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+
+        let stream = try await adapter.sendMessage(
+            messages: [
+                Message(role: .user, content: [.text("run python")])
+            ],
+            modelID: "gemini-3.1-pro-preview",
+            controls: GenerationControls(codeExecution: CodeExecutionControls(enabled: true)),
+            tools: [],
+            streaming: false
+        )
+
+        var activities: [CodeExecutionActivity] = []
+        var sawDoneText = false
+
+        for try await event in stream {
+            switch event {
+            case .codeExecutionActivity(let activity):
+                activities.append(activity)
+            case .contentDelta(.text(let text)):
+                sawDoneText = sawDoneText || text == "Done"
+            default:
+                break
+            }
+        }
+
+        XCTAssertEqual(activities.count, 2)
+        XCTAssertEqual(activities.first?.status, .writingCode)
+        XCTAssertEqual(activities.first?.code, "print(1)")
+        XCTAssertEqual(activities.last?.status, .completed)
+        XCTAssertEqual(activities.last?.stdout, "1\n")
+        XCTAssertEqual(activities.first?.id, activities.last?.id)
+        XCTAssertTrue(sawDoneText)
+    }
+
     func testGeminiAdapterEmitsSearchActivitiesFromGroundingMetadata() async throws {
         let (configuration, protocolType) = makeMockedSessionConfiguration()
         let networkManager = NetworkManager(configuration: configuration)

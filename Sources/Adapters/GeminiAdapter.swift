@@ -153,6 +153,7 @@ actor GeminiAdapter: LLMProviderAdapter {
                 continuation.yield(.messageStart(id: UUID().uuidString))
 
                 let usage = response.toUsage()
+                var codeExecutionState = GeminiModelConstants.GoogleCodeExecutionEventState()
 
                 if let candidate = response.candidates?.first {
                     if isCandidateContentFiltered(candidate) {
@@ -161,10 +162,9 @@ actor GeminiAdapter: LLMProviderAdapter {
                         return
                     }
 
-                    for part in candidate.content?.parts ?? [] {
-                        for event in events(from: part) {
-                            continuation.yield(event)
-                        }
+                    let parts = candidate.content?.parts ?? []
+                    for event in GeminiModelConstants.events(from: parts, codeExecutionState: &codeExecutionState) {
+                        continuation.yield(event)
                     }
                 }
 
@@ -187,6 +187,7 @@ actor GeminiAdapter: LLMProviderAdapter {
                     var didStart = false
                     let messageID = UUID().uuidString
                     var pendingUsage: Usage?
+                    var codeExecutionState = GeminiModelConstants.GoogleCodeExecutionEventState()
 
                     for try await event in sseStream {
                         switch event {
@@ -219,10 +220,9 @@ actor GeminiAdapter: LLMProviderAdapter {
                                     return
                                 }
 
-                                for part in candidate.content?.parts ?? [] {
-                                    for streamEvent in events(from: part) {
-                                        continuation.yield(streamEvent)
-                                    }
+                                let parts = candidate.content?.parts ?? []
+                                for streamEvent in GeminiModelConstants.events(from: parts, codeExecutionState: &codeExecutionState) {
+                                    continuation.yield(streamEvent)
                                 }
                             }
 
@@ -378,6 +378,10 @@ actor GeminiAdapter: LLMProviderAdapter {
             toolArray.append(["google_search": [:]])
         }
 
+        if controls.codeExecution?.enabled == true, supportsCodeExecution(modelID) {
+            toolArray.append(["code_execution": [:]])
+        }
+
         if supportsFunctionCalling(modelID), !tools.isEmpty,
            let functionDeclarations = translateTools(tools) as? [[String: Any]] {
             toolArray.append(["functionDeclarations": functionDeclarations])
@@ -451,6 +455,10 @@ actor GeminiAdapter: LLMProviderAdapter {
 
     private func supportsWebSearch(_ modelID: String) -> Bool {
         modelSupportsWebSearch(providerConfig: providerConfig, modelID: modelID)
+    }
+
+    private func supportsCodeExecution(_ modelID: String) -> Bool {
+        ModelCapabilityRegistry.supportsCodeExecution(for: .gemini, modelID: modelID)
     }
 
     private func supportsImageSize(_ modelID: String) -> Bool {
