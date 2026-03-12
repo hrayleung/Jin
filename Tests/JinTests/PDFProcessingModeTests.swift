@@ -25,7 +25,7 @@ final class PDFProcessingModeTests: XCTestCase {
                 XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer test-key")
 
                 let body = try XCTUnwrap(requestBodyData(request))
-                let bodyString = String(decoding: body, as: UTF8.self)
+                let bodyString = try XCTUnwrap(String(bytes: body, encoding: .utf8))
                 XCTAssertTrue(bodyString.contains("name=\"purpose\""))
                 XCTAssertTrue(bodyString.contains("user_data"))
                 XCTAssertTrue(bodyString.contains("name=\"file\""))
@@ -55,6 +55,7 @@ final class PDFProcessingModeTests: XCTestCase {
                 let inputFile = try XCTUnwrap(content.first { ($0["type"] as? String) == "input_file" })
                 XCTAssertEqual(inputFile["file_id"] as? String, "file_pdf_123")
                 XCTAssertNil(inputFile["file_data"])
+                XCTAssertFalse(content.contains { ($0["type"] as? String) == "input_text" })
 
                 let response: [String: Any] = [
                     "id": "resp_1",
@@ -276,7 +277,7 @@ final class PDFProcessingModeTests: XCTestCase {
                 XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer test-key")
 
                 let body = try XCTUnwrap(requestBodyData(request))
-                let bodyString = String(decoding: body, as: UTF8.self)
+                let bodyString = try XCTUnwrap(String(bytes: body, encoding: .utf8))
                 XCTAssertTrue(bodyString.contains("name=\"purpose\""))
                 XCTAssertTrue(bodyString.contains("user_data"))
                 XCTAssertTrue(bodyString.contains("name=\"file\""))

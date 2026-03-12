@@ -15,12 +15,12 @@ final class GeminiAdapterTests: XCTestCase {
             baseURL: "https://example.com"
         )
 
-        var sawUploadStart = false
-        var sawUploadFinalize = false
+        var uploadStartCount = 0
+        var uploadFinalizeCount = 0
 
         protocolType.requestHandler = { request in
             if request.url?.absoluteString == "https://example.com/upload/files" {
-                sawUploadStart = true
+                uploadStartCount += 1
                 XCTAssertEqual(request.httpMethod, "POST")
                 XCTAssertEqual(request.value(forHTTPHeaderField: "x-goog-api-key"), "test-key")
                 XCTAssertEqual(request.value(forHTTPHeaderField: "X-Goog-Upload-Protocol"), "resumable")
@@ -44,7 +44,7 @@ final class GeminiAdapterTests: XCTestCase {
             }
 
             if request.url?.absoluteString == "https://upload.example.com/gemini-session-1" {
-                sawUploadFinalize = true
+                uploadFinalizeCount += 1
                 XCTAssertEqual(request.httpMethod, "POST")
                 XCTAssertEqual(request.value(forHTTPHeaderField: "X-Goog-Upload-Offset"), "0")
                 XCTAssertEqual(request.value(forHTTPHeaderField: "X-Goog-Upload-Command"), "upload, finalize")
@@ -162,8 +162,8 @@ final class GeminiAdapterTests: XCTestCase {
         )
 
         for try await _ in stream {}
-        XCTAssertTrue(sawUploadStart)
-        XCTAssertTrue(sawUploadFinalize)
+        XCTAssertEqual(uploadStartCount, 1)
+        XCTAssertEqual(uploadFinalizeCount, 1)
     }
 
     func testGeminiAdapterParsesThoughtAndFunctionCallAndUsage() async throws {
@@ -273,12 +273,12 @@ final class GeminiAdapterTests: XCTestCase {
             baseURL: "https://example.com/v1beta"
         )
 
-        var sawUploadStart = false
-        var sawUploadFinalize = false
+        var uploadStartCount = 0
+        var uploadFinalizeCount = 0
 
         protocolType.requestHandler = { request in
             if request.url?.absoluteString == "https://example.com/upload/v1beta/files" {
-                sawUploadStart = true
+                uploadStartCount += 1
                 XCTAssertEqual(request.value(forHTTPHeaderField: "x-goog-api-key"), "test-key")
                 XCTAssertEqual(request.value(forHTTPHeaderField: "X-Goog-Upload-Protocol"), "resumable")
                 XCTAssertEqual(request.value(forHTTPHeaderField: "X-Goog-Upload-Command"), "start")
@@ -301,7 +301,7 @@ final class GeminiAdapterTests: XCTestCase {
             }
 
             if request.url?.absoluteString == "https://upload.example.com/session-1" {
-                sawUploadFinalize = true
+                uploadFinalizeCount += 1
                 XCTAssertEqual(request.value(forHTTPHeaderField: "X-Goog-Upload-Offset"), "0")
                 XCTAssertEqual(request.value(forHTTPHeaderField: "X-Goog-Upload-Command"), "upload, finalize")
 
@@ -376,8 +376,8 @@ final class GeminiAdapterTests: XCTestCase {
         )
 
         for try await _ in stream {}
-        XCTAssertTrue(sawUploadStart)
-        XCTAssertTrue(sawUploadFinalize)
+        XCTAssertEqual(uploadStartCount, 1)
+        XCTAssertEqual(uploadFinalizeCount, 1)
     }
 
     func testGeminiAdapterBuildsCodeExecutionToolAndParsesExecutionParts() async throws {
