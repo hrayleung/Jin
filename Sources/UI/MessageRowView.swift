@@ -353,6 +353,8 @@ struct MessageRow: View {
         .onChange(of: actionsEnabled) { _, enabled in
             guard !enabled else { return }
             isResponseMetricsPopoverPresented = false
+            showingDeleteConfirmation = false
+            pendingDeleteAction = nil
         }
     }
 
@@ -459,6 +461,7 @@ struct MessageRow: View {
                     } label: {
                         deleteActionMenuLabel("Delete message", systemImage: "trash")
                     }
+                    .disabled(!actionsEnabled)
                 } label: {
                     Image(systemName: "ellipsis")
                         .font(.system(size: JinControlMetrics.iconButtonGlyphSize, weight: .semibold))
@@ -468,6 +471,7 @@ struct MessageRow: View {
                 .menuStyle(.borderlessButton)
                 .menuIndicator(.hidden)
                 .frame(width: 20)
+                .disabled(!actionsEnabled)
                 .help("More actions")
 
                 Spacer(minLength: 0)
@@ -518,6 +522,7 @@ struct MessageRow: View {
                         } label: {
                             deleteActionMenuLabel("Delete message", systemImage: "trash")
                         }
+                        .disabled(!actionsEnabled)
 
                         if canDeleteResponse {
                             Button(role: .destructive) {
@@ -527,6 +532,7 @@ struct MessageRow: View {
                             } label: {
                                 deleteActionMenuLabel("Delete response", systemImage: "text.badge.minus")
                             }
+                            .disabled(!actionsEnabled)
                         }
                     } label: {
                         Image(systemName: "ellipsis")
@@ -537,6 +543,7 @@ struct MessageRow: View {
                     .menuStyle(.borderlessButton)
                     .menuIndicator(.hidden)
                     .frame(width: 20)
+                    .disabled(!actionsEnabled)
                     .help("More actions")
                 }
             }

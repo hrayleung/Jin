@@ -1,6 +1,9 @@
 import SwiftUI
 
 extension View {
+    /// Tracks whether a scroll view remains pinned to its bottom edge.
+    /// The `bottomTolerance` parameter defaults to `80` and is clamped to a
+    /// minimum of `80` to avoid overly-sensitive pin detection.
     @ViewBuilder
     func onScrollPinChange(
         isPinned: Binding<Bool>,
