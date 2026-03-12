@@ -509,6 +509,36 @@ let openAISupportedFileMIMETypes: Set<String> = [
     "application/xml", "text/xml",                                              // xml
 ]
 
+private let googleSpreadsheetMIMETypes: Set<String> = [
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "application/vnd.ms-excel"
+]
+
+func googleFileFallbackText(_ file: FileContent, providerName: String) -> String {
+    let base = AttachmentPromptRenderer.fallbackText(for: file)
+    let mimeType = normalizedMIMEType(file.mimeType)
+    let hasExtractedText = file.extractedText?
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+        .isEmpty == false
+
+    guard googleSpreadsheetMIMETypes.contains(mimeType) || hasExtractedText else {
+        return base
+    }
+
+    let note: String
+    if googleSpreadsheetMIMETypes.contains(mimeType) {
+        note = "\(providerName) does not provide .xlsx/.xls attachments as mounted local files in Jin. The model must work from extracted contents instead of opening the original filename from Python."
+    } else {
+        note = "\(providerName) received extracted document contents instead of a mounted local file. Do not try to open the original filename from Python."
+    }
+
+    return """
+Attachment access note: \(note)
+
+\(base)
+"""
+}
+
 // MARK: - OpenAI Audio Model ID Detection
 
 /// Audio input model IDs specific to OpenAI's first-party models.

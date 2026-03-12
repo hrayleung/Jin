@@ -48,7 +48,7 @@ extension VertexAIAdapter {
                         continue
                     }
 
-                    let text = AttachmentPromptRenderer.fallbackText(for: file)
+                    let text = googleFileFallbackText(file, providerName: "Vertex AI")
                     parts.append(["text": text])
                 case .thinking, .redactedThinking:
                     break

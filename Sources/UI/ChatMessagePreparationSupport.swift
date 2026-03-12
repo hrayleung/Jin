@@ -319,6 +319,10 @@ enum ChatMessagePreparationSupport {
                         data: nil,
                         url: attachment.fileURL,
                         extractedText: attachment.extractedText
+                            ?? AttachmentImportPipeline.extractedTextIfSupported(
+                                from: attachment.fileURL,
+                                mimeType: attachment.mimeType
+                            )
                     )
                 )
             )

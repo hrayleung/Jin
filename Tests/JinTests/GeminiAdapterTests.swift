@@ -166,6 +166,135 @@ final class GeminiAdapterTests: XCTestCase {
         XCTAssertEqual(uploadFinalizeCount, 1)
     }
 
+    func testGeminiAdapterWaitsForHostedFileToBecomeActiveBeforeGenerateContent() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        let providerConfig = ProviderConfig(
+            id: "g-processing",
+            name: "Gemini",
+            type: .gemini,
+            apiKey: "ignored",
+            baseURL: "https://processing.example.com"
+        )
+
+        var uploadStartCount = 0
+        var uploadFinalizeCount = 0
+        var fileStatusPollCount = 0
+
+        protocolType.requestHandler = { request in
+            if request.url?.absoluteString == "https://processing.example.com/upload/files" {
+                uploadStartCount += 1
+                return (
+                    HTTPURLResponse(
+                        url: request.url!,
+                        statusCode: 200,
+                        httpVersion: nil,
+                        headerFields: ["X-Goog-Upload-URL": "https://upload.example.com/gemini-processing-session-1"]
+                    )!,
+                    Data()
+                )
+            }
+
+            if request.url?.absoluteString == "https://upload.example.com/gemini-processing-session-1" {
+                uploadFinalizeCount += 1
+
+                let response: [String: Any] = [
+                    "file": [
+                        "name": "files/gemini-processing-123",
+                        "uri": "https://files.example.com/gemini-processing-123",
+                        "mime_type": "application/pdf",
+                        "state": "PROCESSING"
+                    ]
+                ]
+                let data = try JSONSerialization.data(withJSONObject: response)
+                return (
+                    HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                    data
+                )
+            }
+
+            if request.url?.absoluteString == "https://processing.example.com/files/gemini-processing-123" {
+                fileStatusPollCount += 1
+                XCTAssertEqual(request.httpMethod, "GET")
+                XCTAssertEqual(request.value(forHTTPHeaderField: "x-goog-api-key"), "processing-key")
+
+                let response: [String: Any] = [
+                    "file": [
+                        "name": "files/gemini-processing-123",
+                        "uri": "https://files.example.com/gemini-processing-123",
+                        "mime_type": "application/pdf",
+                        "state": "ACTIVE"
+                    ]
+                ]
+                let data = try JSONSerialization.data(withJSONObject: response)
+                return (
+                    HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                    data
+                )
+            }
+
+            XCTAssertEqual(
+                request.url?.absoluteString,
+                "https://processing.example.com/models/gemini-3-flash-preview:generateContent"
+            )
+
+            let body = try XCTUnwrap(requestBodyData(request))
+            let json = try XCTUnwrap(try JSONSerialization.jsonObject(with: body) as? [String: Any])
+            let contents = try XCTUnwrap(json["contents"] as? [[String: Any]])
+            let parts = try XCTUnwrap(contents.first?["parts"] as? [[String: Any]])
+            let fileData = try XCTUnwrap(parts.first?["fileData"] as? [String: Any])
+            XCTAssertEqual(fileData["fileUri"] as? String, "https://files.example.com/gemini-processing-123")
+
+            let response: [String: Any] = [
+                "candidates": [
+                    [
+                        "content": [
+                            "parts": [
+                                ["text": "OK"]
+                            ]
+                        ]
+                    ]
+                ]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (
+                HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                data
+            )
+        }
+
+        let adapter = GeminiAdapter(
+            providerConfig: providerConfig,
+            apiKey: "processing-key",
+            networkManager: networkManager
+        )
+
+        let pdf = FileContent(
+            mimeType: "application/pdf",
+            filename: "processing.pdf",
+            data: Data([0x25, 0x50, 0x44, 0x46, 0x2D, 0x50]),
+            url: nil,
+            extractedText: "HELLO"
+        )
+
+        let stream = try await adapter.sendMessage(
+            messages: [
+                Message(role: .user, content: [.file(pdf)])
+            ],
+            modelID: "gemini-3-flash-preview",
+            controls: GenerationControls(pdfProcessingMode: .native),
+            tools: [],
+            streaming: false
+        )
+
+        for try await _ in stream {}
+
+        XCTAssertEqual(uploadStartCount, 1)
+        XCTAssertEqual(uploadFinalizeCount, 1)
+        XCTAssertEqual(fileStatusPollCount, 1)
+    }
+
     func testGeminiAdapterParsesThoughtAndFunctionCallAndUsage() async throws {
         let (configuration, protocolType) = makeMockedSessionConfiguration()
         let networkManager = NetworkManager(configuration: configuration)
@@ -783,6 +912,72 @@ final class GeminiAdapterTests: XCTestCase {
             ],
             modelID: "gemini-3-flash-preview",
             controls: GenerationControls(pdfProcessingMode: .macOSExtract),
+            tools: [],
+            streaming: false
+        )
+
+        for try await _ in stream {}
+    }
+
+    func testGeminiAdapterUsesSpreadsheetFallbackPromptForXLSX() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        let providerConfig = ProviderConfig(
+            id: "g-xlsx",
+            name: "Gemini",
+            type: .gemini,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://example.com/models/gemini-3-flash-preview:generateContent")
+
+            let body = try XCTUnwrap(requestBodyData(request))
+            let json = try XCTUnwrap(try JSONSerialization.jsonObject(with: body) as? [String: Any])
+            let contents = try XCTUnwrap(json["contents"] as? [[String: Any]])
+            let parts = try XCTUnwrap(contents.first?["parts"] as? [[String: Any]])
+            let text = try XCTUnwrap(parts.first?["text"] as? String)
+
+            XCTAssertTrue(text.contains("does not provide .xlsx/.xls attachments as mounted local files"))
+            XCTAssertTrue(text.contains("Sheet: Projects"))
+            XCTAssertTrue(text.contains("Tokyo Exchange"))
+
+            let response: [String: Any] = [
+                "candidates": [
+                    [
+                        "content": [
+                            "parts": [
+                                ["text": "OK"]
+                            ]
+                        ]
+                    ]
+                ]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (
+                HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                data
+            )
+        }
+
+        let adapter = GeminiAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+
+        let xlsx = FileContent(
+            mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            filename: "projects.xlsx",
+            data: nil,
+            url: nil,
+            extractedText: "Sheet: Projects\n项目\t学校\nTokyo Exchange\t东京大学"
+        )
+
+        let stream = try await adapter.sendMessage(
+            messages: [
+                Message(role: .user, content: [.file(xlsx)])
+            ],
+            modelID: "gemini-3-flash-preview",
+            controls: GenerationControls(codeExecution: CodeExecutionControls(enabled: true)),
             tools: [],
             streaming: false
         )

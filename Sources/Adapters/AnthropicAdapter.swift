@@ -225,6 +225,10 @@ actor AnthropicAdapter: LLMProviderAdapter {
         )
     }
 
+    private func supportsCodeExecution(_ modelID: String) -> Bool {
+        ModelCapabilityRegistry.supportsCodeExecution(for: .anthropic, modelID: modelID)
+    }
+
     private func mapAnthropicEffort(_ effort: ReasoningEffort, modelID: String) -> String {
         switch effort {
         case .none:
@@ -340,6 +344,42 @@ actor AnthropicAdapter: LLMProviderAdapter {
         return nil
     }
 
+    private func mergedAnthropicBetaHeader(_ existing: String?, additions: [String]) -> String? {
+        var values: [String] = []
+        var seen: Set<String> = []
+
+        func append(_ raw: String?) {
+            guard let raw else { return }
+            let parts = raw
+                .split(separator: ",")
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+            for part in parts where seen.insert(part).inserted {
+                values.append(part)
+            }
+        }
+
+        append(existing)
+        for addition in additions {
+            append(addition)
+        }
+
+        return values.isEmpty ? nil : values.joined(separator: ",")
+    }
+
+    private func requestUsesAnthropicFiles(_ messages: [Message]) -> Bool {
+        for message in messages {
+            for part in message.content {
+                guard case .file(let file) = part else { continue }
+                let mimeType = normalizedMIMEType(file.mimeType)
+                if anthropicHostedDocumentMIMETypes.contains(mimeType) {
+                    return true
+                }
+            }
+        }
+        return false
+    }
+
     private func mergeOutputConfig(into body: inout [String: Any], additional: [String: Any]) {
         guard !additional.isEmpty else { return }
         var merged = (body["output_config"] as? [String: Any]) ?? [:]
@@ -359,6 +399,7 @@ actor AnthropicAdapter: LLMProviderAdapter {
         let normalizedMessages = AnthropicToolUseNormalizer.normalize(messages)
         let allowNativePDF = (controls.pdfProcessingMode ?? .native) == .native
         let supportsNativePDF = allowNativePDF && self.supportsNativePDF(modelID)
+        let codeExecutionEnabled = controls.codeExecution?.enabled == true && supportsCodeExecution(modelID)
         let cacheStrategy = controls.contextCache?.strategy ?? .systemOnly
         let blockCacheControl = anthropicBlockCacheControl(
             from: controls.contextCache,
@@ -369,7 +410,10 @@ actor AnthropicAdapter: LLMProviderAdapter {
             strategy: cacheStrategy
         )
 
-        let betaHeader = extractAnthropicBetaHeader(from: controls)
+        let betaHeader = mergedAnthropicBetaHeader(
+            extractAnthropicBetaHeader(from: controls),
+            additions: requestUsesAnthropicFiles(normalizedMessages) ? [anthropicFilesAPIBetaHeader] : []
+        )
 
         let nonSystemMessages = normalizedMessages.filter { $0.role != .system }
         var translatedMessages: [[String: Any]] = []
@@ -378,6 +422,7 @@ actor AnthropicAdapter: LLMProviderAdapter {
             let translated = try await translateMessage(
                 message,
                 supportsNativePDF: supportsNativePDF,
+                usesCodeExecutionTool: codeExecutionEnabled,
                 cacheControl: blockCacheControl,
                 cacheStrategy: cacheStrategy
             )
@@ -404,7 +449,17 @@ actor AnthropicAdapter: LLMProviderAdapter {
             body["cache_control"] = topLevelCacheControl
         }
         appendThinkingConfig(to: &body, controls: controls, modelID: modelID)
-        appendToolSpecs(to: &body, controls: controls, tools: tools, modelID: modelID)
+        appendToolSpecs(
+            to: &body,
+            controls: controls,
+            tools: tools,
+            modelID: modelID,
+            codeExecutionEnabled: codeExecutionEnabled
+        )
+        if codeExecutionEnabled,
+           let containerID = controls.codeExecution?.anthropic?.normalizedContainerID {
+            body["container"] = containerID
+        }
         applyProviderSpecificOverrides(to: &body, controls: controls, modelID: modelID)
 
         return try NetworkRequestFactory.makeJSONRequest(
@@ -465,14 +520,20 @@ actor AnthropicAdapter: LLMProviderAdapter {
         }
     }
 
-    private func appendToolSpecs(to body: inout [String: Any], controls: GenerationControls, tools: [ToolDefinition], modelID: String) {
+    private func appendToolSpecs(
+        to body: inout [String: Any],
+        controls: GenerationControls,
+        tools: [ToolDefinition],
+        modelID: String,
+        codeExecutionEnabled: Bool
+    ) {
         var toolSpecs: [[String: Any]] = []
 
         if controls.webSearch?.enabled == true, supportsWebSearch(modelID) {
             toolSpecs.append(buildWebSearchToolSpec(controls: controls, modelID: modelID))
         }
 
-        if controls.codeExecution?.enabled == true {
+        if codeExecutionEnabled {
             toolSpecs.append([
                 "type": "code_execution_20250825",
                 "name": "code_execution"
@@ -558,6 +619,7 @@ actor AnthropicAdapter: LLMProviderAdapter {
     private func translateMessage(
         _ message: Message,
         supportsNativePDF: Bool,
+        usesCodeExecutionTool: Bool,
         cacheControl: [String: Any]?,
         cacheStrategy: ContextCacheStrategy
     ) async throws -> [String: Any] {
@@ -578,7 +640,13 @@ actor AnthropicAdapter: LLMProviderAdapter {
 
         appendToolResultBlocks(from: message, to: &content, applyCache: maybeApplyCache)
         appendThinkingBlocks(from: message, to: &content)
-        try await appendUserFacingBlocks(from: message, supportsNativePDF: supportsNativePDF, to: &content, applyCache: maybeApplyCache)
+        try await appendUserFacingBlocks(
+            from: message,
+            supportsNativePDF: supportsNativePDF,
+            usesCodeExecutionTool: usesCodeExecutionTool,
+            to: &content,
+            applyCache: maybeApplyCache
+        )
         appendToolUseBlocks(from: message, to: &content)
 
         return [
@@ -646,6 +714,7 @@ actor AnthropicAdapter: LLMProviderAdapter {
     private func appendUserFacingBlocks(
         from message: Message,
         supportsNativePDF: Bool,
+        usesCodeExecutionTool: Bool,
         to content: inout [[String: Any]],
         applyCache: (inout [String: Any]) -> Void
     ) async throws {
@@ -661,7 +730,13 @@ actor AnthropicAdapter: LLMProviderAdapter {
                     content.append(imageBlock)
                 }
             case .file(let file):
-                try await translateFileBlock(file, supportsNativePDF: supportsNativePDF, to: &content, applyCache: applyCache)
+                try await translateFileBlock(
+                    file,
+                    supportsNativePDF: supportsNativePDF,
+                    usesCodeExecutionTool: usesCodeExecutionTool,
+                    to: &content,
+                    applyCache: applyCache
+                )
             case .video(let video):
                 var block: [String: Any] = [
                     "type": "text",
@@ -698,25 +773,39 @@ actor AnthropicAdapter: LLMProviderAdapter {
     private func translateFileBlock(
         _ file: FileContent,
         supportsNativePDF: Bool,
+        usesCodeExecutionTool: Bool,
         to content: inout [[String: Any]],
         applyCache: (inout [String: Any]) -> Void
     ) async throws {
         let normalizedFileMIMEType = normalizedMIMEType(file.mimeType)
-        let shouldUseHostedDocument =
-            anthropicHostedDocumentMIMETypes.contains(normalizedFileMIMEType) &&
-            (normalizedFileMIMEType != "application/pdf" || supportsNativePDF)
+        let shouldUseHostedDocument: Bool
+        if usesCodeExecutionTool {
+            shouldUseHostedDocument = anthropicCodeExecutionUploadMIMETypes.contains(normalizedFileMIMEType)
+        } else {
+            shouldUseHostedDocument =
+                anthropicHostedDocumentMIMETypes.contains(normalizedFileMIMEType) &&
+                (normalizedFileMIMEType != "application/pdf" || supportsNativePDF)
+        }
 
         if shouldUseHostedDocument, let hostedFile = try await uploadHostedAnthropicFile(file) {
-            var block: [String: Any] = [
-                "type": "document",
-                "source": [
-                    "type": "file",
+            if usesCodeExecutionTool {
+                content.append([
+                    "type": "container_upload",
                     "file_id": hostedFile.id
+                ])
+                return
+            } else {
+                var block: [String: Any] = [
+                    "type": "document",
+                    "source": [
+                        "type": "file",
+                        "file_id": hostedFile.id
+                    ]
                 ]
-            ]
-            applyCache(&block)
-            content.append(block)
-            return
+                applyCache(&block)
+                content.append(block)
+                return
+            }
         }
 
         if supportsNativePDF && normalizedFileMIMEType == "application/pdf" {

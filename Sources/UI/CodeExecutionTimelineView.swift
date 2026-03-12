@@ -378,6 +378,14 @@ private struct CodeExecutionEntryView: View {
                 )
             }
 
+            if let containerID = activity.containerID, !containerID.isEmpty {
+                metadataBlock(
+                    title: "Container",
+                    value: containerID,
+                    copyHelpText: "Copy container ID"
+                )
+            }
+
             if let stdout = activity.stdout, !stdout.isEmpty {
                 CodeExecContentBlockView(
                     title: "Output",
@@ -401,6 +409,10 @@ private struct CodeExecutionEntryView: View {
                     .padding(.horizontal, JinSpacing.medium)
                     .padding(.vertical, JinSpacing.small)
                     .jinSurface(.subtle, cornerRadius: JinRadius.small)
+            }
+
+            if let outputFiles = activity.outputFiles, !outputFiles.isEmpty {
+                outputFilesBlock(outputFiles)
             }
 
             if !hasDisplayableContent {
@@ -469,7 +481,9 @@ private struct CodeExecutionEntryView: View {
         let hasStdout = !(activity.stdout?.isEmpty ?? true)
         let hasStderr = !(activity.stderr?.isEmpty ?? true)
         let hasImages = !(activity.outputImages?.isEmpty ?? true)
-        return hasCode || hasStdout || hasStderr || hasImages
+        let hasFiles = !(activity.outputFiles?.isEmpty ?? true)
+        let hasContainer = !(activity.containerID?.isEmpty ?? true)
+        return hasCode || hasStdout || hasStderr || hasImages || hasFiles || hasContainer
     }
 
     private var shouldShowReturnCode: Bool {
@@ -488,6 +502,49 @@ private struct CodeExecutionEntryView: View {
 
     private func updatePulseAnimation(for status: CodeExecVisualStatus) {
         isRunningPulse = status == .running
+    }
+
+    @ViewBuilder
+    private func metadataBlock(title: String, value: String, copyHelpText: String) -> some View {
+        HStack(alignment: .center, spacing: JinSpacing.small) {
+            Text(title)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+
+            Text(value)
+                .font(.system(.caption, design: .monospaced))
+                .foregroundStyle(.primary)
+                .textSelection(.enabled)
+                .lineLimit(1)
+
+            Spacer(minLength: 0)
+
+            CopyToPasteboardButton(
+                text: value,
+                helpText: copyHelpText,
+                useProminentStyle: false
+            )
+        }
+        .padding(.horizontal, JinSpacing.medium)
+        .padding(.vertical, JinSpacing.small)
+        .jinSurface(.subtle, cornerRadius: JinRadius.small)
+    }
+
+    @ViewBuilder
+    private func outputFilesBlock(_ outputFiles: [CodeExecutionOutputFile]) -> some View {
+        VStack(alignment: .leading, spacing: JinSpacing.xSmall) {
+            Text(outputFiles.count == 1 ? "Generated 1 file output" : "Generated \(outputFiles.count) file outputs")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+
+            ForEach(outputFiles, id: \.self) { outputFile in
+                metadataBlock(
+                    title: "File ID",
+                    value: outputFile.id,
+                    copyHelpText: "Copy file ID"
+                )
+            }
+        }
     }
 }
 

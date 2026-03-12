@@ -98,6 +98,11 @@ struct ChatView: View {
     @State var showingThinkingBudgetSheet = false
     @State var thinkingBudgetDraft = ""
     @State var maxTokensDraft = ""
+    @State var showingCodeExecutionSheet = false
+    @State var codeExecutionDraft = CodeExecutionControls()
+    @State var codeExecutionDraftError: String?
+    @State var codeExecutionOpenAIUseExistingContainer = false
+    @State var codeExecutionOpenAIFileIDsDraft = ""
     @State var showingCodexSessionSettingsSheet = false
     @State var codexWorkingDirectoryDraft = ""
     @State var codexWorkingDirectoryDraftError: String?
@@ -330,10 +335,19 @@ struct ChatView: View {
                 composerButtonControl(
                     systemName: "chevron.left.forwardslash.chevron.right",
                     isActive: isCodeExecutionEnabled,
-                    badgeText: nil,
-                    help: isCodeExecutionEnabled ? "Code Execution: On" : "Code Execution: Off"
+                    badgeText: codeExecutionBadgeText,
+                    help: codeExecutionHelpText
                 ) {
                     codeExecutionEnabledBinding.wrappedValue.toggle()
+                }
+                .contextMenu {
+                    if hasCodeExecutionConfiguration {
+                        Toggle("Code Execution", isOn: codeExecutionEnabledBinding)
+                        Divider()
+                        Button("Configure…") {
+                            openCodeExecutionSheet()
+                        }
+                    }
                 }
             }
 
@@ -681,7 +695,7 @@ struct ChatView: View {
         }
         .fileImporter(
             isPresented: $isFileImporterPresented,
-            allowedContentTypes: [.image, .movie, .audio, .pdf],
+            allowedContentTypes: supportedAttachmentImportTypes,
             allowsMultipleSelection: true
         ) { result in
             handleAttachmentImport(result)
@@ -703,6 +717,18 @@ struct ChatView: View {
                     applyThinkingBudgetDraft()
                     showingThinkingBudgetSheet = false
                 }
+            )
+        }
+        .sheet(isPresented: $showingCodeExecutionSheet) {
+            CodeExecutionSheetView(
+                draft: $codeExecutionDraft,
+                openAIUseExistingContainer: $codeExecutionOpenAIUseExistingContainer,
+                openAIFileIDsDraft: $codeExecutionOpenAIFileIDsDraft,
+                draftError: $codeExecutionDraftError,
+                providerType: providerType,
+                isValid: isCodeExecutionDraftValid,
+                onCancel: { showingCodeExecutionSheet = false },
+                onSave: { applyCodeExecutionDraft() }
             )
         }
         .sheet(isPresented: $showingContextCacheSheet) {
@@ -985,6 +1011,7 @@ struct ChatView: View {
         isModelPickerPresented = false
         isAddModelPickerPresented = false
         showingThinkingBudgetSheet = false
+        showingCodeExecutionSheet = false
         showingContextCacheSheet = false
         showingAnthropicWebSearchSheet = false
         showingImageGenerationSheet = false
@@ -1111,9 +1138,38 @@ struct ChatView: View {
 
     private var fileAttachmentHelpText: String {
         let base = supportsAudioInput
-            ? "Attach images / videos / audio / PDFs"
-            : "Attach images / videos / PDFs"
-        return supportsNativePDF ? "\(base) (Native PDF support ✓)" : base
+            ? "Attach images / videos / audio / documents"
+            : "Attach images / videos / documents"
+        return supportsNativePDF ? "\(base) (native PDF available)" : "\(base) (PDFs may use extraction/OCR)"
+    }
+
+    private static let supportedAttachmentDocumentExtensions = [
+        "docx", "doc", "odt", "rtf",
+        "xlsx", "xls", "csv", "tsv",
+        "pptx", "ppt",
+        "txt", "md", "markdown",
+        "json", "html", "htm", "xml"
+    ]
+
+    private var supportedAttachmentImportTypes: [UTType] {
+        var types: [UTType] = []
+        var seen: Set<String> = []
+
+        func append(_ type: UTType?) {
+            guard let type, seen.insert(type.identifier).inserted else { return }
+            types.append(type)
+        }
+
+        append(.image)
+        append(.movie)
+        append(.audio)
+        append(.pdf)
+
+        for ext in Self.supportedAttachmentDocumentExtensions {
+            append(UTType(filenameExtension: ext))
+        }
+
+        return types
     }
 
     private var artifactsHelpText: String {
@@ -1673,13 +1729,13 @@ struct ChatView: View {
     private var pdfProcessingHelpText: String {
         switch resolvedPDFProcessingMode {
         case .native:
-            return "PDF: Native"
+            return "PDF handling: Native"
         case .mistralOCR:
-            return mistralOCRConfigured ? "PDF: Mistral OCR" : "PDF: Mistral OCR (API key required)"
+            return mistralOCRConfigured ? "PDF handling: Mistral OCR" : "PDF handling: Mistral OCR (API key required)"
         case .deepSeekOCR:
-            return deepSeekOCRConfigured ? "PDF: DeepSeek OCR (DeepInfra)" : "PDF: DeepSeek OCR (API key required)"
+            return deepSeekOCRConfigured ? "PDF handling: DeepSeek OCR (DeepInfra)" : "PDF handling: DeepSeek OCR (API key required)"
         case .macOSExtract:
-            return "PDF: macOS Extract"
+            return "PDF handling: macOS Extract"
         }
     }
 
@@ -1812,6 +1868,57 @@ struct ChatView: View {
         controls.codeExecution?.enabled == true
     }
 
+    var hasCodeExecutionConfiguration: Bool {
+        providerType == .openai || providerType == .anthropic
+    }
+
+    var parsedCodeExecutionOpenAIFileIDsDraft: [String] {
+        codeExecutionOpenAIFileIDsDraft
+            .split(whereSeparator: { $0 == "," || $0.isNewline })
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+    }
+
+    var codeExecutionBadgeText: String? {
+        guard isCodeExecutionEnabled else { return nil }
+
+        switch providerType {
+        case .openai:
+            if controls.codeExecution?.openAI?.normalizedExistingContainerID != nil {
+                return "reuse"
+            }
+            return controls.codeExecution?.openAI?.container?.normalizedMemoryLimit
+        case .anthropic:
+            return controls.codeExecution?.anthropic?.normalizedContainerID == nil ? nil : "reuse"
+        default:
+            return nil
+        }
+    }
+
+    var codeExecutionHelpText: String {
+        guard isCodeExecutionEnabled else { return "Code Execution: Off" }
+
+        switch providerType {
+        case .openai:
+            if let containerID = controls.codeExecution?.openAI?.normalizedExistingContainerID {
+                return "Code Execution: Reuse \(containerID)"
+            }
+            if let memoryLimit = controls.codeExecution?.openAI?.container?.normalizedMemoryLimit {
+                return "Code Execution: Auto container (\(memoryLimit))"
+            }
+            return "Code Execution: Auto container"
+        case .anthropic:
+            if controls.codeExecution?.anthropic?.normalizedContainerID != nil {
+                return "Code Execution: Reuse container"
+            }
+            return "Code Execution: On"
+        case .vertexai:
+            return "Code Execution: On (no file I/O in sandbox)"
+        default:
+            return "Code Execution: On"
+        }
+    }
+
     var codeExecutionEnabledBinding: Binding<Bool> {
         Binding(
             get: { controls.codeExecution?.enabled ?? false },
@@ -1822,6 +1929,13 @@ struct ChatView: View {
                 persistControlsToConversation()
             }
         )
+    }
+
+    var isCodeExecutionDraftValid: Bool {
+        guard providerType == .openai, codeExecutionOpenAIUseExistingContainer else {
+            return true
+        }
+        return codeExecutionDraft.openAI?.normalizedExistingContainerID != nil
     }
 
     var supportsContextCacheControl: Bool {

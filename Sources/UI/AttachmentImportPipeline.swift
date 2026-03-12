@@ -226,6 +226,25 @@ enum AttachmentImportPipeline {
         return documentMIMEType(for: url) != nil
     }
 
+    static func extractedTextIfSupported(from sourceURL: URL, mimeType: String) -> String? {
+        switch normalizedMIMEType(mimeType) {
+        case "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":
+            return SpreadsheetTextExtractor.extractText(
+                fromXLSX: sourceURL,
+                maxCharacters: AttachmentConstants.maxSpreadsheetExtractedCharacters
+            )
+        case "text/plain", "text/markdown", "text/x-markdown",
+             "text/csv", "text/tab-separated-values",
+             "application/json", "application/xml", "text/xml":
+            return readTextFile(
+                at: sourceURL,
+                maxCharacters: AttachmentConstants.maxSpreadsheetExtractedCharacters
+            )
+        default:
+            return nil
+        }
+    }
+
     // MARK: - Private Helpers
 
     private static func importSingle(from sourceURL: URL, storage: AttachmentStorageManager) async -> Result<DraftAttachment, AttachmentImportError> {
@@ -303,7 +322,7 @@ enum AttachmentImportPipeline {
                     filename: entity.filename,
                     mimeType: entity.mimeType,
                     fileURL: entity.fileURL,
-                    extractedText: nil
+                    extractedText: extractedTextIfSupported(from: sourceURL, mimeType: mimeType)
                 )
             )
         } catch {
@@ -400,6 +419,33 @@ enum AttachmentImportPipeline {
         case "xml":  return "application/xml"
         default:     return nil
         }
+    }
+
+    private static func readTextFile(at sourceURL: URL, maxCharacters: Int) -> String? {
+        guard let data = try? Data(contentsOf: sourceURL) else { return nil }
+
+        let encodings: [String.Encoding] = [
+            .utf8,
+            .utf16,
+            .utf16LittleEndian,
+            .utf16BigEndian,
+            .ascii,
+            .isoLatin1
+        ]
+
+        for encoding in encodings {
+            guard var text = String(data: data, encoding: encoding) else { continue }
+            text = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !text.isEmpty else { continue }
+
+            if text.count > maxCharacters {
+                text = String(text.prefix(maxCharacters))
+                text.append("\n\n[Truncated]")
+            }
+            return text
+        }
+
+        return nil
     }
 
     private static func saveConvertedPNG(

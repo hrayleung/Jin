@@ -107,7 +107,7 @@ extension GeminiAdapter {
                     }
                 }
 
-                let text = AttachmentPromptRenderer.fallbackText(for: file)
+                let text = googleFileFallbackText(file, providerName: "Gemini API")
                 parts.append(["text": text])
 
             case .thinking, .redactedThinking:

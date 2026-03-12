@@ -204,6 +204,7 @@ actor OpenAIAdapter: LLMProviderAdapter {
     ) async throws -> URLRequest {
         let supportsNativeFileInput = supportsNativePDF(modelID)
         let allowNativePDF = (controls.pdfProcessingMode ?? .native) == .native
+        let codeExecutionEnabled = controls.codeExecution?.enabled == true && supportsCodeExecution(modelID)
 
         var body: [String: Any] = [
             "model": modelID,
@@ -272,15 +273,8 @@ actor OpenAIAdapter: LLMProviderAdapter {
             toolObjects.append(webSearchTool)
         }
 
-        if controls.codeExecution?.enabled == true {
-            var codeInterpreterTool: [String: Any] = ["type": "code_interpreter"]
-            let containerConfig = controls.codeExecution?.container
-            var container: [String: Any] = ["type": containerConfig?.type ?? "auto"]
-            if let memoryLimit = containerConfig?.memoryLimit {
-                container["memory_limit"] = memoryLimit
-            }
-            codeInterpreterTool["container"] = container
-            toolObjects.append(codeInterpreterTool)
+        if codeExecutionEnabled {
+            toolObjects.append(buildCodeInterpreterTool(from: controls.codeExecution))
         }
 
         if !tools.isEmpty, let functionTools = translateTools(tools) as? [[String: Any]] {
@@ -307,7 +301,7 @@ actor OpenAIAdapter: LLMProviderAdapter {
         }
 
         // Include code interpreter outputs (logs, images) in the response.
-        if controls.codeExecution?.enabled == true {
+        if codeExecutionEnabled {
             body["include"] = mergedIncludeFields(body["include"], adding: "code_interpreter_call.outputs")
         }
 
@@ -362,6 +356,33 @@ actor OpenAIAdapter: LLMProviderAdapter {
 
     private func supportsNativePDF(_ modelID: String) -> Bool {
         JinModelSupport.supportsNativePDF(providerType: .openai, modelID: modelID)
+    }
+
+    private func supportsCodeExecution(_ modelID: String) -> Bool {
+        ModelCapabilityRegistry.supportsCodeExecution(for: .openai, modelID: modelID)
+    }
+
+    private func buildCodeInterpreterTool(from controls: CodeExecutionControls?) -> [String: Any] {
+        var codeInterpreterTool: [String: Any] = ["type": "code_interpreter"]
+        let openAISettings = controls?.openAI?.normalized()
+
+        if let existingContainerID = openAISettings?.normalizedExistingContainerID {
+            codeInterpreterTool["container"] = existingContainerID
+            return codeInterpreterTool
+        }
+
+        let containerConfig = openAISettings?.container?.normalized()
+        var container: [String: Any] = ["type": containerConfig?.normalizedType ?? "auto"]
+
+        if let memoryLimit = containerConfig?.normalizedMemoryLimit {
+            container["memory_limit"] = memoryLimit
+        }
+        if let fileIDs = containerConfig?.normalizedFileIDs, !fileIDs.isEmpty {
+            container["file_ids"] = fileIDs
+        }
+
+        codeInterpreterTool["container"] = container
+        return codeInterpreterTool
     }
 
     // Shared MIME type set defined in AdapterUtilities.swift

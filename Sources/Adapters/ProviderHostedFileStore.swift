@@ -20,6 +20,21 @@ let anthropicHostedDocumentMIMETypes: Set<String> = [
     "application/xml"
 ]
 
+let anthropicCodeExecutionUploadMIMETypes: Set<String> = [
+    "text/plain",
+    "text/markdown",
+    "text/csv",
+    "text/tab-separated-values",
+    "application/json",
+    "application/xml",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/msword",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "application/vnd.ms-excel"
+]
+
+let anthropicFilesAPIBetaHeader = "files-api-2025-04-14"
+
 let googleHostedPromptFileMIMETypes: Set<String> = [
     "application/pdf",
     "text/plain",
@@ -82,6 +97,7 @@ actor ProviderHostedFileStore {
         let uri: String?
         let mimeType: String?
         let displayName: String?
+        let state: String?
     }
 
     private var cache: [UploadCacheKey: HostedProviderFileReference] = [:]
@@ -153,7 +169,8 @@ actor ProviderHostedFileStore {
                 url: validatedURL("\(baseURL)/files"),
                 headers: HTTPHeaders([
                     HTTPHeader(name: "x-api-key", value: apiKey),
-                    HTTPHeader(name: "anthropic-version", value: anthropicVersion)
+                    HTTPHeader(name: "anthropic-version", value: anthropicVersion),
+                    HTTPHeader(name: "anthropic-beta", value: anthropicFilesAPIBetaHeader)
                 ])
             ) { formData in
                 formData.append(Data("user_data".utf8), withName: "purpose")
@@ -236,12 +253,19 @@ actor ProviderHostedFileStore {
 
             let (data, _) = try await networkManager.sendRequest(uploadRequest)
             let response = try decoder.decode(GeminiFileEnvelope.self, from: data)
+            let readyFile = try await self.waitForGeminiFileToBecomeActive(
+                response.file,
+                baseURL: baseURL,
+                apiKey: apiKey,
+                networkManager: networkManager,
+                decoder: decoder
+            )
 
             return HostedProviderFileReference(
-                id: response.file.name,
-                uri: response.file.uri,
-                mimeType: response.file.mimeType ?? payload.mimeType,
-                displayName: response.file.displayName ?? payload.filename
+                id: readyFile.name,
+                uri: readyFile.uri,
+                mimeType: readyFile.mimeType ?? payload.mimeType,
+                displayName: readyFile.displayName ?? payload.filename
             )
         }
     }
@@ -343,5 +367,82 @@ actor ProviderHostedFileStore {
             throw LLMError.invalidRequest(message: "Invalid Gemini upload URL: \(baseURL)")
         }
         return url
+    }
+
+    private func waitForGeminiFileToBecomeActive(
+        _ file: GeminiFileResource,
+        baseURL: String,
+        apiKey: String,
+        networkManager: NetworkManager,
+        decoder: JSONDecoder
+    ) async throws -> GeminiFileResource {
+        guard let initialState = normalizedGeminiFileState(file.state),
+              initialState == "PROCESSING" else {
+            return file
+        }
+
+        var current = file
+        let maxAttempts = 12
+
+        for attempt in 0..<maxAttempts {
+            current = try await fetchGeminiFile(
+                named: current.name,
+                baseURL: baseURL,
+                apiKey: apiKey,
+                networkManager: networkManager,
+                decoder: decoder
+            )
+
+            let state = normalizedGeminiFileState(current.state)
+            if state == "ACTIVE" {
+                return current
+            }
+            if state == "FAILED" {
+                throw LLMError.providerError(
+                    code: "gemini_file_processing_failed",
+                    message: "Gemini Files API failed to process \"\(current.displayName ?? current.name)\"."
+                )
+            }
+
+            if attempt < maxAttempts - 1 {
+                let backoffMillis = min(250 * (attempt + 1), 1_000)
+                try await Task.sleep(nanoseconds: UInt64(backoffMillis) * 1_000_000)
+            }
+        }
+
+        throw LLMError.providerError(
+            code: "gemini_file_processing_timeout",
+            message: "Gemini Files API did not finish processing \"\(current.displayName ?? current.name)\" in time."
+        )
+    }
+
+    private func fetchGeminiFile(
+        named name: String,
+        baseURL: String,
+        apiKey: String,
+        networkManager: NetworkManager,
+        decoder: JSONDecoder
+    ) async throws -> GeminiFileResource {
+        let request = NetworkRequestFactory.makeRequest(
+            url: try geminiFileURL(from: baseURL, fileName: name),
+            headers: ["x-goog-api-key": apiKey]
+        )
+
+        let (data, _) = try await networkManager.sendRequest(request)
+        let envelope = try decoder.decode(GeminiFileEnvelope.self, from: data)
+        return envelope.file
+    }
+
+    private nonisolated func geminiFileURL(from baseURL: String, fileName: String) throws -> URL {
+        let normalizedName = fileName.lowercased().hasPrefix("files/")
+            ? fileName
+            : "files/\(fileName)"
+        return try validatedURL("\(baseURL)/\(normalizedName)")
+    }
+
+    private func normalizedGeminiFileState(_ state: String?) -> String? {
+        state?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .uppercased()
     }
 }

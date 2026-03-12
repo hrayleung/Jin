@@ -370,13 +370,22 @@ extension AnthropicAdapter {
         }
 
         let status: CodeExecutionStatus = (resultContent.returnCode ?? 0) == 0 ? .completed : .failed
+        let outputFiles = resultContent.content?
+            .compactMap { output -> CodeExecutionOutputFile? in
+                guard let fileID = output.fileId?.trimmingCharacters(in: .whitespacesAndNewlines),
+                      !fileID.isEmpty else {
+                    return nil
+                }
+                return CodeExecutionOutputFile(id: fileID)
+            }
 
         return CodeExecutionActivity(
             id: id,
             status: status,
             stdout: resultContent.stdout,
             stderr: resultContent.stderr,
-            returnCode: resultContent.returnCode
+            returnCode: resultContent.returnCode,
+            outputFiles: outputFiles?.isEmpty == true ? nil : outputFiles
         )
     }
 

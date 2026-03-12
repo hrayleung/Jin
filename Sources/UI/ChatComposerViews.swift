@@ -7,6 +7,7 @@ enum AttachmentConstants {
     static let maxDraftAttachments = 8
     static let maxAttachmentBytes = 25 * 1024 * 1024
     static let maxPDFExtractedCharacters = 120_000
+    static let maxSpreadsheetExtractedCharacters = 120_000
     static let maxMistralOCRImagesToAttach = 8
     static let maxMistralOCRTotalImageBytes = 12 * 1024 * 1024
 }

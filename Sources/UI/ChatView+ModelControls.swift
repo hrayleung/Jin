@@ -108,6 +108,77 @@ extension ChatView {
         }
     }
 
+    @ViewBuilder
+    var codeExecutionMenuContent: some View {
+        Toggle("Code Execution", isOn: codeExecutionEnabledBinding)
+
+        Divider()
+
+        Button("Configure…") {
+            openCodeExecutionSheet()
+        }
+
+        if providerType == .vertexai {
+            Divider()
+            Text("Vertex AI code execution doesn't support file I/O.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    func openCodeExecutionSheet() {
+        codeExecutionDraftError = nil
+        codeExecutionDraft = controls.codeExecution ?? CodeExecutionControls(enabled: isCodeExecutionEnabled)
+
+        let openAISettings = codeExecutionDraft.openAI?.normalized()
+        codeExecutionOpenAIUseExistingContainer = openAISettings?.normalizedExistingContainerID != nil
+        codeExecutionOpenAIFileIDsDraft = openAISettings?.container?.normalizedFileIDs?.joined(separator: "\n") ?? ""
+
+        if providerType == .openai,
+           !codeExecutionOpenAIUseExistingContainer,
+           codeExecutionDraft.openAI == nil {
+            codeExecutionDraft.openAI = OpenAICodeExecutionOptions(
+                container: CodeExecutionContainer(type: "auto")
+            )
+        }
+
+        showingCodeExecutionSheet = true
+    }
+
+    @discardableResult
+    func applyCodeExecutionDraft() -> Bool {
+        codeExecutionDraftError = nil
+
+        if providerType == .openai {
+            var openAI = codeExecutionDraft.openAI ?? OpenAICodeExecutionOptions()
+
+            if codeExecutionOpenAIUseExistingContainer {
+                guard let existingContainerID = openAI.normalizedExistingContainerID else {
+                    codeExecutionDraftError = "Enter an OpenAI container ID."
+                    return false
+                }
+                openAI.existingContainerID = existingContainerID
+                openAI.container = nil
+            } else {
+                var container = openAI.container ?? CodeExecutionContainer(type: "auto")
+                container.type = "auto"
+                container.fileIDs = parsedCodeExecutionOpenAIFileIDsDraft
+                openAI.container = container.normalized()
+                openAI.existingContainerID = nil
+            }
+
+            codeExecutionDraft.openAI = openAI.normalized()
+        }
+
+        if providerType == .anthropic {
+            codeExecutionDraft.anthropic = codeExecutionDraft.anthropic?.normalized()
+        }
+
+        controls.codeExecution = codeExecutionDraft
+        persistControlsToConversation()
+        return true
+    }
+
     func setOpenAIServiceTier(_ serviceTier: OpenAIServiceTier?) {
         controls.openAIServiceTier = serviceTier
         persistControlsToConversation()

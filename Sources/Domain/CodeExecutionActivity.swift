@@ -18,6 +18,8 @@ struct CodeExecutionActivity: Codable, Identifiable, Sendable {
     let returnCode: Int?
     /// Output images from the execution (OpenAI code interpreter).
     let outputImages: [CodeExecutionOutputImage]?
+    /// Output files produced by the execution.
+    let outputFiles: [CodeExecutionOutputFile]?
     /// Container ID used for the execution (OpenAI).
     let containerID: String?
 
@@ -29,6 +31,7 @@ struct CodeExecutionActivity: Codable, Identifiable, Sendable {
         stderr: String? = nil,
         returnCode: Int? = nil,
         outputImages: [CodeExecutionOutputImage]? = nil,
+        outputFiles: [CodeExecutionOutputFile]? = nil,
         containerID: String? = nil
     ) {
         self.id = id
@@ -38,6 +41,7 @@ struct CodeExecutionActivity: Codable, Identifiable, Sendable {
         self.stderr = stderr
         self.returnCode = returnCode
         self.outputImages = outputImages
+        self.outputFiles = outputFiles
         self.containerID = containerID
     }
 
@@ -50,6 +54,7 @@ struct CodeExecutionActivity: Codable, Identifiable, Sendable {
             stderr: newer.stderr ?? stderr,
             returnCode: newer.returnCode ?? returnCode,
             outputImages: newer.outputImages ?? outputImages,
+            outputFiles: newer.outputFiles ?? outputFiles,
             containerID: newer.containerID ?? containerID
         )
     }
@@ -121,5 +126,14 @@ struct CodeExecutionOutputImage: Codable, Sendable {
 
     init(url: String) {
         self.url = url
+    }
+}
+
+/// A file generated or exposed by a provider-native code execution tool.
+struct CodeExecutionOutputFile: Codable, Sendable, Hashable {
+    let id: String
+
+    init(id: String) {
+        self.id = id
     }
 }
