@@ -29,6 +29,18 @@ struct GoogleGenerateContentResponse: Codable {
         let functionCall: FunctionCall?
         let functionResponse: FunctionResponse?
         let inlineData: InlineData?
+        let executableCode: ExecutableCode?
+        let codeExecutionResult: CodeExecutionResult?
+
+        struct ExecutableCode: Codable {
+            let language: String?
+            let code: String?
+        }
+
+        struct CodeExecutionResult: Codable {
+            let outcome: String?
+            let output: String?
+        }
     }
 
     struct InlineData: Codable {

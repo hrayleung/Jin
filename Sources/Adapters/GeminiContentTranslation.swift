@@ -284,6 +284,10 @@ extension GeminiAdapter {
             caps.insert(.promptCaching)
         }
 
+        if ModelCapabilityRegistry.supportsCodeExecution(for: .gemini, modelID: id) {
+            caps.insert(.codeExecution)
+        }
+
         if isImageModel {
             caps.insert(.imageGeneration)
         }

@@ -76,6 +76,18 @@ enum ChatStreamingOrchestrator {
         let onSessionEnd: @MainActor (_ shouldNotify: Bool, _ preview: String?, _ threadID: UUID) -> Void
     }
 
+    static func hasRenderableAssistantContent(
+        assistantPartCount: Int,
+        searchActivityCount: Int,
+        codeExecutionActivityCount: Int,
+        codexToolActivityCount: Int
+    ) -> Bool {
+        assistantPartCount > 0
+            || searchActivityCount > 0
+            || codeExecutionActivityCount > 0
+            || codexToolActivityCount > 0
+    }
+
     @Sendable
     static func run(
         context ctx: SessionContext,
@@ -298,7 +310,14 @@ enum ChatStreamingOrchestrator {
                     let codexToolActivities = accumulator.buildCodexToolActivities()
                     let responseMetrics = metricsCollector.metrics
                     var persistedAssistantMessageID: UUID?
-                    if !assistantParts.isEmpty || !toolCalls.isEmpty || !searchActivities.isEmpty || !codeExecutionActivities.isEmpty || !codexToolActivities.isEmpty {
+                    let hasRenderableAssistantContent = hasRenderableAssistantContent(
+                        assistantPartCount: assistantParts.count,
+                        searchActivityCount: searchActivities.count,
+                        codeExecutionActivityCount: codeExecutionActivities.count,
+                        codexToolActivityCount: codexToolActivities.count
+                    )
+
+                    if hasRenderableAssistantContent || !toolCalls.isEmpty {
                         let persistedParts = await AttachmentImportPipeline.persistImagesToDisk(assistantParts)
                         let assistantMessage = Message(
                             role: .assistant,
@@ -345,7 +364,7 @@ enum ChatStreamingOrchestrator {
                     }
 
                     guard !toolCalls.isEmpty else {
-                        shouldNotifyCompletion = !assistantParts.isEmpty
+                        shouldNotifyCompletion = hasRenderableAssistantContent
                         break
                     }
 

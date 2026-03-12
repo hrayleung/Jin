@@ -148,6 +148,7 @@ actor VertexAIAdapter: LLMProviderAdapter {
                     var didStart = false
                     var pendingJSON = ""
                     var pendingUsage: Usage?
+                    var codeExecutionState = GeminiModelConstants.GoogleCodeExecutionEventState()
 
                     for try await line in lineStream {
                         guard let data = normalizeVertexStreamLine(line) else { continue }
@@ -161,7 +162,7 @@ actor VertexAIAdapter: LLMProviderAdapter {
                         pendingJSON += "\n"
 
                         for jsonObject in extractJSONObjectStrings(from: &pendingJSON) {
-                            let parsed = try parseStreamChunk(jsonObject)
+                            let parsed = try parseStreamChunk(jsonObject, codeExecutionState: &codeExecutionState)
                             if let usage = parsed.usage {
                                 pendingUsage = usage
                             }
@@ -177,7 +178,7 @@ actor VertexAIAdapter: LLMProviderAdapter {
                     if didStart {
                         if !pendingJSON.isEmpty {
                             for jsonObject in extractJSONObjectStrings(from: &pendingJSON) {
-                                let parsed = try parseStreamChunk(jsonObject)
+                                let parsed = try parseStreamChunk(jsonObject, codeExecutionState: &codeExecutionState)
                                 if let usage = parsed.usage {
                                     pendingUsage = usage
                                 }
@@ -403,6 +404,10 @@ actor VertexAIAdapter: LLMProviderAdapter {
             toolArray.append(["googleSearch": [:]])
         }
 
+        if controls.codeExecution?.enabled == true, supportsCodeExecution(modelID) {
+            toolArray.append(["codeExecution": [:]])
+        }
+
         if supportsFunctionCalling(modelID), !tools.isEmpty,
            let functionDeclarations = translateTools(tools) as? [[String: Any]] {
             toolArray.append(["functionDeclarations": functionDeclarations])
@@ -445,6 +450,10 @@ actor VertexAIAdapter: LLMProviderAdapter {
 
     private func supportsWebSearch(_ modelID: String) -> Bool {
         modelSupportsWebSearch(providerConfig: providerConfig, modelID: modelID)
+    }
+
+    private func supportsCodeExecution(_ modelID: String) -> Bool {
+        ModelCapabilityRegistry.supportsCodeExecution(for: .vertexai, modelID: modelID)
     }
 
     private func supportsImageSize(_ modelID: String) -> Bool {
@@ -540,6 +549,10 @@ actor VertexAIAdapter: LLMProviderAdapter {
 
         if supportsNativePDF(id) {
             caps.insert(.nativePDF)
+        }
+
+        if ModelCapabilityRegistry.supportsCodeExecution(for: .vertexai, modelID: id) {
+            caps.insert(.codeExecution)
         }
 
         if imageModel {

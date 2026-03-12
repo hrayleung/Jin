@@ -122,7 +122,10 @@ extension VertexAIAdapter {
         return trimmed
     }
 
-    func parseStreamChunk(_ data: String) throws -> (events: [StreamEvent], usage: Usage?) {
+    func parseStreamChunk(
+        _ data: String,
+        codeExecutionState: inout GeminiModelConstants.GoogleCodeExecutionEventState
+    ) throws -> (events: [StreamEvent], usage: Usage?) {
         let trimmed = data.trimmingCharacters(in: .whitespacesAndNewlines)
         guard let jsonData = trimmed.data(using: .utf8) else {
             return ([], nil)
@@ -136,7 +139,7 @@ extension VertexAIAdapter {
             var events: [StreamEvent] = []
             var usage: Usage?
             for response in responses {
-                events.append(contentsOf: eventsFromVertexResponse(response))
+                events.append(contentsOf: eventsFromVertexResponse(response, codeExecutionState: &codeExecutionState))
                 if let parsed = usageFromVertexResponse(response) {
                     usage = parsed
                 }
@@ -145,7 +148,7 @@ extension VertexAIAdapter {
         }
 
         let response = try decoder.decode(VertexGenerateContentResponse.self, from: jsonData)
-        return (eventsFromVertexResponse(response), usageFromVertexResponse(response))
+        return (eventsFromVertexResponse(response, codeExecutionState: &codeExecutionState), usageFromVertexResponse(response))
     }
 
     func extractJSONObjectStrings(from buffer: inout String) -> [String] {
@@ -206,14 +209,18 @@ extension VertexAIAdapter {
 
     // MARK: - Response Event Parsing
 
-    func eventsFromVertexResponse(_ response: VertexGenerateContentResponse) -> [StreamEvent] {
+    func eventsFromVertexResponse(
+        _ response: VertexGenerateContentResponse,
+        codeExecutionState: inout GeminiModelConstants.GoogleCodeExecutionEventState
+    ) -> [StreamEvent] {
         var events: [StreamEvent] = []
 
         if let candidate = response.candidates?.first,
            let content = candidate.content {
-            for part in content.parts ?? [] {
-                events.append(contentsOf: GeminiModelConstants.events(from: part))
-            }
+            events.append(contentsOf: GeminiModelConstants.events(
+                from: content.parts ?? [],
+                codeExecutionState: &codeExecutionState
+            ))
         }
 
         let grounding = response.candidates?.first?.groundingMetadata ?? response.groundingMetadata

@@ -28,12 +28,7 @@ struct CodeExecutionTimelineView: View {
                 VStack(spacing: 0) {
                     if isExpanded {
                         expandedContent
-                            .transition(
-                                .asymmetric(
-                                    insertion: .opacity.combined(with: .move(edge: .top)),
-                                    removal: .opacity
-                                )
-                            )
+                            .transition(.move(edge: .top).combined(with: .opacity))
                     }
                 }
                 .clipped()
@@ -41,20 +36,20 @@ struct CodeExecutionTimelineView: View {
             .padding(JinSpacing.small)
             .jinSurface(.subtleStrong, cornerRadius: JinRadius.medium)
             .clipped()
-            .animation(.spring(duration: 0.3, bounce: 0.05), value: isExpanded)
-            .animation(.easeInOut(duration: 0.25), value: animationSignature)
+            .animation(.spring(duration: 0.25, bounce: 0), value: isExpanded)
+            .animation(.easeInOut(duration: 0.2), value: animationSignature)
             .onChange(of: isStreaming) { _, streaming in
                 if streaming {
                     let mode = Self.resolveDisplayMode()
                     if mode.startsExpandedDuringStreaming {
-                        withAnimation(.spring(duration: 0.3, bounce: 0.05)) {
+                        withAnimation(.spring(duration: 0.25, bounce: 0)) {
                             isExpanded = true
                         }
                     }
                 } else {
                     let mode = Self.resolveDisplayMode()
                     if mode == .collapseOnComplete {
-                        withAnimation(.spring(duration: 0.3, bounce: 0.05)) {
+                        withAnimation(.spring(duration: 0.25, bounce: 0)) {
                             isExpanded = false
                         }
                     }
@@ -72,15 +67,14 @@ struct CodeExecutionTimelineView: View {
 
     private var headerRow: some View {
         Button {
-            withAnimation(.spring(duration: 0.3, bounce: 0.05)) {
+            withAnimation(.spring(duration: 0.25, bounce: 0)) {
                 isExpanded.toggle()
             }
         } label: {
             HStack(spacing: JinSpacing.small) {
                 Image(systemName: "chevron.left.forwardslash.chevron.right")
-                    .font(.system(size: 12, weight: .medium))
+                    .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(.secondary)
-                    .frame(width: 18, height: 18)
 
                 Text(headerTitle)
                     .font(.subheadline.weight(.medium))
@@ -90,21 +84,27 @@ struct CodeExecutionTimelineView: View {
                 Spacer(minLength: 0)
 
                 if isStreaming, hasActiveExecution {
-                    CodeExecActivityIndicator()
+                    ProgressView()
+                        .scaleEffect(0.5)
                 }
 
-                if let badge = statusBadge {
-                    CodeExecCompactStatusBadge(style: badge)
+                if let compactStatus = compactStatusStyle {
+                    HStack(spacing: 4) {
+                        Image(systemName: compactStatus.icon)
+                            .font(.system(size: 10, weight: .semibold))
+                        Text(compactStatus.text)
+                            .font(.caption2.weight(.semibold))
+                    }
+                    .foregroundStyle(compactStatus.color)
+                    .lineLimit(1)
                 }
 
-                Image(systemName: "chevron.right")
+                Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
                     .font(.caption2.weight(.semibold))
                     .foregroundStyle(.tertiary)
-                    .rotationEffect(.degrees(isExpanded ? 90 : 0))
-                    .animation(.spring(duration: 0.25, bounce: 0.15), value: isExpanded)
             }
             .padding(.horizontal, JinSpacing.small)
-            .padding(.vertical, 7)
+            .padding(.vertical, 6)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -119,13 +119,14 @@ struct CodeExecutionTimelineView: View {
                 CodeExecutionEntryView(
                     activity: activity,
                     entryIndex: index,
-                    isStreaming: isStreaming
+                    showsConnectorAbove: index > 0,
+                    showsConnectorBelow: index < activities.count - 1
                 )
             }
         }
         .padding(.horizontal, JinSpacing.small)
         .padding(.top, JinSpacing.xSmall)
-        .padding(.bottom, JinSpacing.small)
+        .padding(.bottom, JinSpacing.xSmall)
     }
 
     // MARK: - Computed
@@ -148,31 +149,27 @@ struct CodeExecutionTimelineView: View {
         return "\(activities.count) Code Executions"
     }
 
-    private var statusBadge: CodeExecCompactStatusStyle? {
+    private var compactStatusStyle: (text: String, icon: String, color: Color)? {
         if hasActiveExecution {
-            let activeActivity = activities.first {
-                $0.status == .interpreting || $0.status == .writingCode || $0.status == .inProgress
-            }
-            let statusText: String
-            switch activeActivity?.status {
-            case .writingCode:
-                statusText = "Writing code..."
-            case .interpreting:
-                statusText = "Running..."
-            default:
-                statusText = "In progress..."
-            }
-            return CodeExecCompactStatusStyle(text: statusText, icon: "play.circle.fill", color: .accentColor)
+            return nil
         }
 
         let failedCount = activities.filter { $0.status == .failed }.count
         let completedCount = activities.filter { $0.status == .completed }.count
 
         if failedCount > 0 {
-            return CodeExecCompactStatusStyle(text: "Failed", icon: "xmark.circle.fill", color: Color(nsColor: .systemOrange))
+            return (
+                text: "Failed",
+                icon: "xmark.circle",
+                color: Color(nsColor: .systemOrange).opacity(0.95)
+            )
         }
         if completedCount > 0 {
-            return CodeExecCompactStatusStyle(text: "Done", icon: "checkmark.circle.fill", color: .secondary)
+            return (
+                text: "Done",
+                icon: "checkmark.circle",
+                color: Color(nsColor: .systemGreen).opacity(0.88)
+            )
         }
         return nil
     }
@@ -184,72 +181,14 @@ struct CodeExecutionTimelineView: View {
     }
 }
 
-// MARK: - Compact Status Style
-
-private struct CodeExecCompactStatusStyle {
-    let text: String
-    let icon: String
-    let color: Color
-}
-
-// MARK: - Compact Status Badge
-
-private struct CodeExecCompactStatusBadge: View {
-    let style: CodeExecCompactStatusStyle
-
-    var body: some View {
-        HStack(spacing: 4) {
-            Image(systemName: style.icon)
-                .font(.system(size: 10, weight: .semibold))
-            Text(style.text)
-                .font(.caption2.weight(.semibold))
-        }
-        .foregroundStyle(style.color.opacity(0.9))
-        .padding(.horizontal, 6)
-        .padding(.vertical, 3)
-        .background(
-            Capsule(style: .continuous)
-                .fill(style.color.opacity(0.1))
-        )
-        .lineLimit(1)
-    }
-}
-
-// MARK: - Activity Indicator (3-dot wave)
-
-private struct CodeExecActivityIndicator: View {
-    @State private var isAnimating = false
-
-    var body: some View {
-        HStack(spacing: 2.5) {
-            ForEach(0..<3, id: \.self) { index in
-                Circle()
-                    .fill(Color.secondary.opacity(0.6))
-                    .frame(width: 3.5, height: 3.5)
-                    .offset(y: isAnimating ? -2.5 : 2.5)
-                    .animation(
-                        .easeInOut(duration: 0.45)
-                            .repeatForever(autoreverses: true)
-                            .delay(Double(index) * 0.12),
-                        value: isAnimating
-                    )
-            }
-        }
-        .frame(height: 10)
-        .onAppear { isAnimating = true }
-    }
-}
-
 // MARK: - Code Execution Entry
 
 private struct CodeExecutionEntryView: View {
     let activity: CodeExecutionActivity
     let entryIndex: Int
-    let isStreaming: Bool
+    let showsConnectorAbove: Bool
+    let showsConnectorBelow: Bool
 
-    @State private var isCodeExpanded = false
-    @State private var isOutputExpanded = true
-    @State private var hasAppeared = false
     @State private var isRunningPulse = false
 
     private var executionStatus: CodeExecVisualStatus {
@@ -261,67 +200,118 @@ private struct CodeExecutionEntryView: View {
         case .failed, .incomplete:
             return .error
         case .unknown:
-            return .running
+            return .neutral
         }
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            entryHeader
-            entryBody
-        }
-        .jinSurface(.neutral, cornerRadius: JinRadius.small)
-        .opacity(hasAppeared ? 1 : 0)
-        .offset(y: hasAppeared ? 0 : 6)
-        .onAppear {
-            isRunningPulse = executionStatus == .running
-            withAnimation(.spring(duration: 0.4, bounce: 0.08).delay(Double(entryIndex) * 0.06)) {
-                hasAppeared = true
+        HStack(alignment: .top, spacing: JinSpacing.small) {
+            timelineRail
+
+            VStack(alignment: .leading, spacing: JinSpacing.small) {
+                entryHeader
+                entryBody
             }
+            .padding(.horizontal, JinSpacing.medium)
+            .padding(.vertical, JinSpacing.small)
+            .jinSurface(.neutral, cornerRadius: JinRadius.small)
+        }
+        .animation(.spring(duration: 0.25, bounce: 0), value: executionStatus)
+        .onAppear {
+            updatePulseAnimation(for: executionStatus)
         }
         .onChange(of: executionStatus) { _, newValue in
-            isRunningPulse = newValue == .running
+            updatePulseAnimation(for: newValue)
+        }
+    }
+
+    // MARK: - Timeline Rail
+
+    @ViewBuilder
+    private var timelineRail: some View {
+        VStack(spacing: 2) {
+            Rectangle()
+                .fill(JinSemanticColor.separator.opacity(0.7))
+                .frame(width: JinStrokeWidth.regular, height: 12)
+                .opacity(showsConnectorAbove ? 1 : 0)
+
+            statusNode
+
+            Rectangle()
+                .fill(JinSemanticColor.separator.opacity(0.7))
+                .frame(width: JinStrokeWidth.regular, height: 12)
+                .opacity(showsConnectorBelow ? 1 : 0)
+        }
+        .frame(width: 16)
+        .padding(.top, JinSpacing.xSmall)
+    }
+
+    @ViewBuilder
+    private var statusNode: some View {
+        let style = visualStyle
+
+        ZStack {
+            Circle()
+                .fill(style.nodeBackground)
+                .frame(width: 16, height: 16)
+                .overlay(
+                    Circle()
+                        .stroke(style.nodeBorder, lineWidth: 0.75)
+                )
+
+            switch executionStatus {
+            case .running:
+                Circle()
+                    .fill(style.accent)
+                    .frame(width: 6, height: 6)
+                    .scaleEffect(isRunningPulse ? 1.4 : 0.85)
+                    .opacity(isRunningPulse ? 0.35 : 1)
+                    .animation(
+                        .easeInOut(duration: 0.85).repeatForever(autoreverses: true),
+                        value: isRunningPulse
+                    )
+            case .success:
+                Image(systemName: "checkmark")
+                    .font(.system(size: 8.5, weight: .semibold))
+                    .foregroundStyle(style.accent)
+            case .error:
+                Image(systemName: "xmark")
+                    .font(.system(size: 8.5, weight: .semibold))
+                    .foregroundStyle(style.accent)
+            case .neutral:
+                Image(systemName: "questionmark")
+                    .font(.system(size: 8.5, weight: .semibold))
+                    .foregroundStyle(style.accent)
+            }
         }
     }
 
     // MARK: - Entry Header
 
     private var entryHeader: some View {
-        HStack(spacing: JinSpacing.small) {
-            statusDot
+        HStack(alignment: .firstTextBaseline, spacing: JinSpacing.small) {
+            Image(systemName: "terminal")
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(visualStyle.accent)
+                .frame(width: 16, height: 16)
 
-            Text(statusLabel)
-                .font(.caption.weight(.medium))
-                .foregroundStyle(.secondary)
+            Text("Execution \(entryIndex + 1)")
+                .font(.system(.caption, design: .monospaced).weight(.semibold))
+                .foregroundStyle(.primary)
                 .lineLimit(1)
 
             Spacer(minLength: 0)
 
-            statusPill
-        }
-        .padding(.horizontal, JinSpacing.medium)
-        .padding(.vertical, JinSpacing.small)
-    }
-
-    @ViewBuilder
-    private var statusDot: some View {
-        let style = visualStyle
-        ZStack {
-            if executionStatus == .running {
-                Circle()
-                    .fill(style.accent.opacity(0.3))
-                    .frame(width: 12, height: 12)
-                    .scaleEffect(isRunningPulse ? 1.6 : 1.0)
-                    .opacity(isRunningPulse ? 0.0 : 0.5)
-                    .animation(
-                        .easeOut(duration: 1.2).repeatForever(autoreverses: false),
-                        value: isRunningPulse
+            if let returnCode = activity.returnCode, shouldShowReturnCode {
+                Text("exit \(returnCode)")
+                    .jinTagStyle(
+                        foreground: returnCode == 0
+                            ? .secondary
+                            : Color(nsColor: .systemOrange).opacity(0.95)
                     )
             }
 
-            Circle()
-                .fill(style.accent)
-                .frame(width: 7, height: 7)
+            statusPill
         }
     }
 
@@ -329,27 +319,34 @@ private struct CodeExecutionEntryView: View {
     private var statusPill: some View {
         let style = visualStyle
 
-        HStack(spacing: 4) {
+        HStack(spacing: 6) {
             if executionStatus == .running {
                 Circle()
                     .fill(style.accent)
-                    .frame(width: 4, height: 4)
+                    .frame(width: 4.5, height: 4.5)
             } else {
-                Image(systemName: executionStatus == .success ? "checkmark.circle.fill" : "xmark.circle.fill")
-                    .font(.system(size: 9.5, weight: .semibold))
-                    .foregroundStyle(style.accent)
+                switch executionStatus {
+                case .success:
+                    Image(systemName: "checkmark.circle")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(style.accent)
+                case .error:
+                    Image(systemName: "xmark.circle")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(style.accent)
+                case .neutral:
+                    Image(systemName: "questionmark.circle")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(style.accent)
+                case .running:
+                    EmptyView()
+                }
             }
 
             Text(statusLabel)
         }
         .font(.caption2.weight(.semibold))
         .foregroundStyle(style.text)
-        .padding(.horizontal, 7)
-        .padding(.vertical, 3)
-        .background(
-            Capsule(style: .continuous)
-                .fill(style.accent.opacity(0.1))
-        )
         .lineLimit(1)
     }
 
@@ -361,7 +358,8 @@ private struct CodeExecutionEntryView: View {
         case .completed: return "Done"
         case .failed: return "Failed"
         case .incomplete: return "Incomplete"
-        case .unknown: return "Running..."
+        case .unknown(let rawValue):
+            return rawValue.isEmpty ? "Unknown" : rawValue
         }
     }
 
@@ -369,107 +367,44 @@ private struct CodeExecutionEntryView: View {
 
     @ViewBuilder
     private var entryBody: some View {
-        VStack(alignment: .leading, spacing: 0) {
+        VStack(alignment: .leading, spacing: JinSpacing.small) {
             if let code = activity.code, !code.isEmpty {
-                codeSection(code)
+                CodeExecContentBlockView(
+                    title: "Generated Code",
+                    text: code,
+                    style: .code,
+                    badgeText: codeBadgeText,
+                    language: codeLanguage
+                )
             }
 
             if let stdout = activity.stdout, !stdout.isEmpty {
-                outputSection(title: "Output", text: stdout, isError: false)
+                CodeExecContentBlockView(
+                    title: "Output",
+                    text: stdout,
+                    style: .output
+                )
             }
 
             if let stderr = activity.stderr, !stderr.isEmpty {
-                outputSection(title: "Error", text: stderr, isError: true)
+                CodeExecContentBlockView(
+                    title: "Error",
+                    text: stderr,
+                    style: .error
+                )
             }
 
-            if activity.code == nil, activity.stdout == nil {
-                statusPlaceholder
-            }
-        }
-    }
-
-    // MARK: - Code Section
-
-    @ViewBuilder
-    private func codeSection(_ code: String) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Divider().opacity(0.5)
-
-            HStack(spacing: JinSpacing.small) {
-                Image(systemName: "chevron.left.forwardslash.chevron.right")
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundStyle(.tertiary)
-
-                Text("Code")
-                    .font(.caption.weight(.medium))
+            if let outputImages = activity.outputImages, !outputImages.isEmpty {
+                Text(outputImages.count == 1 ? "Generated 1 image output" : "Generated \(outputImages.count) image outputs")
+                    .font(.caption)
                     .foregroundStyle(.secondary)
-
-                Spacer(minLength: 0)
-
-                CodeExecCopyButton(text: code)
-
-                Button {
-                    withAnimation(.spring(duration: 0.25, bounce: 0.1)) {
-                        isCodeExpanded.toggle()
-                    }
-                } label: {
-                    Image(systemName: "chevron.right")
-                        .font(.caption2.weight(.semibold))
-                        .foregroundStyle(.secondary)
-                        .rotationEffect(.degrees(isCodeExpanded ? 90 : 0))
-                        .frame(width: 20, height: 20)
-                }
-                .buttonStyle(JinIconButtonStyle())
-            }
-            .padding(.horizontal, JinSpacing.medium)
-            .padding(.vertical, JinSpacing.xSmall)
-
-            if isCodeExpanded {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    Text(code)
-                        .font(.system(.caption, design: .monospaced))
-                        .foregroundStyle(.primary.opacity(0.85))
-                        .textSelection(.enabled)
-                        .padding(.horizontal, JinSpacing.medium)
-                        .padding(.bottom, JinSpacing.small)
-                }
-                .transition(.opacity.combined(with: .move(edge: .top)))
-            }
-        }
-        .animation(.spring(duration: 0.25, bounce: 0.1), value: isCodeExpanded)
-    }
-
-    // MARK: - Output Section
-
-    @ViewBuilder
-    private func outputSection(title: String, text: String, isError: Bool) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Divider().opacity(0.5)
-
-            HStack(spacing: JinSpacing.small) {
-                Image(systemName: isError ? "exclamationmark.triangle" : "text.alignleft")
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundStyle(isError ? Color(nsColor: .systemOrange).opacity(0.8) : Color.secondary.opacity(0.6))
-
-                Text(title)
-                    .font(.caption.weight(.medium))
-                    .foregroundStyle(isError ? Color(nsColor: .systemOrange).opacity(0.9) : .secondary)
-
-                Spacer(minLength: 0)
-
-                CodeExecCopyButton(text: text)
-            }
-            .padding(.horizontal, JinSpacing.medium)
-            .padding(.vertical, JinSpacing.xSmall)
-
-            ScrollView(.horizontal, showsIndicators: false) {
-                Text(text)
-                    .font(.system(.caption, design: .monospaced))
-                    .foregroundStyle(isError ? Color(nsColor: .systemOrange).opacity(0.9) : .primary.opacity(0.85))
-                    .textSelection(.enabled)
-                    .lineLimit(20)
                     .padding(.horizontal, JinSpacing.medium)
-                    .padding(.bottom, JinSpacing.small)
+                    .padding(.vertical, JinSpacing.small)
+                    .jinSurface(.subtle, cornerRadius: JinRadius.small)
+            }
+
+            if !hasDisplayableContent {
+                statusPlaceholder
             }
         }
     }
@@ -490,6 +425,7 @@ private struct CodeExecutionEntryView: View {
             }
             .padding(.horizontal, JinSpacing.medium)
             .padding(.vertical, JinSpacing.small)
+            .jinSurface(.subtle, cornerRadius: JinRadius.small)
         }
     }
 
@@ -499,20 +435,59 @@ private struct CodeExecutionEntryView: View {
         switch executionStatus {
         case .running:
             return CodeExecVisualStyle(
-                accent: Color.accentColor.opacity(0.7),
-                text: .secondary
+                accent: .secondary,
+                text: .secondary,
+                nodeBackground: Color.primary.opacity(0.08),
+                nodeBorder: JinSemanticColor.separator.opacity(0.72)
             )
         case .success:
             return CodeExecVisualStyle(
-                accent: Color.secondary.opacity(0.7),
-                text: .secondary
+                accent: Color(nsColor: .systemGreen).opacity(0.88),
+                text: Color(nsColor: .systemGreen).opacity(0.88),
+                nodeBackground: Color(nsColor: .systemGreen).opacity(0.11),
+                nodeBorder: Color(nsColor: .systemGreen).opacity(0.26)
             )
         case .error:
             return CodeExecVisualStyle(
                 accent: Color(nsColor: .systemOrange).opacity(0.95),
-                text: Color(nsColor: .systemOrange).opacity(0.95)
+                text: Color(nsColor: .systemOrange).opacity(0.95),
+                nodeBackground: Color(nsColor: .systemOrange).opacity(0.14),
+                nodeBorder: Color(nsColor: .systemOrange).opacity(0.36)
+            )
+        case .neutral:
+            return CodeExecVisualStyle(
+                accent: Color.secondary.opacity(0.85),
+                text: Color.secondary.opacity(0.85),
+                nodeBackground: Color.primary.opacity(0.05),
+                nodeBorder: JinSemanticColor.separator.opacity(0.6)
             )
         }
+    }
+
+    private var hasDisplayableContent: Bool {
+        let hasCode = !(activity.code?.isEmpty ?? true)
+        let hasStdout = !(activity.stdout?.isEmpty ?? true)
+        let hasStderr = !(activity.stderr?.isEmpty ?? true)
+        let hasImages = !(activity.outputImages?.isEmpty ?? true)
+        return hasCode || hasStdout || hasStderr || hasImages
+    }
+
+    private var shouldShowReturnCode: Bool {
+        activity.status == .completed || activity.status == .failed || activity.status == .incomplete
+    }
+
+    private var codeLanguage: CodeExecCodeLanguage? {
+        guard let code = activity.code, !code.isEmpty else { return nil }
+        return CodeExecCodeLanguage.infer(from: code)
+    }
+
+    private var codeBadgeText: String? {
+        guard let codeLanguage, codeLanguage != .generic else { return nil }
+        return codeLanguage.badgeLabel
+    }
+
+    private func updatePulseAnimation(for status: CodeExecVisualStatus) {
+        isRunningPulse = status == .running
     }
 }
 
@@ -522,55 +497,349 @@ private enum CodeExecVisualStatus: Equatable {
     case running
     case success
     case error
+    case neutral
 }
 
 private struct CodeExecVisualStyle {
     let accent: Color
     let text: Color
+    let nodeBackground: Color
+    let nodeBorder: Color
 }
 
-// MARK: - Copy Button with Animation
+// MARK: - Content Blocks
 
-private struct CodeExecCopyButton: View {
+private struct CodeExecContentBlockView: View {
+    let title: String
     let text: String
+    let style: CodeExecContentBlockStyle
+    let badgeText: String?
 
-    @State private var didCopy = false
-    @State private var resetTask: Task<Void, Never>?
+    private let lineCount: Int
+    private let longestLineLength: Int
+    private let highlightedCode: AttributedString?
+    private let collapsedHeight: CGFloat = 176
+    private let expandedHeight: CGFloat = 320
 
-    var body: some View {
-        Button {
-            copyToPasteboard()
-        } label: {
-            Image(systemName: didCopy ? "checkmark" : "doc.on.doc")
-                .font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(didCopy ? Color.accentColor : .secondary)
-                .frame(width: 20, height: 20)
-                .contentTransition(.symbolEffect(.replace))
+    @State private var isExpanded = false
+    @State private var scrollViewWidth: CGFloat = 0
+
+    init(
+        title: String,
+        text: String,
+        style: CodeExecContentBlockStyle,
+        badgeText: String? = nil,
+        language: CodeExecCodeLanguage? = nil
+    ) {
+        self.title = title
+        self.text = text
+        self.style = style
+        self.badgeText = badgeText
+
+        let lines = text.split(separator: "\n", omittingEmptySubsequences: false)
+        self.lineCount = max(lines.count, 1)
+        self.longestLineLength = lines.map(\.count).max() ?? text.count
+
+        if style.usesSyntaxHighlighting {
+            self.highlightedCode = CodeExecSyntaxHighlighter.highlighted(text, language: language)
+        } else {
+            self.highlightedCode = nil
         }
-        .buttonStyle(JinIconButtonStyle())
-        .disabled(text.rangeOfCharacter(from: CharacterSet.whitespacesAndNewlines.inverted) == nil)
     }
 
-    @MainActor
-    private func copyToPasteboard() {
-        let pasteboard = NSPasteboard.general
-        pasteboard.clearContents()
-        pasteboard.setString(text, forType: .string)
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: JinSpacing.small) {
+                Image(systemName: style.iconName)
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(style.iconColor)
 
-        withAnimation(.easeInOut(duration: 0.15)) {
-            didCopy = true
+                Text(title)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(style.titleColor)
+
+                if let badgeText, !badgeText.isEmpty {
+                    Text(badgeText)
+                        .jinTagStyle(foreground: style.badgeColor)
+                }
+
+                Spacer(minLength: 0)
+
+                if showsExpandControl {
+                    Button(isExpanded ? "Show Less" : "Show More") {
+                        withAnimation(.spring(duration: 0.25, bounce: 0)) {
+                            isExpanded.toggle()
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .font(.caption2.weight(.medium))
+                    .foregroundStyle(.secondary)
+                }
+
+                CopyToPasteboardButton(
+                    text: text,
+                    helpText: "Copy \(title.lowercased())",
+                    copiedHelpText: "\(title) copied",
+                    useProminentStyle: false
+                )
+            }
+            .padding(.horizontal, JinSpacing.medium - 2)
+            .padding(.vertical, JinSpacing.xSmall)
+            .background(style.headerBackground)
+            .overlay(alignment: .bottom) {
+                Rectangle()
+                    .fill(JinSemanticColor.separator.opacity(0.55))
+                    .frame(height: JinStrokeWidth.hairline)
+            }
+
+            ScrollView([.vertical, .horizontal], showsIndicators: true) {
+                HStack(alignment: .top, spacing: JinSpacing.medium) {
+                    if style.showsLineNumbers, let lineNumberText {
+                        Text(lineNumberText)
+                            .font(Self.contentFont)
+                            .foregroundStyle(.tertiary)
+                            .multilineTextAlignment(.trailing)
+                            .padding(.trailing, JinSpacing.small)
+                            .overlay(alignment: .trailing) {
+                                Rectangle()
+                                    .fill(JinSemanticColor.separator.opacity(0.45))
+                                    .frame(width: JinStrokeWidth.hairline)
+                            }
+                    }
+
+                    renderedTextBody
+                }
+                .padding(.horizontal, JinSpacing.medium - 2)
+                .padding(.vertical, JinSpacing.small)
+                .frame(minWidth: scrollViewWidth, alignment: .leading)
+            }
+            .defaultScrollAnchor(.topLeading)
+            .background(
+                GeometryReader { geo in
+                    Color.clear
+                        .onAppear { scrollViewWidth = geo.size.width }
+                        .onChange(of: geo.size.width) { _, w in scrollViewWidth = w }
+                }
+            )
+            .frame(maxHeight: currentMaxHeight, alignment: .top)
+            .background(style.bodyBackground)
+        }
+        .clipShape(RoundedRectangle(cornerRadius: JinRadius.small, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: JinRadius.small, style: .continuous)
+                .stroke(style.borderColor, lineWidth: JinStrokeWidth.hairline)
+        )
+    }
+
+    @ViewBuilder
+    private var renderedTextBody: some View {
+        if let highlightedCode {
+            Text(highlightedCode)
+                .font(Self.contentFont)
+                .multilineTextAlignment(.leading)
+                .textSelection(.enabled)
+                .fixedSize(horizontal: true, vertical: true)
+        } else {
+            Text(text)
+                .font(Self.contentFont)
+                .foregroundStyle(style.textColor)
+                .multilineTextAlignment(.leading)
+                .textSelection(.enabled)
+                .fixedSize(horizontal: true, vertical: true)
+        }
+    }
+
+    private var showsExpandControl: Bool {
+        lineCount > 12 || longestLineLength > 120 || text.count > 800
+    }
+
+    private var currentMaxHeight: CGFloat? {
+        guard showsExpandControl else { return nil }
+        return isExpanded ? expandedHeight : collapsedHeight
+    }
+
+    private var lineNumberText: String? {
+        guard lineCount > 1, lineCount <= 400 else { return nil }
+        return (1...lineCount).map(String.init).joined(separator: "\n")
+    }
+
+    private static let contentFont = Font.system(.caption, design: .monospaced)
+}
+
+private struct CodeExecContentBlockStyle {
+    let iconName: String
+    let iconColor: Color
+    let titleColor: Color
+    let badgeColor: Color
+    let textColor: Color
+    let headerBackground: Color
+    let bodyBackground: Color
+    let borderColor: Color
+    let showsLineNumbers: Bool
+    let usesSyntaxHighlighting: Bool
+
+    static let code = CodeExecContentBlockStyle(
+        iconName: "chevron.left.forwardslash.chevron.right",
+        iconColor: .secondary.opacity(0.75),
+        titleColor: .secondary,
+        badgeColor: .secondary,
+        textColor: .primary.opacity(0.88),
+        headerBackground: JinSemanticColor.subtleSurfaceStrong,
+        bodyBackground: JinSemanticColor.raisedSurface,
+        borderColor: JinSemanticColor.separator.opacity(0.75),
+        showsLineNumbers: true,
+        usesSyntaxHighlighting: true
+    )
+
+    static let output = CodeExecContentBlockStyle(
+        iconName: "terminal",
+        iconColor: .secondary.opacity(0.75),
+        titleColor: .secondary,
+        badgeColor: .secondary,
+        textColor: .secondary,
+        headerBackground: JinSemanticColor.subtleSurfaceStrong,
+        bodyBackground: JinSemanticColor.raisedSurface,
+        borderColor: JinSemanticColor.separator.opacity(0.75),
+        showsLineNumbers: false,
+        usesSyntaxHighlighting: false
+    )
+
+    static let error = CodeExecContentBlockStyle(
+        iconName: "exclamationmark.triangle.fill",
+        iconColor: Color(nsColor: .systemOrange).opacity(0.9),
+        titleColor: Color(nsColor: .systemOrange).opacity(0.95),
+        badgeColor: Color(nsColor: .systemOrange).opacity(0.95),
+        textColor: Color(nsColor: .systemOrange).opacity(0.95),
+        headerBackground: Color(nsColor: .systemOrange).opacity(0.1),
+        bodyBackground: Color(nsColor: .systemOrange).opacity(0.045),
+        borderColor: Color(nsColor: .systemOrange).opacity(0.24),
+        showsLineNumbers: false,
+        usesSyntaxHighlighting: false
+    )
+}
+
+// MARK: - Code Language
+
+private enum CodeExecCodeLanguage: Equatable {
+    case python
+    case javascript
+    case shell
+    case swift
+    case generic
+
+    var badgeLabel: String {
+        switch self {
+        case .python:
+            return "Python"
+        case .javascript:
+            return "JavaScript"
+        case .shell:
+            return "Shell"
+        case .swift:
+            return "Swift"
+        case .generic:
+            return "Code"
+        }
+    }
+
+    static func infer(from code: String) -> CodeExecCodeLanguage? {
+        let trimmed = code.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+
+        let lowercase = trimmed.lowercased()
+
+        if trimmed.hasPrefix("#!/bin/bash") || trimmed.hasPrefix("#!/bin/sh") || lowercase.contains("echo ") && lowercase.contains("$") {
+            return .shell
         }
 
-        resetTask?.cancel()
-        resetTask = Task { @MainActor in
-            do {
-                try await Task.sleep(nanoseconds: 1_500_000_000)
-            } catch {
-                return
-            }
-            withAnimation(.easeInOut(duration: 0.15)) {
-                didCopy = false
-            }
+        if lowercase.contains("import swiftui") || lowercase.contains("struct ") && lowercase.contains(": view") {
+            return .swift
+        }
+
+        if lowercase.contains("console.log") || lowercase.contains("const ") || lowercase.contains("let ") || lowercase.contains("=>") {
+            return .javascript
+        }
+
+        if lowercase.contains("import ") || lowercase.contains("print(") || lowercase.contains("def ") || lowercase.contains("plt.") {
+            return .python
+        }
+
+        return .generic
+    }
+}
+
+// MARK: - Syntax Highlighting
+
+private enum CodeExecSyntaxHighlighter {
+    private static let baseColor = NSColor.labelColor.withAlphaComponent(0.88)
+    private static let keywordColor = NSColor.systemBlue.withAlphaComponent(0.9)
+    private static let stringColor = NSColor.systemRed.withAlphaComponent(0.86)
+    private static let commentColor = NSColor.secondaryLabelColor.withAlphaComponent(0.95)
+    private static let numberColor = NSColor.systemPurple.withAlphaComponent(0.82)
+    private static let functionColor = NSColor.systemTeal.withAlphaComponent(0.9)
+
+    static func highlighted(_ text: String, language: CodeExecCodeLanguage?) -> AttributedString {
+        guard !text.isEmpty else { return AttributedString("") }
+        guard text.count <= 20_000 else { return AttributedString(text) }
+
+        let attributed = NSMutableAttributedString(
+            string: text,
+            attributes: [
+                .foregroundColor: baseColor
+            ]
+        )
+        let fullRange = NSRange(location: 0, length: attributed.length)
+
+        let functionPattern = #"(?m)\b([A-Za-z_][A-Za-z0-9_]*)\s*(?=\()"#
+        apply(pattern: functionPattern, color: functionColor, to: attributed, range: fullRange)
+
+        let keywordPattern = keywordPattern(for: language)
+        apply(pattern: keywordPattern, color: keywordColor, to: attributed, range: fullRange)
+
+        let numberPattern = #"(?<![\w.])\d+(?:\.\d+)?(?![\w.])"#
+        apply(pattern: numberPattern, color: numberColor, to: attributed, range: fullRange)
+
+        let stringPattern = #"(?s)\"\"\".*?\"\"\"|'''.*?'''|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'"#
+        apply(pattern: stringPattern, color: stringColor, to: attributed, range: fullRange)
+
+        let commentPattern = commentPattern(for: language)
+        apply(pattern: commentPattern, color: commentColor, to: attributed, range: fullRange)
+
+        return AttributedString(attributed)
+    }
+
+    private static func keywordPattern(for language: CodeExecCodeLanguage?) -> String {
+        switch language {
+        case .javascript:
+            return #"\b(await|async|break|case|catch|class|const|continue|default|else|export|false|finally|for|from|function|if|import|in|let|new|null|return|switch|throw|true|try|typeof|undefined|var|while)\b"#
+        case .shell:
+            return #"\b(case|do|done|elif|else|esac|export|fi|for|function|if|in|local|return|then|unset|while)\b"#
+        case .swift:
+            return #"\b(actor|async|await|case|class|enum|extension|false|for|func|if|import|in|let|nil|private|protocol|return|self|struct|switch|throw|true|var|while)\b"#
+        case .python, .generic, .none:
+            return #"\b(and|as|assert|break|class|continue|def|del|elif|else|except|False|finally|for|from|if|import|in|is|lambda|None|nonlocal|not|or|pass|raise|return|True|try|while|with|yield)\b"#
+        }
+    }
+
+    private static func commentPattern(for language: CodeExecCodeLanguage?) -> String {
+        switch language {
+        case .javascript, .swift:
+            return #"(?m)//.*$|/\*[\s\S]*?\*/"#
+        case .shell, .python, .generic, .none:
+            return #"(?m)#.*$"#
+        }
+    }
+
+    private static func apply(
+        pattern: String,
+        color: NSColor,
+        to attributed: NSMutableAttributedString,
+        range: NSRange
+    ) {
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: []) else { return }
+        let matches = regex.matches(in: attributed.string, options: [], range: range)
+        for match in matches {
+            attributed.addAttribute(.foregroundColor, value: color, range: match.range)
         }
     }
 }
