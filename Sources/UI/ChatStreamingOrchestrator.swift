@@ -643,6 +643,8 @@ enum ChatStreamingOrchestrator {
         arguments: [String: AnyCodable],
         controls: AgentModeControls
     ) -> Bool {
+        if controls.bypassPermissions { return false }
+
         let raw = arguments.mapValues { $0.value }
 
         switch functionName {

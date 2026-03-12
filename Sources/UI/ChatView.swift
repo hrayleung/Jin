@@ -165,6 +165,7 @@ struct ChatView: View {
     @State var webSearchPluginEnabled = true
     @State var webSearchPluginConfigured = false
     @State var isAgentModeActive = false
+    @State private var isAgentModePopoverPresented = false
     @State private var isPreparingToSend = false
     @State private var prepareToSendStatus: String?
     @State private var prepareToSendTask: Task<Void, Never>?
@@ -418,7 +419,10 @@ struct ChatView: View {
                     badgeText: isAgentModeActive ? "On" : nil,
                     help: isAgentModeActive ? "Agent Mode: On" : "Agent Mode: Off"
                 ) {
-                    isAgentModeActive.toggle()
+                    isAgentModePopoverPresented.toggle()
+                }
+                .popover(isPresented: $isAgentModePopoverPresented, arrowEdge: .bottom) {
+                    AgentModePopoverView(isActive: $isAgentModeActive)
                 }
             }
 
@@ -3669,10 +3673,13 @@ struct ChatView: View {
         guard active, AppPreferences.isPluginEnabled("agent_mode") else { return nil }
         let defaults = UserDefaults.standard
         let workingDir = defaults.string(forKey: AppPreferenceKeys.agentModeWorkingDirectory) ?? ""
-        let prefixesJSON = defaults.string(forKey: AppPreferenceKeys.agentModeAllowedCommandPrefixesJSON) ?? "[]"
-        let prefixes = (try? JSONDecoder().decode([String].self, from: Data(prefixesJSON.utf8))) ?? []
+        let customPrefixesJSON = defaults.string(forKey: AppPreferenceKeys.agentModeAllowedCommandPrefixesJSON) ?? "[]"
+        let customPrefixes = (try? JSONDecoder().decode([String].self, from: Data(customPrefixesJSON.utf8))) ?? []
+        let safePrefixes = AgentCommandAllowlist.resolvedSafePrefixes(defaults: defaults)
+        let prefixes = safePrefixes + customPrefixes
         let timeout = defaults.object(forKey: AppPreferenceKeys.agentModeCommandTimeoutSeconds) as? Int ?? 120
         let autoApproveReads = defaults.object(forKey: AppPreferenceKeys.agentModeAutoApproveFileReads) as? Bool ?? true
+        let bypassPermissions = defaults.object(forKey: AppPreferenceKeys.agentModeBypassPermissions) as? Bool ?? false
         let tools = AgentEnabledTools(
             shellExecute: defaults.object(forKey: AppPreferenceKeys.agentModeToolShell) as? Bool ?? true,
             fileRead: defaults.object(forKey: AppPreferenceKeys.agentModeToolFileRead) as? Bool ?? true,
@@ -3686,6 +3693,7 @@ struct ChatView: View {
             workingDirectory: workingDir.isEmpty ? nil : workingDir,
             allowedCommandPrefixes: prefixes,
             autoApproveFileReads: autoApproveReads,
+            bypassPermissions: bypassPermissions,
             enabledTools: tools,
             commandTimeoutSeconds: timeout,
             maxOutputBytes: 102_400

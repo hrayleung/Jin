@@ -5,11 +5,26 @@ struct AgentApprovalView: View {
     let onResolve: (AgentApprovalChoice) -> Void
 
     var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: JinSpacing.large) {
-                    headerCard
+        VStack(alignment: .leading, spacing: 0) {
+            // Header
+            VStack(alignment: .leading, spacing: JinSpacing.xSmall) {
+                Text(request.title)
+                    .font(.headline)
 
+                Text(requestDescription)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, JinSpacing.large)
+            .padding(.top, JinSpacing.large)
+            .padding(.bottom, JinSpacing.medium)
+
+            Divider()
+                .padding(.horizontal, JinSpacing.medium)
+
+            // Content
+            ScrollView {
+                VStack(alignment: .leading, spacing: JinSpacing.medium) {
                     switch request.kind {
                     case .shellCommand(let command, let cwd):
                         shellCommandContent(command: command, cwd: cwd)
@@ -18,36 +33,30 @@ struct AgentApprovalView: View {
                     case .fileEdit(let path, let oldText, let newText):
                         fileEditContent(path: path, oldText: oldText, newText: newText)
                     }
-
-                    approvalButtons
                 }
                 .padding(JinSpacing.large)
             }
-            .background {
-                JinSemanticColor.detailSurface
-                    .ignoresSafeArea()
-            }
-            .navigationTitle(request.title)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
-                        onResolve(.cancel)
-                    }
-                }
-            }
-        }
-        .interactiveDismissDisabled(true)
-        .frame(minWidth: 560, idealWidth: 620, minHeight: 380, idealHeight: 480)
-    }
 
-    private var headerCard: some View {
-        VStack(alignment: .leading, spacing: JinSpacing.small) {
-            Text(requestDescription)
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            Divider()
+                .padding(.horizontal, JinSpacing.medium)
+
+            // Approval buttons
+            approvalButtons
+                .padding(.horizontal, JinSpacing.large)
+                .padding(.vertical, JinSpacing.medium)
         }
-        .padding(JinSpacing.large)
-        .jinSurface(.raised, cornerRadius: JinRadius.large)
+        .background(
+            RoundedRectangle(cornerRadius: JinRadius.large, style: .continuous)
+                .fill(.regularMaterial)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: JinRadius.large, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: JinRadius.large, style: .continuous)
+                .stroke(JinSemanticColor.separator.opacity(0.45), lineWidth: JinStrokeWidth.hairline)
+        )
+        .shadow(color: Color.black.opacity(0.12), radius: 24, x: 0, y: 8)
+        .interactiveDismissDisabled(true)
+        .frame(minWidth: 480, idealWidth: 560, minHeight: 200, idealHeight: 360)
     }
 
     private var requestDescription: String {
@@ -61,95 +70,79 @@ struct AgentApprovalView: View {
         }
     }
 
+    // MARK: - Shell Command
+
     @ViewBuilder
     private func shellCommandContent(command: String, cwd: String?) -> some View {
-        VStack(alignment: .leading, spacing: JinSpacing.large) {
-            agentCodeCard(title: "Command", content: command)
+        codeBlock(label: "Command", content: command)
 
-            if let cwd, !cwd.isEmpty {
-                agentCodeCard(title: "Working Directory", content: cwd)
-            }
+        if let cwd, !cwd.isEmpty {
+            codeBlock(label: "Working Directory", content: cwd)
         }
     }
+
+    // MARK: - File Write
 
     @ViewBuilder
     private func fileWriteContent(path: String, preview: String) -> some View {
-        VStack(alignment: .leading, spacing: JinSpacing.large) {
-            agentCodeCard(title: "File Path", content: path)
+        codeBlock(label: "File Path", content: path)
 
-            if !preview.isEmpty {
-                VStack(alignment: .leading, spacing: JinSpacing.small) {
-                    Text("Content Preview")
-                        .font(.headline)
-                    ScrollView {
-                        Text(preview)
-                            .font(.system(.caption, design: .monospaced))
-                            .textSelection(.enabled)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                    .frame(maxHeight: 200)
-                    .padding(JinSpacing.small)
-                    .jinSurface(.subtleStrong, cornerRadius: JinRadius.small)
-                }
-                .padding(JinSpacing.large)
-                .jinSurface(.raised, cornerRadius: JinRadius.large)
-            }
+        if !preview.isEmpty {
+            ToolCallCodeBlockView(
+                title: "Content Preview",
+                text: preview,
+                showsCopyButton: true
+            )
+            .clipShape(RoundedRectangle(cornerRadius: JinRadius.small, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: JinRadius.small, style: .continuous)
+                    .stroke(JinSemanticColor.separator.opacity(0.35), lineWidth: JinStrokeWidth.hairline)
+            )
         }
     }
+
+    // MARK: - File Edit
 
     @ViewBuilder
     private func fileEditContent(path: String, oldText: String, newText: String) -> some View {
-        VStack(alignment: .leading, spacing: JinSpacing.large) {
-            agentCodeCard(title: "File Path", content: path)
+        codeBlock(label: "File Path", content: path)
 
-            VStack(alignment: .leading, spacing: JinSpacing.small) {
-                Text("Changes")
-                    .font(.headline)
+        VStack(alignment: .leading, spacing: 0) {
+            ToolCallCodeBlockView(
+                title: "Remove",
+                text: oldText,
+                showsCopyButton: false
+            )
 
-                VStack(alignment: .leading, spacing: JinSpacing.small) {
-                    Text("Remove:")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(Color(nsColor: .systemRed))
-                    ScrollView {
-                        Text(oldText)
-                            .font(.system(.caption, design: .monospaced))
-                            .textSelection(.enabled)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                    .frame(maxHeight: 120)
-                    .padding(JinSpacing.small)
-                    .jinSurface(.subtleStrong, cornerRadius: JinRadius.small)
-
-                    Text("Replace with:")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(Color(nsColor: .systemGreen))
-                    ScrollView {
-                        Text(newText)
-                            .font(.system(.caption, design: .monospaced))
-                            .textSelection(.enabled)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                    .frame(maxHeight: 120)
-                    .padding(JinSpacing.small)
-                    .jinSurface(.subtleStrong, cornerRadius: JinRadius.small)
-                }
-            }
-            .padding(JinSpacing.large)
-            .jinSurface(.raised, cornerRadius: JinRadius.large)
+            ToolCallCodeBlockView(
+                title: "Replace with",
+                text: newText,
+                showsCopyButton: false
+            )
         }
+        .clipShape(RoundedRectangle(cornerRadius: JinRadius.small, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: JinRadius.small, style: .continuous)
+                .stroke(JinSemanticColor.separator.opacity(0.35), lineWidth: JinStrokeWidth.hairline)
+        )
     }
 
+    // MARK: - Buttons
+
     private var approvalButtons: some View {
-        HStack(spacing: JinSpacing.medium) {
+        HStack(spacing: JinSpacing.small) {
             Button(AgentApprovalChoice.deny.displayName) {
                 onResolve(.deny)
             }
             .buttonStyle(.bordered)
+            .controlSize(.small)
 
-            Button(AgentApprovalChoice.cancel.displayName, role: .destructive) {
+            Button(AgentApprovalChoice.cancel.displayName) {
                 onResolve(.cancel)
             }
             .buttonStyle(.borderless)
+            .controlSize(.small)
+            .foregroundStyle(.secondary)
 
             Spacer(minLength: 0)
 
@@ -157,26 +150,38 @@ struct AgentApprovalView: View {
                 onResolve(.allowForSession)
             }
             .buttonStyle(.bordered)
+            .controlSize(.small)
 
             Button(AgentApprovalChoice.allow.displayName) {
                 onResolve(.allow)
             }
             .buttonStyle(.borderedProminent)
+            .controlSize(.small)
         }
     }
 
-    private func agentCodeCard(title: String, content: String) -> some View {
-        VStack(alignment: .leading, spacing: JinSpacing.small) {
-            Text(title)
-                .font(.headline)
+    // MARK: - Code Block
+
+    private func codeBlock(label: String, content: String) -> some View {
+        VStack(alignment: .leading, spacing: JinSpacing.xSmall) {
+            Text(label)
+                .font(.caption2.weight(.medium))
+                .foregroundStyle(.secondary)
+
             Text(content)
                 .font(.system(.caption, design: .monospaced))
                 .textSelection(.enabled)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(JinSpacing.small)
-                .jinSurface(.subtleStrong, cornerRadius: JinRadius.small)
+                .padding(.horizontal, JinSpacing.small)
+                .padding(.vertical, JinSpacing.xSmall + 2)
+                .background(
+                    RoundedRectangle(cornerRadius: JinRadius.small, style: .continuous)
+                        .fill(JinSemanticColor.subtleSurface)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: JinRadius.small, style: .continuous)
+                        .stroke(JinSemanticColor.separator.opacity(0.35), lineWidth: JinStrokeWidth.hairline)
+                )
         }
-        .padding(JinSpacing.large)
-        .jinSurface(.raised, cornerRadius: JinRadius.large)
     }
 }

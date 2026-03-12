@@ -6,6 +6,7 @@ struct AgentModeControls: Codable, Sendable {
     var workingDirectory: String?
     var allowedCommandPrefixes: [String] = []
     var autoApproveFileReads: Bool = true
+    var bypassPermissions: Bool = false
     var enabledTools: AgentEnabledTools = AgentEnabledTools()
     var commandTimeoutSeconds: Int = 120
     var maxOutputBytes: Int = 102_400 // 100KB truncation

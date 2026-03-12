@@ -6,7 +6,7 @@ final class AgentCommandAllowlistTests: XCTestCase {
     // MARK: - Default safe prefixes
 
     func testDefaultSafePrefixesIncludesCommonReadOnlyCommands() {
-        let prefixes = AgentCommandAllowlist.defaultSafePrefixes
+        let prefixes = AgentCommandAllowlist.builtinDefaults
         XCTAssertTrue(prefixes.contains("ls"))
         XCTAssertTrue(prefixes.contains("cat"))
         XCTAssertTrue(prefixes.contains("echo"))
@@ -20,7 +20,7 @@ final class AgentCommandAllowlistTests: XCTestCase {
     }
 
     func testDefaultSafePrefixesIncludesGitCommands() {
-        let prefixes = AgentCommandAllowlist.defaultSafePrefixes
+        let prefixes = AgentCommandAllowlist.builtinDefaults
         XCTAssertTrue(prefixes.contains("git status"))
         XCTAssertTrue(prefixes.contains("git log"))
         XCTAssertTrue(prefixes.contains("git diff"))
@@ -31,7 +31,7 @@ final class AgentCommandAllowlistTests: XCTestCase {
     func testAllowedCommand_lsIsAllowed() {
         let allowed = AgentCommandAllowlist.isCommandAllowed(
             "ls -la",
-            allowedPrefixes: AgentCommandAllowlist.defaultSafePrefixes,
+            allowedPrefixes: AgentCommandAllowlist.builtinDefaults,
             sessionPrefixes: []
         )
         XCTAssertTrue(allowed)
@@ -40,7 +40,7 @@ final class AgentCommandAllowlistTests: XCTestCase {
     func testAllowedCommand_gitStatusIsAllowed() {
         let allowed = AgentCommandAllowlist.isCommandAllowed(
             "git status",
-            allowedPrefixes: AgentCommandAllowlist.defaultSafePrefixes,
+            allowedPrefixes: AgentCommandAllowlist.builtinDefaults,
             sessionPrefixes: []
         )
         XCTAssertTrue(allowed)
@@ -49,7 +49,7 @@ final class AgentCommandAllowlistTests: XCTestCase {
     func testAllowedCommand_gitDiffWithArgsIsAllowed() {
         let allowed = AgentCommandAllowlist.isCommandAllowed(
             "git diff HEAD~1",
-            allowedPrefixes: AgentCommandAllowlist.defaultSafePrefixes,
+            allowedPrefixes: AgentCommandAllowlist.builtinDefaults,
             sessionPrefixes: []
         )
         XCTAssertTrue(allowed)
@@ -60,7 +60,7 @@ final class AgentCommandAllowlistTests: XCTestCase {
     func testDisallowedCommand_rmIsNotAllowed() {
         let allowed = AgentCommandAllowlist.isCommandAllowed(
             "rm -rf /",
-            allowedPrefixes: AgentCommandAllowlist.defaultSafePrefixes,
+            allowedPrefixes: AgentCommandAllowlist.builtinDefaults,
             sessionPrefixes: []
         )
         XCTAssertFalse(allowed)
@@ -69,7 +69,7 @@ final class AgentCommandAllowlistTests: XCTestCase {
     func testDisallowedCommand_sudoIsNotAllowed() {
         let allowed = AgentCommandAllowlist.isCommandAllowed(
             "sudo rm -rf /",
-            allowedPrefixes: AgentCommandAllowlist.defaultSafePrefixes,
+            allowedPrefixes: AgentCommandAllowlist.builtinDefaults,
             sessionPrefixes: []
         )
         XCTAssertFalse(allowed)
@@ -78,7 +78,7 @@ final class AgentCommandAllowlistTests: XCTestCase {
     func testDisallowedCommand_curlIsNotAllowed() {
         let allowed = AgentCommandAllowlist.isCommandAllowed(
             "curl https://example.com",
-            allowedPrefixes: AgentCommandAllowlist.defaultSafePrefixes,
+            allowedPrefixes: AgentCommandAllowlist.builtinDefaults,
             sessionPrefixes: []
         )
         XCTAssertFalse(allowed)
@@ -87,7 +87,7 @@ final class AgentCommandAllowlistTests: XCTestCase {
     func testDisallowedCommand_gitPushIsNotAllowed() {
         let allowed = AgentCommandAllowlist.isCommandAllowed(
             "git push origin main",
-            allowedPrefixes: AgentCommandAllowlist.defaultSafePrefixes,
+            allowedPrefixes: AgentCommandAllowlist.builtinDefaults,
             sessionPrefixes: []
         )
         XCTAssertFalse(allowed)
@@ -98,7 +98,7 @@ final class AgentCommandAllowlistTests: XCTestCase {
     func testPipeFirstCommandChecked() {
         let allowed = AgentCommandAllowlist.isCommandAllowed(
             "ls -la | grep foo",
-            allowedPrefixes: AgentCommandAllowlist.defaultSafePrefixes,
+            allowedPrefixes: AgentCommandAllowlist.builtinDefaults,
             sessionPrefixes: []
         )
         XCTAssertTrue(allowed)
@@ -107,7 +107,7 @@ final class AgentCommandAllowlistTests: XCTestCase {
     func testPipeWithDisallowedFirstCommand() {
         let allowed = AgentCommandAllowlist.isCommandAllowed(
             "curl https://example.com | grep foo",
-            allowedPrefixes: AgentCommandAllowlist.defaultSafePrefixes,
+            allowedPrefixes: AgentCommandAllowlist.builtinDefaults,
             sessionPrefixes: []
         )
         XCTAssertFalse(allowed)
@@ -118,7 +118,7 @@ final class AgentCommandAllowlistTests: XCTestCase {
     func testSessionPrefixesRespected() {
         let allowed = AgentCommandAllowlist.isCommandAllowed(
             "npm test",
-            allowedPrefixes: AgentCommandAllowlist.defaultSafePrefixes,
+            allowedPrefixes: AgentCommandAllowlist.builtinDefaults,
             sessionPrefixes: ["npm"]
         )
         XCTAssertTrue(allowed)
@@ -127,7 +127,7 @@ final class AgentCommandAllowlistTests: XCTestCase {
     func testSessionPrefixesDoNotAffectDefaultDenied() {
         let allowed = AgentCommandAllowlist.isCommandAllowed(
             "rm -rf /tmp/test",
-            allowedPrefixes: AgentCommandAllowlist.defaultSafePrefixes,
+            allowedPrefixes: AgentCommandAllowlist.builtinDefaults,
             sessionPrefixes: []
         )
         XCTAssertFalse(allowed)
@@ -147,7 +147,7 @@ final class AgentCommandAllowlistTests: XCTestCase {
     func testEmptyCommandNotAllowed() {
         let allowed = AgentCommandAllowlist.isCommandAllowed(
             "",
-            allowedPrefixes: AgentCommandAllowlist.defaultSafePrefixes,
+            allowedPrefixes: AgentCommandAllowlist.builtinDefaults,
             sessionPrefixes: []
         )
         XCTAssertFalse(allowed)
@@ -156,7 +156,7 @@ final class AgentCommandAllowlistTests: XCTestCase {
     func testWhitespaceOnlyCommandNotAllowed() {
         let allowed = AgentCommandAllowlist.isCommandAllowed(
             "   ",
-            allowedPrefixes: AgentCommandAllowlist.defaultSafePrefixes,
+            allowedPrefixes: AgentCommandAllowlist.builtinDefaults,
             sessionPrefixes: []
         )
         XCTAssertFalse(allowed)
@@ -165,7 +165,7 @@ final class AgentCommandAllowlistTests: XCTestCase {
     func testWhitespaceHandling() {
         let allowed = AgentCommandAllowlist.isCommandAllowed(
             "  ls  -la  ",
-            allowedPrefixes: AgentCommandAllowlist.defaultSafePrefixes,
+            allowedPrefixes: AgentCommandAllowlist.builtinDefaults,
             sessionPrefixes: []
         )
         XCTAssertTrue(allowed)

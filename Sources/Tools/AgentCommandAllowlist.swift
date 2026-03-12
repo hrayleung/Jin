@@ -1,7 +1,8 @@
 import Foundation
 
 enum AgentCommandAllowlist {
-    static let defaultSafePrefixes: [String] = [
+    /// The built-in defaults used to seed the user-editable safe prefixes list.
+    static let builtinDefaults: [String] = [
         "ls", "cat", "head", "tail", "wc", "file", "which", "pwd", "echo",
         "rg", "grep", "find", "tree", "stat", "du", "df", "env", "printenv",
         "git status", "git log", "git diff", "git show", "git branch", "git remote",
@@ -11,6 +12,17 @@ enum AgentCommandAllowlist {
         "date", "whoami", "hostname", "uname",
         "open", "pbcopy", "pbpaste"
     ]
+
+    /// Returns the user's current safe prefixes from UserDefaults, seeding with builtinDefaults on first use.
+    static func resolvedSafePrefixes(defaults: UserDefaults = .standard) -> [String] {
+        let key = AppPreferenceKeys.agentModeDefaultSafePrefixesJSON
+        if let json = defaults.string(forKey: key), !json.isEmpty {
+            return AppPreferences.decodeStringArrayJSON(json)
+        }
+        // First use: seed with builtin defaults
+        defaults.set(AppPreferences.encodeStringArrayJSON(builtinDefaults), forKey: key)
+        return builtinDefaults
+    }
 
     static func isCommandAllowed(
         _ command: String,

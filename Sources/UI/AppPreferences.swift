@@ -37,6 +37,7 @@ enum AppPreferenceKeys {
     static let agentModeEnabled = "agentModeEnabled"
     static let agentModeWorkingDirectory = "agentModeWorkingDirectory"
     static let agentModeAllowedCommandPrefixesJSON = "agentModeAllowedCommandPrefixesJSON"
+    static let agentModeDefaultSafePrefixesJSON = "agentModeDefaultSafePrefixesJSON"
     static let agentModeCommandTimeoutSeconds = "agentModeCommandTimeoutSeconds"
     static let agentModeAutoApproveFileReads = "agentModeAutoApproveFileReads"
     static let agentModeToolShell = "agentModeToolShell"
@@ -45,6 +46,8 @@ enum AppPreferenceKeys {
     static let agentModeToolFileEdit = "agentModeToolFileEdit"
     static let agentModeToolGlob = "agentModeToolGlob"
     static let agentModeToolGrep = "agentModeToolGrep"
+    static let agentModeBypassPermissions = "agentModeBypassPermissions"
+    static let agentToolDisplayMode = "agentToolDisplayMode"
 
     // MARK: - Updates
 

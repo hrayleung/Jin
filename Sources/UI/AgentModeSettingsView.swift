@@ -7,10 +7,12 @@ struct AgentModeSettingsView: View {
     @AppStorage(AppPreferenceKeys.agentModeEnabled) private var agentModeEnabled = false
     @AppStorage(AppPreferenceKeys.agentModeWorkingDirectory) private var workingDirectory = ""
     @AppStorage(AppPreferenceKeys.agentModeAllowedCommandPrefixesJSON) private var allowedPrefixesJSON = "[]"
+    @AppStorage(AppPreferenceKeys.agentModeDefaultSafePrefixesJSON) private var safePrefixesJSON = ""
     @AppStorage(AppPreferenceKeys.agentModeCommandTimeoutSeconds) private var commandTimeoutSeconds = 120
     @AppStorage(AppPreferenceKeys.agentModeAutoApproveFileReads) private var autoApproveFileReads = true
 
     @State private var newPrefix = ""
+    @State private var newSafePrefix = ""
     @AppStorage(AppPreferenceKeys.agentModeToolShell) private var enableShell = true
     @AppStorage(AppPreferenceKeys.agentModeToolFileRead) private var enableFileRead = true
     @AppStorage(AppPreferenceKeys.agentModeToolFileWrite) private var enableFileWrite = true
@@ -22,62 +24,45 @@ struct AgentModeSettingsView: View {
         AppPreferences.decodeStringArrayJSON(allowedPrefixesJSON)
     }
 
+    private var safePrefixes: [String] {
+        if safePrefixesJSON.isEmpty {
+            return AgentCommandAllowlist.builtinDefaults
+        }
+        return AppPreferences.decodeStringArrayJSON(safePrefixesJSON)
+    }
+
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: JinSpacing.large) {
-                // Header
-                VStack(alignment: .leading, spacing: JinSpacing.small) {
-                    Text("Agent Mode")
-                        .font(.title2.weight(.semibold))
-                    Text("Execute local shell commands, read/write files, and search codebases. The agent can interact with your local development environment.")
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                }
-
-                // Enable Toggle
+        Form {
+            Section {
                 Toggle("Enable Agent Mode", isOn: $agentModeEnabled)
-                    .toggleStyle(.switch)
-
-                if agentModeEnabled {
-                    Divider()
-
-                    // Working Directory
-                    workingDirectorySection
-
-                    Divider()
-
-                    // Tool Toggles
-                    toolTogglesSection
-
-                    Divider()
-
-                    // Allowed Command Prefixes
-                    allowedPrefixesSection
-
-                    Divider()
-
-                    // Safety Settings
-                    safetySection
-                }
+            } header: {
+                Text("Agent Mode")
+            } footer: {
+                Text("Execute local shell commands, read/write files, and search codebases.")
             }
-            .padding(JinSpacing.large)
+
+            if agentModeEnabled {
+                workingDirectorySection
+
+                toolTogglesSection
+
+                safePrefixesSection
+
+                allowedPrefixesSection
+
+                safetySection
+            }
         }
-        .background {
-            JinSemanticColor.detailSurface
-                .ignoresSafeArea()
-        }
+        .formStyle(.grouped)
+        .scrollContentBackground(.hidden)
+        .background(JinSemanticColor.detailSurface)
+        .navigationTitle("Agent Mode")
     }
 
     // MARK: - Working Directory
 
     private var workingDirectorySection: some View {
-        VStack(alignment: .leading, spacing: JinSpacing.small) {
-            Text("Working Directory")
-                .font(.headline)
-            Text("The default working directory for shell commands and file operations.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-
+        Section {
             HStack(spacing: JinSpacing.small) {
                 TextField(
                     text: $workingDirectory,
@@ -92,164 +77,169 @@ struct AgentModeSettingsView: View {
                 }
                 .buttonStyle(.bordered)
             }
+        } header: {
+            Text("Working Directory")
+        } footer: {
+            Text("The default working directory for shell commands and file operations.")
         }
     }
 
     // MARK: - Tool Toggles
 
     private var toolTogglesSection: some View {
-        VStack(alignment: .leading, spacing: JinSpacing.small) {
-            Text("Enabled Tools")
-                .font(.headline)
-            Text("Choose which tools the agent can use.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-
-            VStack(alignment: .leading, spacing: JinSpacing.small) {
-                toolToggle("Shell Execute", systemImage: "terminal", isOn: $enableShell, description: "Run shell commands")
-                toolToggle("File Read", systemImage: "doc.text", isOn: $enableFileRead, description: "Read file contents")
-                toolToggle("File Write", systemImage: "pencil.line", isOn: $enableFileWrite, description: "Create and write files")
-                toolToggle("File Edit", systemImage: "pencil.line", isOn: $enableFileEdit, description: "Find and replace in files")
-                toolToggle("Glob Search", systemImage: "doc.text.magnifyingglass", isOn: $enableGlob, description: "Find files by pattern")
-                toolToggle("Grep Search", systemImage: "magnifyingglass", isOn: $enableGrep, description: "Search file contents")
+        Section("Enabled Tools") {
+            Toggle(isOn: $enableShell) {
+                Label("Shell Execute", systemImage: "terminal")
             }
-            .padding(JinSpacing.medium)
-            .jinSurface(.raised, cornerRadius: JinRadius.large)
+            Toggle(isOn: $enableFileRead) {
+                Label("File Read", systemImage: "doc.text")
+            }
+            Toggle(isOn: $enableFileWrite) {
+                Label("File Write", systemImage: "square.and.pencil")
+            }
+            Toggle(isOn: $enableFileEdit) {
+                Label("File Edit", systemImage: "pencil.line")
+            }
+            Toggle(isOn: $enableGlob) {
+                Label("Glob Search", systemImage: "doc.text.magnifyingglass")
+            }
+            Toggle(isOn: $enableGrep) {
+                Label("Grep Search", systemImage: "magnifyingglass")
+            }
         }
     }
 
-    private func toolToggle(_ title: String, systemImage: String, isOn: Binding<Bool>, description: String) -> some View {
-        HStack(spacing: JinSpacing.small) {
-            Image(systemName: systemImage)
-                .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(.secondary)
-                .frame(width: 18)
+    // MARK: - Safe Command Prefixes
 
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(.subheadline.weight(.medium))
-                Text(description)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
-            Spacer()
-
-            Toggle("", isOn: isOn)
-                .labelsHidden()
-                .toggleStyle(.switch)
-                .controlSize(.mini)
-        }
-        .padding(.vertical, 2)
-    }
-
-    // MARK: - Allowed Command Prefixes
-
-    private var allowedPrefixesSection: some View {
-        VStack(alignment: .leading, spacing: JinSpacing.small) {
-            Text("Allowed Command Prefixes")
-                .font(.headline)
-            Text("Shell commands starting with these prefixes will be auto-approved without asking. All other commands require manual approval.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-
-            VStack(alignment: .leading, spacing: JinSpacing.small) {
-                // Default prefixes info
-                DisclosureGroup("Default safe prefixes (\(AgentCommandAllowlist.defaultSafePrefixes.count))") {
-                    FlowLayout(spacing: 4) {
-                        ForEach(AgentCommandAllowlist.defaultSafePrefixes, id: \.self) { prefix in
+    private var safePrefixesSection: some View {
+        Section {
+            DisclosureGroup("Safe commands (\(safePrefixes.count))") {
+                FlowLayout(spacing: 4) {
+                    ForEach(safePrefixes, id: \.self) { prefix in
+                        HStack(spacing: 4) {
                             Text(prefix)
                                 .font(.system(.caption, design: .monospaced))
-                                .padding(.horizontal, 6)
-                                .padding(.vertical, 3)
-                                .jinSurface(.subtle, cornerRadius: JinRadius.small)
-                        }
-                    }
-                    .padding(.top, JinSpacing.xSmall)
-                }
-                .font(.caption)
-                .foregroundStyle(.secondary)
 
-                Divider()
-
-                // Custom prefixes
-                Text("Custom Prefixes")
-                    .font(.subheadline.weight(.medium))
-
-                if allowedPrefixes.isEmpty {
-                    Text("No custom prefixes added. Default safe prefixes are always active.")
-                        .font(.caption)
-                        .foregroundStyle(.tertiary)
-                } else {
-                    FlowLayout(spacing: 4) {
-                        ForEach(allowedPrefixes, id: \.self) { prefix in
-                            HStack(spacing: 4) {
-                                Text(prefix)
-                                    .font(.system(.caption, design: .monospaced))
-
-                                Button {
-                                    removePrefix(prefix)
-                                } label: {
-                                    Image(systemName: "xmark.circle.fill")
-                                        .font(.system(size: 10))
-                                        .foregroundStyle(.secondary)
-                                }
-                                .buttonStyle(.plain)
+                            Button {
+                                removeSafePrefix(prefix)
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .font(.system(size: 10))
+                                    .foregroundStyle(.secondary)
                             }
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 3)
-                            .jinSurface(.subtle, cornerRadius: JinRadius.small)
+                            .buttonStyle(.plain)
                         }
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 3)
+                        .jinSurface(.subtle, cornerRadius: JinRadius.small)
                     }
                 }
+                .padding(.top, JinSpacing.xSmall)
 
                 HStack(spacing: JinSpacing.small) {
                     TextField(
-                        text: $newPrefix,
-                        prompt: Text("e.g., npm run")
+                        text: $newSafePrefix,
+                        prompt: Text("e.g., python3")
                     ) {
                         EmptyView()
                     }
                     .textFieldStyle(.roundedBorder)
                     .onSubmit {
-                        addPrefix()
+                        addSafePrefix()
                     }
 
                     Button("Add") {
-                        addPrefix()
+                        addSafePrefix()
                     }
                     .buttonStyle(.bordered)
-                    .disabled(newPrefix.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    .disabled(newSafePrefix.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+                .padding(.top, JinSpacing.xSmall)
+
+                if safePrefixes != AgentCommandAllowlist.builtinDefaults {
+                    Button("Reset to Defaults") {
+                        safePrefixesJSON = AppPreferences.encodeStringArrayJSON(AgentCommandAllowlist.builtinDefaults)
+                    }
+                    .font(.caption)
+                    .padding(.top, JinSpacing.xSmall)
                 }
             }
-            .padding(JinSpacing.medium)
-            .jinSurface(.raised, cornerRadius: JinRadius.large)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        } header: {
+            Text("Safe Commands")
+        } footer: {
+            Text("Commands starting with these prefixes are auto-approved without manual confirmation.")
+        }
+    }
+
+    // MARK: - Custom Allowed Command Prefixes
+
+    private var allowedPrefixesSection: some View {
+        Section {
+            if allowedPrefixes.isEmpty {
+                Text("No custom prefixes added.")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+            } else {
+                FlowLayout(spacing: 4) {
+                    ForEach(allowedPrefixes, id: \.self) { prefix in
+                        HStack(spacing: 4) {
+                            Text(prefix)
+                                .font(.system(.caption, design: .monospaced))
+
+                            Button {
+                                removePrefix(prefix)
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .font(.system(size: 10))
+                                    .foregroundStyle(.secondary)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 3)
+                        .jinSurface(.subtle, cornerRadius: JinRadius.small)
+                    }
+                }
+            }
+
+            HStack(spacing: JinSpacing.small) {
+                TextField(
+                    text: $newPrefix,
+                    prompt: Text("e.g., npm run")
+                ) {
+                    EmptyView()
+                }
+                .textFieldStyle(.roundedBorder)
+                .onSubmit {
+                    addPrefix()
+                }
+
+                Button("Add") {
+                    addPrefix()
+                }
+                .buttonStyle(.bordered)
+                .disabled(newPrefix.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+        } header: {
+            Text("Additional Allowed Prefixes")
+        } footer: {
+            Text("Extra command prefixes to auto-approve, in addition to the safe commands above.")
         }
     }
 
     // MARK: - Safety Settings
 
     private var safetySection: some View {
-        VStack(alignment: .leading, spacing: JinSpacing.small) {
-            Text("Safety")
-                .font(.headline)
-
+        Section("Safety") {
             Toggle("Auto-approve file reads", isOn: $autoApproveFileReads)
-                .toggleStyle(.switch)
 
             Text("When enabled, file read operations are executed without asking for approval.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
-            Divider()
-
-            VStack(alignment: .leading, spacing: JinSpacing.small) {
-                Text("Command Timeout")
-                    .font(.subheadline.weight(.medium))
-                Text("Maximum time in seconds before a shell command is terminated.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-
+            LabeledContent("Command Timeout") {
                 HStack(spacing: JinSpacing.small) {
                     Slider(
                         value: Binding(
@@ -264,6 +254,10 @@ struct AgentModeSettingsView: View {
                         .frame(width: 45, alignment: .trailing)
                 }
             }
+
+            Text("Maximum time in seconds before a shell command is terminated.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
         }
     }
 
@@ -305,6 +299,24 @@ struct AgentModeSettingsView: View {
         var prefixes = allowedPrefixes
         prefixes.removeAll { $0 == prefix }
         allowedPrefixesJSON = AppPreferences.encodeStringArrayJSON(prefixes)
+    }
+
+    private func addSafePrefix() {
+        let trimmed = newSafePrefix.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+
+        var prefixes = safePrefixes
+        if !prefixes.contains(trimmed) {
+            prefixes.append(trimmed)
+            safePrefixesJSON = AppPreferences.encodeStringArrayJSON(prefixes)
+        }
+        newSafePrefix = ""
+    }
+
+    private func removeSafePrefix(_ prefix: String) {
+        var prefixes = safePrefixes
+        prefixes.removeAll { $0 == prefix }
+        safePrefixesJSON = AppPreferences.encodeStringArrayJSON(prefixes)
     }
 }
 
