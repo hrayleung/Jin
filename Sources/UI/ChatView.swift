@@ -439,8 +439,10 @@ struct ChatView: View {
     }
 
     private var messageInteractionContext: ChatMessageInteractionContext {
+        // Keep historical row actions independent from global streaming state.
+        // The action handlers themselves guard mutating operations, which avoids
+        // send-time invalidation of every row footer/menu in large transcripts.
         ChatMessageInteractionContext(
-            actionsEnabled: !isStreaming,
             textToSpeechEnabled: textToSpeechPluginEnabled,
             textToSpeechConfigured: textToSpeechConfigured,
             editingUserMessageID: editingUserMessageID,
