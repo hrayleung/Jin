@@ -154,12 +154,18 @@ struct CodeExecutionTimelineView: View {
             return nil
         }
 
-        let failedCount = activities.filter { $0.status == .failed }.count
+        let failedCount = activities.filter { $0.status == .failed || $0.status == .incomplete }.count
         let completedCount = activities.filter { $0.status == .completed }.count
 
         if failedCount > 0 {
+            let label: String
+            if completedCount > 0 {
+                label = "\(completedCount) ok / \(failedCount) failed"
+            } else {
+                label = failedCount == 1 ? "Failed" : "\(failedCount) failed"
+            }
             return (
-                text: "Failed",
+                text: label,
                 icon: "xmark.circle",
                 color: Color(nsColor: .systemOrange).opacity(0.95)
             )
