@@ -34,6 +34,7 @@ struct StreamingMessageView: View {
         let showsCopyButton = !visibleText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         let visibleToolCalls = state.streamingToolCalls.filter { call in
             !BuiltinSearchToolHub.isBuiltinSearchFunctionName(call.name)
+            && !isGoogleProviderNativeToolName(call.name)
             && !AgentToolHub.isAgentFunctionName(call.name)
         }
 

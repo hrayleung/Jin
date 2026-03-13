@@ -91,6 +91,45 @@ enum ModelCapabilityRegistry {
     private static let proxiedGoogleSearchSupportedModelIDs: Set<String> =
         geminiGoogleSearchSupportedModelIDs.union(vertexGoogleSearchSupportedModelIDs)
 
+    /// Models documented by Google as supporting grounding with Google Maps in Gemini API.
+    /// Supported: Gemini 2.5 Pro, 2.5 Flash, 2.5 Flash-Lite, 2.0 Flash.
+    /// Not supported: Gemini 3 family, Gemini 2.0 Flash Lite.
+    private static let geminiGoogleMapsSupportedModelIDs: Set<String> = [
+        "gemini-2.5-pro",
+        "gemini-2.5-flash",
+        "gemini-2.5-flash-lite",
+        "gemini-2.0-flash",
+        "gemini-2.0-flash-001",
+    ]
+
+    /// Models supporting grounding with Google Maps in Vertex AI.
+    /// Vertex documentation's Google Maps grounding pages list these exact model IDs
+    /// or exact model families as supported as of March 13, 2026.
+    ///
+    /// Notes:
+    /// - We include the current exact preview version IDs where the model pages expose them
+    ///   (for example `gemini-2.5-flash-preview-09-2025`).
+    /// - We also retain the legacy alias-style IDs already used in persisted Jin data
+    ///   (for example `gemini-2.5-flash-preview`) so previously-saved conversations
+    ///   do not silently lose the Maps UI toggle.
+    private static let vertexGoogleMapsSupportedModelIDs: Set<String> = [
+        "gemini-3-flash-preview",
+        "gemini-3-pro-preview",
+        "gemini-3-pro-image-preview",
+        "gemini-2.5-pro",
+        "gemini-2.5-flash",
+        "gemini-2.5-flash-lite",
+        "gemini-2.5-flash-preview",
+        "gemini-2.5-flash-preview-09-2025",
+        "gemini-2.5-flash-lite-preview",
+        "gemini-2.5-flash-lite-preview-09-2025",
+        "gemini-live-2.5-flash-native-audio",
+        "gemini-live-2.5-flash-preview-native-audio-09-2025",
+        "gemini-2.0-flash",
+        "gemini-2.0-flash-001",
+        "gemini-2.0-flash-live-preview-04-09",
+    ]
+
     /// Models documented by Google as supporting code execution in Gemini API.
     private static let geminiCodeExecutionSupportedModelIDs: Set<String> = [
         "gemini-3-pro",
@@ -175,6 +214,7 @@ enum ModelCapabilityRegistry {
         "google/",
         "google-ai-studio/",
         "google-vertex-ai/google/",
+        "models/",
     ]
     private static let searchKeywords = ["search", "sonar", ":online"]
     private static let reasoningKeywords = ["deepseek-r1", "reasoning", "thinking"]
@@ -554,6 +594,39 @@ enum ModelCapabilityRegistry {
             canonical = lowerModelID
         }
         return anthropicCodeExecutionSupportedModelIDs.contains(canonical)
+    }
+
+    /// Whether the provider/model supports grounding with Google Maps.
+    static func supportsGoogleMaps(for providerType: ProviderType?, modelID: String) -> Bool {
+        let lowerModelID = modelID.lowercased()
+
+        switch providerType {
+        case .gemini:
+            return supportsGoogleMapsGrounding(lowerModelID: lowerModelID, providerType: .gemini)
+        case .vertexai:
+            return supportsGoogleMapsGrounding(lowerModelID: lowerModelID, providerType: .vertexai)
+        case .openai, .openaiWebSocket, .anthropic, .xai, .codexAppServer, .githubCopilot,
+             .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter, .perplexity,
+             .groq, .cohere, .mistral, .deepinfra, .together, .deepseek, .zhipuCodingPlan,
+             .fireworks, .cerebras, .sambanova, .none:
+            return false
+        }
+    }
+
+    private static func supportsGoogleMapsGrounding(lowerModelID: String, providerType: ProviderType?) -> Bool {
+        let canonical = canonicalGoogleModelID(lowerModelID: lowerModelID)
+        return googleMapsSupportedModelIDs(for: providerType).contains(canonical)
+    }
+
+    private static func googleMapsSupportedModelIDs(for providerType: ProviderType?) -> Set<String> {
+        switch providerType {
+        case .gemini:
+            return geminiGoogleMapsSupportedModelIDs
+        case .vertexai:
+            return vertexGoogleMapsSupportedModelIDs
+        default:
+            return []
+        }
     }
 
     /// Models that support the `web_search_20260209` tool with dynamic filtering.

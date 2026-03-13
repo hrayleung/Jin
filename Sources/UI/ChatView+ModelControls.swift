@@ -109,6 +109,66 @@ extension ChatView {
     }
 
     @ViewBuilder
+    var googleMapsMenuContent: some View {
+        Toggle("Google Maps", isOn: googleMapsEnabledBinding)
+
+        Divider()
+
+        Button("Configure Location…") {
+            openGoogleMapsSheet()
+        }
+
+        if isGoogleMapsEnabled, controls.googleMaps?.hasLocation == true {
+            Divider()
+            Button("Clear Location") {
+                controls.googleMaps?.latitude = nil
+                controls.googleMaps?.longitude = nil
+                persistControlsToConversation()
+            }
+        }
+    }
+
+    func openGoogleMapsSheet() {
+        let prepared = ChatAuxiliaryControlSupport.prepareGoogleMapsEditorDraft(
+            current: controls.googleMaps,
+            isEnabled: isGoogleMapsEnabled
+        )
+        googleMapsDraft = prepared.draft
+        googleMapsLatitudeDraft = prepared.latitudeDraft
+        googleMapsLongitudeDraft = prepared.longitudeDraft
+        googleMapsLanguageCodeDraft = prepared.languageCodeDraft
+        googleMapsDraftError = nil
+        showingGoogleMapsSheet = true
+    }
+
+    var isGoogleMapsDraftValid: Bool {
+        ChatAuxiliaryControlSupport.isGoogleMapsDraftValid(
+            latitudeDraft: googleMapsLatitudeDraft,
+            longitudeDraft: googleMapsLongitudeDraft
+        )
+    }
+
+    @discardableResult
+    func applyGoogleMapsDraft() -> Bool {
+        switch ChatAuxiliaryControlSupport.applyGoogleMapsDraft(
+            draft: googleMapsDraft,
+            latitudeDraft: googleMapsLatitudeDraft,
+            longitudeDraft: googleMapsLongitudeDraft,
+            languageCodeDraft: googleMapsLanguageCodeDraft,
+            providerType: providerType
+        ) {
+        case .success(let draft):
+            controls.googleMaps = draft
+            googleMapsDraftError = nil
+            persistControlsToConversation()
+            return true
+        case .failure(let error):
+            googleMapsDraftError = error.localizedDescription
+            return false
+        }
+    }
+
+    @ViewBuilder
     var codeExecutionMenuContent: some View {
         Toggle("Code Execution", isOn: codeExecutionEnabledBinding)
 

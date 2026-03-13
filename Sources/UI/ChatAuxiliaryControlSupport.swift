@@ -16,7 +16,76 @@ struct PreparedAnthropicWebSearchEditorDraft {
     let locationDraft: WebSearchUserLocation
 }
 
+struct PreparedGoogleMapsEditorDraft {
+    let draft: GoogleMapsControls
+    let latitudeDraft: String
+    let longitudeDraft: String
+    let languageCodeDraft: String
+}
+
 enum ChatAuxiliaryControlSupport {
+    static func prepareGoogleMapsEditorDraft(
+        current: GoogleMapsControls?,
+        isEnabled: Bool
+    ) -> PreparedGoogleMapsEditorDraft {
+        let draft = current ?? GoogleMapsControls(enabled: isEnabled)
+        return PreparedGoogleMapsEditorDraft(
+            draft: draft,
+            latitudeDraft: draft.latitude.map { String($0) } ?? "",
+            longitudeDraft: draft.longitude.map { String($0) } ?? "",
+            languageCodeDraft: draft.languageCode ?? ""
+        )
+    }
+
+    static func isGoogleMapsDraftValid(
+        latitudeDraft: String,
+        longitudeDraft: String
+    ) -> Bool {
+        switch validatedGoogleMapsCoordinates(
+            latitudeDraft: latitudeDraft,
+            longitudeDraft: longitudeDraft
+        ) {
+        case .success:
+            return true
+        case .failure:
+            return false
+        }
+    }
+
+    static func applyGoogleMapsDraft(
+        draft: GoogleMapsControls,
+        latitudeDraft: String,
+        longitudeDraft: String,
+        languageCodeDraft: String,
+        providerType: ProviderType?
+    ) -> Result<GoogleMapsControls?, ChatEditorDraftError> {
+        var draft = draft
+
+        switch validatedGoogleMapsCoordinates(
+            latitudeDraft: latitudeDraft,
+            longitudeDraft: longitudeDraft
+        ) {
+        case .success(let coordinates):
+            draft.latitude = coordinates.latitude
+            draft.longitude = coordinates.longitude
+        case .failure(let error):
+            return .failure(error)
+        }
+
+        let trimmedLanguage = languageCodeDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        if providerType == .vertexai, !trimmedLanguage.isEmpty {
+            draft.languageCode = trimmedLanguage
+        } else {
+            draft.languageCode = nil
+        }
+
+        if draft.enableWidget != true {
+            draft.enableWidget = nil
+        }
+
+        return .success(draft.isEmpty ? nil : draft)
+    }
+
     static func prepareContextCacheEditorDraft(
         current: ContextCacheControls?,
         providerType: ProviderType?,
@@ -259,6 +328,32 @@ enum ChatAuxiliaryControlSupport {
         ChatControlNormalizationSupport.normalizeAnthropicDomainFilters(controls: &controls)
         controls.webSearch?.userLocation = locationDraft.isEmpty ? nil : locationDraft
         return .success(controls)
+    }
+
+    private static func validatedGoogleMapsCoordinates(
+        latitudeDraft: String,
+        longitudeDraft: String
+    ) -> Result<(latitude: Double?, longitude: Double?), ChatEditorDraftError> {
+        let trimmedLatitude = latitudeDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedLongitude = longitudeDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        if trimmedLatitude.isEmpty && trimmedLongitude.isEmpty {
+            return .success((nil, nil))
+        }
+
+        guard !trimmedLatitude.isEmpty, !trimmedLongitude.isEmpty else {
+            return .failure(.message("Enter both latitude and longitude, or leave both empty."))
+        }
+
+        guard let latitude = Double(trimmedLatitude), (-90...90).contains(latitude) else {
+            return .failure(.message("Latitude must be a number between -90 and 90."))
+        }
+
+        guard let longitude = Double(trimmedLongitude), (-180...180).contains(longitude) else {
+            return .failure(.message("Longitude must be a number between -180 and 180."))
+        }
+
+        return .success((latitude, longitude))
     }
 
     static func eligibleMCPServers(
