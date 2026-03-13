@@ -67,7 +67,7 @@ struct GoogleMapsResultsView: View {
             HStack(spacing: JinSpacing.small) {
                 Image(systemName: "mappin.and.ellipse")
                     .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(MapsDesign.accentColor)
+                    .foregroundStyle(.secondary)
 
                 if content.places.isEmpty {
                     Text("Places")
@@ -106,18 +106,7 @@ struct GoogleMapsResultsView: View {
                     Text(place.name)
                         .lineLimit(1)
                 }
-                .font(.caption.weight(.medium))
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, JinSpacing.small - 2)
-                .padding(.vertical, 3)
-                .background(
-                    Capsule(style: .continuous)
-                        .fill(MapsDesign.accentColor.opacity(0.08))
-                )
-                .overlay(
-                    Capsule(style: .continuous)
-                        .stroke(MapsDesign.accentColor.opacity(0.2), lineWidth: JinStrokeWidth.hairline)
-                )
+                .jinTagStyle()
             }
 
             if places.count > 3 {
@@ -196,7 +185,7 @@ struct GoogleMapsResultsView: View {
                         Image(systemName: "arrow.up.forward")
                             .font(.system(size: 8, weight: .bold))
                     }
-                    .foregroundStyle(MapsDesign.accentColor)
+                    .foregroundStyle(Color.accentColor)
                 }
                 .buttonStyle(.plain)
             }
@@ -210,7 +199,7 @@ struct GoogleMapsResultsView: View {
                     HStack(spacing: JinSpacing.xSmall) {
                         Image(systemName: "location.magnifyingglass")
                             .font(.caption2)
-                            .foregroundStyle(MapsDesign.accentColor.opacity(0.7))
+                            .foregroundStyle(.secondary)
                         Text(query)
                             .font(.subheadline)
                             .lineLimit(1)
@@ -525,7 +514,7 @@ private struct MapsPlaceRowView: View {
         .padding(.leading, 0)
         .padding(.trailing, JinSpacing.medium)
         .padding(.vertical, JinSpacing.small)
-        .background(isHovered ? MapsDesign.accentColor.opacity(0.04) : JinSemanticColor.surface.opacity(0.5))
+        .background(isHovered ? JinSemanticColor.subtleSurface : JinSemanticColor.surface.opacity(0.5))
         .onHover { hovering in
             withAnimation(.easeInOut(duration: 0.12)) {
                 isHovered = hovering
@@ -549,7 +538,7 @@ private struct MapsPlaceRowView: View {
 
             Image(systemName: "arrow.up.right")
                 .font(.system(size: 9, weight: .bold))
-                .foregroundStyle(isHovered ? MapsDesign.accentColor : Color.secondary.opacity(0.4))
+                .foregroundStyle(isHovered ? Color.accentColor : Color.secondary.opacity(0.4))
         }
     }
 
