@@ -1,53 +1,53 @@
 import SwiftUI
 
 struct SpeechToTextPluginSettingsView: View {
-    @AppStorage(AppPreferenceKeys.sttProvider) private var providerRaw = SpeechToTextProvider.groq.rawValue
-    @AppStorage(AppPreferenceKeys.sttAddRecordingAsFile) private var addRecordingAsFile = false
+    @AppStorage(AppPreferenceKeys.sttProvider) var providerRaw = SpeechToTextProvider.groq.rawValue
+    @AppStorage(AppPreferenceKeys.sttAddRecordingAsFile) var addRecordingAsFile = false
 
-    @AppStorage(AppPreferenceKeys.sttOpenAIBaseURL) private var openAIBaseURL = OpenAIAudioClient.Constants.defaultBaseURL.absoluteString
-    @AppStorage(AppPreferenceKeys.sttOpenAIModel) private var openAIModel = "gpt-4o-mini-transcribe"
-    @AppStorage(AppPreferenceKeys.sttOpenAILanguage) private var openAILanguage = ""
-    @AppStorage(AppPreferenceKeys.sttOpenAIPrompt) private var openAIPrompt = ""
-    @AppStorage(AppPreferenceKeys.sttOpenAITranslateToEnglish) private var openAITranslateToEnglish = false
-    @AppStorage(AppPreferenceKeys.sttOpenAIResponseFormat) private var openAIResponseFormat = "json"
-    @AppStorage(AppPreferenceKeys.sttOpenAITemperature) private var openAITemperature = 0.0
-    @AppStorage(AppPreferenceKeys.sttOpenAITimestampGranularitiesJSON) private var openAITimestampGranularitiesJSON = "[]"
+    @AppStorage(AppPreferenceKeys.sttOpenAIBaseURL) var openAIBaseURL = OpenAIAudioClient.Constants.defaultBaseURL.absoluteString
+    @AppStorage(AppPreferenceKeys.sttOpenAIModel) var openAIModel = "gpt-4o-mini-transcribe"
+    @AppStorage(AppPreferenceKeys.sttOpenAILanguage) var openAILanguage = ""
+    @AppStorage(AppPreferenceKeys.sttOpenAIPrompt) var openAIPrompt = ""
+    @AppStorage(AppPreferenceKeys.sttOpenAITranslateToEnglish) var openAITranslateToEnglish = false
+    @AppStorage(AppPreferenceKeys.sttOpenAIResponseFormat) var openAIResponseFormat = "json"
+    @AppStorage(AppPreferenceKeys.sttOpenAITemperature) var openAITemperature = 0.0
+    @AppStorage(AppPreferenceKeys.sttOpenAITimestampGranularitiesJSON) var openAITimestampGranularitiesJSON = "[]"
 
-    @AppStorage(AppPreferenceKeys.sttGroqBaseURL) private var groqBaseURL = GroqAudioClient.Constants.defaultBaseURL.absoluteString
-    @AppStorage(AppPreferenceKeys.sttGroqModel) private var groqModel = "whisper-large-v3-turbo"
-    @AppStorage(AppPreferenceKeys.sttGroqLanguage) private var groqLanguage = ""
-    @AppStorage(AppPreferenceKeys.sttGroqPrompt) private var groqPrompt = ""
-    @AppStorage(AppPreferenceKeys.sttGroqTranslateToEnglish) private var groqTranslateToEnglish = false
-    @AppStorage(AppPreferenceKeys.sttGroqResponseFormat) private var groqResponseFormat = "json"
-    @AppStorage(AppPreferenceKeys.sttGroqTemperature) private var groqTemperature = 0.0
-    @AppStorage(AppPreferenceKeys.sttGroqTimestampGranularitiesJSON) private var groqTimestampGranularitiesJSON = "[]"
+    @AppStorage(AppPreferenceKeys.sttGroqBaseURL) var groqBaseURL = GroqAudioClient.Constants.defaultBaseURL.absoluteString
+    @AppStorage(AppPreferenceKeys.sttGroqModel) var groqModel = "whisper-large-v3-turbo"
+    @AppStorage(AppPreferenceKeys.sttGroqLanguage) var groqLanguage = ""
+    @AppStorage(AppPreferenceKeys.sttGroqPrompt) var groqPrompt = ""
+    @AppStorage(AppPreferenceKeys.sttGroqTranslateToEnglish) var groqTranslateToEnglish = false
+    @AppStorage(AppPreferenceKeys.sttGroqResponseFormat) var groqResponseFormat = "json"
+    @AppStorage(AppPreferenceKeys.sttGroqTemperature) var groqTemperature = 0.0
+    @AppStorage(AppPreferenceKeys.sttGroqTimestampGranularitiesJSON) var groqTimestampGranularitiesJSON = "[]"
 
-    @AppStorage(AppPreferenceKeys.sttMistralBaseURL) private var mistralBaseURL = ProviderType.mistral.defaultBaseURL ?? "https://api.mistral.ai/v1"
-    @AppStorage(AppPreferenceKeys.sttMistralModel) private var mistralModel = "voxtral-mini-latest"
-    @AppStorage(AppPreferenceKeys.sttMistralLanguage) private var mistralLanguage = ""
-    @AppStorage(AppPreferenceKeys.sttMistralPrompt) private var mistralPrompt = ""
-    @AppStorage(AppPreferenceKeys.sttMistralResponseFormat) private var mistralResponseFormat = "json"
-    @AppStorage(AppPreferenceKeys.sttMistralTemperature) private var mistralTemperature = 0.0
-    @AppStorage(AppPreferenceKeys.sttMistralTimestampGranularitiesJSON) private var mistralTimestampGranularitiesJSON = "[]"
+    @AppStorage(AppPreferenceKeys.sttMistralBaseURL) var mistralBaseURL = ProviderType.mistral.defaultBaseURL ?? "https://api.mistral.ai/v1"
+    @AppStorage(AppPreferenceKeys.sttMistralModel) var mistralModel = "voxtral-mini-latest"
+    @AppStorage(AppPreferenceKeys.sttMistralLanguage) var mistralLanguage = ""
+    @AppStorage(AppPreferenceKeys.sttMistralPrompt) var mistralPrompt = ""
+    @AppStorage(AppPreferenceKeys.sttMistralResponseFormat) var mistralResponseFormat = "json"
+    @AppStorage(AppPreferenceKeys.sttMistralTemperature) var mistralTemperature = 0.0
+    @AppStorage(AppPreferenceKeys.sttMistralTimestampGranularitiesJSON) var mistralTimestampGranularitiesJSON = "[]"
 
-    @AppStorage(AppPreferenceKeys.sttWhisperKitModel) private var whisperKitModel = "base"
-    @AppStorage(AppPreferenceKeys.sttWhisperKitLanguage) private var whisperKitLanguage = ""
-    @AppStorage(AppPreferenceKeys.sttWhisperKitTranslateToEnglish) private var whisperKitTranslateToEnglish = false
+    @AppStorage(AppPreferenceKeys.sttWhisperKitModel) var whisperKitModel = "base"
+    @AppStorage(AppPreferenceKeys.sttWhisperKitLanguage) var whisperKitLanguage = ""
+    @AppStorage(AppPreferenceKeys.sttWhisperKitTranslateToEnglish) var whisperKitTranslateToEnglish = false
 
-    @State private var apiKey = ""
-    @State private var isKeyVisible = false
-    @State private var isTesting = false
-    @State private var statusMessage: String?
-    @State private var statusIsError = false
-    @State private var hasLoadedKey = false
-    @State private var lastPersistedAPIKey = ""
-    @State private var autoSaveTask: Task<Void, Never>?
+    @State var apiKey = ""
+    @State var isKeyVisible = false
+    @State var isTesting = false
+    @State var statusMessage: String?
+    @State var statusIsError = false
+    @State var hasLoadedKey = false
+    @State var lastPersistedAPIKey = ""
+    @State var autoSaveTask: Task<Void, Never>?
 
-    private var provider: SpeechToTextProvider? {
+    var provider: SpeechToTextProvider? {
         SpeechToTextProvider(rawValue: providerRaw)
     }
 
-    private var currentAPIKeyPreferenceKey: String? {
+    var currentAPIKeyPreferenceKey: String? {
         guard let provider else { return nil }
         switch provider {
         case .openai:
@@ -61,7 +61,7 @@ struct SpeechToTextPluginSettingsView: View {
         }
     }
 
-    private var trimmedAPIKey: String {
+    var trimmedAPIKey: String {
         apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
@@ -154,368 +154,4 @@ struct SpeechToTextPluginSettingsView: View {
             autoSaveTask?.cancel()
         }
     }
-
-    @ViewBuilder
-    private var providerSpecificSettings: some View {
-        if let provider {
-            switch provider {
-            case .openai:
-                Section("OpenAI") {
-                    TextField("API Base URL", text: $openAIBaseURL)
-                        .font(.system(.body, design: .monospaced))
-                        .textFieldStyle(.roundedBorder)
-
-                    TextField("Model", text: $openAIModel)
-                        .font(.system(.body, design: .monospaced))
-                        .textFieldStyle(.roundedBorder)
-
-                    Toggle("Translate to English", isOn: $openAITranslateToEnglish)
-
-                    TextField("Language (optional)", text: $openAILanguage)
-                        .font(.system(.body, design: .monospaced))
-
-                    TextField("Prompt (optional)", text: $openAIPrompt)
-
-                    Picker("Response Format", selection: $openAIResponseFormat) {
-                        ForEach(Self.sttResponseFormats, id: \.self) { format in
-                            Text(format).tag(format)
-                        }
-                    }
-                    .pickerStyle(.menu)
-
-                    HStack {
-                        Text("Temperature")
-                        Slider(value: $openAITemperature, in: 0.0...1.0, step: 0.05)
-                        Text(openAITemperature.formatted(.number.precision(.fractionLength(2))))
-                            .font(.system(.body, design: .monospaced))
-                            .foregroundStyle(.secondary)
-                            .frame(width: 52, alignment: .trailing)
-                    }
-
-                    DisclosureGroup("Timestamps (verbose_json only)") {
-                        Toggle("Segment timestamps", isOn: timestampBinding(provider: .openai, granularity: "segment"))
-                        Toggle("Word timestamps", isOn: timestampBinding(provider: .openai, granularity: "word"))
-                    }
-                }
-
-            case .groq:
-                Section("Groq") {
-                    TextField("API Base URL", text: $groqBaseURL)
-                        .font(.system(.body, design: .monospaced))
-                        .textFieldStyle(.roundedBorder)
-
-                    TextField("Model", text: $groqModel)
-                        .font(.system(.body, design: .monospaced))
-                        .textFieldStyle(.roundedBorder)
-
-                    Toggle("Translate to English", isOn: $groqTranslateToEnglish)
-
-                    TextField("Language (optional)", text: $groqLanguage)
-                        .font(.system(.body, design: .monospaced))
-
-                    TextField("Prompt (optional)", text: $groqPrompt)
-
-                    Picker("Response Format", selection: $groqResponseFormat) {
-                        ForEach(Self.sttResponseFormats, id: \.self) { format in
-                            Text(format).tag(format)
-                        }
-                    }
-                    .pickerStyle(.menu)
-
-                    HStack {
-                        Text("Temperature")
-                        Slider(value: $groqTemperature, in: 0.0...1.0, step: 0.05)
-                        Text(groqTemperature.formatted(.number.precision(.fractionLength(2))))
-                            .font(.system(.body, design: .monospaced))
-                            .foregroundStyle(.secondary)
-                            .frame(width: 52, alignment: .trailing)
-                    }
-
-                    DisclosureGroup("Timestamps (verbose_json only)") {
-                        Toggle("Segment timestamps", isOn: timestampBinding(provider: .groq, granularity: "segment"))
-                        Toggle("Word timestamps", isOn: timestampBinding(provider: .groq, granularity: "word"))
-                    }
-                }
-
-            case .mistral:
-                Section("Mistral") {
-                    TextField("API Base URL", text: $mistralBaseURL)
-                        .font(.system(.body, design: .monospaced))
-                        .textFieldStyle(.roundedBorder)
-
-                    TextField("Model", text: $mistralModel)
-                        .font(.system(.body, design: .monospaced))
-                        .textFieldStyle(.roundedBorder)
-
-                    TextField("Language (optional)", text: $mistralLanguage)
-                        .font(.system(.body, design: .monospaced))
-
-                    TextField("Prompt (optional)", text: $mistralPrompt)
-
-                    Picker("Response Format", selection: $mistralResponseFormat) {
-                        ForEach(Self.sttResponseFormats, id: \.self) { format in
-                            Text(format).tag(format)
-                        }
-                    }
-                    .pickerStyle(.menu)
-
-                    HStack {
-                        Text("Temperature")
-                        Slider(value: $mistralTemperature, in: 0.0...1.0, step: 0.05)
-                        Text(mistralTemperature.formatted(.number.precision(.fractionLength(2))))
-                            .font(.system(.body, design: .monospaced))
-                            .foregroundStyle(.secondary)
-                            .frame(width: 52, alignment: .trailing)
-                    }
-
-                    DisclosureGroup("Timestamps (verbose_json only)") {
-                        Toggle("Segment timestamps", isOn: timestampBinding(provider: .mistral, granularity: "segment"))
-                        Toggle("Word timestamps", isOn: timestampBinding(provider: .mistral, granularity: "word"))
-                    }
-                }
-
-            case .whisperKit:
-                WhisperKitSpeechToTextSettingsSection(
-                    modelSelection: $whisperKitModel,
-                    language: $whisperKitLanguage,
-                    translateToEnglish: $whisperKitTranslateToEnglish
-                )
-            }
-        } else {
-            Section("Provider Error") {
-                Text(providerErrorMessage(for: providerRaw))
-                    .font(.caption)
-                    .foregroundStyle(.red)
-            }
-        }
-    }
-
-    private func timestampBinding(provider: SpeechToTextProvider, granularity: String) -> Binding<Bool> {
-        Binding(
-            get: {
-                let raw = timestampGranularitiesJSON(for: provider)
-                return Set(AppPreferences.decodeStringArrayJSON(raw)).contains(granularity)
-            },
-            set: { isOn in
-                let raw = timestampGranularitiesJSON(for: provider)
-                var set = Set(AppPreferences.decodeStringArrayJSON(raw))
-                if isOn {
-                    set.insert(granularity)
-                } else {
-                    set.remove(granularity)
-                }
-                let updated = AppPreferences.encodeStringArrayJSON(Array(set).sorted())
-                setTimestampGranularitiesJSON(updated, for: provider)
-            }
-        )
-    }
-
-    private func timestampGranularitiesJSON(for provider: SpeechToTextProvider) -> String {
-        switch provider {
-        case .openai:
-            return openAITimestampGranularitiesJSON
-        case .groq:
-            return groqTimestampGranularitiesJSON
-        case .mistral:
-            return mistralTimestampGranularitiesJSON
-        case .whisperKit:
-            return "[]"
-        }
-    }
-
-    private func setTimestampGranularitiesJSON(_ value: String, for provider: SpeechToTextProvider) {
-        switch provider {
-        case .openai:
-            openAITimestampGranularitiesJSON = value
-        case .groq:
-            groqTimestampGranularitiesJSON = value
-        case .mistral:
-            mistralTimestampGranularitiesJSON = value
-        case .whisperKit:
-            break
-        }
-    }
-
-    private func loadExistingKey() async {
-        if provider?.requiresAPIKey == false {
-            await MainActor.run {
-                apiKey = ""
-                lastPersistedAPIKey = ""
-                statusMessage = nil
-                statusIsError = false
-            }
-            return
-        }
-
-        guard let preferenceKey = currentAPIKeyPreferenceKey else {
-            await MainActor.run {
-                apiKey = ""
-                lastPersistedAPIKey = ""
-                statusMessage = providerErrorMessage(for: providerRaw)
-                statusIsError = true
-            }
-            return
-        }
-
-        let existing = UserDefaults.standard.string(forKey: preferenceKey) ?? ""
-        await MainActor.run {
-            apiKey = existing
-            lastPersistedAPIKey = existing.trimmingCharacters(in: .whitespacesAndNewlines)
-        }
-    }
-
-    private func clearKey() {
-        autoSaveTask?.cancel()
-        statusMessage = nil
-        statusIsError = false
-
-        guard provider?.requiresAPIKey != false,
-              let preferenceKey = currentAPIKeyPreferenceKey else {
-            return
-        }
-
-        UserDefaults.standard.removeObject(forKey: preferenceKey)
-        lastPersistedAPIKey = ""
-        apiKey = ""
-        statusMessage = "Cleared."
-        statusIsError = false
-        NotificationCenter.default.post(name: .pluginCredentialsDidChange, object: nil)
-    }
-
-    private func scheduleAutoSave() {
-        autoSaveTask?.cancel()
-
-        guard provider?.requiresAPIKey != false else { return }
-
-        let key = trimmedAPIKey
-        guard let preferenceKey = currentAPIKeyPreferenceKey else {
-            statusMessage = providerErrorMessage(for: providerRaw)
-            statusIsError = true
-            return
-        }
-        guard key != lastPersistedAPIKey else { return }
-
-        autoSaveTask = Task {
-            try? await Task.sleep(nanoseconds: 450_000_000)
-            guard !Task.isCancelled else { return }
-            await MainActor.run {
-                persistAPIKey(key, forPreferenceKey: preferenceKey, showSavedStatus: true)
-            }
-        }
-    }
-
-    private func persistAPIKeyIfNeeded(forProviderRaw rawValue: String, showSavedStatus: Bool) {
-        guard let preferenceKey = apiKeyPreferenceKey(for: rawValue) else {
-            return
-        }
-        let key = trimmedAPIKey
-        persistAPIKey(key, forPreferenceKey: preferenceKey, showSavedStatus: showSavedStatus)
-    }
-
-    private func persistAPIKey(_ key: String, forPreferenceKey preferenceKey: String, showSavedStatus: Bool) {
-        let isCurrentProvider = preferenceKey == currentAPIKeyPreferenceKey
-        if isCurrentProvider, key == lastPersistedAPIKey {
-            return
-        }
-        if !isCurrentProvider {
-            let existing = (UserDefaults.standard.string(forKey: preferenceKey) ?? "")
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            if existing == key {
-                return
-            }
-        }
-
-        if key.isEmpty {
-            UserDefaults.standard.removeObject(forKey: preferenceKey)
-        } else {
-            UserDefaults.standard.set(key, forKey: preferenceKey)
-        }
-
-        if isCurrentProvider {
-            lastPersistedAPIKey = key
-            if showSavedStatus {
-                statusMessage = key.isEmpty ? "Cleared." : "Saved automatically."
-                statusIsError = false
-            }
-        }
-
-        NotificationCenter.default.post(name: .pluginCredentialsDidChange, object: nil)
-    }
-
-    private func apiKeyPreferenceKey(for rawValue: String) -> String? {
-        guard let resolved = SpeechToTextProvider(rawValue: rawValue) else { return nil }
-        switch resolved {
-        case .openai:
-            return AppPreferenceKeys.sttOpenAIAPIKey
-        case .groq:
-            return AppPreferenceKeys.sttGroqAPIKey
-        case .mistral:
-            return AppPreferenceKeys.sttMistralAPIKey
-        case .whisperKit:
-            return nil
-        }
-    }
-
-    private func providerErrorMessage(for rawValue: String) -> String {
-        let trimmed = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
-        if trimmed.isEmpty {
-            return SpeechExtensionError.speechToTextProviderNotConfigured.localizedDescription
-        }
-        return SpeechExtensionError.invalidSpeechToTextProvider(trimmed).localizedDescription
-    }
-
-    private func testConnection() {
-        guard !trimmedAPIKey.isEmpty else { return }
-        guard let provider, provider.requiresAPIKey else {
-            statusMessage = providerErrorMessage(for: providerRaw)
-            statusIsError = true
-            return
-        }
-
-        statusMessage = nil
-        statusIsError = false
-        isTesting = true
-
-        Task {
-            do {
-                switch provider {
-                case .openai:
-                    let base = URL(string: openAIBaseURL.trimmingCharacters(in: .whitespacesAndNewlines)) ?? OpenAIAudioClient.Constants.defaultBaseURL
-                    let client = OpenAIAudioClient(apiKey: trimmedAPIKey, baseURL: base)
-                    try await client.validateAPIKey()
-                case .groq:
-                    let base = URL(string: groqBaseURL.trimmingCharacters(in: .whitespacesAndNewlines)) ?? GroqAudioClient.Constants.defaultBaseURL
-                    let client = GroqAudioClient(apiKey: trimmedAPIKey, baseURL: base)
-                    try await client.validateAPIKey()
-                case .mistral:
-                    let defaultBase = URL(string: ProviderType.mistral.defaultBaseURL ?? "https://api.mistral.ai/v1")!
-                    let base = URL(string: mistralBaseURL.trimmingCharacters(in: .whitespacesAndNewlines)) ?? defaultBase
-                    let client = OpenAIAudioClient(apiKey: trimmedAPIKey, baseURL: base)
-                    try await client.validateAPIKey()
-                case .whisperKit:
-                    return
-                }
-
-                await MainActor.run {
-                    isTesting = false
-                    statusMessage = "Connection OK."
-                    statusIsError = false
-                }
-            } catch {
-                await MainActor.run {
-                    isTesting = false
-                    statusMessage = error.localizedDescription
-                    statusIsError = true
-                }
-            }
-        }
-    }
-
-    private static let sttResponseFormats: [String] = [
-        "json",
-        "text",
-        "verbose_json",
-        "srt",
-        "vtt"
-    ]
 }
