@@ -94,7 +94,7 @@ struct GoogleMapsSheetView: View {
 
             summaryRow(
                 "Location bias",
-                value: draft.hasLocation ? "Pinned" : "None"
+                value: hasLiveLocation ? "Pinned" : "None"
             )
 
             if providerType == .vertexai,
@@ -176,7 +176,7 @@ struct GoogleMapsSheetView: View {
             }
             .font(.caption.weight(.medium))
 
-            if draft.hasLocation {
+            if hasLiveLocation {
                 Text("Saved coordinates are only used to bias Maps grounding for this conversation.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -234,14 +234,20 @@ struct GoogleMapsSheetView: View {
         }
     }
 
+    private var hasLiveLocation: Bool {
+        let lat = latitudeDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        let lng = longitudeDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        return !lat.isEmpty && !lng.isEmpty
+    }
+
     private var summaryText: String {
         if draft.enabled {
-            if draft.hasLocation {
+            if hasLiveLocation {
                 return "Maps grounding is on and will bias results using your pinned coordinates."
             }
             return "Maps grounding is on. Gemini can cite places and other Maps-backed sources when the prompt needs them."
         }
-        if draft.hasLocation {
+        if hasLiveLocation {
             return "A location is saved, but Maps grounding is currently off."
         }
         return "Turn Maps grounding on when you want nearby places, area summaries, and other place-aware answers."

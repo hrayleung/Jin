@@ -214,6 +214,7 @@ enum ModelCapabilityRegistry {
         "google/",
         "google-ai-studio/",
         "google-vertex-ai/google/",
+        "models/",
     ]
     private static let searchKeywords = ["search", "sonar", ":online"]
     private static let reasoningKeywords = ["deepseek-r1", "reasoning", "thinking"]

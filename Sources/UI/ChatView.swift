@@ -1106,6 +1106,12 @@ struct ChatView: View {
         showingAnthropicWebSearchSheet = false
         showingImageGenerationSheet = false
         showingCodexSessionSettingsSheet = false
+        showingGoogleMapsSheet = false
+        googleMapsDraft = GoogleMapsControls()
+        googleMapsLatitudeDraft = ""
+        googleMapsLongitudeDraft = ""
+        googleMapsLanguageCodeDraft = ""
+        googleMapsDraftError = nil
         showingError = false
         errorMessage = nil
 
