@@ -55,7 +55,7 @@ struct GoogleMapsSheetView: View {
         .frame(minWidth: 560, idealWidth: 620, minHeight: 460, idealHeight: 540)
         .onAppear {
             if !advancedExpanded {
-                advancedExpanded = draft.enableWidget == true || !languageCodeDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                advancedExpanded = draft.enableWidget == true || trimmedLanguageCode != nil
             }
         }
         .onChange(of: draft.enabled) { _, _ in
@@ -86,16 +86,20 @@ struct GoogleMapsSheetView: View {
 
     private var summaryCard: some View {
         VStack(alignment: .leading, spacing: JinSpacing.medium) {
-            Text("Summary")
-                .font(.headline)
+            summaryRow(
+                "Current mode",
+                value: draft.enabled ? "Grounded" : "Off",
+                foreground: draft.enabled ? .accentColor : .secondary
+            )
 
-            HStack(spacing: JinSpacing.small) {
-                summaryChip("Grounding", value: draft.enabled ? "On" : "Off")
-                summaryChip("Location", value: draft.hasLocation ? "Pinned" : "None")
-                if providerType == .vertexai,
-                   let locale = languageCodeDraft.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty {
-                    summaryChip("Locale", value: locale)
-                }
+            summaryRow(
+                "Location bias",
+                value: draft.hasLocation ? "Pinned" : "None"
+            )
+
+            if providerType == .vertexai,
+               let locale = trimmedLanguageCode {
+                summaryRow("Result locale", value: locale)
             }
 
             Text(summaryText)
@@ -171,6 +175,13 @@ struct GoogleMapsSheetView: View {
                     && longitudeDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
             .font(.caption.weight(.medium))
+
+            if draft.hasLocation {
+                Text("Saved coordinates are only used to bias Maps grounding for this conversation.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
         .padding(JinSpacing.large)
         .jinSurface(.raised, cornerRadius: JinRadius.large)
@@ -236,6 +247,11 @@ struct GoogleMapsSheetView: View {
         return "Turn Maps grounding on when you want nearby places, area summaries, and other place-aware answers."
     }
 
+    private var trimmedLanguageCode: String? {
+        let trimmed = languageCodeDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
     private var enableWidgetBinding: Binding<Bool> {
         Binding(
             get: { draft.enableWidget == true },
@@ -243,17 +259,14 @@ struct GoogleMapsSheetView: View {
         )
     }
 
-    private func summaryChip(_ title: String, value: String) -> some View {
-        HStack(spacing: 6) {
+    private func summaryRow(_ title: String, value: String, foreground: Color = .secondary) -> some View {
+        HStack(alignment: .center, spacing: JinSpacing.small) {
             Text(title)
-                .foregroundStyle(.secondary)
+                .font(.subheadline.weight(.semibold))
+            Spacer(minLength: 0)
             Text(value)
-                .foregroundStyle(.primary)
+                .jinTagStyle(foreground: foreground)
         }
-        .font(.caption.weight(.medium))
-        .padding(.horizontal, JinSpacing.small)
-        .padding(.vertical, 5)
-        .jinSurface(.subtle, cornerRadius: JinRadius.small)
     }
 
     @ViewBuilder
@@ -280,12 +293,6 @@ struct GoogleMapsSheetView: View {
         let formatted = String(format: "%.6f", value)
         return formatted.replacingOccurrences(of: #"0+$"#, with: "", options: .regularExpression)
             .replacingOccurrences(of: #"\.$"#, with: "", options: .regularExpression)
-    }
-}
-
-private extension String {
-    var nilIfEmpty: String? {
-        isEmpty ? nil : self
     }
 }
 

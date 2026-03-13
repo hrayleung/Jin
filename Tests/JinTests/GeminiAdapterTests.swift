@@ -739,6 +739,72 @@ final class GeminiAdapterTests: XCTestCase {
         XCTAssertNil(searchEvents[1].arguments["snippet"]?.value)
     }
 
+    func testGeminiAdapterSuppressesNativeGoogleSearchToolCallEvents() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        let providerConfig = ProviderConfig(
+            id: "g-native-search",
+            name: "Gemini",
+            type: .gemini,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://example.com/models/gemini-3-flash-preview:generateContent")
+
+            let response: [String: Any] = [
+                "candidates": [
+                    [
+                        "content": [
+                            "parts": [
+                                [
+                                    "functionCall": [
+                                        "name": "google_search",
+                                        "args": ["query": "how to swim across the sea"]
+                                    ]
+                                ],
+                                ["text": "Answer"]
+                            ]
+                        ],
+                        "groundingMetadata": [
+                            "webSearchQueries": ["how to swim across the sea"]
+                        ]
+                    ]
+                ]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = GeminiAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hi")])],
+            modelID: "gemini-3-flash-preview",
+            controls: GenerationControls(webSearch: WebSearchControls(enabled: true)),
+            tools: [],
+            streaming: false
+        )
+
+        var toolCalls: [ToolCall] = []
+        var searchEvents: [SearchActivity] = []
+
+        for try await event in stream {
+            switch event {
+            case .toolCallStart(let call), .toolCallEnd(let call):
+                toolCalls.append(call)
+            case .searchActivity(let activity):
+                searchEvents.append(activity)
+            default:
+                break
+            }
+        }
+
+        XCTAssertTrue(toolCalls.isEmpty)
+        XCTAssertEqual(searchEvents.first?.arguments["query"]?.value as? String, "how to swim across the sea")
+    }
+
     func testGeminiAdapterEmitsSearchActivitiesFromTopLevelGroundingMetadataFallback() async throws {
         let (configuration, protocolType) = makeMockedSessionConfiguration()
         let networkManager = NetworkManager(configuration: configuration)

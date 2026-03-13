@@ -378,14 +378,16 @@ enum ChatStreamingOrchestrator {
                         }
                     }
 
-                    guard !toolCalls.isEmpty else {
+                    let executableToolCalls = toolCalls.filter { !isGoogleProviderNativeToolName($0.name) }
+
+                    guard !executableToolCalls.isEmpty else {
                         shouldNotifyCompletion = hasRenderableAssistantContent
                         break
                     }
 
                     await MainActor.run {
                         streamingState.reset()
-                        streamingState.setToolCalls(toolCalls)
+                        streamingState.setToolCalls(executableToolCalls)
                     }
 
                     var toolResults: [ToolResult] = []
@@ -400,7 +402,7 @@ enum ChatStreamingOrchestrator {
                         }
                     }
 
-                    for call in toolCalls {
+                    for call in executableToolCalls {
                         let callStart = Date()
                         let isAgentTool = agentRoutes.contains(functionName: call.name)
 

@@ -239,7 +239,8 @@ enum GeminiModelConstants {
             out.append(.codeExecutionActivity(activity))
         }
 
-        if let functionCall = part.functionCall {
+        if let functionCall = part.functionCall,
+           !isGoogleProviderNativeToolName(functionCall.name) {
             let toolCall = ToolCall(
                 id: UUID().uuidString,
                 name: functionCall.name,

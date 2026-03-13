@@ -43,6 +43,18 @@ func normalizedMIMEType(_ mimeType: String) -> String {
     mimeType.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
 }
 
+/// Google native grounding tools are handled by Gemini / Vertex internally and
+/// should never be re-routed into Jin's MCP or builtin-tool execution pipeline.
+func isGoogleProviderNativeToolName(_ name: String) -> Bool {
+    let normalized = name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    switch normalized {
+    case "google_search", "googlemaps", "google_maps":
+        return true
+    default:
+        return false
+    }
+}
+
 // MARK: - JSON Encoding / Decoding
 
 /// Encodes a dictionary of `AnyCodable` values to a JSON string.
