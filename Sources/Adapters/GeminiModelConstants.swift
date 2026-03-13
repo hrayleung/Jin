@@ -280,7 +280,13 @@ enum GeminiModelConstants {
             webSearchQueries: g.webSearchQueries,
             retrievalQueries: g.retrievalQueries,
             groundingChunks: g.groundingChunks?.map {
-                .init(webURI: $0.web?.uri, webTitle: $0.web?.title)
+                .init(
+                    webURI: $0.web?.uri,
+                    webTitle: $0.web?.title,
+                    mapsURI: $0.maps?.uri,
+                    mapsTitle: $0.maps?.title,
+                    mapsPlaceId: $0.maps?.placeId
+                )
             },
             groundingSupports: g.groundingSupports?.map {
                 .init(segmentText: $0.segment?.text, groundingChunkIndices: $0.groundingChunkIndices)

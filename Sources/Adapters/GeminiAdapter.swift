@@ -382,6 +382,14 @@ actor GeminiAdapter: LLMProviderAdapter {
             toolArray.append(["code_execution": [:]])
         }
 
+        if controls.googleMaps?.enabled == true, supportsGoogleMaps(modelID) {
+            var mapsConfig: [String: Any] = [:]
+            if controls.googleMaps?.enableWidget == true {
+                mapsConfig["enableWidget"] = true
+            }
+            toolArray.append(["googleMaps": mapsConfig])
+        }
+
         if supportsFunctionCalling(modelID), !tools.isEmpty,
            let functionDeclarations = translateTools(tools) as? [[String: Any]] {
             toolArray.append(["functionDeclarations": functionDeclarations])
@@ -389,6 +397,24 @@ actor GeminiAdapter: LLMProviderAdapter {
 
         if !toolArray.isEmpty {
             body["tools"] = toolArray
+        }
+
+        if controls.googleMaps?.enabled == true, supportsGoogleMaps(modelID) {
+            var toolConfig = body["toolConfig"] as? [String: Any] ?? [:]
+            var retrievalConfig: [String: Any] = [:]
+
+            if let lat = controls.googleMaps?.latitude,
+               let lng = controls.googleMaps?.longitude {
+                retrievalConfig["latLng"] = [
+                    "latitude": lat,
+                    "longitude": lng
+                ]
+            }
+
+            if !retrievalConfig.isEmpty {
+                toolConfig["retrievalConfig"] = retrievalConfig
+                body["toolConfig"] = toolConfig
+            }
         }
 
         if !controls.providerSpecific.isEmpty {
@@ -459,6 +485,10 @@ actor GeminiAdapter: LLMProviderAdapter {
 
     private func supportsCodeExecution(_ modelID: String) -> Bool {
         ModelCapabilityRegistry.supportsCodeExecution(for: .gemini, modelID: modelID)
+    }
+
+    private func supportsGoogleMaps(_ modelID: String) -> Bool {
+        ModelCapabilityRegistry.supportsGoogleMaps(for: .gemini, modelID: modelID)
     }
 
     private func supportsImageSize(_ modelID: String) -> Bool {

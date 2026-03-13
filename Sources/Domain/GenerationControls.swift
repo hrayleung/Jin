@@ -28,6 +28,7 @@ struct GenerationControls: Codable {
     var xaiImageGeneration: XAIImageGenerationControls?
     var xaiVideoGeneration: XAIVideoGenerationControls?
     var googleVideoGeneration: GoogleVideoGenerationControls?
+    var googleMaps: GoogleMapsControls?
     var codeExecution: CodeExecutionControls?
     var agentMode: AgentModeControls?
     var providerSpecific: [String: AnyCodable] = [:]
@@ -48,6 +49,7 @@ struct GenerationControls: Codable {
         xaiImageGeneration: XAIImageGenerationControls? = nil,
         xaiVideoGeneration: XAIVideoGenerationControls? = nil,
         googleVideoGeneration: GoogleVideoGenerationControls? = nil,
+        googleMaps: GoogleMapsControls? = nil,
         codeExecution: CodeExecutionControls? = nil,
         agentMode: AgentModeControls? = nil,
         providerSpecific: [String: AnyCodable] = [:]
@@ -67,6 +69,7 @@ struct GenerationControls: Codable {
         self.xaiImageGeneration = xaiImageGeneration
         self.xaiVideoGeneration = xaiVideoGeneration
         self.googleVideoGeneration = googleVideoGeneration
+        self.googleMaps = googleMaps
         self.codeExecution = codeExecution
         self.agentMode = agentMode
         self.providerSpecific = providerSpecific

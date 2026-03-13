@@ -149,6 +149,13 @@ struct ChatView: View {
     @State var contextCacheDraftError: String?
     @State var contextCacheAdvancedExpanded = false
 
+    @State var showingGoogleMapsSheet = false
+    @State var googleMapsDraft = GoogleMapsControls()
+    @State var googleMapsLatitudeDraft = ""
+    @State var googleMapsLongitudeDraft = ""
+    @State var googleMapsLanguageCodeDraft = ""
+    @State var googleMapsDraftError: String?
+
     @State var showingImageGenerationSheet = false
     @State var imageGenerationDraft = ImageGenerationControls()
     @State var imageGenerationSeedDraft = ""
@@ -377,6 +384,17 @@ struct ChatView: View {
                     ) {
                         codeExecutionEnabledBinding.wrappedValue.toggle()
                     }
+                }
+            }
+
+            if supportsGoogleMapsControl {
+                composerMenuControl(
+                    systemName: "map",
+                    isActive: isGoogleMapsEnabled,
+                    badgeText: googleMapsBadgeText,
+                    help: googleMapsHelpText
+                ) {
+                    googleMapsMenuContent
                 }
             }
 
@@ -805,6 +823,19 @@ struct ChatView: View {
                 draftError: $anthropicWebSearchDraftError,
                 onCancel: { showingAnthropicWebSearchSheet = false },
                 onApply: { applyAnthropicWebSearchDraft() }
+            )
+        }
+        .sheet(isPresented: $showingGoogleMapsSheet) {
+            GoogleMapsSheetView(
+                draft: $googleMapsDraft,
+                latitudeDraft: $googleMapsLatitudeDraft,
+                longitudeDraft: $googleMapsLongitudeDraft,
+                languageCodeDraft: $googleMapsLanguageCodeDraft,
+                draftError: $googleMapsDraftError,
+                providerType: providerType,
+                isValid: isGoogleMapsDraftValid,
+                onCancel: { showingGoogleMapsSheet = false },
+                onSave: { applyGoogleMapsDraft() }
             )
         }
         .sheet(isPresented: $showingImageGenerationSheet) {
@@ -1923,6 +1954,43 @@ struct ChatView: View {
 
     var hasCodeExecutionConfiguration: Bool {
         providerType == .openai || providerType == .anthropic
+    }
+
+    var supportsGoogleMapsControl: Bool {
+        guard let modelID = selectedModelInfo?.id else { return false }
+        return ModelCapabilityRegistry.supportsGoogleMaps(for: providerType, modelID: modelID)
+    }
+
+    var isGoogleMapsEnabled: Bool {
+        controls.googleMaps?.enabled == true
+    }
+
+    var googleMapsBadgeText: String? {
+        guard isGoogleMapsEnabled else { return nil }
+        if controls.googleMaps?.hasLocation == true {
+            return "Loc"
+        }
+        return nil
+    }
+
+    var googleMapsHelpText: String {
+        guard isGoogleMapsEnabled else { return "Google Maps: Off" }
+        if controls.googleMaps?.hasLocation == true {
+            return "Google Maps: On (with location)"
+        }
+        return "Google Maps: On"
+    }
+
+    var googleMapsEnabledBinding: Binding<Bool> {
+        Binding(
+            get: { controls.googleMaps?.enabled == true },
+            set: { enabled in
+                var updated = controls.googleMaps ?? GoogleMapsControls(enabled: enabled)
+                updated.enabled = enabled
+                controls.googleMaps = updated.isEmpty ? nil : updated
+                persistControlsToConversation()
+            }
+        )
     }
 
     var parsedCodeExecutionOpenAIFileIDsDraft: [String] {

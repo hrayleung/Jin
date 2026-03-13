@@ -434,6 +434,7 @@ extension ChatView {
         normalizeCodexProviderSpecific()
         normalizeOpenAIServiceTierControls()
         normalizeWebSearchControls()
+        normalizeGoogleMapsControls()
         normalizeSearchPluginControls()
         normalizeContextCacheControls()
         normalizeMCPToolsControls()
@@ -597,6 +598,14 @@ extension ChatView {
         } else {
             controls.webSearch = nil
         }
+    }
+
+    func normalizeGoogleMapsControls() {
+        ChatControlNormalizationSupport.normalizeGoogleMapsControls(
+            controls: &controls,
+            providerType: providerType,
+            supportsGoogleMapsControl: supportsGoogleMapsControl
+        )
     }
 
     func normalizeSearchPluginControls() {

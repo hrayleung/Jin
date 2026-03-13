@@ -75,6 +75,7 @@ All providers implement the `LLMProviderAdapter` protocol (`sendMessage`, `valid
 - `OpenAIImageGenerationControls` - OpenAI image generation params (count, size, quality, style, background, output format/compression, moderation)
 - `XAIImageGenerationControls` / `XAIVideoGenerationControls` - xAI-specific generation params (aspect ratio, duration, resolution)
 - `GoogleVideoGenerationControls` - Google Veo-specific video generation params (duration, aspect ratio, resolution, negative prompt, audio, person generation, seed)
+- `GoogleMapsControls` - Google Maps grounding params (enabled, enableWidget, latitude, longitude, languageCode)
 - `GenerationControlsResolver` - Resolves effective controls from assistant defaults + conversation overrides
 - `ProviderConfig` - Provider metadata, API key references, models
 - `JinModelSupport` - Model capability detection (`.videoGeneration`, `.imageGeneration`, `.promptCaching`, `.reasoning`, etc.)
@@ -144,6 +145,23 @@ Both Gemini (AI Studio) and Vertex AI adapters support Veo video generation mode
 13. Yielded as `.contentDelta(.video(VideoContent))`
 
 Supports text-to-video and image-to-video inputs. Controls configured via `GoogleVideoGenerationControls` in `GenerationControls.swift`.
+
+### Google Maps Grounding
+
+Both Gemini (AI Studio) and Vertex AI adapters support grounding with Google Maps:
+
+1. Enabled via `GoogleMapsControls` in `GenerationControls.swift` (`controls.googleMaps.enabled`)
+2. **Gemini**: Adds `{"googleMaps": {}}` to `tools` array with API key header
+3. **Vertex**: Adds `{"googleMaps": {}}` to `tools` array with Bearer token
+4. Optional `enableWidget` parameter requests `googleMapsWidgetContextToken` in response
+5. Optional `toolConfig.retrievalConfig.latLng` passes user coordinates for location-aware results
+6. Vertex also supports `toolConfig.retrievalConfig.languageCode` for locale
+7. Response includes `groundingMetadata.groundingChunks[].maps` with `uri`, `title`, `placeId`
+8. Maps chunks rendered as `open_page` search activities in the timeline
+9. Supported models: Gemini 2.5 Pro, 2.5 Flash, 2.5 Flash-Lite, 2.0 Flash (not Gemini 3 family)
+10. Model support lists in `ModelCapabilityRegistry.geminiGoogleMapsSupportedModelIDs` / `vertexGoogleMapsSupportedModelIDs`
+
+UI: Map icon button in composer controls bar. Menu with toggle + "Configure Location..." sheet for lat/lng input.
 
 ### Context Caching
 
