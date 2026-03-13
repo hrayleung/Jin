@@ -74,7 +74,11 @@ extension ProviderConfigFormView {
     func scheduleOpenRouterUsageRefresh() {
         openRouterUsageTask?.cancel()
         openRouterUsageTask = Task {
-            try? await Task.sleep(nanoseconds: 800_000_000)
+            do {
+                try await Task.sleep(nanoseconds: 800_000_000)
+            } catch {
+                return
+            }
             await refreshOpenRouterUsage(force: true)
         }
     }

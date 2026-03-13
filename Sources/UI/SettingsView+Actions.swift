@@ -72,6 +72,7 @@ extension SettingsView {
     func deleteProvider(_ provider: ProviderConfigEntity) {
         Task { @MainActor in
             modelContext.delete(provider)
+            try? modelContext.save()
             providerPendingDeletion = nil
         }
     }
@@ -92,6 +93,7 @@ extension SettingsView {
     func deleteServer(_ server: MCPServerConfigEntity) {
         Task { @MainActor in
             modelContext.delete(server)
+            try? modelContext.save()
             serverPendingDeletion = nil
         }
     }

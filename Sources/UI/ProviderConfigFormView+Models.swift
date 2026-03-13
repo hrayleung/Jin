@@ -51,7 +51,7 @@ extension ProviderConfigFormView {
     func setModels(_ models: [ModelInfo]) {
         do {
             provider.modelsData = try JSONEncoder().encode(models)
-            try? modelContext.save()
+            try modelContext.save()
         } catch {
             modelsError = error.localizedDescription
         }
