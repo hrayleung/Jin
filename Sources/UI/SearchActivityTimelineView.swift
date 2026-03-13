@@ -37,8 +37,35 @@ struct SearchActivityTimelineView: View {
 
     var body: some View {
         let content = buildContent()
+        let hasMaps = content.presentation.sources.contains { $0.kind.isGoogleMaps }
+        let hasWeb = content.presentation.sources.contains { !$0.kind.isGoogleMaps }
 
         if !activities.isEmpty {
+            VStack(alignment: .leading, spacing: JinSpacing.small) {
+                if hasMaps {
+                    GoogleMapsResultsView(
+                        activities: activities,
+                        isStreaming: isStreaming,
+                        providerLabel: providerLabel,
+                        modelLabel: modelLabel
+                    )
+                }
+
+                if hasWeb {
+                    let webContent = hasMaps
+                        ? buildContent(from: activities.filter { !isMapsOpenPage($0) && !isSearchActivity($0) })
+                        : content
+                    webTimelinePanel(content: webContent)
+                } else if !hasMaps {
+                    webTimelinePanel(content: content)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func webTimelinePanel(content: SearchActivityViewContent) -> some View {
+        if !content.presentation.sources.isEmpty || !content.presentation.queries.isEmpty {
             VStack(alignment: .leading, spacing: isExpanded ? JinSpacing.small : 0) {
                 collapsedSummaryRow(content: content)
 
@@ -210,8 +237,9 @@ struct SearchActivityTimelineView: View {
 
     // MARK: - Derived Content
 
-    private func buildContent() -> SearchActivityViewContent {
-        let orderedActivities = activities
+    private func buildContent(from sourceActivities: [SearchActivity]? = nil) -> SearchActivityViewContent {
+        let activitiesToProcess = sourceActivities ?? activities
+        let orderedActivities = activitiesToProcess
             .enumerated()
             .sorted { lhs, rhs in
                 let left = lhs.element
@@ -240,6 +268,16 @@ struct SearchActivityTimelineView: View {
             presentation: SearchActivityPresentation(activities: orderedActivities),
             hasRunningActivity: hasRunningActivity
         )
+    }
+
+    private func isMapsOpenPage(_ activity: SearchActivity) -> Bool {
+        guard activity.type == "open_page" else { return false }
+        let sourceKind = (activity.arguments["sourceKind"]?.value as? String)?.lowercased()
+        return sourceKind == "google_maps"
+    }
+
+    private func isSearchActivity(_ activity: SearchActivity) -> Bool {
+        activity.type == "search" || activity.type == "searching"
     }
 
     private var contextLabel: String? {

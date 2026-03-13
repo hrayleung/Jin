@@ -949,6 +949,15 @@ struct ChatView: View {
                 singleThreadMessageStage(geometry: geometry)
             }
         }
+        .environment(\.googleMapsLocationBias, googleMapsLocationBiasValue)
+    }
+
+    private var googleMapsLocationBiasValue: GoogleMapsLocationBias? {
+        guard let lat = controls.googleMaps?.latitude,
+              let lng = controls.googleMaps?.longitude else {
+            return nil
+        }
+        return GoogleMapsLocationBias(latitude: lat, longitude: lng)
     }
 
     private var floatingComposer: some View {
