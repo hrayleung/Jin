@@ -3,11 +3,14 @@ import SwiftUI
 import SwiftData
 import AppKit
 import Kingfisher
+import os.log
 
 @MainActor
 private final class JinAppDelegate: NSObject, NSApplicationDelegate {
     func applicationWillTerminate(_ notification: Notification) {
         CodexAppServerController.shared.shutdownForApplicationTermination()
+        // Best-effort backup on graceful quit so the next launch has fresh data
+        DatabaseBackupManager.createBackup()
     }
 }
 
@@ -24,8 +27,18 @@ struct JinApp: App {
     @AppStorage(AppPreferenceKeys.appFontFamily) private var appFontFamily = JinTypography.systemFontPreferenceValue
     @AppStorage(AppPreferenceKeys.appIconVariant) private var appIconVariant: AppIconVariant = .roseQuartz
 
+    /// Guards against launching duplicate periodic‐backup loops when `onAppear` fires more than once.
+    @State private var periodicBackupStarted = false
+
     private let mcpSchemaVersionPreferenceKey = "mcpTransportSchemaVersion"
     private let mcpSchemaVersion = 2
+
+    private static let dataIntegrityLogger = Logger(
+        subsystem: Bundle.main.bundleIdentifier ?? "com.example.Jin",
+        category: "DataIntegrity"
+    )
+    private static let lastKnownConversationCountKey = "database.lastKnownConversationCount"
+    private static let lastKnownProviderCountKey = "database.lastKnownProviderCount"
 
     init() {
         UserDefaults.standard.register(defaults: [
@@ -38,21 +51,9 @@ struct JinApp: App {
         ImageCache.default.diskStorage.config.expiration = .days(30)
 
         _updateManager = StateObject(wrappedValue: SparkleUpdateManager())
-        do {
-            modelContainer = try ModelContainer(
-                for: ConversationEntity.self,
-                ConversationModelThreadEntity.self,
-                AssistantEntity.self,
-                MessageEntity.self,
-                ProviderConfigEntity.self,
-                MCPServerConfigEntity.self,
-                AttachmentEntity.self
-            )
-            resetMCPServersForTransportV2IfNeeded()
-            updateProviderModelsIfNeeded()
-        } catch {
-            fatalError("Failed to create SwiftData ModelContainer: \(error)")
-        }
+        modelContainer = Self.createModelContainerWithRecovery()
+        resetMCPServersForTransportV2IfNeeded()
+        updateProviderModelsIfNeeded()
     }
 
     var body: some Scene {
@@ -66,6 +67,7 @@ struct JinApp: App {
                 .preferredColorScheme(preferredColorScheme)
                 .onAppear {
                     AppIconManager.apply(appIconVariant)
+                    schedulePeriodicBackup()
                 }
         }
         .windowStyle(.hiddenTitleBar)
@@ -95,6 +97,136 @@ struct JinApp: App {
             return .dark
         }
     }
+
+    // MARK: - Database Recovery
+
+    private static func createModelContainerWithRecovery() -> ModelContainer {
+        let logger = dataIntegrityLogger
+
+        // Attempt 1: Normal initialization
+        if let container = try? createModelContainer() {
+            if detectDataLoss(in: container) {
+                logger.error("Data loss detected — attempting recovery from backup")
+
+                // Try restoring from the last known-good backup
+                if DatabaseBackupManager.restoreLatestBackup(),
+                   let restored = try? createModelContainer(),
+                   !detectDataLoss(in: restored) {
+                    logger.info("Recovery succeeded — data restored from backup")
+                    updateDataIntegritySnapshot(in: restored)
+                    return restored
+                }
+
+                logger.warning("Recovery failed or backup also empty — proceeding with current state")
+                // Don't update integrity snapshot so the next launch can retry
+                return container
+            }
+
+            // Healthy — record counts and create a backup for future recovery
+            updateDataIntegritySnapshot(in: container)
+            DatabaseBackupManager.createBackup()
+            return container
+        }
+
+        logger.error("ModelContainer creation failed — attempting backup restore")
+
+        // Attempt 2: Container creation failed — try restoring a backup
+        if DatabaseBackupManager.restoreLatestBackup(),
+           let restored = try? createModelContainer() {
+            logger.info("Container created from restored backup")
+            updateDataIntegritySnapshot(in: restored)
+            return restored
+        }
+
+        // Attempt 3: Nothing works — delete corrupt store and start fresh
+        logger.error("Backup restore failed — starting with a clean database")
+        DatabaseBackupManager.deleteCurrentStore()
+        do {
+            return try createModelContainer()
+        } catch {
+            fatalError("Failed to create SwiftData ModelContainer: \(error)")
+        }
+    }
+
+    private static func createModelContainer() throws -> ModelContainer {
+        try ModelContainer(
+            for: ConversationEntity.self,
+            ConversationModelThreadEntity.self,
+            AssistantEntity.self,
+            MessageEntity.self,
+            ProviderConfigEntity.self,
+            MCPServerConfigEntity.self,
+            AttachmentEntity.self
+        )
+    }
+
+    /// Returns `true` when the database previously held user data but now appears empty,
+    /// indicating possible corruption or unintended schema-migration data loss.
+    private static func detectDataLoss(in container: ModelContainer) -> Bool {
+        let context = ModelContext(container)
+        let defaults = UserDefaults.standard
+
+        let conversationCount = (try? context.fetchCount(FetchDescriptor<ConversationEntity>())) ?? 0
+        let providerCount = (try? context.fetchCount(FetchDescriptor<ProviderConfigEntity>())) ?? 0
+
+        let lastConversations = defaults.integer(forKey: lastKnownConversationCountKey)
+        let lastProviders = defaults.integer(forKey: lastKnownProviderCountKey)
+
+        let hadData = lastConversations > 0 || lastProviders > 0
+        let hasData = conversationCount > 0 || providerCount > 0
+
+        if hadData && !hasData {
+            dataIntegrityLogger.error(
+                "Data loss: expected ~\(lastConversations) conversations & \(lastProviders) providers, found 0"
+            )
+        }
+
+        return hadData && !hasData
+    }
+
+    /// Persists current entity counts so future launches can detect unexpected data loss.
+    private static func updateDataIntegritySnapshot(in container: ModelContainer) {
+        let context = ModelContext(container)
+        let defaults = UserDefaults.standard
+
+        let conversationCount = (try? context.fetchCount(FetchDescriptor<ConversationEntity>())) ?? 0
+        let providerCount = (try? context.fetchCount(FetchDescriptor<ProviderConfigEntity>())) ?? 0
+
+        defaults.set(conversationCount, forKey: lastKnownConversationCountKey)
+        defaults.set(providerCount, forKey: lastKnownProviderCountKey)
+    }
+
+    /// Periodically checks whether entity counts have changed and creates a
+    /// backup only when they have. This keeps the backup fresh for long-running
+    /// sessions without doing unnecessary I/O.
+    private func schedulePeriodicBackup() {
+        guard !periodicBackupStarted else { return }
+        periodicBackupStarted = true
+
+        Task {
+            // Check every 30 minutes, but only write a backup when data changed
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(30 * 60))
+
+                let context = ModelContext(modelContainer)
+                let conversations = (try? context.fetchCount(FetchDescriptor<ConversationEntity>())) ?? 0
+                let providers = (try? context.fetchCount(FetchDescriptor<ProviderConfigEntity>())) ?? 0
+
+                let defaults = UserDefaults.standard
+                let lastConversations = defaults.integer(forKey: Self.lastKnownConversationCountKey)
+                let lastProviders = defaults.integer(forKey: Self.lastKnownProviderCountKey)
+
+                guard conversations != lastConversations || providers != lastProviders else {
+                    continue
+                }
+
+                Self.updateDataIntegritySnapshot(in: modelContainer)
+                DatabaseBackupManager.createBackup()
+            }
+        }
+    }
+
+    // MARK: - MCP Migration
 
     private func resetMCPServersForTransportV2IfNeeded() {
         let defaults = UserDefaults.standard

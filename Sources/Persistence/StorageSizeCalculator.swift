@@ -3,6 +3,7 @@ import Foundation
 enum StorageCategory: String, CaseIterable, Identifiable {
     case attachments
     case database
+    case backups
     case networkLogs
     case mcpData
     case speechModels
@@ -13,6 +14,7 @@ enum StorageCategory: String, CaseIterable, Identifiable {
         switch self {
         case .attachments: return "Attachments"
         case .database: return "Database"
+        case .backups: return "Backups"
         case .networkLogs: return "Network Logs"
         case .mcpData: return "MCP Server Data"
         case .speechModels: return "Speech Models"
@@ -23,6 +25,7 @@ enum StorageCategory: String, CaseIterable, Identifiable {
         switch self {
         case .attachments: return "paperclip"
         case .database: return "cylinder"
+        case .backups: return "arrow.counterclockwise"
         case .networkLogs: return "doc.text"
         case .mcpData: return "server.rack"
         case .speechModels: return "waveform"
@@ -33,6 +36,7 @@ enum StorageCategory: String, CaseIterable, Identifiable {
         switch self {
         case .attachments: return "Images, videos, audio, and files from conversations."
         case .database: return "Chat history, assistants, and provider configurations."
+        case .backups: return "Automatic database backups for crash recovery (max 3)."
         case .networkLogs: return "HTTP/WebSocket debug trace files."
         case .mcpData: return "Node isolation directories for MCP servers."
         case .speechModels: return "On-device WhisperKit and TTSKit models."
@@ -93,7 +97,7 @@ actor StorageSizeCalculator {
         switch category {
         case .attachments, .mcpData:
             try fileManager.createDirectory(at: url, withIntermediateDirectories: true)
-        case .speechModels, .database, .networkLogs:
+        case .speechModels, .database, .networkLogs, .backups:
             break
         }
     }
@@ -106,6 +110,8 @@ actor StorageSizeCalculator {
             return jinAppSupportURL()?.appendingPathComponent("Attachments", isDirectory: true)
         case .database:
             return applicationSupportURL()
+        case .backups:
+            return jinAppSupportURL()?.appendingPathComponent("Backups", isDirectory: true)
         case .networkLogs:
             return jinAppSupportURL()?
                 .appendingPathComponent("Logs", isDirectory: true)
