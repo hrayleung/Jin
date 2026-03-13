@@ -191,6 +191,7 @@ struct MessageRow: View {
         let canDeleteResponse = item.canDeleteResponse
         let visibleToolCalls = item.toolCalls.filter { call in
             !BuiltinSearchToolHub.isBuiltinSearchFunctionName(call.name)
+            && !isGoogleProviderNativeToolName(call.name)
             && !AgentToolHub.isAgentFunctionName(call.name)
         }
 

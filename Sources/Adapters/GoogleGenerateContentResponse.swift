@@ -75,13 +75,21 @@ struct GoogleGenerateContentResponse: Codable {
         let groundingChunks: [GroundingChunk]?
         let groundingSupports: [GroundingSupport]?
         let searchEntryPoint: SearchEntryPoint?
+        let googleMapsWidgetContextToken: String?
 
         struct GroundingChunk: Codable {
             let web: WebChunk?
+            let maps: MapsChunk?
 
             struct WebChunk: Codable {
                 let uri: String?
                 let title: String?
+            }
+
+            struct MapsChunk: Codable {
+                let uri: String?
+                let title: String?
+                let placeId: String?
             }
         }
 

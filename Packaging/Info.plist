@@ -42,6 +42,8 @@
 	<integer>86400</integer>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Jin uses the microphone for speech-to-text dictation.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Jin uses your location to bias Google Maps grounding around your current area.</string>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsArbitraryLoads</key>

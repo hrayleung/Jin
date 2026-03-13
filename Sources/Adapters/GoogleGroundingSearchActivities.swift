@@ -20,6 +20,23 @@ enum GoogleGroundingSearchActivities {
         struct GroundingChunk {
             let webURI: String?
             let webTitle: String?
+            let mapsURI: String?
+            let mapsTitle: String?
+            let mapsPlaceId: String?
+
+            init(
+                webURI: String? = nil,
+                webTitle: String? = nil,
+                mapsURI: String? = nil,
+                mapsTitle: String? = nil,
+                mapsPlaceId: String? = nil
+            ) {
+                self.webURI = webURI
+                self.webTitle = webTitle
+                self.mapsURI = mapsURI
+                self.mapsTitle = mapsTitle
+                self.mapsPlaceId = mapsPlaceId
+            }
         }
 
         struct GroundingSupport {
@@ -72,20 +89,43 @@ enum GoogleGroundingSearchActivities {
         var sourceEventsByURLKey: OrderedDictionary<String, StreamEvent> = [:]
         var sourceSequence = 0
         let sourceSequenceBase = orderedQueries.count
-        func appendSourceActivity(url rawURL: String?, title rawTitle: String?, idPrefix: String) {
+        func appendSourceActivity(
+            url rawURL: String?,
+            title rawTitle: String?,
+            idPrefix: String,
+            sourceKind: String? = nil,
+            mapsPlaceID: String? = nil
+        ) {
             let url = rawURL?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             guard !url.isEmpty else { return }
             let dedupeKey = SearchActivityURLDeduplication.key(for: url)
             let title = rawTitle?.trimmingCharacters(in: .whitespacesAndNewlines)
 
             if case .searchActivity(let existing)? = sourceEventsByURLKey[dedupeKey] {
-                guard let title, !title.isEmpty,
-                      existing.arguments["title"]?.value as? String == nil else {
+                var mergedArguments = existing.arguments
+                var didChange = false
+
+                if let title, !title.isEmpty, mergedArguments["title"]?.value as? String == nil {
+                    mergedArguments["title"] = AnyCodable(title)
+                    didChange = true
+                }
+
+                if let sourceKind, !sourceKind.isEmpty,
+                   mergedArguments["sourceKind"]?.value as? String == nil {
+                    mergedArguments["sourceKind"] = AnyCodable(sourceKind)
+                    didChange = true
+                }
+
+                if let mapsPlaceID, !mapsPlaceID.isEmpty,
+                   mergedArguments["mapsPlaceID"]?.value as? String == nil {
+                    mergedArguments["mapsPlaceID"] = AnyCodable(mapsPlaceID)
+                    didChange = true
+                }
+
+                guard didChange else {
                     return
                 }
 
-                var mergedArguments = existing.arguments
-                mergedArguments["title"] = AnyCodable(title)
                 sourceEventsByURLKey[dedupeKey] = .searchActivity(
                     SearchActivity(
                         id: existing.id,
@@ -103,6 +143,12 @@ enum GoogleGroundingSearchActivities {
             if let title, !title.isEmpty {
                 args["title"] = AnyCodable(title)
             }
+            if let sourceKind, !sourceKind.isEmpty {
+                args["sourceKind"] = AnyCodable(sourceKind)
+            }
+            if let mapsPlaceID, !mapsPlaceID.isEmpty {
+                args["mapsPlaceID"] = AnyCodable(mapsPlaceID)
+            }
 
             sourceEventsByURLKey[dedupeKey] = .searchActivity(
                 SearchActivity(
@@ -118,11 +164,21 @@ enum GoogleGroundingSearchActivities {
         }
 
         for chunk in grounding.groundingChunks ?? [] {
-            appendSourceActivity(
-                url: chunk.webURI,
-                title: chunk.webTitle,
-                idPrefix: openPrefix
-            )
+            if let mapsURI = chunk.mapsURI, !mapsURI.isEmpty {
+                appendSourceActivity(
+                    url: mapsURI,
+                    title: chunk.mapsTitle,
+                    idPrefix: openPrefix,
+                    sourceKind: "google_maps",
+                    mapsPlaceID: chunk.mapsPlaceId
+                )
+            } else {
+                appendSourceActivity(
+                    url: chunk.webURI,
+                    title: chunk.webTitle,
+                    idPrefix: openPrefix
+                )
+            }
         }
 
         if sourceEventsByURLKey.isEmpty {

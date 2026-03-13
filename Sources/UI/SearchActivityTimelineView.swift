@@ -37,8 +37,35 @@ struct SearchActivityTimelineView: View {
 
     var body: some View {
         let content = buildContent()
+        let hasMaps = content.presentation.sources.contains { $0.kind.isGoogleMaps }
+        let hasWeb = content.presentation.sources.contains { !$0.kind.isGoogleMaps }
 
         if !activities.isEmpty {
+            VStack(alignment: .leading, spacing: JinSpacing.small) {
+                if hasMaps {
+                    GoogleMapsResultsView(
+                        activities: activities,
+                        isStreaming: isStreaming,
+                        providerLabel: providerLabel,
+                        modelLabel: modelLabel
+                    )
+                }
+
+                if hasWeb {
+                    let webContent = hasMaps
+                        ? buildContent(from: activities.filter { !isMapsOpenPage($0) && !isSearchActivity($0) })
+                        : content
+                    webTimelinePanel(content: webContent)
+                } else if !hasMaps {
+                    webTimelinePanel(content: content)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func webTimelinePanel(content: SearchActivityViewContent) -> some View {
+        if !content.presentation.sources.isEmpty || !content.presentation.queries.isEmpty {
             VStack(alignment: .leading, spacing: isExpanded ? JinSpacing.small : 0) {
                 collapsedSummaryRow(content: content)
 
@@ -67,12 +94,12 @@ struct SearchActivityTimelineView: View {
             }
         } label: {
             HStack(spacing: JinSpacing.small) {
-                Image(systemName: "magnifyingglass")
+                Image(systemName: content.presentation.summarySystemImage)
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(.secondary)
 
                 if content.presentation.sources.isEmpty {
-                    Text("Web search")
+                    Text(content.presentation.sectionTitle)
                         .font(.subheadline.weight(.medium))
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
@@ -105,6 +132,7 @@ struct SearchActivityTimelineView: View {
                 SearchSourceAvatarView(
                     host: sourcePresentation.host,
                     fallbackText: sourcePresentation.hostDisplayInitial,
+                    kind: sourcePresentation.kind,
                     size: 24
                 )
             }
@@ -126,7 +154,7 @@ struct SearchActivityTimelineView: View {
     private func expandedPanel(content: SearchActivityViewContent) -> some View {
         VStack(alignment: .leading, spacing: JinSpacing.small) {
             HStack(alignment: .firstTextBaseline, spacing: JinSpacing.small - 2) {
-                Text("Web Search")
+                Text(content.presentation.sectionTitle)
                     .font(.headline)
 
                 if let contextLabel {
@@ -145,10 +173,7 @@ struct SearchActivityTimelineView: View {
 
             if !content.presentation.sources.isEmpty {
                 HStack(spacing: JinSpacing.small) {
-                    Text(
-                        "Browsed \(content.presentation.sources.count) link"
-                            + "\(content.presentation.sources.count == 1 ? "" : "s")"
-                    )
+                    Text(content.presentation.sourceSummaryText)
                         .font(.caption)
                         .foregroundStyle(.secondary)
 
@@ -212,8 +237,9 @@ struct SearchActivityTimelineView: View {
 
     // MARK: - Derived Content
 
-    private func buildContent() -> SearchActivityViewContent {
-        let orderedActivities = activities
+    private func buildContent(from sourceActivities: [SearchActivity]? = nil) -> SearchActivityViewContent {
+        let activitiesToProcess = sourceActivities ?? activities
+        let orderedActivities = activitiesToProcess
             .enumerated()
             .sorted { lhs, rhs in
                 let left = lhs.element
@@ -242,6 +268,16 @@ struct SearchActivityTimelineView: View {
             presentation: SearchActivityPresentation(activities: orderedActivities),
             hasRunningActivity: hasRunningActivity
         )
+    }
+
+    private func isMapsOpenPage(_ activity: SearchActivity) -> Bool {
+        guard activity.type == "open_page" else { return false }
+        let sourceKind = (activity.arguments["sourceKind"]?.value as? String)?.lowercased()
+        return sourceKind == "google_maps"
+    }
+
+    private func isSearchActivity(_ activity: SearchActivity) -> Bool {
+        activity.type == "search" || activity.type == "searching"
     }
 
     private var contextLabel: String? {
@@ -312,6 +348,7 @@ struct SearchActivityTimelineView: View {
             guard !Task.isCancelled else { break }
             guard resolvedPreviewTextByCanonicalSource[source.canonicalURLString] == nil else { continue }
             guard fetchedPreviewCount < SearchActivityTimelineConfig.previewFetchLimit else { break }
+            guard !source.kind.isGoogleMaps else { continue }
 
             if source.usesGoogleGroundingRedirect,
                resolvedRedirectURLByCanonicalSource[source.canonicalURLString] == nil {
@@ -330,8 +367,52 @@ struct SearchActivityTimelineView: View {
 }
 
 private struct SearchActivityPresentation {
+    enum DisplayKind {
+        case web
+        case maps
+        case mixed
+
+        var sectionTitle: String {
+            switch self {
+            case .web:
+                return "Web Search"
+            case .maps:
+                return "Google Maps"
+            case .mixed:
+                return "Search & Maps"
+            }
+        }
+
+        var summarySystemImage: String {
+            switch self {
+            case .web:
+                return "magnifyingglass"
+            case .maps:
+                return "map"
+            case .mixed:
+                return "map.circle"
+            }
+        }
+
+        func sourceSummaryText(count: Int) -> String {
+            switch self {
+            case .web:
+                return "Browsed \(count) link" + (count == 1 ? "" : "s")
+            case .maps:
+                return "Cited \(count) place source" + (count == 1 ? "" : "s")
+            case .mixed:
+                return "Browsed \(count) grounded source" + (count == 1 ? "" : "s")
+            }
+        }
+    }
+
     let queries: [String]
     let sources: [SearchSource]
+    let displayKind: DisplayKind
+
+    var sectionTitle: String { displayKind.sectionTitle }
+    var summarySystemImage: String { displayKind.summarySystemImage }
+    var sourceSummaryText: String { displayKind.sourceSummaryText(count: sources.count) }
 
     init(activities: [SearchActivity]) {
         var queriesByKey: OrderedDictionary<String, String> = [:]
@@ -345,10 +426,29 @@ private struct SearchActivityPresentation {
             }
         }
 
-        func upsertSource(url: String, title: String?, previewText: String?) {
-            guard let source = SearchSource(rawURL: url, title: title, previewText: previewText) else { return }
+        func upsertSource(
+            url: String,
+            title: String?,
+            previewText: String?,
+            sourceKind: SearchSourceKind,
+            mapsPlaceID: String?
+        ) {
+            guard let source = SearchSource(
+                rawURL: url,
+                title: title,
+                previewText: previewText,
+                kind: sourceKind,
+                mapsPlaceID: mapsPlaceID
+            ) else {
+                return
+            }
             if let existing = sourceByID[source.id] {
-                sourceByID[source.id] = existing.merged(withTitle: source.title, previewText: source.previewText)
+                sourceByID[source.id] = existing.merged(
+                    withTitle: source.title,
+                    previewText: source.previewText,
+                    kind: source.kind,
+                    mapsPlaceID: source.mapsPlaceID
+                )
                 return
             }
             sourceByID[source.id] = source
@@ -366,17 +466,36 @@ private struct SearchActivityPresentation {
                 upsertSource(
                     url: url,
                     title: activity.stringArgument("title"),
-                    previewText: activity.sourcePreviewArgument
+                    previewText: activity.sourcePreviewArgument,
+                    sourceKind: activity.sourceKindArgument,
+                    mapsPlaceID: activity.stringArgument("mapsPlaceID")
                 )
             }
 
             for sourceArg in activity.sourceArguments {
-                upsertSource(url: sourceArg.url, title: sourceArg.title, previewText: sourceArg.previewText)
+                upsertSource(
+                    url: sourceArg.url,
+                    title: sourceArg.title,
+                    previewText: sourceArg.previewText,
+                    sourceKind: sourceArg.kind,
+                    mapsPlaceID: sourceArg.mapsPlaceID
+                )
             }
         }
 
         queries = Array(queriesByKey.values)
         sources = Array(sourceByID.values)
+
+        let hasMapsSources = sources.contains(where: { $0.kind.isGoogleMaps })
+        let hasWebSources = sources.contains(where: { !$0.kind.isGoogleMaps })
+        switch (hasMapsSources, hasWebSources) {
+        case (true, true):
+            displayKind = .mixed
+        case (true, false):
+            displayKind = .maps
+        default:
+            displayKind = .web
+        }
     }
 }
 
@@ -429,9 +548,9 @@ private struct SearchSourceCardView: View {
 
                 Spacer(minLength: 0)
 
-                Image(systemName: "arrow.up.right.circle.fill")
+                Image(systemName: presentation.kind.isGoogleMaps ? "map.fill" : "arrow.up.right.circle.fill")
                     .font(.footnote.weight(.semibold))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(presentation.kind.isGoogleMaps ? Color.accentColor : Color.secondary)
             }
 
             Text(presentation.previewText)
@@ -447,6 +566,7 @@ private struct SearchSourceCardView: View {
                 SearchSourceAvatarView(
                     host: presentation.host,
                     fallbackText: presentation.hostDisplayInitial,
+                    kind: presentation.kind,
                     size: 16
                 )
                 Text(presentation.hostDisplay)
@@ -468,18 +588,28 @@ private struct SearchSourceCardView: View {
 private struct SearchSourceAvatarView: View {
     let host: String
     let fallbackText: String
+    let kind: SearchSourceKind
     var size: CGFloat = 22
 
     var body: some View {
         ZStack {
-            Circle()
-                .fill(JinSemanticColor.surface)
+            if kind.isGoogleMaps {
+                Circle()
+                    .fill(Color.accentColor.opacity(0.16))
 
-            WebsiteFaviconView(
-                host: host,
-                fallbackText: fallbackText,
-                iconSize: max(12, size - 8)
-            )
+                Image(systemName: "map.fill")
+                    .font(.system(size: max(9, size - 10), weight: .semibold))
+                    .foregroundStyle(Color.accentColor)
+            } else {
+                Circle()
+                    .fill(JinSemanticColor.surface)
+
+                WebsiteFaviconView(
+                    host: host,
+                    fallbackText: fallbackText,
+                    iconSize: max(12, size - 8)
+                )
+            }
         }
         .frame(width: size, height: size)
         .overlay(
@@ -536,6 +666,19 @@ private struct WebsiteFaviconView: View {
     }
 }
 
+private enum SearchSourceKind: String, Hashable {
+    case web
+    case googleMaps = "google_maps"
+
+    var isGoogleMaps: Bool {
+        self == .googleMaps
+    }
+
+    init(rawValueOrDefault rawValue: String?) {
+        self = SearchSourceKind(rawValue: rawValue?.lowercased() ?? "") ?? .web
+    }
+}
+
 private struct SearchSource: Identifiable, Hashable {
     let id: String
     let canonicalURLString: String
@@ -543,6 +686,8 @@ private struct SearchSource: Identifiable, Hashable {
     let previewText: String?
     let host: String
     let hostDisplay: String
+    let kind: SearchSourceKind
+    let mapsPlaceID: String?
     let usesGoogleGroundingRedirect: Bool
 
     struct RenderPresentation: Hashable {
@@ -553,6 +698,7 @@ private struct SearchSource: Identifiable, Hashable {
         let host: String
         let hostDisplay: String
         let hostDisplayInitial: String
+        let kind: SearchSourceKind
     }
 
     func renderPresentation(resolvedURLString: String?, resolvedPreviewText: String?) -> RenderPresentation {
@@ -580,8 +726,9 @@ private struct SearchSource: Identifiable, Hashable {
                 displayTitle: resolvedTitle,
                 previewText: resolvedPreview,
                 host: resolvedHost,
-                hostDisplay: resolvedHostDisplay,
-                hostDisplayInitial: resolvedHostDisplay.first.map { String($0).uppercased() } ?? "W"
+                hostDisplay: kind.isGoogleMaps ? "Google Maps" : resolvedHostDisplay,
+                hostDisplayInitial: kind.isGoogleMaps ? "M" : (resolvedHostDisplay.first.map { String($0).uppercased() } ?? "W"),
+                kind: kind
             )
         }
 
@@ -601,11 +748,18 @@ private struct SearchSource: Identifiable, Hashable {
             previewText: defaultPreview,
             host: host,
             hostDisplay: hostDisplay,
-            hostDisplayInitial: hostDisplay.first.map { String($0).uppercased() } ?? "W"
+            hostDisplayInitial: kind.isGoogleMaps ? "M" : (hostDisplay.first.map { String($0).uppercased() } ?? "W"),
+            kind: kind
         )
     }
 
-    init?(rawURL: String, title: String?, previewText: String?) {
+    init?(
+        rawURL: String,
+        title: String?,
+        previewText: String?,
+        kind: SearchSourceKind = .web,
+        mapsPlaceID: String? = nil
+    ) {
         guard let normalizedURL = SearchSource.normalizeURLString(rawURL) else { return nil }
         guard let rawHost = URL(string: normalizedURL)?.host?.trimmedNonEmpty else { return nil }
 
@@ -616,7 +770,7 @@ private struct SearchSource: Identifiable, Hashable {
         } else {
             rawHost
         }
-        let hostDisplay = resolvedHost.replacingOccurrences(of: "www.", with: "")
+        let hostDisplay = kind.isGoogleMaps ? "Google Maps" : resolvedHost.replacingOccurrences(of: "www.", with: "")
 
         self.id = normalizedURL.lowercased()
         self.canonicalURLString = normalizedURL
@@ -624,10 +778,17 @@ private struct SearchSource: Identifiable, Hashable {
         self.previewText = SearchSource.normalizeSnippet(previewText)
         self.host = resolvedHost
         self.hostDisplay = hostDisplay
+        self.kind = kind
+        self.mapsPlaceID = mapsPlaceID?.trimmedNonEmpty
         self.usesGoogleGroundingRedirect = isGoogleGroundingRedirect
     }
 
-    func merged(withTitle newerTitle: String?, previewText newerPreviewText: String?) -> SearchSource {
+    func merged(
+        withTitle newerTitle: String?,
+        previewText newerPreviewText: String?,
+        kind newerKind: SearchSourceKind,
+        mapsPlaceID newerMapsPlaceID: String?
+    ) -> SearchSource {
         let normalizedNewPreview = SearchSource.normalizeSnippet(newerPreviewText)
         return SearchSource(
             id: id,
@@ -635,7 +796,9 @@ private struct SearchSource: Identifiable, Hashable {
             title: newerTitle?.trimmedNonEmpty ?? title,
             previewText: SearchSource.preferredSnippet(existing: previewText, candidate: normalizedNewPreview),
             host: host,
-            hostDisplay: hostDisplay,
+            hostDisplay: newerKind.isGoogleMaps ? "Google Maps" : hostDisplay,
+            kind: newerKind.isGoogleMaps ? newerKind : kind,
+            mapsPlaceID: newerMapsPlaceID?.trimmedNonEmpty ?? mapsPlaceID,
             usesGoogleGroundingRedirect: usesGoogleGroundingRedirect
         )
     }
@@ -647,6 +810,8 @@ private struct SearchSource: Identifiable, Hashable {
         previewText: String?,
         host: String,
         hostDisplay: String,
+        kind: SearchSourceKind,
+        mapsPlaceID: String?,
         usesGoogleGroundingRedirect: Bool
     ) {
         self.id = id
@@ -655,6 +820,8 @@ private struct SearchSource: Identifiable, Hashable {
         self.previewText = previewText
         self.host = host
         self.hostDisplay = hostDisplay
+        self.kind = kind
+        self.mapsPlaceID = mapsPlaceID
         self.usesGoogleGroundingRedirect = usesGoogleGroundingRedirect
     }
 
@@ -803,6 +970,8 @@ private struct SearchSourceArgument {
     let url: String
     let title: String?
     let previewText: String?
+    let kind: SearchSourceKind
+    let mapsPlaceID: String?
 }
 
 private extension SearchActivity {
@@ -827,6 +996,10 @@ private extension SearchActivity {
         preferredPreviewValue(in: arguments.mapValues(\.value))
     }
 
+    var sourceKindArgument: SearchSourceKind {
+        SearchSourceKind(rawValueOrDefault: stringArgument("sourceKind"))
+    }
+
     var sourceArguments: [SearchSourceArgument] {
         guard let value = arguments["sources"]?.value else { return [] }
 
@@ -849,7 +1022,25 @@ private extension SearchActivity {
                 ?? (nestedSource?["title"] as? String)?.trimmedNonEmpty
             let previewText = preferredPreviewValue(in: item)
                 ?? nestedSource.flatMap { preferredPreviewValue(in: $0) }
-            return SearchSourceArgument(url: url, title: title, previewText: previewText)
+            let sourceKind = SearchSourceKind(rawValueOrDefault:
+                (item["sourceKind"] as? String)
+                ?? (item["type"] as? String)
+                ?? (nestedSource?["sourceKind"] as? String)
+                ?? (nestedSource?["type"] as? String)
+            )
+            let mapsPlaceID = (item["mapsPlaceID"] as? String)?.trimmedNonEmpty
+                ?? (item["placeId"] as? String)?.trimmedNonEmpty
+                ?? (item["place_id"] as? String)?.trimmedNonEmpty
+                ?? (nestedSource?["mapsPlaceID"] as? String)?.trimmedNonEmpty
+                ?? (nestedSource?["placeId"] as? String)?.trimmedNonEmpty
+                ?? (nestedSource?["place_id"] as? String)?.trimmedNonEmpty
+            return SearchSourceArgument(
+                url: url,
+                title: title,
+                previewText: previewText,
+                kind: sourceKind,
+                mapsPlaceID: mapsPlaceID
+            )
         }
     }
 

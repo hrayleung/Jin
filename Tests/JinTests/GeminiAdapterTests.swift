@@ -295,6 +295,71 @@ final class GeminiAdapterTests: XCTestCase {
         XCTAssertEqual(fileStatusPollCount, 1)
     }
 
+    func testGeminiAdapterBuildsGoogleMapsToolRequest() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        let providerConfig = ProviderConfig(
+            id: "g-maps",
+            name: "Gemini",
+            type: .gemini,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://example.com/models/gemini-2.5-flash:generateContent")
+
+            let body = try XCTUnwrap(requestBodyData(request))
+            let json = try XCTUnwrap(try JSONSerialization.jsonObject(with: body) as? [String: Any])
+            let tools = try XCTUnwrap(json["tools"] as? [[String: Any]])
+            XCTAssertEqual(tools.count, 1)
+
+            let googleMaps = try XCTUnwrap(tools.first?["googleMaps"] as? [String: Any])
+            XCTAssertEqual(googleMaps["enableWidget"] as? Bool, true)
+
+            let toolConfig = try XCTUnwrap(json["toolConfig"] as? [String: Any])
+            let retrievalConfig = try XCTUnwrap(toolConfig["retrievalConfig"] as? [String: Any])
+            let latLng = try XCTUnwrap(retrievalConfig["latLng"] as? [String: Any])
+            XCTAssertEqual(latLng["latitude"] as? Double, 34.050481)
+            XCTAssertEqual(latLng["longitude"] as? Double, -118.248526)
+            XCTAssertNil(retrievalConfig["languageCode"])
+
+            let response: [String: Any] = [
+                "candidates": [
+                    [
+                        "content": [
+                            "parts": [
+                                ["text": "Maps answer"]
+                            ]
+                        ]
+                    ]
+                ]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = GeminiAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("Find coffee near me")])],
+            modelID: "gemini-2.5-flash",
+            controls: GenerationControls(
+                googleMaps: GoogleMapsControls(
+                    enabled: true,
+                    enableWidget: true,
+                    latitude: 34.050481,
+                    longitude: -118.248526,
+                    languageCode: "en_US"
+                )
+            ),
+            tools: [],
+            streaming: false
+        )
+
+        for try await _ in stream {}
+    }
+
     func testGeminiAdapterParsesThoughtAndFunctionCallAndUsage() async throws {
         let (configuration, protocolType) = makeMockedSessionConfiguration()
         let networkManager = NetworkManager(configuration: configuration)
@@ -672,6 +737,72 @@ final class GeminiAdapterTests: XCTestCase {
         XCTAssertEqual(searchEvents[1].arguments["url"]?.value as? String, "https://example.com/swift-6-2")
         XCTAssertEqual(searchEvents[1].arguments["title"]?.value as? String, "Swift 6.2")
         XCTAssertNil(searchEvents[1].arguments["snippet"]?.value)
+    }
+
+    func testGeminiAdapterSuppressesNativeGoogleSearchToolCallEvents() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        let providerConfig = ProviderConfig(
+            id: "g-native-search",
+            name: "Gemini",
+            type: .gemini,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://example.com/models/gemini-3-flash-preview:generateContent")
+
+            let response: [String: Any] = [
+                "candidates": [
+                    [
+                        "content": [
+                            "parts": [
+                                [
+                                    "functionCall": [
+                                        "name": "google_search",
+                                        "args": ["query": "how to swim across the sea"]
+                                    ]
+                                ],
+                                ["text": "Answer"]
+                            ]
+                        ],
+                        "groundingMetadata": [
+                            "webSearchQueries": ["how to swim across the sea"]
+                        ]
+                    ]
+                ]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = GeminiAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hi")])],
+            modelID: "gemini-3-flash-preview",
+            controls: GenerationControls(webSearch: WebSearchControls(enabled: true)),
+            tools: [],
+            streaming: false
+        )
+
+        var toolCalls: [ToolCall] = []
+        var searchEvents: [SearchActivity] = []
+
+        for try await event in stream {
+            switch event {
+            case .toolCallStart(let call), .toolCallEnd(let call):
+                toolCalls.append(call)
+            case .searchActivity(let activity):
+                searchEvents.append(activity)
+            default:
+                break
+            }
+        }
+
+        XCTAssertTrue(toolCalls.isEmpty)
+        XCTAssertEqual(searchEvents.first?.arguments["query"]?.value as? String, "how to swim across the sea")
     }
 
     func testGeminiAdapterEmitsSearchActivitiesFromTopLevelGroundingMetadataFallback() async throws {
