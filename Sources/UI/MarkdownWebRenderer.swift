@@ -147,6 +147,7 @@ struct MarkdownWebRenderer: View {
             codeBlockDisplayMode: codeBlockDisplayMode
         )
         .frame(height: contentHeight)
+        .preference(key: RenderedContentHeightKey.self, value: contentHeight)
     }
 
     static func estimatedHeight(for text: String) -> CGFloat {
