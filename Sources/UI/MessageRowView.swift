@@ -177,7 +177,18 @@ struct MessageRow: View {
     @State private var isResponseMetricsPopoverPresented = false
     @State private var showingDeleteConfirmation = false
     @State private var pendingDeleteAction: DeleteAction?
+    @State private var renderedContentHeight: CGFloat = 0
     private enum DeleteAction { case message, response }
+
+    private var layoutVersion: Int {
+        var hasher = Hasher()
+        hasher.combine(item.id)
+        hasher.combine(item.renderedBlocks.count)
+        hasher.combine(item.copyText.count)
+        hasher.combine(editingUserMessageID == item.id)
+        hasher.combine(Int(renderedContentHeight))
+        return hasher.finalize()
+    }
 
     var body: some View {
         let isUser = item.isUser
@@ -327,7 +338,9 @@ struct MessageRow: View {
                         .padding(.top, 2)
                     }
                 }
+                .layoutValue(key: ConstrainedWidthContentVersionKey.self, value: .version(layoutVersion))
             }
+            .onPreferenceChange(RenderedContentHeightKey.self) { renderedContentHeight = $0 }
             .padding(.horizontal, 16)
 
             if !isUser {

@@ -1,5 +1,12 @@
 import SwiftUI
 
+struct RenderedContentHeightKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value += nextValue()
+    }
+}
+
 struct ConstrainedWidthCacheInvalidation: Equatable {
     enum Mode: Equatable {
         case automatic
