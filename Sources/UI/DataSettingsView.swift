@@ -247,6 +247,8 @@ struct DataSettingsView: View {
             return "This will delete all MCP server isolation directories (\(sizeStr)). They will be recreated as needed."
         case .speechModels:
             return "This will delete all downloaded on-device speech models (\(sizeStr)). They will need to be re-downloaded to use again."
+        case .backups:
+            return "This will delete all automatic database backups (\(sizeStr)). New backups will be created on next launch."
         case .database:
             return ""
         }
