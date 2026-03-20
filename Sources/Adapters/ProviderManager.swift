@@ -77,6 +77,9 @@ actor ProviderManager {
         case .sambanova:
             let apiKey = requiredAPIKey(from: credentials, for: config.type)
             return SambaNovaAdapter(providerConfig: config, apiKey: apiKey, networkManager: networkManager)
+        case .morphllm:
+            let apiKey = requiredAPIKey(from: credentials, for: config.type)
+            return MorphLLMAdapter(providerConfig: config, apiKey: apiKey, networkManager: networkManager)
         case .gemini:
             let apiKey = requiredAPIKey(from: credentials, for: config.type)
             return GeminiAdapter(providerConfig: config, apiKey: apiKey, networkManager: networkManager)

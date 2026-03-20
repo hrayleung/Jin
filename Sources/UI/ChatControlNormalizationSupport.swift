@@ -54,7 +54,7 @@ enum ChatControlNormalizationSupport {
             return WebSearchControls(enabled: true)
         case .codexAppServer, .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter, .groq,
              .cohere, .mistral, .deepinfra, .together, .gemini, .vertexai, .deepseek,
-             .zhipuCodingPlan, .fireworks, .cerebras, .sambanova, .none:
+             .zhipuCodingPlan, .fireworks, .cerebras, .sambanova, .morphllm, .none:
             return WebSearchControls(enabled: true, contextSize: nil, sources: nil)
         }
     }
@@ -84,7 +84,7 @@ enum ChatControlNormalizationSupport {
             normalizeAnthropicDomainFilters(controls: &controls)
         case .codexAppServer, .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter, .groq,
              .cohere, .mistral, .deepinfra, .together, .gemini, .vertexai, .deepseek,
-             .zhipuCodingPlan, .fireworks, .cerebras, .sambanova, .none:
+             .zhipuCodingPlan, .fireworks, .cerebras, .sambanova, .morphllm, .none:
             controls.webSearch?.contextSize = nil
             controls.webSearch?.sources = nil
         }

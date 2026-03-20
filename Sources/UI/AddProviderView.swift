@@ -115,7 +115,7 @@ struct AddProviderView: View {
                     }
                 case .githubCopilot, .openai, .openaiWebSocket, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter,
                      .anthropic, .perplexity, .groq, .cohere, .mistral, .deepinfra, .together, .xai,
-                     .deepseek, .zhipuCodingPlan, .fireworks, .cerebras, .sambanova, .gemini:
+                     .deepseek, .zhipuCodingPlan, .fireworks, .cerebras, .sambanova, .morphllm, .gemini:
                     HStack(spacing: 8) {
                         Group {
                             if isKeyVisible {
@@ -232,7 +232,7 @@ struct AddProviderView: View {
             return false
         case .githubCopilot, .openai, .openaiWebSocket, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter,
              .anthropic, .perplexity, .groq, .cohere, .mistral, .deepinfra, .together, .xai, .deepseek,
-             .zhipuCodingPlan, .fireworks, .cerebras, .sambanova, .gemini:
+             .zhipuCodingPlan, .fireworks, .cerebras, .sambanova, .morphllm, .gemini:
             return apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         case .vertexai:
             return serviceAccountJSON.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty

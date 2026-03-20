@@ -140,6 +140,9 @@ enum ChatModelSelectionSupport {
                 }
             }
             return nil
+        case .morphllm:
+            return models.first(where: { $0.id == "auto" })?.id
+                ?? models.first(where: { $0.id == "morph-v3-large" })?.id
         case .codexAppServer, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter, .groq, .cohere, .mistral, .deepinfra, .together, .xai, .vertexai:
             return nil
         }

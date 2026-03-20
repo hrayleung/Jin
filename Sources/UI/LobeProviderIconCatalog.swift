@@ -253,6 +253,8 @@ enum LobeProviderIconCatalog {
             return "Cerebras"
         case .sambanova:
             return "SambaNova"
+        case .morphllm:
+            return "Morph"
         case .gemini:
             return "AiStudio"
         case .vertexai:
