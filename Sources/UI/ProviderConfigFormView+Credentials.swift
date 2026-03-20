@@ -107,7 +107,7 @@ extension ProviderConfigFormView {
                 apiKey = provider.apiKey ?? ""
             case .openai, .openaiWebSocket, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter,
                  .anthropic, .perplexity, .groq, .cohere, .mistral, .deepinfra, .together, .xai,
-                 .deepseek, .zhipuCodingPlan, .fireworks, .cerebras, .sambanova, .gemini:
+                 .deepseek, .zhipuCodingPlan, .minimax, .minimaxCodingPlan, .fireworks, .cerebras, .sambanova, .gemini:
                 apiKey = provider.apiKey ?? ""
             case .vertexai:
                 serviceAccountJSON = provider.serviceAccountJSON ?? ""
@@ -170,7 +170,7 @@ extension ProviderConfigFormView {
 
         case .githubCopilot, .openai, .openaiWebSocket, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter,
              .anthropic, .perplexity, .groq, .cohere, .mistral, .deepinfra, .together, .xai, .deepseek,
-             .zhipuCodingPlan, .fireworks, .cerebras, .sambanova, .gemini:
+             .zhipuCodingPlan, .minimax, .minimaxCodingPlan, .fireworks, .cerebras, .sambanova, .gemini:
             let key = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
             await MainActor.run {
                 provider.apiKeyKeychainID = nil
@@ -206,7 +206,7 @@ extension ProviderConfigFormView {
             return !codexCanUseCurrentAuthenticationMode || testStatus == .testing || codexAuthStatus == .working
         case .githubCopilot, .openai, .openaiWebSocket, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter,
              .anthropic, .perplexity, .groq, .cohere, .mistral, .deepinfra, .together, .xai, .deepseek,
-             .zhipuCodingPlan, .fireworks, .cerebras, .sambanova, .gemini:
+             .zhipuCodingPlan, .minimax, .minimaxCodingPlan, .fireworks, .cerebras, .sambanova, .gemini:
             return apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || testStatus == .testing
         case .vertexai:
             return serviceAccountJSON.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || testStatus == .testing

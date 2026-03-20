@@ -357,6 +357,8 @@ extension ContentView {
                 return "deepseek-chat"
             case "zhipu-coding-plan":
                 return "glm-5"
+            case "minimax", "minimax-coding-plan":
+                return "MiniMax-M2.7"
             case "together":
                 return "moonshotai/Kimi-K2.5"
             case "vercel-ai-gateway":
@@ -397,6 +399,14 @@ extension ContentView {
         }
         if providerID == "zhipu-coding-plan", let glm47 = models.first(where: { $0.id.lowercased() == "glm-4.7" }) {
             return glm47.id
+        }
+        if providerID == "minimax" || providerID == "minimax-coding-plan",
+           let m27 = models.first(where: { $0.id == "MiniMax-M2.7" }) {
+            return m27.id
+        }
+        if providerID == "minimax" || providerID == "minimax-coding-plan",
+           let m25 = models.first(where: { $0.id == "MiniMax-M2.5" }) {
+            return m25.id
         }
         if providerID == "together", let kimiK2p5 = models.first(where: { $0.id == "moonshotai/Kimi-K2.5" }) {
             return kimiK2p5.id

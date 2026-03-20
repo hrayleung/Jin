@@ -26,6 +26,8 @@ enum DefaultProviderSeeds {
             xAI,
             deepSeek,
             zhipuCodingPlan,
+            minimax,
+            minimaxCodingPlan,
             fireworks,
             sambaNova,
             gemini,
@@ -219,6 +221,28 @@ enum DefaultProviderSeeds {
             iconID: LobeProviderIconCatalog.defaultIconID(for: .zhipuCodingPlan),
             baseURL: ProviderType.zhipuCodingPlan.defaultBaseURL,
             models: ModelCatalog.seededModels(for: .zhipuCodingPlan)
+        )
+    }
+
+    static var minimax: ProviderConfig {
+        ProviderConfig(
+            id: "minimax",
+            name: "MiniMax",
+            type: .minimax,
+            iconID: LobeProviderIconCatalog.defaultIconID(for: .minimax),
+            baseURL: ProviderType.minimax.defaultBaseURL,
+            models: ModelCatalog.seededModels(for: .minimax)
+        )
+    }
+
+    static var minimaxCodingPlan: ProviderConfig {
+        ProviderConfig(
+            id: "minimax-coding-plan",
+            name: "MiniMax Coding Plan",
+            type: .minimaxCodingPlan,
+            iconID: LobeProviderIconCatalog.defaultIconID(for: .minimaxCodingPlan),
+            baseURL: ProviderType.minimaxCodingPlan.defaultBaseURL,
+            models: ModelCatalog.seededModels(for: .minimaxCodingPlan)
         )
     }
 

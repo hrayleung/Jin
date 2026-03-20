@@ -82,6 +82,16 @@ struct AddProviderView: View {
                         .jinInfoCallout()
                 }
 
+                if providerType == .minimax {
+                    Text("International endpoint: `https://api.minimax.io/v1`. Recommended models: `MiniMax-M2.7`, `MiniMax-M2.5`.")
+                        .jinInfoCallout()
+                }
+
+                if providerType == .minimaxCodingPlan {
+                    Text("Uses MiniMax's Anthropic-compatible endpoint: `https://api.minimaxi.com/anthropic/v1`. Requires a MiniMax Coding Plan API key.")
+                        .jinInfoCallout()
+                }
+
                 if providerType == .githubCopilot {
                     Text("Uses GitHub Models' official inference API at `https://models.github.ai/inference`. Configure a GitHub token with GitHub Models access to use this provider.")
                         .jinInfoCallout()
@@ -115,7 +125,7 @@ struct AddProviderView: View {
                     }
                 case .githubCopilot, .openai, .openaiWebSocket, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter,
                      .anthropic, .perplexity, .groq, .cohere, .mistral, .deepinfra, .together, .xai,
-                     .deepseek, .zhipuCodingPlan, .fireworks, .cerebras, .sambanova, .gemini:
+                     .deepseek, .zhipuCodingPlan, .minimax, .minimaxCodingPlan, .fireworks, .cerebras, .sambanova, .gemini:
                     HStack(spacing: 8) {
                         Group {
                             if isKeyVisible {
@@ -232,7 +242,7 @@ struct AddProviderView: View {
             return false
         case .githubCopilot, .openai, .openaiWebSocket, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter,
              .anthropic, .perplexity, .groq, .cohere, .mistral, .deepinfra, .together, .xai, .deepseek,
-             .zhipuCodingPlan, .fireworks, .cerebras, .sambanova, .gemini:
+             .zhipuCodingPlan, .minimax, .minimaxCodingPlan, .fireworks, .cerebras, .sambanova, .gemini:
             return apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         case .vertexai:
             return serviceAccountJSON.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty

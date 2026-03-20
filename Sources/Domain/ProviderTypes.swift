@@ -72,6 +72,8 @@ enum ProviderType: String, Codable, CaseIterable {
     case xai
     case deepseek
     case zhipuCodingPlan
+    case minimax
+    case minimaxCodingPlan
     case fireworks
     case cerebras
     case sambanova
@@ -98,6 +100,8 @@ enum ProviderType: String, Codable, CaseIterable {
         case .xai: return "xAI"
         case .deepseek: return "DeepSeek"
         case .zhipuCodingPlan: return "Zhipu Coding Plan"
+        case .minimax: return "MiniMax"
+        case .minimaxCodingPlan: return "MiniMax Coding Plan"
         case .fireworks: return "Fireworks"
         case .cerebras: return "Cerebras"
         case .sambanova: return "SambaNova"
@@ -154,6 +158,8 @@ enum ProviderType: String, Codable, CaseIterable {
         case .xai: return "https://api.x.ai/v1"
         case .deepseek: return "https://api.deepseek.com/v1"
         case .zhipuCodingPlan: return "https://open.bigmodel.cn/api/coding/paas/v4"
+        case .minimax: return "https://api.minimax.io/v1"
+        case .minimaxCodingPlan: return "https://api.minimaxi.com/anthropic/v1"
         case .fireworks: return "https://api.fireworks.ai/inference/v1"
         case .cerebras: return "https://api.cerebras.ai/v1"
         case .sambanova: return "https://api.sambanova.ai/v1"

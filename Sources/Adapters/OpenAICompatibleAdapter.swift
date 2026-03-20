@@ -278,7 +278,8 @@ actor OpenAICompatibleAdapter: LLMProviderAdapter {
         case .assistant:
             dict["content"] = split.visible
             if let thinking = split.thinkingOrNil {
-                if providerConfig.type == .zhipuCodingPlan {
+                if providerConfig.type == .zhipuCodingPlan
+                    || providerConfig.type == .minimax {
                     dict["reasoning_content"] = thinking
                 } else {
                     dict["reasoning"] = thinking

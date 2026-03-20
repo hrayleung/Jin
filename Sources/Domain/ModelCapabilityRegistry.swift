@@ -256,13 +256,13 @@ enum ModelCapabilityRegistry {
         switch providerType {
         case .openai, .openaiWebSocket:
             return .openAIResponses
-        case .anthropic:
+        case .anthropic, .minimaxCodingPlan:
             return .anthropic
         case .gemini, .vertexai:
             return .gemini
         case .codexAppServer, .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter,
              .groq, .cohere, .mistral, .deepinfra, .together, .xai, .deepseek,
-             .zhipuCodingPlan, .fireworks, .cerebras, .sambanova, .perplexity, .none:
+             .zhipuCodingPlan, .minimax, .fireworks, .cerebras, .sambanova, .perplexity, .none:
             return .openAICompatible
         }
     }
@@ -390,7 +390,7 @@ enum ModelCapabilityRegistry {
         case .vertexai:
             return supportsGoogleSearch(lowerModelID: lowerModelID, providerType: .vertexai)
         case .codexAppServer, .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .groq,
-             .cohere, .mistral, .deepinfra, .together, .deepseek, .zhipuCodingPlan,
+             .cohere, .mistral, .deepinfra, .together, .deepseek, .zhipuCodingPlan, .minimax, .minimaxCodingPlan,
              .fireworks, .cerebras, .sambanova, .none:
             return false
         }
@@ -607,7 +607,7 @@ enum ModelCapabilityRegistry {
             return supportsGoogleCodeExecution(lowerModelID: lowerModelID, providerType: .vertexai)
         case .codexAppServer, .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway,
              .openrouter, .perplexity, .groq, .cohere, .mistral, .deepinfra, .together,
-             .deepseek, .zhipuCodingPlan, .fireworks, .cerebras, .sambanova, .none:
+             .deepseek, .zhipuCodingPlan, .minimax, .minimaxCodingPlan, .fireworks, .cerebras, .sambanova, .none:
             return false
         }
     }
@@ -638,7 +638,7 @@ enum ModelCapabilityRegistry {
             return supportsGoogleMapsGrounding(lowerModelID: lowerModelID, providerType: .vertexai)
         case .openai, .openaiWebSocket, .anthropic, .xai, .codexAppServer, .githubCopilot,
              .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter, .perplexity,
-             .groq, .cohere, .mistral, .deepinfra, .together, .deepseek, .zhipuCodingPlan,
+             .groq, .cohere, .mistral, .deepinfra, .together, .deepseek, .zhipuCodingPlan, .minimax, .minimaxCodingPlan,
              .fireworks, .cerebras, .sambanova, .none:
             return false
         }

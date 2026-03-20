@@ -123,6 +123,9 @@ enum ChatModelSelectionSupport {
         case .zhipuCodingPlan:
             return models.first(where: { $0.id.lowercased() == "glm-5" })?.id
                 ?? models.first(where: { $0.id.lowercased() == "glm-4.7" })?.id
+        case .minimax, .minimaxCodingPlan:
+            return models.first(where: { $0.id == "MiniMax-M2.7" })?.id
+                ?? models.first(where: { $0.id == "MiniMax-M2.5" })?.id
         case .fireworks:
             return models.first(where: { isFireworksModelID($0.id, "glm-5") })?.id
                 ?? models.first(where: { isFireworksModelID($0.id, "minimax-m2p5") })?.id

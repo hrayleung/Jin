@@ -250,7 +250,7 @@ enum ContextCacheUtilities {
             }
         case .xai, .codexAppServer, .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter,
              .perplexity, .groq, .cohere, .mistral, .deepinfra, .together, .deepseek,
-             .zhipuCodingPlan, .fireworks, .cerebras, .sambanova:
+             .zhipuCodingPlan, .minimax, .minimaxCodingPlan, .fireworks, .cerebras, .sambanova:
             break
         }
 

@@ -108,7 +108,7 @@ struct CodeExecutionSheetView: View {
             )
         case .none, .codexAppServer, .githubCopilot, .openaiCompatible,
              .cloudflareAIGateway, .vercelAIGateway, .openrouter, .perplexity, .groq, .cohere,
-             .mistral, .deepinfra, .together, .deepseek, .zhipuCodingPlan, .fireworks,
+             .mistral, .deepinfra, .together, .deepseek, .zhipuCodingPlan, .minimax, .minimaxCodingPlan, .fireworks,
              .cerebras, .sambanova:
             googleInfoCard(
                 title: providerType?.displayName ?? "Provider",

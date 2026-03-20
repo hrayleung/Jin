@@ -64,7 +64,7 @@ enum ChatMessagePreparationSupport {
             return ChatView.geminiImageGenerationModelIDs.contains(lowerModelID)
         case .codexAppServer, .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway,
              .openrouter, .anthropic, .perplexity, .groq, .cohere, .mistral, .deepinfra, .together,
-             .deepseek, .zhipuCodingPlan, .fireworks, .cerebras, .sambanova, .none:
+             .deepseek, .zhipuCodingPlan, .minimax, .minimaxCodingPlan, .fireworks, .cerebras, .sambanova, .none:
             return false
         }
     }
@@ -93,7 +93,7 @@ enum ChatMessagePreparationSupport {
         case .openai, .openaiWebSocket, .anthropic, .perplexity, .xai, .gemini, .vertexai:
             break
         case .codexAppServer, .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter, .groq,
-             .cohere, .mistral, .deepinfra, .together, .deepseek, .zhipuCodingPlan,
+             .cohere, .mistral, .deepinfra, .together, .deepseek, .zhipuCodingPlan, .minimax, .minimaxCodingPlan,
              .fireworks, .cerebras, .sambanova:
             return false
         }

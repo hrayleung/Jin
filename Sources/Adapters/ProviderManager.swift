@@ -44,13 +44,13 @@ actor ProviderManager {
             let apiKey = optionalAPIKey(from: credentials)
             return CodexAppServerAdapter(providerConfig: config, apiKey: apiKey, networkManager: networkManager)
         case .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .groq, .mistral, .deepinfra,
-             .zhipuCodingPlan:
+             .zhipuCodingPlan, .minimax:
             let apiKey = requiredAPIKey(from: credentials, for: config.type)
             return OpenAICompatibleAdapter(providerConfig: config, apiKey: apiKey, networkManager: networkManager)
         case .openrouter:
             let apiKey = requiredAPIKey(from: credentials, for: config.type)
             return OpenRouterAdapter(providerConfig: config, apiKey: apiKey, networkManager: networkManager)
-        case .anthropic:
+        case .anthropic, .minimaxCodingPlan:
             let apiKey = requiredAPIKey(from: credentials, for: config.type)
             return AnthropicAdapter(providerConfig: config, apiKey: apiKey, networkManager: networkManager)
         case .perplexity:

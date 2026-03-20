@@ -84,6 +84,10 @@ actor AnthropicAdapter: LLMProviderAdapter {
     }
 
     func validateAPIKey(_ key: String) async throws -> Bool {
+        if !supportsModelsEndpoint {
+            return await validateAPIKeyViaMinimalMessage(key)
+        }
+
         let request = NetworkRequestFactory.makeRequest(
             url: try validatedURL("\(baseURL)/models"),
             headers: anthropicHeaders(apiKey: key)
@@ -98,6 +102,10 @@ actor AnthropicAdapter: LLMProviderAdapter {
     }
 
     func fetchAvailableModels() async throws -> [ModelInfo] {
+        if !supportsModelsEndpoint {
+            return ModelCatalog.seededModels(for: providerConfig.type)
+        }
+
         var allModels: [ModelInfo] = []
         var afterID: String?
         var seenIDs: Set<String> = []
@@ -174,6 +182,40 @@ actor AnthropicAdapter: LLMProviderAdapter {
 
     private var baseURL: String {
         providerConfig.baseURL ?? "https://api.anthropic.com/v1"
+    }
+
+    /// Anthropic-compatible providers (e.g. MiniMax Coding Plan) may not expose a `/models` endpoint.
+    private var supportsModelsEndpoint: Bool {
+        providerConfig.type == .anthropic
+    }
+
+    /// Validate by sending a tiny message request and checking for auth errors.
+    private func validateAPIKeyViaMinimalMessage(_ key: String) async -> Bool {
+        var body: [String: Any] = [
+            "model": providerConfig.models.first?.id ?? "MiniMax-M2.7",
+            "messages": [["role": "user", "content": "hi"]],
+            "max_tokens": 1,
+            "stream": false
+        ]
+        appendThinkingConfig(to: &body, controls: GenerationControls(), modelID: body["model"] as? String ?? "")
+
+        do {
+            let request = try NetworkRequestFactory.makeJSONRequest(
+                url: validatedURL("\(baseURL)/messages"),
+                headers: anthropicHeaders(apiKey: key),
+                body: body
+            )
+            _ = try await networkManager.sendRequest(request)
+            return true
+        } catch {
+            let errorMessage = "\(error)".lowercased()
+            if errorMessage.contains("401") || errorMessage.contains("403")
+                || errorMessage.contains("authentication") || errorMessage.contains("unauthorized")
+                || errorMessage.contains("invalid") && errorMessage.contains("key") {
+                return false
+            }
+            return true
+        }
     }
 
     private var anthropicVersion: String {

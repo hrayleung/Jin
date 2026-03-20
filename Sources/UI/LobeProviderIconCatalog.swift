@@ -247,6 +247,8 @@ enum LobeProviderIconCatalog {
             return "DeepSeek"
         case .zhipuCodingPlan:
             return "Zhipu"
+        case .minimax, .minimaxCodingPlan:
+            return "MiniMax"
         case .fireworks:
             return "Fireworks"
         case .cerebras:

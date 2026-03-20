@@ -106,7 +106,7 @@ struct ProviderConfigFormView: View {
                     codexWorkingDirectoryPresetsSection
                 case .githubCopilot, .openai, .openaiWebSocket, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter,
                      .anthropic, .perplexity, .groq, .cohere, .mistral, .deepinfra, .together, .xai,
-                     .deepseek, .zhipuCodingPlan, .fireworks, .cerebras, .sambanova, .gemini:
+                     .deepseek, .zhipuCodingPlan, .minimax, .minimaxCodingPlan, .fireworks, .cerebras, .sambanova, .gemini:
                     apiKeyField
                 case .vertexai:
                     vertexAISection
