@@ -155,6 +155,7 @@ actor OpenAIWebSocketAdapter: LLMProviderAdapter {
                     await NetworkDebugLogger.shared.logWebSocketSend(sessionID: traceSessionID, message: createEventString)
 
                     var functionCallsByItemID: [String: ResponsesAPIFunctionCallState] = [:]
+                    var codeInterpreterState = OpenAICodeInterpreterState()
                     let eventDecoder = JSONDecoder()
                     eventDecoder.keyDecodingStrategy = .convertFromSnakeCase
 
@@ -194,7 +195,8 @@ actor OpenAIWebSocketAdapter: LLMProviderAdapter {
                             if let streamEvent = try parseSSEEvent(
                                 type: eventType,
                                 data: jsonString,
-                                functionCallsByItemID: &functionCallsByItemID
+                                functionCallsByItemID: &functionCallsByItemID,
+                                codeInterpreterState: &codeInterpreterState
                             ) {
                                 if case .messageStart(let id) = streamEvent {
                                     previousResponseID = id
@@ -488,6 +490,8 @@ actor OpenAIWebSocketAdapter: LLMProviderAdapter {
             body["reasoning"] = reasoningDict
         }
 
+        let codeExecutionEnabled = controls.codeExecution?.enabled == true && supportsCodeExecution(modelID)
+
         var toolObjects: [[String: Any]] = []
 
         if controls.webSearch?.enabled == true, supportsWebSearch(modelID) {
@@ -496,6 +500,10 @@ actor OpenAIWebSocketAdapter: LLMProviderAdapter {
                 webSearchTool["search_context_size"] = contextSize.rawValue
             }
             toolObjects.append(webSearchTool)
+        }
+
+        if codeExecutionEnabled {
+            toolObjects.append(buildCodeInterpreterTool(from: controls.codeExecution))
         }
 
         if !tools.isEmpty, let functionTools = translateTools(tools) as? [[String: Any]] {
@@ -519,6 +527,10 @@ actor OpenAIWebSocketAdapter: LLMProviderAdapter {
         // Ask Responses API to include source URLs/titles for web_search_call actions when possible.
         if controls.webSearch?.enabled == true, supportsWebSearch(modelID) {
             body["include"] = mergedIncludeFields(body["include"], adding: "web_search_call.action.sources")
+        }
+
+        if codeExecutionEnabled {
+            body["include"] = mergedIncludeFields(body["include"], adding: "code_interpreter_call.outputs")
         }
 
         return body
@@ -586,6 +598,33 @@ actor OpenAIWebSocketAdapter: LLMProviderAdapter {
     }
 
     // Shared MIME type set defined in AdapterUtilities.swift
+
+    private func supportsCodeExecution(_ modelID: String) -> Bool {
+        ModelCapabilityRegistry.supportsCodeExecution(for: providerConfig.type, modelID: modelID)
+    }
+
+    private func buildCodeInterpreterTool(from controls: CodeExecutionControls?) -> [String: Any] {
+        var codeInterpreterTool: [String: Any] = ["type": "code_interpreter"]
+        let openAISettings = controls?.openAI?.normalized()
+
+        if let existingContainerID = openAISettings?.normalizedExistingContainerID {
+            codeInterpreterTool["container"] = existingContainerID
+            return codeInterpreterTool
+        }
+
+        let containerConfig = openAISettings?.container?.normalized()
+        var container: [String: Any] = ["type": containerConfig?.normalizedType ?? "auto"]
+
+        if let memoryLimit = containerConfig?.normalizedMemoryLimit {
+            container["memory_limit"] = memoryLimit
+        }
+        if let fileIDs = containerConfig?.normalizedFileIDs, !fileIDs.isEmpty {
+            container["file_ids"] = fileIDs
+        }
+
+        codeInterpreterTool["container"] = container
+        return codeInterpreterTool
+    }
 
     private func supportsWebSearch(_ modelID: String) -> Bool {
         modelSupportsWebSearch(providerConfig: providerConfig, modelID: modelID)
