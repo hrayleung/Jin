@@ -1,5 +1,3 @@
-import Foundation
-
 actor AgentApprovalSessionStore {
     private var approvedKeys: Set<String> = []
 

@@ -27,6 +27,18 @@ final class AgentWorkingDirectorySupportTests: XCTestCase {
         )
     }
 
+    func testValidationStateForMissingDirectory() {
+        let missingPath = FileManager.default.temporaryDirectory
+            .appendingPathComponent("AgentWorkingDirectorySupportTests-\(UUID().uuidString)", isDirectory: true)
+            .appendingPathComponent("nonexistent", isDirectory: true)
+            .path
+
+        XCTAssertEqual(
+            AgentWorkingDirectorySupport.validationState(for: missingPath),
+            .missing(missingPath)
+        )
+    }
+
     func testValidationStateForFilePath() throws {
         let directoryURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("AgentWorkingDirectorySupportTests-\(UUID().uuidString)", isDirectory: true)

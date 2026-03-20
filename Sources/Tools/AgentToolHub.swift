@@ -143,6 +143,11 @@ actor AgentToolHub {
         } else {
             preparedShell = try await prepareShellExecution(args, controls: controls)
         }
+        guard preparedShell.rewrittenCommand.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix("rtk ") else {
+            throw LLMError.invalidRequest(
+                message: "RTK rewrite produced an unsafe shell command. Refusing to execute: \(preparedShell.rewrittenCommand)"
+            )
+        }
         let result = try await RTKRuntimeSupport.executeRewrittenShellCommand(
             preparedShell.rewrittenCommand,
             workingDirectory: preparedShell.workingDirectory,

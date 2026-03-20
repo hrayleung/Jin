@@ -459,15 +459,13 @@ struct AgentModeSettingsView: View {
         safePrefixesJSON = AppPreferences.encodeStringArrayJSON(prefixes)
     }
 
+    @MainActor
     private func refreshRTKStatus() async {
-        await MainActor.run {
-            isRefreshingRTKStatus = true
-        }
+        guard !isRefreshingRTKStatus else { return }
+        isRefreshingRTKStatus = true
+        defer { isRefreshingRTKStatus = false }
         let status = await RTKRuntimeSupport.status()
-        await MainActor.run {
-            rtkStatus = status
-            isRefreshingRTKStatus = false
-        }
+        rtkStatus = status
     }
 }
 

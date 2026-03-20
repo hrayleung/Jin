@@ -117,10 +117,6 @@ resolve_rtk_asset_sha256() {
 }
 
 prepare_rtk_helper() {
-  download_rtk_archive() {
-    curl -fsSL "$release_url" -o "$archive_path"
-  }
-
   local asset_name
   asset_name="$(resolve_rtk_asset_name)"
   local expected_sha
@@ -135,7 +131,7 @@ prepare_rtk_helper() {
 
   if [[ ! -f "$archive_path" ]]; then
     echo "Downloading RTK helper v${RTK_VERSION}…" >&2
-    download_rtk_archive
+    curl -fsSL "$release_url" -o "$archive_path"
   fi
 
   local actual_sha
@@ -143,7 +139,7 @@ prepare_rtk_helper() {
   if [[ "$actual_sha" != "$expected_sha" ]]; then
     echo "Checksum mismatch; re-downloading RTK helper v${RTK_VERSION}…" >&2
     rm -f "$archive_path"
-    download_rtk_archive
+    curl -fsSL "$release_url" -o "$archive_path"
     actual_sha="$(shasum -a 256 "$archive_path" | awk '{print $1}')"
     if [[ "$actual_sha" != "$expected_sha" ]]; then
       echo "RTK helper checksum mismatch for $asset_name" >&2

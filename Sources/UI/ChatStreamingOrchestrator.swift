@@ -427,11 +427,6 @@ enum ChatStreamingOrchestrator {
                             if isAgentTool {
                                 // Agent tool: check approval for shell commands and file writes
                                 let agentControls = ctx.controlsToUse.agentMode ?? AgentModeControls()
-                                let approvalKey = agentApprovalSessionKey(
-                                    functionName: call.name,
-                                    arguments: call.arguments,
-                                    controls: agentControls
-                                )
                                 let preparedShellExecution: AgentToolHub.PreparedShellExecution?
                                 if call.name == AgentToolHub.shellExecuteFunctionName {
                                     preparedShellExecution = try await AgentToolHub.shared.prepareShellExecution(
@@ -441,6 +436,14 @@ enum ChatStreamingOrchestrator {
                                 } else {
                                     preparedShellExecution = nil
                                 }
+                                // Approvals are keyed on the user's original tool intent, not RTK's
+                                // internal rewrite. executeShell() separately validates that the rewritten
+                                // command is an RTK command before running it.
+                                let approvalKey = agentApprovalSessionKey(
+                                    functionName: call.name,
+                                    arguments: call.arguments,
+                                    controls: agentControls
+                                )
                                 let needsApproval = await agentToolNeedsApproval(
                                     functionName: call.name,
                                     arguments: call.arguments,

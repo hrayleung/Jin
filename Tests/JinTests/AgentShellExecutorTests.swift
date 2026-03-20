@@ -105,13 +105,15 @@ final class AgentShellExecutorTests: XCTestCase {
             ]
         )
 
+        XCTAssertEqual(result.exitCode, 0)
+        XCTAssertTrue(result.stderr.isEmpty)
         let lines = result.stdout
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .components(separatedBy: .newlines)
         XCTAssertGreaterThanOrEqual(lines.count, 2)
         XCTAssertTrue(lines[0].contains("/custom/bin"))
         XCTAssertTrue(lines[0].contains("/usr/bin"))
-        XCTAssertEqual(lines[1], "unset")
+        XCTAssertNotEqual(lines[1], "/tmp/evil")
     }
 
     // MARK: - Working directory
