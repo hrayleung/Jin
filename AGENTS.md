@@ -53,14 +53,14 @@
 
 - Always treat release as a signed pipeline; never publish an appcast entry without `sparkle:edSignature`.
 - `generate_appcast` signing workflow:
-  1. Build app: `JIN_BUNDLE_SHORT_VERSION=<VERSION> bash Packaging/package.sh`
+  1. Build app: `JIN_BUNDLE_SHORT_VERSION=<MAJOR.MINOR.PATCH> bash Packaging/package.sh`
   2. Rename zip: `mv dist/Jin.zip dist/Jin-<VERSION>.zip`
   3. Export Sparkle private key from keychain (recommended):
      `security find-generic-password -a ed25519 -s https://sparkle-project.org -w > /tmp/jin-sparkle-key.txt`
   4. Run appcast generator from the release archive dir and overwrite `docs/appcast.xml`:
      ```bash
      SPARKLE_GENERATE_APPCAST=${SPARKLE_GENERATE_APPCAST:-generate_appcast}
-     "$SPARKLE_GENERATE_APPCAST" dist -o docs/appcast.xml --ed-key-file /tmp/jin-sparkle-key.txt --download-url-prefix https://github.com/<owner>/<repo>/releases/download/v<VERSION>/ --link https://github.com/<owner>/<repo>/releases --maximum-versions 10
+     "$SPARKLE_GENERATE_APPCAST" dist -o docs/appcast.xml --ed-key-file /tmp/jin-sparkle-key.txt --download-url-prefix https://github.com/<owner>/<repo>/releases/download/v<MAJOR.MINOR.PATCH>/ --link https://github.com/<owner>/<repo>/releases --maximum-versions 10
      ```
   5. Confirm the first `<item>` is the target version and contains `sparkle:edSignature`.
   6. Securely remove the temp key file.
@@ -69,12 +69,12 @@
      - Use this structure:
        - `## What's Changed`
        - one bullet per merged PR / user-facing change
-       - `**Full Changelog**: https://github.com/<owner>/<repo>/compare/<prev-tag>...v<VERSION>`
+       - `**Full Changelog**: https://github.com/<owner>/<repo>/compare/<prev-tag>...v<MAJOR.MINOR.PATCH>`
      - If `--generate-notes` is not used, keep at least the same headings + bullet style so the format remains consistent across versions.
   8. Commit appcast update, tag, and publish release:
-     - `git tag -a v<VERSION> -m "v<VERSION>"`
-     - `git push origin v<VERSION>`
-     - `gh release create v<VERSION> dist/Jin-<VERSION>.zip --title "Jin v<VERSION>"`
+     - `git tag -a v<MAJOR.MINOR.PATCH> -m "v<MAJOR.MINOR.PATCH>"`
+     - `git push origin v<MAJOR.MINOR.PATCH>`
+     - `gh release create v<MAJOR.MINOR.PATCH> dist/Jin-<MAJOR.MINOR.PATCH>.zip --title "Jin v<MAJOR.MINOR.PATCH>"`
 - Post checks:
   - `xmllint --noout docs/appcast.xml`
   - `rg -n "sparkle:edSignature|Jin-<VERSION>.zip" docs/appcast.xml`
