@@ -12,13 +12,49 @@ enum AgentShellExecutor {
         command: String,
         workingDirectory: String?,
         timeout: TimeInterval = 120,
-        maxOutputBytes: Int = 102_400
+        maxOutputBytes: Int = 102_400,
+        environment: [String: String]? = nil
     ) async throws -> ShellResult {
-        let startTime = Date()
-
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/bin/zsh")
         process.arguments = ["-c", command]
+        return try await execute(
+            process: process,
+            workingDirectory: workingDirectory,
+            timeout: timeout,
+            maxOutputBytes: maxOutputBytes,
+            environment: environment
+        )
+    }
+
+    static func executeProcess(
+        executableURL: URL,
+        arguments: [String],
+        workingDirectory: String?,
+        timeout: TimeInterval = 120,
+        maxOutputBytes: Int = 102_400,
+        environment: [String: String]? = nil
+    ) async throws -> ShellResult {
+        let process = Process()
+        process.executableURL = executableURL
+        process.arguments = arguments
+        return try await execute(
+            process: process,
+            workingDirectory: workingDirectory,
+            timeout: timeout,
+            maxOutputBytes: maxOutputBytes,
+            environment: environment
+        )
+    }
+
+    private static func execute(
+        process: Process,
+        workingDirectory: String?,
+        timeout: TimeInterval,
+        maxOutputBytes: Int,
+        environment: [String: String]? = nil
+    ) async throws -> ShellResult {
+        let startTime = Date()
 
         if let cwd = workingDirectory {
             let cwdURL = URL(fileURLWithPath: cwd)
@@ -27,7 +63,6 @@ enum AgentShellExecutor {
             }
         }
 
-        // Enrich PATH
         var env = ProcessInfo.processInfo.environment
         let extraPaths = ["/usr/local/bin", "/opt/homebrew/bin", "/usr/bin", "/bin", "/usr/sbin", "/sbin"]
         let currentPath = env["PATH"] ?? ""
@@ -35,6 +70,9 @@ enum AgentShellExecutor {
         let missingPaths = extraPaths.filter { !pathComponents.contains($0) }
         if !missingPaths.isEmpty {
             env["PATH"] = (missingPaths + [currentPath]).joined(separator: ":")
+        }
+        if let environment {
+            env.merge(environment) { _, new in new }
         }
         process.environment = env
 

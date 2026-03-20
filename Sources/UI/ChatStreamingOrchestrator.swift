@@ -1,4 +1,5 @@
 import Collections
+import CryptoKit
 import Foundation
 
 /// Encapsulates the streaming response loop that was previously inline in ChatView's
@@ -105,6 +106,7 @@ enum ChatStreamingOrchestrator {
         await NetworkDebugLogScope.$current.withValue(ctx.networkLogContext) {
             var shouldNotifyCompletion = false
             var completionPreview: String?
+            let approvalStore = AgentApprovalSessionStore()
 
             do {
                 guard let providerConfig = ctx.providerConfig else {
@@ -425,10 +427,26 @@ enum ChatStreamingOrchestrator {
                             if isAgentTool {
                                 // Agent tool: check approval for shell commands and file writes
                                 let agentControls = ctx.controlsToUse.agentMode ?? AgentModeControls()
-                                let needsApproval = agentToolNeedsApproval(
+                                let approvalKey = agentApprovalSessionKey(
                                     functionName: call.name,
                                     arguments: call.arguments,
                                     controls: agentControls
+                                )
+                                let preparedShellExecution: AgentToolHub.PreparedShellExecution?
+                                if call.name == AgentToolHub.shellExecuteFunctionName {
+                                    preparedShellExecution = try await AgentToolHub.shared.prepareShellExecution(
+                                        arguments: call.arguments,
+                                        controls: agentControls
+                                    )
+                                } else {
+                                    preparedShellExecution = nil
+                                }
+                                let needsApproval = await agentToolNeedsApproval(
+                                    functionName: call.name,
+                                    arguments: call.arguments,
+                                    controls: agentControls,
+                                    approvalKey: approvalKey,
+                                    approvalStore: approvalStore
                                 )
 
                                 if needsApproval {
@@ -471,6 +489,9 @@ enum ChatStreamingOrchestrator {
                                     case .cancel:
                                         return
                                     case .allow, .allowForSession:
+                                        if choice == .allowForSession, let approvalKey {
+                                            await approvalStore.approve(key: approvalKey)
+                                        }
                                         break
                                     }
                                 }
@@ -479,7 +500,8 @@ enum ChatStreamingOrchestrator {
                                     functionName: call.name,
                                     arguments: call.arguments,
                                     routes: agentRoutes,
-                                    controls: agentControls
+                                    controls: agentControls,
+                                    preparedShellExecution: preparedShellExecution
                                 )
                             } else if builtinRoutes.contains(functionName: call.name) {
                                 result = try await BuiltinSearchToolHub.shared.executeTool(
@@ -506,7 +528,8 @@ enum ChatStreamingOrchestrator {
                                 content: normalizedContent,
                                 isError: result.isError,
                                 signature: call.signature,
-                                durationSeconds: duration
+                                durationSeconds: duration,
+                                rawOutputPath: result.rawOutputPath
                             )
                             toolResults.append(toolResult)
                             await MainActor.run {
@@ -526,7 +549,8 @@ enum ChatStreamingOrchestrator {
                                     toolName: call.name,
                                     status: result.isError ? .failed : .completed,
                                     arguments: call.arguments,
-                                    output: String(normalizedContent.prefix(4096))
+                                    output: String(normalizedContent.prefix(4096)),
+                                    rawOutputPath: result.rawOutputPath
                                 )
                                 accumulator.upsertAgentToolActivity(completedActivity)
                                 await MainActor.run {
@@ -560,7 +584,8 @@ enum ChatStreamingOrchestrator {
                                 content: llmErrorContent,
                                 isError: true,
                                 signature: call.signature,
-                                durationSeconds: duration
+                                durationSeconds: duration,
+                                rawOutputPath: nil
                             )
                             toolResults.append(toolResult)
                             await MainActor.run {
@@ -575,7 +600,8 @@ enum ChatStreamingOrchestrator {
                                     toolName: call.name,
                                     status: .failed,
                                     arguments: call.arguments,
-                                    output: String(llmErrorContent.prefix(4096))
+                                    output: String(llmErrorContent.prefix(4096)),
+                                    rawOutputPath: nil
                                 )
                                 accumulator.upsertAgentToolActivity(failedActivity)
                                 await MainActor.run {
@@ -643,24 +669,29 @@ enum ChatStreamingOrchestrator {
     private static func agentToolNeedsApproval(
         functionName: String,
         arguments: [String: AnyCodable],
-        controls: AgentModeControls
-    ) -> Bool {
+        controls: AgentModeControls,
+        approvalKey: String?,
+        approvalStore: AgentApprovalSessionStore
+    ) async -> Bool {
         if controls.bypassPermissions { return false }
+        if let approvalKey, await approvalStore.isApproved(key: approvalKey) {
+            return false
+        }
 
         let raw = arguments.mapValues { $0.value }
 
         switch functionName {
-        case "agent__shell_execute":
+        case AgentToolHub.shellExecuteFunctionName:
             guard let command = raw["command"] as? String else { return true }
             return !AgentCommandAllowlist.isCommandAllowed(
                 command,
                 allowedPrefixes: controls.allowedCommandPrefixes
             )
-        case "agent__file_read":
+        case AgentToolHub.fileReadFunctionName:
             return !controls.autoApproveFileReads
-        case "agent__file_write", "agent__file_edit":
+        case AgentToolHub.fileWriteFunctionName, AgentToolHub.fileEditFunctionName:
             return true
-        case "agent__glob_search", "agent__grep_search":
+        case AgentToolHub.globSearchFunctionName, AgentToolHub.grepSearchFunctionName:
             return false
         default:
             return true
@@ -675,18 +706,21 @@ enum ChatStreamingOrchestrator {
         let raw = arguments.mapValues { $0.value }
 
         switch functionName {
-        case "agent__shell_execute":
+        case AgentToolHub.shellExecuteFunctionName:
             let command = raw["command"] as? String ?? "(unknown)"
-            let cwd = raw["working_directory"] as? String ?? controls.workingDirectory
+            let cwd = (raw["working_directory"] as? String)
+                ?? (raw["workingDirectory"] as? String)
+                ?? (raw["cwd"] as? String)
+                ?? controls.workingDirectory
             return AgentApprovalRequest(kind: .shellCommand(command: command, cwd: cwd))
 
-        case "agent__file_write":
+        case AgentToolHub.fileWriteFunctionName:
             let path = raw["path"] as? String ?? "(unknown)"
             let content = raw["content"] as? String ?? ""
             let preview = String(content.prefix(2048))
             return AgentApprovalRequest(kind: .fileWrite(path: path, preview: preview))
 
-        case "agent__file_edit":
+        case AgentToolHub.fileEditFunctionName:
             let path = raw["path"] as? String ?? "(unknown)"
             let oldText = raw["old_text"] as? String ?? ""
             let newText = raw["new_text"] as? String ?? ""
@@ -699,5 +733,77 @@ enum ChatStreamingOrchestrator {
         default:
             return AgentApprovalRequest(kind: .shellCommand(command: "(unknown)", cwd: nil))
         }
+    }
+
+    static func agentApprovalSessionKey(
+        functionName: String,
+        arguments: [String: AnyCodable],
+        controls: AgentModeControls
+    ) -> String? {
+        let raw = arguments.mapValues { $0.value }
+
+        switch functionName {
+        case AgentToolHub.shellExecuteFunctionName:
+            guard let command = normalizedStringValue(raw["command"] ?? raw["cmd"]) else { return nil }
+            let cwd = normalizedStringValue(raw["working_directory"] ?? raw["workingDirectory"] ?? raw["cwd"])
+                ?? controls.workingDirectory
+                ?? ""
+            return "shell:\(cwd):\(command)"
+
+        case AgentToolHub.fileReadFunctionName:
+            guard let path = normalizedStringValue(raw["path"] ?? raw["file"] ?? raw["file_path"] ?? raw["filePath"]) else { return nil }
+            let offset = normalizedStringValue(raw["offset"] ?? raw["line_offset"] ?? raw["start_line"]) ?? ""
+            let limit = normalizedStringValue(raw["limit"] ?? raw["line_count"] ?? raw["max_lines"]) ?? ""
+            return "file_read:\(path):\(offset):\(limit)"
+
+        case AgentToolHub.fileWriteFunctionName:
+            guard let path = normalizedStringValue(raw["path"] ?? raw["file"] ?? raw["file_path"] ?? raw["filePath"]),
+                  let content = normalizedStringValue(raw["content"] ?? raw["text"] ?? raw["data"]) else {
+                return nil
+            }
+            return "file_write:\(path):\(sha256Hex(content))"
+
+        case AgentToolHub.fileEditFunctionName:
+            guard let path = normalizedStringValue(raw["path"] ?? raw["file"] ?? raw["file_path"] ?? raw["filePath"]),
+                  let oldText = normalizedStringValue(raw["old_text"] ?? raw["oldText"] ?? raw["old_string"] ?? raw["search"]),
+                  let newText = normalizedStringValue(raw["new_text"] ?? raw["newText"] ?? raw["new_string"] ?? raw["replace"]) else {
+                return nil
+            }
+            return "file_edit:\(path):\(sha256Hex(oldText)):\(sha256Hex(newText))"
+
+        default:
+            return nil
+        }
+    }
+
+    private static func normalizedStringValue(_ value: Any?) -> String? {
+        switch value {
+        case let string as String:
+            let trimmed = string.trimmingCharacters(in: .whitespacesAndNewlines)
+            return trimmed.isEmpty ? nil : trimmed
+        case let int as Int:
+            return String(int)
+        case let double as Double:
+            return String(Int(double))
+        default:
+            return nil
+        }
+    }
+
+    private static func sha256Hex(_ value: String) -> String {
+        let digest = SHA256.hash(data: Data(value.utf8))
+        return digest.map { String(format: "%02x", $0) }.joined()
+    }
+}
+
+actor AgentApprovalSessionStore {
+    private var approvedKeys: Set<String> = []
+
+    func isApproved(key: String) -> Bool {
+        approvedKeys.contains(key)
+    }
+
+    func approve(key: String) {
+        approvedKeys.insert(key)
     }
 }

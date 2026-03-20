@@ -366,6 +366,10 @@ private struct AgentToolEntryView: View {
                     text: output,
                     showsCopyButton: true
                 )
+
+                if let rawOutputPath = activity.rawOutputPath {
+                    ToolOutputFileActionRow(rawOutputPath: rawOutputPath)
+                }
             } else if executionStatus == .running {
                 HStack(spacing: JinSpacing.small) {
                     AgentRunningIndicator()

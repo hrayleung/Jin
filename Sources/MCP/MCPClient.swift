@@ -686,6 +686,13 @@ struct MCPToolInfo: Identifiable, Sendable {
 struct MCPToolCallResult: Sendable {
     let text: String
     let isError: Bool
+    let rawOutputPath: String?
+
+    init(text: String, isError: Bool, rawOutputPath: String? = nil) {
+        self.text = text
+        self.isError = isError
+        self.rawOutputPath = rawOutputPath
+    }
 }
 
 private struct DiagnosticsSnapshot: Sendable {

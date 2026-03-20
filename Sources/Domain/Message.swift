@@ -349,6 +349,7 @@ struct ToolResult: Codable, Identifiable, Sendable {
     let isError: Bool
     let signature: String?
     let durationSeconds: Double?
+    let rawOutputPath: String?
 
     init(
         id: String = UUID().uuidString,
@@ -357,7 +358,8 @@ struct ToolResult: Codable, Identifiable, Sendable {
         content: String,
         isError: Bool = false,
         signature: String? = nil,
-        durationSeconds: Double? = nil
+        durationSeconds: Double? = nil,
+        rawOutputPath: String? = nil
     ) {
         self.id = id
         self.toolCallID = toolCallID
@@ -366,6 +368,7 @@ struct ToolResult: Codable, Identifiable, Sendable {
         self.isError = isError
         self.signature = signature
         self.durationSeconds = durationSeconds
+        self.rawOutputPath = rawOutputPath
     }
 }
 

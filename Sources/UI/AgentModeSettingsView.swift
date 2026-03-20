@@ -13,6 +13,8 @@ struct AgentModeSettingsView: View {
 
     @State private var newPrefix = ""
     @State private var newSafePrefix = ""
+    @State private var rtkStatus: RTKRuntimeStatus?
+    @State private var isRefreshingRTKStatus = false
     @AppStorage(AppPreferenceKeys.agentModeToolShell) private var enableShell = true
     @AppStorage(AppPreferenceKeys.agentModeToolFileRead) private var enableFileRead = true
     @AppStorage(AppPreferenceKeys.agentModeToolFileWrite) private var enableFileWrite = true
@@ -46,6 +48,8 @@ struct AgentModeSettingsView: View {
 
                 toolTogglesSection
 
+                rtkSection
+
                 safePrefixesSection
 
                 allowedPrefixesSection
@@ -57,6 +61,10 @@ struct AgentModeSettingsView: View {
         .scrollContentBackground(.hidden)
         .background(JinSemanticColor.detailSurface)
         .navigationTitle("Agent Mode")
+        .task(id: agentModeEnabled) {
+            guard agentModeEnabled else { return }
+            await refreshRTKStatus()
+        }
     }
 
     // MARK: - Working Directory
@@ -87,7 +95,7 @@ struct AgentModeSettingsView: View {
     // MARK: - Tool Toggles
 
     private var toolTogglesSection: some View {
-        Section("Enabled Tools") {
+        Section {
             Toggle(isOn: $enableShell) {
                 Label("Shell Execute", systemImage: "terminal")
             }
@@ -106,6 +114,88 @@ struct AgentModeSettingsView: View {
             Toggle(isOn: $enableGrep) {
                 Label("Grep Search", systemImage: "magnifyingglass")
             }
+        } header: {
+            Text("Enabled Tools")
+        } footer: {
+            Text("Shell, grep, and glob tools run through the bundled RTK helper. File read/write/edit stay local to preserve precise edit context.")
+        }
+    }
+
+    // MARK: - RTK Status
+
+    private var rtkSection: some View {
+        Section {
+            if let status = rtkStatus {
+                LabeledContent("Version") {
+                    Text(status.helperVersion ?? "Unavailable")
+                        .font(.system(.caption, design: .monospaced))
+                }
+
+                LabeledContent("Helper Path") {
+                    Text(status.helperURL?.path ?? "Missing")
+                        .font(.system(.caption, design: .monospaced))
+                        .multilineTextAlignment(.trailing)
+                        .textSelection(.enabled)
+                }
+
+                LabeledContent("RTK Config") {
+                    Text(status.configURL.path)
+                        .font(.system(.caption, design: .monospaced))
+                        .multilineTextAlignment(.trailing)
+                        .textSelection(.enabled)
+                }
+
+                LabeledContent("Tee Directory") {
+                    Text(status.teeDirectoryURL.path)
+                        .font(.system(.caption, design: .monospaced))
+                        .multilineTextAlignment(.trailing)
+                        .textSelection(.enabled)
+                }
+
+                if let errorDescription = status.errorDescription {
+                    Text(errorDescription)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            } else if isRefreshingRTKStatus {
+                HStack(spacing: JinSpacing.small) {
+                    ProgressView()
+                        .controlSize(.small)
+                    Text("Checking RTK helper…")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            } else {
+                Text("RTK status unavailable.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            HStack(spacing: JinSpacing.small) {
+                Button("Refresh Status") {
+                    Task { await refreshRTKStatus() }
+                }
+                .buttonStyle(.bordered)
+
+                if let configPath = rtkStatus?.configURL.path,
+                   FileManager.default.fileExists(atPath: configPath) {
+                    Button("Open Config") {
+                        NSWorkspace.shared.open(URL(fileURLWithPath: configPath))
+                    }
+                    .buttonStyle(.bordered)
+                }
+
+                if let teePath = rtkStatus?.teeDirectoryURL.path {
+                    Button("Reveal Tee Directory") {
+                        NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: teePath)])
+                    }
+                    .buttonStyle(.bordered)
+                }
+            }
+        } header: {
+            Text("Bundled RTK")
+        } footer: {
+            Text("Agent shell commands must be rewriteable by RTK. Jin manages RTK tee output so you can reopen full raw logs when the compact view is not enough.")
         }
     }
 
@@ -169,7 +259,7 @@ struct AgentModeSettingsView: View {
         } header: {
             Text("Safe Commands")
         } footer: {
-            Text("Commands starting with these prefixes are auto-approved without manual confirmation.")
+            Text("Commands starting with these prefixes are auto-approved without manual confirmation, but RTK still rejects commands it cannot rewrite.")
         }
     }
 
@@ -273,8 +363,11 @@ struct AgentModeSettingsView: View {
         panel.prompt = "Select"
         panel.message = "Choose a working directory for agent mode"
 
-        if let currentDir = URL(string: workingDirectory), FileManager.default.fileExists(atPath: currentDir.path) {
-            panel.directoryURL = currentDir
+        if !workingDirectory.isEmpty {
+            let currentDir = URL(fileURLWithPath: workingDirectory, isDirectory: true)
+            if FileManager.default.fileExists(atPath: currentDir.path) {
+                panel.directoryURL = currentDir
+            }
         }
 
         if panel.runModal() == .OK, let url = panel.url {
@@ -317,6 +410,17 @@ struct AgentModeSettingsView: View {
         var prefixes = safePrefixes
         prefixes.removeAll { $0 == prefix }
         safePrefixesJSON = AppPreferences.encodeStringArrayJSON(prefixes)
+    }
+
+    private func refreshRTKStatus() async {
+        await MainActor.run {
+            isRefreshingRTKStatus = true
+        }
+        let status = await RTKRuntimeSupport.status()
+        await MainActor.run {
+            rtkStatus = status
+            isRefreshingRTKStatus = false
+        }
     }
 }
 

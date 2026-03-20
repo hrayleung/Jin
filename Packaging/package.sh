@@ -6,6 +6,7 @@ APP_NAME="Jin"
 DIST="$ROOT/dist"
 APP_BUNDLE="$DIST/$APP_NAME.app"
 DMG_PATH="$DIST/$APP_NAME.dmg"
+RTK_VERSION="0.31.0"
 
 cd "$ROOT"
 
@@ -85,6 +86,77 @@ require_architecture() {
   fi
 }
 
+resolve_rtk_asset_name() {
+  case "$ARCH" in
+    arm64)
+      echo "rtk-aarch64-apple-darwin.tar.gz"
+      ;;
+    x86_64)
+      echo "rtk-x86_64-apple-darwin.tar.gz"
+      ;;
+    *)
+      echo "Unsupported RTK packaging architecture: $ARCH" >&2
+      exit 1
+      ;;
+  esac
+}
+
+resolve_rtk_asset_sha256() {
+  case "$ARCH" in
+    arm64)
+      echo "af1d62a756415c1eac466bb3f1b0c6e6587a2574dea57d2f94924b91ece6412d"
+      ;;
+    x86_64)
+      echo "f79b80dff6bce3592d0e422e683ecc060a6069fa581bb4c6a989617476d5f378"
+      ;;
+    *)
+      echo "Unsupported RTK packaging architecture: $ARCH" >&2
+      exit 1
+      ;;
+  esac
+}
+
+prepare_rtk_helper() {
+  local asset_name
+  asset_name="$(resolve_rtk_asset_name)"
+  local expected_sha
+  expected_sha="$(resolve_rtk_asset_sha256)"
+  local cache_dir="$ROOT/.build/rtk-cache/v${RTK_VERSION}/$ARCH"
+  local archive_path="$cache_dir/$asset_name"
+  local extract_dir="$cache_dir/extracted"
+  local helper_path="$extract_dir/rtk"
+  local release_url="https://github.com/rtk-ai/rtk/releases/download/v${RTK_VERSION}/$asset_name"
+
+  mkdir -p "$cache_dir"
+
+  if [[ ! -f "$archive_path" ]]; then
+    echo "Downloading RTK helper v${RTK_VERSION}…" >&2
+    curl -fsSL "$release_url" -o "$archive_path"
+  fi
+
+  local actual_sha
+  actual_sha="$(shasum -a 256 "$archive_path" | awk '{print $1}')"
+  if [[ "$actual_sha" != "$expected_sha" ]]; then
+    echo "RTK helper checksum mismatch for $asset_name" >&2
+    echo "Expected: $expected_sha" >&2
+    echo "Actual:   $actual_sha" >&2
+    exit 1
+  fi
+
+  rm -rf "$extract_dir"
+  mkdir -p "$extract_dir"
+  tar -xzf "$archive_path" -C "$extract_dir"
+
+  if [[ ! -f "$helper_path" ]]; then
+    echo "Expected RTK helper not found after extraction: $helper_path" >&2
+    exit 1
+  fi
+
+  chmod +x "$helper_path"
+  require_architecture "$helper_path" "$ARCH" "RTK helper"
+  echo "$helper_path"
+}
+
 echo "Cleaning stale SwiftPM resource bundles…"
 shopt -s nullglob
 for bundle in "$ROOT/.build/release"/*.bundle "$ROOT/.build/arm64-apple-macosx/release"/*.bundle; do
@@ -93,6 +165,7 @@ done
 
 ARCH="arm64"
 BUILD_OUTPUT_DIR="$ROOT/.build/$ARCH-apple-macosx/release"
+RTK_HELPER_BIN="$(prepare_rtk_helper)"
 
 echo "Building (Release) for Apple Silicon…"
 swift build -c release --disable-sandbox --arch "$ARCH"
@@ -105,9 +178,12 @@ fi
 require_architecture "$BIN" "$ARCH" "$APP_NAME"
 
 echo "Creating .app bundle…"
-mkdir -p "$APP_BUNDLE/Contents/MacOS" "$APP_BUNDLE/Contents/Resources" "$APP_BUNDLE/Contents/Frameworks"
+mkdir -p "$APP_BUNDLE/Contents/MacOS" "$APP_BUNDLE/Contents/Resources" "$APP_BUNDLE/Contents/Frameworks" "$APP_BUNDLE/Contents/Helpers"
 cp "$BIN" "$APP_BUNDLE/Contents/MacOS/$APP_NAME"
 chmod +x "$APP_BUNDLE/Contents/MacOS/$APP_NAME"
+cp "$RTK_HELPER_BIN" "$APP_BUNDLE/Contents/Helpers/rtk"
+chmod +x "$APP_BUNDLE/Contents/Helpers/rtk"
+require_architecture "$APP_BUNDLE/Contents/Helpers/rtk" "$ARCH" "bundled RTK helper"
 cp "$ROOT/Packaging/Info.plist" "$APP_BUNDLE/Contents/Info.plist"
 APP_SHORT_VERSION="$(resolve_version 0.1.0)"
 /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $APP_SHORT_VERSION" "$APP_BUNDLE/Contents/Info.plist"
@@ -202,7 +278,7 @@ fi
 codesign --remove-signature "$APP_BUNDLE/Contents/MacOS/$APP_NAME" >/dev/null 2>&1 || true
 codesign --remove-signature "$APP_BUNDLE" >/dev/null 2>&1 || true
 
-echo "Code signing app bundle (identifier: $BUNDLE_ID)…"
+echo "Code signing app bundle (identifier: ${BUNDLE_ID})…"
 codesign --force --deep --sign - --identifier "$BUNDLE_ID" "$APP_BUNDLE"
 codesign --verify --deep --strict --verbose=2 "$APP_BUNDLE"
 

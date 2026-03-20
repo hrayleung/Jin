@@ -15,20 +15,32 @@ actor AgentToolHub {
 
     static let serverID = "agent"
     static let functionNamePrefix = "\(serverID)__"
+    static let shellExecuteFunctionName = "\(functionNamePrefix)shell_execute"
+    static let fileReadFunctionName = "\(functionNamePrefix)file_read"
+    static let fileWriteFunctionName = "\(functionNamePrefix)file_write"
+    static let fileEditFunctionName = "\(functionNamePrefix)file_edit"
+    static let globSearchFunctionName = "\(functionNamePrefix)glob_search"
+    static let grepSearchFunctionName = "\(functionNamePrefix)grep_search"
 
     static func isAgentFunctionName(_ functionName: String) -> Bool {
         functionName.hasPrefix(functionNamePrefix)
     }
 
+    struct PreparedShellExecution: Sendable {
+        let rawCommand: String
+        let rewrittenCommand: String
+        let workingDirectory: String?
+    }
+
     // MARK: - Tool Names
 
     private enum ToolName {
-        static let shellExecute = "\(AgentToolHub.functionNamePrefix)shell_execute"
-        static let fileRead = "\(AgentToolHub.functionNamePrefix)file_read"
-        static let fileWrite = "\(AgentToolHub.functionNamePrefix)file_write"
-        static let fileEdit = "\(AgentToolHub.functionNamePrefix)file_edit"
-        static let globSearch = "\(AgentToolHub.functionNamePrefix)glob_search"
-        static let grepSearch = "\(AgentToolHub.functionNamePrefix)grep_search"
+        static let shellExecute = AgentToolHub.shellExecuteFunctionName
+        static let fileRead = AgentToolHub.fileReadFunctionName
+        static let fileWrite = AgentToolHub.fileWriteFunctionName
+        static let fileEdit = AgentToolHub.fileEditFunctionName
+        static let globSearch = AgentToolHub.globSearchFunctionName
+        static let grepSearch = AgentToolHub.grepSearchFunctionName
     }
 
     // MARK: - Tool Definitions
@@ -83,7 +95,8 @@ actor AgentToolHub {
         functionName: String,
         arguments: [String: AnyCodable],
         routes: AgentToolRouteSnapshot,
-        controls: AgentModeControls
+        controls: AgentModeControls,
+        preparedShellExecution: PreparedShellExecution? = nil
     ) async throws -> MCPToolCallResult {
         guard routes.contains(functionName: functionName) else {
             throw LLMError.invalidRequest(message: "Unknown agent tool: \(functionName)")
@@ -93,7 +106,7 @@ actor AgentToolHub {
 
         switch functionName {
         case ToolName.shellExecute:
-            return try await executeShell(raw, controls: controls)
+            return try await executeShell(raw, controls: controls, prepared: preparedShellExecution)
         case ToolName.fileRead:
             return try executeFileRead(raw, controls: controls)
         case ToolName.fileWrite:
@@ -101,9 +114,9 @@ actor AgentToolHub {
         case ToolName.fileEdit:
             return try executeFileEdit(raw, controls: controls)
         case ToolName.globSearch:
-            return try executeGlobSearch(raw, controls: controls)
+            return try await executeGlobSearch(raw, controls: controls)
         case ToolName.grepSearch:
-            return try executeGrepSearch(raw, controls: controls)
+            return try await executeGrepSearch(raw, controls: controls)
         default:
             throw LLMError.invalidRequest(message: "Unknown agent tool: \(functionName)")
         }
@@ -111,39 +124,36 @@ actor AgentToolHub {
 
     // MARK: - Execution Implementations
 
+    func prepareShellExecution(
+        arguments: [String: AnyCodable],
+        controls: AgentModeControls
+    ) async throws -> PreparedShellExecution {
+        let raw = arguments.mapValues { $0.value }
+        return try await prepareShellExecution(raw, controls: controls)
+    }
+
     private func executeShell(
         _ args: [String: Any],
-        controls: AgentModeControls
+        controls: AgentModeControls,
+        prepared: PreparedShellExecution?
     ) async throws -> MCPToolCallResult {
-        guard let command = stringArg(args, keys: ["command", "cmd"]) else {
-            return MCPToolCallResult(text: "Error: missing required parameter 'command'", isError: true)
+        let preparedShell: PreparedShellExecution
+        if let prepared {
+            preparedShell = prepared
+        } else {
+            preparedShell = try await prepareShellExecution(args, controls: controls)
         }
-
-        let cwd = stringArg(args, keys: ["working_directory", "workingDirectory", "cwd"])
-            ?? controls.workingDirectory
-
-        let result = try await AgentShellExecutor.execute(
-            command: command,
-            workingDirectory: cwd,
+        let result = try await RTKRuntimeSupport.executeRewrittenShellCommand(
+            preparedShell.rewrittenCommand,
+            workingDirectory: preparedShell.workingDirectory,
             timeout: TimeInterval(controls.commandTimeoutSeconds),
             maxOutputBytes: controls.maxOutputBytes
         )
-
-        var output = ""
-        if !result.stdout.isEmpty {
-            output += result.stdout
-        }
-        if !result.stderr.isEmpty {
-            if !output.isEmpty { output += "\n\n" }
-            output += "[stderr]\n\(result.stderr)"
-        }
-        if output.isEmpty {
-            output = "(no output)"
-        }
-
-        output += "\n\n[exit code: \(result.exitCode), duration: \(String(format: "%.1f", result.durationSeconds))s]"
-
-        return MCPToolCallResult(text: output, isError: result.exitCode != 0)
+        return MCPToolCallResult(
+            text: result.text,
+            isError: result.isError,
+            rawOutputPath: result.rawOutputPath
+        )
     }
 
     private func executeFileRead(
@@ -164,7 +174,7 @@ actor AgentToolHub {
             workingDirectory: controls.workingDirectory
         )
 
-        return MCPToolCallResult(text: result, isError: false)
+        return MCPToolCallResult(text: result, isError: false, rawOutputPath: nil)
     }
 
     private func executeFileWrite(
@@ -185,7 +195,7 @@ actor AgentToolHub {
             workingDirectory: controls.workingDirectory
         )
 
-        return MCPToolCallResult(text: result, isError: false)
+        return MCPToolCallResult(text: result, isError: false, rawOutputPath: nil)
     }
 
     private func executeFileEdit(
@@ -211,47 +221,79 @@ actor AgentToolHub {
             workingDirectory: controls.workingDirectory
         )
 
-        return MCPToolCallResult(text: result, isError: false)
+        return MCPToolCallResult(text: result, isError: false, rawOutputPath: nil)
     }
 
     private func executeGlobSearch(
         _ args: [String: Any],
         controls: AgentModeControls
-    ) throws -> MCPToolCallResult {
+    ) async throws -> MCPToolCallResult {
         guard let pattern = stringArg(args, keys: ["pattern", "glob"]) else {
             return MCPToolCallResult(text: "Error: missing required parameter 'pattern'", isError: true)
         }
 
-        let directory = stringArg(args, keys: ["path", "directory", "dir"])
-
-        let result = try AgentFileOperations.globSearch(
-            pattern: pattern,
-            directory: directory,
-            workingDirectory: controls.workingDirectory
+        let directory = stringArg(args, keys: ["path", "directory", "dir"]) ?? "."
+        let result = try await RTKRuntimeSupport.executeHelperCommand(
+            arguments: ["find", pattern, directory],
+            workingDirectory: controls.workingDirectory,
+            timeout: TimeInterval(controls.commandTimeoutSeconds),
+            maxOutputBytes: controls.maxOutputBytes
         )
 
-        return MCPToolCallResult(text: result, isError: false)
+        return MCPToolCallResult(
+            text: result.text,
+            isError: result.isError,
+            rawOutputPath: result.rawOutputPath
+        )
     }
 
     private func executeGrepSearch(
         _ args: [String: Any],
         controls: AgentModeControls
-    ) throws -> MCPToolCallResult {
+    ) async throws -> MCPToolCallResult {
         guard let pattern = stringArg(args, keys: ["pattern", "regex", "query"]) else {
             return MCPToolCallResult(text: "Error: missing required parameter 'pattern'", isError: true)
         }
 
-        let path = stringArg(args, keys: ["path", "directory", "dir"])
+        let path = stringArg(args, keys: ["path", "directory", "dir"]) ?? "."
         let include = stringArg(args, keys: ["include", "glob", "file_pattern"])
+        var helperArguments = ["grep", pattern, path]
+        if let include, !include.isEmpty {
+            helperArguments.append(contentsOf: ["--glob", include])
+        }
 
-        let result = try AgentFileOperations.grepSearch(
-            pattern: pattern,
-            path: path,
-            include: include,
-            workingDirectory: controls.workingDirectory
+        let result = try await RTKRuntimeSupport.executeHelperCommand(
+            arguments: helperArguments,
+            workingDirectory: controls.workingDirectory,
+            timeout: TimeInterval(controls.commandTimeoutSeconds),
+            maxOutputBytes: controls.maxOutputBytes
         )
 
-        return MCPToolCallResult(text: result, isError: false)
+        let isNoMatchSummary = result.exitCode == 1
+            && result.text.lowercased().contains("0 matches")
+        return MCPToolCallResult(
+            text: result.text,
+            isError: result.isError && !isNoMatchSummary,
+            rawOutputPath: result.rawOutputPath
+        )
+    }
+
+    private func prepareShellExecution(
+        _ args: [String: Any],
+        controls: AgentModeControls
+    ) async throws -> PreparedShellExecution {
+        guard let command = stringArg(args, keys: ["command", "cmd"]) else {
+            throw LLMError.invalidRequest(message: "Agent shell execution requires a non-empty `command`.")
+        }
+
+        let cwd = stringArg(args, keys: ["working_directory", "workingDirectory", "cwd"])
+            ?? controls.workingDirectory
+        let rewrittenCommand = try await RTKRuntimeSupport.prepareShellCommand(command)
+        return PreparedShellExecution(
+            rawCommand: command,
+            rewrittenCommand: rewrittenCommand,
+            workingDirectory: cwd
+        )
     }
 
     // MARK: - Argument Helpers
@@ -281,10 +323,10 @@ actor AgentToolHub {
         ToolDefinition(
             id: "agent:shell_execute",
             name: ToolName.shellExecute,
-            description: "Execute a shell command via /bin/zsh. Returns stdout, stderr, and exit code. Use for running build commands, scripts, or CLI tools.",
+            description: "Execute a shell command only when the bundled RTK helper can rewrite it to a supported RTK workflow. Prefer dedicated tools for file reads and searches.",
             parameters: ParameterSchema(
                 properties: [
-                    "command": PropertySchema(type: "string", description: "The shell command to execute."),
+                    "command": PropertySchema(type: "string", description: "A shell command that RTK can rewrite, such as git/cargo/npm/pytest/go/docker/kubectl workflows."),
                     "working_directory": PropertySchema(type: "string", description: "Optional working directory for the command. Defaults to the configured agent working directory.")
                 ],
                 required: ["command"]
@@ -297,7 +339,7 @@ actor AgentToolHub {
         ToolDefinition(
             id: "agent:file_read",
             name: ToolName.fileRead,
-            description: "Read a file and return its contents with line numbers. Supports reading specific line ranges via offset and limit parameters.",
+            description: "Read a file with precise line-numbered output. Use this instead of shell cat/head/tail when you need exact edit context.",
             parameters: ParameterSchema(
                 properties: [
                     "path": PropertySchema(type: "string", description: "File path to read. Relative paths are resolved against the working directory."),
@@ -347,7 +389,7 @@ actor AgentToolHub {
         ToolDefinition(
             id: "agent:glob_search",
             name: ToolName.globSearch,
-            description: "Find files matching a glob pattern. Supports *, **, and ? wildcards. Returns matching file paths relative to the search directory.",
+            description: "Find files using the bundled RTK helper. Best for compact repo-wide file discovery without executing raw shell find commands.",
             parameters: ParameterSchema(
                 properties: [
                     "pattern": PropertySchema(type: "string", description: "Glob pattern to match files (e.g., \"**/*.swift\", \"src/**/*.ts\")."),
@@ -363,7 +405,7 @@ actor AgentToolHub {
         ToolDefinition(
             id: "agent:grep_search",
             name: ToolName.grepSearch,
-            description: "Search file contents using a regex pattern (grep -rn). Returns matching lines with file paths and line numbers.",
+            description: "Search file contents using the bundled RTK grep workflow. Returns compact grouped results and supports an optional include glob.",
             parameters: ParameterSchema(
                 properties: [
                     "pattern": PropertySchema(type: "string", description: "Regex pattern to search for."),

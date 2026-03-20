@@ -176,6 +176,10 @@ struct ToolCallView: View {
                     text: toolResult.content,
                     showsCopyButton: true
                 )
+
+                if let rawOutputPath = toolResult.rawOutputPath {
+                    ToolOutputFileActionRow(rawOutputPath: rawOutputPath)
+                }
             } else {
                 Text("Waiting for tool result...")
                     .jinInfoCallout()
