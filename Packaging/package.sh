@@ -24,11 +24,32 @@ mkdir -p "$DIST"
 export CLANG_MODULE_CACHE_PATH="$ROOT/.build/ModuleCache"
 mkdir -p "$CLANG_MODULE_CACHE_PATH"
 
+normalize_short_version() {
+  local version="$1"
+
+  if [[ "$version" =~ ^([0-9]+)\.([0-9]+)$ ]]; then
+    echo "${BASH_REMATCH[1]}.${BASH_REMATCH[2]}.0"
+    return
+  fi
+
+  if [[ "$version" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+    echo "${BASH_REMATCH[1]}.${BASH_REMATCH[2]}.${BASH_REMATCH[3]}"
+    return
+  fi
+
+  return 1
+}
+
 resolve_version() {
   local default_version="$1"
+  local normalized_version
 
   if [[ -n "${JIN_BUNDLE_SHORT_VERSION:-}" ]]; then
-    echo "$JIN_BUNDLE_SHORT_VERSION"
+    normalized_version="$(normalize_short_version "$JIN_BUNDLE_SHORT_VERSION")" || {
+      echo "JIN_BUNDLE_SHORT_VERSION must be a stable marketing version like 0.87.0." >&2
+      exit 1
+    }
+    echo "$normalized_version"
     return
   fi
 
@@ -36,36 +57,28 @@ resolve_version() {
     local release_tag
     release_tag="$(git -C "$ROOT" describe --tags --exact-match --match 'v*' 2>/dev/null || true)"
     if [[ -n "$release_tag" ]]; then
-      echo "${release_tag#v}"
-      return
+      normalized_version="$(normalize_short_version "${release_tag#v}" 2>/dev/null || true)"
+      if [[ -n "$normalized_version" ]]; then
+        echo "$normalized_version"
+        return
+      fi
     fi
 
     release_tag="$(git -C "$ROOT" describe --tags --abbrev=0 --match 'v*' 2>/dev/null || true)"
     if [[ -n "$release_tag" ]]; then
-      local commits_ahead
-      commits_ahead="$(git -C "$ROOT" rev-list "${release_tag}..HEAD" --count 2>/dev/null || echo 0)"
-      local short_sha
-      short_sha="$(git -C "$ROOT" rev-parse --short=8 HEAD 2>/dev/null || true)"
-
-      if [[ -n "$commits_ahead" && "$commits_ahead" != "0" && -n "$short_sha" ]]; then
-        echo "${release_tag#v}+${short_sha}.${commits_ahead}"
-      else
-        echo "${release_tag#v}"
+      normalized_version="$(normalize_short_version "${release_tag#v}" 2>/dev/null || true)"
+      if [[ -n "$normalized_version" ]]; then
+        echo "$normalized_version"
+        return
       fi
-      return
-    fi
-
-    local short_sha
-    short_sha="$(git -C "$ROOT" rev-parse --short=8 HEAD 2>/dev/null || true)"
-    if [[ -n "$short_sha" ]]; then
-      local commit_count
-      commit_count="$(git -C "$ROOT" rev-list --count HEAD 2>/dev/null || echo 1)"
-      echo "0.0.0+${short_sha}.${commit_count}"
-      return
     fi
   fi
 
-  echo "$default_version"
+  normalized_version="$(normalize_short_version "$default_version")" || {
+    echo "Default app version must be a stable marketing version like 0.1.0." >&2
+    exit 1
+  }
+  echo "$normalized_version"
 }
 
 require_architecture() {

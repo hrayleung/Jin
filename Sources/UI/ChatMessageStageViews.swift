@@ -13,6 +13,14 @@ struct ChatDecodedRenderContext: Sendable {
     let artifactCatalog: ArtifactCatalog
 }
 
+private struct MessageTimelineContentHeightPreferenceKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = max(value, nextValue())
+    }
+}
+
 struct EditSlashCommandContext {
     let servers: [SlashCommandMCPServerItem]
     let isActive: Bool
@@ -191,6 +199,8 @@ struct ChatSingleThreadMessagesView: View {
     @Binding var pendingRestoreScrollMessageID: UUID?
     @Binding var isPinnedToBottom: Bool
     @Binding var pinnedBottomRefreshGeneration: Int
+    @State private var lastMeasuredContentHeight: CGFloat = 0
+    @State private var pendingPinnedBottomRefreshTask: Task<Void, Never>?
 
     var body: some View {
         ScrollViewReader { proxy in
@@ -223,17 +233,23 @@ struct ChatSingleThreadMessagesView: View {
                         }
                     }
                 }
+                .background {
+                    GeometryReader { geometry in
+                        Color.clear.preference(
+                            key: MessageTimelineContentHeightPreferenceKey.self,
+                            value: geometry.size.height
+                        )
+                    }
+                }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, 20)
                 .padding(.top, 24)
-                .frame(minHeight: containerSize.height, alignment: .bottom)
             }
-            .defaultScrollAnchor(.bottom)
             .overlay(alignment: .bottomTrailing) {
                 if !isPinnedToBottom {
                     Button {
                         withAnimation(.easeOut(duration: 0.2)) {
-                            proxy.scrollTo("bottom", anchor: .bottom)
+                            scrollToBottomIfNeeded(proxy: proxy, allowWhenContentFits: true)
                         }
                     } label: {
                         Image(systemName: "chevron.down")
@@ -270,9 +286,14 @@ struct ChatSingleThreadMessagesView: View {
                 refreshPinnedBottomIfNeeded(proxy: proxy)
             }
             .onChange(of: conversationID) { _, _ in
-                DispatchQueue.main.async {
-                    proxy.scrollTo("bottom", anchor: .bottom)
-                }
+                cancelPendingPinnedBottomRefresh()
+                lastMeasuredContentHeight = 0
+            }
+            .onPreferenceChange(MessageTimelineContentHeightPreferenceKey.self) { newHeight in
+                handleContentHeightChange(newHeight, proxy: proxy)
+            }
+            .onDisappear {
+                cancelPendingPinnedBottomRefresh()
             }
         }
     }
@@ -321,9 +342,50 @@ struct ChatSingleThreadMessagesView: View {
             DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
                 guard refreshGeneration == pinnedBottomRefreshGeneration else { return }
                 guard isPinnedToBottom else { return }
-                proxy.scrollTo("bottom", anchor: .bottom)
+                scrollToBottomIfNeeded(proxy: proxy)
             }
         }
+    }
+
+    private func schedulePinnedBottomRefresh(
+        proxy: ScrollViewProxy,
+        debounceNanoseconds: UInt64? = nil
+    ) {
+        cancelPendingPinnedBottomRefresh()
+        guard isPinnedToBottom else { return }
+
+        pendingPinnedBottomRefreshTask = Task { @MainActor in
+            if let debounceNanoseconds {
+                try? await Task.sleep(nanoseconds: debounceNanoseconds)
+                guard !Task.isCancelled else { return }
+            }
+
+            refreshPinnedBottomIfNeeded(proxy: proxy)
+            pendingPinnedBottomRefreshTask = nil
+        }
+    }
+
+    private func cancelPendingPinnedBottomRefresh() {
+        pendingPinnedBottomRefreshTask?.cancel()
+        pendingPinnedBottomRefreshTask = nil
+    }
+
+    private func scrollToBottomIfNeeded(
+        proxy: ScrollViewProxy,
+        allowWhenContentFits: Bool = false
+    ) {
+        let contentOverflowsViewport = lastMeasuredContentHeight > containerSize.height + 0.5
+        guard allowWhenContentFits || contentOverflowsViewport else { return }
+        proxy.scrollTo("bottom", anchor: .bottom)
+    }
+
+    private func handleContentHeightChange(_ newHeight: CGFloat, proxy: ScrollViewProxy) {
+        guard abs(lastMeasuredContentHeight - newHeight) > 0.5 else { return }
+        lastMeasuredContentHeight = newHeight
+        schedulePinnedBottomRefresh(
+            proxy: proxy,
+            debounceNanoseconds: 120_000_000
+        )
     }
 }
 
