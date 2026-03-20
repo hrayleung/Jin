@@ -24,6 +24,10 @@ enum ModelCapabilityRegistry {
         "gpt-5.4-2026-03-05",
         "gpt-5.4-pro",
         "gpt-5.4-pro-2026-03-05",
+        "gpt-5.4-mini",
+        "gpt-5.4-mini-2026-03-17",
+        "gpt-5.4-nano",
+        "gpt-5.4-nano-2026-03-17",
         "gpt-5.2",
         "gpt-5.2-2025-12-11",
         "gpt-5.2-codex",
@@ -177,6 +181,10 @@ enum ModelCapabilityRegistry {
         "gpt-5.2-2025-12-11",
         "gpt-5.4",
         "gpt-5.4-2026-03-05",
+        "gpt-5.4-mini",
+        "gpt-5.4-mini-2026-03-17",
+        "gpt-5.4-nano",
+        "gpt-5.4-nano-2026-03-17",
         "gpt-5-mini",
         "gpt-5-mini-2025-08-07",
         "gpt-5-nano",
@@ -556,12 +564,10 @@ enum ModelCapabilityRegistry {
         let lowerModelID = modelID.lowercased()
 
         switch providerType {
-        case .openai:
+        case .openai, .openaiWebSocket:
             // OpenAI Responses API code_interpreter tool uses an exact documented model allowlist.
+            // WebSocket mode uses the same Responses API and supports code_interpreter for non-realtime models.
             return supportsOpenAICodeInterpreter(lowerModelID: lowerModelID)
-        case .openaiWebSocket:
-            // Realtime/WebSocket models expose function calling, not the Responses API code_interpreter tool.
-            return false
         case .anthropic:
             // Anthropic code_execution tool uses an exact documented model allowlist.
             return supportsAnthropicCodeExecution(lowerModelID: lowerModelID)
