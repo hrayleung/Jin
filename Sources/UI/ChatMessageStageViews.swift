@@ -13,6 +13,14 @@ struct ChatDecodedRenderContext: Sendable {
     let artifactCatalog: ArtifactCatalog
 }
 
+private struct MessageTimelineContentHeightPreferenceKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = max(value, nextValue())
+    }
+}
+
 struct EditSlashCommandContext {
     let servers: [SlashCommandMCPServerItem]
     let isActive: Bool
@@ -191,6 +199,7 @@ struct ChatSingleThreadMessagesView: View {
     @Binding var pendingRestoreScrollMessageID: UUID?
     @Binding var isPinnedToBottom: Bool
     @Binding var pinnedBottomRefreshGeneration: Int
+    @State private var lastMeasuredContentHeight: CGFloat = 0
 
     var body: some View {
         ScrollViewReader { proxy in
@@ -227,6 +236,14 @@ struct ChatSingleThreadMessagesView: View {
                 .padding(.horizontal, 20)
                 .padding(.top, 24)
                 .frame(minHeight: containerSize.height, alignment: .bottom)
+                .background {
+                    GeometryReader { geometry in
+                        Color.clear.preference(
+                            key: MessageTimelineContentHeightPreferenceKey.self,
+                            value: geometry.size.height
+                        )
+                    }
+                }
             }
             .defaultScrollAnchor(.bottom)
             .overlay(alignment: .bottomTrailing) {
@@ -273,6 +290,9 @@ struct ChatSingleThreadMessagesView: View {
                 DispatchQueue.main.async {
                     proxy.scrollTo("bottom", anchor: .bottom)
                 }
+            }
+            .onPreferenceChange(MessageTimelineContentHeightPreferenceKey.self) { newHeight in
+                handleContentHeightChange(newHeight, proxy: proxy)
             }
         }
     }
@@ -324,6 +344,12 @@ struct ChatSingleThreadMessagesView: View {
                 proxy.scrollTo("bottom", anchor: .bottom)
             }
         }
+    }
+
+    private func handleContentHeightChange(_ newHeight: CGFloat, proxy: ScrollViewProxy) {
+        guard abs(lastMeasuredContentHeight - newHeight) > 0.5 else { return }
+        lastMeasuredContentHeight = newHeight
+        refreshPinnedBottomIfNeeded(proxy: proxy)
     }
 }
 
