@@ -801,4 +801,41 @@ final class ModelSettingsResolverTests: XCTestCase {
         XCTAssertFalse(ModelSettingsResolver.resolve(model: unknown, providerType: .openrouter).supportsWebSearch)
     }
 
+    func testOpenRouterCatalogCarriesLatestXiaomiAndMiniMaxMetadata() {
+        let mimoOmni = ModelCatalog.modelInfo(for: "xiaomi/mimo-v2-omni", provider: .openrouter)
+        let resolvedMimoOmni = ModelSettingsResolver.resolve(model: mimoOmni, providerType: .openrouter)
+        XCTAssertEqual(resolvedMimoOmni.contextWindow, 262_144)
+        XCTAssertEqual(resolvedMimoOmni.maxOutputTokens, 65_536)
+        XCTAssertTrue(resolvedMimoOmni.capabilities.contains(.vision))
+        XCTAssertTrue(resolvedMimoOmni.capabilities.contains(.audio))
+        XCTAssertTrue(resolvedMimoOmni.capabilities.contains(.reasoning))
+
+        let mimoPro = ModelCatalog.modelInfo(for: "xiaomi/mimo-v2-pro", provider: .openrouter)
+        let resolvedMimoPro = ModelSettingsResolver.resolve(model: mimoPro, providerType: .openrouter)
+        XCTAssertEqual(resolvedMimoPro.contextWindow, 1_048_576)
+        XCTAssertEqual(resolvedMimoPro.maxOutputTokens, 131_072)
+        XCTAssertFalse(resolvedMimoPro.capabilities.contains(.vision))
+        XCTAssertTrue(resolvedMimoPro.capabilities.contains(.reasoning))
+
+        let miniMaxM27 = ModelCatalog.modelInfo(for: "minimax/minimax-m2.7", provider: .openrouter)
+        let resolvedMiniMaxM27 = ModelSettingsResolver.resolve(model: miniMaxM27, providerType: .openrouter)
+        XCTAssertEqual(resolvedMiniMaxM27.contextWindow, 204_800)
+        XCTAssertEqual(resolvedMiniMaxM27.maxOutputTokens, 131_072)
+        XCTAssertTrue(resolvedMiniMaxM27.capabilities.contains(.toolCalling))
+        XCTAssertTrue(resolvedMiniMaxM27.capabilities.contains(.reasoning))
+
+        let miniMaxM25Free = ModelCatalog.modelInfo(for: "minimax/minimax-m2.5:free", provider: .openrouter)
+        let resolvedMiniMaxM25Free = ModelSettingsResolver.resolve(model: miniMaxM25Free, providerType: .openrouter)
+        XCTAssertEqual(resolvedMiniMaxM25Free.contextWindow, 196_608)
+        XCTAssertEqual(resolvedMiniMaxM25Free.maxOutputTokens, 196_608)
+        XCTAssertTrue(resolvedMiniMaxM25Free.capabilities.contains(.reasoning))
+
+        let miniMax01 = ModelCatalog.modelInfo(for: "minimax/minimax-01", provider: .openrouter)
+        let resolvedMiniMax01 = ModelSettingsResolver.resolve(model: miniMax01, providerType: .openrouter)
+        XCTAssertEqual(resolvedMiniMax01.contextWindow, 1_000_192)
+        XCTAssertEqual(resolvedMiniMax01.maxOutputTokens, 1_000_192)
+        XCTAssertTrue(resolvedMiniMax01.capabilities.contains(.vision))
+        XCTAssertFalse(resolvedMiniMax01.capabilities.contains(.reasoning))
+    }
+
 }

@@ -271,44 +271,69 @@ actor OpenRouterAdapter: LLMProviderAdapter {
     private func makeModelInfo(from model: OpenRouterModelsResponse.Model) -> ModelInfo {
         let id = model.id
         let lower = id.lowercased()
-        let inputModalities = Set((model.architecture?.inputModalities ?? []).map { $0.lowercased() })
+        let apiContextWindow = positiveInt(model.contextLength)
+            ?? positiveInt(model.topProvider?.contextLength)
+        let apiMaxOutputTokens = positiveInt(model.topProvider?.maxCompletionTokens)
 
-        var caps: ModelCapability = [.streaming, .toolCalling]
-        let reasoningConfig = ModelCapabilityRegistry.defaultReasoningConfig(for: providerConfig.type, modelID: id)
-        let contextWindow = 128000
-
-        if reasoningConfig != nil {
-            caps.insert(.reasoning)
+        if let entry = ModelCatalog.entry(for: id, provider: .openrouter) {
+            return ModelInfo(
+                id: id,
+                name: entry.displayName,
+                capabilities: entry.capabilities,
+                contextWindow: apiContextWindow ?? entry.contextWindow,
+                maxOutputTokens: apiMaxOutputTokens ?? entry.maxOutputTokens,
+                reasoningConfig: entry.reasoningConfig
+            )
         }
 
-        if inputModalities.contains(where: { $0.contains("image") || $0.contains("video") })
-            || lower.contains("vision")
-            || lower.contains("image")
-            || lower.contains("/gpt-4o")
-            || lower.contains("/gpt-5")
-            || lower.contains("/gemini")
-            || lower.contains("/claude") {
+        let inputModalities = Set((model.architecture?.inputModalities ?? []).map { $0.lowercased() })
+        let outputModalities = Set((model.architecture?.outputModalities ?? []).map { $0.lowercased() })
+        let supportedParameters = Set((model.supportedParameters ?? []).map { $0.lowercased() })
+        let hasImageLikeModalities = inputModalities.contains(where: { $0.contains("image") || $0.contains("video") })
+            || outputModalities.contains(where: { $0.contains("image") || $0.contains("video") })
+        let hasAudioLikeModalities = inputModalities.contains(where: { $0.contains("audio") })
+            || outputModalities.contains(where: { $0.contains("audio") })
+        let supportsReasoning = supportedParameters.contains("reasoning")
+            || supportedParameters.contains("include_reasoning")
+            || supportedParameters.contains("reasoning_effort")
+
+        var caps: ModelCapability = [.streaming]
+
+        if supportedParameters.contains("tools") {
+            caps.insert(.toolCalling)
+        }
+        if hasImageLikeModalities {
             caps.insert(.vision)
         }
-
-        if inputModalities.contains(where: { $0.contains("audio") }) {
+        if hasAudioLikeModalities || isAudioInputModelID(lower) {
             caps.insert(.audio)
         }
-        if isAudioInputModelID(lower) {
-            caps.insert(.audio)
+        if supportsReasoning {
+            caps.insert(.reasoning)
         }
-
-        if lower.contains("image") {
+        if model.pricing?.inputCacheRead != nil {
+            caps.insert(.promptCaching)
+        }
+        if outputModalities.contains(where: { $0.contains("image") }) || lower.contains("image") {
             caps.insert(.imageGeneration)
+        }
+        if outputModalities.contains(where: { $0.contains("video") }) || lower.contains("video") {
+            caps.insert(.videoGeneration)
         }
 
         return ModelInfo(
             id: id,
-            name: id,
+            name: model.name ?? id,
             capabilities: caps,
-            contextWindow: contextWindow,
-            reasoningConfig: reasoningConfig
+            contextWindow: apiContextWindow ?? 128_000,
+            maxOutputTokens: apiMaxOutputTokens,
+            reasoningConfig: supportsReasoning ? ModelReasoningConfig(type: .effort, defaultEffort: .medium) : nil
         )
+    }
+
+    private func positiveInt(_ value: Int?) -> Int? {
+        guard let value, value > 0 else { return nil }
+        return value
     }
 
 }
@@ -318,10 +343,25 @@ private struct OpenRouterModelsResponse: Decodable {
 
     struct Model: Decodable {
         let id: String
+        let name: String?
+        let contextLength: Int?
         let architecture: Architecture?
+        let topProvider: TopProvider?
+        let supportedParameters: [String]?
+        let pricing: Pricing?
     }
 
     struct Architecture: Decodable {
         let inputModalities: [String]?
+        let outputModalities: [String]?
+    }
+
+    struct TopProvider: Decodable {
+        let contextLength: Int?
+        let maxCompletionTokens: Int?
+    }
+
+    struct Pricing: Decodable {
+        let inputCacheRead: String?
     }
 }
