@@ -191,13 +191,16 @@ actor AnthropicAdapter: LLMProviderAdapter {
 
     /// Validate by sending a tiny message request and checking for auth errors.
     private func validateAPIKeyViaMinimalMessage(_ key: String) async -> Bool {
-        var body: [String: Any] = [
-            "model": providerConfig.models.first?.id ?? "MiniMax-M2.7",
+        let modelID = providerConfig.models.first?.id
+            ?? ModelCatalog.seededModels(for: providerConfig.type).first?.id
+            ?? "MiniMax-M2.7"
+
+        let body: [String: Any] = [
+            "model": modelID,
             "messages": [["role": "user", "content": "hi"]],
             "max_tokens": 1,
             "stream": false
         ]
-        appendThinkingConfig(to: &body, controls: GenerationControls(), modelID: body["model"] as? String ?? "")
 
         do {
             let request = try NetworkRequestFactory.makeJSONRequest(
@@ -211,9 +214,10 @@ actor AnthropicAdapter: LLMProviderAdapter {
             let errorMessage = "\(error)".lowercased()
             if errorMessage.contains("401") || errorMessage.contains("403")
                 || errorMessage.contains("authentication") || errorMessage.contains("unauthorized")
-                || errorMessage.contains("invalid") && errorMessage.contains("key") {
+                || (errorMessage.contains("invalid") && errorMessage.contains("key")) {
                 return false
             }
+            // Non-auth errors (e.g. 400 bad request) still confirm the key is reachable.
             return true
         }
     }
