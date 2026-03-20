@@ -28,6 +28,7 @@ enum DefaultProviderSeeds {
             zhipuCodingPlan,
             fireworks,
             sambaNova,
+            morphLLM,
             gemini,
             vertexAI,
         ]
@@ -241,6 +242,17 @@ enum DefaultProviderSeeds {
             iconID: LobeProviderIconCatalog.defaultIconID(for: .sambanova),
             baseURL: ProviderType.sambanova.defaultBaseURL,
             models: ModelCatalog.seededModels(for: .sambanova)
+        )
+    }
+
+    static var morphLLM: ProviderConfig {
+        ProviderConfig(
+            id: "morphllm",
+            name: "MorphLLM",
+            type: .morphllm,
+            iconID: LobeProviderIconCatalog.defaultIconID(for: .morphllm),
+            baseURL: ProviderType.morphllm.defaultBaseURL,
+            models: ModelCatalog.seededModels(for: .morphllm)
         )
     }
 

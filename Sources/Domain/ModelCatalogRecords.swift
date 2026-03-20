@@ -37,6 +37,7 @@ extension ModelCatalog {
         .fireworks: fireworksRecords,
         .cerebras: cerebrasRecords,
         .sambanova: sambaNovaRecords,
+        .morphllm: morphLLMRecords,
         .gemini: geminiRecords,
         .vertexai: vertexAIRecords,
         .openrouter: openRouterRecords,
@@ -900,6 +901,27 @@ extension ModelCatalog {
                contextWindow: 32_000,
                reasoningConfig: ModelReasoningConfig(type: .toggle),
                isFullySupported: false, isSeeded: false),
+    ]
+
+    // MARK: MorphLLM
+
+    private static let morphLLMRecords: [Record] = [
+        // Seeded — appear in the model picker on first launch
+        Record(id: "auto", displayName: "Morph Auto",
+               capabilities: [.streaming],
+               contextWindow: 128_000,
+               reasoningConfig: nil,
+               isFullySupported: true, isSeeded: true),
+        Record(id: "morph-v3-large", displayName: "Morph v3 Large",
+               capabilities: [.streaming],
+               contextWindow: 128_000,
+               reasoningConfig: nil,
+               isFullySupported: true, isSeeded: true),
+        Record(id: "morph-v3-fast", displayName: "Morph v3 Fast",
+               capabilities: [.streaming],
+               contextWindow: 128_000,
+               reasoningConfig: nil,
+               isFullySupported: true, isSeeded: true),
     ]
 
     // MARK: Gemini (AI Studio)
