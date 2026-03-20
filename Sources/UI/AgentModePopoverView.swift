@@ -9,6 +9,10 @@ struct AgentModePopoverView: View {
     @AppStorage(AppPreferenceKeys.agentModeWorkingDirectory) private var storedWorkingDirectory = ""
     @State private var workingDirectoryDraft = ""
 
+    private var workingDirectoryValidation: AgentWorkingDirectorySupport.ValidationState {
+        AgentWorkingDirectorySupport.validationState(for: workingDirectoryDraft)
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             headerSection
@@ -131,7 +135,12 @@ struct AgentModePopoverView: View {
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: JinRadius.small, style: .continuous)
-                        .stroke(JinSemanticColor.separator.opacity(0.45), lineWidth: JinStrokeWidth.hairline)
+                        .stroke(
+                            workingDirectoryValidation.isError
+                                ? Color.orange.opacity(0.55)
+                                : JinSemanticColor.separator.opacity(0.45),
+                            lineWidth: JinStrokeWidth.hairline
+                        )
                 )
                 .onChange(of: workingDirectoryDraft) { _, newValue in
                     applyWorkingDirectory(newValue)
@@ -147,6 +156,12 @@ struct AgentModePopoverView: View {
                 .buttonStyle(.bordered)
                 .controlSize(.small)
             }
+
+            Text(workingDirectoryValidation.message)
+                .font(.caption)
+                .foregroundStyle(workingDirectoryValidation.isError ? Color.orange : .secondary)
+                .lineLimit(2)
+                .textSelection(.enabled)
         }
         .padding(.horizontal, JinSpacing.large)
         .padding(.vertical, JinSpacing.medium)
@@ -186,7 +201,7 @@ struct AgentModePopoverView: View {
     }
 
     private func applyWorkingDirectory(_ value: String) {
-        let normalized = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalized = AgentWorkingDirectorySupport.normalizedPath(from: value)
         if storedWorkingDirectory != normalized {
             storedWorkingDirectory = normalized
         }

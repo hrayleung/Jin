@@ -5,7 +5,7 @@ import AppKit
 
 struct AgentModeSettingsView: View {
     @AppStorage(AppPreferenceKeys.agentModeEnabled) private var agentModeEnabled = false
-    @AppStorage(AppPreferenceKeys.agentModeWorkingDirectory) private var workingDirectory = ""
+    @AppStorage(AppPreferenceKeys.agentModeWorkingDirectory) private var storedWorkingDirectory = ""
     @AppStorage(AppPreferenceKeys.agentModeAllowedCommandPrefixesJSON) private var allowedPrefixesJSON = "[]"
     @AppStorage(AppPreferenceKeys.agentModeDefaultSafePrefixesJSON) private var safePrefixesJSON = ""
     @AppStorage(AppPreferenceKeys.agentModeCommandTimeoutSeconds) private var commandTimeoutSeconds = 120
@@ -15,6 +15,7 @@ struct AgentModeSettingsView: View {
     @State private var newSafePrefix = ""
     @State private var rtkStatus: RTKRuntimeStatus?
     @State private var isRefreshingRTKStatus = false
+    @State private var workingDirectoryDraft = ""
     @AppStorage(AppPreferenceKeys.agentModeToolShell) private var enableShell = true
     @AppStorage(AppPreferenceKeys.agentModeToolFileRead) private var enableFileRead = true
     @AppStorage(AppPreferenceKeys.agentModeToolFileWrite) private var enableFileWrite = true
@@ -31,6 +32,10 @@ struct AgentModeSettingsView: View {
             return AgentCommandAllowlist.builtinDefaults
         }
         return AppPreferences.decodeStringArrayJSON(safePrefixesJSON)
+    }
+
+    private var workingDirectoryValidation: AgentWorkingDirectorySupport.ValidationState {
+        AgentWorkingDirectorySupport.validationState(for: workingDirectoryDraft)
     }
 
     var body: some View {
@@ -61,6 +66,12 @@ struct AgentModeSettingsView: View {
         .scrollContentBackground(.hidden)
         .background(JinSemanticColor.detailSurface)
         .navigationTitle("Agent Mode")
+        .onAppear {
+            syncWorkingDirectoryDraft()
+        }
+        .onChange(of: storedWorkingDirectory) { _, _ in
+            syncWorkingDirectoryDraft()
+        }
         .task(id: agentModeEnabled) {
             guard agentModeEnabled else { return }
             await refreshRTKStatus()
@@ -73,22 +84,31 @@ struct AgentModeSettingsView: View {
         Section {
             HStack(spacing: JinSpacing.small) {
                 TextField(
-                    text: $workingDirectory,
+                    text: $workingDirectoryDraft,
                     prompt: Text("e.g., /Users/you/Projects/my-app")
                 ) {
                     EmptyView()
                 }
                 .textFieldStyle(.roundedBorder)
+                .onChange(of: workingDirectoryDraft) { _, newValue in
+                    applyWorkingDirectory(newValue)
+                }
 
                 Button("Browse") {
                     selectDirectory()
                 }
                 .buttonStyle(.bordered)
             }
+
+            Text(workingDirectoryValidation.message)
+                .font(.caption)
+                .foregroundStyle(workingDirectoryValidation.isError ? Color.orange : .secondary)
+                .lineLimit(2)
+                .textSelection(.enabled)
         } header: {
             Text("Working Directory")
         } footer: {
-            Text("The default working directory for shell commands and file operations.")
+            Text("The default working directory for shell commands and file operations. Empty uses no default cwd.")
         }
     }
 
@@ -363,17 +383,32 @@ struct AgentModeSettingsView: View {
         panel.prompt = "Select"
         panel.message = "Choose a working directory for agent mode"
 
-        if !workingDirectory.isEmpty {
-            let currentDir = URL(fileURLWithPath: workingDirectory, isDirectory: true)
+        let normalizedWorkingDirectory = AgentWorkingDirectorySupport.normalizedPath(from: workingDirectoryDraft)
+        if !normalizedWorkingDirectory.isEmpty {
+            let currentDir = URL(fileURLWithPath: normalizedWorkingDirectory, isDirectory: true)
             if FileManager.default.fileExists(atPath: currentDir.path) {
                 panel.directoryURL = currentDir
             }
         }
 
         if panel.runModal() == .OK, let url = panel.url {
-            workingDirectory = url.path
+            applyWorkingDirectory(url.path)
+            workingDirectoryDraft = url.path
         }
         #endif
+    }
+
+    private func syncWorkingDirectoryDraft() {
+        if workingDirectoryDraft != storedWorkingDirectory {
+            workingDirectoryDraft = storedWorkingDirectory
+        }
+    }
+
+    private func applyWorkingDirectory(_ value: String) {
+        let normalized = AgentWorkingDirectorySupport.normalizedPath(from: value)
+        if storedWorkingDirectory != normalized {
+            storedWorkingDirectory = normalized
+        }
     }
 
     private func addPrefix() {

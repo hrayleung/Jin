@@ -28,6 +28,18 @@ struct ToolOutputFileActionRow: View {
 
                 Spacer(minLength: 0)
             }
+        } else {
+            VStack(alignment: .leading, spacing: JinSpacing.xSmall) {
+                Text("Full output file is unavailable.")
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(.orange)
+
+                Text(rawOutputPath)
+                    .font(.system(.caption, design: .monospaced))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+                    .textSelection(.enabled)
+            }
         }
     }
 }
