@@ -3,8 +3,8 @@ import Foundation
 struct RTKRuntimeStatus: Sendable {
     let helperURL: URL?
     let helperVersion: String?
-    let configURL: URL
-    let teeDirectoryURL: URL
+    let configURL: URL?
+    let teeDirectoryURL: URL?
     let errorDescription: String?
 }
 
@@ -26,6 +26,7 @@ enum RTKRuntimeError: LocalizedError {
     case invalidRewriteOutput
     case configDirectoryUnavailable
     case configWriteFailed(String)
+    case versionProbeFailed(exitCode: Int32, details: String)
 
     var errorDescription: String? {
         switch self {
@@ -41,6 +42,8 @@ enum RTKRuntimeError: LocalizedError {
             return "Unable to locate the RTK configuration directory."
         case .configWriteFailed(let message):
             return "Failed to manage RTK configuration: \(message)"
+        case .versionProbeFailed(let exitCode, let details):
+            return "RTK version probe failed (exit code: \(exitCode)). \(details)"
         }
     }
 }
@@ -175,8 +178,14 @@ enum RTKRuntimeSupport {
     private static let fullOutputPrefix = "[full output:"
 
     static func status() async -> RTKRuntimeStatus {
-        let configURL = (try? RTKConfigManager.configurationFileURL()) ?? URL(fileURLWithPath: "/")
-        let teeDirectoryURL = (try? RTKConfigManager.teeDirectoryURL()) ?? URL(fileURLWithPath: "/")
+        let configResolution = Result { try RTKConfigManager.configurationFileURL() }
+        let teeResolution = Result { try RTKConfigManager.teeDirectoryURL() }
+        let configURL = try? configResolution.get()
+        let teeDirectoryURL = try? teeResolution.get()
+        let configurationErrorDescription = mergedErrorDescription(
+            configResolution.failure?.localizedDescription,
+            teeResolution.failure?.localizedDescription
+        )
 
         do {
             let helperURL = try helperExecutableURL()
@@ -186,7 +195,7 @@ enum RTKRuntimeSupport {
                 helperVersion: version,
                 configURL: configURL,
                 teeDirectoryURL: teeDirectoryURL,
-                errorDescription: nil
+                errorDescription: configurationErrorDescription
             )
         } catch {
             return RTKRuntimeStatus(
@@ -194,7 +203,10 @@ enum RTKRuntimeSupport {
                 helperVersion: nil,
                 configURL: configURL,
                 teeDirectoryURL: teeDirectoryURL,
-                errorDescription: error.localizedDescription
+                errorDescription: mergedErrorDescription(
+                    error.localizedDescription,
+                    configurationErrorDescription
+                )
             )
         }
     }
@@ -243,8 +255,15 @@ enum RTKRuntimeSupport {
             maxOutputBytes: 4_096,
             environment: try managedEnvironment(helperURL: helperURL)
         )
+        guard result.exitCode == 0 else {
+            let details = failureDetails(stdout: result.stdout, stderr: result.stderr)
+            throw RTKRuntimeError.versionProbeFailed(exitCode: result.exitCode, details: details)
+        }
         let output = result.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
-        return output.isEmpty ? "rtk \(embeddedVersion)" : output
+        guard !output.isEmpty else {
+            throw RTKRuntimeError.versionProbeFailed(exitCode: result.exitCode, details: "RTK helper returned empty version output.")
+        }
+        return output
     }
 
     static func prepareShellCommand(_ command: String) async throws -> String {
@@ -325,6 +344,11 @@ enum RTKRuntimeSupport {
     }
 
     static func resolveRawOutputPath(in text: String) -> String? {
+        let fileManager = FileManager.default
+        let teeRootURL = (try? RTKConfigManager.teeDirectoryURL())?
+            .standardizedFileURL
+            .resolvingSymlinksInPath()
+
         for line in text.components(separatedBy: .newlines).reversed() {
             let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
             guard trimmed.hasPrefix(fullOutputPrefix), trimmed.hasSuffix("]") else { continue }
@@ -341,8 +365,15 @@ enum RTKRuntimeSupport {
                 resolvedPath = rawPath
             }
 
-            let standardized = URL(fileURLWithPath: resolvedPath).standardizedFileURL.path
-            return standardized
+            let standardizedURL = URL(fileURLWithPath: resolvedPath)
+                .standardizedFileURL
+                .resolvingSymlinksInPath()
+            guard fileManager.fileExists(atPath: standardizedURL.path),
+                  let teeRootURL,
+                  isDescendant(standardizedURL, of: teeRootURL) else {
+                continue
+            }
+            return standardizedURL.path
         }
         return nil
     }
@@ -382,5 +413,41 @@ enum RTKRuntimeSupport {
         }
 
         return environment
+    }
+
+    private static func mergedErrorDescription(_ first: String?, _ second: String?) -> String? {
+        let values = [first, second]
+            .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        guard !values.isEmpty else { return nil }
+        return Array(NSOrderedSet(array: values)).compactMap { $0 as? String }.joined(separator: "\n")
+    }
+
+    private static func failureDetails(stdout: String, stderr: String) -> String {
+        let stderrText = stderr.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !stderrText.isEmpty {
+            return stderrText
+        }
+        let stdoutText = stdout.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !stdoutText.isEmpty {
+            return stdoutText
+        }
+        return "No diagnostic output was produced."
+    }
+
+    private static func isDescendant(_ candidate: URL, of root: URL) -> Bool {
+        let candidateComponents = candidate.pathComponents
+        let rootComponents = root.pathComponents
+        guard candidateComponents.count > rootComponents.count else { return false }
+        return Array(candidateComponents.prefix(rootComponents.count)) == rootComponents
+    }
+}
+
+private extension Result {
+    var failure: Failure? {
+        if case .failure(let error) = self {
+            return error
+        }
+        return nil
     }
 }

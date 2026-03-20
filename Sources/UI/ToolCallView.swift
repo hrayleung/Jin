@@ -178,7 +178,7 @@ struct ToolCallView: View {
                 )
 
                 if let rawOutputPath = toolResult.rawOutputPath {
-                    ToolOutputFileActionRow(rawOutputPath: rawOutputPath)
+                    ToolOutputFileActionRowView(rawOutputPath: rawOutputPath)
                 }
             } else {
                 Text("Waiting for tool result...")

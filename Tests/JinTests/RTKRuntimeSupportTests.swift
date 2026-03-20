@@ -8,6 +8,7 @@ final class RTKRuntimeSupportTests: XCTestCase {
     private var helperURL: URL!
     private var previousRTKPath: String?
     private var previousRTKHome: String?
+    private var previousVersionFailureFlag: String?
 
     override func setUpWithError() throws {
         try super.setUpWithError()
@@ -22,8 +23,10 @@ final class RTKRuntimeSupportTests: XCTestCase {
 
         previousRTKPath = ProcessInfo.processInfo.environment["JIN_RTK_PATH"]
         previousRTKHome = ProcessInfo.processInfo.environment["JIN_RTK_HOME"]
+        previousVersionFailureFlag = ProcessInfo.processInfo.environment["JIN_RTK_TEST_FAIL_VERSION"]
         setenv("JIN_RTK_PATH", helperURL.path, 1)
         setenv("JIN_RTK_HOME", tempHomeURL.path, 1)
+        unsetenv("JIN_RTK_TEST_FAIL_VERSION")
     }
 
     override func tearDownWithError() throws {
@@ -37,6 +40,12 @@ final class RTKRuntimeSupportTests: XCTestCase {
             setenv("JIN_RTK_HOME", previousRTKHome, 1)
         } else {
             unsetenv("JIN_RTK_HOME")
+        }
+
+        if let previousVersionFailureFlag {
+            setenv("JIN_RTK_TEST_FAIL_VERSION", previousVersionFailureFlag, 1)
+        } else {
+            unsetenv("JIN_RTK_TEST_FAIL_VERSION")
         }
 
         if let tempDirectoryURL {
@@ -80,6 +89,19 @@ final class RTKRuntimeSupportTests: XCTestCase {
         XCTAssertEqual(version, "rtk 0.31.0-test")
     }
 
+    func testVersionStringThrowsWhenHelperVersionProbeFails() async {
+        setenv("JIN_RTK_TEST_FAIL_VERSION", "1", 1)
+        defer { unsetenv("JIN_RTK_TEST_FAIL_VERSION") }
+
+        do {
+            _ = try await RTKRuntimeSupport.versionString()
+            XCTFail("Expected version probe failure")
+        } catch {
+            XCTAssertTrue(error.localizedDescription.contains("RTK version probe failed"))
+            XCTAssertTrue(error.localizedDescription.contains("simulated version failure"))
+        }
+    }
+
     func testAgentShellExecuteUsesRTKAndCapturesRawOutputPath() async throws {
         let controls = makeAgentControls()
         let definitions = await AgentToolHub.shared.toolDefinitions(for: controls)
@@ -113,6 +135,24 @@ final class RTKRuntimeSupportTests: XCTestCase {
         XCTAssertFalse(result.isError)
         XCTAssertTrue(result.text.contains("0 matches"))
         XCTAssertTrue(result.rawOutputPath?.hasSuffix("grep-no-match.log") == true)
+    }
+
+    func testResolveRawOutputPathRejectsPathsOutsideManagedTeeDirectory() throws {
+        let externalURL = tempDirectoryURL.appendingPathComponent("outside.log", isDirectory: false)
+        try "external".write(to: externalURL, atomically: true, encoding: .utf8)
+
+        let resolved = RTKRuntimeSupport.resolveRawOutputPath(in: "[full output: \(externalURL.path)]")
+        XCTAssertNil(resolved)
+    }
+
+    func testResolveRawOutputPathAcceptsManagedTeeFile() throws {
+        try RTKConfigManager.ensureManagedConfiguration()
+        let teeDirectoryURL = try RTKConfigManager.teeDirectoryURL()
+        let teeFileURL = teeDirectoryURL.appendingPathComponent("managed.log", isDirectory: false)
+        try "managed".write(to: teeFileURL, atomically: true, encoding: .utf8)
+
+        let resolved = RTKRuntimeSupport.resolveRawOutputPath(in: "[full output: \(teeFileURL.path)]")
+        XCTAssertEqual(resolved, teeFileURL.standardizedFileURL.resolvingSymlinksInPath().path)
     }
 
     func testAgentApprovalSessionStoreRemembersApprovedKeys() async {
@@ -160,6 +200,10 @@ final class RTKRuntimeSupportTests: XCTestCase {
 
         case "$cmd" in
           --version)
+            if [[ "${JIN_RTK_TEST_FAIL_VERSION:-0}" == "1" ]]; then
+              echo "simulated version failure" >&2
+              exit 7
+            fi
             echo "rtk 0.31.0-test"
             ;;
           rewrite)

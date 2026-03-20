@@ -1,7 +1,7 @@
 import AppKit
 import SwiftUI
 
-struct ToolOutputFileActionRow: View {
+struct ToolOutputFileActionRowView: View {
     let rawOutputPath: String
 
     private var fileURL: URL? {

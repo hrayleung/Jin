@@ -8,6 +8,8 @@ struct ShellResult: Sendable {
 }
 
 enum AgentShellExecutor {
+    private static let blockedEnvironmentPrefixes = ["DYLD_", "LD_"]
+
     static func execute(
         command: String,
         workingDirectory: String?,
@@ -72,7 +74,19 @@ enum AgentShellExecutor {
             env["PATH"] = (missingPaths + [currentPath]).joined(separator: ":")
         }
         if let environment {
-            env.merge(environment) { _, new in new }
+            for (key, value) in environment {
+                if blockedEnvironmentPrefixes.contains(where: { key.hasPrefix($0) }) {
+                    continue
+                }
+                if key == "PATH" {
+                    let basePath = env["PATH"] ?? ""
+                    env["PATH"] = [value, basePath]
+                        .filter { !$0.isEmpty }
+                        .joined(separator: ":")
+                } else {
+                    env[key] = value
+                }
+            }
         }
         process.environment = env
 

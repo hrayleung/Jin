@@ -93,6 +93,27 @@ final class AgentShellExecutorTests: XCTestCase {
         XCTAssertTrue(result.stderr.contains("err"))
     }
 
+    func testEnvironmentMergePreservesManagedPathAndBlocksLoaderOverrides() async throws {
+        let result = try await AgentShellExecutor.execute(
+            command: "printf '%s\n' \"$PATH\"; printf '%s\n' \"${DYLD_LIBRARY_PATH-unset}\"",
+            workingDirectory: nil,
+            timeout: 10,
+            maxOutputBytes: 102_400,
+            environment: [
+                "PATH": "/custom/bin",
+                "DYLD_LIBRARY_PATH": "/tmp/evil"
+            ]
+        )
+
+        let lines = result.stdout
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .components(separatedBy: .newlines)
+        XCTAssertGreaterThanOrEqual(lines.count, 2)
+        XCTAssertTrue(lines[0].contains("/custom/bin"))
+        XCTAssertTrue(lines[0].contains("/usr/bin"))
+        XCTAssertEqual(lines[1], "unset")
+    }
+
     // MARK: - Working directory
 
     func testWorkingDirectory() async throws {

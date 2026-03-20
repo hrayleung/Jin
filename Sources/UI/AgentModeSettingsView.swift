@@ -159,17 +159,29 @@ struct AgentModeSettingsView: View {
                 }
 
                 LabeledContent("RTK Config") {
-                    Text(status.configURL.path)
-                        .font(.system(.caption, design: .monospaced))
-                        .multilineTextAlignment(.trailing)
-                        .textSelection(.enabled)
+                    if let configURL = status.configURL {
+                        Text(configURL.path)
+                            .font(.system(.caption, design: .monospaced))
+                            .multilineTextAlignment(.trailing)
+                            .textSelection(.enabled)
+                    } else {
+                        Text("Unavailable")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                 }
 
                 LabeledContent("Tee Directory") {
-                    Text(status.teeDirectoryURL.path)
-                        .font(.system(.caption, design: .monospaced))
-                        .multilineTextAlignment(.trailing)
-                        .textSelection(.enabled)
+                    if let teeDirectoryURL = status.teeDirectoryURL {
+                        Text(teeDirectoryURL.path)
+                            .font(.system(.caption, design: .monospaced))
+                            .multilineTextAlignment(.trailing)
+                            .textSelection(.enabled)
+                    } else {
+                        Text("Unavailable")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                 }
 
                 if let errorDescription = status.errorDescription {
@@ -197,17 +209,17 @@ struct AgentModeSettingsView: View {
                 }
                 .buttonStyle(.bordered)
 
-                if let configPath = rtkStatus?.configURL.path,
-                   FileManager.default.fileExists(atPath: configPath) {
+                if let configURL = rtkStatus?.configURL,
+                   FileManager.default.fileExists(atPath: configURL.path) {
                     Button("Open Config") {
-                        NSWorkspace.shared.open(URL(fileURLWithPath: configPath))
+                        NSWorkspace.shared.open(configURL)
                     }
                     .buttonStyle(.bordered)
                 }
 
-                if let teePath = rtkStatus?.teeDirectoryURL.path {
+                if let teeDirectoryURL = rtkStatus?.teeDirectoryURL {
                     Button("Reveal Tee Directory") {
-                        NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: teePath)])
+                        NSWorkspace.shared.activateFileViewerSelecting([teeDirectoryURL])
                     }
                     .buttonStyle(.bordered)
                 }
