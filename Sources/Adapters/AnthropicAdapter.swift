@@ -103,7 +103,13 @@ actor AnthropicAdapter: LLMProviderAdapter {
 
     func fetchAvailableModels() async throws -> [ModelInfo] {
         if !supportsModelsEndpoint {
-            return ModelCatalog.seededModels(for: providerConfig.type)
+            return (ModelCatalog.orderedRecords[providerConfig.type] ?? []).map { r in
+                ModelInfo(
+                    id: r.id, name: r.displayName, capabilities: r.capabilities,
+                    contextWindow: r.contextWindow, maxOutputTokens: r.maxOutputTokens,
+                    reasoningConfig: r.reasoningConfig
+                )
+            }
         }
 
         var allModels: [ModelInfo] = []

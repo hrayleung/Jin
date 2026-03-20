@@ -88,7 +88,7 @@ struct AddProviderView: View {
                 }
 
                 if providerType == .minimaxCodingPlan {
-                    Text("Uses MiniMax's Anthropic-compatible endpoint: `https://api.minimaxi.com/anthropic/v1`. Requires a MiniMax Coding Plan API key.")
+                    Text("Uses MiniMax's Anthropic-compatible endpoint: `https://api.minimaxi.com/anthropic/v1`. Supports both pay-as-you-go and Coding Plan (Token Plan) API keys.")
                         .jinInfoCallout()
                 }
 
