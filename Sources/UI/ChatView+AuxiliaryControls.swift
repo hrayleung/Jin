@@ -443,7 +443,7 @@ extension ChatView {
     }
 
     var hasCodeExecutionConfiguration: Bool {
-        providerType == .openai || providerType == .anthropic
+        providerType == .openai || providerType == .openaiWebSocket || providerType == .anthropic
     }
 
     var codeExecutionEnabledBinding: Binding<Bool> {
@@ -459,7 +459,8 @@ extension ChatView {
     }
 
     var isCodeExecutionDraftValid: Bool {
-        guard providerType == .openai, codeExecutionOpenAIUseExistingContainer else {
+        guard (providerType == .openai || providerType == .openaiWebSocket),
+              codeExecutionOpenAIUseExistingContainer else {
             return true
         }
         return codeExecutionDraft.openAI?.normalizedExistingContainerID != nil
@@ -476,7 +477,7 @@ extension ChatView {
         guard isCodeExecutionEnabled else { return nil }
 
         switch providerType {
-        case .openai:
+        case .openai, .openaiWebSocket:
             if controls.codeExecution?.openAI?.normalizedExistingContainerID != nil {
                 return "reuse"
             }
@@ -492,7 +493,7 @@ extension ChatView {
         guard isCodeExecutionEnabled else { return "Code Execution: Off" }
 
         switch providerType {
-        case .openai:
+        case .openai, .openaiWebSocket:
             if let containerID = controls.codeExecution?.openAI?.normalizedExistingContainerID {
                 return "Code Execution: Reuse \(containerID)"
             }

@@ -114,6 +114,24 @@ final class ModelCatalogTests: XCTestCase {
         XCTAssertNil(cloudflareModel.reasoningConfig)
     }
 
+    func testOpenAIGPT52AndNewerCatalogDefaultsToNoReasoningEffort() {
+        let gpt54 = ModelCatalog.modelInfo(for: "gpt-5.4", provider: .openai)
+        XCTAssertEqual(gpt54.reasoningConfig?.type, .effort)
+        XCTAssertEqual(gpt54.reasoningConfig?.defaultEffort, ReasoningEffort.none)
+
+        let gpt52 = ModelCatalog.modelInfo(for: "gpt-5.2", provider: .openai)
+        XCTAssertEqual(gpt52.reasoningConfig?.defaultEffort, ReasoningEffort.none)
+
+        let gpt54Mini = ModelCatalog.modelInfo(for: "gpt-5.4-mini", provider: .openaiWebSocket)
+        XCTAssertEqual(gpt54Mini.reasoningConfig?.defaultEffort, ReasoningEffort.none)
+
+        let cloudflareMini = ModelCatalog.modelInfo(for: "openai/gpt-5.4-mini", provider: .cloudflareAIGateway)
+        XCTAssertEqual(cloudflareMini.reasoningConfig?.defaultEffort, ReasoningEffort.none)
+
+        let vercelNano = ModelCatalog.modelInfo(for: "openai/gpt-5.4-nano", provider: .vercelAIGateway)
+        XCTAssertEqual(vercelNano.reasoningConfig?.defaultEffort, ReasoningEffort.none)
+    }
+
     func testZhipuCodingPlanExactModelMetadataAndUnknownFallback() {
         let glm5 = ModelCatalog.modelInfo(
             for: "glm-5",

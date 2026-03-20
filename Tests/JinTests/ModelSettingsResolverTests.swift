@@ -348,6 +348,31 @@ final class ModelSettingsResolverTests: XCTestCase {
         XCTAssertEqual(claude?.type, .effort)
     }
 
+    func testOpenAICompatibleDefaultReasoningConfigUsesDocsVerifiedOpenAIDefaults() {
+        let gpt54Mini = ModelCapabilityRegistry.defaultReasoningConfig(
+            for: .openrouter,
+            modelID: "openai/gpt-5.4-mini"
+        )
+        let gpt54 = ModelCapabilityRegistry.defaultReasoningConfig(
+            for: .vercelAIGateway,
+            modelID: "openai/gpt-5.4"
+        )
+        let gpt54Pro = ModelCapabilityRegistry.defaultReasoningConfig(
+            for: .openrouter,
+            modelID: "openai/gpt-5.4-pro"
+        )
+        let gpt5 = ModelCapabilityRegistry.defaultReasoningConfig(
+            for: .openrouter,
+            modelID: "openai/gpt-5"
+        )
+
+        XCTAssertEqual(gpt54Mini?.type, .effort)
+        XCTAssertEqual(gpt54Mini?.defaultEffort, ReasoningEffort.none)
+        XCTAssertEqual(gpt54?.defaultEffort, ReasoningEffort.none)
+        XCTAssertEqual(gpt54Pro?.defaultEffort, .high)
+        XCTAssertEqual(gpt5?.defaultEffort, .medium)
+    }
+
     func testOpenAIStyleExtremeEffortSupportUsesExactModelIDs() {
         let gpt52pro = ModelInfo(
             id: "openai/gpt-5.2-pro",

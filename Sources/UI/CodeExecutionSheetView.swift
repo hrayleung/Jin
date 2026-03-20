@@ -52,7 +52,7 @@ struct CodeExecutionSheetView: View {
         .frame(minWidth: 560, idealWidth: 620, minHeight: 380, idealHeight: 460)
         .onChange(of: openAIUseExistingContainer) { _, useExisting in
             draftError = nil
-            guard providerType == .openai else { return }
+            guard providerType == .openai || providerType == .openaiWebSocket else { return }
 
             var openAI = draft.openAI ?? OpenAICodeExecutionOptions()
             if useExisting {
@@ -87,7 +87,7 @@ struct CodeExecutionSheetView: View {
     @ViewBuilder
     private var providerSettingsCard: some View {
         switch providerType {
-        case .openai:
+        case .openai, .openaiWebSocket:
             openAISettingsCard
         case .anthropic:
             anthropicSettingsCard
@@ -106,7 +106,7 @@ struct CodeExecutionSheetView: View {
                 title: "xAI",
                 body: "xAI code execution currently has no additional request parameters exposed in Jin."
             )
-        case .none, .openaiWebSocket, .codexAppServer, .githubCopilot, .openaiCompatible,
+        case .none, .codexAppServer, .githubCopilot, .openaiCompatible,
              .cloudflareAIGateway, .vercelAIGateway, .openrouter, .perplexity, .groq, .cohere,
              .mistral, .deepinfra, .together, .deepseek, .zhipuCodingPlan, .fireworks,
              .cerebras, .sambanova:
@@ -216,7 +216,7 @@ struct CodeExecutionSheetView: View {
     @ViewBuilder
     private var guidanceCard: some View {
         switch providerType {
-        case .openai:
+        case .openai, .openaiWebSocket:
             Text("OpenAI code execution uses the Responses API code_interpreter tool. Auto mode configures the request-level container; Existing mode reuses a pre-created container ID.")
                 .jinInfoCallout()
         case .anthropic:
@@ -270,7 +270,7 @@ struct CodeExecutionSheetView: View {
 
     private var summaryText: String {
         switch providerType {
-        case .openai:
+        case .openai, .openaiWebSocket:
             return "OpenAI supports request-level container configuration for code interpreter, including memory limits, extra file IDs, and explicit container reuse."
         case .anthropic:
             return "Anthropic supports reusable code execution containers. Supported uploaded files can be attached directly to the sandbox."

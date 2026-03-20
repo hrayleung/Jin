@@ -577,7 +577,8 @@ func isOpenAIAudioInputModelID(_ lowerModelID: String) -> Bool {
 // MARK: - OpenAI Responses Sampling Parameter Support
 
 /// GPT-5 family models generally reject `temperature` / `top_p` on Responses API.
-/// Per OpenAI docs, these are only accepted on GPT-5.2 / GPT-5.1 when reasoning is disabled.
+/// Per current OpenAI docs, GPT-5.2-and-newer models only accept these when reasoning is `none`,
+/// while older GPT-5 models do not support them on Responses at all.
 /// Keep this conservative to avoid `400 invalid_request_error` for unsupported models.
 private let openAIResponsesSamplingAllowedModelIDs: Set<String> = [
     "gpt-5.4",

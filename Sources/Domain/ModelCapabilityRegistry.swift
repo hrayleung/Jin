@@ -19,6 +19,22 @@ private extension ModelRequestShape {
 }
 
 enum ModelCapabilityRegistry {
+    private static let openAINoneDefaultReasoningModelIDs: Set<String> = [
+        "gpt-5.2",
+        "gpt-5.2-2025-12-11",
+        "gpt-5.4",
+        "gpt-5.4-2026-03-05",
+        "gpt-5.4-mini",
+        "gpt-5.4-mini-2026-03-17",
+        "gpt-5.4-nano",
+        "gpt-5.4-nano-2026-03-17",
+    ]
+
+    private static let openAIHighDefaultReasoningModelIDs: Set<String> = [
+        "gpt-5.4-pro",
+        "gpt-5.4-pro-2026-03-05",
+    ]
+
     private static let openAIStyleExtremeEffortModelIDs: Set<String> = [
         "gpt-5.4",
         "gpt-5.4-2026-03-05",
@@ -429,6 +445,15 @@ enum ModelCapabilityRegistry {
         if isAnthropicModelID(lowerModelID) {
             return defaultAnthropicReasoningConfig(lowerModelID: lowerModelID, shape: .openAICompatible)
         }
+
+        let canonicalLowerModelID = canonicalOpenAIModelID(lowerModelID: lowerModelID)
+        if openAINoneDefaultReasoningModelIDs.contains(canonicalLowerModelID) {
+            return ModelReasoningConfig(type: .effort, defaultEffort: ReasoningEffort.none)
+        }
+        if openAIHighDefaultReasoningModelIDs.contains(canonicalLowerModelID) {
+            return ModelReasoningConfig(type: .effort, defaultEffort: .high)
+        }
+
         return ModelReasoningConfig(type: .effort, defaultEffort: .medium)
     }
 

@@ -194,7 +194,7 @@ extension ChatView {
         codeExecutionOpenAIUseExistingContainer = openAISettings?.normalizedExistingContainerID != nil
         codeExecutionOpenAIFileIDsDraft = openAISettings?.container?.normalizedFileIDs?.joined(separator: "\n") ?? ""
 
-        if providerType == .openai,
+        if (providerType == .openai || providerType == .openaiWebSocket),
            !codeExecutionOpenAIUseExistingContainer,
            codeExecutionDraft.openAI == nil {
             codeExecutionDraft.openAI = OpenAICodeExecutionOptions(
@@ -209,7 +209,7 @@ extension ChatView {
     func applyCodeExecutionDraft() -> Bool {
         codeExecutionDraftError = nil
 
-        if providerType == .openai {
+        if providerType == .openai || providerType == .openaiWebSocket {
             var openAI = codeExecutionDraft.openAI ?? OpenAICodeExecutionOptions()
 
             if codeExecutionOpenAIUseExistingContainer {
