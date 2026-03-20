@@ -50,6 +50,91 @@ final class AdapterRequestConstructionTests: XCTestCase {
         XCTAssertEqual(models.first?.id, "openai/gpt-4o")
     }
 
+    func testOpenRouterAdapterFetchModelsUsesCatalogAndAPIModelMetadata() async throws {
+        let (configuration, protocolType) = makeAdapterRequestConstructionSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        let providerConfig = ProviderConfig(
+            id: "or",
+            name: "OpenRouter",
+            type: .openrouter,
+            apiKey: "ignored",
+            baseURL: "https://openrouter.ai/api/v1"
+        )
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://openrouter.ai/api/v1/models")
+
+            let payload: [String: Any] = [
+                "data": [
+                    [
+                        "id": "xiaomi/mimo-v2-omni",
+                        "name": "Xiaomi: MiMo-V2-Omni",
+                        "context_length": 262_144,
+                        "architecture": [
+                            "input_modalities": ["text", "image", "audio", "video"],
+                            "output_modalities": ["text"],
+                        ],
+                        "supported_parameters": ["reasoning", "tools", "tool_choice"],
+                        "top_provider": [
+                            "context_length": 262_144,
+                            "max_completion_tokens": 65_536,
+                        ],
+                        "pricing": [
+                            "input_cache_read": "0.00000008",
+                        ],
+                    ],
+                    [
+                        "id": "vendor/unknown-vision-reasoner",
+                        "name": "Unknown Vision Reasoner",
+                        "context_length": 321_000,
+                        "architecture": [
+                            "input_modalities": ["text", "image"],
+                            "output_modalities": ["text"],
+                        ],
+                        "supported_parameters": ["reasoning", "tools"],
+                        "top_provider": [
+                            "max_completion_tokens": 12_345,
+                        ],
+                        "pricing": [
+                            "input_cache_read": "0.00000001",
+                        ],
+                    ],
+                ],
+            ]
+            let data = try JSONSerialization.data(withJSONObject: payload)
+            return (
+                HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                data
+            )
+        }
+
+        let adapter = OpenRouterAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let models = try await adapter.fetchAvailableModels()
+        let byID = Dictionary(uniqueKeysWithValues: models.map { ($0.id, $0) })
+
+        let mimoOmni = try XCTUnwrap(byID["xiaomi/mimo-v2-omni"])
+        XCTAssertEqual(mimoOmni.name, "MiMo V2 Omni")
+        XCTAssertEqual(mimoOmni.contextWindow, 262_144)
+        XCTAssertEqual(mimoOmni.maxOutputTokens, 65_536)
+        XCTAssertTrue(mimoOmni.capabilities.contains(.toolCalling))
+        XCTAssertTrue(mimoOmni.capabilities.contains(.vision))
+        XCTAssertTrue(mimoOmni.capabilities.contains(.audio))
+        XCTAssertTrue(mimoOmni.capabilities.contains(.reasoning))
+        XCTAssertTrue(mimoOmni.capabilities.contains(.promptCaching))
+        XCTAssertEqual(mimoOmni.reasoningConfig?.type, .effort)
+
+        let unknown = try XCTUnwrap(byID["vendor/unknown-vision-reasoner"])
+        XCTAssertEqual(unknown.name, "Unknown Vision Reasoner")
+        XCTAssertEqual(unknown.contextWindow, 321_000)
+        XCTAssertEqual(unknown.maxOutputTokens, 12_345)
+        XCTAssertTrue(unknown.capabilities.contains(.toolCalling))
+        XCTAssertTrue(unknown.capabilities.contains(.vision))
+        XCTAssertTrue(unknown.capabilities.contains(.reasoning))
+        XCTAssertTrue(unknown.capabilities.contains(.promptCaching))
+        XCTAssertEqual(unknown.reasoningConfig?.type, .effort)
+    }
+
     func testOpenAICompatibleGitHubCatalogFetchIncludesGitHubHeaders() async throws {
         let (configuration, protocolType) = makeAdapterRequestConstructionSessionConfiguration()
         let networkManager = NetworkManager(configuration: configuration)
