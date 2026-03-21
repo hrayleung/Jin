@@ -131,7 +131,7 @@ struct ModelPickerPopover: View {
                 lhs.name.localizedStandardCompare(rhs.name) == .orderedAscending
             }
 
-        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
 
         var sections: [ProviderSection] = []
         sections.reserveCapacity(providersSorted.count)
@@ -146,14 +146,20 @@ struct ModelPickerPopover: View {
             }
 
             if !query.isEmpty {
-                let providerMatches = provider.name.lowercased().contains(query)
-                    || provider.id.lowercased().contains(query)
-                    || provider.typeRaw.lowercased().contains(query)
+                let providerMatch = FuzzyMatch.bestMatch(
+                    query: query,
+                    candidates: [provider.name, provider.typeRaw]
+                )
 
-                if !providerMatches {
-                    filtered = filtered.filter { model in
-                        model.name.lowercased().contains(query) || model.id.lowercased().contains(query)
+                if !providerMatch.matched {
+                    let scored: [(model: ModelInfo, score: Int)] = filtered.compactMap { model in
+                        let result = FuzzyMatch.bestMatch(query: query, candidates: [model.name, model.id])
+                        guard result.matched else { return nil }
+                        return (model, result.score)
                     }
+                    filtered = scored
+                        .sorted { $0.score > $1.score }
+                        .map(\.model)
                 }
             }
 
