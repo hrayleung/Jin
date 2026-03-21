@@ -8,15 +8,32 @@ struct FetchedModelsSelectionSheet: View {
     let providerType: ProviderType?
     let onConfirm: ([ModelInfo]) -> Void
 
-    @State private var selectedIDs: Set<String> = []
-    @State private var searchText = ""
-    @State private var filterMode: FilterMode = .all
+    @State private var selectedIDs: Set<String>
+    @State private var searchText: String
+    @State private var filterMode: FilterMode
 
     enum FilterMode: String, CaseIterable {
         case all = "All Models"
         case new = "New Only"
         case supported = "Fully Supported"
         case existing = "Already Added"
+    }
+
+    init(
+        fetchedModels: [ModelInfo],
+        existingModelIDs: Set<String>,
+        providerType: ProviderType?,
+        onConfirm: @escaping ([ModelInfo]) -> Void
+    ) {
+        self.fetchedModels = fetchedModels
+        self.existingModelIDs = existingModelIDs
+        self.providerType = providerType
+        self.onConfirm = onConfirm
+
+        let newModelIDs = Set(fetchedModels.lazy.filter { !existingModelIDs.contains($0.id) }.map(\.id))
+        _selectedIDs = State(initialValue: newModelIDs)
+        _searchText = State(initialValue: "")
+        _filterMode = State(initialValue: newModelIDs.isEmpty ? .all : .new)
     }
 
     var body: some View {
@@ -178,9 +195,10 @@ struct FetchedModelsSelectionSheet: View {
                         .fixedSize()
                 }
 
-                Toggle(model.name, isOn: toggleBinding(for: model.id))
-                    .toggleStyle(.checkbox)
-                    .labelsHidden()
+                Image(systemName: isSelected ? "checkmark.square.fill" : "square")
+                    .foregroundStyle(isSelected ? Color.accentColor : .secondary)
+                    .imageScale(.large)
+                    .accessibilityHidden(true)
             }
             .padding(.horizontal, JinSpacing.large)
             .padding(.vertical, JinSpacing.small)
@@ -279,19 +297,6 @@ struct FetchedModelsSelectionSheet: View {
         } else {
             selectedIDs.insert(id)
         }
-    }
-
-    private func toggleBinding(for modelID: String) -> Binding<Bool> {
-        Binding(
-            get: { selectedIDs.contains(modelID) },
-            set: { selected in
-                if selected {
-                    selectedIDs.insert(modelID)
-                } else {
-                    selectedIDs.remove(modelID)
-                }
-            }
-        )
     }
 
     private func isFullySupported(_ modelID: String) -> Bool {
