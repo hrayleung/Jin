@@ -198,14 +198,9 @@ struct ChatSingleThreadMessagesView: View {
     @Binding var messageRenderLimit: Int
     @Binding var pendingRestoreScrollMessageID: UUID?
     @Binding var isPinnedToBottom: Bool
-    @Binding var scrollPersistencePinnedToBottom: Bool
     @Binding var pinnedBottomRefreshGeneration: Int
-    @Binding var topVisibleMessageID: UUID?
     @State private var lastMeasuredContentHeight: CGFloat = 0
-    @State private var observedPinnedToBottom = true
     @State private var pendingPinnedBottomRefreshTask: Task<Void, Never>?
-    @State private var isScrollRestoreComplete = false
-    @State private var suppressPinnedStateUpdatesUntil: Date?
 
     var body: some View {
         ScrollViewReader { proxy in
@@ -227,7 +222,6 @@ struct ChatSingleThreadMessagesView: View {
                                 eagerCodeHighlightStartIndex: eagerCodeHighlightStartIndex
                             )
                         }
-                        .scrollTargetLayout()
                     } else {
                         VStack(alignment: .leading, spacing: 16) {
                             timelineView(
@@ -237,7 +231,6 @@ struct ChatSingleThreadMessagesView: View {
                                 eagerCodeHighlightStartIndex: eagerCodeHighlightStartIndex
                             )
                         }
-                        .scrollTargetLayout()
                     }
                 }
                 .background {
@@ -247,14 +240,6 @@ struct ChatSingleThreadMessagesView: View {
                             value: geometry.size.height
                         )
                     }
-                }
-                .overlay(alignment: .topLeading) {
-                    ScrollViewPinObserver(
-                        isPinnedToBottom: $observedPinnedToBottom,
-                        bottomTolerance: composerHeight + 32
-                    )
-                    .frame(width: 1, height: 1)
-                    .allowsHitTesting(false)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, 20)
@@ -280,42 +265,17 @@ struct ChatSingleThreadMessagesView: View {
                     .transition(.opacity.combined(with: .scale(scale: 0.8)))
                 }
             }
-            .opacity(isScrollRestoreComplete ? 1 : 0)
             .animation(.easeInOut(duration: 0.2), value: isPinnedToBottom)
-            .scrollPosition(id: $topVisibleMessageID, anchor: .top)
+            .onScrollPinChange(
+                isPinned: $isPinnedToBottom,
+                bottomTolerance: composerHeight + 32
+            )
             .onChange(of: messageRenderLimit) { _, _ in
-                ChatScrollDebug.log(
-                    "renderLimit changed conv=\(ChatScrollDebug.shortID(conversationID)) " +
-                    "limit=\(messageRenderLimit) pendingRestore=\(ChatScrollDebug.shortID(pendingRestoreScrollMessageID))"
-                )
-                applyBoundScrollRestorationIfNeeded()
-            }
-            .onChange(of: observedPinnedToBottom) { _, newValue in
-                if let suppressPinnedStateUpdatesUntil, Date() < suppressPinnedStateUpdatesUntil {
-                    ChatScrollDebug.log(
-                        "ignoring observed pin during restore conv=\(ChatScrollDebug.shortID(conversationID)) " +
-                        "observed=\(newValue)"
-                    )
-                    return
+                guard let restoreID = pendingRestoreScrollMessageID else { return }
+                DispatchQueue.main.async {
+                    proxy.scrollTo(restoreID, anchor: .top)
+                    pendingRestoreScrollMessageID = nil
                 }
-
-                ChatScrollDebug.log(
-                    "runtime pin changed conv=\(ChatScrollDebug.shortID(conversationID)) " +
-                    "isPinned=\(newValue)"
-                )
-                if isPinnedToBottom != newValue {
-                    isPinnedToBottom = newValue
-                }
-                if scrollPersistencePinnedToBottom != newValue {
-                    scrollPersistencePinnedToBottom = newValue
-                }
-            }
-            .onChange(of: pendingRestoreScrollMessageID) { _, _ in
-                ChatScrollDebug.log(
-                    "pending restore changed conv=\(ChatScrollDebug.shortID(conversationID)) " +
-                    "pendingRestore=\(ChatScrollDebug.shortID(pendingRestoreScrollMessageID))"
-                )
-                applyBoundScrollRestorationIfNeeded()
             }
             .onChange(of: conversationMessageCount) { _, _ in
                 refreshPinnedBottomIfNeeded(proxy: proxy)
@@ -328,33 +288,9 @@ struct ChatSingleThreadMessagesView: View {
             .onChange(of: conversationID) { _, _ in
                 cancelPendingPinnedBottomRefresh()
                 lastMeasuredContentHeight = 0
-                observedPinnedToBottom = true
-                scrollPersistencePinnedToBottom = true
-                suppressPinnedStateUpdatesUntil = Date().addingTimeInterval(1.0)
-                topVisibleMessageID = nil
-
-                if pendingRestoreScrollMessageID != nil {
-                    isScrollRestoreComplete = false
-                    applyBoundScrollRestorationIfNeeded()
-                } else {
-                    isScrollRestoreComplete = true
-                }
             }
             .onPreferenceChange(MessageTimelineContentHeightPreferenceKey.self) { newHeight in
                 handleContentHeightChange(newHeight, proxy: proxy)
-            }
-            .onAppear {
-                ChatScrollDebug.log(
-                    "message stage appear conv=\(ChatScrollDebug.shortID(conversationID)) " +
-                    "pendingRestore=\(ChatScrollDebug.shortID(pendingRestoreScrollMessageID)) " +
-                    "top=\(ChatScrollDebug.shortID(topVisibleMessageID))"
-                )
-                if pendingRestoreScrollMessageID != nil {
-                    applyBoundScrollRestorationIfNeeded()
-                } else {
-                    suppressPinnedStateUpdatesUntil = Date().addingTimeInterval(1.0)
-                    isScrollRestoreComplete = true
-                }
             }
             .onDisappear {
                 cancelPendingPinnedBottomRefresh()
@@ -373,6 +309,8 @@ struct ChatSingleThreadMessagesView: View {
             hiddenCount: hiddenCount,
             messageRenderPageSize: messageRenderPageSize,
             onLoadEarlier: {
+                guard let firstVisible = visibleMessages.first else { return }
+                pendingRestoreScrollMessageID = firstVisible.id
                 messageRenderLimit = min(allMessages.count, messageRenderLimit + messageRenderPageSize)
             },
             bubbleMaxWidth: bubbleMaxWidth,
@@ -448,22 +386,6 @@ struct ChatSingleThreadMessagesView: View {
             proxy: proxy,
             debounceNanoseconds: 120_000_000
         )
-    }
-
-    private func applyBoundScrollRestorationIfNeeded() {
-        guard let restoreID = pendingRestoreScrollMessageID else { return }
-        ChatScrollDebug.log(
-            "apply bound restore conv=\(ChatScrollDebug.shortID(conversationID)) " +
-            "restoreID=\(ChatScrollDebug.shortID(restoreID))"
-        )
-        suppressPinnedStateUpdatesUntil = Date().addingTimeInterval(1.0)
-        isPinnedToBottom = false
-        scrollPersistencePinnedToBottom = false
-        topVisibleMessageID = restoreID
-        pendingRestoreScrollMessageID = nil
-        withAnimation(.easeIn(duration: 0.15)) {
-            isScrollRestoreComplete = true
-        }
     }
 }
 
