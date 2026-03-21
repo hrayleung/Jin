@@ -458,6 +458,7 @@ struct ChatSingleThreadMessagesView: View {
         )
         suppressPinnedStateUpdatesUntil = Date().addingTimeInterval(1.0)
         isPinnedToBottom = false
+        scrollPersistencePinnedToBottom = false
         topVisibleMessageID = restoreID
         pendingRestoreScrollMessageID = nil
         withAnimation(.easeIn(duration: 0.15)) {

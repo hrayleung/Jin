@@ -51,6 +51,10 @@ struct ScrollViewPinObserver: NSViewRepresentable {
                 return
             }
 
+            guard view.window != nil,
+                  view.superview != nil,
+                  attachAttemptCount < 8 else { return }
+
             attachAttemptCount += 1
             if !hasLoggedMissingScrollView && attachAttemptCount >= 3 {
                 hasLoggedMissingScrollView = true
