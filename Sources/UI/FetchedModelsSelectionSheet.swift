@@ -269,9 +269,16 @@ struct FetchedModelsSelectionSheet: View {
             filtered = orderedModels.filter { existingModelIDs.contains($0.id) }
         }
 
-        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !query.isEmpty else { return filtered }
-        return filtered.filter { $0.name.lowercased().contains(query) || $0.id.lowercased().contains(query) }
+        let scored: [(model: ModelInfo, score: Int)] = filtered.compactMap { model in
+            let result = FuzzyMatch.bestMatch(query: query, candidates: [model.name, model.id])
+            guard result.matched else { return nil }
+            return (model, result.score)
+        }
+        return scored
+            .sorted { $0.score > $1.score }
+            .map(\.model)
     }
 
     private var orderedModels: [ModelInfo] {
