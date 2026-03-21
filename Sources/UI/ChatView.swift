@@ -99,6 +99,7 @@ struct ChatView: View {
     @State var scrollRestorationDeferred = false
     @State var pinnedBottomRefreshGeneration = 0
     @State var isExpandedComposerPresented = false
+    @State var isComposerHidden = false
     @State var activeThreadID: UUID?
 
     // Cache expensive derived data so typing/streaming doesn't repeatedly sort/decode the entire history.

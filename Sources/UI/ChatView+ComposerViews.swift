@@ -28,6 +28,7 @@ extension ChatView {
             onCancel: handleComposerCancel,
             onRemoveAttachment: removeDraftAttachment,
             onExpand: { isExpandedComposerPresented = true },
+            onHide: toggleComposerVisibility,
             onSend: sendMessage,
             slashCommandServers: slashCommandMCPItems,
             isSlashCommandActive: isSlashMCPPopoverVisible,
@@ -282,29 +283,62 @@ extension ChatView {
 
     var floatingComposer: some View {
         VStack(spacing: JinSpacing.small) {
-            if isSlashMCPPopoverVisible, slashCommandTarget == .composer {
-                SlashCommandMCPPopover(
-                    servers: slashCommandMCPItems,
-                    filterText: slashMCPFilterText,
-                    highlightedIndex: slashMCPHighlightedIndex,
-                    onSelectServer: handleSlashCommandSelectServer,
-                    onDismiss: dismissSlashCommandPopover
+            if isComposerHidden {
+                CollapsedComposerBar(
+                    hasContent: !messageText.isEmpty || !draftAttachments.isEmpty,
+                    onExpand: showComposer
                 )
-                .padding(.horizontal, JinSpacing.medium)
-                .frame(maxWidth: 800)
-                .transition(.opacity.combined(with: .move(edge: .bottom)))
-            }
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+            } else {
+                if isSlashMCPPopoverVisible, slashCommandTarget == .composer {
+                    SlashCommandMCPPopover(
+                        servers: slashCommandMCPItems,
+                        filterText: slashMCPFilterText,
+                        highlightedIndex: slashMCPHighlightedIndex,
+                        onSelectServer: handleSlashCommandSelectServer,
+                        onDismiss: dismissSlashCommandPopover
+                    )
+                    .padding(.horizontal, JinSpacing.medium)
+                    .frame(maxWidth: 800)
+                    .transition(.opacity.combined(with: .move(edge: .bottom)))
+                }
 
-            composerOverlay
+                composerOverlay
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
         }
+        .animation(.spring(response: 0.35, dampingFraction: 0.86), value: isComposerHidden)
         .animation(.easeOut(duration: 0.15), value: isSlashMCPPopoverVisible)
         .padding(.horizontal, 16)
         .padding(.bottom, 16)
-            .background {
-                GeometryReader { geo in
-                    Color.clear.preference(key: ComposerHeightPreferenceKey.self, value: geo.size.height)
-                }
+        .background {
+            GeometryReader { geo in
+                Color.clear.preference(key: ComposerHeightPreferenceKey.self, value: geo.size.height)
             }
+        }
+    }
+
+    func showComposer() {
+        withAnimation(.spring(response: 0.35, dampingFraction: 0.86)) {
+            isComposerHidden = false
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+            isComposerFocused = true
+        }
+    }
+
+    func toggleComposerVisibility() {
+        if isComposerHidden {
+            showComposer()
+        } else {
+            isComposerFocused = false
+            if isExpandedComposerPresented {
+                isExpandedComposerPresented = false
+            }
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.86)) {
+                isComposerHidden = true
+            }
+        }
     }
 
     @ViewBuilder
@@ -366,7 +400,14 @@ extension ChatView {
         ChatFocusedActions(
             canAttach: !isBusy,
             canStopStreaming: isBusy,
-            focusComposer: { isComposerFocused = true },
+            isComposerHidden: isComposerHidden,
+            focusComposer: {
+                if isComposerHidden {
+                    showComposer()
+                } else {
+                    isComposerFocused = true
+                }
+            },
             openModelPicker: { isModelPickerPresented.toggle() },
             openAddModelPicker: { isAddModelPickerPresented.toggle() },
             attach: { isFileImporterPresented = true },
@@ -376,7 +417,8 @@ extension ChatView {
             },
             toggleExpandedComposer: {
                 isExpandedComposerPresented.toggle()
-            }
+            },
+            toggleComposerVisibility: toggleComposerVisibility
         )
     }
 }

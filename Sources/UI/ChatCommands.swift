@@ -80,6 +80,12 @@ struct ChatCommands: Commands {
         .keyboardShortcut(shortcutsStore.keyboardShortcut(for: .expandComposer))
         .disabled(chatActions == nil)
 
+        Button(chatActions?.isComposerHidden == true ? "Show Composer" : "Hide Composer") {
+            chatActions?.toggleComposerVisibility()
+        }
+        .keyboardShortcut(shortcutsStore.keyboardShortcut(for: .toggleComposerVisibility))
+        .disabled(chatActions == nil)
+
         Button("Stop Generating") {
             chatActions?.stopStreaming()
         }

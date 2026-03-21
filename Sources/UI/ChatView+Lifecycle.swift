@@ -9,7 +9,9 @@ extension ChatView {
 
     func handleChatAppear() {
         ChatScrollDebug.log("chat appear conv=\(ChatScrollDebug.shortID(conversationEntity.id)) stored=\(ChatScrollDebug.shortID(conversationEntity.lastScrollMessageID))")
-        isComposerFocused = true
+        if !isComposerHidden {
+            isComposerFocused = true
+        }
         installWKWebViewDropForwarder()
         // loadControlsFromConversation internally calls ensureModelThreadsInitializedIfNeeded
         // and syncActiveThreadSelection, so calling them separately is redundant and causes
@@ -38,6 +40,7 @@ extension ChatView {
         composerTextContentHeight = 36
         remoteVideoInputURLText = ""
         isExpandedComposerPresented = false
+        isComposerHidden = false
         isSlashMCPPopoverVisible = false
         slashMCPFilterText = ""
         slashMCPHighlightedIndex = 0

@@ -36,6 +36,7 @@ enum AppShortcutAction: String, CaseIterable, Identifiable {
     case addModelToChat
     case attachFiles
     case expandComposer
+    case toggleComposerVisibility
     case stopGenerating
 
     case renameChat
@@ -48,7 +49,7 @@ enum AppShortcutAction: String, CaseIterable, Identifiable {
         switch self {
         case .toggleChatList, .searchChats, .newChat, .newAssistant, .openAssistantSettings:
             return .workspace
-        case .focusComposer, .openModelPicker, .addModelToChat, .attachFiles, .expandComposer, .stopGenerating:
+        case .focusComposer, .openModelPicker, .addModelToChat, .attachFiles, .expandComposer, .toggleComposerVisibility, .stopGenerating:
             return .composer
         case .renameChat, .toggleStarChat, .deleteChat:
             return .conversation
@@ -77,6 +78,8 @@ enum AppShortcutAction: String, CaseIterable, Identifiable {
             return "Attach Files"
         case .expandComposer:
             return "Expand Composer"
+        case .toggleComposerVisibility:
+            return "Toggle Composer"
         case .stopGenerating:
             return "Stop Generating"
         case .renameChat:
@@ -110,6 +113,8 @@ enum AppShortcutAction: String, CaseIterable, Identifiable {
             return "Add files to the current draft."
         case .expandComposer:
             return "Open the full-size composer."
+        case .toggleComposerVisibility:
+            return "Show or hide the message composer."
         case .stopGenerating:
             return "Stop current generation (same as macOS cancel)."
         case .renameChat:
@@ -143,6 +148,8 @@ enum AppShortcutAction: String, CaseIterable, Identifiable {
             return .command("a", modifiers: [.shift, .command])
         case .expandComposer:
             return .command("e", modifiers: [.shift, .command])
+        case .toggleComposerVisibility:
+            return .command("h", modifiers: [.shift, .command])
         case .stopGenerating:
             return .command(".")
         case .renameChat:

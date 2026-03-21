@@ -245,6 +245,7 @@ struct CompactComposerOverlayView<ControlsRow: View>: View {
     let onCancel: () -> Bool
     let onRemoveAttachment: (DraftAttachment) -> Void
     let onExpand: () -> Void
+    let onHide: () -> Void
     let onSend: () -> Void
     let slashCommandServers: [SlashCommandMCPServerItem]
     let isSlashCommandActive: Bool
@@ -280,6 +281,7 @@ struct CompactComposerOverlayView<ControlsRow: View>: View {
         onCancel: @escaping () -> Bool,
         onRemoveAttachment: @escaping (DraftAttachment) -> Void,
         onExpand: @escaping () -> Void,
+        onHide: @escaping () -> Void,
         onSend: @escaping () -> Void,
         slashCommandServers: [SlashCommandMCPServerItem] = [],
         isSlashCommandActive: Bool = false,
@@ -314,6 +316,7 @@ struct CompactComposerOverlayView<ControlsRow: View>: View {
         self.onCancel = onCancel
         self.onRemoveAttachment = onRemoveAttachment
         self.onExpand = onExpand
+        self.onHide = onHide
         self.onSend = onSend
         self.slashCommandServers = slashCommandServers
         self.isSlashCommandActive = isSlashCommandActive
@@ -351,9 +354,12 @@ struct CompactComposerOverlayView<ControlsRow: View>: View {
         )
         .shadow(color: Color.black.opacity(0.06), radius: 10, x: 0, y: 4)
         .overlay(alignment: .topTrailing) {
-            expandButton
-                .padding(.top, JinSpacing.medium)
-                .padding(.trailing, JinSpacing.medium)
+            HStack(spacing: 2) {
+                hideButton
+                expandButton
+            }
+            .padding(.top, JinSpacing.medium)
+            .padding(.trailing, JinSpacing.medium)
         }
     }
 
@@ -508,6 +514,18 @@ struct CompactComposerOverlayView<ControlsRow: View>: View {
         }
     }
 
+    private var hideButton: some View {
+        Button(action: onHide) {
+            Image(systemName: "chevron.down")
+                .font(.system(size: 10, weight: .medium))
+                .foregroundStyle(.tertiary)
+                .frame(width: 22, height: 22)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help("Hide composer (\u{21E7}\u{2318}H)")
+    }
+
     private var expandButton: some View {
         Button(action: onExpand) {
             Image(systemName: "arrow.up.left.and.arrow.down.right")
@@ -532,6 +550,44 @@ struct CompactComposerOverlayView<ControlsRow: View>: View {
         .buttonStyle(.plain)
         .disabled((!canSendDraft && !isBusy) || isRecording || isTranscribing)
         .padding(.bottom, 2)
+    }
+}
+
+// MARK: - Collapsed Composer Bar
+
+struct CollapsedComposerBar: View {
+    let hasContent: Bool
+    let onExpand: () -> Void
+
+    var body: some View {
+        let shape = RoundedRectangle(cornerRadius: JinRadius.large, style: .continuous)
+
+        Button(action: onExpand) {
+            HStack(spacing: JinSpacing.medium) {
+                Image(systemName: "chevron.up")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(.tertiary)
+
+                Text(hasContent ? "Continue typing\u{2026}" : "Type a message\u{2026}")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, JinSpacing.large)
+            .padding(.vertical, 10)
+            .frame(maxWidth: 800)
+            .background {
+                shape.fill(.regularMaterial)
+            }
+            .overlay(
+                shape.stroke(JinSemanticColor.separator.opacity(0.45), lineWidth: JinStrokeWidth.hairline)
+            )
+            .shadow(color: Color.black.opacity(0.06), radius: 10, x: 0, y: 4)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Show message composer")
+        .accessibilityHint("Double-click to expand the message input area")
     }
 }
 
