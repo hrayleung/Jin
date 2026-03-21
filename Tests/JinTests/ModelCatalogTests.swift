@@ -242,8 +242,35 @@ final class ModelCatalogTests: XCTestCase {
             provider: .together
         )
         XCTAssertEqual(glm5.contextWindow, 202_752)
+        XCTAssertEqual(glm5.maxOutputTokens, 128_000)
         XCTAssertTrue(glm5.capabilities.contains(.reasoning))
         XCTAssertEqual(glm5.reasoningConfig?.type, .toggle)
+
+        let deepSeek = ModelCatalog.modelInfo(
+            for: "deepseek-ai/DeepSeek-V3.1",
+            provider: .together
+        )
+        XCTAssertEqual(deepSeek.contextWindow, 128_000)
+        XCTAssertTrue(deepSeek.capabilities.contains(.reasoning))
+        XCTAssertEqual(deepSeek.reasoningConfig?.type, .toggle)
+
+        let qwen35 = ModelCatalog.modelInfo(
+            for: "Qwen/Qwen3.5-9B",
+            provider: .together
+        )
+        XCTAssertEqual(qwen35.contextWindow, 262_144)
+        XCTAssertTrue(qwen35.capabilities.contains(.vision))
+        XCTAssertTrue(qwen35.capabilities.contains(.reasoning))
+        XCTAssertEqual(qwen35.reasoningConfig?.type, .toggle)
+
+        let gptOSS = ModelCatalog.modelInfo(
+            for: "openai/gpt-oss-20b",
+            provider: .together
+        )
+        XCTAssertEqual(gptOSS.contextWindow, 128_000)
+        XCTAssertTrue(gptOSS.capabilities.contains(.reasoning))
+        XCTAssertEqual(gptOSS.reasoningConfig?.type, .effort)
+        XCTAssertEqual(gptOSS.reasoningConfig?.defaultEffort, .medium)
     }
 
     func testUnknownTogetherModelUsesConservativeFallback() {

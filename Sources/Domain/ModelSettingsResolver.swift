@@ -87,6 +87,9 @@ enum ModelSettingsResolver {
         if providerType == .fireworks {
             return !isFireworksMiniMaxM2FamilyModel(modelID)
         }
+        if providerType == .together {
+            return !isTogetherAlwaysOnReasoningModel(modelID)
+        }
         if providerType == .sambanova {
             return !isSambaNovaAlwaysOnReasoningModel(modelID)
         }
@@ -161,7 +164,18 @@ enum ModelSettingsResolver {
         "deepseek-r1-distill-llama-70b",
     ]
 
+    /// Exact-ID allowlist for Together models whose documented controls expose
+    /// reasoning effort only, not a true on/off toggle.
+    private static let togetherAlwaysOnReasoningModelIDs: Set<String> = [
+        "openai/gpt-oss-120b",
+        "openai/gpt-oss-20b",
+    ]
+
     private static func isSambaNovaAlwaysOnReasoningModel(_ modelID: String) -> Bool {
         sambaNovaAlwaysOnReasoningModelIDs.contains(modelID.lowercased())
+    }
+
+    private static func isTogetherAlwaysOnReasoningModel(_ modelID: String) -> Bool {
+        togetherAlwaysOnReasoningModelIDs.contains(modelID.lowercased())
     }
 }

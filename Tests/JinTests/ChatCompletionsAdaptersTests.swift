@@ -1926,14 +1926,19 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
 
             let payload: [[String: Any]] = [
                 [
-                    "id": "moonshotai/Kimi-K2.5",
+                    "id": "deepseek-ai/DeepSeek-V3.1",
                     "type": "chat",
-                    "display_name": "Kimi K2.5",
+                    "display_name": "DeepSeek V3.1",
                 ],
                 [
-                    "id": "Qwen/Qwen3-Coder-Next-FP8",
-                    "type": "code",
-                    "display_name": "Qwen3 Coder Next",
+                    "id": "openai/gpt-oss-20b",
+                    "type": "chat",
+                    "display_name": "GPT-OSS 20B",
+                ],
+                [
+                    "id": "Qwen/Qwen3.5-9B",
+                    "type": "chat",
+                    "display_name": "Qwen3.5 9B",
                 ],
                 [
                     "id": "black-forest-labs/flux",
@@ -1951,12 +1956,15 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
 
         XCTAssertEqual(
             models.map(\.id),
-            ["moonshotai/Kimi-K2.5", "Qwen/Qwen3-Coder-Next-FP8", "black-forest-labs/flux"]
+            ["deepseek-ai/DeepSeek-V3.1", "openai/gpt-oss-20b", "Qwen/Qwen3.5-9B", "black-forest-labs/flux"]
         )
-        XCTAssertEqual(models[0].contextWindow, 262_144)
-        XCTAssertTrue(models[0].capabilities.contains(.vision))
+        XCTAssertEqual(models[0].contextWindow, 128_000)
         XCTAssertTrue(models[0].capabilities.contains(.reasoning))
-        XCTAssertEqual(models[2].capabilities, [.streaming, .toolCalling])
+        XCTAssertEqual(models[0].reasoningConfig?.type, .toggle)
+        XCTAssertEqual(models[1].reasoningConfig?.type, .effort)
+        XCTAssertTrue(models[2].capabilities.contains(.vision))
+        XCTAssertTrue(models[2].capabilities.contains(.reasoning))
+        XCTAssertEqual(models[3].capabilities, [.streaming, .toolCalling])
     }
 
     func testTogetherAdapterAppliesReasoningTogglePayloadForToggleModels() async throws {
@@ -2002,6 +2010,55 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
             messages: [Message(role: .user, content: [.text("hello")])],
             modelID: "zai-org/GLM-5",
             controls: GenerationControls(reasoning: ReasoningControls(enabled: false)),
+            tools: [],
+            streaming: false
+        )
+
+        for try await _ in stream {}
+    }
+
+    func testTogetherAdapterAppliesReasoningEffortPayloadForEffortModels() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        let providerConfig = ProviderConfig(
+            id: "together",
+            name: "Together AI",
+            type: .together,
+            apiKey: "ignored",
+            baseURL: "https://api.together.xyz/v1"
+        )
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://api.together.xyz/v1/chat/completions")
+
+            let body = try XCTUnwrap(requestBodyData(request))
+            let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+            let root = try XCTUnwrap(json)
+            XCTAssertEqual(root["reasoning_effort"] as? String, "high")
+            XCTAssertNil(root["reasoning"])
+
+            let response: [String: Any] = [
+                "id": "cmpl_together_effort",
+                "choices": [
+                    [
+                        "message": [
+                            "role": "assistant",
+                            "content": "OK",
+                        ],
+                        "finish_reason": "stop",
+                    ],
+                ],
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = TogetherAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hello")])],
+            modelID: "openai/gpt-oss-20b",
+            controls: GenerationControls(reasoning: ReasoningControls(enabled: true, effort: .xhigh)),
             tools: [],
             streaming: false
         )

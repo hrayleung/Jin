@@ -804,6 +804,48 @@ final class ModelSettingsResolverTests: XCTestCase {
         XCTAssertEqual(resolvedGLM.reasoningConfig?.type, .toggle)
     }
 
+    func testResolverInfersRecentTogetherCatalogMetadataForLegacyPersistedModels() {
+        let deepSeekLegacy = ModelInfo(
+            id: "deepseek-ai/DeepSeek-V3.1",
+            name: "DeepSeek V3.1",
+            capabilities: [.streaming, .toolCalling],
+            contextWindow: 8_192,
+            reasoningConfig: nil,
+            isEnabled: true
+        )
+        let resolvedDeepSeek = ModelSettingsResolver.resolve(model: deepSeekLegacy, providerType: .together)
+        XCTAssertEqual(resolvedDeepSeek.contextWindow, 128_000)
+        XCTAssertEqual(resolvedDeepSeek.reasoningConfig?.type, .toggle)
+
+        let gptOSSLegacy = ModelInfo(
+            id: "openai/gpt-oss-20b",
+            name: "GPT OSS 20B",
+            capabilities: [.streaming],
+            contextWindow: 8_192,
+            reasoningConfig: nil,
+            isEnabled: true
+        )
+        let resolvedGPTOSS = ModelSettingsResolver.resolve(model: gptOSSLegacy, providerType: .together)
+        XCTAssertEqual(resolvedGPTOSS.contextWindow, 128_000)
+        XCTAssertEqual(resolvedGPTOSS.reasoningConfig?.type, .effort)
+        XCTAssertEqual(resolvedGPTOSS.reasoningConfig?.defaultEffort, .medium)
+        XCTAssertFalse(resolvedGPTOSS.reasoningCanDisable)
+
+        let qwen35Legacy = ModelInfo(
+            id: "Qwen/Qwen3.5-9B",
+            name: "Qwen3.5 9B",
+            capabilities: [.streaming, .toolCalling],
+            contextWindow: 8_192,
+            reasoningConfig: nil,
+            isEnabled: true
+        )
+        let resolvedQwen35 = ModelSettingsResolver.resolve(model: qwen35Legacy, providerType: .together)
+        XCTAssertEqual(resolvedQwen35.contextWindow, 262_144)
+        XCTAssertTrue(resolvedQwen35.capabilities.contains(.vision))
+        XCTAssertEqual(resolvedQwen35.reasoningConfig?.type, .toggle)
+        XCTAssertTrue(resolvedQwen35.reasoningCanDisable)
+    }
+
     func testOpenRouterWebSearchDefaultsByModelFamily() {
         let gpt = ModelInfo(
             id: "openai/gpt-5",

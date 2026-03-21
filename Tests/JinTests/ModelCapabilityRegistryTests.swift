@@ -118,6 +118,8 @@ final class ModelCapabilityRegistryTests: XCTestCase {
     func testTogetherWebSearchDefaultsToDisabled() {
         XCTAssertFalse(ModelCapabilityRegistry.supportsWebSearch(for: .together, modelID: "moonshotai/Kimi-K2.5"))
         XCTAssertFalse(ModelCapabilityRegistry.supportsWebSearch(for: .together, modelID: "zai-org/GLM-5"))
+        XCTAssertFalse(ModelCapabilityRegistry.supportsWebSearch(for: .together, modelID: "deepseek-ai/DeepSeek-V3.1"))
+        XCTAssertFalse(ModelCapabilityRegistry.supportsWebSearch(for: .together, modelID: "openai/gpt-oss-120b"))
     }
 
     func testVercelAIGatewayWebSearchDefaultsToDisabledForNativeControls() {
