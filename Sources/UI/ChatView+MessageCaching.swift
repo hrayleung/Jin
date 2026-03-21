@@ -114,6 +114,7 @@ extension ChatView {
         lastCacheRebuildMessageCount = messageCount
         lastCacheRebuildUpdatedAt = updatedAt
         syncArtifactSelectionForActiveThread()
+        retryScrollRestorationIfNeeded()
     }
 
     func syncArtifactSelectionForActiveThread() {

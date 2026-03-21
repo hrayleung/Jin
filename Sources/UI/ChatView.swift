@@ -93,6 +93,10 @@ struct ChatView: View {
     @State var messageRenderLimit: Int = Self.initialMessageRenderLimit
     @State var pendingRestoreScrollMessageID: UUID?
     @State var isPinnedToBottom = true
+    @State var isScrollPersistencePinnedToBottom = true
+    @State var activeRestorationMessageID: UUID?
+    @State var topVisibleMessageID: UUID?
+    @State var scrollRestorationDeferred = false
     @State var pinnedBottomRefreshGeneration = 0
     @State var isExpandedComposerPresented = false
     @State var activeThreadID: UUID?
@@ -267,6 +271,7 @@ struct ChatView: View {
         }
         .onAppear(perform: handleChatAppear)
         .onDisappear {
+            saveScrollPosition()
             updatedAtDebounceTask?.cancel()
             updatedAtDebounceTask = nil
             cancelRenderContextBuild()
@@ -279,6 +284,7 @@ struct ChatView: View {
         }
         .onChange(of: conversationEntity.messages.count) { _, _ in
             rebuildMessageCachesIfNeeded()
+            retryScrollRestorationIfNeeded()
         }
         .onChange(of: conversationEntity.updatedAt) { _, _ in
             // Debounce updatedAt-driven cache rebuilds so that rapid
@@ -289,7 +295,41 @@ struct ChatView: View {
                 try? await Task.sleep(for: .milliseconds(150))
                 guard !Task.isCancelled else { return }
                 rebuildMessageCachesIfNeeded()
+                retryScrollRestorationIfNeeded()
             }
+        }
+        .onChange(of: isScrollPersistencePinnedToBottom) { _, isPinned in
+            ChatScrollDebug.log(
+                "pin-state changed conv=\(ChatScrollDebug.shortID(conversationEntity.id)) " +
+                "isPinned=\(isPinned) top=\(ChatScrollDebug.shortID(topVisibleMessageID)) " +
+                "pendingRestore=\(ChatScrollDebug.shortID(pendingRestoreScrollMessageID)) " +
+                "activeRestore=\(ChatScrollDebug.shortID(activeRestorationMessageID))"
+            )
+            guard pendingRestoreScrollMessageID == nil else { return }
+            guard activeRestorationMessageID == nil else { return }
+            guard !cachedVisibleMessages.isEmpty else { return }
+            saveScrollPosition()
+        }
+        .onChange(of: topVisibleMessageID) { _, newValue in
+            ChatScrollDebug.log(
+                "top-visible changed conv=\(ChatScrollDebug.shortID(conversationEntity.id)) " +
+                "top=\(ChatScrollDebug.shortID(newValue)) " +
+                "scrollPinned=\(isScrollPersistencePinnedToBottom) " +
+                "pendingRestore=\(ChatScrollDebug.shortID(pendingRestoreScrollMessageID)) " +
+                "activeRestore=\(ChatScrollDebug.shortID(activeRestorationMessageID))"
+            )
+            if activeRestorationMessageID == newValue {
+                ChatScrollDebug.log(
+                    "restoration settled conv=\(ChatScrollDebug.shortID(conversationEntity.id)) " +
+                    "restoredTop=\(ChatScrollDebug.shortID(newValue))"
+                )
+                activeRestorationMessageID = nil
+                return
+            }
+            guard pendingRestoreScrollMessageID == nil else { return }
+            guard activeRestorationMessageID == nil else { return }
+            guard !isScrollPersistencePinnedToBottom else { return }
+            saveScrollPosition()
         }
         .alert("Error", isPresented: $showingError) {
             Button("OK", role: .cancel) {}

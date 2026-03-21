@@ -73,6 +73,9 @@ final class ConversationEntity {
     var modelConfigData: Data // Codable GenerationControls
     /// Currently active model thread for composer/send.
     var activeThreadID: UUID?
+    /// Persisted scroll anchor: the message ID at the top of the viewport when the user last left this conversation.
+    /// `nil` means the user was pinned to the bottom (or the conversation is new/empty).
+    var lastScrollMessageID: UUID?
 
     @Relationship var assistant: AssistantEntity?
 

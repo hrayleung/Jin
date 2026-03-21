@@ -90,7 +90,9 @@ extension ChatView {
             messageRenderLimit: $messageRenderLimit,
             pendingRestoreScrollMessageID: $pendingRestoreScrollMessageID,
             isPinnedToBottom: $isPinnedToBottom,
-            pinnedBottomRefreshGeneration: $pinnedBottomRefreshGeneration
+            scrollPersistencePinnedToBottom: $isScrollPersistencePinnedToBottom,
+            pinnedBottomRefreshGeneration: $pinnedBottomRefreshGeneration,
+            topVisibleMessageID: $topVisibleMessageID
         )
     }
 

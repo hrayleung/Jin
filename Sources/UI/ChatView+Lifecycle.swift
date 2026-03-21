@@ -8,6 +8,7 @@ import AppKit
 extension ChatView {
 
     func handleChatAppear() {
+        ChatScrollDebug.log("chat appear conv=\(ChatScrollDebug.shortID(conversationEntity.id)) stored=\(ChatScrollDebug.shortID(conversationEntity.lastScrollMessageID))")
         isComposerFocused = true
         installWKWebViewDropForwarder()
         // loadControlsFromConversation internally calls ensureModelThreadsInitializedIfNeeded
@@ -16,9 +17,14 @@ extension ChatView {
         loadControlsFromConversation()
         rebuildMessageCaches()
         syncArtifactSelectionForActiveThread()
+        restoreScrollPosition()
     }
 
     func handleConversationSwitch() {
+        ChatScrollDebug.log(
+            "chat switch conv=\(ChatScrollDebug.shortID(conversationEntity.id)) " +
+            "storedBeforeSwitch=\(ChatScrollDebug.shortID(conversationEntity.lastScrollMessageID))"
+        )
         // Switching chats: reset ALL transient per-chat state, clear the
         // displayed messages immediately so the switch feels instant, then
         // rebuild caches on the next run-loop tick.
@@ -72,6 +78,10 @@ extension ChatView {
         messageRenderLimit = Self.initialMessageRenderLimit
         pendingRestoreScrollMessageID = nil
         isPinnedToBottom = true
+        isScrollPersistencePinnedToBottom = true
+        activeRestorationMessageID = nil
+        topVisibleMessageID = nil
+        scrollRestorationDeferred = false
 
         // Artifacts
         isArtifactPaneVisible = false
@@ -104,7 +114,97 @@ extension ChatView {
             guard conversationEntity.id == targetConversationID else { return }
             rebuildMessageCaches()
             syncArtifactSelectionForActiveThread()
+            restoreScrollPosition()
         }
+    }
+
+    // MARK: - Scroll Position Persistence
+
+    func saveScrollPosition() {
+        let effectiveMessageID: UUID?
+        if isScrollPersistencePinnedToBottom {
+            effectiveMessageID = nil
+        } else {
+            let renderedMessageIDs = Array(cachedVisibleMessages.suffix(messageRenderLimit)).map(\.id)
+            effectiveMessageID = ChatScrollPositionSupport.storedMessageID(
+                topVisibleMessageID: activeRestorationMessageID ?? topVisibleMessageID,
+                renderedMessageIDs: renderedMessageIDs
+            )
+        }
+        ChatScrollDebug.log(
+            "save conv=\(ChatScrollDebug.shortID(conversationEntity.id)) " +
+            "stored=\(ChatScrollDebug.shortID(effectiveMessageID)) " +
+            "previous=\(ChatScrollDebug.shortID(conversationEntity.lastScrollMessageID)) " +
+            "isPinned=\(isScrollPersistencePinnedToBottom) " +
+            "top=\(ChatScrollDebug.shortID(topVisibleMessageID)) " +
+            "activeRestore=\(ChatScrollDebug.shortID(activeRestorationMessageID))"
+        )
+        guard conversationEntity.lastScrollMessageID != effectiveMessageID else { return }
+        conversationEntity.lastScrollMessageID = effectiveMessageID
+        // Do NOT update updatedAt — scroll saves must not reorder the sidebar.
+        do {
+            try modelContext.save()
+        } catch {
+            ChatScrollDebug.log("save FAILED: \(error)")
+        }
+    }
+
+    func restoreScrollPosition() {
+        let savedID = conversationEntity.lastScrollMessageID
+
+        // Cache empty but saved anchor exists → defer until messages load.
+        // retryScrollRestorationIfNeeded() is called from onChange(of: cachedVisibleMessages.count)
+        // and onChange(of: conversationEntity.messages.count / updatedAt) once the cache populates.
+        if cachedVisibleMessages.isEmpty, savedID != nil {
+            ChatScrollDebug.log(
+                "restore deferred conv=\(ChatScrollDebug.shortID(conversationEntity.id)) " +
+                "stored=\(ChatScrollDebug.shortID(savedID)) cachedCount=0"
+            )
+            scrollRestorationDeferred = true
+            return
+        }
+
+        scrollRestorationDeferred = false
+
+        let plan = ChatScrollPositionSupport.restorationPlan(
+            savedMessageID: savedID,
+            messageIDs: cachedVisibleMessages.map(\.id),
+            currentRenderLimit: messageRenderLimit,
+            pageSize: Self.messageRenderPageSize
+        )
+
+        if plan.clearsStoredAnchor {
+            ChatScrollDebug.log(
+                "restore conv=\(ChatScrollDebug.shortID(conversationEntity.id)) " +
+                "clearing stale anchor=\(ChatScrollDebug.shortID(savedID)) " +
+                "cachedCount=\(cachedVisibleMessages.count)"
+            )
+            conversationEntity.lastScrollMessageID = nil
+            do {
+                try modelContext.save()
+            } catch {
+                ChatScrollDebug.log("clear anchor FAILED: \(error)")
+            }
+        }
+
+        ChatScrollDebug.log(
+            "restore conv=\(ChatScrollDebug.shortID(conversationEntity.id)) " +
+            "stored=\(ChatScrollDebug.shortID(savedID)) " +
+            "planRestore=\(ChatScrollDebug.shortID(plan.pendingRestoreMessageID)) " +
+            "planPinned=\(plan.isPinnedToBottom) " +
+            "renderLimit \(messageRenderLimit)->\(plan.messageRenderLimit) " +
+            "cachedCount=\(cachedVisibleMessages.count)"
+        )
+        messageRenderLimit = plan.messageRenderLimit
+        isPinnedToBottom = plan.isPinnedToBottom
+        isScrollPersistencePinnedToBottom = plan.isPinnedToBottom
+        activeRestorationMessageID = plan.pendingRestoreMessageID
+        pendingRestoreScrollMessageID = plan.pendingRestoreMessageID
+    }
+
+    func retryScrollRestorationIfNeeded() {
+        guard scrollRestorationDeferred, !cachedVisibleMessages.isEmpty else { return }
+        restoreScrollPosition()
     }
 
     func handleAttachmentImport(_ result: Result<[URL], Error>) {
