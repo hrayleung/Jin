@@ -42,6 +42,7 @@ struct ContentView: View {
     @State var didBootstrapDefaults = false
     @State var didBootstrapAssistants = false
     @State var searchText = ""
+    @State var searchCache = ConversationSearchCache()
     @State var isAssistantInspectorPresented = false
     @State var assistantContextMenuTargetID: String?
     @State var assistantPendingDeletion: AssistantEntity?

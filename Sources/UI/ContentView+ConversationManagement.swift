@@ -278,11 +278,26 @@ extension ContentView {
         guard isSearching else { return baseConversations }
 
         let lowered = query.lowercased()
-        return baseConversations.filter {
-            $0.title.lowercased().contains(lowered)
-                || $0.modelID.lowercased().contains(lowered)
-                || providerName(for: $0.providerID).lowercased().contains(lowered)
+        return baseConversations.filter { conversation in
+            if conversation.title.lowercased().contains(lowered)
+                || conversation.modelID.lowercased().contains(lowered)
+                || providerName(for: conversation.providerID).lowercased().contains(lowered) {
+                return true
+            }
+            return searchCache.searchableText(for: conversation)
+                .localizedCaseInsensitiveContains(query)
         }
+    }
+
+    func searchSnippet(for conversation: ConversationEntity) -> String? {
+        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else { return nil }
+        let lowered = query.lowercased()
+        if conversation.title.lowercased().contains(lowered) { return nil }
+        return ConversationSearchCache.extractSnippet(
+            from: searchCache.searchableText(for: conversation),
+            query: query
+        )
     }
 
     var groupedConversations: [(key: String, value: [ConversationEntity])] {

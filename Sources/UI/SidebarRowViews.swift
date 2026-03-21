@@ -8,6 +8,8 @@ struct SidebarConversationItem: View {
     let conversation: ConversationEntity
     let subtitle: String
     let providerIconID: String?
+    let searchSnippet: String?
+    let searchQuery: String
     let isRegeneratingTitle: Bool
     let onToggleStar: () -> Void
     let onRename: () -> Void
@@ -27,7 +29,9 @@ struct SidebarConversationItem: View {
                 subtitle: subtitle,
                 providerIconID: providerIconID,
                 updatedAt: conversation.updatedAt,
-                isStreaming: isStreaming
+                isStreaming: isStreaming,
+                searchSnippet: searchSnippet,
+                searchQuery: searchQuery
             )
         }
         .contextMenu {
@@ -68,6 +72,8 @@ struct ConversationRowView: View {
     let providerIconID: String?
     let updatedAt: Date
     let isStreaming: Bool
+    let searchSnippet: String?
+    let searchQuery: String
 
     var body: some View {
         VStack(alignment: .leading, spacing: JinSpacing.small) {
@@ -83,6 +89,14 @@ struct ConversationRowView: View {
                 }
             }
             .font(.headline)
+
+            if let searchSnippet {
+                highlightedSnippet(searchSnippet, query: searchQuery)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+            }
+
             HStack {
                 HStack(spacing: 4) {
                     ProviderIconView(iconID: providerIconID, fallbackSystemName: "network", size: 12)
@@ -102,6 +116,19 @@ struct ConversationRowView: View {
             .foregroundColor(.secondary)
         }
         .padding(.vertical, JinSpacing.small)
+    }
+
+    private func highlightedSnippet(_ text: String, query: String) -> Text {
+        guard !query.isEmpty,
+              let range = text.range(of: query, options: [.caseInsensitive, .diacriticInsensitive]) else {
+            return Text(text)
+        }
+
+        let before = String(text[text.startIndex..<range.lowerBound])
+        let match = String(text[range])
+        let after = String(text[range.upperBound..<text.endIndex])
+
+        return Text(before) + Text(match).bold().foregroundStyle(.primary) + Text(after)
     }
 }
 
