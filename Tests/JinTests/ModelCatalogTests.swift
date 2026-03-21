@@ -246,6 +246,72 @@ final class ModelCatalogTests: XCTestCase {
         XCTAssertEqual(glm5.reasoningConfig?.type, .toggle)
     }
 
+    func testDeepInfraCatalogMetadataUsesExactIDsAndConservativeFallback() {
+        let glm5 = ModelCatalog.modelInfo(
+            for: "zai-org/GLM-5",
+            provider: .deepinfra
+        )
+        XCTAssertEqual(glm5.contextWindow, 202_752)
+        XCTAssertTrue(glm5.capabilities.contains(.streaming))
+        XCTAssertTrue(glm5.capabilities.contains(.toolCalling))
+        XCTAssertTrue(glm5.capabilities.contains(.reasoning))
+        XCTAssertFalse(glm5.capabilities.contains(.vision))
+        XCTAssertNil(glm5.reasoningConfig)
+
+        let kimiInstruct = ModelCatalog.modelInfo(
+            for: "moonshotai/Kimi-K2-Instruct-0905",
+            provider: .deepinfra
+        )
+        XCTAssertEqual(kimiInstruct.contextWindow, 131_072)
+        XCTAssertTrue(kimiInstruct.capabilities.contains(.toolCalling))
+        XCTAssertTrue(kimiInstruct.capabilities.contains(.reasoning))
+        XCTAssertFalse(kimiInstruct.capabilities.contains(.vision))
+        XCTAssertNil(kimiInstruct.reasoningConfig)
+
+        let kimiVision = ModelCatalog.modelInfo(
+            for: "moonshotai/Kimi-K2.5",
+            provider: .deepinfra
+        )
+        XCTAssertEqual(kimiVision.contextWindow, 262_144)
+        XCTAssertTrue(kimiVision.capabilities.contains(.toolCalling))
+        XCTAssertTrue(kimiVision.capabilities.contains(.reasoning))
+        XCTAssertTrue(kimiVision.capabilities.contains(.vision))
+        XCTAssertNil(kimiVision.reasoningConfig)
+
+        let deepSeek = ModelCatalog.modelInfo(
+            for: "deepseek-ai/DeepSeek-V3.2",
+            provider: .deepinfra
+        )
+        XCTAssertEqual(deepSeek.contextWindow, 163_840)
+        XCTAssertTrue(deepSeek.capabilities.contains(.toolCalling))
+        XCTAssertTrue(deepSeek.capabilities.contains(.reasoning))
+        XCTAssertNil(deepSeek.reasoningConfig)
+
+        let unknown = ModelCatalog.modelInfo(
+            for: "zai-org/GLM-5-custom",
+            provider: .deepinfra
+        )
+        XCTAssertEqual(unknown.capabilities, [.streaming, .toolCalling])
+        XCTAssertEqual(unknown.contextWindow, 128_000)
+        XCTAssertNil(unknown.reasoningConfig)
+    }
+
+    func testDeepInfraSeededModelsUseCuratedExactIDs() {
+        let seeded = Set(ModelCatalog.seededModels(for: .deepinfra).map(\.id))
+        XCTAssertEqual(
+            seeded,
+            [
+                "zai-org/GLM-5",
+                "moonshotai/Kimi-K2-Instruct-0905",
+                "deepseek-ai/DeepSeek-V3.2",
+                "MiniMaxAI/MiniMax-M2.5",
+                "openai/gpt-oss-120b",
+                "zai-org/GLM-4.7",
+            ]
+        )
+        XCTAssertFalse(seeded.contains("moonshotai/Kimi-K2.5"))
+    }
+
     func testUnknownTogetherModelUsesConservativeFallback() {
         let unknown = ModelCatalog.modelInfo(
             for: "Qwen/Qwen3.5-397B-A17B-custom",

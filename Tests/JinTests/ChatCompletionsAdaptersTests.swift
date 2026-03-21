@@ -1850,6 +1850,58 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         XCTAssertEqual(model.reasoningConfig?.type, .effort)
     }
 
+    func testOpenAICompatibleAdapterFetchModelsForDeepInfraUsesCatalogMetadataWhenKnown() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        let providerConfig = ProviderConfig(
+            id: "deepinfra",
+            name: "DeepInfra",
+            type: .deepinfra,
+            apiKey: "ignored",
+            baseURL: "https://api.deepinfra.com/v1/openai"
+        )
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://api.deepinfra.com/v1/openai/models")
+            XCTAssertEqual(request.httpMethod, "GET")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer test-key")
+
+            let payload: [String: Any] = [
+                "data": [
+                    ["id": "zai-org/GLM-5"],
+                    ["id": "moonshotai/Kimi-K2.5"],
+                    ["id": "unknown-model"]
+                ]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: payload)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = OpenAICompatibleAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let models = try await adapter.fetchAvailableModels()
+        let byID = Dictionary(uniqueKeysWithValues: models.map { ($0.id, $0) })
+
+        let glm5 = try XCTUnwrap(byID["zai-org/GLM-5"])
+        XCTAssertEqual(glm5.name, "GLM-5")
+        XCTAssertEqual(glm5.contextWindow, 202_752)
+        XCTAssertTrue(glm5.capabilities.contains(.toolCalling))
+        XCTAssertTrue(glm5.capabilities.contains(.reasoning))
+
+        let kimi = try XCTUnwrap(byID["moonshotai/Kimi-K2.5"])
+        XCTAssertEqual(kimi.name, "Kimi K2.5")
+        XCTAssertEqual(kimi.contextWindow, 262_144)
+        XCTAssertTrue(kimi.capabilities.contains(.toolCalling))
+        XCTAssertTrue(kimi.capabilities.contains(.reasoning))
+        XCTAssertTrue(kimi.capabilities.contains(.vision))
+
+        let unknown = try XCTUnwrap(byID["unknown-model"])
+        XCTAssertEqual(unknown.name, "unknown-model")
+        XCTAssertEqual(unknown.capabilities, [.streaming, .toolCalling])
+        XCTAssertEqual(unknown.contextWindow, 128_000)
+        XCTAssertNil(unknown.reasoningConfig)
+    }
+
     func testOpenAICompatibleAdapterFetchModelsForVercelDerivesConservativeMetadataWhenUnknown() async throws {
         let (configuration, protocolType) = makeMockedSessionConfiguration()
         let networkManager = NetworkManager(configuration: configuration)

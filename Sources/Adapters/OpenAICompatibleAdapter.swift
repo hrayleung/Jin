@@ -327,7 +327,7 @@ actor OpenAICompatibleAdapter: LLMProviderAdapter {
     }
 
     private func makeModelInfo(id: String) -> ModelInfo {
-        ModelCatalog.modelInfo(for: id, provider: providerConfig.type, name: id)
+        ModelCatalog.modelInfo(for: id, provider: providerConfig.type)
     }
 
     private func makeGitHubModelInfo(from model: GitHubModelsCatalogModel) -> ModelInfo? {

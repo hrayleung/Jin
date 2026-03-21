@@ -177,7 +177,7 @@ enum DefaultProviderSeeds {
             type: .deepinfra,
             iconID: LobeProviderIconCatalog.defaultIconID(for: .deepinfra),
             baseURL: ProviderType.deepinfra.defaultBaseURL,
-            models: []
+            models: ModelCatalog.seededModels(for: .deepinfra)
         )
     }
 
