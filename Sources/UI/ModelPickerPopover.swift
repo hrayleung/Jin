@@ -148,7 +148,7 @@ struct ModelPickerPopover: View {
             if !query.isEmpty {
                 let providerMatch = FuzzyMatch.bestMatch(
                     query: query,
-                    candidates: [provider.name, provider.id, provider.typeRaw]
+                    candidates: [provider.name, provider.typeRaw]
                 )
 
                 if !providerMatch.matched {
