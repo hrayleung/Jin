@@ -309,7 +309,25 @@ struct DataSettingsView: View {
 
     private func deleteAllChats() {
         Task {
-            _ = try? AppSnapshotManager.captureAutomaticSnapshot(reason: .beforeDestructiveAction)
+            let snapshotResult = await Task.detached(priority: .userInitiated) {
+                Result { try AppSnapshotManager.captureAutomaticSnapshot(reason: .beforeDestructiveAction) }
+            }.value
+
+            switch snapshotResult {
+            case .success(.some):
+                break
+            case .success(.none):
+                await MainActor.run {
+                    clearError = "Jin couldn't create a safety snapshot, so Delete All Chats was cancelled."
+                }
+                return
+            case .failure(let error):
+                await MainActor.run {
+                    clearError = "Delete All Chats was cancelled because the safety snapshot failed: \(error.localizedDescription)"
+                }
+                return
+            }
+
             await MainActor.run {
                 for conversation in conversations {
                     modelContext.delete(conversation)

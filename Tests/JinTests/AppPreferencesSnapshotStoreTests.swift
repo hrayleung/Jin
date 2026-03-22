@@ -5,16 +5,20 @@ final class AppPreferencesSnapshotStoreTests: XCTestCase {
     func testCurrentDomainOverridesLegacyJinDomain() {
         let suiteName = "AppPreferencesSnapshotStoreTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!
+        let currentDomain = "AppPreferencesSnapshotStoreTests.current.\(UUID().uuidString)"
         defer {
             defaults.removePersistentDomain(forName: suiteName)
             defaults.removePersistentDomain(forName: "Jin")
+            defaults.removePersistentDomain(forName: currentDomain)
         }
 
-        let currentDomain = AppPreferencesSnapshotStore.currentDomainName(defaults: defaults)
         defaults.setPersistentDomain(["sharedKey": "legacy"], forName: "Jin")
         defaults.setPersistentDomain(["sharedKey": "current"], forName: currentDomain)
 
-        let merged = AppPreferencesSnapshotStore.mergedPreferenceDictionary(defaults: defaults)
+        let merged = AppPreferencesSnapshotStore.mergedPreferenceDictionary(
+            defaults: defaults,
+            currentDomainOverride: currentDomain
+        )
         XCTAssertEqual(merged["sharedKey"] as? String, "current")
     }
 

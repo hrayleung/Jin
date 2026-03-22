@@ -21,7 +21,8 @@ final class AppLaunchCoordinator: ObservableObject {
     func startIfNeeded() {
         guard startupTask == nil else { return }
         startupTask = Task { [weak self] in
-            await self?.performStartup()
+            guard let self else { return }
+            await self.performStartup()
         }
     }
 
@@ -34,35 +35,52 @@ final class AppLaunchCoordinator: ObservableObject {
     }
 
     func restoreLatestHealthySnapshot() async {
-        guard let snapshot = AppSnapshotManager.latestHealthySnapshot() else { return }
+        let snapshotResult = await Self.runInBackground {
+            AppSnapshotManager.latestHealthySnapshot()
+        }
+
+        guard case .success(let snapshot) = snapshotResult, let snapshot else { return }
         await restoreSnapshot(snapshot)
     }
 
     func restoreSnapshot(_ snapshot: SnapshotSummary) async {
-        do {
+        let restoreResult = await Self.runInBackground {
             try AppSnapshotManager.restoreSnapshot(snapshot)
+        }
+
+        switch restoreResult {
+        case .success:
             AppRuntimeProtection.automaticSnapshotsSuspended = false
             startupTask = nil
             await performStartup()
-        } catch {
+        case .failure(let error):
             phase = .failed(error.localizedDescription)
         }
     }
 
     func importRecoveryArchive(from archiveURL: URL) async {
-        do {
+        let importResult = await Self.runInBackground {
             try AppSnapshotManager.queueImportArchiveForRestore(from: archiveURL)
+        }
+
+        switch importResult {
+        case .success:
             AppRuntimeProtection.automaticSnapshotsSuspended = false
             startupTask = nil
             await performStartup()
-        } catch {
+        case .failure(let error):
             phase = .failed(error.localizedDescription)
         }
     }
 
     private func performStartup() async {
-        do {
-            switch try AppSnapshotManager.evaluateCurrentStoreForStartup() {
+        let startupResult = await Self.runInBackground {
+            try AppSnapshotManager.evaluateCurrentStoreForStartup()
+        }
+
+        switch startupResult {
+        case .success(let evaluation):
+            switch evaluation {
             case .ready(let container):
                 currentContainerCandidate = nil
                 phase = .ready(container)
@@ -71,8 +89,18 @@ final class AppLaunchCoordinator: ObservableObject {
                 AppRuntimeProtection.automaticSnapshotsSuspended = true
                 phase = .recovery(recoveryState)
             }
-        } catch {
+        case .failure(let error):
             phase = .failed(error.localizedDescription)
+        }
+    }
+
+    nonisolated private static func runInBackground<T>(
+        _ operation: @escaping () throws -> T
+    ) async -> Result<T, Error> {
+        await withCheckedContinuation { continuation in
+            DispatchQueue.global(qos: .userInitiated).async {
+                continuation.resume(returning: Result(catching: operation))
+            }
         }
     }
 }

@@ -3,11 +3,16 @@ import XCTest
 
 final class AppDataLocationsMigrationTests: XCTestCase {
     func testMigrationMovesLegacyStoreAndAttachmentDataIntoSharedRoot() throws {
+        let previousRoot = ProcessInfo.processInfo.environment["JIN_APP_SUPPORT_ROOT"]
         let temporaryRoot = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: temporaryRoot, withIntermediateDirectories: true)
         defer {
-            unsetenv("JIN_APP_SUPPORT_ROOT")
+            if let previousRoot {
+                setenv("JIN_APP_SUPPORT_ROOT", previousRoot, 1)
+            } else {
+                unsetenv("JIN_APP_SUPPORT_ROOT")
+            }
             try? FileManager.default.removeItem(at: temporaryRoot)
         }
 
