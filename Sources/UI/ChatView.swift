@@ -305,6 +305,14 @@ struct ChatView: View {
         ) { result in
             handleAttachmentImport(result)
         }
+        .sheet(isPresented: $isExpandedComposerPresented, onDismiss: {
+            guard !isComposerHidden else { return }
+            DispatchQueue.main.async {
+                isComposerFocused = true
+            }
+        }) {
+            expandedComposerSheet
+        }
         .sheet(isPresented: $showingThinkingBudgetSheet) {
             ThinkingBudgetSheetView(
                 usesAdaptiveThinking: anthropicUsesAdaptiveThinking,

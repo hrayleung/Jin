@@ -25,10 +25,6 @@ extension ChatView {
             }
         }
         .background(JinSemanticColor.detailSurface)
-        .overlay {
-            expandedComposerOverlay
-        }
-        .animation(.easeInOut(duration: 0.2), value: isExpandedComposerPresented)
         .animation(.easeInOut(duration: 0.18), value: isArtifactPaneVisible)
     }
 

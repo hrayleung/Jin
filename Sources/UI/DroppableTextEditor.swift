@@ -8,6 +8,7 @@ struct DroppableTextEditor: NSViewRepresentable {
     @Binding var isDropTargeted: Bool
     @Binding var isFocused: Bool
 
+    let placeholder: String?
     let font: NSFont
     let useCommandEnterToSubmit: Bool
     let onDropFileURLs: ([URL]) -> Bool
@@ -22,6 +23,7 @@ struct DroppableTextEditor: NSViewRepresentable {
         text: Binding<String>,
         isDropTargeted: Binding<Bool>,
         isFocused: Binding<Bool>,
+        placeholder: String? = nil,
         font: NSFont,
         useCommandEnterToSubmit: Bool = false,
         onDropFileURLs: @escaping ([URL]) -> Bool,
@@ -34,6 +36,7 @@ struct DroppableTextEditor: NSViewRepresentable {
         _text = text
         _isDropTargeted = isDropTargeted
         _isFocused = isFocused
+        self.placeholder = placeholder
         self.font = font
         self.useCommandEnterToSubmit = useCommandEnterToSubmit
         self.onDropFileURLs = onDropFileURLs
@@ -61,6 +64,7 @@ struct DroppableTextEditor: NSViewRepresentable {
     func makeNSView(context: Context) -> NSScrollView {
         let textView = DroppableNSTextView()
         textView.delegate = context.coordinator
+        textView.placeholder = placeholder
         textView.font = font
         textView.useCommandEnterToSubmit = useCommandEnterToSubmit
         textView.isEditable = true
@@ -71,6 +75,7 @@ struct DroppableTextEditor: NSViewRepresentable {
         textView.drawsBackground = false
         textView.backgroundColor = .clear
         textView.textContainerInset = NSSize(width: 2, height: 1)
+        textView.textContainer?.lineFragmentPadding = 0
         textView.string = text
 
         textView.onDragTargetedChanged = { isTargeted in
@@ -143,11 +148,17 @@ struct DroppableTextEditor: NSViewRepresentable {
             let selectedRanges = textView.selectedRanges
             textView.string = text
             textView.selectedRanges = selectedRanges
+            textView.needsDisplay = true
             context.coordinator.reportContentHeight(textView)
         }
 
         if textView.font != font {
             textView.font = font
+            textView.needsDisplay = true
+        }
+
+        if textView.placeholder != placeholder {
+            textView.placeholder = placeholder
         }
 
         if isFocused, nsView.window?.firstResponder != textView {
@@ -443,11 +454,15 @@ final class DroppableNSTextView: NSTextView {
     var onCancel: (() -> Bool)?
     var onInterceptKeyDown: ((UInt16) -> Bool)?
     var useCommandEnterToSubmit = false
+    var placeholder: String? {
+        didSet { needsDisplay = true }
+    }
 
     override func becomeFirstResponder() -> Bool {
         let didBecome = super.becomeFirstResponder()
         if didBecome {
             onFocusChanged?(true)
+            needsDisplay = true
         }
         return didBecome
     }
@@ -456,8 +471,35 @@ final class DroppableNSTextView: NSTextView {
         let didResign = super.resignFirstResponder()
         if didResign {
             onFocusChanged?(false)
+            needsDisplay = true
         }
         return didResign
+    }
+
+    override func didChangeText() {
+        super.didChangeText()
+        needsDisplay = true
+    }
+
+    override func draw(_ dirtyRect: NSRect) {
+        super.draw(dirtyRect)
+
+        guard string.isEmpty, let placeholder, let font else { return }
+
+        let insetX = textContainerInset.width + (textContainer?.lineFragmentPadding ?? 0)
+        let insetY = textContainerInset.height
+        let placeholderRect = NSRect(
+            x: insetX,
+            y: insetY,
+            width: max(0, bounds.width - insetX - textContainerInset.width),
+            height: max(font.ascender - font.descender, font.pointSize)
+        )
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: font,
+            .foregroundColor: NSColor.placeholderTextColor
+        ]
+
+        (placeholder as NSString).draw(in: placeholderRect, withAttributes: attributes)
     }
 
     override func paste(_ sender: Any?) {
