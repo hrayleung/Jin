@@ -183,6 +183,7 @@ struct ContentView: View {
             }
             .listStyle(.sidebar)
             .contentMargins(.vertical, 0, for: .scrollContent)
+            .overlayScrollerStyle()
             .frame(maxHeight: .infinity)
         }
         .frame(maxHeight: .infinity, alignment: .top)

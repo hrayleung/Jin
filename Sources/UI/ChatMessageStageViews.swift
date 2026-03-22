@@ -245,6 +245,7 @@ struct ChatSingleThreadMessagesView: View {
                 .padding(.horizontal, 20)
                 .padding(.top, 24)
             }
+            .overlayScrollerStyle()
             .overlay(alignment: .bottomTrailing) {
                 if !isPinnedToBottom {
                     Button {
@@ -589,6 +590,7 @@ private struct ChatMultiModelThreadColumnView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.top, 14)
                 }
+                .overlayScrollerStyle()
                 .defaultScrollAnchor(.bottom)
                 .onChange(of: messageRenderLimit) { _, _ in
                     guard let restoreID = pendingRestoreScrollMessageID else { return }

@@ -13,6 +13,7 @@ struct AppearanceSettingsView: View {
     @AppStorage(AppPreferenceKeys.codeExecutionDisplayMode) private var codeExecutionDisplayModeRaw = CodeExecutionDisplayMode.expanded.rawValue
     @AppStorage(AppPreferenceKeys.agentToolDisplayMode) private var agentToolDisplayModeRaw = AgentToolDisplayMode.expanded.rawValue
     @AppStorage(AppPreferenceKeys.appIconVariant) private var appIconVariant: AppIconVariant = .roseQuartz
+    @AppStorage(AppPreferenceKeys.useOverlayScrollbars) private var useOverlayScrollbars = true
 
     @State private var showingAppFontPicker = false
     @State private var showingCodeFontPicker = false
@@ -74,6 +75,12 @@ struct AppearanceSettingsView: View {
                         Text(mode.label).tag(mode)
                     }
                 }
+
+                Toggle("Overlay Scrollbars", isOn: $useOverlayScrollbars)
+
+                Text("When enabled, scrollbars fade in during scrolling and hide when idle. Turn off to follow the system preference.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
 
             Section("Fonts") {

@@ -45,10 +45,12 @@ struct JinApp: App {
             AppPreferenceKeys.notifyOnBackgroundResponseCompletion: true,
             AppPreferenceKeys.updateAutoCheckOnLaunch: true,
             AppPreferenceKeys.updateAllowPreRelease: false,
-            AppPreferenceKeys.codexWorkingDirectoryPresetsJSON: "[]"
+            AppPreferenceKeys.codexWorkingDirectoryPresetsJSON: "[]",
+            AppPreferenceKeys.useOverlayScrollbars: true
         ])
         ImageCache.default.memoryStorage.config.expiration = .seconds(3600)
         ImageCache.default.diskStorage.config.expiration = .days(30)
+        OverlayScrollerStyleController.shared.installIfNeeded()
 
         _updateManager = StateObject(wrappedValue: SparkleUpdateManager())
         modelContainer = Self.createModelContainerWithRecovery()

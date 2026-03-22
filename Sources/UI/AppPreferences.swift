@@ -19,6 +19,7 @@ enum AppPreferenceKeys {
     static let appIconVariant = "appIconVariant"
     static let appFontFamily = "appFontFamily"
     static let codeFontFamily = "codeFontFamily"
+    static let useOverlayScrollbars = "useOverlayScrollbars"
 
     // MARK: - Chat
 
