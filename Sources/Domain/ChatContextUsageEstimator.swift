@@ -101,17 +101,28 @@ enum ChatContextUsageEstimator {
 
         if shouldTruncateMessages,
            let maxHistoryMessages {
-            let messageLimit = max(0, min(maxHistoryMessages, preparedHistory.count))
-            guard preparedHistory.count > messageLimit else {
-                return preparedHistory
-            }
-            let systemMessages = preparedHistory.prefix(while: { $0.role == .system })
-            let nonSystemMessages = preparedHistory.drop(while: { $0.role == .system })
-            let keptMessages = Array(nonSystemMessages.suffix(messageLimit))
-            preparedHistory = Array(systemMessages) + keptMessages
+            preparedHistory = historyCappedByMessageCount(
+                preparedHistory,
+                maxHistoryMessages: maxHistoryMessages
+            )
         }
 
         return preparedHistory
+    }
+
+    static func historyCappedByMessageCount(
+        _ history: [Message],
+        maxHistoryMessages: Int
+    ) -> [Message] {
+        let messageLimit = max(0, min(maxHistoryMessages, history.count))
+        guard history.count > messageLimit else { return history }
+
+        let systemMessages = history.prefix(while: { $0.role == .system })
+        let nonSystemMessages = history.drop(while: { $0.role == .system })
+        let keptSystem = Array(systemMessages.prefix(messageLimit))
+        let nonSystemBudget = max(0, messageLimit - keptSystem.count)
+        let keptMessages = Array(nonSystemMessages.suffix(nonSystemBudget))
+        return keptSystem + keptMessages
     }
 
     private static func normalizedSystemPrompt(_ systemPrompt: String?) -> String? {

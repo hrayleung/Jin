@@ -128,13 +128,10 @@ enum ChatStreamingOrchestrator {
                 }
 
                 if let maxMessages = ctx.maxHistoryMessages, ctx.shouldTruncateMessages {
-                    let messageLimit = max(0, min(maxMessages, history.count))
-                    if history.count > messageLimit {
-                        let systemMessages = history.prefix(while: { $0.role == .system })
-                        let nonSystemMessages = history.drop(while: { $0.role == .system })
-                        let kept = Array(nonSystemMessages.suffix(messageLimit))
-                        history = Array(systemMessages) + kept
-                    }
+                    history = ChatContextUsageEstimator.historyCappedByMessageCount(
+                        history,
+                        maxHistoryMessages: maxMessages
+                    )
                 }
 
                 if ctx.shouldTruncateMessages {

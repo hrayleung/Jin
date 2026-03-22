@@ -77,8 +77,24 @@ final class ChatContextUsageEstimatorTests: XCTestCase {
             shouldTruncateMessages: true
         )
 
-        XCTAssertEqual(preparedHistory.count, 1)
-        XCTAssertEqual(preparedHistory.first?.role, .system)
+        XCTAssertTrue(preparedHistory.isEmpty)
+    }
+
+    func testHistoryCappedByMessageCountCountsSystemMessagesTowardLimit() {
+        let history = [
+            Message(role: .system, content: [.text("rule 1")]),
+            Message(role: .system, content: [.text("rule 2")]),
+            Message(role: .user, content: [.text("hello there")]),
+            Message(role: .assistant, content: [.text("general kenobi")])
+        ]
+
+        let capped = ChatContextUsageEstimator.historyCappedByMessageCount(
+            history,
+            maxHistoryMessages: 2
+        )
+
+        XCTAssertEqual(capped.count, 2)
+        XCTAssertEqual(capped.map(\.role), [.system, .system])
     }
 
     func testIndicatorSummaryTextMatchesCompactBubbleFormat() {
