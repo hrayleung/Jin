@@ -90,6 +90,7 @@ extension ChatView {
         // load controls (lightweight) so the header reflects the new chat.
         cachedVisibleMessages = []
         cachedMessageEntitiesByID = [:]
+        cachedActiveThreadHistory = []
         cachedToolResultsByCallID = [:]
         cachedArtifactCatalog = .empty
         cachedMessagesVersion &+= 1

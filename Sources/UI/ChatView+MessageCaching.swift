@@ -24,6 +24,7 @@ extension ChatView {
     func rebuildMessageCaches() {
         let threadID = activeModelThread?.id
         let ordered = orderedConversationMessages(threadID: threadID)
+        let historyMessages = decodedHistoryMessages(from: ordered)
         let targetUpdatedAt = conversationEntity.updatedAt
         let fallbackModelLabel = currentModelName
 
@@ -44,6 +45,7 @@ extension ChatView {
                     toolResultsByCallID: context.toolResultsByCallID,
                     artifactCatalog: context.artifactCatalog
                 ),
+                historyMessages: historyMessages,
                 messageEntitiesByID: context.messageEntitiesByID,
                 messageCount: ordered.count,
                 updatedAt: targetUpdatedAt
@@ -85,6 +87,7 @@ extension ChatView {
 
             applyDecodedRenderContext(
                 decoded,
+                historyMessages: historyMessages,
                 messageEntitiesByID: messageEntitiesByID,
                 messageCount: messageCount,
                 updatedAt: targetUpdatedAt
@@ -102,18 +105,27 @@ extension ChatView {
 
     func applyDecodedRenderContext(
         _ context: ChatDecodedRenderContext,
+        historyMessages: [Message],
         messageEntitiesByID: [UUID: MessageEntity],
         messageCount: Int,
         updatedAt: Date
     ) {
         cachedVisibleMessages = context.visibleMessages
         cachedMessageEntitiesByID = messageEntitiesByID
+        cachedActiveThreadHistory = historyMessages
         cachedToolResultsByCallID = context.toolResultsByCallID
         cachedArtifactCatalog = context.artifactCatalog
         cachedMessagesVersion &+= 1
         lastCacheRebuildMessageCount = messageCount
         lastCacheRebuildUpdatedAt = updatedAt
         syncArtifactSelectionForActiveThread()
+    }
+
+    func decodedHistoryMessages(from messageEntities: [MessageEntity]) -> [Message] {
+        let decoder = JSONDecoder()
+        return messageEntities
+            .map(PersistedMessageSnapshot.init)
+            .compactMap { $0.toDomain(using: decoder) }
     }
 
     func syncArtifactSelectionForActiveThread() {

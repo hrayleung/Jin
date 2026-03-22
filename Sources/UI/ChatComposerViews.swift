@@ -229,6 +229,8 @@ struct CompactComposerOverlayView<ControlsRow: View>: View {
     @Binding var isComposerFocused: Bool
     @Binding var composerTextContentHeight: CGFloat
 
+    let contextUsageEstimate: ChatContextUsageEstimate?
+    let currentModelName: String?
     let sendWithCommandEnter: Bool
     let isBusy: Bool
     let canSendDraft: Bool
@@ -265,6 +267,8 @@ struct CompactComposerOverlayView<ControlsRow: View>: View {
         isComposerDropTargeted: Binding<Bool>,
         isComposerFocused: Binding<Bool>,
         composerTextContentHeight: Binding<CGFloat>,
+        contextUsageEstimate: ChatContextUsageEstimate? = nil,
+        currentModelName: String? = nil,
         sendWithCommandEnter: Bool,
         isBusy: Bool,
         canSendDraft: Bool,
@@ -300,6 +304,8 @@ struct CompactComposerOverlayView<ControlsRow: View>: View {
         _isComposerDropTargeted = isComposerDropTargeted
         _isComposerFocused = isComposerFocused
         _composerTextContentHeight = composerTextContentHeight
+        self.contextUsageEstimate = contextUsageEstimate
+        self.currentModelName = currentModelName
         self.sendWithCommandEnter = sendWithCommandEnter
         self.isBusy = isBusy
         self.canSendDraft = canSendDraft
@@ -339,7 +345,7 @@ struct CompactComposerOverlayView<ControlsRow: View>: View {
 
         HStack(alignment: .bottom, spacing: JinSpacing.medium) {
             leftColumn
-            sendButton
+            trailingActions
         }
         .padding(JinSpacing.medium)
         .frame(maxWidth: 800)
@@ -360,6 +366,21 @@ struct CompactComposerOverlayView<ControlsRow: View>: View {
             }
             .padding(.top, JinSpacing.medium)
             .padding(.trailing, JinSpacing.medium)
+        }
+    }
+
+    @ViewBuilder
+    private var trailingActions: some View {
+        HStack(alignment: .center, spacing: JinSpacing.small) {
+            if let contextUsageEstimate {
+                ContextUsageIndicatorView(
+                    estimate: contextUsageEstimate,
+                    modelName: currentModelName
+                )
+                .padding(.bottom, 2)
+            }
+
+            sendButton
         }
     }
 
@@ -600,6 +621,8 @@ struct ExpandedComposerOverlay: View {
     @Binding var isPresented: Bool
     @Binding var isComposerDropTargeted: Bool
 
+    let contextUsageEstimate: ChatContextUsageEstimate?
+    let currentModelName: String?
     let isBusy: Bool
     let canSendDraft: Bool
     let showsRemoteVideoURLField: Bool
@@ -826,6 +849,13 @@ struct ExpandedComposerOverlay: View {
             Text("\u{2318}\u{21A9}")
                 .font(.caption)
                 .foregroundStyle(.tertiary)
+
+            if let contextUsageEstimate {
+                ContextUsageIndicatorView(
+                    estimate: contextUsageEstimate,
+                    modelName: currentModelName
+                )
+            }
 
             Button {
                 guard canSendDraft, !isBusy else { return }

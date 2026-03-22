@@ -102,6 +102,7 @@ struct ChatView: View {
     @State var cachedVisibleMessages: [MessageRenderItem] = []
     @State var cachedMessagesVersion: Int = 0
     @State var cachedMessageEntitiesByID: [UUID: MessageEntity] = [:]
+    @State var cachedActiveThreadHistory: [Message] = []
     @State var cachedToolResultsByCallID: [String: ToolResult] = [:]
     @State var cachedArtifactCatalog: ArtifactCatalog = .empty
     @State var lastCacheRebuildMessageCount: Int = 0

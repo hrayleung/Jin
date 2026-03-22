@@ -32,7 +32,11 @@ enum ChatHistoryTruncator {
         return prefix + tail.reversed()
     }
 
-    private static func approximateTokenCount(for message: Message) -> Int {
+    static func approximateTokenCount(for history: [Message]) -> Int {
+        history.reduce(0) { $0 + approximateTokenCount(for: $1) }
+    }
+
+    static func approximateTokenCount(for message: Message) -> Int {
         var tokens = 4 // role/metadata overhead
 
         for part in message.content {
