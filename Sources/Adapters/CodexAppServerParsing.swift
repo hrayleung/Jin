@@ -2,7 +2,7 @@ import Collections
 import Foundation
 import Network
 
-// MARK: - Static Parsing & Utility Methods
+// MARK: - Model Info Parsing, Agent Message Text, Dynamic Tool Call Output, Connectivity Errors
 
 extension CodexAppServerAdapter {
 
@@ -90,122 +90,6 @@ extension CodexAppServerAdapter {
         return parts
     }
 
-    // MARK: - Search Activity Parsing
-
-    nonisolated static func searchActivityFromCodexItem(
-        item: [String: JSONValue],
-        method: String,
-        params: [String: JSONValue],
-        fallbackTurnID: String?
-    ) -> SearchActivity? {
-        let itemType = item.string(at: ["type"]) ?? ""
-        if itemType == "webSearch" {
-            return searchActivityFromWebSearchItem(item: item, method: method)
-        }
-        if itemType == "dynamicToolCall" {
-            return searchActivityFromDynamicToolCall(
-                item: item,
-                method: method,
-                params: params,
-                fallbackTurnID: fallbackTurnID
-            )
-        }
-        return nil
-    }
-
-    nonisolated static func searchActivityFromDynamicToolCall(
-        item: [String: JSONValue],
-        method: String,
-        params: [String: JSONValue],
-        fallbackTurnID: String?
-    ) -> SearchActivity? {
-        guard let toolName = dynamicToolCallName(from: item),
-              isLikelyWebSearchTool(named: toolName) else {
-            return nil
-        }
-
-        let id = dynamicToolCallID(from: item, params: params, fallbackTurnID: fallbackTurnID, toolName: toolName)
-        let status = dynamicToolCallSearchStatus(from: item, method: method)
-        let arguments = dynamicToolCallSearchArguments(from: item)
-
-        return SearchActivity(
-            id: id,
-            type: "web_search_call",
-            status: status,
-            arguments: arguments,
-            outputIndex: item.int(at: ["outputIndex"]) ?? params.int(at: ["outputIndex"]),
-            sequenceNumber: item.int(at: ["sequenceNumber"]) ?? params.int(at: ["sequenceNumber"])
-        )
-    }
-
-    // MARK: - Codex Tool Activity Parsing
-
-    nonisolated static func codexToolActivityFromDynamicToolCall(
-        item: [String: JSONValue],
-        method: String,
-        params: [String: JSONValue],
-        fallbackTurnID: String?
-    ) -> CodexToolActivity? {
-        guard let toolName = dynamicToolCallName(from: item) else {
-            return nil
-        }
-        guard !isLikelyWebSearchTool(named: toolName) else {
-            return nil
-        }
-
-        let id = codexToolActivityID(from: item, params: params, fallbackTurnID: fallbackTurnID, toolName: toolName)
-        let status = codexToolActivityStatus(from: item, method: method)
-        let arguments = codexToolActivityArguments(from: item)
-        let output = codexToolActivityOutput(from: item)
-
-        return CodexToolActivity(
-            id: id,
-            toolName: toolName,
-            status: status,
-            arguments: arguments,
-            output: output
-        )
-    }
-
-    nonisolated static func codexToolActivityFromCodexItem(
-        item: [String: JSONValue],
-        method: String,
-        params: [String: JSONValue],
-        fallbackTurnID: String?
-    ) -> CodexToolActivity? {
-        let itemType = item.string(at: ["type"]) ?? ""
-
-        let nonToolTypes: Set<String> = [
-            "webSearch",
-            "agentMessage",
-            "reasoning",
-            "enteredReviewMode",
-            "exitedReviewMode",
-            "contextCompaction",
-            "",
-        ]
-        if nonToolTypes.contains(itemType) {
-            return nil
-        }
-
-        if itemType == "dynamicToolCall" {
-            return codexToolActivityFromDynamicToolCall(
-                item: item,
-                method: method,
-                params: params,
-                fallbackTurnID: fallbackTurnID
-            )
-        }
-
-        return codexToolActivityFromGenericItem(
-            item: item,
-            itemType: itemType,
-            method: method,
-            params: params,
-            fallbackTurnID: fallbackTurnID
-        )
-    }
-
     // MARK: - Agent Message Text
 
     nonisolated static func parseAgentMessageText(from item: [String: JSONValue]) -> String? {
@@ -235,373 +119,7 @@ extension CodexAppServerAdapter {
         return nil
     }
 
-    // MARK: - Connectivity Error Handling
-
-    nonisolated static func remapCodexConnectivityError(_ error: Error, endpoint: URL) -> Error {
-        guard let guidance = codexConnectivityGuidanceMessage(for: error, endpoint: endpoint) else {
-            return error
-        }
-        return LLMError.providerError(code: "codex_server_unavailable", message: guidance)
-    }
-
-    nonisolated static func codexConnectivityGuidanceMessage(
-        for error: Error,
-        endpoint: URL
-    ) -> String? {
-        guard isLikelyCodexServerUnavailable(error) else { return nil }
-        let endpointString = endpoint.absoluteString
-        return """
-        Cannot connect to Codex App Server at \(endpointString).
-
-        If you're using a local server, start it first:
-        - Jin -> Settings -> Providers -> Codex App Server (Beta) -> Start Server
-        - Terminal: codex app-server --listen \(endpointString)
-
-        If you're using a remote endpoint, verify the URL/network and retry.
-        """
-    }
-
-    // MARK: - Private Helpers
-
-    private nonisolated static func searchActivityFromWebSearchItem(
-        item: [String: JSONValue],
-        method: String
-    ) -> SearchActivity? {
-        guard item.string(at: ["type"]) == "webSearch" else { return nil }
-        let id = trimmedValue(item.string(at: ["id"])) ?? UUID().uuidString
-
-        var arguments: [String: AnyCodable] = [:]
-        var queriesByKey: OrderedDictionary<String, String> = [:]
-
-        func appendQuery(_ raw: String?) {
-            guard let query = trimmedValue(raw) else { return }
-            let key = query.lowercased()
-            guard queriesByKey[key] == nil else { return }
-            queriesByKey[key] = query
-        }
-
-        appendQuery(item.string(at: ["query"]))
-        if let action = item.object(at: ["action"]) {
-            appendQuery(action.string(at: ["query"]))
-            for queryValue in action.array(at: ["queries"]) ?? [] {
-                appendQuery(queryValue.stringValue)
-            }
-            if let url = trimmedValue(action.string(at: ["url"])) {
-                arguments["url"] = AnyCodable(url)
-            }
-            if let pattern = trimmedValue(action.string(at: ["pattern"])) {
-                arguments["pattern"] = AnyCodable(pattern)
-            }
-            if let actionType = trimmedValue(action.string(at: ["type"])) {
-                arguments["action_type"] = AnyCodable(actionType)
-            }
-        }
-
-        let queryList = Array(queriesByKey.values)
-        if let firstQuery = queryList.first {
-            arguments["query"] = AnyCodable(firstQuery)
-            arguments["queries"] = AnyCodable(queryList)
-        }
-
-        let status: SearchActivityStatus
-        if method == "item/completed" || method.hasSuffix("/completed") {
-            status = .completed
-        } else if method.hasSuffix("/failed") {
-            status = .failed
-        } else {
-            status = .searching
-        }
-
-        return SearchActivity(
-            id: id,
-            type: "web_search_call",
-            status: status,
-            arguments: arguments
-        )
-    }
-
-    private nonisolated static func codexToolActivityFromGenericItem(
-        item: [String: JSONValue],
-        itemType: String,
-        method: String,
-        params: [String: JSONValue],
-        fallbackTurnID: String?
-    ) -> CodexToolActivity? {
-        let id = codexToolActivityID(
-            from: item,
-            params: params,
-            fallbackTurnID: fallbackTurnID,
-            toolName: itemType
-        )
-
-        let toolName = genericItemToolName(item: item, itemType: itemType)
-        let status = codexToolActivityStatus(from: item, method: method)
-        let arguments = genericItemArguments(item: item, itemType: itemType)
-        let output = genericItemOutput(item: item, itemType: itemType)
-
-        return CodexToolActivity(
-            id: id,
-            toolName: toolName,
-            status: status,
-            arguments: arguments,
-            output: output
-        )
-    }
-
-    private nonisolated static func genericItemToolName(
-        item: [String: JSONValue],
-        itemType: String
-    ) -> String {
-        switch itemType {
-        case "commandExecution":
-            return trimmedValue(item.string(at: ["command"]))
-                .map { cmd in
-                    let first = cmd.components(separatedBy: .whitespaces).first ?? cmd
-                    return first.count > 40 ? String(first.prefix(37)) + "..." : first
-                }
-                ?? "shell"
-        case "fileChange":
-            if let changes = item.array(at: ["changes"]),
-               let firstPath = changes.first?.objectValue?.string(at: ["path"]) {
-                let filename = (firstPath as NSString).lastPathComponent
-                let kind = changes.first?.objectValue?.string(at: ["kind"]) ?? "edit"
-                return "\(kind): \(filename)"
-            }
-            return "file change"
-        case "mcpToolCall":
-            if let server = trimmedValue(item.string(at: ["server"])),
-               let tool = trimmedValue(item.string(at: ["tool"])) {
-                return "\(server)/\(tool)"
-            }
-            return trimmedValue(item.string(at: ["tool"])) ?? "mcp tool"
-        case "collabToolCall":
-            return trimmedValue(item.string(at: ["tool"])) ?? "collab tool"
-        case "imageView":
-            return "image view"
-        default:
-            return trimmedValue(
-                item.string(at: ["tool"])
-                    ?? item.string(at: ["name"])
-                    ?? item.string(at: ["tool", "name"])
-            ) ?? itemType
-        }
-    }
-
-    private nonisolated static func genericItemArguments(
-        item: [String: JSONValue],
-        itemType: String
-    ) -> [String: AnyCodable] {
-        var arguments: [String: AnyCodable] = [:]
-
-        switch itemType {
-        case "commandExecution":
-            if let command = trimmedValue(item.string(at: ["command"])) {
-                arguments["command"] = AnyCodable(command)
-            }
-            if let cwd = trimmedValue(item.string(at: ["cwd"])) {
-                arguments["cwd"] = AnyCodable(cwd)
-            }
-            if let exitCode = item.int(at: ["exitCode"]) {
-                arguments["exitCode"] = AnyCodable(exitCode)
-            }
-
-        case "fileChange":
-            if let changes = item.array(at: ["changes"]) {
-                var paths = OrderedSet<String>()
-                for change in changes {
-                    if let obj = change.objectValue,
-                       let path = trimmedValue(obj.string(at: ["path"])) {
-                        paths.append(path)
-                    }
-                }
-                if !paths.isEmpty {
-                    arguments["paths"] = AnyCodable(Array(paths))
-                }
-            }
-
-        case "mcpToolCall":
-            if let server = trimmedValue(item.string(at: ["server"])) {
-                arguments["server"] = AnyCodable(server)
-            }
-            if let tool = trimmedValue(item.string(at: ["tool"])) {
-                arguments["tool"] = AnyCodable(tool)
-            }
-            if let argsObj = item.object(at: ["arguments"]) {
-                for (key, value) in argsObj {
-                    arguments[key] = AnyCodable(jsonValueToAny(value))
-                }
-            }
-
-        case "collabToolCall":
-            if let tool = trimmedValue(item.string(at: ["tool"])) {
-                arguments["tool"] = AnyCodable(tool)
-            }
-            if let prompt = trimmedValue(item.string(at: ["prompt"])) {
-                arguments["prompt"] = AnyCodable(prompt)
-            }
-
-        case "imageView":
-            if let path = trimmedValue(item.string(at: ["path"])) {
-                arguments["path"] = AnyCodable(path)
-            }
-
-        default:
-            if let argsObj = item.object(at: ["arguments"]) {
-                for (key, value) in argsObj {
-                    arguments[key] = AnyCodable(jsonValueToAny(value))
-                }
-            } else if let inputObj = item.object(at: ["input"]) {
-                for (key, value) in inputObj {
-                    arguments[key] = AnyCodable(jsonValueToAny(value))
-                }
-            }
-            for key in ["command", "path", "file", "tool", "query"] {
-                if arguments[key] == nil, let value = item.string(at: [key]) {
-                    arguments[key] = AnyCodable(value)
-                }
-            }
-        }
-
-        return arguments
-    }
-
-    private nonisolated static func genericItemOutput(
-        item: [String: JSONValue],
-        itemType: String
-    ) -> String? {
-        switch itemType {
-        case "commandExecution":
-            return trimmedValue(item.string(at: ["aggregatedOutput"]))
-                ?? trimmedValue(item.string(at: ["output"]))
-        case "fileChange":
-            return nil
-        case "mcpToolCall":
-            return trimmedValue(item.string(at: ["result"]))
-                ?? trimmedValue(item.string(at: ["error"]))
-        default:
-            return codexToolActivityOutput(from: item)
-        }
-    }
-
-    private nonisolated static func codexToolActivityID(
-        from item: [String: JSONValue],
-        params: [String: JSONValue],
-        fallbackTurnID: String?,
-        toolName: String
-    ) -> String {
-        if let explicitID = trimmedValue(
-            item.string(at: ["id"])
-                ?? item.string(at: ["callId"])
-                ?? item.string(at: ["toolCallId"])
-                ?? params.string(at: ["itemId"])
-        ) {
-            return explicitID
-        }
-
-        let turnID = trimmedValue(
-            params.string(at: ["turnId"])
-                ?? params.string(at: ["turn", "id"])
-                ?? fallbackTurnID
-        ) ?? "unknown_turn"
-
-        var fallbackID = "codex_tool_\(turnID)_\(toolName.lowercased())"
-        if let suffix = toolActivityFallbackSuffix(from: item, params: params) {
-            fallbackID += "_\(suffix)"
-        }
-        return fallbackID
-    }
-
-    private nonisolated static func codexToolActivityStatus(
-        from item: [String: JSONValue],
-        method: String
-    ) -> CodexToolActivityStatus {
-        if method == "item/completed" || method.hasSuffix("/completed") {
-            return .completed
-        }
-        if method.hasSuffix("/failed") {
-            return .failed
-        }
-        if method.hasSuffix("/started") || method == "item/started" {
-            return .running
-        }
-        if method.hasSuffix("/outputDelta") || method.hasSuffix("/requestApproval") {
-            return .running
-        }
-
-        if let rawStatus = trimmedValue(item.string(at: ["status"]) ?? item.string(at: ["state"])) {
-            let normalized = rawStatus
-                .replacingOccurrences(
-                    of: "([a-z0-9])([A-Z])",
-                    with: "$1_$2",
-                    options: .regularExpression
-                )
-                .lowercased()
-                .replacingOccurrences(of: "-", with: "_")
-                .replacingOccurrences(of: " ", with: "_")
-            if normalized == "in_progress" || normalized == "inprogress" {
-                return .running
-            }
-            if normalized == "declined" {
-                return .failed
-            }
-            return CodexToolActivityStatus(rawValue: normalized)
-        }
-        return .running
-    }
-
-    private nonisolated static func codexToolActivityArguments(from item: [String: JSONValue]) -> [String: AnyCodable] {
-        var arguments: [String: AnyCodable] = [:]
-
-        if let argsObj = item.object(at: ["arguments"]) {
-            for (key, value) in argsObj {
-                arguments[key] = AnyCodable(jsonValueToAny(value))
-            }
-        } else if let inputObj = item.object(at: ["input"]) {
-            for (key, value) in inputObj {
-                arguments[key] = AnyCodable(jsonValueToAny(value))
-            }
-        }
-
-        for key in ["command", "cmd", "path", "file", "filePath", "file_path", "query", "content"] {
-            if arguments[key] == nil, let value = item.string(at: [key]) {
-                arguments[key] = AnyCodable(value)
-            }
-        }
-
-        return arguments
-    }
-
-    nonisolated static func jsonValueToAny(_ value: JSONValue) -> Any {
-        switch value {
-        case .null:
-            return NSNull()
-        case .bool(let b):
-            return b
-        case .number(let n):
-            return n
-        case .string(let s):
-            return s
-        case .array(let arr):
-            return arr.map { jsonValueToAny($0) }
-        case .object(let obj):
-            return obj.mapValues { jsonValueToAny($0) }
-        }
-    }
-
-    private nonisolated static func codexToolActivityOutput(from item: [String: JSONValue]) -> String? {
-        if let output = trimmedValue(item.string(at: ["output"])) {
-            return output
-        }
-        if let result = trimmedValue(item.string(at: ["result"])) {
-            return result
-        }
-        if let outputText = trimmedValue(item.string(at: ["output", "text"])) {
-            return outputText
-        }
-        return nil
-    }
-
-    private nonisolated static func collectAgentMessageTextFragments(from value: JSONValue) -> [String] {
+    nonisolated static func collectAgentMessageTextFragments(from value: JSONValue) -> [String] {
         switch value {
         case .string(let text):
             return [text]
@@ -631,288 +149,33 @@ extension CodexAppServerAdapter {
         }
     }
 
-    private nonisolated static func dynamicToolCallName(from item: [String: JSONValue]) -> String? {
-        trimmedValue(
-            item.string(at: ["name"])
-                ?? item.string(at: ["toolName"])
-                ?? item.string(at: ["tool"])
-                ?? item.string(at: ["tool", "name"])
-                ?? item.string(at: ["tool", "id"])
-                ?? item.string(at: ["tool", "type"])
-                ?? item.string(at: ["kind"])
-        )
+    // MARK: - Connectivity Error Handling
+
+    nonisolated static func remapCodexConnectivityError(_ error: Error, endpoint: URL) -> Error {
+        guard let guidance = codexConnectivityGuidanceMessage(for: error, endpoint: endpoint) else {
+            return error
+        }
+        return LLMError.providerError(code: "codex_server_unavailable", message: guidance)
     }
 
-    nonisolated static func isLikelyWebSearchTool(named rawName: String) -> Bool {
-        let normalized = rawName
-            .lowercased()
-            .replacingOccurrences(of: "-", with: "_")
-        let canonical = normalized.replacingOccurrences(of: ".", with: "_")
-
-        let knownNames: Set<String> = [
-            "web_search",
-            "websearch",
-            "search_web",
-            "browser.search",
-            "browser_search",
-        ]
-        if knownNames.contains(normalized) || knownNames.contains(canonical) {
-            return true
-        }
-
-        let tokens = Set(
-            canonical
-                .split(whereSeparator: { !$0.isLetter && !$0.isNumber })
-                .map(String.init)
-        )
-
-        if tokens.contains("websearch") {
-            return true
-        }
-        if tokens.contains("browser") && (tokens.contains("search") || tokens.contains("browse")) {
-            return true
-        }
-        if tokens.contains("web") && (tokens.contains("search") || tokens.contains("browse")) {
-            return true
-        }
-        if tokens.contains("search") && tokens.contains("engine") {
-            return true
-        }
-        return false
-    }
-
-    private nonisolated static func dynamicToolCallID(
-        from item: [String: JSONValue],
-        params: [String: JSONValue],
-        fallbackTurnID: String?,
-        toolName: String
-    ) -> String {
-        if let explicitID = trimmedValue(
-            item.string(at: ["id"])
-                ?? item.string(at: ["callId"])
-                ?? item.string(at: ["toolCallId"])
-                ?? params.string(at: ["itemId"])
-        ) {
-            return explicitID
-        }
-
-        let turnID = trimmedValue(
-            params.string(at: ["turnId"])
-                ?? params.string(at: ["turn", "id"])
-                ?? fallbackTurnID
-        ) ?? "unknown_turn"
-
-        var fallbackID = "codex_dynamic_search_\(turnID)_\(toolName.lowercased())"
-        if let suffix = toolActivityFallbackSuffix(from: item, params: params) {
-            fallbackID += "_\(suffix)"
-        }
-        return fallbackID
-    }
-
-    private nonisolated static func toolActivityFallbackSuffix(
-        from item: [String: JSONValue],
-        params: [String: JSONValue]
+    nonisolated static func codexConnectivityGuidanceMessage(
+        for error: Error,
+        endpoint: URL
     ) -> String? {
-        if let sequence = item.int(at: ["sequenceNumber"]) ?? params.int(at: ["sequenceNumber"]) {
-            return "seq\(sequence)"
-        }
-        if let outputIndex = item.int(at: ["outputIndex"]) ?? params.int(at: ["outputIndex"]) {
-            return "out\(outputIndex)"
-        }
-        if let callIndex = item.int(at: ["callIndex"])
-            ?? params.int(at: ["callIndex"])
-            ?? item.int(at: ["index"])
-            ?? params.int(at: ["index"]) {
-            return "idx\(callIndex)"
-        }
-        return nil
+        guard isLikelyCodexServerUnavailable(error) else { return nil }
+        let endpointString = endpoint.absoluteString
+        return """
+        Cannot connect to Codex App Server at \(endpointString).
+
+        If you're using a local server, start it first:
+        - Jin -> Settings -> Providers -> Codex App Server (Beta) -> Start Server
+        - Terminal: codex app-server --listen \(endpointString)
+
+        If you're using a remote endpoint, verify the URL/network and retry.
+        """
     }
 
-    private nonisolated static func dynamicToolCallSearchStatus(
-        from item: [String: JSONValue],
-        method: String
-    ) -> SearchActivityStatus {
-        if method == "item/completed" || method.hasSuffix("/completed") {
-            return .completed
-        }
-        if method.hasSuffix("/failed") {
-            return .failed
-        }
-        if method.hasSuffix("/searching") {
-            return .searching
-        }
-        if method.hasSuffix("/started") {
-            return .inProgress
-        }
-
-        if let rawStatus = trimmedValue(item.string(at: ["status"]) ?? item.string(at: ["state"])) {
-            let normalized = rawStatus
-                .replacingOccurrences(
-                    of: "([a-z0-9])([A-Z])",
-                    with: "$1_$2",
-                    options: .regularExpression
-                )
-                .lowercased()
-                .replacingOccurrences(of: "-", with: "_")
-                .replacingOccurrences(of: " ", with: "_")
-            if normalized == "running" || normalized == "inprogress" || normalized == "in_progress" {
-                return .inProgress
-            }
-            return SearchActivityStatus(rawValue: normalized)
-        }
-        return .inProgress
-    }
-
-    private nonisolated static func dynamicToolCallSearchArguments(from item: [String: JSONValue]) -> [String: AnyCodable] {
-        var arguments: [String: AnyCodable] = [:]
-
-        var queriesByKey: OrderedDictionary<String, String> = [:]
-        func appendQuery(_ candidate: String?) {
-            guard let query = trimmedValue(candidate) else { return }
-            let key = query.lowercased()
-            guard queriesByKey[key] == nil else { return }
-            queriesByKey[key] = query
-        }
-
-        appendQuery(item.string(at: ["query"]))
-        appendQuery(item.string(at: ["searchQuery"]))
-        appendQuery(item.string(at: ["prompt"]))
-        appendQuery(item.object(at: ["arguments"])?.string(at: ["query"]))
-        appendQuery(item.object(at: ["arguments"])?.string(at: ["searchQuery"]))
-        appendQuery(item.object(at: ["input"])?.string(at: ["query"]))
-        appendQuery(item.object(at: ["input"])?.string(at: ["searchQuery"]))
-
-        for queryValue in item.array(at: ["queries"]) ?? [] {
-            appendQuery(queryValue.stringValue)
-        }
-        for queryValue in item.object(at: ["arguments"])?.array(at: ["queries"]) ?? [] {
-            appendQuery(queryValue.stringValue)
-        }
-        for queryValue in item.object(at: ["input"])?.array(at: ["queries"]) ?? [] {
-            appendQuery(queryValue.stringValue)
-        }
-
-        let queryList = Array(queriesByKey.values)
-        if let firstQuery = queryList.first {
-            arguments["query"] = AnyCodable(firstQuery)
-            arguments["queries"] = AnyCodable(queryList)
-        }
-
-        var sourcesByURL: OrderedDictionary<String, [String: Any]> = [:]
-        func appendSource(url candidateURL: String?, title: String?, snippet: String?) {
-            guard let normalizedURL = trimmedValue(candidateURL) else { return }
-            let dedupeKey = urlDeduplicationKey(for: normalizedURL)
-
-            var source = sourcesByURL[dedupeKey] ?? ["url": normalizedURL]
-            if source["title"] == nil, let title = trimmedValue(title) {
-                source["title"] = title
-            }
-            if source["snippet"] == nil, let snippet = trimmedValue(snippet) {
-                source["snippet"] = snippet
-            }
-            sourcesByURL[dedupeKey] = source
-        }
-
-        let sourceCandidatePaths: [[String]] = [
-            ["sources"],
-            ["result", "sources"],
-            ["result", "results"],
-            ["output", "sources"],
-            ["output", "results"],
-            ["searchResult", "sources"],
-            ["searchResult", "results"],
-            ["webSearch", "sources"],
-            ["webSearch", "results"],
-            ["arguments", "sources"],
-            ["input", "sources"],
-        ]
-
-        for path in sourceCandidatePaths {
-            for candidate in item.array(at: path) ?? [] {
-                guard let object = candidate.objectValue else { continue }
-                appendSource(
-                    url: object.string(at: ["url"]) ?? object.object(at: ["source"])?.string(at: ["url"]),
-                    title: object.string(at: ["title"]) ?? object.object(at: ["source"])?.string(at: ["title"]),
-                    snippet: preferredSnippetValue(from: object)
-                        ?? object.object(at: ["source"]).flatMap(preferredSnippetValue(from:))
-                )
-            }
-        }
-
-        let allText = collectAgentMessageTextFragments(from: .object(item)).joined(separator: "\n")
-        for url in extractURLs(from: allText) {
-            appendSource(url: url, title: nil, snippet: nil)
-        }
-
-        let sources = Array(sourcesByURL.values)
-        if !sources.isEmpty {
-            arguments["sources"] = AnyCodable(sources)
-            if let first = sources.first {
-                if let firstURL = first["url"] as? String {
-                    arguments["url"] = AnyCodable(firstURL)
-                }
-                if let firstTitle = first["title"] as? String {
-                    arguments["title"] = AnyCodable(firstTitle)
-                }
-            }
-        }
-
-        return arguments
-    }
-
-    private nonisolated static func preferredSnippetValue(from object: [String: JSONValue]) -> String? {
-        let candidatePaths: [[String]] = [
-            ["snippet"],
-            ["summary"],
-            ["description"],
-            ["preview"],
-            ["excerpt"],
-            ["citedText"],
-            ["cited_text"],
-            ["quote"],
-            ["abstract"],
-        ]
-
-        for path in candidatePaths {
-            if let value = trimmedValue(object.string(at: path)) {
-                return value
-            }
-        }
-        return nil
-    }
-
-    private nonisolated static func extractURLs(from text: String) -> [String] {
-        guard !text.isEmpty else { return [] }
-
-        let pattern = #"https?://[^\s<>"'\]\)]+"#
-        guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else {
-            return []
-        }
-
-        let nsText = text as NSString
-        let matches = regex.matches(in: text, options: [], range: NSRange(location: 0, length: nsText.length))
-
-        var resultsByKey: OrderedDictionary<String, String> = [:]
-        for match in matches {
-            let url = nsText.substring(with: match.range)
-                .trimmingCharacters(in: CharacterSet(charactersIn: ".,;:!?)]}>\"'"))
-            guard !url.isEmpty else { continue }
-            let key = urlDeduplicationKey(for: url)
-            guard resultsByKey[key] == nil else { continue }
-            resultsByKey[key] = url
-        }
-        return Array(resultsByKey.values)
-    }
-
-    private nonisolated static func urlDeduplicationKey(for rawURL: String) -> String {
-        guard var components = URLComponents(string: rawURL) else {
-            return rawURL
-        }
-
-        components.scheme = components.scheme?.lowercased()
-        components.host = components.host?.lowercased()
-        return components.string ?? rawURL
-    }
+    // MARK: - Catalog Metadata & Reasoning Efforts
 
     private nonisolated static func parseCatalogMetadata(from modelObject: [String: JSONValue]) -> ModelCatalogMetadata? {
         let availabilityMessage = trimmedValue(modelObject.string(at: ["availabilityNux", "message"]))
@@ -961,6 +224,8 @@ extension CodexAppServerAdapter {
         return ReasoningEffort(rawValue: raw.lowercased())
     }
 
+    // MARK: - General Utility Helpers
+
     nonisolated static func firstPositiveInt(
         from object: [String: JSONValue],
         candidatePaths: [[String]]
@@ -978,6 +243,25 @@ extension CodexAppServerAdapter {
         let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? nil : trimmed
     }
+
+    nonisolated static func jsonValueToAny(_ value: JSONValue) -> Any {
+        switch value {
+        case .null:
+            return NSNull()
+        case .bool(let b):
+            return b
+        case .number(let n):
+            return n
+        case .string(let s):
+            return s
+        case .array(let arr):
+            return arr.map { jsonValueToAny($0) }
+        case .object(let obj):
+            return obj.mapValues { jsonValueToAny($0) }
+        }
+    }
+
+    // MARK: - Connectivity Detection (Private)
 
     private nonisolated static func isLikelyCodexServerUnavailable(_ error: Error) -> Bool {
         if case LLMError.invalidRequest(let message) = error,
