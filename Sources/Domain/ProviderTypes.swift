@@ -54,32 +54,32 @@ struct ModelOverrides: Codable, Equatable {
 
 /// Provider type.
 enum ProviderType: String, Codable, CaseIterable {
-    case openai
-    case openaiWebSocket
-    case codexAppServer
-    case githubCopilot
-    case openaiCompatible
-    case cloudflareAIGateway
-    case vercelAIGateway
-    case openrouter
     case anthropic
-    case perplexity
-    case groq
+    case cerebras
+    case cloudflareAIGateway
+    case codexAppServer
     case cohere
-    case mistral
     case deepinfra
-    case together
-    case xai
     case deepseek
-    case zhipuCodingPlan
+    case fireworks
+    case gemini
+    case githubCopilot
+    case groq
     case minimax
     case minimaxCodingPlan
-    case fireworks
-    case cerebras
-    case sambanova
+    case mistral
     case morphllm
-    case gemini
+    case openai
+    case openaiCompatible
+    case openaiWebSocket
+    case openrouter
+    case perplexity
+    case sambanova
+    case together
+    case vercelAIGateway
     case vertexai
+    case xai
+    case zhipuCodingPlan
 
     var displayName: String {
         switch self {
