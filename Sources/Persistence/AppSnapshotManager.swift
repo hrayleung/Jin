@@ -147,17 +147,19 @@ enum AppSnapshotManager {
         try FileManager.default.createDirectory(at: databaseDirectory, withIntermediateDirectories: true)
         try SQLiteDatabaseSupport.onlineBackup(from: storeURL, to: destinationStoreURL)
 
-        let preferencesURL = bundleDirectory
-            .appendingPathComponent("Preferences", isDirectory: true)
-            .appendingPathComponent(AppDataLocations.snapshotPreferencesFileName, isDirectory: false)
-        try FileManager.default.createDirectory(at: preferencesURL.deletingLastPathComponent(), withIntermediateDirectories: true)
-        if let data = try? PropertyListSerialization.data(
-            fromPropertyList: AppPreferencesSnapshotStore.snapshotPreferences(),
-            format: .xml,
-            options: 0
-        ) {
-            try data.write(to: preferencesURL, options: .atomic)
+        let preferencesDirectory = bundleDirectory.appendingPathComponent("Preferences", isDirectory: true)
+        let preferencesURL = preferencesDirectory.appendingPathComponent(
+            AppDataLocations.snapshotPreferencesFileName,
+            isDirectory: false
+        )
+        let livePreferencesDirectory = try AppDataLocations.preferencesDirectoryURL()
+        if FileManager.default.fileExists(atPath: livePreferencesDirectory.path) {
+            try copyDirectoryContents(from: livePreferencesDirectory, to: preferencesDirectory)
+        } else {
+            try FileManager.default.createDirectory(at: preferencesDirectory, withIntermediateDirectories: true)
         }
+        let preferencesData = try AppPreferencesSnapshotStore.snapshotPreferenceData()
+        try preferencesData.write(to: preferencesURL, options: .atomic)
 
         let liveAttachmentsURL = try AppDataLocations.attachmentsDirectoryURL()
         let snapshotAttachmentsURL = bundleDirectory.appendingPathComponent("Attachments", isDirectory: true)
@@ -194,7 +196,7 @@ enum AppSnapshotManager {
             integrityDetail: integrity.detail,
             counts: counts,
             hasAttachments: hasAttachments,
-            hasPreferences: FileManager.default.fileExists(atPath: preferencesURL.path),
+            hasPreferences: true,
             note: nil
         )
         let manifestURL = bundleDirectory.appendingPathComponent(AppDataLocations.snapshotManifestFileName, isDirectory: false)
@@ -350,15 +352,19 @@ enum AppSnapshotManager {
 
         let liveDatabase = try AppDataLocations.databaseDirectoryURL()
         let attachmentsDirectory = snapshotDirectory.appendingPathComponent("Attachments", isDirectory: true)
-        let preferencesURL = snapshotDirectory
-            .appendingPathComponent("Preferences", isDirectory: true)
-            .appendingPathComponent(AppDataLocations.snapshotPreferencesFileName, isDirectory: false)
+        let preferencesDirectory = snapshotDirectory.appendingPathComponent("Preferences", isDirectory: true)
+        let preferencesURL = preferencesDirectory.appendingPathComponent(
+            AppDataLocations.snapshotPreferencesFileName,
+            isDirectory: false
+        )
         let liveAttachments = try AppDataLocations.attachmentsDirectoryURL()
+        let livePreferences = try AppDataLocations.preferencesDirectoryURL()
 
         let rollbackRoot = pendingRoot.appendingPathComponent("Rollback", isDirectory: true)
         try FileManager.default.createDirectory(at: rollbackRoot, withIntermediateDirectories: true)
         let rollbackDatabase = rollbackRoot.appendingPathComponent("Database", isDirectory: true)
         let rollbackAttachments = rollbackRoot.appendingPathComponent("Attachments", isDirectory: true)
+        let rollbackPreferencesDirectory = rollbackRoot.appendingPathComponent("Preferences", isDirectory: true)
         let rollbackPreferences = rollbackRoot.appendingPathComponent(AppDataLocations.snapshotPreferencesFileName, isDirectory: false)
 
         if FileManager.default.fileExists(atPath: liveDatabase.path) {
@@ -367,23 +373,29 @@ enum AppSnapshotManager {
         if FileManager.default.fileExists(atPath: liveAttachments.path) {
             try copyDirectoryContents(from: liveAttachments, to: rollbackAttachments)
         }
-        if let currentPreferencesData = try? PropertyListSerialization.data(
-            fromPropertyList: AppPreferencesSnapshotStore.snapshotPreferences(),
-            format: .xml,
-            options: 0
-        ) {
+        if FileManager.default.fileExists(atPath: livePreferences.path) {
+            try copyDirectoryContents(from: livePreferences, to: rollbackPreferencesDirectory)
+        }
+        if let currentPreferencesData = try? AppPreferencesSnapshotStore.snapshotPreferenceData() {
             try currentPreferencesData.write(to: rollbackPreferences, options: .atomic)
         }
 
         do {
             try replaceDirectory(at: liveDatabase, with: pendingDatabase)
 
-            if FileManager.default.fileExists(atPath: attachmentsDirectory.path) {
+            if manifest.hasAttachments {
                 try replaceDirectory(at: liveAttachments, with: attachmentsDirectory)
+            } else if FileManager.default.fileExists(atPath: liveAttachments.path) {
+                try FileManager.default.removeItem(at: liveAttachments)
+            }
+
+            if FileManager.default.fileExists(atPath: preferencesDirectory.path) {
+                try replaceDirectory(at: livePreferences, with: preferencesDirectory)
             }
 
             if FileManager.default.fileExists(atPath: preferencesURL.path) {
                 AppPreferencesSnapshotStore.applyPreferenceFile(at: preferencesURL)
+                removeTransientPreferenceSnapshotFile(from: livePreferences)
             }
         } catch {
             if FileManager.default.fileExists(atPath: rollbackDatabase.path) {
@@ -392,8 +404,12 @@ enum AppSnapshotManager {
             if FileManager.default.fileExists(atPath: rollbackAttachments.path) {
                 try? replaceDirectory(at: liveAttachments, with: rollbackAttachments)
             }
+            if FileManager.default.fileExists(atPath: rollbackPreferencesDirectory.path) {
+                try? replaceDirectory(at: livePreferences, with: rollbackPreferencesDirectory)
+            }
             if FileManager.default.fileExists(atPath: rollbackPreferences.path) {
                 AppPreferencesSnapshotStore.applyPreferenceFile(at: rollbackPreferences)
+                removeTransientPreferenceSnapshotFile(from: livePreferences)
             }
             try? FileManager.default.removeItem(at: pendingRoot)
             throw error
@@ -513,6 +529,13 @@ enum AppSnapshotManager {
             try FileManager.default.removeItem(at: destinationURL)
         }
         try FileManager.default.copyItem(at: sourceURL, to: destinationURL)
+    }
+
+    private static func removeTransientPreferenceSnapshotFile(from preferencesDirectory: URL) {
+        let snapshotPreferenceURL = preferencesDirectory
+            .appendingPathComponent(AppDataLocations.snapshotPreferencesFileName, isDirectory: false)
+        guard FileManager.default.fileExists(atPath: snapshotPreferenceURL.path) else { return }
+        try? FileManager.default.removeItem(at: snapshotPreferenceURL)
     }
 
     private static func normalizedManifest(

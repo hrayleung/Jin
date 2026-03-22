@@ -54,11 +54,7 @@ enum AppPreferencesSnapshotStore {
         }
 
         do {
-            let data = try PropertyListSerialization.data(
-                fromPropertyList: dictionary,
-                format: .xml,
-                options: 0
-            )
+            let data = try preferenceData(for: dictionary)
             try data.write(to: sharedURL, options: .atomic)
             return true
         } catch {
@@ -68,6 +64,18 @@ enum AppPreferencesSnapshotStore {
 
     static func snapshotPreferences() -> [String: Any] {
         mergedPreferenceDictionary()
+    }
+
+    static func snapshotPreferenceData() throws -> Data {
+        try preferenceData(for: snapshotPreferences())
+    }
+
+    static func preferenceData(for dictionary: [String: Any]) throws -> Data {
+        try PropertyListSerialization.data(
+            fromPropertyList: dictionary,
+            format: .xml,
+            options: 0
+        )
     }
 
     static func applyPreferenceDictionary(_ dictionary: [String: Any], defaults: UserDefaults = .standard) {
