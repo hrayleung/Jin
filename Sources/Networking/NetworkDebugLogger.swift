@@ -28,12 +28,9 @@ actor NetworkDebugLogger {
     private var activeWebSocketSessions: [UUID: ActiveWebSocketSession] = [:]
 
     nonisolated static var logRootDirectoryURL: URL {
-        let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
-            ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support")
-        return appSupport
-            .appendingPathComponent("Jin", isDirectory: true)
-            .appendingPathComponent("Logs", isDirectory: true)
-            .appendingPathComponent("network-trace", isDirectory: true)
+        (try? AppDataLocations.networkTraceDirectoryURL())
+            ?? FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/Application Support/\(AppDataLocations.sharedDirectoryName)/Logs/network-trace")
     }
 
     static var isLoggingEnabled: Bool {

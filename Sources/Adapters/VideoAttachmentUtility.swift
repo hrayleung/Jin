@@ -82,16 +82,15 @@ enum VideoAttachmentUtility {
     }
 
     private static func attachmentsDirectory() throws -> URL {
-        guard let appSupport = FileManager.default.urls(
-            for: .applicationSupportDirectory,
-            in: .userDomainMask
-        ).first else {
+        let dir: URL
+        do {
+            try AppDataLocations.ensureDirectoriesExist()
+            dir = try AppDataLocations.attachmentsDirectoryURL()
+        } catch {
             throw LLMError.decodingError(
                 message: "Could not locate application support directory for video storage."
             )
         }
-
-        let dir = appSupport.appendingPathComponent("Jin/Attachments", isDirectory: true)
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         return dir
     }

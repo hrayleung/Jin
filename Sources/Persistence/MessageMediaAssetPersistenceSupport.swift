@@ -43,8 +43,7 @@ enum MessageMediaAssetPersistenceSupport {
                 .lowercased()
 
             let ext = videoFileExtension(contentType: contentType, url: url)
-            let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
-            guard let dir = appSupport?.appendingPathComponent("Jin/Attachments", isDirectory: true) else { return nil }
+            guard let dir = try? AppDataLocations.attachmentsDirectoryURL() else { return nil }
             try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
 
             let destination = dir.appendingPathComponent("\(UUID().uuidString).\(ext)")
@@ -68,8 +67,7 @@ enum MessageMediaAssetPersistenceSupport {
         }
 
         let ext = AttachmentStorageManager.fileExtension(for: mimeType) ?? "png"
-        let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
-        guard let dir = appSupport?.appendingPathComponent("Jin/Attachments", isDirectory: true) else { return nil }
+        guard let dir = try? AppDataLocations.attachmentsDirectoryURL() else { return nil }
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
 
         let hash = SHA256.hash(data: imageData)

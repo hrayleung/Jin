@@ -488,14 +488,15 @@ actor MCPClient {
     }
 
     private func nodeIsolationRoot() throws -> URL {
-        guard let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
+        let safeID = sanitizePathComponent(config.id)
+        let base: URL
+        do {
+            base = try AppDataLocations.mcpRuntimeDirectoryURL()
+        } catch {
             throw MCPClientError.environmentSetupFailed(message: "Unable to locate Application Support directory.")
         }
 
-        let safeID = sanitizePathComponent(config.id)
         let root = base
-            .appendingPathComponent("Jin", isDirectory: true)
-            .appendingPathComponent("MCP", isDirectory: true)
             .appendingPathComponent("node", isDirectory: true)
             .appendingPathComponent(safeID, isDirectory: true)
 

@@ -66,14 +66,14 @@ enum RTKConfigManager {
             baseDirectory = overrideHome
                 .appendingPathComponent("Library", isDirectory: true)
                 .appendingPathComponent("Application Support", isDirectory: true)
-        } else if let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first {
-            baseDirectory = appSupport
+        } else if let rtkDirectory = try? AppDataLocations.rtkDirectoryURL() {
+            return rtkDirectory.appendingPathComponent("tee", isDirectory: true)
         } else {
             throw RTKRuntimeError.configDirectoryUnavailable
         }
 
         return baseDirectory
-            .appendingPathComponent("Jin", isDirectory: true)
+            .appendingPathComponent(AppDataLocations.sharedDirectoryName, isDirectory: true)
             .appendingPathComponent("RTK", isDirectory: true)
             .appendingPathComponent("tee", isDirectory: true)
     }
@@ -121,7 +121,7 @@ enum RTKConfigManager {
                 .appendingPathComponent("Library", isDirectory: true)
                 .appendingPathComponent("Application Support", isDirectory: true)
         }
-        return FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+        return try? AppDataLocations.applicationSupportDirectory()
     }
 
     private static func makeManagedTeeSection(directoryPath: String) -> String {

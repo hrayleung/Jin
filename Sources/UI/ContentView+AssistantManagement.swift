@@ -14,7 +14,9 @@ extension ContentView {
     }
 
     func createAssistant() {
-        bootstrapDefaultAssistantsIfNeeded()
+        if !AppRuntimeProtection.automaticSnapshotsSuspended {
+            bootstrapDefaultAssistantsIfNeeded()
+        }
 
         let existingIDs = Set(assistants.map(\.id))
         var counter = 1

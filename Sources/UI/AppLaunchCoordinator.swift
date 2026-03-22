@@ -1,0 +1,221 @@
+import Foundation
+import SwiftData
+import SwiftUI
+import AppKit
+import UniformTypeIdentifiers
+
+@MainActor
+final class AppLaunchCoordinator: ObservableObject {
+    enum Phase {
+        case starting
+        case recovery(StartupRecoveryState)
+        case ready(ModelContainer)
+        case failed(String)
+    }
+
+    @Published private(set) var phase: Phase = .starting
+
+    private var startupTask: Task<Void, Never>?
+    private var currentContainerCandidate: ModelContainer?
+
+    func startIfNeeded() {
+        guard startupTask == nil else { return }
+        startupTask = Task { [weak self] in
+            await self?.performStartup()
+        }
+    }
+
+    func continueWithCurrentState() {
+        guard let currentContainerCandidate else { return }
+        let counts = PersistenceContainerFactory.fetchCoreCounts(in: currentContainerCandidate)
+        AppSnapshotManager.recordAcceptedCurrentState(counts)
+        AppRuntimeProtection.automaticSnapshotsSuspended = false
+        phase = .ready(currentContainerCandidate)
+    }
+
+    func restoreLatestHealthySnapshot() async {
+        guard let snapshot = AppSnapshotManager.latestHealthySnapshot() else { return }
+        await restoreSnapshot(snapshot)
+    }
+
+    func restoreSnapshot(_ snapshot: SnapshotSummary) async {
+        do {
+            try AppSnapshotManager.restoreSnapshot(snapshot)
+            AppRuntimeProtection.automaticSnapshotsSuspended = false
+            startupTask = nil
+            await performStartup()
+        } catch {
+            phase = .failed(error.localizedDescription)
+        }
+    }
+
+    func importRecoveryArchive(from archiveURL: URL) async {
+        do {
+            try AppSnapshotManager.queueImportArchiveForRestore(from: archiveURL)
+            AppRuntimeProtection.automaticSnapshotsSuspended = false
+            startupTask = nil
+            await performStartup()
+        } catch {
+            phase = .failed(error.localizedDescription)
+        }
+    }
+
+    private func performStartup() async {
+        do {
+            switch try AppSnapshotManager.evaluateCurrentStoreForStartup() {
+            case .ready(let container):
+                currentContainerCandidate = nil
+                phase = .ready(container)
+            case .recovery(let recoveryState, let currentContainer):
+                currentContainerCandidate = currentContainer
+                AppRuntimeProtection.automaticSnapshotsSuspended = true
+                phase = .recovery(recoveryState)
+            }
+        } catch {
+            phase = .failed(error.localizedDescription)
+        }
+    }
+}
+
+struct AppRecoveryView: View {
+    @ObservedObject var launchCoordinator: AppLaunchCoordinator
+    let recoveryState: StartupRecoveryState
+
+    @State private var importError: String?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: JinSpacing.large) {
+            VStack(alignment: .leading, spacing: JinSpacing.small) {
+                Text("Data Recovery Needed")
+                    .font(.largeTitle.weight(.semibold))
+
+                Text(recoveryState.issueDescription)
+                    .foregroundStyle(.secondary)
+            }
+
+            if recoveryState.snapshots.isEmpty {
+                Text("No healthy snapshots are available yet. You can import a recovery pack or continue with the current state if Jin can still open it.")
+                    .foregroundStyle(.secondary)
+            } else {
+                VStack(alignment: .leading, spacing: JinSpacing.small) {
+                    Text("Available Snapshots")
+                        .font(.headline)
+
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: JinSpacing.small) {
+                            ForEach(recoveryState.snapshots) { snapshot in
+                                Button {
+                                    Task { await launchCoordinator.restoreSnapshot(snapshot) }
+                                } label: {
+                                    HStack {
+                                        VStack(alignment: .leading, spacing: 4) {
+                                            Text(snapshot.manifest.createdAt.formatted(date: .abbreviated, time: .shortened))
+                                                .font(.body.weight(.medium))
+                                            Text(snapshotSummaryText(snapshot))
+                                                .font(.caption)
+                                                .foregroundStyle(.secondary)
+                                        }
+                                        Spacer()
+                                        if snapshot.manifest.isHealthy {
+                                            Text("Restore")
+                                        }
+                                    }
+                                    .padding(JinSpacing.medium)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: JinRadius.large, style: .continuous)
+                                            .fill(JinSemanticColor.surface)
+                                    )
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                    }
+                }
+            }
+
+            HStack(spacing: JinSpacing.medium) {
+                if recoveryState.snapshots.contains(where: { $0.manifest.isHealthy }) {
+                    Button("Restore Latest Healthy Snapshot") {
+                        Task { await launchCoordinator.restoreLatestHealthySnapshot() }
+                    }
+                }
+
+                Button("Import Recovery Pack") {
+                    importRecoveryPack()
+                }
+
+                if recoveryState.canContinueCurrentState {
+                    Button("Continue with Current Data") {
+                        launchCoordinator.continueWithCurrentState()
+                    }
+                }
+            }
+
+            if let importError {
+                Text(importError)
+                    .font(.caption)
+                    .foregroundStyle(.red)
+            }
+        }
+        .padding(32)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .background(JinSemanticColor.detailSurface.ignoresSafeArea())
+    }
+
+    private func snapshotSummaryText(_ snapshot: SnapshotSummary) -> String {
+        let counts = snapshot.manifest.counts
+        return "\(counts.conversations) chats, \(counts.messages) messages, \(counts.providers) providers, \(counts.assistants) assistants, \(counts.mcpServers) MCP servers"
+    }
+
+    private func importRecoveryPack() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [RecoveryPackType.type, .zip]
+        panel.canChooseDirectories = false
+        panel.canChooseFiles = true
+
+        if panel.runModal() == .OK, let url = panel.url {
+            Task {
+                await launchCoordinator.importRecoveryArchive(from: url)
+            }
+        } else if panel.url == nil {
+            importError = nil
+        }
+    }
+}
+
+struct AppRootContentView<Content: View>: View {
+    @ObservedObject var launchCoordinator: AppLaunchCoordinator
+    let content: (ModelContainer) -> Content
+
+    var body: some View {
+        Group {
+            switch launchCoordinator.phase {
+            case .starting:
+                VStack(spacing: JinSpacing.medium) {
+                    ProgressView()
+                    Text("Preparing Jin data…")
+                        .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(JinSemanticColor.detailSurface.ignoresSafeArea())
+
+            case .recovery(let recoveryState):
+                AppRecoveryView(launchCoordinator: launchCoordinator, recoveryState: recoveryState)
+
+            case .ready(let container):
+                content(container)
+
+            case .failed(let message):
+                VStack(alignment: .leading, spacing: JinSpacing.medium) {
+                    Text("Jin Failed to Start")
+                        .font(.title.weight(.semibold))
+                    Text(message)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(32)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                .background(JinSemanticColor.detailSurface.ignoresSafeArea())
+            }
+        }
+    }
+}

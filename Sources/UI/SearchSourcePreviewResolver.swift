@@ -135,13 +135,7 @@ actor SearchSourcePreviewResolver {
     }
 
     static func defaultCacheFileURL(fileManager: FileManager) -> URL? {
-        guard let appSupport = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
-            return nil
-        }
-
-        return appSupport
-            .appendingPathComponent("Jin", isDirectory: true)
-            .appendingPathComponent(Configuration.cacheFileName)
+        return try? AppDataLocations.searchPreviewCacheFileURL(fileManager: fileManager)
     }
 
     private static func isExpired(_ date: Date, now: Date) -> Bool {

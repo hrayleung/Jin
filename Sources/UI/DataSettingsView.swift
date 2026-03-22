@@ -3,6 +3,7 @@ import SwiftData
 #if os(macOS)
 import AppKit
 #endif
+import UniformTypeIdentifiers
 
 struct DataSettingsView: View {
     @Environment(\.modelContext) private var modelContext
@@ -14,6 +15,8 @@ struct DataSettingsView: View {
     @State private var categoryPendingClear: StorageCategory?
     @State private var showingClearConfirmation = false
     @State private var clearError: String?
+    @State private var importStatusMessage: String?
+    @State private var exportStatusMessage: String?
 
     private let calculator = StorageSizeCalculator()
 
@@ -81,8 +84,32 @@ struct DataSettingsView: View {
                 } label: {
                     Label("Show Jin Data in Finder", systemImage: "folder")
                 }
+
+                Button {
+                    exportRecoveryPack()
+                } label: {
+                    Label("Export Recovery Pack", systemImage: "square.and.arrow.up")
+                }
+
+                Button {
+                    importRecoveryPack()
+                } label: {
+                    Label("Import Recovery Pack", systemImage: "square.and.arrow.down")
+                }
+
+                if let exportStatusMessage {
+                    Text(exportStatusMessage)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                if let importStatusMessage {
+                    Text(importStatusMessage)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             } header: {
-                Text("Quick Access")
+                Text("Recovery")
             }
         }
         .formStyle(.grouped)
@@ -248,7 +275,7 @@ struct DataSettingsView: View {
         case .speechModels:
             return "This will delete all downloaded on-device speech models (\(sizeStr)). They will need to be re-downloaded to use again."
         case .backups:
-            return "This will delete all automatic database backups (\(sizeStr)). New backups will be created on next launch."
+            return "This will delete all automatic recovery snapshots (\(sizeStr)). New healthy snapshots will be created on the next normal launch."
         case .database:
             return ""
         }
@@ -282,11 +309,20 @@ struct DataSettingsView: View {
 
     private func deleteAllChats() {
         Task {
+            _ = try? AppSnapshotManager.captureAutomaticSnapshot(reason: .beforeDestructiveAction)
             await MainActor.run {
                 for conversation in conversations {
                     modelContext.delete(conversation)
                 }
                 try? modelContext.save()
+                let counts = SnapshotCoreCounts(
+                    conversations: (try? modelContext.fetchCount(FetchDescriptor<ConversationEntity>())) ?? 0,
+                    messages: (try? modelContext.fetchCount(FetchDescriptor<MessageEntity>())) ?? 0,
+                    providers: (try? modelContext.fetchCount(FetchDescriptor<ProviderConfigEntity>())) ?? 0,
+                    assistants: (try? modelContext.fetchCount(FetchDescriptor<AssistantEntity>())) ?? 0,
+                    mcpServers: (try? modelContext.fetchCount(FetchDescriptor<MCPServerConfigEntity>())) ?? 0
+                )
+                AppSnapshotManager.recordAcceptedCurrentState(counts)
             }
 
             // Refresh sizes after deletion
@@ -299,8 +335,7 @@ struct DataSettingsView: View {
         guard let url = snapshot.url else { return }
 
         if snapshot.category == .database {
-            // Reveal the default.store file in Finder
-            let storeFile = url.appendingPathComponent("default.store")
+            let storeFile = url.appendingPathComponent(AppDataLocations.storeFileName)
             if FileManager.default.fileExists(atPath: storeFile.path) {
                 NSWorkspace.shared.activateFileViewerSelecting([storeFile])
                 return
@@ -318,17 +353,42 @@ struct DataSettingsView: View {
     }
 
     private func openDataDirectory() {
-        guard let appSupport = FileManager.default.urls(
-            for: .applicationSupportDirectory,
-            in: .userDomainMask
-        ).first else { return }
+        guard let dataRoot = try? AppDataLocations.rootDirectoryURL() else { return }
 
-        let jinDir = appSupport.appendingPathComponent("Jin", isDirectory: true)
-
-        if FileManager.default.fileExists(atPath: jinDir.path) {
-            NSWorkspace.shared.open(jinDir)
+        if FileManager.default.fileExists(atPath: dataRoot.path) {
+            NSWorkspace.shared.open(dataRoot)
         } else {
-            NSWorkspace.shared.open(appSupport)
+            NSWorkspace.shared.open(dataRoot.deletingLastPathComponent())
+        }
+    }
+
+    private func exportRecoveryPack() {
+        let panel = NSSavePanel()
+        panel.canCreateDirectories = true
+        panel.nameFieldStringValue = "Jin-\(Date.now.formatted(date: .abbreviated, time: .omitted)).jinbackup"
+        panel.allowedContentTypes = [RecoveryPackType.type]
+
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        do {
+            try AppSnapshotManager.exportRecoveryArchive(to: url)
+            exportStatusMessage = "Exported recovery pack to \(url.lastPathComponent)."
+        } catch {
+            exportStatusMessage = "Export failed: \(error.localizedDescription)"
+        }
+    }
+
+    private func importRecoveryPack() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [RecoveryPackType.type, .zip]
+        panel.canChooseDirectories = false
+        panel.canChooseFiles = true
+
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        do {
+            try AppSnapshotManager.queueImportArchiveForRestore(from: url)
+            importStatusMessage = "Recovery pack queued. Relaunch Jin to apply it safely before the database opens."
+        } catch {
+            importStatusMessage = "Import failed: \(error.localizedDescription)"
         }
     }
 

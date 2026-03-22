@@ -3,21 +3,21 @@ import SwiftUI
 import SwiftData
 import AppKit
 import Kingfisher
-import os.log
 
 @MainActor
 private final class JinAppDelegate: NSObject, NSApplicationDelegate {
     func applicationWillTerminate(_ notification: Notification) {
         CodexAppServerController.shared.shutdownForApplicationTermination()
-        // Best-effort backup on graceful quit so the next launch has fresh data
-        DatabaseBackupManager.createBackup()
+        _ = AppPreferencesSnapshotStore.persistCurrentDomain()
+        guard !AppRuntimeProtection.automaticSnapshotsSuspended else { return }
+        _ = try? AppSnapshotManager.captureAutomaticSnapshot(reason: .termination)
     }
 }
 
 @main
 struct JinApp: App {
-    private let modelContainer: ModelContainer
     @NSApplicationDelegateAdaptor(JinAppDelegate.self) private var appDelegate
+    @StateObject private var launchCoordinator: AppLaunchCoordinator
     @StateObject private var streamingStore = ConversationStreamingStore()
     @StateObject private var responseCompletionNotifier = ResponseCompletionNotifier()
     @StateObject private var shortcutsStore = AppShortcutsStore.shared
@@ -27,18 +27,12 @@ struct JinApp: App {
     @AppStorage(AppPreferenceKeys.appFontFamily) private var appFontFamily = JinTypography.systemFontPreferenceValue
     @AppStorage(AppPreferenceKeys.appIconVariant) private var appIconVariant: AppIconVariant = .roseQuartz
 
-    /// Guards against launching duplicate periodic‐backup loops when `onAppear` fires more than once.
-    @State private var periodicBackupStarted = false
+    @State private var periodicSnapshotStarted = false
+    @State private var postLaunchMaintenanceStarted = false
 
+    private let preferencesSyncController: AppPreferencesSyncController
     private let mcpSchemaVersionPreferenceKey = "mcpTransportSchemaVersion"
     private let mcpSchemaVersion = 2
-
-    private static let dataIntegrityLogger = Logger(
-        subsystem: Bundle.main.bundleIdentifier ?? "com.example.Jin",
-        category: "DataIntegrity"
-    )
-    private static let lastKnownConversationCountKey = "database.lastKnownConversationCount"
-    private static let lastKnownProviderCountKey = "database.lastKnownProviderCount"
 
     init() {
         UserDefaults.standard.register(defaults: [
@@ -52,41 +46,54 @@ struct JinApp: App {
         ImageCache.default.diskStorage.config.expiration = .days(30)
         OverlayScrollerStyleController.shared.installIfNeeded()
 
+        preferencesSyncController = AppPreferencesSyncController()
         _updateManager = StateObject(wrappedValue: SparkleUpdateManager())
-        modelContainer = Self.createModelContainerWithRecovery()
-        resetMCPServersForTransportV2IfNeeded()
-        updateProviderModelsIfNeeded()
+        _launchCoordinator = StateObject(wrappedValue: AppLaunchCoordinator())
     }
 
     var body: some Scene {
         WindowGroup {
-            ContentView()
-                .environmentObject(streamingStore)
-                .environmentObject(responseCompletionNotifier)
-                .environmentObject(shortcutsStore)
-                .environmentObject(updateManager)
-                .font(JinTypography.appFont(familyPreference: appFontFamily))
-                .preferredColorScheme(preferredColorScheme)
-                .onAppear {
-                    AppIconManager.apply(appIconVariant)
-                    schedulePeriodicBackup()
-                }
+            AppRootContentView(launchCoordinator: launchCoordinator) { container in
+                ContentView()
+                    .modelContainer(container)
+                    .environmentObject(streamingStore)
+                    .environmentObject(responseCompletionNotifier)
+                    .environmentObject(shortcutsStore)
+                    .environmentObject(updateManager)
+                    .font(JinTypography.appFont(familyPreference: appFontFamily))
+                    .preferredColorScheme(preferredColorScheme)
+                    .onAppear {
+                        AppIconManager.apply(appIconVariant)
+                        performPostLaunchMaintenanceIfNeeded(with: container)
+                        schedulePeriodicSnapshotIfNeeded()
+                    }
+                    .task {
+                        await updateManager.checkForUpdatesOnLaunchIfNeeded()
+                    }
+            }
+            .onAppear {
+                launchCoordinator.startIfNeeded()
+            }
         }
         .windowStyle(.hiddenTitleBar)
-        .modelContainer(modelContainer)
         .commands {
             ChatCommands(shortcutsStore: shortcutsStore)
         }
 
         Settings {
-            SettingsView()
-                .environmentObject(responseCompletionNotifier)
-                .environmentObject(shortcutsStore)
-                .environmentObject(updateManager)
-                .font(JinTypography.appFont(familyPreference: appFontFamily))
-                .preferredColorScheme(preferredColorScheme)
+            AppRootContentView(launchCoordinator: launchCoordinator) { container in
+                SettingsView()
+                    .modelContainer(container)
+                    .environmentObject(responseCompletionNotifier)
+                    .environmentObject(shortcutsStore)
+                    .environmentObject(updateManager)
+                    .font(JinTypography.appFont(familyPreference: appFontFamily))
+                    .preferredColorScheme(preferredColorScheme)
+            }
+            .onAppear {
+                launchCoordinator.startIfNeeded()
+            }
         }
-        .modelContainer(modelContainer)
     }
 
     private var preferredColorScheme: ColorScheme? {
@@ -100,143 +107,38 @@ struct JinApp: App {
         }
     }
 
-    // MARK: - Database Recovery
-
-    private static func createModelContainerWithRecovery() -> ModelContainer {
-        let logger = dataIntegrityLogger
-
-        // Attempt 1: Normal initialization
-        if let container = try? createModelContainer() {
-            if detectDataLoss(in: container) {
-                logger.error("Data loss detected — attempting recovery from backup")
-
-                // Try restoring from the last known-good backup
-                if DatabaseBackupManager.restoreLatestBackup(),
-                   let restored = try? createModelContainer(),
-                   !detectDataLoss(in: restored) {
-                    logger.info("Recovery succeeded — data restored from backup")
-                    updateDataIntegritySnapshot(in: restored)
-                    return restored
-                }
-
-                logger.warning("Recovery failed or backup also empty — proceeding with current state")
-                // Don't update integrity snapshot so the next launch can retry
-                return container
-            }
-
-            // Healthy — record counts and create a backup for future recovery
-            updateDataIntegritySnapshot(in: container)
-            DatabaseBackupManager.createBackup()
-            return container
-        }
-
-        logger.error("ModelContainer creation failed — attempting backup restore")
-
-        // Attempt 2: Container creation failed — try restoring a backup
-        if DatabaseBackupManager.restoreLatestBackup(),
-           let restored = try? createModelContainer() {
-            logger.info("Container created from restored backup")
-            updateDataIntegritySnapshot(in: restored)
-            return restored
-        }
-
-        // Attempt 3: Nothing works — delete corrupt store and start fresh
-        logger.error("Backup restore failed — starting with a clean database")
-        DatabaseBackupManager.deleteCurrentStore()
-        do {
-            return try createModelContainer()
-        } catch {
-            fatalError("Failed to create SwiftData ModelContainer: \(error)")
-        }
-    }
-
-    private static func createModelContainer() throws -> ModelContainer {
-        try ModelContainer(
-            for: ConversationEntity.self,
-            ConversationModelThreadEntity.self,
-            AssistantEntity.self,
-            MessageEntity.self,
-            ProviderConfigEntity.self,
-            MCPServerConfigEntity.self,
-            AttachmentEntity.self
-        )
-    }
-
-    /// Returns `true` when the database previously held user data but now appears empty,
-    /// indicating possible corruption or unintended schema-migration data loss.
-    private static func detectDataLoss(in container: ModelContainer) -> Bool {
-        let context = ModelContext(container)
-        let defaults = UserDefaults.standard
-
-        let conversationCount = (try? context.fetchCount(FetchDescriptor<ConversationEntity>())) ?? 0
-        let providerCount = (try? context.fetchCount(FetchDescriptor<ProviderConfigEntity>())) ?? 0
-
-        let lastConversations = defaults.integer(forKey: lastKnownConversationCountKey)
-        let lastProviders = defaults.integer(forKey: lastKnownProviderCountKey)
-
-        let hadData = lastConversations > 0 || lastProviders > 0
-        let hasData = conversationCount > 0 || providerCount > 0
-
-        if hadData && !hasData {
-            dataIntegrityLogger.error(
-                "Data loss: expected ~\(lastConversations) conversations & \(lastProviders) providers, found 0"
-            )
-        }
-
-        return hadData && !hasData
-    }
-
-    /// Persists current entity counts so future launches can detect unexpected data loss.
-    private static func updateDataIntegritySnapshot(in container: ModelContainer) {
-        let context = ModelContext(container)
-        let defaults = UserDefaults.standard
-
-        let conversationCount = (try? context.fetchCount(FetchDescriptor<ConversationEntity>())) ?? 0
-        let providerCount = (try? context.fetchCount(FetchDescriptor<ProviderConfigEntity>())) ?? 0
-
-        defaults.set(conversationCount, forKey: lastKnownConversationCountKey)
-        defaults.set(providerCount, forKey: lastKnownProviderCountKey)
-    }
-
-    /// Periodically checks whether entity counts have changed and creates a
-    /// backup only when they have. This keeps the backup fresh for long-running
-    /// sessions without doing unnecessary I/O.
-    private func schedulePeriodicBackup() {
-        guard !periodicBackupStarted else { return }
-        periodicBackupStarted = true
+    private func schedulePeriodicSnapshotIfNeeded() {
+        guard !periodicSnapshotStarted else { return }
+        periodicSnapshotStarted = true
 
         Task {
-            // Check every 30 minutes, but only write a backup when data changed
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(30 * 60))
-
-                let context = ModelContext(modelContainer)
-                let conversations = (try? context.fetchCount(FetchDescriptor<ConversationEntity>())) ?? 0
-                let providers = (try? context.fetchCount(FetchDescriptor<ProviderConfigEntity>())) ?? 0
-
-                let defaults = UserDefaults.standard
-                let lastConversations = defaults.integer(forKey: Self.lastKnownConversationCountKey)
-                let lastProviders = defaults.integer(forKey: Self.lastKnownProviderCountKey)
-
-                guard conversations != lastConversations || providers != lastProviders else {
-                    continue
-                }
-
-                Self.updateDataIntegritySnapshot(in: modelContainer)
-                DatabaseBackupManager.createBackup()
+                _ = AppPreferencesSnapshotStore.persistCurrentDomain()
+                guard !AppRuntimeProtection.automaticSnapshotsSuspended else { continue }
+                _ = try? AppSnapshotManager.captureAutomaticSnapshot(reason: .periodic)
             }
         }
     }
 
-    // MARK: - MCP Migration
+    private func performPostLaunchMaintenanceIfNeeded(with container: ModelContainer) {
+        guard !postLaunchMaintenanceStarted else { return }
+        postLaunchMaintenanceStarted = true
+        guard !AppRuntimeProtection.automaticSnapshotsSuspended else { return }
 
-    private func resetMCPServersForTransportV2IfNeeded() {
+        resetMCPServersForTransportV2IfNeeded(container: container)
+        updateProviderModelsIfNeeded(container: container)
+
+        _ = try? AppSnapshotManager.captureAutomaticSnapshot(reason: .launchHealthy)
+    }
+
+    private func resetMCPServersForTransportV2IfNeeded(container: ModelContainer) {
         let defaults = UserDefaults.standard
         guard defaults.integer(forKey: mcpSchemaVersionPreferenceKey) < mcpSchemaVersion else {
             return
         }
 
-        let context = ModelContext(modelContainer)
+        let context = ModelContext(container)
         let descriptor = FetchDescriptor<MCPServerConfigEntity>()
         if let existing = try? context.fetch(descriptor) {
             for server in existing {
@@ -308,20 +210,19 @@ struct JinApp: App {
         }
     }
 
-    private func updateProviderModelsIfNeeded() {
+    private func updateProviderModelsIfNeeded(container: ModelContainer) {
         let defaults = UserDefaults.standard
         let refreshInterval: TimeInterval = 24 * 60 * 60
 
         Task {
             let now = Date()
-            let context = ModelContext(modelContainer)
+            let context = ModelContext(container)
             let descriptor = FetchDescriptor<ProviderConfigEntity>()
 
             guard let providers = try? context.fetch(descriptor) else { return }
 
             let providerManager = ProviderManager()
 
-            // Collect providers that need refresh with their current configs
             var staleProviders: [(entity: ProviderConfigEntity, config: ProviderConfig, existingModels: [ModelInfo])] = []
             for providerEntity in providers {
                 let refreshKey = "providerModelsLastRefreshAt.\(providerEntity.id)"
@@ -334,7 +235,6 @@ struct JinApp: App {
                 staleProviders.append((providerEntity, config, providerEntity.allModels))
             }
 
-            // Fetch models from all stale providers concurrently
             let fetchResults = await withTaskGroup(
                 of: (id: String, models: [ModelInfo]?).self,
                 returning: [String: [ModelInfo]].self
@@ -350,6 +250,7 @@ struct JinApp: App {
                         }
                     }
                 }
+
                 var results: [String: [ModelInfo]] = [:]
                 for await result in group {
                     if let models = result.models {
@@ -359,7 +260,6 @@ struct JinApp: App {
                 return results
             }
 
-            // Merge results back into SwiftData entities (sequential, same context)
             let encoder = JSONEncoder()
             for entry in staleProviders {
                 guard let latestModels = fetchResults[entry.config.id] else { continue }
@@ -378,12 +278,10 @@ struct JinApp: App {
     }
 
     static func mergeRefreshedModels(latestModels: [ModelInfo], existingModels: [ModelInfo]) -> [ModelInfo] {
-        // Duplicate IDs can exist in legacy persisted data; latest duplicate wins.
         let existingByID = existingModels.reduce(into: [String: ModelInfo]()) { result, model in
             result[model.id] = model
         }
 
-        // Provider responses may occasionally include duplicate IDs; keep first in fetch order.
         var seenLatestIDs = OrderedSet<String>()
         var merged: [ModelInfo] = []
         merged.reserveCapacity(latestModels.count)
