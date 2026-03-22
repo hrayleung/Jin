@@ -29,7 +29,10 @@ extension ChatView {
             onSubmit: handleComposerSubmit,
             onCancel: handleComposerCancel,
             onRemoveAttachment: removeDraftAttachment,
-            onExpand: { isExpandedComposerPresented = true },
+            onExpand: {
+                isComposerFocused = false
+                isExpandedComposerPresented = true
+            },
             onHide: toggleComposerVisibility,
             onSend: sendMessage,
             slashCommandServers: slashCommandMCPItems,
@@ -42,7 +45,7 @@ extension ChatView {
             onRemovePerMessageMCPServer: removePerMessageMCPServer,
             onInterceptKeyDown: isSlashMCPPopoverVisible ? handleSlashCommandKeyDown : nil
         ) {
-            composerControlsRow
+            composerControlsRow()
         }
         .onChange(of: messageText) { _, newValue in
             updateSlashCommandState(for: newValue, target: .composer)
@@ -50,7 +53,7 @@ extension ChatView {
     }
 
     @ViewBuilder
-    var composerControlsRow: some View {
+    func composerControlsRow(showsTrailingSpacer: Bool = true) -> some View {
         HStack(spacing: 6) {
             if speechToTextPluginEnabled || speechToTextManagerActive {
                 composerButtonControl(
@@ -236,7 +239,9 @@ extension ChatView {
                 }
             }
 
-            Spacer(minLength: 0)
+            if showsTrailingSpacer {
+                Spacer(minLength: 0)
+            }
         }
         .padding(.bottom, 1)
     }
@@ -309,8 +314,11 @@ extension ChatView {
                     .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
+        .opacity(isExpandedComposerPresented ? 0 : 1)
+        .allowsHitTesting(!isExpandedComposerPresented)
         .animation(.spring(response: 0.35, dampingFraction: 0.86), value: isComposerHidden)
         .animation(.easeOut(duration: 0.15), value: isSlashMCPPopoverVisible)
+        .animation(.easeOut(duration: 0.18), value: isExpandedComposerPresented)
         .padding(.horizontal, 16)
         .padding(.bottom, 16)
         .background {
@@ -343,39 +351,49 @@ extension ChatView {
         }
     }
 
-    @ViewBuilder
-    var expandedComposerOverlay: some View {
-        if isExpandedComposerPresented {
-            let isComposerTarget = slashCommandTarget == .composer
-            ExpandedComposerOverlay(
-                messageText: $messageText,
-                remoteVideoURLText: $remoteVideoInputURLText,
-                draftAttachments: $draftAttachments,
-                isPresented: $isExpandedComposerPresented,
-                isComposerDropTargeted: $isComposerDropTargeted,
-                contextUsageEstimate: currentContextUsageEstimate,
-                currentModelName: currentModelName,
-                isBusy: isBusy,
-                canSendDraft: canSendDraft,
-                showsRemoteVideoURLField: supportsExplicitRemoteVideoURLInput,
-                onSend: {
+    var expandedComposerSheet: some View {
+        let isComposerTarget = slashCommandTarget == .composer
+
+        return ExpandedComposerOverlay(
+            messageText: $messageText,
+            remoteVideoURLText: $remoteVideoInputURLText,
+            draftAttachments: $draftAttachments,
+            isPresented: $isExpandedComposerPresented,
+            isComposerDropTargeted: $isComposerDropTargeted,
+            contextUsageEstimate: currentContextUsageEstimate,
+            currentModelName: currentModelName,
+            sendWithCommandEnter: sendWithCommandEnter,
+            isBusy: isBusy,
+            canSendDraft: canSendDraft,
+            showsRemoteVideoURLField: supportsExplicitRemoteVideoURLInput,
+            isPreparingToSend: isPreparingToSend,
+            prepareToSendStatus: prepareToSendStatus,
+            isRecording: speechToTextManager.isRecording,
+            isTranscribing: speechToTextManager.isTranscribing,
+            recordingDurationText: formattedRecordingDuration,
+            transcribingStatusText: speechToTextUsesAudioAttachment ? "Attaching audio…" : "Transcribing…",
+            onCollapse: { isExpandedComposerPresented = false },
+            onHide: toggleComposerVisibility,
+            onSend: {
+                if !isBusy {
                     isExpandedComposerPresented = false
-                    sendMessage()
-                },
-                onDropFileURLs: handleDroppedFileURLs,
-                onDropImages: handleDroppedImages,
-                onRemoveAttachment: removeDraftAttachment,
-                slashCommandServers: slashCommandMCPItems,
-                isSlashCommandActive: isSlashMCPPopoverVisible && isComposerTarget,
-                slashCommandFilterText: isComposerTarget ? slashMCPFilterText : "",
-                slashCommandHighlightedIndex: isComposerTarget ? slashMCPHighlightedIndex : 0,
-                perMessageMCPChips: perMessageMCPChips,
-                onSlashCommandSelectServer: handleSlashCommandSelectServer,
-                onSlashCommandDismiss: dismissSlashCommandPopover,
-                onRemovePerMessageMCPServer: removePerMessageMCPServer,
-                onInterceptKeyDown: (isSlashMCPPopoverVisible && isComposerTarget) ? handleSlashCommandKeyDown : nil
-            )
-            .transition(.opacity.combined(with: .scale(scale: 0.96, anchor: .bottom)))
+                }
+                sendMessage()
+            },
+            onDropFileURLs: handleDroppedFileURLs,
+            onDropImages: handleDroppedImages,
+            onRemoveAttachment: removeDraftAttachment,
+            slashCommandServers: slashCommandMCPItems,
+            isSlashCommandActive: isSlashMCPPopoverVisible && isComposerTarget,
+            slashCommandFilterText: isComposerTarget ? slashMCPFilterText : "",
+            slashCommandHighlightedIndex: isComposerTarget ? slashMCPHighlightedIndex : 0,
+            perMessageMCPChips: perMessageMCPChips,
+            onSlashCommandSelectServer: handleSlashCommandSelectServer,
+            onSlashCommandDismiss: dismissSlashCommandPopover,
+            onRemovePerMessageMCPServer: removePerMessageMCPServer,
+            onInterceptKeyDown: (isSlashMCPPopoverVisible && isComposerTarget) ? handleSlashCommandKeyDown : nil
+        ) {
+            composerControlsRow(showsTrailingSpacer: false)
         }
     }
 
@@ -420,7 +438,12 @@ extension ChatView {
                 sendMessage()
             },
             toggleExpandedComposer: {
-                isExpandedComposerPresented.toggle()
+                if isExpandedComposerPresented {
+                    isExpandedComposerPresented = false
+                } else {
+                    isComposerFocused = false
+                    isExpandedComposerPresented = true
+                }
             },
             toggleComposerVisibility: toggleComposerVisibility
         )

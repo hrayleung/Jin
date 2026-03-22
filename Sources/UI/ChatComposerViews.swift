@@ -41,6 +41,8 @@ struct DraftAttachmentChip: View {
     let attachment: DraftAttachment
     let onRemove: () -> Void
 
+    private static let maxLabelWidth: CGFloat = 220
+
     var body: some View {
         HStack(spacing: JinSpacing.small) {
             thumbnailView
@@ -49,6 +51,8 @@ struct DraftAttachmentChip: View {
             Text(attachment.filename)
                 .font(.caption)
                 .lineLimit(1)
+                .truncationMode(.middle)
+                .frame(maxWidth: Self.maxLabelWidth, alignment: .leading)
 
             Button(action: onRemove) {
                 Image(systemName: "xmark.circle.fill")
@@ -63,6 +67,9 @@ struct DraftAttachmentChip: View {
             NSItemProvider(contentsOf: attachment.fileURL)
                 ?? NSItemProvider(object: attachment.fileURL as NSURL)
         }
+        .help(attachment.filename)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(attachment.filename)
         .contextMenu {
             chipContextMenu
         }
@@ -141,11 +148,15 @@ struct PerMessageMCPChip: View {
     let name: String
     let onRemove: () -> Void
 
+    private static let maxLabelWidth: CGFloat = 180
+
     var body: some View {
         HStack(spacing: JinSpacing.xSmall) {
             Text(name)
                 .font(.callout.weight(.medium))
                 .lineLimit(1)
+                .truncationMode(.tail)
+                .frame(maxWidth: Self.maxLabelWidth, alignment: .leading)
 
             Button(action: onRemove) {
                 Image(systemName: "xmark")
@@ -164,6 +175,9 @@ struct PerMessageMCPChip: View {
             Capsule()
                 .stroke(JinSemanticColor.selectedStroke, lineWidth: JinStrokeWidth.hairline)
         )
+        .help(name)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(name)
     }
 }
 
@@ -215,6 +229,108 @@ struct ComposerControlIconLabel: View {
                     )
                     .offset(x: JinSpacing.xSmall, y: JinSpacing.xSmall)
             }
+        }
+    }
+}
+
+private struct ComposerEditorSurface<Content: View>: View {
+    let isFocused: Bool
+    let isDropTargeted: Bool
+    @ViewBuilder let content: () -> Content
+
+    private var borderColor: Color {
+        if isDropTargeted {
+            return Color.accentColor.opacity(0.7)
+        }
+        if isFocused {
+            return Color.accentColor.opacity(0.34)
+        }
+        return JinSemanticColor.separator.opacity(0.5)
+    }
+
+    private var shadowColor: Color {
+        if isDropTargeted {
+            return Color.accentColor.opacity(0.16)
+        }
+        if isFocused {
+            return Color.accentColor.opacity(0.10)
+        }
+        return Color.black.opacity(0.04)
+    }
+
+    var body: some View {
+        let shape = RoundedRectangle(cornerRadius: JinRadius.large, style: .continuous)
+
+        VStack(alignment: .leading, spacing: JinSpacing.small) {
+            content()
+        }
+        .padding(.horizontal, JinSpacing.medium)
+        .padding(.vertical, JinSpacing.small + 2)
+        .background {
+            shape.fill(JinSemanticColor.textSurface)
+        }
+        .overlay(
+            shape.stroke(
+                borderColor,
+                lineWidth: isDropTargeted ? JinStrokeWidth.emphasized : JinStrokeWidth.hairline
+            )
+        )
+        .shadow(color: shadowColor, radius: isFocused || isDropTargeted ? 12 : 4, x: 0, y: isFocused || isDropTargeted ? 2 : 0)
+        .animation(.easeInOut(duration: 0.14), value: isFocused)
+        .animation(.easeInOut(duration: 0.14), value: isDropTargeted)
+    }
+}
+
+private struct ComposerStatusSummaryView: View {
+    let isPreparingToSend: Bool
+    let prepareToSendStatus: String?
+    let isRecording: Bool
+    let isTranscribing: Bool
+    let recordingDurationText: String
+    let transcribingStatusText: String
+
+    @ViewBuilder
+    var body: some View {
+        if isPreparingToSend, let prepareToSendStatus {
+            HStack(spacing: 8) {
+                ProgressView()
+                    .controlSize(.small)
+                Text(prepareToSendStatus)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                Spacer(minLength: 0)
+            }
+            .accessibilityElement(children: .combine)
+        } else if isRecording {
+            HStack(spacing: 8) {
+                Circle()
+                    .fill(Color.red)
+                    .frame(width: 8, height: 8)
+                Text("Recording… \(recordingDurationText)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                Spacer(minLength: 0)
+            }
+            .accessibilityElement(children: .combine)
+        } else if isTranscribing {
+            HStack(spacing: 8) {
+                ProgressView()
+                    .controlSize(.small)
+                Text(transcribingStatusText)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                Spacer(minLength: 0)
+            }
+            .accessibilityElement(children: .combine)
         }
     }
 }
@@ -463,35 +579,26 @@ struct CompactComposerOverlayView<ControlsRow: View>: View {
 
     @ViewBuilder
     private var composerTextEditor: some View {
-        ZStack(alignment: .topLeading) {
-            if messageText.isEmpty {
-                Text("Type a message...")
-                    .font(.body)
-                    .foregroundStyle(.secondary)
-                    .padding(.top, 2)
-                    .padding(.leading, 6)
-            }
-
-            DroppableTextEditor(
-                text: $messageText,
-                isDropTargeted: $isComposerDropTargeted,
-                isFocused: $isComposerFocused,
-                font: NSFont.preferredFont(forTextStyle: .body),
-                useCommandEnterToSubmit: sendWithCommandEnter,
-                onDropFileURLs: onDropFileURLs,
-                onDropImages: onDropImages,
-                onSubmit: onSubmit,
-                onCancel: onCancel,
-                onContentHeightChanged: { height in
-                    let clamped = max(36, min(height, 120))
-                    if abs(composerTextContentHeight - clamped) > 0.5 {
-                        composerTextContentHeight = clamped
-                    }
-                },
-                onInterceptKeyDown: onInterceptKeyDown
-            )
-            .frame(height: composerTextContentHeight)
-        }
+        DroppableTextEditor(
+            text: $messageText,
+            isDropTargeted: $isComposerDropTargeted,
+            isFocused: $isComposerFocused,
+            placeholder: "Write a message",
+            font: NSFont.preferredFont(forTextStyle: .body),
+            useCommandEnterToSubmit: sendWithCommandEnter,
+            onDropFileURLs: onDropFileURLs,
+            onDropImages: onDropImages,
+            onSubmit: onSubmit,
+            onCancel: onCancel,
+            onContentHeightChanged: { height in
+                let clamped = max(36, min(height, 120))
+                if abs(composerTextContentHeight - clamped) > 0.5 {
+                    composerTextContentHeight = clamped
+                }
+            },
+            onInterceptKeyDown: onInterceptKeyDown
+        )
+        .frame(height: composerTextContentHeight)
     }
 
     @ViewBuilder
@@ -503,6 +610,9 @@ struct CompactComposerOverlayView<ControlsRow: View>: View {
                 Text(prepareToSendStatus)
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 Spacer(minLength: 0)
             }
             .padding(.top, 2)
@@ -519,6 +629,9 @@ struct CompactComposerOverlayView<ControlsRow: View>: View {
                 Text("Recording… \(recordingDurationText)")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 Spacer(minLength: 0)
             }
             .padding(.top, 2)
@@ -529,6 +642,9 @@ struct CompactComposerOverlayView<ControlsRow: View>: View {
                 Text(transcribingStatusText)
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 Spacer(minLength: 0)
             }
             .padding(.top, 2)
@@ -614,7 +730,9 @@ struct CollapsedComposerBar: View {
 
 // MARK: - Expanded Composer Overlay
 
-struct ExpandedComposerOverlay: View {
+struct ExpandedComposerOverlay<ControlsRow: View>: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     @Binding var messageText: String
     @Binding var remoteVideoURLText: String
     @Binding var draftAttachments: [DraftAttachment]
@@ -623,9 +741,18 @@ struct ExpandedComposerOverlay: View {
 
     let contextUsageEstimate: ChatContextUsageEstimate?
     let currentModelName: String?
+    let sendWithCommandEnter: Bool
     let isBusy: Bool
     let canSendDraft: Bool
     let showsRemoteVideoURLField: Bool
+    let isPreparingToSend: Bool
+    let prepareToSendStatus: String?
+    let isRecording: Bool
+    let isTranscribing: Bool
+    let recordingDurationText: String
+    let transcribingStatusText: String
+    let onCollapse: () -> Void
+    let onHide: () -> Void
     let onSend: () -> Void
     let onDropFileURLs: ([URL]) -> Bool
     let onDropImages: ([NSImage]) -> Bool
@@ -639,8 +766,11 @@ struct ExpandedComposerOverlay: View {
     let onSlashCommandDismiss: () -> Void
     let onRemovePerMessageMCPServer: (String) -> Void
     let onInterceptKeyDown: ((UInt16) -> Bool)?
+    let controlsRow: () -> ControlsRow
 
-    @State private var isEditorFocused = true
+    @State private var isEditorFocused = false
+
+    private let panelCornerRadius: CGFloat = 26
 
     private var wordCount: Int {
         let trimmed = messageText.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -658,40 +788,122 @@ struct ExpandedComposerOverlay: View {
         remoteVideoURLText.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    var body: some View {
-        ZStack {
-            Color.black.opacity(0.15)
-                .ignoresSafeArea()
-                .onTapGesture {
-                    isPresented = false
-                }
+    private var draftSummary: String {
+        guard characterCount > 0 else { return "0 words · 0 characters" }
 
-            panelContent
-                .frame(maxWidth: 720, maxHeight: 560)
-                .background {
-                    RoundedRectangle(cornerRadius: JinRadius.large, style: .continuous)
-                        .fill(.regularMaterial)
+        let wordLabel = wordCount == 1 ? "1 word" : "\(wordCount) words"
+        let characterLabel = characterCount == 1 ? "1 character" : "\(characterCount) characters"
+        return "\(wordLabel) · \(characterLabel)"
+    }
+
+    private var submitShortcutLabel: String {
+        sendWithCommandEnter ? "⌘↩ Send" : "↩ Send"
+    }
+
+    private var primaryActionDisabled: Bool {
+        ((!canSendDraft && !isBusy) || isRecording || isTranscribing)
+    }
+
+    private var primaryActionTitle: String {
+        isBusy ? "Stop" : "Send"
+    }
+
+    private var primaryActionSymbol: String {
+        isBusy ? "stop.fill" : "arrow.up"
+    }
+
+    private var panelStrokeColor: Color {
+        isComposerDropTargeted ? Color.accentColor.opacity(0.6) : JinSemanticColor.separator.opacity(0.55)
+    }
+
+    @ViewBuilder
+    private var inlineAccessoryRows: some View {
+        if !perMessageMCPChips.isEmpty {
+            accessorySection(title: "Servers", systemName: "hammer") {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: JinSpacing.small) {
+                        ForEach(perMessageMCPChips) { chip in
+                            PerMessageMCPChip(
+                                name: chip.name,
+                                onRemove: { onRemovePerMessageMCPServer(chip.id) }
+                            )
+                        }
+                    }
+                    .padding(.horizontal, JinSpacing.xSmall)
                 }
-                .overlay(
-                    RoundedRectangle(cornerRadius: JinRadius.large, style: .continuous)
-                        .stroke(JinSemanticColor.separator.opacity(0.45), lineWidth: JinStrokeWidth.hairline)
-                )
-                .shadow(color: Color.black.opacity(0.12), radius: 24, x: 0, y: 8)
-                .padding(40)
+            }
+        }
+
+        if !draftAttachments.isEmpty {
+            accessorySection(title: "Attachments", systemName: "paperclip") {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: JinSpacing.small) {
+                        ForEach(draftAttachments) { attachment in
+                            DraftAttachmentChip(
+                                attachment: attachment,
+                                onRemove: { onRemoveAttachment(attachment) }
+                            )
+                        }
+                    }
+                    .padding(.horizontal, JinSpacing.xSmall)
+                }
+            }
+        }
+
+        if showsRemoteVideoURLField {
+            accessorySection(title: "Video URL", systemName: "link") {
+                remoteVideoURLField
+            }
         }
     }
 
-    private var panelContent: some View {
-        VStack(spacing: 0) {
+    var body: some View {
+        panelShell
+            .frame(minWidth: 760, idealWidth: 820, maxWidth: 860, minHeight: 560, idealHeight: 640, maxHeight: 680)
+            .background(sheetBackground)
+            .onAppear {
+                DispatchQueue.main.asyncAfter(deadline: .now() + (reduceMotion ? 0.02 : 0.08)) {
+                    guard isPresented else { return }
+                    isEditorFocused = true
+                }
+            }
+            .onDisappear {
+                isEditorFocused = false
+            }
+    }
+
+    private var sheetBackground: some View {
+        ZStack {
+            JinSemanticColor.panelSurface
+
+            LinearGradient(
+                colors: [
+                    Color.accentColor.opacity(reduceMotion ? 0.04 : 0.08),
+                    JinSemanticColor.panelSurface.opacity(0.0)
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        }
+    }
+
+    private var panelShell: some View {
+        VStack(alignment: .leading, spacing: JinSpacing.large) {
             panelHeader
-            Divider()
             panelSlashCommandPopover
-            panelPerMessageMCPChips
-            panelAttachmentChips
-            panelRemoteVideoURLField
-            panelEditor
-            Divider()
+            inlineAccessoryRows
+            editorSection
+            controlsSection
             panelFooter
+        }
+        .padding(JinSpacing.xLarge)
+        .background {
+            RoundedRectangle(cornerRadius: panelCornerRadius, style: .continuous)
+                .fill(JinSemanticColor.surface)
+        }
+        .overlay {
+            RoundedRectangle(cornerRadius: panelCornerRadius, style: .continuous)
+                .stroke(panelStrokeColor, lineWidth: isComposerDropTargeted ? JinStrokeWidth.emphasized : JinStrokeWidth.hairline)
         }
     }
 
@@ -705,174 +917,227 @@ struct ExpandedComposerOverlay: View {
                 onSelectServer: onSlashCommandSelectServer,
                 onDismiss: onSlashCommandDismiss
             )
-            .padding(.horizontal, JinSpacing.large)
-            .padding(.vertical, JinSpacing.small)
+            .padding(.horizontal, JinSpacing.small)
             .transition(.opacity.combined(with: .move(edge: .bottom)))
             .animation(.easeOut(duration: 0.12), value: isSlashCommandActive)
         }
     }
 
-    @ViewBuilder
-    private var panelPerMessageMCPChips: some View {
-        if !perMessageMCPChips.isEmpty {
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: JinSpacing.small) {
-                    ForEach(perMessageMCPChips) { chip in
-                        PerMessageMCPChip(
-                            name: chip.name,
-                            onRemove: { onRemovePerMessageMCPServer(chip.id) }
-                        )
-                    }
-                }
-                .padding(.horizontal, JinSpacing.large)
-                .padding(.vertical, JinSpacing.small)
-            }
+    private func accessorySection<Content: View>(
+        title: String,
+        systemName: String,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        VStack(alignment: .leading, spacing: JinSpacing.small) {
+            Label(title, systemImage: systemName)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+
+            content()
         }
+        .padding(JinSpacing.medium)
+        .jinSurface(.subtle, cornerRadius: JinRadius.large)
     }
 
     private var panelHeader: some View {
-        HStack {
-            Text("Compose")
-                .font(.headline)
-
-            Spacer()
-
-            Button {
-                isPresented = false
-            } label: {
-                Image(systemName: "xmark")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(.secondary)
-                    .frame(width: 24, height: 24)
-                    .background(
-                        Circle()
-                            .fill(Color.secondary.opacity(0.12))
-                    )
+        HStack(alignment: .top, spacing: JinSpacing.large) {
+            VStack(alignment: .leading, spacing: 0) {
+                Text("Compose Message")
+                    .font(.title3.weight(.semibold))
             }
-            .buttonStyle(.plain)
-            .keyboardShortcut(.escape, modifiers: [])
-        }
-        .padding(.horizontal, JinSpacing.large)
-        .padding(.vertical, JinSpacing.medium)
-    }
 
-    @ViewBuilder
-    private var panelAttachmentChips: some View {
-        if !draftAttachments.isEmpty {
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: JinSpacing.small) {
-                    ForEach(draftAttachments) { attachment in
-                        DraftAttachmentChip(
-                            attachment: attachment,
-                            onRemove: { onRemoveAttachment(attachment) }
-                        )
-                    }
-                }
-                .padding(.horizontal, JinSpacing.large)
-                .padding(.vertical, JinSpacing.small)
-            }
-        }
-    }
+            Spacer(minLength: JinSpacing.medium)
 
-    @ViewBuilder
-    private var panelRemoteVideoURLField: some View {
-        if showsRemoteVideoURLField {
             HStack(spacing: JinSpacing.small) {
-                Image(systemName: "link")
-                    .foregroundStyle(.secondary)
+                headerActionButton(systemName: "arrow.down.right.and.arrow.up.left", help: "Compact composer") {
+                    isPresented = false
+                    onCollapse()
+                }
+                .keyboardShortcut(.escape, modifiers: [])
 
-                TextField("Public video URL (optional, for video edit)", text: $remoteVideoURLText)
-                    .textFieldStyle(.plain)
-                    .font(.callout)
-                    .disabled(isBusy)
-
-                if !trimmedRemoteVideoURLText.isEmpty {
-                    Button {
-                        remoteVideoURLText = ""
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .foregroundStyle(.secondary)
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(isBusy)
+                headerActionButton(systemName: "chevron.down", help: "Hide composer") {
+                    isPresented = false
+                    onHide()
                 }
             }
-            .padding(.vertical, 8)
-            .padding(.horizontal, JinSpacing.large)
-            .padding(.top, JinSpacing.small)
-            .jinSurface(.subtle, cornerRadius: JinRadius.medium)
         }
     }
 
-    private var panelEditor: some View {
-        ZStack(alignment: .topLeading) {
-            if messageText.isEmpty {
-                Text("Type a message...")
-                    .font(.body)
-                    .foregroundStyle(.tertiary)
-                    .padding(.top, 2)
-                    .padding(.leading, 6)
+    private func headerActionButton(
+        systemName: String,
+        help: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Image(systemName: systemName)
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(.secondary)
+                .frame(width: 42, height: 32)
+                .background(
+                    RoundedRectangle(cornerRadius: JinRadius.medium, style: .continuous)
+                        .fill(JinSemanticColor.subtleSurface)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: JinRadius.medium, style: .continuous)
+                        .stroke(JinSemanticColor.separator.opacity(0.45), lineWidth: JinStrokeWidth.hairline)
+                )
+        }
+        .buttonStyle(.plain)
+        .help(help)
+        .accessibilityLabel(help)
+    }
+
+    private var remoteVideoURLField: some View {
+        HStack(spacing: JinSpacing.small) {
+            Image(systemName: "link")
+                .foregroundStyle(.secondary)
+
+            TextField("Source video URL", text: $remoteVideoURLText)
+                .textFieldStyle(.plain)
+                .font(.callout)
+                .disabled(isBusy)
+
+            if !trimmedRemoteVideoURLText.isEmpty {
+                Button {
+                    remoteVideoURLText = ""
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .disabled(isBusy)
+            }
+        }
+        .padding(.horizontal, JinSpacing.medium)
+        .padding(.vertical, JinSpacing.small + 2)
+        .background(
+            RoundedRectangle(cornerRadius: JinRadius.medium, style: .continuous)
+                .fill(JinSemanticColor.textSurface)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: JinRadius.medium, style: .continuous)
+                .stroke(JinSemanticColor.separator.opacity(0.45), lineWidth: JinStrokeWidth.hairline)
+        )
+    }
+
+    private var editorSection: some View {
+        VStack(alignment: .leading, spacing: JinSpacing.medium) {
+            VStack(alignment: .leading, spacing: 0) {
+                Text("Message")
+                    .font(.headline)
             }
 
-            DroppableTextEditor(
-                text: $messageText,
-                isDropTargeted: $isComposerDropTargeted,
-                isFocused: $isEditorFocused,
-                font: NSFont.preferredFont(forTextStyle: .body),
-                useCommandEnterToSubmit: true,
-                onDropFileURLs: onDropFileURLs,
-                onDropImages: onDropImages,
-                onSubmit: {
-                    guard canSendDraft, !isBusy else { return }
-                    onSend()
-                },
-                onCancel: {
-                    isPresented = false
-                    return true
-                },
-                onInterceptKeyDown: onInterceptKeyDown
-            )
+            ComposerEditorSurface(
+                isFocused: isEditorFocused,
+                isDropTargeted: isComposerDropTargeted
+            ) {
+                DroppableTextEditor(
+                    text: $messageText,
+                    isDropTargeted: $isComposerDropTargeted,
+                    isFocused: $isEditorFocused,
+                    placeholder: "Write a message",
+                    font: NSFont.preferredFont(forTextStyle: .body),
+                    useCommandEnterToSubmit: sendWithCommandEnter,
+                    onDropFileURLs: onDropFileURLs,
+                    onDropImages: onDropImages,
+                    onSubmit: {
+                        guard !primaryActionDisabled else { return }
+                        onSend()
+                    },
+                    onCancel: {
+                        isPresented = false
+                        onCollapse()
+                        return true
+                    },
+                    onInterceptKeyDown: onInterceptKeyDown
+                )
+                .frame(minHeight: 320, maxHeight: .infinity, alignment: .topLeading)
+            }
         }
-        .padding(.horizontal, JinSpacing.large)
-        .frame(maxHeight: .infinity)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    private var controlsSection: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            controlsRow()
+                .padding(.vertical, 2)
+        }
+        .padding(JinSpacing.medium)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .jinSurface(.subtle, cornerRadius: JinRadius.large)
     }
 
     private var panelFooter: some View {
-        HStack(spacing: JinSpacing.small) {
-            Text("\(wordCount) words \u{00B7} \(characterCount) characters")
-                .font(.caption)
-                .foregroundStyle(.tertiary)
-                .monospacedDigit()
+        HStack(alignment: .bottom, spacing: JinSpacing.large) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text(draftSummary)
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+                    .monospacedDigit()
 
-            Spacer()
-
-            Text("\u{2318}\u{21A9}")
-                .font(.caption)
-                .foregroundStyle(.tertiary)
-
-            if let contextUsageEstimate {
-                ContextUsageIndicatorView(
-                    estimate: contextUsageEstimate,
-                    modelName: currentModelName
+                ComposerStatusSummaryView(
+                    isPreparingToSend: isPreparingToSend,
+                    prepareToSendStatus: prepareToSendStatus,
+                    isRecording: isRecording,
+                    isTranscribing: isTranscribing,
+                    recordingDurationText: recordingDurationText,
+                    transcribingStatusText: transcribingStatusText
                 )
             }
 
-            Button {
-                guard canSendDraft, !isBusy else { return }
-                onSend()
-            } label: {
-                HStack(spacing: 4) {
-                    Text("Send")
-                        .font(.body.weight(.medium))
-                    Image(systemName: "arrow.up.circle.fill")
-                        .font(.body)
+            Spacer(minLength: 0)
+
+            HStack(spacing: JinSpacing.medium) {
+                if let contextUsageEstimate {
+                    ContextUsageIndicatorView(
+                        estimate: contextUsageEstimate,
+                        modelName: currentModelName
+                    )
                 }
-                .foregroundStyle(canSendDraft && !isBusy ? Color.accentColor : .gray)
+
+                Text(sendWithCommandEnter ? "⌘↩" : "↩")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+                    .monospaced()
+
+                Button {
+                    onSend()
+                } label: {
+                    Label(primaryActionTitle, systemImage: primaryActionSymbol)
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+                .tint(isBusy ? .red : .accentColor)
+                .keyboardShortcut(.return, modifiers: sendWithCommandEnter ? [.command] : [])
+                .disabled(primaryActionDisabled)
             }
-            .buttonStyle(.plain)
-            .disabled(!canSendDraft || isBusy)
         }
-        .padding(.horizontal, JinSpacing.large)
-        .padding(.vertical, JinSpacing.medium)
+    }
+}
+
+private struct ComposerMetaBadge: View {
+    let systemName: String
+    let text: String
+
+    private static let maxLabelWidth: CGFloat = 240
+
+    var body: some View {
+        Label(text, systemImage: systemName)
+            .font(.caption.weight(.medium))
+            .foregroundStyle(.secondary)
+            .lineLimit(1)
+            .truncationMode(.middle)
+            .frame(maxWidth: Self.maxLabelWidth)
+            .padding(.horizontal, JinSpacing.medium)
+            .padding(.vertical, JinSpacing.small)
+            .background(
+                Capsule(style: .continuous)
+                    .fill(JinSemanticColor.subtleSurface)
+            )
+            .overlay(
+                Capsule(style: .continuous)
+                    .stroke(JinSemanticColor.separator.opacity(0.5), lineWidth: JinStrokeWidth.hairline)
+            )
+            .help(text)
     }
 }
