@@ -14,7 +14,10 @@ extension ChatView {
             assistantMaxOutputTokens: assistant?.maxOutputTokens,
             modelMaxOutputTokens: resolvedModelSettings?.maxOutputTokens
         )
-        let contextWindow = max(0, resolvedModelSettings?.contextWindow ?? 128_000)
+        let resolvedContextWindow = resolvedModelSettings?.contextWindow
+            ?? selectedModelInfo?.contextWindow
+            ?? 0
+        let contextWindow = max(0, resolvedContextWindow)
         Self.sanitizeProviderSpecificForProvider(providerType, controls: &controlsToUse)
 
         return ChatContextUsageEstimator.estimate(

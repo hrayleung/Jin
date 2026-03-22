@@ -63,6 +63,24 @@ final class ChatContextUsageEstimatorTests: XCTestCase {
         XCTAssertEqual(estimate.clampedUsageFraction, estimate.usageFraction, accuracy: 0.0001)
     }
 
+    func testPreparedHistoryClampsNegativeMaxHistoryMessagesToZero() {
+        let history = [
+            Message(role: .user, content: [.text("hello there")]),
+            Message(role: .assistant, content: [.text("general kenobi")])
+        ]
+
+        let preparedHistory = ChatContextUsageEstimator.preparedHistory(
+            history: history,
+            draftMessageParts: [],
+            systemPrompt: "Be concise.",
+            maxHistoryMessages: -3,
+            shouldTruncateMessages: true
+        )
+
+        XCTAssertEqual(preparedHistory.count, 1)
+        XCTAssertEqual(preparedHistory.first?.role, .system)
+    }
+
     func testIndicatorSummaryTextMatchesCompactBubbleFormat() {
         let estimate = ChatContextUsageEstimate(
             inputTokens: 12_900,

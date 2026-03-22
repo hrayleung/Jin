@@ -100,11 +100,14 @@ enum ChatContextUsageEstimator {
         }
 
         if shouldTruncateMessages,
-           let maxHistoryMessages,
-           preparedHistory.count > maxHistoryMessages {
+           let maxHistoryMessages {
+            let messageLimit = max(0, min(maxHistoryMessages, preparedHistory.count))
+            guard preparedHistory.count > messageLimit else {
+                return preparedHistory
+            }
             let systemMessages = preparedHistory.prefix(while: { $0.role == .system })
             let nonSystemMessages = preparedHistory.drop(while: { $0.role == .system })
-            let keptMessages = Array(nonSystemMessages.suffix(maxHistoryMessages))
+            let keptMessages = Array(nonSystemMessages.suffix(messageLimit))
             preparedHistory = Array(systemMessages) + keptMessages
         }
 
