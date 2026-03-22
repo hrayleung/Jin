@@ -100,17 +100,9 @@ enum AppSnapshotManager {
         if FileManager.default.fileExists(atPath: storeURL.path) {
             let integrity = SQLiteDatabaseSupport.quickCheck(at: storeURL)
             if integrity.passed, let container = try? PersistenceContainerFactory.makeContainer(storeURL: storeURL) {
-                let currentCounts = PersistenceContainerFactory.fetchCoreCounts(in: container)
-                if shouldTriggerRecovery(currentCounts: currentCounts, latestHealthySnapshot: latestHealthySnapshot()?.manifest),
-                   attemptAutomaticRestore() {
-                    return .ready(try PersistenceContainerFactory.makeContainer(storeURL: storeURL))
-                }
                 return .ready(container)
             }
-        }
-
-        if attemptAutomaticRestore() {
-            return .ready(try PersistenceContainerFactory.makeContainer(storeURL: storeURL))
+            NSLog("Jin startup warning: current store is unreadable, starting fresh.")
         }
 
         SQLiteDatabaseSupport.removeStoreArtifacts(at: storeURL)
@@ -135,40 +127,27 @@ enum AppSnapshotManager {
         UserDefaults.standard.set(data, forKey: acceptedCurrentStateDefaultsKey)
     }
 
-    @discardableResult
-    private static func attemptAutomaticRestore() -> Bool {
-        guard let latestHealthySnapshot = latestHealthySnapshot() else { return false }
-        do {
-            try restoreSnapshot(latestHealthySnapshot)
-            return true
-        } catch {
-            NSLog("Jin automatic restore failed: %@", error.localizedDescription)
-            return false
-        }
-    }
-
     static func clearAcceptedCurrentState() {
         UserDefaults.standard.removeObject(forKey: acceptedCurrentStateDefaultsKey)
     }
 
-    @discardableResult
-    static func captureAutomaticSnapshot(
+    private static func buildSnapshotBundle(
+        in bundleDirectory: URL,
         reason: SnapshotReason,
-        isAutomatic: Bool = true,
-        allowUnhealthy: Bool = false
+        isAutomatic: Bool,
+        allowUnhealthy: Bool
     ) throws -> SnapshotSummary? {
         let storeURL = try AppDataLocations.storeURL()
         guard FileManager.default.fileExists(atPath: storeURL.path) else { return nil }
 
-        let stagingDirectory = try makeStagingSnapshotDirectory()
         let snapshotID = UUID().uuidString.lowercased()
-        let databaseDirectory = stagingDirectory.appendingPathComponent("Database", isDirectory: true)
+        let databaseDirectory = bundleDirectory.appendingPathComponent("Database", isDirectory: true)
         let destinationStoreURL = databaseDirectory.appendingPathComponent(AppDataLocations.storeFileName, isDirectory: false)
 
         try FileManager.default.createDirectory(at: databaseDirectory, withIntermediateDirectories: true)
         try SQLiteDatabaseSupport.onlineBackup(from: storeURL, to: destinationStoreURL)
 
-        let preferencesURL = stagingDirectory
+        let preferencesURL = bundleDirectory
             .appendingPathComponent("Preferences", isDirectory: true)
             .appendingPathComponent(AppDataLocations.snapshotPreferencesFileName, isDirectory: false)
         try FileManager.default.createDirectory(at: preferencesURL.deletingLastPathComponent(), withIntermediateDirectories: true)
@@ -181,7 +160,7 @@ enum AppSnapshotManager {
         }
 
         let liveAttachmentsURL = try AppDataLocations.attachmentsDirectoryURL()
-        let snapshotAttachmentsURL = stagingDirectory.appendingPathComponent("Attachments", isDirectory: true)
+        let snapshotAttachmentsURL = bundleDirectory.appendingPathComponent("Attachments", isDirectory: true)
         let hasAttachments = FileManager.default.fileExists(atPath: liveAttachmentsURL.path)
         if hasAttachments {
             try copyDirectoryContents(from: liveAttachmentsURL, to: snapshotAttachmentsURL)
@@ -189,7 +168,6 @@ enum AppSnapshotManager {
 
         let integrity = SQLiteDatabaseSupport.quickCheck(at: destinationStoreURL)
         if !integrity.passed && !allowUnhealthy {
-            try? FileManager.default.removeItem(at: stagingDirectory)
             return nil
         }
 
@@ -199,7 +177,6 @@ enum AppSnapshotManager {
         } else if allowUnhealthy {
             counts = SnapshotCoreCounts(conversations: 0, messages: 0, providers: 0, assistants: 0, mcpServers: 0)
         } else {
-            try? FileManager.default.removeItem(at: stagingDirectory)
             return nil
         }
 
@@ -220,21 +197,41 @@ enum AppSnapshotManager {
             hasPreferences: FileManager.default.fileExists(atPath: preferencesURL.path),
             note: nil
         )
-        let manifestURL = stagingDirectory.appendingPathComponent(AppDataLocations.snapshotManifestFileName, isDirectory: false)
+        let manifestURL = bundleDirectory.appendingPathComponent(AppDataLocations.snapshotManifestFileName, isDirectory: false)
         try encoder.encode(manifest).write(to: manifestURL, options: .atomic)
 
+        return SnapshotSummary(manifest: manifest, directoryURL: bundleDirectory)
+    }
+
+    @discardableResult
+    static func captureAutomaticSnapshot(
+        reason: SnapshotReason,
+        isAutomatic: Bool = true,
+        allowUnhealthy: Bool = false
+    ) throws -> SnapshotSummary? {
+        let stagingDirectory = try makeStagingSnapshotDirectory()
+        guard let summary = try buildSnapshotBundle(
+            in: stagingDirectory,
+            reason: reason,
+            isAutomatic: isAutomatic,
+            allowUnhealthy: allowUnhealthy
+        ) else {
+            try? FileManager.default.removeItem(at: stagingDirectory)
+            return nil
+        }
+
         let finalDirectory = try AppDataLocations.snapshotsDirectoryURL()
-            .appendingPathComponent(snapshotDirectoryName(for: manifest), isDirectory: true)
+            .appendingPathComponent(snapshotDirectoryName(for: summary.manifest), isDirectory: true)
         if FileManager.default.fileExists(atPath: finalDirectory.path) {
             try FileManager.default.removeItem(at: finalDirectory)
         }
         try FileManager.default.moveItem(at: stagingDirectory, to: finalDirectory)
 
-        let summary = SnapshotSummary(manifest: manifest, directoryURL: finalDirectory)
+        let publishedSummary = SnapshotSummary(manifest: summary.manifest, directoryURL: finalDirectory)
         if isAutomatic {
             pruneAutomaticSnapshots()
         }
-        return summary
+        return publishedSummary
     }
 
     static func latestHealthySnapshot() -> SnapshotSummary? {
@@ -295,12 +292,21 @@ enum AppSnapshotManager {
     }
 
     static func exportRecoveryArchive(to destinationURL: URL) throws {
-        guard let snapshot = try captureAutomaticSnapshot(
+        let temporarySnapshotDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("jin-export-\(UUID().uuidString)", isDirectory: true)
+        if FileManager.default.fileExists(atPath: temporarySnapshotDirectory.path) {
+            try FileManager.default.removeItem(at: temporarySnapshotDirectory)
+        }
+        try FileManager.default.createDirectory(at: temporarySnapshotDirectory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: temporarySnapshotDirectory) }
+
+        guard let snapshot = try buildSnapshotBundle(
+            in: temporarySnapshotDirectory,
             reason: .manualExport,
             isAutomatic: false,
             allowUnhealthy: true
-        ) ?? latestHealthySnapshot() else {
-            throw SnapshotError.exportFailed("Jin could not create a healthy snapshot to export.")
+        ) else {
+            throw SnapshotError.exportFailed("Jin could not export the current data.")
         }
 
         let destinationDirectory = destinationURL.deletingLastPathComponent()

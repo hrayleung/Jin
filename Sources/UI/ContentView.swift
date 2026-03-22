@@ -80,10 +80,8 @@ struct ContentView: View {
         .toolbar(removing: .sidebarToggle)
         .hideWindowToolbarCompat()
         .task {
-            if !AppRuntimeProtection.automaticSnapshotsSuspended {
-                bootstrapDefaultProvidersIfNeeded()
-                bootstrapDefaultAssistantsIfNeeded()
-            }
+            bootstrapDefaultProvidersIfNeeded()
+            bootstrapDefaultAssistantsIfNeeded()
             await updateManager.checkForUpdatesOnLaunchIfNeeded()
         }
         .sheet(isPresented: $isAssistantInspectorPresented) {

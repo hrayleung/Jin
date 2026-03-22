@@ -18,10 +18,8 @@ extension ContentView {
     }
 
     func createNewConversation() {
-        if !AppRuntimeProtection.automaticSnapshotsSuspended {
-            bootstrapDefaultProvidersIfNeeded()
-            bootstrapDefaultAssistantsIfNeeded()
-        }
+        bootstrapDefaultProvidersIfNeeded()
+        bootstrapDefaultAssistantsIfNeeded()
 
         let discardedConversationID = discardSelectedEmptyConversationIfNeeded()
 

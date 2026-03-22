@@ -36,7 +36,7 @@ enum StorageCategory: String, CaseIterable, Identifiable {
         switch self {
         case .attachments: return "Images, videos, audio, and files from conversations."
         case .database: return "Chat history, assistants, and provider configurations."
-        case .backups: return "Automatic recovery snapshots used for startup restore."
+        case .backups: return "Existing recovery snapshot folders from earlier builds."
         case .networkLogs: return "HTTP/WebSocket debug trace files."
         case .mcpData: return "Node isolation directories for MCP servers."
         case .speechModels: return "On-device WhisperKit and TTSKit models."

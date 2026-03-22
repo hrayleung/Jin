@@ -9,8 +9,6 @@ private final class JinAppDelegate: NSObject, NSApplicationDelegate {
     func applicationWillTerminate(_ notification: Notification) {
         CodexAppServerController.shared.shutdownForApplicationTermination()
         _ = AppPreferencesSnapshotStore.persistCurrentDomain()
-        guard !AppRuntimeProtection.automaticSnapshotsSuspended else { return }
-        _ = try? AppSnapshotManager.captureAutomaticSnapshot(reason: .termination)
     }
 }
 
@@ -27,7 +25,6 @@ struct JinApp: App {
     @AppStorage(AppPreferenceKeys.appFontFamily) private var appFontFamily = JinTypography.systemFontPreferenceValue
     @AppStorage(AppPreferenceKeys.appIconVariant) private var appIconVariant: AppIconVariant = .roseQuartz
 
-    @State private var periodicSnapshotStarted = false
     @State private var postLaunchMaintenanceStarted = false
 
     private let preferencesSyncController: AppPreferencesSyncController
@@ -65,7 +62,6 @@ struct JinApp: App {
                     .onAppear {
                         AppIconManager.apply(appIconVariant)
                         performPostLaunchMaintenanceIfNeeded(with: container)
-                        schedulePeriodicSnapshotIfNeeded()
                     }
                     .task {
                         await updateManager.checkForUpdatesOnLaunchIfNeeded()
@@ -107,29 +103,12 @@ struct JinApp: App {
         }
     }
 
-    private func schedulePeriodicSnapshotIfNeeded() {
-        guard !periodicSnapshotStarted else { return }
-        periodicSnapshotStarted = true
-
-        Task {
-            while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(30 * 60))
-                _ = AppPreferencesSnapshotStore.persistCurrentDomain()
-                guard !AppRuntimeProtection.automaticSnapshotsSuspended else { continue }
-                _ = try? AppSnapshotManager.captureAutomaticSnapshot(reason: .periodic)
-            }
-        }
-    }
-
     private func performPostLaunchMaintenanceIfNeeded(with container: ModelContainer) {
         guard !postLaunchMaintenanceStarted else { return }
         postLaunchMaintenanceStarted = true
-        guard !AppRuntimeProtection.automaticSnapshotsSuspended else { return }
 
         resetMCPServersForTransportV2IfNeeded(container: container)
         updateProviderModelsIfNeeded(container: container)
-
-        _ = try? AppSnapshotManager.captureAutomaticSnapshot(reason: .launchHealthy)
     }
 
     private func resetMCPServersForTransportV2IfNeeded(container: ModelContainer) {

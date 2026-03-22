@@ -275,7 +275,7 @@ struct DataSettingsView: View {
         case .speechModels:
             return "This will delete all downloaded on-device speech models (\(sizeStr)). They will need to be re-downloaded to use again."
         case .backups:
-            return "This will delete all automatic recovery snapshots (\(sizeStr)). New healthy snapshots will be created on the next normal launch."
+            return "This will delete all existing recovery snapshot folders (\(sizeStr))."
         case .database:
             return ""
         }
@@ -309,25 +309,6 @@ struct DataSettingsView: View {
 
     private func deleteAllChats() {
         Task {
-            let snapshotResult = await Task.detached(priority: .userInitiated) {
-                Result { try AppSnapshotManager.captureAutomaticSnapshot(reason: .beforeDestructiveAction) }
-            }.value
-
-            switch snapshotResult {
-            case .success(.some):
-                break
-            case .success(.none):
-                await MainActor.run {
-                    clearError = "Jin couldn't create a safety snapshot, so Delete All Chats was cancelled."
-                }
-                return
-            case .failure(let error):
-                await MainActor.run {
-                    clearError = "Delete All Chats was cancelled because the safety snapshot failed: \(error.localizedDescription)"
-                }
-                return
-            }
-
             await MainActor.run {
                 for conversation in conversations {
                     modelContext.delete(conversation)
