@@ -383,15 +383,22 @@ struct DataSettingsView: View {
     private func exportRecoveryPack() {
         let panel = NSSavePanel()
         panel.canCreateDirectories = true
-        panel.nameFieldStringValue = "Jin-\(Date.now.formatted(date: .abbreviated, time: .omitted)).jinbackup"
+        panel.nameFieldStringValue = "Jin-\(Self.recoveryPackDateFormatter.string(from: .now)).jinbackup"
         panel.allowedContentTypes = [RecoveryPackType.type]
 
         guard panel.runModal() == .OK, let url = panel.url else { return }
-        do {
-            try AppSnapshotManager.exportRecoveryArchive(to: url)
-            exportStatusMessage = "Exported recovery pack to \(url.lastPathComponent)."
-        } catch {
-            exportStatusMessage = "Export failed: \(error.localizedDescription)"
+        exportStatusMessage = "Exporting recovery pack…"
+
+        Task.detached(priority: .userInitiated) {
+            let result = Result { try AppSnapshotManager.exportRecoveryArchive(to: url) }
+            await MainActor.run {
+                switch result {
+                case .success:
+                    exportStatusMessage = "Exported recovery pack to \(url.lastPathComponent)."
+                case .failure(let error):
+                    exportStatusMessage = "Export failed: \(error.localizedDescription)"
+                }
+            }
         }
     }
 
@@ -402,15 +409,30 @@ struct DataSettingsView: View {
         panel.canChooseFiles = true
 
         guard panel.runModal() == .OK, let url = panel.url else { return }
-        do {
-            try AppSnapshotManager.queueImportArchiveForRestore(from: url)
-            importStatusMessage = "Recovery pack queued. Relaunch Jin to apply it safely before the database opens."
-        } catch {
-            importStatusMessage = "Import failed: \(error.localizedDescription)"
+
+        importStatusMessage = "Validating and queuing recovery pack…"
+        Task.detached(priority: .userInitiated) {
+            let result = Result { try AppSnapshotManager.queueImportArchiveForRestore(from: url) }
+            await MainActor.run {
+                switch result {
+                case .success:
+                    importStatusMessage = "Recovery pack queued. Relaunch Jin to apply it safely before the database opens."
+                case .failure(let error):
+                    importStatusMessage = "Import failed: \(error.localizedDescription)"
+                }
+            }
         }
     }
 
     // MARK: - Formatting
+
+    private static let recoveryPackDateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = .current
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter
+    }()
 
     private func formattedSize(_ bytes: Int64) -> String {
         if bytes == 0 { return "0 bytes" }

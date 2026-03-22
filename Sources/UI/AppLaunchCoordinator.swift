@@ -144,9 +144,8 @@ struct AppRecoveryView: View {
                                                 .foregroundStyle(.secondary)
                                         }
                                         Spacer()
-                                        if snapshot.manifest.isHealthy {
-                                            Text("Restore")
-                                        }
+                                        Text(snapshot.manifest.isHealthy ? "Restore" : "Restore (Unverified)")
+                                            .foregroundStyle(snapshot.manifest.isHealthy ? .primary : .secondary)
                                     }
                                     .padding(JinSpacing.medium)
                                     .background(
@@ -201,12 +200,13 @@ struct AppRecoveryView: View {
         panel.canChooseDirectories = false
         panel.canChooseFiles = true
 
-        if panel.runModal() == .OK, let url = panel.url {
-            Task {
-                await launchCoordinator.importRecoveryArchive(from: url)
-            }
-        } else if panel.url == nil {
+        guard panel.runModal() == .OK, let url = panel.url else {
             importError = nil
+            return
+        }
+
+        Task {
+            await launchCoordinator.importRecoveryArchive(from: url)
         }
     }
 }

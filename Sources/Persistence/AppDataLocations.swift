@@ -120,6 +120,7 @@ enum AppDataLocations {
             snapshotsDirectoryURL(fileManager: fileManager),
             exportsDirectoryURL(fileManager: fileManager),
             pendingRestoreDirectoryURL(fileManager: fileManager),
+            queuedRestoreDirectoryURL(fileManager: fileManager),
             cacheDirectoryURL(fileManager: fileManager),
             preferencesDirectoryURL(fileManager: fileManager),
             logsDirectoryURL(fileManager: fileManager),
@@ -212,10 +213,26 @@ enum AppDataLocations {
             try fileManager.createDirectory(at: destinationURL, withIntermediateDirectories: true)
         }
 
-        let contents = try fileManager.contentsOfDirectory(at: sourceURL, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles])
+        let contents = try fileManager.contentsOfDirectory(
+            at: sourceURL,
+            includingPropertiesForKeys: [.isDirectoryKey],
+            options: [.skipsHiddenFiles]
+        )
         for itemURL in contents {
-            let targetURL = destinationURL.appendingPathComponent(itemURL.lastPathComponent, isDirectory: itemURL.hasDirectoryPath)
-            guard !fileManager.fileExists(atPath: targetURL.path) else { continue }
+            let isDirectory = try itemURL.resourceValues(forKeys: [.isDirectoryKey]).isDirectory ?? itemURL.hasDirectoryPath
+            let targetURL = destinationURL.appendingPathComponent(
+                itemURL.lastPathComponent,
+                isDirectory: isDirectory
+            )
+
+            if fileManager.fileExists(atPath: targetURL.path) {
+                let targetIsDirectory = (try? targetURL.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) ?? targetURL.hasDirectoryPath
+                if isDirectory && targetIsDirectory {
+                    try mergeDirectoryContentsIfNeeded(from: itemURL, to: targetURL, fileManager: fileManager)
+                }
+                continue
+            }
+
             try fileManager.moveItem(at: itemURL, to: targetURL)
         }
 

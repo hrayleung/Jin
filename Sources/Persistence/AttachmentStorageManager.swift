@@ -15,10 +15,6 @@ actor AttachmentStorageManager {
     init() throws {
         try AppDataLocations.ensureDirectoriesExist(fileManager: fileManager)
         baseURL = try AppDataLocations.attachmentsDirectoryURL(fileManager: fileManager)
-
-        if !fileManager.fileExists(atPath: baseURL.path) {
-            try fileManager.createDirectory(at: baseURL, withIntermediateDirectories: true)
-        }
     }
 
     /// Save attachment and return file URL

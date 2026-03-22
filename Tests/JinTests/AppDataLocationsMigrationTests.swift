@@ -25,6 +25,11 @@ final class AppDataLocationsMigrationTests: XCTestCase {
         let legacyCacheFile = temporaryRoot
             .appendingPathComponent("Jin", isDirectory: true)
             .appendingPathComponent("SearchRedirectURLCache.json", isDirectory: false)
+        let legacyNetworkTraceFile = temporaryRoot
+            .appendingPathComponent("Jin", isDirectory: true)
+            .appendingPathComponent("Logs", isDirectory: true)
+            .appendingPathComponent("network-trace", isDirectory: true)
+            .appendingPathComponent("trace.json", isDirectory: false)
         let legacyBackupStore = temporaryRoot
             .appendingPathComponent("Jin", isDirectory: true)
             .appendingPathComponent("Backups", isDirectory: true)
@@ -37,6 +42,8 @@ final class AppDataLocationsMigrationTests: XCTestCase {
             .write(to: legacyAttachmentsDirectory.appendingPathComponent("note.txt"))
         try FileManager.default.createDirectory(at: legacyCacheFile.deletingLastPathComponent(), withIntermediateDirectories: true)
         try XCTUnwrap("{}".data(using: .utf8)).write(to: legacyCacheFile)
+        try FileManager.default.createDirectory(at: legacyNetworkTraceFile.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try XCTUnwrap("{\"trace\":true}".data(using: .utf8)).write(to: legacyNetworkTraceFile)
         try FileManager.default.createDirectory(at: legacyBackupStore.deletingLastPathComponent(), withIntermediateDirectories: true)
         try XCTUnwrap("backup".data(using: .utf8)).write(to: legacyBackupStore)
 
@@ -46,6 +53,8 @@ final class AppDataLocationsMigrationTests: XCTestCase {
         let migratedAttachmentURL = try AppDataLocations.attachmentsDirectoryURL()
             .appendingPathComponent("note.txt")
         let migratedCacheURL = try AppDataLocations.searchRedirectCacheFileURL()
+        let migratedNetworkTraceURL = try AppDataLocations.networkTraceDirectoryURL()
+            .appendingPathComponent("trace.json")
         let migratedBackupURL = try AppDataLocations.snapshotsDirectoryURL()
             .appendingPathComponent("backup-test", isDirectory: true)
             .appendingPathComponent(AppDataLocations.storeFileName, isDirectory: false)
@@ -53,6 +62,7 @@ final class AppDataLocationsMigrationTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: migratedStoreURL.path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: migratedAttachmentURL.path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: migratedCacheURL.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: migratedNetworkTraceURL.path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: migratedBackupURL.path))
         XCTAssertFalse(FileManager.default.fileExists(atPath: legacyStoreURL.path))
     }
