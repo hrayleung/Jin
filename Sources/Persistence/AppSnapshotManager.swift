@@ -90,77 +90,32 @@ enum AppSnapshotManager {
     static func evaluateCurrentStoreForStartup() throws -> StartupStoreEvaluation {
         try AppDataLocations.migrateLegacyDataIfNeeded()
         migrateLegacySnapshotsIfNeeded()
-        let queuedRestoreError = applyQueuedRestoreIfPresent()
+
+        if let queuedRestoreError = applyQueuedRestoreIfPresent() {
+            NSLog("Jin recovery warning: %@", queuedRestoreError)
+        }
 
         let storeURL = try AppDataLocations.storeURL()
-        let latestHealthy = latestHealthySnapshot()
 
-        guard FileManager.default.fileExists(atPath: storeURL.path) else {
-            if let latestHealthy, latestHealthy.manifest.counts.total > 0 {
-                return .recovery(
-                    StartupRecoveryState(
-                        issueDescription: "Jin could not find the current database, but a healthy snapshot with user data is available.",
-                        snapshots: listSnapshots(),
-                        canContinueCurrentState: false
-                    ),
-                    nil
-                )
+        if FileManager.default.fileExists(atPath: storeURL.path) {
+            let integrity = SQLiteDatabaseSupport.quickCheck(at: storeURL)
+            if integrity.passed, let container = try? PersistenceContainerFactory.makeContainer(storeURL: storeURL) {
+                let currentCounts = PersistenceContainerFactory.fetchCoreCounts(in: container)
+                if shouldTriggerRecovery(currentCounts: currentCounts, latestHealthySnapshot: latestHealthySnapshot()?.manifest),
+                   attemptAutomaticRestore() {
+                    return .ready(try PersistenceContainerFactory.makeContainer(storeURL: storeURL))
+                }
+                return .ready(container)
             }
-
-            let container = try PersistenceContainerFactory.makeContainer(storeURL: storeURL)
-            return .ready(container)
         }
 
-        let integrity = SQLiteDatabaseSupport.quickCheck(at: storeURL)
-        if !integrity.passed {
-            return .recovery(
-                StartupRecoveryState(
-                    issueDescription: "Jin detected database corruption: \(integrity.detail)",
-                    snapshots: listSnapshots(),
-                    canContinueCurrentState: false
-                ),
-                nil
-            )
+        if attemptAutomaticRestore() {
+            return .ready(try PersistenceContainerFactory.makeContainer(storeURL: storeURL))
         }
 
-        let container: ModelContainer
-        do {
-            container = try PersistenceContainerFactory.makeContainer(storeURL: storeURL)
-        } catch {
-            return .recovery(
-                StartupRecoveryState(
-                    issueDescription: "Jin could not open the current database: \(error.localizedDescription)",
-                    snapshots: listSnapshots(),
-                    canContinueCurrentState: false
-                ),
-                nil
-            )
-        }
-
-        let currentCounts = PersistenceContainerFactory.fetchCoreCounts(in: container)
-        if let queuedRestoreError {
-            return .recovery(
-                StartupRecoveryState(
-                    issueDescription: queuedRestoreError,
-                    snapshots: listSnapshots(),
-                    canContinueCurrentState: true
-                ),
-                container
-            )
-        }
-
-        if shouldTriggerRecovery(currentCounts: currentCounts, latestHealthySnapshot: latestHealthy?.manifest) {
-            return .recovery(
-                StartupRecoveryState(
-                    issueDescription: "Jin detected that the current database looks empty or seed-like compared with the latest healthy snapshot.",
-                    snapshots: listSnapshots(),
-                    canContinueCurrentState: true
-                ),
-                container
-            )
-        }
-
-        return .ready(container)
+        SQLiteDatabaseSupport.removeStoreArtifacts(at: storeURL)
+        clearAcceptedCurrentState()
+        return .ready(try PersistenceContainerFactory.makeContainer(storeURL: storeURL))
     }
 
     static func shouldTriggerRecovery(
@@ -180,6 +135,18 @@ enum AppSnapshotManager {
         UserDefaults.standard.set(data, forKey: acceptedCurrentStateDefaultsKey)
     }
 
+    @discardableResult
+    private static func attemptAutomaticRestore() -> Bool {
+        guard let latestHealthySnapshot = latestHealthySnapshot() else { return false }
+        do {
+            try restoreSnapshot(latestHealthySnapshot)
+            return true
+        } catch {
+            NSLog("Jin automatic restore failed: %@", error.localizedDescription)
+            return false
+        }
+    }
+
     static func clearAcceptedCurrentState() {
         UserDefaults.standard.removeObject(forKey: acceptedCurrentStateDefaultsKey)
     }
@@ -187,7 +154,8 @@ enum AppSnapshotManager {
     @discardableResult
     static func captureAutomaticSnapshot(
         reason: SnapshotReason,
-        isAutomatic: Bool = true
+        isAutomatic: Bool = true,
+        allowUnhealthy: Bool = false
     ) throws -> SnapshotSummary? {
         let storeURL = try AppDataLocations.storeURL()
         guard FileManager.default.fileExists(atPath: storeURL.path) else { return nil }
@@ -220,13 +188,22 @@ enum AppSnapshotManager {
         }
 
         let integrity = SQLiteDatabaseSupport.quickCheck(at: destinationStoreURL)
-        guard integrity.passed else {
+        if !integrity.passed && !allowUnhealthy {
             try? FileManager.default.removeItem(at: stagingDirectory)
             return nil
         }
 
-        let snapshotContainer = try PersistenceContainerFactory.makeContainer(storeURL: destinationStoreURL)
-        let counts = PersistenceContainerFactory.fetchCoreCounts(in: snapshotContainer)
+        let counts: SnapshotCoreCounts
+        if let snapshotContainer = try? PersistenceContainerFactory.makeContainer(storeURL: destinationStoreURL) {
+            counts = PersistenceContainerFactory.fetchCoreCounts(in: snapshotContainer)
+        } else if allowUnhealthy {
+            counts = SnapshotCoreCounts(conversations: 0, messages: 0, providers: 0, assistants: 0, mcpServers: 0)
+        } else {
+            try? FileManager.default.removeItem(at: stagingDirectory)
+            return nil
+        }
+
+        let isHealthy = integrity.passed && !counts.isSeedLike && !counts.isEmpty
         let manifest = SnapshotManifest(
             id: snapshotID,
             createdAt: Date(),
@@ -235,7 +212,7 @@ enum AppSnapshotManager {
             schemaVersion: 1,
             includesSecrets: true,
             isAutomatic: isAutomatic,
-            isHealthy: true,
+            isHealthy: isHealthy,
             isLegacy: false,
             integrityDetail: integrity.detail,
             counts: counts,
@@ -318,7 +295,11 @@ enum AppSnapshotManager {
     }
 
     static func exportRecoveryArchive(to destinationURL: URL) throws {
-        guard let snapshot = try captureAutomaticSnapshot(reason: .manualExport, isAutomatic: false) else {
+        guard let snapshot = try captureAutomaticSnapshot(
+            reason: .manualExport,
+            isAutomatic: false,
+            allowUnhealthy: true
+        ) ?? latestHealthySnapshot() else {
             throw SnapshotError.exportFailed("Jin could not create a healthy snapshot to export.")
         }
 
