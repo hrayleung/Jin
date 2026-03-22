@@ -282,7 +282,10 @@ enum AppSnapshotManager {
                   let manifest = try? decoder.decode(SnapshotManifest.self, from: data) else {
                 return nil
             }
-            return SnapshotSummary(manifest: manifest, directoryURL: directoryURL)
+            return SnapshotSummary(
+                manifest: normalizedManifest(manifest, snapshotDirectory: directoryURL),
+                directoryURL: directoryURL
+            )
         }
         .sorted { $0.manifest.createdAt > $1.manifest.createdAt }
     }
@@ -356,8 +359,7 @@ enum AppSnapshotManager {
             .appendingPathComponent("restore-\(UUID().uuidString)", isDirectory: true)
         let pendingDatabase = pendingRoot.appendingPathComponent("Database", isDirectory: true)
         try FileManager.default.createDirectory(at: pendingDatabase, withIntermediateDirectories: true)
-        let databaseDirectory = snapshotDirectory.appendingPathComponent("Database", isDirectory: true)
-        try copyDirectoryContents(from: databaseDirectory, to: pendingDatabase)
+        try copySnapshotDatabaseArtifacts(from: snapshotDirectory, to: pendingDatabase)
 
         let liveDatabase = try AppDataLocations.databaseDirectoryURL()
         let attachmentsDirectory = snapshotDirectory.appendingPathComponent("Attachments", isDirectory: true)
@@ -482,7 +484,7 @@ enum AppSnapshotManager {
                 schemaVersion: 0,
                 includesSecrets: true,
                 isAutomatic: true,
-                isHealthy: true,
+                isHealthy: !counts.isSeedLike && !counts.isEmpty,
                 isLegacy: true,
                 integrityDetail: integrity.detail,
                 counts: counts,
@@ -526,6 +528,38 @@ enum AppSnapshotManager {
         try FileManager.default.copyItem(at: sourceURL, to: destinationURL)
     }
 
+    private static func normalizedManifest(
+        _ manifest: SnapshotManifest,
+        snapshotDirectory: URL
+    ) -> SnapshotManifest {
+        var isHealthy = manifest.isHealthy
+
+        if manifest.isLegacy && (manifest.counts.isSeedLike || manifest.counts.isEmpty) {
+            isHealthy = false
+        }
+
+        if snapshotPrimaryStoreURL(in: snapshotDirectory) == nil {
+            isHealthy = false
+        }
+
+        return SnapshotManifest(
+            id: manifest.id,
+            createdAt: manifest.createdAt,
+            reason: manifest.reason,
+            appVersion: manifest.appVersion,
+            schemaVersion: manifest.schemaVersion,
+            includesSecrets: manifest.includesSecrets,
+            isAutomatic: manifest.isAutomatic,
+            isHealthy: isHealthy,
+            isLegacy: manifest.isLegacy,
+            integrityDetail: manifest.integrityDetail,
+            counts: manifest.counts,
+            hasAttachments: manifest.hasAttachments,
+            hasPreferences: manifest.hasPreferences,
+            note: manifest.note
+        )
+    }
+
     private static func extractArchiveToTemporaryDirectory(_ archiveURL: URL) throws -> URL {
         let temporaryDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent("jin-import-\(UUID().uuidString)", isDirectory: true)
@@ -565,9 +599,7 @@ enum AppSnapshotManager {
             throw SnapshotError.invalidSnapshot("Snapshot manifest is missing or unreadable.")
         }
 
-        let databaseDirectory = snapshotDirectory.appendingPathComponent("Database", isDirectory: true)
-        let storeURL = databaseDirectory.appendingPathComponent(AppDataLocations.storeFileName, isDirectory: false)
-        guard FileManager.default.fileExists(atPath: storeURL.path) else {
+        guard let storeURL = snapshotPrimaryStoreURL(in: snapshotDirectory) else {
             throw SnapshotError.invalidSnapshot("Snapshot database is missing.")
         }
 
@@ -576,7 +608,7 @@ enum AppSnapshotManager {
             throw SnapshotError.invalidSnapshot("Snapshot integrity check failed: \(integrity.detail)")
         }
 
-        return manifest
+        return normalizedManifest(manifest, snapshotDirectory: snapshotDirectory)
     }
 
     private static func acceptedCurrentStateMatches(_ counts: SnapshotCoreCounts) -> Bool {
@@ -585,6 +617,43 @@ enum AppSnapshotManager {
             return false
         }
         return accepted == counts
+    }
+
+    private static func snapshotPrimaryStoreURL(in snapshotDirectory: URL) -> URL? {
+        let nestedStoreURL = snapshotDirectory
+            .appendingPathComponent("Database", isDirectory: true)
+            .appendingPathComponent(AppDataLocations.storeFileName, isDirectory: false)
+        if FileManager.default.fileExists(atPath: nestedStoreURL.path) {
+            return nestedStoreURL
+        }
+
+        let legacyStoreURL = snapshotDirectory
+            .appendingPathComponent(AppDataLocations.storeFileName, isDirectory: false)
+        if FileManager.default.fileExists(atPath: legacyStoreURL.path) {
+            return legacyStoreURL
+        }
+
+        return nil
+    }
+
+    private static func copySnapshotDatabaseArtifacts(from snapshotDirectory: URL, to destinationDirectory: URL) throws {
+        guard let sourceStoreURL = snapshotPrimaryStoreURL(in: snapshotDirectory) else {
+            throw SnapshotError.invalidSnapshot("Snapshot database is missing.")
+        }
+
+        let sourceParentDirectory = sourceStoreURL.deletingLastPathComponent()
+        let fileNames = [
+            AppDataLocations.storeFileName,
+            "\(AppDataLocations.storeFileName)-shm",
+            "\(AppDataLocations.storeFileName)-wal"
+        ]
+
+        for fileName in fileNames {
+            let sourceURL = sourceParentDirectory.appendingPathComponent(fileName, isDirectory: false)
+            guard FileManager.default.fileExists(atPath: sourceURL.path) else { continue }
+            let destinationURL = destinationDirectory.appendingPathComponent(fileName, isDirectory: false)
+            try FileManager.default.copyItem(at: sourceURL, to: destinationURL)
+        }
     }
 
     private static func runDitto(arguments: [String]) throws {

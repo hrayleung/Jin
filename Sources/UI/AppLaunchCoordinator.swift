@@ -111,6 +111,10 @@ struct AppRecoveryView: View {
 
     @State private var importError: String?
 
+    private var healthySnapshots: [SnapshotSummary] {
+        recoveryState.snapshots.filter { $0.manifest.isHealthy }
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: JinSpacing.large) {
             VStack(alignment: .leading, spacing: JinSpacing.small) {
@@ -121,8 +125,8 @@ struct AppRecoveryView: View {
                     .foregroundStyle(.secondary)
             }
 
-            if recoveryState.snapshots.isEmpty {
-                Text("No healthy snapshots are available yet. You can import a recovery pack or continue with the current state if Jin can still open it.")
+            if healthySnapshots.isEmpty {
+                Text("No healthy snapshots are available right now. You can import a recovery pack or continue with the current state if Jin can still open it.")
                     .foregroundStyle(.secondary)
             } else {
                 VStack(alignment: .leading, spacing: JinSpacing.small) {
@@ -131,7 +135,7 @@ struct AppRecoveryView: View {
 
                     ScrollView {
                         VStack(alignment: .leading, spacing: JinSpacing.small) {
-                            ForEach(recoveryState.snapshots) { snapshot in
+                            ForEach(healthySnapshots) { snapshot in
                                 Button {
                                     Task { await launchCoordinator.restoreSnapshot(snapshot) }
                                 } label: {
@@ -144,8 +148,7 @@ struct AppRecoveryView: View {
                                                 .foregroundStyle(.secondary)
                                         }
                                         Spacer()
-                                        Text(snapshot.manifest.isHealthy ? "Restore" : "Restore (Unverified)")
-                                            .foregroundStyle(snapshot.manifest.isHealthy ? .primary : .secondary)
+                                        Text("Restore")
                                     }
                                     .padding(JinSpacing.medium)
                                     .background(
@@ -161,7 +164,7 @@ struct AppRecoveryView: View {
             }
 
             HStack(spacing: JinSpacing.medium) {
-                if recoveryState.snapshots.contains(where: { $0.manifest.isHealthy }) {
+                if !healthySnapshots.isEmpty {
                     Button("Restore Latest Healthy Snapshot") {
                         Task { await launchCoordinator.restoreLatestHealthySnapshot() }
                     }
