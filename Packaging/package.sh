@@ -211,10 +211,8 @@ if [[ "$APP_BUILD_NUMBER" =~ ^[0-9]+$ ]]; then
   /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $APP_BUILD_NUMBER" "$APP_BUNDLE/Contents/Info.plist"
 fi
 
-echo "Copying app icon variants…"
-for VARIANT in A B C D E; do
-  cp "$ROOT/Packaging/AppIcon${VARIANT}.icns" "$APP_BUNDLE/Contents/Resources/AppIcon${VARIANT}.icns"
-done
+echo "Copying app icon…"
+cp "$ROOT/Packaging/AppIcon.icns" "$APP_BUNDLE/Contents/Resources/AppIcon.icns"
 
 echo "Copying SwiftPM resource bundles…"
 shopt -s nullglob

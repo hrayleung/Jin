@@ -12,7 +12,6 @@ struct AppearanceSettingsView: View {
     @AppStorage(AppPreferenceKeys.codexToolDisplayMode) private var codexToolDisplayModeRaw = CodexToolDisplayMode.expanded.rawValue
     @AppStorage(AppPreferenceKeys.codeExecutionDisplayMode) private var codeExecutionDisplayModeRaw = CodeExecutionDisplayMode.expanded.rawValue
     @AppStorage(AppPreferenceKeys.agentToolDisplayMode) private var agentToolDisplayModeRaw = AgentToolDisplayMode.expanded.rawValue
-    @AppStorage(AppPreferenceKeys.appIconVariant) private var appIconVariant: AppIconVariant = .roseQuartz
     @AppStorage(AppPreferenceKeys.useOverlayScrollbars) private var useOverlayScrollbars = true
 
     @State private var showingAppFontPicker = false
@@ -55,20 +54,6 @@ struct AppearanceSettingsView: View {
 
     var body: some View {
         Form {
-            Section {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 16) {
-                        ForEach(AppIconVariant.allCases) { variant in
-                            appIconButton(for: variant)
-                        }
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.vertical, 12)
-                }
-            } header: {
-                Text("App Icon")
-            }
-
             Section("Theme") {
                 Picker("Mode", selection: $appAppearanceMode) {
                     ForEach(AppAppearanceMode.allCases) { mode in
@@ -212,69 +197,15 @@ struct AppearanceSettingsView: View {
         appFontFamily = JinTypography.normalizedFontPreference(appFontFamily)
         codeFontFamily = JinTypography.normalizedFontPreference(codeFontFamily)
     }
-
-    private func appIconButton(for variant: AppIconVariant) -> some View {
-        let isSelected = appIconVariant == variant
-        return Button {
-            appIconVariant = variant
-            applyAppIcon(variant)
-        } label: {
-            VStack(spacing: 8) {
-                iconThumbnail(for: variant)
-                    .frame(width: 72, height: 72)
-                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 16, style: .continuous)
-                            .stroke(isSelected ? Color.accentColor : Color.primary.opacity(0.1), lineWidth: isSelected ? 2.5 : 0.5)
-                    )
-                    .overlay(alignment: .bottomTrailing) {
-                        if isSelected {
-                            Image(systemName: "checkmark.circle.fill")
-                                .font(.system(size: 18))
-                                .foregroundStyle(.white, Color.accentColor)
-                                .offset(x: 4, y: 4)
-                        }
-                    }
-                    .shadow(color: .black.opacity(0.08), radius: 3, y: 2)
-
-                Text(variant.label)
-                    .font(.caption)
-                    .foregroundStyle(isSelected ? Color.accentColor : .secondary)
-            }
-        }
-        .buttonStyle(.plain)
-    }
-
-    private func iconThumbnail(for variant: AppIconVariant) -> some View {
-        Group {
-            if let url = Bundle.module.url(forResource: variant.thumbnailResourceName, withExtension: "png"),
-               let nsImage = NSImage(contentsOf: url) {
-                Image(nsImage: nsImage)
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-            } else if let nsImage = NSImage(named: variant.icnsName) {
-                Image(nsImage: nsImage)
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-            } else {
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(Color.gray.opacity(0.2))
-                    .overlay(Text(variant.rawValue).font(.title2).foregroundStyle(.secondary))
-            }
-        }
-    }
-
-    private func applyAppIcon(_ variant: AppIconVariant) {
-        AppIconManager.apply(variant)
-    }
 }
 
 enum AppIconManager {
-    static func apply(_ variant: AppIconVariant) {
-        if let url = Bundle.main.url(forResource: variant.icnsName, withExtension: "icns"),
+    static let bundleIconName = "AppIcon"
+
+    static func applyDefaultIcon() {
+        if let url = Bundle.main.url(forResource: bundleIconName, withExtension: "icns"),
            let icon = NSImage(contentsOf: url) {
             NSApplication.shared.applicationIconImage = icon
-            // Persist at Finder level so the icon survives app restarts
             if let bundlePath = Bundle.main.bundlePath as String? {
                 NSWorkspace.shared.setIcon(icon, forFile: bundlePath)
             }
