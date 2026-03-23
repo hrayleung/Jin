@@ -80,12 +80,6 @@ struct DataSettingsView: View {
 
             Section {
                 Button {
-                    openDataDirectory()
-                } label: {
-                    Label("Show Jin Data in Finder", systemImage: "folder")
-                }
-
-                Button {
                     exportRecoveryPack()
                 } label: {
                     Label("Export Recovery Pack", systemImage: "square.and.arrow.up")
@@ -346,16 +340,6 @@ struct DataSettingsView: View {
             if FileManager.default.fileExists(atPath: parent.path) {
                 NSWorkspace.shared.open(parent)
             }
-        }
-    }
-
-    private func openDataDirectory() {
-        guard let dataRoot = try? AppDataLocations.rootDirectoryURL() else { return }
-
-        if FileManager.default.fileExists(atPath: dataRoot.path) {
-            NSWorkspace.shared.open(dataRoot)
-        } else {
-            NSWorkspace.shared.open(dataRoot.deletingLastPathComponent())
         }
     }
 
