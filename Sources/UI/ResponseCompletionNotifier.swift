@@ -140,7 +140,7 @@ final class ResponseCompletionNotifier: ObservableObject {
     private func makeIconAttachment() -> UNNotificationAttachment? {
         let rawValue = defaults.string(forKey: AppPreferenceKeys.appIconVariant) ?? AppIconVariant.roseQuartz.rawValue
         let variant = AppIconVariant(rawValue: rawValue) ?? .roseQuartz
-        guard let url = Bundle.main.url(forResource: variant.thumbnailResourceName, withExtension: "png") else {
+        guard let url = Bundle.module.url(forResource: variant.thumbnailResourceName, withExtension: "png") else {
             return nil
         }
         return try? UNNotificationAttachment(identifier: "appIcon", url: url, options: nil)

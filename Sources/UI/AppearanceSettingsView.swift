@@ -247,7 +247,7 @@ struct AppearanceSettingsView: View {
 
     private func iconThumbnail(for variant: AppIconVariant) -> some View {
         Group {
-            if let url = Bundle.main.url(forResource: variant.thumbnailResourceName, withExtension: "png"),
+            if let url = Bundle.module.url(forResource: variant.thumbnailResourceName, withExtension: "png"),
                let nsImage = NSImage(contentsOf: url) {
                 Image(nsImage: nsImage)
                     .resizable()
