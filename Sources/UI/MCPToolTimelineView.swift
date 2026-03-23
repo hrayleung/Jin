@@ -14,8 +14,8 @@ private struct MCPToolTimelineEntry: Identifiable {
     }
 }
 
-private struct MCPCompactStatusStyle {
-    let text: String
+private struct MCPCompactStatusBadge {
+    let count: Int
     let icon: String
     let color: Color
 }
@@ -93,16 +93,7 @@ struct MCPToolTimelineView: View {
                         .scaleEffect(0.5)
                 }
 
-                if let compactStatusStyle {
-                    HStack(spacing: 4) {
-                        Image(systemName: compactStatusStyle.icon)
-                            .font(.system(size: 10, weight: .semibold))
-                        Text(compactStatusStyle.text)
-                            .font(.caption2.weight(.semibold))
-                    }
-                    .foregroundStyle(compactStatusStyle.color)
-                    .lineLimit(1)
-                }
+                compactStatusView
 
                 Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
                     .font(.caption2.weight(.semibold))
@@ -289,42 +280,57 @@ struct MCPToolTimelineView: View {
         return entries.count == 1 ? "Tool" : "Tools"
     }
 
-    private var compactStatusStyle: MCPCompactStatusStyle? {
-        if runningCount > 0 {
-            return nil
-        }
+    private var compactStatusBadges: [MCPCompactStatusBadge] {
+        guard runningCount == 0 else { return [] }
 
-        if errorCount > 0 {
-            if successCount > 0 {
-                return MCPCompactStatusStyle(
-                    text: "\(summaryCountText(successCount, singular: "ok", plural: "ok")) / \(summaryCountText(errorCount, singular: "failed", plural: "failed"))",
-                    icon: "xmark.circle",
-                    color: Color(nsColor: .systemOrange).opacity(0.95)
-                )
-            }
-            return MCPCompactStatusStyle(
-                text: summaryCountText(errorCount, singular: "failed", plural: "failed"),
-                icon: "xmark.circle",
-                color: Color(nsColor: .systemOrange).opacity(0.95)
-            )
-        }
+        var badges: [MCPCompactStatusBadge] = []
 
         if successCount > 0 {
-            return MCPCompactStatusStyle(
-                text: successCount == 1 ? "Succeeded" : "All succeeded",
-                icon: "checkmark.circle",
+            badges.append(MCPCompactStatusBadge(
+                count: successCount,
+                icon: "checkmark.circle.fill",
                 color: Color(nsColor: .systemGreen).opacity(0.88)
-            )
+            ))
+        }
+        if errorCount > 0 {
+            badges.append(MCPCompactStatusBadge(
+                count: errorCount,
+                icon: "xmark.circle.fill",
+                color: Color(nsColor: .systemOrange).opacity(0.95)
+            ))
         }
 
-        return nil
+        return badges
+    }
+
+    @ViewBuilder
+    private var compactStatusView: some View {
+        let badges = compactStatusBadges
+
+        if !badges.isEmpty {
+            HStack(spacing: 6) {
+                ForEach(Array(badges.enumerated()), id: \.offset) { _, badge in
+                    HStack(spacing: 2) {
+                        Image(systemName: badge.icon)
+                            .font(.system(size: 11))
+
+                        if badge.count > 1 || badges.count > 1 {
+                            Text("\(badge.count)")
+                                .font(.caption2.weight(.medium))
+                                .monospacedDigit()
+                        }
+                    }
+                    .foregroundStyle(badge.color)
+                }
+            }
+        }
     }
 
     private var statusSummaryText: String? {
         var parts: [String] = []
 
         if successCount > 0 {
-            parts.append(summaryCountText(successCount, singular: "success", plural: "successes"))
+            parts.append(summaryCountText(successCount, singular: "passed", plural: "passed"))
         }
         if errorCount > 0 {
             parts.append(summaryCountText(errorCount, singular: "failed", plural: "failed"))
@@ -340,7 +346,7 @@ struct MCPToolTimelineView: View {
             }
         }
 
-        return parts.isEmpty ? nil : parts.joined(separator: " | ")
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
 
     private func summaryCountText(_ count: Int, singular: String, plural: String) -> String {
