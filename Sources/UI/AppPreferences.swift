@@ -16,7 +16,6 @@ enum AppPreferenceKeys {
     // MARK: - Appearance
 
     static let appAppearanceMode = "appAppearanceMode"
-    static let appIconVariant = "appIconVariant"
     static let appFontFamily = "appFontFamily"
     static let codeFontFamily = "codeFontFamily"
     static let useOverlayScrollbars = "useOverlayScrollbars"
@@ -207,39 +206,6 @@ enum NewChatMCPMode: String, CaseIterable, Identifiable {
     }
 }
 
-enum AppIconVariant: String, CaseIterable, Identifiable {
-    case roseQuartz = "A"
-    case roseDusk = "B"
-    case warmIvory = "C"
-    case lavenderMist = "D"
-    case westie = "E"
-
-    var id: String { rawValue }
-
-    var label: String {
-        switch self {
-        case .roseQuartz:
-            return "Rose Quartz"
-        case .roseDusk:
-            return "Rose Dusk"
-        case .warmIvory:
-            return "Warm Ivory"
-        case .lavenderMist:
-            return "Lavender Mist"
-        case .westie:
-            return "Westie"
-        }
-    }
-
-    var icnsName: String {
-        "AppIcon\(rawValue)"
-    }
-
-    var thumbnailResourceName: String {
-        "Icon\(rawValue)"
-    }
-}
-
 enum AppAppearanceMode: String, CaseIterable, Identifiable {
     case system
     case light
@@ -369,7 +335,7 @@ enum GeneralSettingsCategory: String, CaseIterable, Identifiable {
 
     var subtitle: String {
         switch self {
-        case .appearance: return "App icon, theme, fonts, and content display modes."
+        case .appearance: return "Theme, fonts, and content display modes."
         case .chat: return "Send behavior, network trace, and notifications."
         case .shortcuts: return "Show and customize keyboard shortcuts."
         case .defaults: return "Model and MCP defaults for new chats."

@@ -6,6 +6,10 @@ import Kingfisher
 
 @MainActor
 private final class JinAppDelegate: NSObject, NSApplicationDelegate {
+    func applicationWillFinishLaunching(_ notification: Notification) {
+        AppIconManager.applyDefaultIcon()
+    }
+
     func applicationWillTerminate(_ notification: Notification) {
         CodexAppServerController.shared.shutdownForApplicationTermination()
         _ = AppPreferencesSnapshotStore.persistCurrentDomain()
@@ -26,7 +30,6 @@ struct JinApp: App {
 
     @AppStorage(AppPreferenceKeys.appAppearanceMode) private var appAppearanceMode: AppAppearanceMode = .system
     @AppStorage(AppPreferenceKeys.appFontFamily) private var appFontFamily = JinTypography.systemFontPreferenceValue
-    @AppStorage(AppPreferenceKeys.appIconVariant) private var appIconVariant: AppIconVariant = .roseQuartz
 
     @State private var postLaunchMaintenanceStarted = false
 
@@ -63,7 +66,6 @@ struct JinApp: App {
                     .font(JinTypography.appFont(familyPreference: appFontFamily))
                     .preferredColorScheme(preferredColorScheme)
                     .onAppear {
-                        AppIconManager.apply(appIconVariant)
                         performPostLaunchMaintenanceIfNeeded(with: container)
                     }
                     .task {
