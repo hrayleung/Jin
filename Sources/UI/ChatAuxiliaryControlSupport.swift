@@ -487,7 +487,7 @@ enum ChatAuxiliaryControlSupport {
             return ContextCacheControls(mode: .implicit, ttl: .minutes5)
         case .codexAppServer, .githubCopilot, .openaiCompatible, .vercelAIGateway, .openrouter, .perplexity, .groq, .cohere,
              .mistral, .deepinfra, .together, .deepseek, .zhipuCodingPlan, .minimax, .minimaxCodingPlan, .fireworks,
-             .cerebras, .sambanova, .morphllm:
+             .cerebras, .sambanova, .morphllm, .opencodeGo:
             return nil
         }
     }

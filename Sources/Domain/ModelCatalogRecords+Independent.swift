@@ -552,6 +552,35 @@ extension ModelCatalog {
 
     // MARK: MorphLLM
 
+    // MARK: OpenCode Go
+
+    static let opencodeGoRecords: [Record] = [
+        Record(id: "glm-5", displayName: "GLM-5",
+               capabilities: [.streaming, .toolCalling, .reasoning],
+               contextWindow: 202_752,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+               isFullySupported: true, isSeeded: true),
+        Record(id: "kimi-k2.5", displayName: "Kimi K2.5",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               contextWindow: 262_144,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+               isFullySupported: true, isSeeded: true),
+        Record(id: "minimax-m2.7", displayName: "MiniMax M2.7",
+               capabilities: [.streaming, .toolCalling, .reasoning],
+               contextWindow: 204_800,
+               maxOutputTokens: 131_072,
+               reasoningConfig: ModelReasoningConfig(type: .budget, defaultBudget: 10_000),
+               isFullySupported: true, isSeeded: true),
+        Record(id: "minimax-m2.5", displayName: "MiniMax M2.5",
+               capabilities: [.streaming, .toolCalling, .reasoning],
+               contextWindow: 204_800,
+               maxOutputTokens: 204_800,
+               reasoningConfig: ModelReasoningConfig(type: .budget, defaultBudget: 10_000),
+               isFullySupported: true, isSeeded: true),
+    ]
+
+    // MARK: MorphLLM
+
     static let morphLLMRecords: [Record] = [
         // Seeded — appear in the model picker on first launch
         Record(id: "auto", displayName: "Morph Auto",

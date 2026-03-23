@@ -80,6 +80,9 @@ actor ProviderManager {
         case .morphllm:
             let apiKey = requiredAPIKey(from: credentials, for: config.type)
             return MorphLLMAdapter(providerConfig: config, apiKey: apiKey, networkManager: networkManager)
+        case .opencodeGo:
+            let apiKey = requiredAPIKey(from: credentials, for: config.type)
+            return OpenCodeGoAdapter(providerConfig: config, apiKey: apiKey, networkManager: networkManager)
         case .gemini:
             let apiKey = requiredAPIKey(from: credentials, for: config.type)
             return GeminiAdapter(providerConfig: config, apiKey: apiKey, networkManager: networkManager)

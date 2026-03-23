@@ -72,6 +72,7 @@ enum ProviderType: String, Codable, CaseIterable {
     case openai
     case openaiCompatible
     case openaiWebSocket
+    case opencodeGo
     case openrouter
     case perplexity
     case sambanova
@@ -85,6 +86,7 @@ enum ProviderType: String, Codable, CaseIterable {
         switch self {
         case .openai: return "OpenAI"
         case .openaiWebSocket: return "OpenAI (WebSocket)"
+        case .opencodeGo: return "OpenCode Go"
         case .codexAppServer: return "Codex App Server (Beta)"
         case .githubCopilot: return "GitHub Copilot"
         case .openaiCompatible: return "OpenAI Compatible"
@@ -144,6 +146,7 @@ enum ProviderType: String, Codable, CaseIterable {
         switch self {
         case .openai: return "https://api.openai.com/v1"
         case .openaiWebSocket: return "wss://api.openai.com/v1"
+        case .opencodeGo: return nil
         case .codexAppServer: return "ws://127.0.0.1:4500"
         case .githubCopilot: return "https://models.github.ai/inference"
         case .openaiCompatible: return "https://api.openai.com/v1"

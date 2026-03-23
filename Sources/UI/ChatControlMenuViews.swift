@@ -352,7 +352,7 @@ struct WebSearchControlMenuView<MenuItemLabel: View>: View {
                     Button("Configure…", action: onOpenAnthropicConfiguration)
                 case .codexAppServer, .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter, .groq,
                      .cohere, .mistral, .deepinfra, .together, .gemini, .vertexai, .deepseek,
-                     .zhipuCodingPlan, .minimax, .minimaxCodingPlan, .fireworks, .cerebras, .sambanova, .morphllm, .none:
+                     .zhipuCodingPlan, .minimax, .minimaxCodingPlan, .fireworks, .cerebras, .sambanova, .morphllm, .opencodeGo, .none:
                     EmptyView()
                 }
             }

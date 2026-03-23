@@ -31,6 +31,7 @@ enum DefaultProviderSeeds {
             fireworks,
             sambaNova,
             morphLLM,
+            opencodeGo,
             gemini,
             vertexAI,
         ]
@@ -277,6 +278,17 @@ enum DefaultProviderSeeds {
             iconID: LobeProviderIconCatalog.defaultIconID(for: .morphllm),
             baseURL: ProviderType.morphllm.defaultBaseURL,
             models: ModelCatalog.seededModels(for: .morphllm)
+        )
+    }
+
+    static var opencodeGo: ProviderConfig {
+        ProviderConfig(
+            id: "opencode-go",
+            name: "OpenCode Go",
+            type: .opencodeGo,
+            iconID: LobeProviderIconCatalog.defaultIconID(for: .opencodeGo),
+            baseURL: "https://opencode.ai/zen/go/v1",
+            models: ModelCatalog.seededModels(for: .opencodeGo)
         )
     }
 

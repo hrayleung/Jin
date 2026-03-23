@@ -41,6 +41,7 @@ extension ModelCatalog {
         .cerebras: cerebrasRecords,
         .sambanova: sambaNovaRecords,
         .morphllm: morphLLMRecords,
+        .opencodeGo: opencodeGoRecords,
         .gemini: geminiRecords,
         .vertexai: vertexAIRecords,
         .openrouter: openRouterRecords,

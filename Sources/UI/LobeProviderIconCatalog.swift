@@ -196,6 +196,7 @@ enum LobeProviderIconCatalog {
         LobeProviderIcon(id: "Nvidia", docsSlug: "nvidia", filename: "nvidia.svg"),
         LobeProviderIcon(id: "Ollama", docsSlug: "ollama", filename: "ollama.svg"),
         LobeProviderIcon(id: "OpenAI", docsSlug: "open-ai", filename: "openai.svg"),
+        LobeProviderIcon(id: "OpenCode", docsSlug: "opencode", filename: "opencode.svg"),
         LobeProviderIcon(id: "OpenChat", docsSlug: "open-chat", filename: "openchat.svg"),
         LobeProviderIcon(id: "OpenRouter", docsSlug: "open-router", filename: "openrouter.svg"),
         LobeProviderIcon(id: "PaLM", docsSlug: "palm", filename: "palm.svg"),
@@ -310,6 +311,8 @@ enum LobeProviderIconCatalog {
             return "SambaNova"
         case .morphllm:
             return "Morph"
+        case .opencodeGo:
+            return "OpenCode"
         case .gemini:
             return "AiStudio"
         case .vertexai:

@@ -109,7 +109,7 @@ struct CodeExecutionSheetView: View {
         case .none, .codexAppServer, .githubCopilot, .openaiCompatible,
              .cloudflareAIGateway, .vercelAIGateway, .openrouter, .perplexity, .groq, .cohere,
              .mistral, .deepinfra, .together, .deepseek, .zhipuCodingPlan, .minimax, .minimaxCodingPlan, .fireworks,
-             .cerebras, .sambanova, .morphllm:
+             .cerebras, .sambanova, .morphllm, .opencodeGo:
             googleInfoCard(
                 title: providerType?.displayName ?? "Provider",
                 body: "No provider-specific code execution parameters are exposed for this provider."

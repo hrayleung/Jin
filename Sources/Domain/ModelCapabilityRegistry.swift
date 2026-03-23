@@ -262,7 +262,7 @@ enum ModelCapabilityRegistry {
             return .gemini
         case .codexAppServer, .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter,
              .groq, .cohere, .mistral, .deepinfra, .together, .xai, .deepseek,
-             .zhipuCodingPlan, .minimax, .fireworks, .cerebras, .sambanova, .perplexity, .morphllm, .none:
+             .zhipuCodingPlan, .minimax, .fireworks, .cerebras, .sambanova, .perplexity, .morphllm, .opencodeGo, .none:
             return .openAICompatible
         }
     }
@@ -391,7 +391,7 @@ enum ModelCapabilityRegistry {
             return supportsGoogleSearch(lowerModelID: lowerModelID, providerType: .vertexai)
         case .codexAppServer, .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .groq,
              .cohere, .mistral, .deepinfra, .together, .deepseek, .zhipuCodingPlan, .minimax, .minimaxCodingPlan,
-             .fireworks, .cerebras, .sambanova, .morphllm, .none:
+             .fireworks, .cerebras, .sambanova, .morphllm, .opencodeGo, .none:
             return false
         }
     }
@@ -607,7 +607,8 @@ enum ModelCapabilityRegistry {
             return supportsGoogleCodeExecution(lowerModelID: lowerModelID, providerType: .vertexai)
         case .codexAppServer, .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway,
              .openrouter, .perplexity, .groq, .cohere, .mistral, .deepinfra, .together,
-             .deepseek, .zhipuCodingPlan, .minimax, .minimaxCodingPlan, .fireworks, .cerebras, .sambanova, .morphllm, .none:
+             .deepseek, .zhipuCodingPlan, .minimax, .minimaxCodingPlan, .fireworks, .cerebras, .sambanova, .morphllm,
+             .opencodeGo, .none:
             return false
         }
     }
@@ -639,7 +640,7 @@ enum ModelCapabilityRegistry {
         case .openai, .openaiWebSocket, .anthropic, .xai, .codexAppServer, .githubCopilot,
              .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter, .perplexity,
              .groq, .cohere, .mistral, .deepinfra, .together, .deepseek, .zhipuCodingPlan, .minimax, .minimaxCodingPlan,
-             .fireworks, .cerebras, .sambanova, .morphllm, .none:
+             .fireworks, .cerebras, .sambanova, .morphllm, .opencodeGo, .none:
             return false
         }
     }

@@ -112,7 +112,7 @@ extension ChatView {
             return controls.webSearch?.enabled ?? true
         case .openai, .openaiWebSocket, .codexAppServer, .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway,
              .openrouter, .anthropic, .groq, .cohere, .mistral, .deepinfra, .together, .xai,
-             .deepseek, .zhipuCodingPlan, .minimax, .minimaxCodingPlan, .fireworks, .cerebras, .sambanova, .gemini, .vertexai, .morphllm, .none:
+             .deepseek, .zhipuCodingPlan, .minimax, .minimaxCodingPlan, .fireworks, .cerebras, .sambanova, .gemini, .vertexai, .morphllm, .opencodeGo, .none:
             return controls.webSearch?.enabled == true
         }
     }
