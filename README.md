@@ -4,11 +4,11 @@
 
 # Jin
 
-A native macOS app for chatting with multiple LLM providers from one workspace.
-Conversation-first: fast, focused, and minimal.
+A native macOS app for working with multiple LLM providers from one conversation workspace.
+Conversation-first, tool-aware, and built for macOS instead of Electron.
 
 ![macOS 14+](https://img.shields.io/badge/macOS-14%2B-000000?logo=apple&logoColor=white)
-![License: PolyForm Noncommercial](https://img.shields.io/badge/License-PolyForm%20NC%201.0-blue)
+![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue)
 
 <p align="center">
   <img src="docs/screenshots/code-exec.png" alt="Code execution with generated visualization in chat" width="1200" />
@@ -16,28 +16,28 @@ Conversation-first: fast, focused, and minimal.
 
 ## Why Jin
 
-- **Conversation-first** — Built around high-quality chat flow, not workspace clutter
-- **Focused controls** — Model, reasoning, tool, and media controls stay close to the conversation
-- **Full API access** — Expose provider parameters as completely as practical instead of hiding them behind generic presets
-- **Native macOS** — SwiftUI app with keyboard shortcuts, drag-and-drop, and proper windowing — no Electron
+- **Conversation-first** — Built around chat flow and fast iteration, not workspace clutter
+- **Provider-aware controls** — Exposes model-specific settings like reasoning, search, caching, PDF handling, service tier, code execution, and media options instead of hiding them behind generic presets
+- **Native macOS workflow** — SwiftUI app with drag-and-drop, split views, custom keyboard shortcuts, recovery tools, and Sparkle updates
+- **One app for chat + tools** — Chat, MCP, built-in search, artifacts, voice, coding workflows, and media generation live in the same workspace
 
 ## Features
 
-- **Multi-provider chat** — Switch between providers and models within the same workspace
-- **Parallel multi-model chat** — Ask up to 3 models in one chat, with side-by-side responses and independent per-model context
-- **Multimodal conversations** — Text, images, files, audio, and generated media in one thread
-- **Markdown, code & LaTeX rendering** — Syntax-highlighted code blocks with copy support, full markdown rendering, and inline/block LaTeX math in responses
-- **Reasoning models** — Collapsible thinking blocks for models that support extended reasoning, with per-model budget controls
-- **Web search** — Provider-native search plus fallback through built-in search plugins (Exa, Brave, Jina, Firecrawl, Tavily), with in-chat search activity, citations, and source timeline
-- **Context caching** — Model-aware caching controls (mode, TTL, strategy) across supported providers
-- **Tool calling (MCP)** — Connect external tools and data via the Model Context Protocol using persistent or ephemeral servers
-- **Artifacts** — Interactive artifact rendering for React components, HTML apps, and ECharts visualizations — generated inline and previewed in a split workspace panel
-- **Image generation + edits** — OpenAI, Gemini, Vertex AI, and xAI image generation; OpenAI (gpt-image-1/1.5) and xAI support image edit flows by attaching a source image
-- **Video generation + edits** — Gemini/Vertex Veo and xAI video flows, with optional public URL input for editable workflows
-- **PDF processing** — Native PDF for supported models, or explicit Mistral/DeepSeek OCR modes and local macOS extraction fallback
-- **Voice** — Speech-to-text (dictation or audio attachment when supported) and text-to-speech from assistant messages
-- **Assistants** — Named assistants with custom prompts, model defaults, language preference, temperature/output limits, and optional history truncation
-- **OpenAI service tier** — Choose between Default, Flex, Priority, and Scale processing tiers for OpenAI models
+- **Multi-provider chat** — Work across OpenAI, Anthropic, Gemini, Vertex AI, xAI, gateway providers, and more from one app
+- **Parallel multi-model chat** — Add up to 3 models to one conversation, compare responses side-by-side, and keep per-model context independent
+- **Multimodal threads** — Mix text, images, files, audio, PDFs, and generated media in one conversation
+- **Markdown, code, and LaTeX rendering** — Syntax-highlighted code blocks, markdown rendering, inline/block math, and copy-friendly output
+- **Reasoning and advanced model controls** — Per-chat controls for reasoning budget, web search, prompt caching, PDF mode, OpenAI service tier, and other provider-specific options
+- **Search and grounding** — Provider-native web search plus built-in search plugins, source cards, citation timeline, and Google Maps grounding for Gemini / Vertex AI
+- **MCP tool calling** — Connect external tools and data through MCP servers over stdio or HTTP, with persistent or ephemeral server lifecycles
+- **Agent and coding workflows** — Codex App Server support with per-chat working directory, sandbox mode, and personality controls, plus optional local Agent Mode for shell/file/search tools through the bundled RTK helper
+- **Provider-native code execution** — Run supported model-side code execution flows with visible activity timeline, logs, generated images, and downloadable files
+- **Artifacts workspace** — Inline HTML, React, and ECharts artifacts with split-pane preview, version history, source export, and reusable artifact IDs
+- **Image and video generation** — Image generation/editing and video generation flows across supported providers, including source-image or source-URL based edit workflows where available
+- **PDF and OCR handling** — Native PDF upload where supported, Mistral / DeepSeek OCR modes, plus local macOS extraction fallback
+- **Voice workflows** — Speech-to-text and text-to-speech via cloud providers or on-device WhisperKit / TTSKit models
+- **Assistants and defaults** — Named assistants with custom prompts, language preference, model defaults, temperature/output settings, and optional history truncation
+- **macOS polish** — Configurable shortcuts, drag-and-drop attachments, storage breakdown, recovery pack export/import, and in-app Sparkle update controls
 
 ## Screenshots
 
@@ -79,121 +79,22 @@ Conversation-first: fast, focused, and minimal.
 
 ## Supported Providers
 
-Jin supports 23 provider types. Most require an API key. Configure providers in **Settings > Providers**. Use **Fetch Models** to pull the latest model list, or add models manually.
+Configure providers in **Settings > Providers**. Jin supports direct providers, gateways, and coding-focused runtimes:
 
-OpenAI · OpenAI (WebSocket) · Anthropic · Gemini (AI Studio) · Vertex AI · xAI · DeepSeek · Zhipu Coding Plan · Together AI · SambaNova · Mistral · Cohere · Groq · Perplexity · Fireworks · Cerebras · DeepInfra · OpenRouter · OpenAI Compatible · Cloudflare AI Gateway · Vercel AI Gateway · Codex App Server (Beta)
+OpenAI · OpenAI (WebSocket) · Anthropic · Gemini (AI Studio) · Vertex AI · xAI · Perplexity · Groq · Cohere · Mistral · DeepInfra · Together AI · Fireworks · SambaNova · DeepSeek · Zhipu Coding Plan · MiniMax · MiniMax Coding Plan · MorphLLM · OpenCode Go · GitHub Copilot · OpenRouter · OpenAI Compatible · Cloudflare AI Gateway · Vercel AI Gateway · Codex App Server (Beta) · Cerebras
 
-**Vertex AI** uses a service account JSON instead of an API key. **Codex App Server** supports API key, ChatGPT account, or Local Codex (`auth.json` from `$CODEX_HOME` or `~/.codex`) — run `codex app-server --listen ws://127.0.0.1:4500` or launch from provider settings. Recommended runtime: `codex` **0.107.0+**.
+- **Most providers** use an API key.
+- **Vertex AI** uses a service account JSON.
+- **Codex App Server** can use an API key, ChatGPT account login, or local Codex auth from `$CODEX_HOME` / `~/.codex`. Jin can also launch a localhost `codex app-server` for you from provider settings. Recommended runtime: `codex 0.107.0+`.
+- **Gateway providers** such as OpenRouter, Cloudflare AI Gateway, Vercel AI Gateway, and OpenAI Compatible can route upstream models while still benefiting from Jin's model metadata when the exact upstream model ID is known.
 
-### Included Models
+### Model Catalog
 
-Each provider ships with a set of pre-loaded models that appear in the model picker on first launch. Additional models are catalog-recognized — they work with full capability metadata when added via **Fetch Models** or entered manually. Unlisted model IDs fall back to conservative defaults.
-
-<details>
-<summary><strong>OpenAI / OpenAI (WebSocket)</strong></summary>
-
-Pre-loaded: `gpt-5.4`, `gpt-5.4-2026-03-05`, `gpt-5.4-pro`, `gpt-5.4-pro-2026-03-05`, `gpt-5.2`, `gpt-5.2-2025-12-11`, `gpt-5.3-codex`, `gpt-4o`, `gpt-image-1.5`, `gpt-image-1`
-
-Also recognized: `gpt-5.3-chat-latest`, `gpt-5`, `o3`, `o4`, `gpt-image-1-mini`, `dall-e-3`, `dall-e-2`
-</details>
-
-<details>
-<summary><strong>Anthropic</strong></summary>
-
-Pre-loaded: `claude-opus-4-6`, `claude-sonnet-4-6`, `claude-opus-4-5-20251101`, `claude-sonnet-4-5-20250929`, `claude-haiku-4-5-20251001`
-
-Also recognized: `claude-opus-4`, `claude-sonnet-4`, `claude-haiku-4`
-</details>
-
-<details>
-<summary><strong>Gemini (AI Studio)</strong></summary>
-
-Pre-loaded: `gemini-3-pro-preview`, `gemini-3.1-pro-preview`, `gemini-3-pro-image-preview`, `gemini-3.1-flash-image-preview`, `gemini-3-flash-preview`, `gemini-3.1-flash-lite-preview`, `gemini-2.5-flash-image`
-
-Also recognized: `gemini-3`, `gemini-3-pro`, `veo-2`, `veo-3`
-</details>
-
-<details>
-<summary><strong>Vertex AI</strong></summary>
-
-Pre-loaded: `gemini-3-pro-preview`, `gemini-3.1-pro-preview`, `gemini-3-pro-image-preview`, `gemini-3.1-flash-image-preview`, `gemini-3-flash-preview`, `gemini-3.1-flash-lite-preview`, `gemini-2.5-pro`, `gemini-2.5-flash-image`
-
-Also recognized: `gemini-3`, `gemini-3-pro`, `gemini-2.5`, `gemini-2.5-flash`, `gemini-2.5-flash-lite`, `veo-2`, `veo-3`
-</details>
-
-<details>
-<summary><strong>xAI</strong></summary>
-
-Pre-loaded: `grok-4-1-fast`, `grok-4-1`, `grok-imagine-image`, `grok-imagine-image-pro`, `grok-2-image-1212`, `grok-imagine-video`
-
-Also recognized: `grok-4-1-fast-non-reasoning`, `grok-4-1-fast-reasoning`
-</details>
-
-<details>
-<summary><strong>DeepSeek</strong></summary>
-
-Pre-loaded: `deepseek-chat`, `deepseek-reasoner`, `deepseek-v3.2-exp`
-</details>
-
-<details>
-<summary><strong>Perplexity</strong></summary>
-
-Pre-loaded: `sonar`, `sonar-pro`, `sonar-reasoning-pro`, `sonar-deep-research`
-
-Also recognized: `sonar-reasoning`
-</details>
-
-<details>
-<summary><strong>Together AI</strong></summary>
-
-Pre-loaded: `Qwen/Qwen3.5-397B-A17B`, `MiniMaxAI/MiniMax-M2.5`, `zai-org/GLM-5`, `Qwen/Qwen3-Coder-Next-FP8`, `moonshotai/Kimi-K2.5`
-</details>
-
-<details>
-<summary><strong>SambaNova</strong></summary>
-
-Pre-loaded: `MiniMax-M2.5`, `gpt-oss-120b`
-
-Also recognized: `DeepSeek-V3.2`, `DeepSeek-R1-0528`, `DeepSeek-V3-0324`, `DeepSeek-V3.1`, and others
-</details>
-
-<details>
-<summary><strong>Fireworks</strong></summary>
-
-Pre-loaded: `fireworks/glm-5`, `fireworks/minimax-m2p5`, `fireworks/kimi-k2p5`, `fireworks/glm-4p7`
-
-Alternate IDs also recognized: `accounts/fireworks/models/glm-5`, `accounts/fireworks/models/minimax-m2p5`, `accounts/fireworks/models/kimi-k2p5`, `accounts/fireworks/models/glm-4p7`
-</details>
-
-<details>
-<summary><strong>Zhipu Coding Plan</strong></summary>
-
-Pre-loaded: `glm-5`, `glm-4.7`
-</details>
-
-<details>
-<summary><strong>Cerebras</strong></summary>
-
-Recognized: `zai-glm-4.7`
-</details>
-
-<details>
-<summary><strong>Codex App Server (Beta)</strong></summary>
-
-Pre-loaded: `gpt-5.1-codex` (default seed), plus any models exposed by your server
-</details>
-
-<details>
-<summary><strong>Gateway providers (Cloudflare, Vercel, OpenRouter)</strong></summary>
-
-These providers route to upstream models. Jin includes catalog records for common upstream model IDs so capability metadata (context window, reasoning, vision, etc.) is applied automatically. See the model catalog in the app for the full list.
-</details>
-
-<details>
-<summary><strong>Groq, Cohere, Mistral, DeepInfra, OpenAI Compatible</strong></summary>
-
-Use **Fetch Models** to pull available models, or add model IDs manually.
-</details>
+- Jin ships with curated seed models for major providers so you can start chatting immediately after adding credentials.
+- Use **Fetch Models** to pull fresh provider model lists when the provider supports catalog fetching.
+- You can also add model IDs manually, including gateway-prefixed IDs like `openai/...` and `anthropic/...`.
+- Known models use exact-ID capability metadata for context window, reasoning behavior, vision, web search, PDF handling, code execution, image/video generation, and other features.
+- Unknown model IDs still work, but Jin falls back to conservative defaults until metadata is available.
 
 ## Plugins
 
@@ -201,25 +102,35 @@ All plugins are optional and configured in **Settings > Plugins**.
 
 | Plugin | Services |
 |--------|----------|
-| Web Search | Exa, Brave Search, Jina Search, Firecrawl, Tavily |
-| Text-to-Speech | ElevenLabs, OpenAI, Groq |
-| Speech-to-Text | OpenAI, Groq, Mistral |
+| Web Search | Exa, Brave Search, Jina Search, Firecrawl, Tavily, Perplexity Search |
+| Text-to-Speech | OpenAI, Groq, ElevenLabs, TTSKit (on-device) |
+| Speech-to-Text | OpenAI, Groq, Mistral, WhisperKit (on-device) |
 | Mistral OCR | Mistral OCR for PDF extraction |
-| DeepSeek OCR | DeepSeek OCR (via DeepInfra) for PDF extraction |
+| DeepSeek OCR | DeepSeek OCR via DeepInfra for PDF extraction |
 | Chat Naming | Automatic conversation naming with a selected model |
-| Cloudflare R2 Upload | Upload local videos to R2 and send public URLs |
+| Cloudflare R2 Upload | Upload local videos to R2 and use public URLs in video workflows |
+| Agent Mode | Local shell/file/search tools via the bundled RTK helper and local file operations |
 
 ## MCP (Model Context Protocol)
 
-Connect MCP servers for tool calling under **Settings > MCP Servers**. Jin supports long-running (persistent) and short-lived (ephemeral) MCP servers over stdio or HTTP/SSE transports. Server presets and `mcpServers` JSON import are supported; each server keeps separate tool enablement, and MCP calls can be used with per-chat controls.
+Connect MCP servers under **Settings > MCP Servers**.
+
+- Supports **persistent** and **ephemeral** server lifecycles
+- Supports **stdio** and **HTTP** transports, including streaming HTTP setups
+- Supports server presets plus `mcpServers` JSON import
+- Keeps per-server tool enablement and per-chat MCP selection separate
+- Supports HTTP authentication with bearer token or custom headers
 
 ## Installation
 
 ### Download
 
-Download the latest release from the [Releases](../../releases) page. Assets are typically `Jin.zip` (containing `Jin.app`) or `Jin.dmg`.
-Current release artifacts are Apple Silicon-only.
-If your release is zipped, unzip it first.
+Download the latest release from the [Releases](../../releases) page.
+
+- Release assets typically include `Jin.zip`, and release automation may also publish `Jin.dmg`
+- Jin uses [Sparkle](https://github.com/sparkle-project/Sparkle) for in-app updates after installation
+- Current packaged builds are **Apple Silicon-only**
+- If your release is zipped, unzip it first
 
 ### If macOS blocks the app
 
@@ -237,15 +148,17 @@ xattr -dr com.apple.quarantine /Applications/Jin.app
 
 ### Requirements
 
-- Apple Silicon Mac
+- Apple Silicon Mac for packaged release builds
 - macOS 14 (Sonoma) or later
 
 ## Getting Started
 
 1. Launch Jin.
-2. Open **Settings** and add a provider (API key for most providers; service account JSON for Vertex AI; optional for Codex App Server).
-3. Start a new conversation and pick a model.
-4. Optional: configure MCP servers under **Settings > MCP Servers** for tool calling.
+2. Open **Settings > Providers** and add a provider credential. Most providers use API keys, Vertex AI uses a service account JSON, and Codex App Server can be configured without an API key if you use ChatGPT or local Codex auth.
+3. Start a new conversation and pick one model, or add up to 3 models to the same chat.
+4. Optional: enable plugins in **Settings > Plugins** for search, OCR, voice, cloud upload, or local Agent Mode.
+5. Optional: add MCP servers in **Settings > MCP Servers** for tool calling.
+6. Optional: customize **General** settings for appearance, keyboard shortcuts, chat defaults, updates, and data / recovery tools.
 
 ## Build from Source
 
@@ -254,11 +167,13 @@ git clone https://github.com/hrayleung/Jin.git
 cd Jin
 swift build
 swift test
-swift run Jin            # Run from the command line (Debug)
-open Package.swift          # Open in Xcode
-bash Packaging/package.sh   # Build Apple Silicon release .app bundle and create dist/Jin.zip
-bash Packaging/package.sh dmg  # Optional: also create a DMG
+swift run Jin                 # Run from the command line (Debug)
+open Package.swift           # Open in Xcode
+bash Packaging/package.sh    # Build arm64 .app bundle and create dist/Jin.zip
+bash Packaging/package.sh dmg
 ```
+
+`Packaging/package.sh` also bundles the RTK helper used by Agent Mode into the final app bundle.
 
 Requires Swift 5.9+ / Xcode 15+.
 
@@ -266,19 +181,18 @@ Requires Swift 5.9+ / Xcode 15+.
 
 Jin uses [Sparkle](https://github.com/sparkle-project/Sparkle) for in-app updates.
 
-- Update feed and signing key are configured in `Packaging/Info.plist` (`SUFeedURL`, `SUPublicEDKey`).
-- The appcast lives at `docs/appcast.xml` (published via GitHub Pages for the upstream repo).
-- CI packaging/signing is in `.github/workflows/ci-cd.yml` (Build + notarized DMG on `v*` tags).
-
-
+- **Settings > General > Updates** exposes automatic update checks and optional pre-release channel opt-in
+- Update feed and signing key are configured in `Packaging/Info.plist` (`SUFeedURL`, `SUPublicEDKey`)
+- The appcast lives at `docs/appcast.xml`
+- CI packaging, signing, notarization, and release publishing live in `.github/workflows/ci-cd.yml`
 
 ## Contributing
 
-Contributions are welcome. All contributions fall under the same [PolyForm Noncommercial License](LICENSE).
+Contributions are welcome. Unless explicitly stated otherwise, contributions are accepted under the same [Apache License 2.0](LICENSE).
 
 ## License
 
-[PolyForm Noncommercial License 1.0.0](LICENSE) — free to use, modify, and distribute for noncommercial purposes. See the [full license text](https://polyformproject.org/licenses/noncommercial/1.0.0/) for details.
+[Apache License 2.0](LICENSE) — permissive open-source licensing with an express patent grant. See the [full license text](https://www.apache.org/licenses/LICENSE-2.0) for details.
 
 ## Acknowledgments
 
