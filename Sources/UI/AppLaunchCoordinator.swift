@@ -84,6 +84,7 @@ final class AppLaunchCoordinator: ObservableObject {
             case .ready(let container):
                 currentContainerCandidate = nil
                 phase = .ready(container)
+                captureStartupSnapshotInBackground()
             case .recovery(let recoveryState, let currentContainer):
                 currentContainerCandidate = currentContainer
                 AppRuntimeProtection.automaticSnapshotsSuspended = true
@@ -91,6 +92,13 @@ final class AppLaunchCoordinator: ObservableObject {
             }
         case .failure(let error):
             phase = .failed(error.localizedDescription)
+        }
+    }
+
+    private func captureStartupSnapshotInBackground() {
+        guard !AppRuntimeProtection.automaticSnapshotsSuspended else { return }
+        Task.detached(priority: .utility) {
+            try? AppSnapshotManager.captureAutomaticSnapshot(reason: .launchHealthy)
         }
     }
 

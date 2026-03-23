@@ -395,12 +395,28 @@ struct DataSettingsView: View {
             await MainActor.run {
                 switch result {
                 case .success:
-                    importStatusMessage = "Recovery pack queued. Relaunch Jin to apply it safely before the database opens."
+                    importStatusMessage = "Recovery pack queued. Jin will restart to apply it."
+                    Self.scheduleRelaunch()
                 case .failure(let error):
                     importStatusMessage = "Import failed: \(error.localizedDescription)"
                 }
             }
         }
+    }
+
+    private static func scheduleRelaunch() {
+        let bundlePath = Bundle.main.bundlePath
+        let task = Process()
+        task.executableURL = URL(fileURLWithPath: "/bin/sh")
+        task.arguments = ["-c", "sleep 1 && open \(Self.shellQuoted(bundlePath))"]
+        try? task.run()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            NSApplication.shared.terminate(nil)
+        }
+    }
+
+    private static func shellQuoted(_ string: String) -> String {
+        "'" + string.replacingOccurrences(of: "'", with: "'\\''") + "'"
     }
 
     // MARK: - Formatting

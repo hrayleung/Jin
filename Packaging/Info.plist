@@ -33,7 +33,7 @@
 	<key>NSSupportsAutomaticTermination</key>
 	<true/>
 	<key>NSSupportsSuddenTermination</key>
-	<true/>
+	<false/>
 	<key>SUFeedURL</key>
 	<string>https://hrayleung.github.io/Jin/appcast.xml</string>
 	<key>SUPublicEDKey</key>

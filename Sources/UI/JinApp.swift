@@ -9,6 +9,9 @@ private final class JinAppDelegate: NSObject, NSApplicationDelegate {
     func applicationWillTerminate(_ notification: Notification) {
         CodexAppServerController.shared.shutdownForApplicationTermination()
         _ = AppPreferencesSnapshotStore.persistCurrentDomain()
+        if !AppRuntimeProtection.automaticSnapshotsSuspended {
+            _ = try? AppSnapshotManager.captureAutomaticSnapshot(reason: .termination)
+        }
     }
 }
 
@@ -113,14 +116,17 @@ struct JinApp: App {
 
     private func resetMCPServersForTransportV2IfNeeded(container: ModelContainer) {
         let defaults = UserDefaults.standard
-        guard defaults.integer(forKey: mcpSchemaVersionPreferenceKey) < mcpSchemaVersion else {
-            return
-        }
-
         let context = ModelContext(container)
         let descriptor = FetchDescriptor<MCPServerConfigEntity>()
-        if let existing = try? context.fetch(descriptor) {
-            for server in existing {
+        let existingServers = (try? context.fetch(descriptor)) ?? []
+
+        let needsSchemaMigration = defaults.integer(forKey: mcpSchemaVersionPreferenceKey) < mcpSchemaVersion
+        let databaseIsEmpty = existingServers.isEmpty
+
+        guard needsSchemaMigration || databaseIsEmpty else { return }
+
+        if needsSchemaMigration {
+            for server in existingServers {
                 context.delete(server)
             }
         }
