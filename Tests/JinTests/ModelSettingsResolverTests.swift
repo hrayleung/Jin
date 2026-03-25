@@ -846,6 +846,64 @@ final class ModelSettingsResolverTests: XCTestCase {
         XCTAssertTrue(resolvedQwen35.reasoningCanDisable)
     }
 
+    func testResolverDefaultsUnknownUnseededChatModelsToToolCalling() {
+        let unknown = ModelInfo(
+            id: "qwen/qwen3-32b-custom",
+            name: "Qwen 3 Custom",
+            capabilities: [.streaming],
+            contextWindow: 128_000,
+            reasoningConfig: nil,
+            isEnabled: true
+        )
+
+        let resolved = ModelSettingsResolver.resolve(model: unknown, providerType: .openrouter)
+        XCTAssertTrue(resolved.capabilities.contains(.streaming))
+        XCTAssertTrue(resolved.capabilities.contains(.toolCalling))
+    }
+
+    func testResolverDoesNotDefaultUnknownMediaModelsToToolCalling() {
+        let unknownImageModel = ModelInfo(
+            id: "custom/image-preview",
+            name: "Custom Image Preview",
+            capabilities: [.imageGeneration],
+            contextWindow: 32_768,
+            reasoningConfig: nil,
+            isEnabled: true
+        )
+
+        let resolved = ModelSettingsResolver.resolve(model: unknownImageModel, providerType: .openrouter)
+        XCTAssertTrue(resolved.capabilities.contains(.imageGeneration))
+        XCTAssertFalse(resolved.capabilities.contains(.toolCalling))
+    }
+
+    func testResolverDoesNotDefaultUnknownCodexOrMorphModelsToToolCalling() {
+        let codexModel = ModelInfo(
+            id: "gpt-5.4-codex-custom",
+            name: "GPT-5.4 Codex Custom",
+            capabilities: [.streaming, .reasoning],
+            contextWindow: 256_000,
+            reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+            isEnabled: true
+        )
+        let morphModel = ModelInfo(
+            id: "morph-v3-custom",
+            name: "Morph V3 Custom",
+            capabilities: [.streaming],
+            contextWindow: 128_000,
+            reasoningConfig: nil,
+            isEnabled: true
+        )
+
+        XCTAssertFalse(
+            ModelSettingsResolver.resolve(model: codexModel, providerType: .codexAppServer)
+                .capabilities.contains(.toolCalling)
+        )
+        XCTAssertFalse(
+            ModelSettingsResolver.resolve(model: morphModel, providerType: .morphllm)
+                .capabilities.contains(.toolCalling)
+        )
+    }
+
     func testOpenRouterWebSearchDefaultsByModelFamily() {
         let gpt = ModelInfo(
             id: "openai/gpt-5",

@@ -22,7 +22,8 @@ enum ModelSettingsResolver {
         let capabilities = resolvedCapabilities(
             overrides: overrides,
             catalogEntry: catalogEntry,
-            fallback: model.capabilities
+            fallback: model.capabilities,
+            providerType: providerType
         )
         let contextWindow = max(
             1,
@@ -99,9 +100,59 @@ enum ModelSettingsResolver {
     private static func resolvedCapabilities(
         overrides: ModelOverrides?,
         catalogEntry: ModelCatalogEntry?,
-        fallback: ModelCapability
+        fallback: ModelCapability,
+        providerType: ProviderType?
     ) -> ModelCapability {
-        overrides?.capabilities ?? catalogEntry?.capabilities ?? fallback
+        if let overrideCapabilities = overrides?.capabilities {
+            return overrideCapabilities
+        }
+
+        if let catalogCapabilities = catalogEntry?.capabilities {
+            return catalogCapabilities
+        }
+
+        return normalizedUnknownCapabilities(
+            fallback,
+            providerType: providerType
+        )
+    }
+
+    private static func normalizedUnknownCapabilities(
+        _ fallback: ModelCapability,
+        providerType: ProviderType?
+    ) -> ModelCapability {
+        guard shouldDefaultUnknownModelToToolCalling(
+            providerType: providerType,
+            fallback: fallback
+        ) else {
+            return fallback
+        }
+
+        var capabilities = fallback
+        capabilities.insert(.streaming)
+        capabilities.insert(.toolCalling)
+        return capabilities
+    }
+
+    private static func shouldDefaultUnknownModelToToolCalling(
+        providerType: ProviderType?,
+        fallback: ModelCapability
+    ) -> Bool {
+        guard let providerType else { return false }
+        guard !fallback.contains(.toolCalling) else { return false }
+        guard !fallback.contains(.imageGeneration) else { return false }
+        guard !fallback.contains(.videoGeneration) else { return false }
+
+        switch providerType {
+        case .codexAppServer, .morphllm:
+            return false
+        case .anthropic, .cerebras, .cloudflareAIGateway, .cohere, .deepinfra, .deepseek,
+             .fireworks, .gemini, .githubCopilot, .groq, .minimax, .minimaxCodingPlan,
+             .mistral, .openai, .openaiCompatible, .openaiWebSocket, .opencodeGo,
+             .openrouter, .perplexity, .sambanova, .together, .vercelAIGateway,
+             .vertexai, .xai, .zhipuCodingPlan:
+            return true
+        }
     }
 
     private static func resolvedContextWindow(
