@@ -73,7 +73,6 @@ struct ChatView: View {
 
     @AppStorage(AppPreferenceKeys.sendWithCommandEnter) var sendWithCommandEnter = false
     @AppStorage(AppPreferenceKeys.sttAddRecordingAsFile) var sttAddRecordingAsFile = false
-    @AppStorage(AppPreferenceKeys.smartLongChatMemoryMode) var smartLongChatMemoryMode = true
 
     // MARK: - State Properties
 

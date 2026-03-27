@@ -201,7 +201,6 @@ struct ChatSingleThreadMessagesView: View {
     let onStreamingFinished: () -> Void
     let onActivateMessageThread: (UUID) -> Void
     let onOpenArtifact: (RenderedArtifactVersion, UUID?) -> Void
-    let smartLongChatMemoryMode: Bool
     let expandedCollapsedMessageIDs: Binding<Set<UUID>>
     @Binding var messageRenderLimit: Int
     @Binding var pendingRestoreScrollMessageID: UUID?
@@ -408,8 +407,7 @@ struct ChatSingleThreadMessagesView: View {
             return .nativeText
         }
 
-        guard smartLongChatMemoryMode,
-              message.isAssistant,
+        guard message.isAssistant,
               message.isMemoryIntensiveAssistantContent,
               message.collapsedPreview != nil,
               allMessages.count > 48,
@@ -447,7 +445,6 @@ struct ChatMultiModelStageView: View {
     let streamingModelLabelForThread: (UUID) -> String?
     let onActivateThread: (UUID) -> Void
     let onOpenArtifact: (RenderedArtifactVersion, UUID?) -> Void
-    let smartLongChatMemoryMode: Bool
     let expandedCollapsedMessageIDs: Binding<Set<UUID>>
 
     var body: some View {
@@ -481,7 +478,6 @@ struct ChatMultiModelStageView: View {
                             streamingModelLabel: streamingModelLabelForThread(thread.id),
                             onActivateThread: { onActivateThread(thread.id) },
                             onOpenArtifact: onOpenArtifact,
-                            smartLongChatMemoryMode: smartLongChatMemoryMode,
                             expandedCollapsedMessageIDs: expandedCollapsedMessageIDs
                         )
                     }
@@ -515,7 +511,6 @@ private struct ChatMultiModelThreadColumnView: View {
     let streamingModelLabel: String?
     let onActivateThread: () -> Void
     let onOpenArtifact: (RenderedArtifactVersion, UUID?) -> Void
-    let smartLongChatMemoryMode: Bool
     let expandedCollapsedMessageIDs: Binding<Set<UUID>>
 
     @State private var messageRenderLimit: Int
@@ -542,7 +537,6 @@ private struct ChatMultiModelThreadColumnView: View {
         streamingModelLabel: String?,
         onActivateThread: @escaping () -> Void,
         onOpenArtifact: @escaping (RenderedArtifactVersion, UUID?) -> Void,
-        smartLongChatMemoryMode: Bool,
         expandedCollapsedMessageIDs: Binding<Set<UUID>>
     ) {
         self.conversationMessageCount = conversationMessageCount
@@ -565,7 +559,6 @@ private struct ChatMultiModelThreadColumnView: View {
         self.streamingModelLabel = streamingModelLabel
         self.onActivateThread = onActivateThread
         self.onOpenArtifact = onOpenArtifact
-        self.smartLongChatMemoryMode = smartLongChatMemoryMode
         self.expandedCollapsedMessageIDs = expandedCollapsedMessageIDs
         _messageRenderLimit = State(initialValue: initialMessageRenderLimit)
         _pendingRestoreScrollMessageID = State(initialValue: nil)
@@ -716,8 +709,7 @@ private struct ChatMultiModelThreadColumnView: View {
             return .nativeText
         }
 
-        guard smartLongChatMemoryMode,
-              message.isAssistant,
+        guard message.isAssistant,
               message.isMemoryIntensiveAssistantContent,
               message.collapsedPreview != nil,
               context.visibleMessages.count > 48,

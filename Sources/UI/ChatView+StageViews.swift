@@ -83,7 +83,6 @@ extension ChatView {
                 activateThread(by: threadID)
             },
             onOpenArtifact: openArtifact,
-            smartLongChatMemoryMode: smartLongChatMemoryMode,
             expandedCollapsedMessageIDs: $expandedCollapsedMessageIDs,
             messageRenderLimit: $messageRenderLimit,
             pendingRestoreScrollMessageID: $pendingRestoreScrollMessageID,
@@ -123,7 +122,6 @@ extension ChatView {
                 activateThread(by: threadID)
             },
             onOpenArtifact: openArtifact,
-            smartLongChatMemoryMode: smartLongChatMemoryMode,
             expandedCollapsedMessageIDs: $expandedCollapsedMessageIDs
         )
     }

@@ -40,7 +40,6 @@ struct JinApp: App {
     init() {
         UserDefaults.standard.register(defaults: [
             AppPreferenceKeys.notifyOnBackgroundResponseCompletion: true,
-            AppPreferenceKeys.smartLongChatMemoryMode: true,
             AppPreferenceKeys.updateAutoCheckOnLaunch: true,
             AppPreferenceKeys.updateAllowPreRelease: false,
             AppPreferenceKeys.codexWorkingDirectoryPresetsJSON: "[]",

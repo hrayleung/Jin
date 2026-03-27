@@ -6,16 +6,11 @@ struct ChatSettingsView: View {
     @AppStorage(AppPreferenceKeys.sendWithCommandEnter) private var sendWithCommandEnter = false
     @AppStorage(AppPreferenceKeys.notifyOnBackgroundResponseCompletion) private var notifyOnBackgroundResponseCompletion = false
     @AppStorage(AppPreferenceKeys.networkDebugLoggingEnabled) private var networkDebugLoggingEnabled = false
-    @AppStorage(AppPreferenceKeys.smartLongChatMemoryMode) private var smartLongChatMemoryMode = true
 
     var body: some View {
         Form {
             Section("Send Behavior") {
                 Toggle("Use \u{2318}Return to send", isOn: $sendWithCommandEnter)
-                Toggle("Smart Long Chat Memory Mode", isOn: $smartLongChatMemoryMode)
-                Text("Keeps recent replies fully rendered while folding older heavy assistant messages to reduce RAM.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
             }
 
             Section {
