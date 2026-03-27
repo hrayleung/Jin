@@ -3,12 +3,14 @@ import SwiftData
 import XCTest
 @testable import Jin
 
-final class AppSnapshotManagerRecoveryPackTests: XCTestCase {
+final class AppSnapshotManagerRecoveryPackTests: PreferencesSandboxedTestCase {
     private var previousAppSupportRoot: String?
     private var preservedDomains: [String: [String: Any]] = [:]
     private var temporaryRoot: URL!
 
     override func setUpWithError() throws {
+        try super.setUpWithError()
+
         previousAppSupportRoot = ProcessInfo.processInfo.environment["JIN_APP_SUPPORT_ROOT"]
         temporaryRoot = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
@@ -48,6 +50,8 @@ final class AppSnapshotManagerRecoveryPackTests: XCTestCase {
         try? FileManager.default.removeItem(at: temporaryRoot)
         AppSnapshotManager.clearAcceptedCurrentState()
         preservedDomains.removeAll()
+
+        try super.tearDownWithError()
     }
 
     func testRecoveryPackRoundTripsMCPServersAndPluginPreferences() throws {

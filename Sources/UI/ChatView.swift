@@ -14,6 +14,7 @@ struct ChatView: View {
     static let asyncCacheBuildMessageThreshold = 80
     static let smartLongChatCollapseThreshold = 48
     static let smartLongChatExpandedTailCount = 8
+    static let contextUsageRefreshDelay = Duration.milliseconds(180)
 
     enum PrepareToSendCancellationReason {
         case userCancelled
@@ -80,6 +81,9 @@ struct ChatView: View {
     @State var messageText = ""
     @State var remoteVideoInputURLText = ""
     @State var draftAttachments: [DraftAttachment] = []
+    @State var currentContextUsageEstimate: ChatContextUsageEstimate?
+    @State var contextUsageRefreshTask: Task<Void, Never>?
+    @State var contextUsageRefreshGeneration: UInt = 0
     @State var isFileImporterPresented = false
     @State var isComposerDropTargeted = false
     @State var isFullPageDropTargeted = false
@@ -276,6 +280,8 @@ struct ChatView: View {
         .onDisappear {
             updatedAtDebounceTask?.cancel()
             updatedAtDebounceTask = nil
+            contextUsageRefreshTask?.cancel()
+            contextUsageRefreshTask = nil
             cancelRenderContextBuild()
         }
         .onChange(of: conversationEntity.id) { _, _ in
@@ -297,6 +303,9 @@ struct ChatView: View {
                 guard !Task.isCancelled else { return }
                 rebuildMessageCachesIfNeeded()
             }
+        }
+        .onChange(of: contextUsageRefreshToken) { _, _ in
+            refreshContextUsageEstimate()
         }
         .alert("Error", isPresented: $showingError) {
             Button("OK", role: .cancel) {}
