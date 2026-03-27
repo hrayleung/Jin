@@ -132,23 +132,9 @@ extension ChatView {
     }
 
     func rebuildSupplementaryThreadRenderContexts(activeThreadID: UUID?) {
-        var nextContexts = activeThreadID.flatMap { threadID in
+        cachedThreadRenderContextsByThreadID = activeThreadID.flatMap { threadID in
             cachedThreadRenderContextsByThreadID[threadID].map { [threadID: $0] }
         } ?? [:]
-
-        for thread in selectedModelThreads where thread.id != activeThreadID {
-            let ordered = orderedConversationMessages(threadID: thread.id)
-            let fallbackModelLabel = modelName(id: thread.modelID, providerID: thread.providerID)
-            nextContexts[thread.id] = ChatMessageRenderPipeline.makeRenderContext(
-                from: ordered,
-                fallbackModelLabel: fallbackModelLabel,
-                assistantProviderIconID: { providerID in
-                    providerIconID(for: providerID)
-                }
-            )
-        }
-
-        cachedThreadRenderContextsByThreadID = nextContexts
     }
 
     func syncArtifactSelectionForActiveThread() {

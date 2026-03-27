@@ -347,7 +347,11 @@ enum ChatMessageRenderPipeline {
             }
             && !containsArtifact
 
-        let lineCount = max(1, copyText.components(separatedBy: .newlines).count)
+        let previewSourceText = collapsedPreviewSourceText(
+            copyText: copyText,
+            renderedBlocks: renderedBlocks
+        )
+        let lineCount = max(1, previewSourceText.components(separatedBy: .newlines).count)
         let containsCode = containsLikelyCode(in: combinedText)
         let containsRichMarkdown = containsLikelyRichMarkdown(in: combinedText) || containsArtifact
         let prefersNativeText = hasSingleTextPartOnly && !containsRichMarkdown
@@ -355,7 +359,7 @@ enum ChatMessageRenderPipeline {
 
         let preview = isMemoryIntensive
             ? makeCollapsedPreview(
-                from: copyText,
+                from: previewSourceText,
                 containsCode: containsCode,
                 lineCount: lineCount
             )
@@ -373,27 +377,51 @@ enum ChatMessageRenderPipeline {
         containsCode: Bool,
         lineCount: Int
     ) -> LightweightMessagePreview? {
-        let normalizedLines = text
-            .components(separatedBy: .newlines)
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
+        let headlineLimit = 120
+        let bodyLimit = 240
+        var headline: String?
+        var body = ""
 
-        guard let headline = normalizedLines.first else { return nil }
+        for rawLine in text.components(separatedBy: .newlines) {
+            let trimmed = rawLine.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { continue }
 
-        let body = normalizedLines
-            .dropFirst()
-            .joined(separator: " ")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
+            if headline == nil {
+                headline = String(trimmed.prefix(headlineLimit))
+                continue
+            }
 
-        let clampedHeadline = String(headline.prefix(120))
-        let clampedBody = String(body.prefix(240))
+            guard body.count < bodyLimit else { break }
+            let separator = body.isEmpty ? "" : " "
+            let remainingBudget = bodyLimit - body.count - separator.count
+            guard remainingBudget > 0 else { break }
+            body += separator
+            body += String(trimmed.prefix(remainingBudget))
+        }
+
+        guard let headline else { return nil }
 
         return LightweightMessagePreview(
-            headline: clampedHeadline,
-            body: clampedBody,
+            headline: headline,
+            body: body,
             lineCount: lineCount,
             containsCode: containsCode
         )
+    }
+
+    private static func collapsedPreviewSourceText(
+        copyText: String,
+        renderedBlocks: [RenderedMessageBlock]
+    ) -> String {
+        let trimmedCopyText = copyText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmedCopyText.isEmpty else { return copyText }
+
+        let artifactLines = renderedBlocks.compactMap { block -> String? in
+            guard case .artifact(let artifact) = block else { return nil }
+            return "\(artifact.title)\n\(artifact.contentType.displayName) Artifact"
+        }
+
+        return artifactLines.joined(separator: "\n\n")
     }
 
     private static func containsLikelyCode(in text: String) -> Bool {

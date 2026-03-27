@@ -103,6 +103,7 @@ struct ChatView: View {
     @State var isExpandedComposerPresented = false
     @State var isComposerHidden = false
     @State var activeThreadID: UUID?
+    // swiftlint:disable:next private_swiftui_state
     @State var expandedCollapsedMessageIDs: Set<UUID> = []
 
     // Cache expensive derived data so typing/streaming doesn't repeatedly sort/decode the entire history.
@@ -112,6 +113,7 @@ struct ChatView: View {
     @State var cachedActiveThreadHistory: [Message] = []
     @State var cachedToolResultsByCallID: [String: ToolResult] = [:]
     @State var cachedArtifactCatalog: ArtifactCatalog = .empty
+    // swiftlint:disable:next private_swiftui_state
     @State var cachedThreadRenderContextsByThreadID: [UUID: ChatThreadRenderContext] = [:]
     @State var lastCacheRebuildMessageCount: Int = 0
     @State var lastCacheRebuildUpdatedAt: Date = .distantPast

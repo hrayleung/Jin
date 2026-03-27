@@ -196,13 +196,20 @@ extension ChatView {
             .map { modelName(id: $0.modelID, providerID: $0.providerID) }
             ?? currentModelName
 
-        return ChatMessageRenderPipeline.makeRenderContext(
+        let context = ChatMessageRenderPipeline.makeRenderContext(
             from: ordered,
             fallbackModelLabel: fallbackModelLabel,
             assistantProviderIconID: { providerID in
                 providerIconID(for: providerID)
             }
         )
+
+        DispatchQueue.main.async { [threadID, context] in
+            guard cachedThreadRenderContextsByThreadID[threadID] == nil else { return }
+            cachedThreadRenderContextsByThreadID[threadID] = context
+        }
+
+        return context
     }
 
     // MARK: - Message Interaction

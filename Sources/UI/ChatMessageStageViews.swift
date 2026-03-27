@@ -15,6 +15,38 @@ struct ChatDecodedRenderContext: Sendable {
     let artifactCatalog: ArtifactCatalog
 }
 
+private enum SmartLongChatRenderPolicy {
+    static func effectiveRenderMode(
+        index: Int,
+        message: MessageRenderItem,
+        totalMessageCount: Int,
+        visibleMessageCount: Int,
+        expandedIDs: Set<UUID>
+    ) -> MessageRenderMode {
+        if message.preferredRenderMode == .nativeText {
+            return .nativeText
+        }
+
+        guard message.isAssistant,
+              message.isMemoryIntensiveAssistantContent,
+              message.collapsedPreview != nil,
+              totalMessageCount > ChatView.smartLongChatCollapseThreshold,
+              visibleMessageCount > ChatView.smartLongChatExpandedTailCount,
+              index < max(0, visibleMessageCount - ChatView.smartLongChatExpandedTailCount),
+              !expandedIDs.contains(message.id) else {
+            return .fullWeb
+        }
+
+        return .collapsedPreview
+    }
+
+    static func expand(messageID: UUID, binding: Binding<Set<UUID>>) {
+        var next = binding.wrappedValue
+        next.insert(messageID)
+        binding.wrappedValue = next
+    }
+}
+
 private struct MessageTimelineContentHeightPreferenceKey: PreferenceKey {
     static let defaultValue: CGFloat = 0
 
@@ -403,25 +435,17 @@ struct ChatSingleThreadMessagesView: View {
     }
 
     private func effectiveRenderMode(index: Int, message: MessageRenderItem) -> MessageRenderMode {
-        if message.preferredRenderMode == .nativeText {
-            return .nativeText
-        }
-
-        guard message.isAssistant,
-              message.isMemoryIntensiveAssistantContent,
-              message.collapsedPreview != nil,
-              allMessages.count > 48,
-              visibleMessagesForWindow.count > 8,
-              index < max(0, visibleMessagesForWindow.count - 8),
-              !expandedCollapsedMessageIDs.wrappedValue.contains(message.id) else {
-            return .fullWeb
-        }
-
-        return .collapsedPreview
+        SmartLongChatRenderPolicy.effectiveRenderMode(
+            index: index,
+            message: message,
+            totalMessageCount: allMessages.count,
+            visibleMessageCount: visibleMessagesForWindow.count,
+            expandedIDs: expandedCollapsedMessageIDs.wrappedValue
+        )
     }
 
     private func expandCollapsedContent(_ messageID: UUID) {
-        expandedCollapsedMessageIDs.wrappedValue.insert(messageID)
+        SmartLongChatRenderPolicy.expand(messageID: messageID, binding: expandedCollapsedMessageIDs)
     }
 }
 
@@ -705,24 +729,16 @@ private struct ChatMultiModelThreadColumnView: View {
     }
 
     private func effectiveRenderMode(index: Int, message: MessageRenderItem) -> MessageRenderMode {
-        if message.preferredRenderMode == .nativeText {
-            return .nativeText
-        }
-
-        guard message.isAssistant,
-              message.isMemoryIntensiveAssistantContent,
-              message.collapsedPreview != nil,
-              context.visibleMessages.count > 48,
-              visibleMessages.count > 8,
-              index < max(0, visibleMessages.count - 8),
-              !expandedCollapsedMessageIDs.wrappedValue.contains(message.id) else {
-            return .fullWeb
-        }
-
-        return .collapsedPreview
+        SmartLongChatRenderPolicy.effectiveRenderMode(
+            index: index,
+            message: message,
+            totalMessageCount: context.visibleMessages.count,
+            visibleMessageCount: visibleMessages.count,
+            expandedIDs: expandedCollapsedMessageIDs.wrappedValue
+        )
     }
 
     private func expandCollapsedContent(_ messageID: UUID) {
-        expandedCollapsedMessageIDs.wrappedValue.insert(messageID)
+        SmartLongChatRenderPolicy.expand(messageID: messageID, binding: expandedCollapsedMessageIDs)
     }
 }
