@@ -18,6 +18,7 @@ extension ChatView {
         loadControlsFromConversation()
         rebuildMessageCaches()
         syncArtifactSelectionForActiveThread()
+        refreshContextUsageEstimate(debounced: false)
     }
 
     func handleConversationSwitch() {
@@ -30,6 +31,7 @@ extension ChatView {
         speechToTextManager.cancelAndCleanup()
         messageText = ""
         draftAttachments = []
+        clearContextUsageEstimate()
         dropAttachmentImportInFlightCount = 0
         composerTextContentHeight = 36
         remoteVideoInputURLText = ""
@@ -108,6 +110,7 @@ extension ChatView {
             guard conversationEntity.id == targetConversationID else { return }
             rebuildMessageCaches()
             syncArtifactSelectionForActiveThread()
+            refreshContextUsageEstimate(debounced: false)
         }
     }
 

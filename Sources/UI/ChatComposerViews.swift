@@ -35,6 +35,92 @@ struct DraftAttachment: Identifiable, Hashable, Sendable {
     var isPDF: Bool { mimeType == "application/pdf" }
 }
 
+private enum DraftAttachmentThumbnailProvider {
+    static let cache: NSCache<NSString, NSImage> = {
+        let cache = NSCache<NSString, NSImage>()
+        cache.countLimit = 64
+        return cache
+    }()
+
+    static func cacheKey(for url: URL) -> NSString {
+        url.standardizedFileURL.path as NSString
+    }
+
+    static func cachedImage(for url: URL) -> NSImage? {
+        cache.object(forKey: cacheKey(for: url))
+    }
+
+    static func store(_ image: NSImage, for url: URL) {
+        cache.setObject(image, forKey: cacheKey(for: url))
+    }
+}
+
+private struct DraftAttachmentThumbnailView: View {
+    let attachment: DraftAttachment
+
+    @State private var image: NSImage?
+
+    var body: some View {
+        Group {
+            if attachment.isImage {
+                if let image {
+                    Image(nsImage: image)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: 26, height: 26)
+                        .clipShape(RoundedRectangle(cornerRadius: JinRadius.small, style: .continuous))
+                } else {
+                    Image(systemName: "photo")
+                        .foregroundStyle(.secondary)
+                }
+            } else if attachment.isAudio {
+                Image(systemName: "waveform")
+                    .foregroundStyle(.secondary)
+            } else if attachment.isVideo {
+                Image(systemName: "video")
+                    .foregroundStyle(.secondary)
+            } else if attachment.isPDF {
+                Image(systemName: "doc.richtext")
+                    .foregroundStyle(.secondary)
+            } else {
+                Image(systemName: "doc")
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .task(id: attachment.id) {
+            await loadImageIfNeeded()
+        }
+    }
+
+    @MainActor
+    private func loadImageIfNeeded() async {
+        guard attachment.isImage else {
+            image = nil
+            return
+        }
+
+        if let cached = DraftAttachmentThumbnailProvider.cachedImage(for: attachment.fileURL) {
+            image = cached
+            return
+        }
+
+        let url = attachment.fileURL
+        let data = await Task.detached(priority: .utility) {
+            try? Data(contentsOf: url)
+        }.value
+
+        guard !Task.isCancelled,
+              let data,
+              let loadedImage = NSImage(data: data) else {
+            image = nil
+            return
+        }
+
+        DraftAttachmentThumbnailProvider.store(loadedImage, for: url)
+        image = loadedImage
+    }
+}
+
 // MARK: - Draft Attachment Chip
 
 struct DraftAttachmentChip: View {
@@ -45,7 +131,7 @@ struct DraftAttachmentChip: View {
 
     var body: some View {
         HStack(spacing: JinSpacing.small) {
-            thumbnailView
+            DraftAttachmentThumbnailView(attachment: attachment)
                 .frame(width: 26, height: 26)
 
             Text(attachment.filename)
@@ -57,44 +143,20 @@ struct DraftAttachmentChip: View {
             Button(action: onRemove) {
                 Image(systemName: "xmark.circle.fill")
                     .foregroundStyle(.secondary)
+                    .frame(width: 18, height: 18)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .accessibilityLabel("Remove \(attachment.filename)")
         }
         .padding(.horizontal, JinSpacing.medium - 2)
         .padding(.vertical, JinSpacing.xSmall + 2)
         .jinSurface(.neutral, cornerRadius: JinRadius.medium)
-        .onDrag {
-            NSItemProvider(contentsOf: attachment.fileURL)
-                ?? NSItemProvider(object: attachment.fileURL as NSURL)
-        }
         .help(attachment.filename)
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: .contain)
         .accessibilityLabel(attachment.filename)
         .contextMenu {
             chipContextMenu
-        }
-    }
-
-    @ViewBuilder
-    private var thumbnailView: some View {
-        if attachment.isImage, let image = NSImage(contentsOf: attachment.fileURL) {
-            Image(nsImage: image)
-                .resizable()
-                .scaledToFill()
-                .frame(width: 26, height: 26)
-                .clipShape(RoundedRectangle(cornerRadius: JinRadius.small, style: .continuous))
-        } else if attachment.isAudio {
-            Image(systemName: "waveform")
-                .foregroundStyle(.secondary)
-        } else if attachment.isVideo {
-            Image(systemName: "video")
-                .foregroundStyle(.secondary)
-        } else if attachment.isPDF {
-            Image(systemName: "doc.richtext")
-                .foregroundStyle(.secondary)
-        } else {
-            Image(systemName: "doc")
-                .foregroundStyle(.secondary)
         }
     }
 
@@ -114,11 +176,9 @@ struct DraftAttachmentChip: View {
 
         Divider()
 
-        if attachment.isImage, let image = NSImage(contentsOf: attachment.fileURL) {
+        if attachment.isImage {
             Button {
-                let pasteboard = NSPasteboard.general
-                pasteboard.clearContents()
-                pasteboard.writeObjects([image])
+                copyImageToPasteboard()
             } label: {
                 Label("Copy Image", systemImage: "doc.on.doc")
             }
@@ -139,6 +199,17 @@ struct DraftAttachmentChip: View {
         } label: {
             Label("Remove", systemImage: "trash")
         }
+    }
+
+    private func copyImageToPasteboard() {
+        guard let image = DraftAttachmentThumbnailProvider.cachedImage(for: attachment.fileURL)
+            ?? NSImage(contentsOf: attachment.fileURL) else {
+            return
+        }
+
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.writeObjects([image])
     }
 }
 

@@ -63,6 +63,45 @@ final class ChatContextUsageEstimatorTests: XCTestCase {
         XCTAssertEqual(estimate.clampedUsageFraction, estimate.usageFraction, accuracy: 0.0001)
     }
 
+    func testEstimateIncludesDraftFileAttachmentExtractedTextTokens() {
+        let extractedText = String(repeating: "abcd", count: 400)
+        let draftParts: [ContentPart] = [
+            .file(
+                FileContent(
+                    mimeType: "text/plain",
+                    filename: "notes.txt",
+                    url: URL(fileURLWithPath: "/tmp/notes.txt"),
+                    extractedText: extractedText
+                )
+            )
+        ]
+
+        let estimate = ChatContextUsageEstimator.estimate(
+            history: [],
+            draftMessageParts: draftParts,
+            systemPrompt: nil,
+            maxHistoryMessages: nil,
+            shouldTruncateMessages: false,
+            contextWindow: 10_000,
+            reservedOutputTokens: 0
+        )
+
+        let preparedHistory = ChatContextUsageEstimator.preparedHistory(
+            history: [],
+            draftMessageParts: draftParts,
+            systemPrompt: nil,
+            maxHistoryMessages: nil,
+            shouldTruncateMessages: false
+        )
+
+        XCTAssertEqual(
+            estimate.inputTokens,
+            ChatHistoryTruncator.approximateTokenCount(for: preparedHistory)
+        )
+        XCTAssertGreaterThan(estimate.inputTokens, 400)
+        XCTAssertEqual(estimate.untruncatedInputTokens, estimate.inputTokens)
+    }
+
     func testPreparedHistoryClampsNegativeMaxHistoryMessagesToZero() {
         let history = [
             Message(role: .user, content: [.text("hello there")]),
