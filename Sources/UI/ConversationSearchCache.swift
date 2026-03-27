@@ -7,8 +7,10 @@ import Foundation
 /// The cache self-invalidates when the message count for a conversation changes (e.g. new messages
 /// are added or messages are deleted).
 final class ConversationSearchCache {
+    private static let maxCachedConversations = 24
     private var textCache: [UUID: String] = [:]
     private var messageCounts: [UUID: Int] = [:]
+    private var accessOrder: [UUID] = []
 
     /// Returns the searchable plain text for a conversation, building the cache entry if needed.
     func searchableText(for conversation: ConversationEntity) -> String {
@@ -16,13 +18,26 @@ final class ConversationSearchCache {
 
         if let cached = textCache[conversation.id],
            messageCounts[conversation.id] == currentCount {
+            noteAccess(for: conversation.id)
             return cached
         }
 
         let text = Self.extractSearchableText(from: conversation.messages)
         textCache[conversation.id] = text
         messageCounts[conversation.id] = currentCount
+        noteAccess(for: conversation.id)
         return text
+    }
+
+    private func noteAccess(for conversationID: UUID) {
+        accessOrder.removeAll { $0 == conversationID }
+        accessOrder.append(conversationID)
+
+        while accessOrder.count > Self.maxCachedConversations {
+            let evictedID = accessOrder.removeFirst()
+            textCache.removeValue(forKey: evictedID)
+            messageCounts.removeValue(forKey: evictedID)
+        }
     }
 
     // MARK: - Text Extraction

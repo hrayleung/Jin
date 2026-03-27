@@ -83,6 +83,8 @@ extension ChatView {
                 activateThread(by: threadID)
             },
             onOpenArtifact: openArtifact,
+            smartLongChatMemoryMode: smartLongChatMemoryMode,
+            expandedCollapsedMessageIDs: $expandedCollapsedMessageIDs,
             messageRenderLimit: $messageRenderLimit,
             pendingRestoreScrollMessageID: $pendingRestoreScrollMessageID,
             isPinnedToBottom: $isPinnedToBottom,
@@ -120,15 +122,23 @@ extension ChatView {
             onActivateThread: { threadID in
                 activateThread(by: threadID)
             },
-            onOpenArtifact: openArtifact
+            onOpenArtifact: openArtifact,
+            smartLongChatMemoryMode: smartLongChatMemoryMode,
+            expandedCollapsedMessageIDs: $expandedCollapsedMessageIDs
         )
     }
 
     // MARK: - Render Contexts
 
     var singleThreadRenderContext: ChatThreadRenderContext {
-        ChatThreadRenderContext(
+        if let threadID = activeModelThread?.id,
+           let cached = cachedThreadRenderContextsByThreadID[threadID] {
+            return cached
+        }
+
+        return ChatThreadRenderContext(
             visibleMessages: cachedVisibleMessages,
+            historyMessages: cachedActiveThreadHistory,
             messageEntitiesByID: cachedMessageEntitiesByID,
             toolResultsByCallID: cachedToolResultsByCallID,
             artifactCatalog: cachedArtifactCatalog
@@ -175,6 +185,10 @@ extension ChatView {
     }
 
     func threadRenderContext(threadID: UUID) -> ChatThreadRenderContext {
+        if let cached = cachedThreadRenderContextsByThreadID[threadID] {
+            return cached
+        }
+
         let ordered = ChatMessageRenderPipeline.orderedMessages(
             from: conversationEntity.messages,
             threadID: threadID

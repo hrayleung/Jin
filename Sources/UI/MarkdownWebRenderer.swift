@@ -206,6 +206,7 @@ private struct MarkdownWebRendererRepresentable: NSViewRepresentable {
 
     func makeNSView(context: Context) -> MarkdownWKWebView {
         let config = WKWebViewConfiguration()
+        config.websiteDataStore = .nonPersistent()
         config.userContentController = WKUserContentController()
         config.userContentController.add(context.coordinator, name: "heightChanged")
         config.userContentController.add(context.coordinator, name: "copyText")

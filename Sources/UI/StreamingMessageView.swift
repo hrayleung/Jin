@@ -239,7 +239,6 @@ private struct StreamingArtifactIndicator: View {
 final class StreamingMessageState: ObservableObject {
     private static let maxChunkSize = 2048
 
-    @Published private(set) var textChunks: [String] = []
     @Published private(set) var thinkingChunks: [String] = []
     @Published private(set) var searchActivities: [SearchActivity] = []
     @Published private(set) var codeExecutionActivities: [CodeExecutionActivity] = []
@@ -266,7 +265,6 @@ final class StreamingMessageState: ObservableObject {
     func reset() {
         textStorage = ""
         thinkingStorage = ""
-        textChunks = []
         thinkingChunks = []
         searchActivities = []
         codeExecutionActivities = []
@@ -294,7 +292,6 @@ final class StreamingMessageState: ObservableObject {
             if !isThinkingComplete, !thinkingChunks.isEmpty {
                 isThinkingComplete = true
             }
-            appendDelta(textDelta, to: &textChunks, maxChunkSize: Self.maxChunkSize)
             didChangeText = true
             didMutate = true
         }

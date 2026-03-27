@@ -26,15 +26,17 @@ enum ChatMessageRenderPipeline {
 
         var renderedItems: [MessageRenderItem] = []
         renderedItems.reserveCapacity(orderedMessages.count)
+        var historyMessages: [Message] = []
+        historyMessages.reserveCapacity(orderedMessages.count)
 
         var artifactVersionCounts: [String: Int] = [:]
         var artifactVersionsByID: OrderedDictionary<String, [RenderedArtifactVersion]> = [:]
 
         for entity in orderedMessages {
             messageEntitiesByID[entity.id] = entity
-            guard entity.role != "tool" else { continue }
-
             guard let message = try? entity.toDomain() else { continue }
+            historyMessages.append(message)
+            guard entity.role != "tool" else { continue }
             let renderedBlocks = renderedBlocks(
                 content: message.content,
                 role: message.role,
@@ -44,6 +46,11 @@ enum ChatMessageRenderPipeline {
                 artifactVersionsByID: &artifactVersionsByID
             )
             let copyText = copyableText(from: message, role: message.role)
+            let renderMetadata = renderMetadata(
+                for: message,
+                renderedBlocks: renderedBlocks,
+                copyText: copyText
+            )
             let toolCalls = message.toolCalls ?? []
             let searchActivities = message.searchActivities ?? []
             let codeExecutionActivities = message.codeExecutionActivities ?? []
@@ -70,6 +77,9 @@ enum ChatMessageRenderPipeline {
                         : nil,
                     responseMetrics: entity.responseMetrics,
                     copyText: copyText,
+                    preferredRenderMode: renderMetadata.preferredRenderMode,
+                    isMemoryIntensiveAssistantContent: renderMetadata.isMemoryIntensiveAssistantContent,
+                    collapsedPreview: renderMetadata.collapsedPreview,
                     canEditUserMessage: entity.role == "user"
                         && message.content.contains(where: { part in
                             if case .text = part { return true }
@@ -87,6 +97,7 @@ enum ChatMessageRenderPipeline {
 
         return ChatThreadRenderContext(
             visibleMessages: renderedItems,
+            historyMessages: historyMessages,
             messageEntitiesByID: messageEntitiesByID,
             toolResultsByCallID: toolResultsByToolCallID(in: orderedMessages),
             artifactCatalog: ArtifactCatalog(
@@ -103,6 +114,8 @@ enum ChatMessageRenderPipeline {
     ) -> ChatDecodedRenderContext {
         var renderedItems: [MessageRenderItem] = []
         renderedItems.reserveCapacity(orderedMessages.count)
+        var historyMessages: [Message] = []
+        historyMessages.reserveCapacity(orderedMessages.count)
 
         var artifactVersionCounts: [String: Int] = [:]
         var artifactVersionsByID: OrderedDictionary<String, [RenderedArtifactVersion]> = [:]
@@ -112,8 +125,9 @@ enum ChatMessageRenderPipeline {
             if Task.isCancelled {
                 break
             }
-            guard snapshot.role != "tool" else { continue }
             guard let message = snapshot.toDomain(using: decoder) else { continue }
+            historyMessages.append(message)
+            guard snapshot.role != "tool" else { continue }
 
             let renderedBlocks = renderedBlocks(
                 content: message.content,
@@ -124,6 +138,11 @@ enum ChatMessageRenderPipeline {
                 artifactVersionsByID: &artifactVersionsByID
             )
             let copyText = copyableText(from: message, role: message.role)
+            let renderMetadata = renderMetadata(
+                for: message,
+                renderedBlocks: renderedBlocks,
+                copyText: copyText
+            )
             let toolCalls = message.toolCalls ?? []
             let searchActivities = message.searchActivities ?? []
             let codeExecutionActivities = message.codeExecutionActivities ?? []
@@ -150,6 +169,9 @@ enum ChatMessageRenderPipeline {
                         : nil,
                     responseMetrics: snapshot.responseMetrics(using: decoder),
                     copyText: copyText,
+                    preferredRenderMode: renderMetadata.preferredRenderMode,
+                    isMemoryIntensiveAssistantContent: renderMetadata.isMemoryIntensiveAssistantContent,
+                    collapsedPreview: renderMetadata.collapsedPreview,
                     canEditUserMessage: snapshot.role == "user"
                         && message.content.contains(where: { part in
                             if case .text = part { return true }
@@ -167,6 +189,7 @@ enum ChatMessageRenderPipeline {
 
         return ChatDecodedRenderContext(
             visibleMessages: renderedItems,
+            historyMessages: historyMessages,
             toolResultsByCallID: toolResultsByToolCallID(in: orderedMessages),
             artifactCatalog: ArtifactCatalog(
                 orderedArtifactIDs: Array(artifactVersionsByID.keys),
@@ -286,6 +309,117 @@ enum ChatMessageRenderPipeline {
         }
 
         return fileParts.joined(separator: "\n")
+    }
+
+    private struct RenderMetadata {
+        let preferredRenderMode: MessageRenderMode
+        let isMemoryIntensiveAssistantContent: Bool
+        let collapsedPreview: LightweightMessagePreview?
+    }
+
+    private static func renderMetadata(
+        for message: Message,
+        renderedBlocks: [RenderedMessageBlock],
+        copyText: String
+    ) -> RenderMetadata {
+        guard message.role == .assistant else {
+            return RenderMetadata(
+                preferredRenderMode: .fullWeb,
+                isMemoryIntensiveAssistantContent: false,
+                collapsedPreview: nil
+            )
+        }
+
+        let containsArtifact = renderedBlocks.contains { block in
+            if case .artifact = block { return true }
+            return false
+        }
+        let textParts = message.content.compactMap { part -> String? in
+            guard case .text(let text) = part else { return nil }
+            return ArtifactMarkupParser.visibleText(from: text)
+        }
+        let combinedText = textParts.joined(separator: "\n\n")
+        let hasSingleTextPartOnly = renderedBlocks.count == 1
+            && message.content.count == 1
+            && message.content.allSatisfy { part in
+                if case .text = part { return true }
+                return false
+            }
+            && !containsArtifact
+
+        let lineCount = max(1, copyText.components(separatedBy: .newlines).count)
+        let containsCode = containsLikelyCode(in: combinedText)
+        let containsRichMarkdown = containsLikelyRichMarkdown(in: combinedText) || containsArtifact
+        let prefersNativeText = hasSingleTextPartOnly && !containsRichMarkdown
+        let isMemoryIntensive = containsCode || copyText.count > 1_800 || lineCount > 18 || containsArtifact
+
+        let preview = isMemoryIntensive
+            ? makeCollapsedPreview(
+                from: copyText,
+                containsCode: containsCode,
+                lineCount: lineCount
+            )
+            : nil
+
+        return RenderMetadata(
+            preferredRenderMode: prefersNativeText ? .nativeText : .fullWeb,
+            isMemoryIntensiveAssistantContent: isMemoryIntensive,
+            collapsedPreview: preview
+        )
+    }
+
+    private static func makeCollapsedPreview(
+        from text: String,
+        containsCode: Bool,
+        lineCount: Int
+    ) -> LightweightMessagePreview? {
+        let normalizedLines = text
+            .components(separatedBy: .newlines)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+
+        guard let headline = normalizedLines.first else { return nil }
+
+        let body = normalizedLines
+            .dropFirst()
+            .joined(separator: " ")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        let clampedHeadline = String(headline.prefix(120))
+        let clampedBody = String(body.prefix(240))
+
+        return LightweightMessagePreview(
+            headline: clampedHeadline,
+            body: clampedBody,
+            lineCount: lineCount,
+            containsCode: containsCode
+        )
+    }
+
+    private static func containsLikelyCode(in text: String) -> Bool {
+        if text.contains("```") { return true }
+        let lines = text.components(separatedBy: .newlines)
+        let indentedLineCount = lines.filter { line in
+            line.hasPrefix("    ") || line.hasPrefix("\t")
+        }.count
+        return indentedLineCount >= 2
+    }
+
+    private static func containsLikelyRichMarkdown(in text: String) -> Bool {
+        if text.contains("```") || text.contains("|") || text.contains("`") { return true }
+
+        for line in text.components(separatedBy: .newlines) {
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            if trimmed.hasPrefix("#")
+                || trimmed.hasPrefix("- ")
+                || trimmed.hasPrefix("* ")
+                || trimmed.hasPrefix("> ")
+                || trimmed.range(of: #"^\d+\.\s"#, options: .regularExpression) != nil {
+                return true
+            }
+        }
+
+        return false
     }
 
     private static func toolResultsByToolCallID(in messageEntities: [MessageEntity]) -> [String: ToolResult] {

@@ -75,6 +75,7 @@ extension ChatView {
         messageRenderLimit = Self.initialMessageRenderLimit
         pendingRestoreScrollMessageID = nil
         isPinnedToBottom = true
+        expandedCollapsedMessageIDs = []
 
         // Artifacts
         isArtifactPaneVisible = false
@@ -93,6 +94,7 @@ extension ChatView {
         cachedActiveThreadHistory = []
         cachedToolResultsByCallID = [:]
         cachedArtifactCatalog = .empty
+        cachedThreadRenderContextsByThreadID = [:]
         cachedMessagesVersion &+= 1
         lastCacheRebuildMessageCount = 0
         lastCacheRebuildUpdatedAt = .distantPast

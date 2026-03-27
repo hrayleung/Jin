@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ChatThreadRenderContext {
     let visibleMessages: [MessageRenderItem]
+    let historyMessages: [Message]
     let messageEntitiesByID: [UUID: MessageEntity]
     let toolResultsByCallID: [String: ToolResult]
     let artifactCatalog: ArtifactCatalog
@@ -9,6 +10,7 @@ struct ChatThreadRenderContext {
 
 struct ChatDecodedRenderContext: Sendable {
     let visibleMessages: [MessageRenderItem]
+    let historyMessages: [Message]
     let toolResultsByCallID: [String: ToolResult]
     let artifactCatalog: ArtifactCatalog
 }
@@ -84,6 +86,8 @@ struct ChatMessageTimelineView: View {
     let onActivateThreadForMessage: (UUID?) -> Void
     let onActivateTimeline: () -> Void
     let onOpenArtifact: (RenderedArtifactVersion, UUID?) -> Void
+    let effectiveRenderMode: (Int, MessageRenderItem) -> MessageRenderMode
+    let onExpandCollapsedContent: (UUID) -> Void
 
     @ViewBuilder
     var body: some View {
@@ -145,6 +149,8 @@ struct ChatMessageTimelineView: View {
                 onCancelUserEdit: interaction.onCancelUserEdit,
                 editSlashCommand: interaction.editSlashCommand,
                 onOpenArtifact: onOpenArtifact,
+                renderMode: effectiveRenderMode(index, message),
+                onExpandCollapsedContent: onExpandCollapsedContent,
                 onActivate: {
                     if let threadID = message.contextThreadID {
                         onActivateThreadForMessage(threadID)
@@ -195,6 +201,8 @@ struct ChatSingleThreadMessagesView: View {
     let onStreamingFinished: () -> Void
     let onActivateMessageThread: (UUID) -> Void
     let onOpenArtifact: (RenderedArtifactVersion, UUID?) -> Void
+    let smartLongChatMemoryMode: Bool
+    let expandedCollapsedMessageIDs: Binding<Set<UUID>>
     @Binding var messageRenderLimit: Int
     @Binding var pendingRestoreScrollMessageID: UUID?
     @Binding var isPinnedToBottom: Bool
@@ -202,12 +210,16 @@ struct ChatSingleThreadMessagesView: View {
     @State private var lastMeasuredContentHeight: CGFloat = 0
     @State private var pendingPinnedBottomRefreshTask: Task<Void, Never>?
 
+    private var visibleMessagesForWindow: [MessageRenderItem] {
+        Array(allMessages.suffix(messageRenderLimit))
+    }
+
     var body: some View {
         ScrollViewReader { proxy in
             ScrollView {
                 let usableWidth = max(0, containerSize.width - 32)
                 let bubbleMaxWidth = max(260, usableWidth * 0.78)
-                let visibleMessages = Array(allMessages.suffix(messageRenderLimit))
+                let visibleMessages = visibleMessagesForWindow
                 let hiddenCount = allMessages.count - visibleMessages.count
                 let eagerCodeHighlightStartIndex = max(0, visibleMessages.count - eagerCodeHighlightTailCount)
                 let useLazyMessageStack = visibleMessages.count > nonLazyMessageStackThreshold
@@ -330,7 +342,9 @@ struct ChatSingleThreadMessagesView: View {
                 onActivateMessageThread(threadID)
             },
             onActivateTimeline: { },
-            onOpenArtifact: onOpenArtifact
+            onOpenArtifact: onOpenArtifact,
+            effectiveRenderMode: effectiveRenderMode,
+            onExpandCollapsedContent: expandCollapsedContent
         )
     }
 
@@ -388,6 +402,29 @@ struct ChatSingleThreadMessagesView: View {
             debounceNanoseconds: 120_000_000
         )
     }
+
+    private func effectiveRenderMode(index: Int, message: MessageRenderItem) -> MessageRenderMode {
+        if message.preferredRenderMode == .nativeText {
+            return .nativeText
+        }
+
+        guard smartLongChatMemoryMode,
+              message.isAssistant,
+              message.isMemoryIntensiveAssistantContent,
+              message.collapsedPreview != nil,
+              allMessages.count > 48,
+              visibleMessagesForWindow.count > 8,
+              index < max(0, visibleMessagesForWindow.count - 8),
+              !expandedCollapsedMessageIDs.wrappedValue.contains(message.id) else {
+            return .fullWeb
+        }
+
+        return .collapsedPreview
+    }
+
+    private func expandCollapsedContent(_ messageID: UUID) {
+        expandedCollapsedMessageIDs.wrappedValue.insert(messageID)
+    }
 }
 
 struct ChatMultiModelStageView: View {
@@ -410,6 +447,8 @@ struct ChatMultiModelStageView: View {
     let streamingModelLabelForThread: (UUID) -> String?
     let onActivateThread: (UUID) -> Void
     let onOpenArtifact: (RenderedArtifactVersion, UUID?) -> Void
+    let smartLongChatMemoryMode: Bool
+    let expandedCollapsedMessageIDs: Binding<Set<UUID>>
 
     var body: some View {
         let horizontalPadding: CGFloat = 20
@@ -441,7 +480,9 @@ struct ChatMultiModelStageView: View {
                             streamingMessage: streamingMessageForThread(thread.id),
                             streamingModelLabel: streamingModelLabelForThread(thread.id),
                             onActivateThread: { onActivateThread(thread.id) },
-                            onOpenArtifact: onOpenArtifact
+                            onOpenArtifact: onOpenArtifact,
+                            smartLongChatMemoryMode: smartLongChatMemoryMode,
+                            expandedCollapsedMessageIDs: expandedCollapsedMessageIDs
                         )
                     }
                 }
@@ -474,6 +515,8 @@ private struct ChatMultiModelThreadColumnView: View {
     let streamingModelLabel: String?
     let onActivateThread: () -> Void
     let onOpenArtifact: (RenderedArtifactVersion, UUID?) -> Void
+    let smartLongChatMemoryMode: Bool
+    let expandedCollapsedMessageIDs: Binding<Set<UUID>>
 
     @State private var messageRenderLimit: Int
     @State private var pendingRestoreScrollMessageID: UUID?
@@ -498,7 +541,9 @@ private struct ChatMultiModelThreadColumnView: View {
         streamingMessage: StreamingMessageState?,
         streamingModelLabel: String?,
         onActivateThread: @escaping () -> Void,
-        onOpenArtifact: @escaping (RenderedArtifactVersion, UUID?) -> Void
+        onOpenArtifact: @escaping (RenderedArtifactVersion, UUID?) -> Void,
+        smartLongChatMemoryMode: Bool,
+        expandedCollapsedMessageIDs: Binding<Set<UUID>>
     ) {
         self.conversationMessageCount = conversationMessageCount
         self.thread = thread
@@ -520,6 +565,8 @@ private struct ChatMultiModelThreadColumnView: View {
         self.streamingModelLabel = streamingModelLabel
         self.onActivateThread = onActivateThread
         self.onOpenArtifact = onOpenArtifact
+        self.smartLongChatMemoryMode = smartLongChatMemoryMode
+        self.expandedCollapsedMessageIDs = expandedCollapsedMessageIDs
         _messageRenderLimit = State(initialValue: initialMessageRenderLimit)
         _pendingRestoreScrollMessageID = State(initialValue: nil)
     }
@@ -658,7 +705,32 @@ private struct ChatMultiModelThreadColumnView: View {
             bottomID: bottomID,
             onActivateThreadForMessage: { _ in onActivateThread() },
             onActivateTimeline: onActivateThread,
-            onOpenArtifact: onOpenArtifact
+            onOpenArtifact: onOpenArtifact,
+            effectiveRenderMode: effectiveRenderMode,
+            onExpandCollapsedContent: expandCollapsedContent
         )
+    }
+
+    private func effectiveRenderMode(index: Int, message: MessageRenderItem) -> MessageRenderMode {
+        if message.preferredRenderMode == .nativeText {
+            return .nativeText
+        }
+
+        guard smartLongChatMemoryMode,
+              message.isAssistant,
+              message.isMemoryIntensiveAssistantContent,
+              message.collapsedPreview != nil,
+              context.visibleMessages.count > 48,
+              visibleMessages.count > 8,
+              index < max(0, visibleMessages.count - 8),
+              !expandedCollapsedMessageIDs.wrappedValue.contains(message.id) else {
+            return .fullWeb
+        }
+
+        return .collapsedPreview
+    }
+
+    private func expandCollapsedContent(_ messageID: UUID) {
+        expandedCollapsedMessageIDs.wrappedValue.insert(messageID)
     }
 }

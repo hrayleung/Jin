@@ -40,7 +40,6 @@ final class StreamingMessageStateTests: XCTestCase {
 
         XCTAssertEqual(state.renderTick, 0)
         XCTAssertFalse(state.hasVisibleText)
-        XCTAssertEqual(state.textChunks, [])
         XCTAssertEqual(state.thinkingChunks, [])
         XCTAssertEqual(state.textContent, "")
         XCTAssertEqual(state.thinkingContent, "")

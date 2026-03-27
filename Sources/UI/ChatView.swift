@@ -12,6 +12,8 @@ struct ChatView: View {
     static let nonLazyMessageStackThreshold = 16
     static let pinnedBottomRefreshDelays: [TimeInterval] = [0, 0.04, 0.14]
     static let asyncCacheBuildMessageThreshold = 80
+    static let smartLongChatCollapseThreshold = 48
+    static let smartLongChatExpandedTailCount = 8
 
     enum PrepareToSendCancellationReason {
         case userCancelled
@@ -70,6 +72,7 @@ struct ChatView: View {
 
     @AppStorage(AppPreferenceKeys.sendWithCommandEnter) var sendWithCommandEnter = false
     @AppStorage(AppPreferenceKeys.sttAddRecordingAsFile) var sttAddRecordingAsFile = false
+    @AppStorage(AppPreferenceKeys.smartLongChatMemoryMode) var smartLongChatMemoryMode = true
 
     // MARK: - State Properties
 
@@ -97,6 +100,7 @@ struct ChatView: View {
     @State var isExpandedComposerPresented = false
     @State var isComposerHidden = false
     @State var activeThreadID: UUID?
+    @State var expandedCollapsedMessageIDs: Set<UUID> = []
 
     // Cache expensive derived data so typing/streaming doesn't repeatedly sort/decode the entire history.
     @State var cachedVisibleMessages: [MessageRenderItem] = []
@@ -105,6 +109,7 @@ struct ChatView: View {
     @State var cachedActiveThreadHistory: [Message] = []
     @State var cachedToolResultsByCallID: [String: ToolResult] = [:]
     @State var cachedArtifactCatalog: ArtifactCatalog = .empty
+    @State var cachedThreadRenderContextsByThreadID: [UUID: ChatThreadRenderContext] = [:]
     @State var lastCacheRebuildMessageCount: Int = 0
     @State var lastCacheRebuildUpdatedAt: Date = .distantPast
     @State var updatedAtDebounceTask: Task<Void, Never>?

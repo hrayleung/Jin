@@ -25,6 +25,7 @@ enum AppPreferenceKeys {
     static let sendWithCommandEnter = "sendWithCommandEnter"
     static let notifyOnBackgroundResponseCompletion = "notifyOnBackgroundResponseCompletion"
     static let keyboardShortcuts = "keyboardShortcuts.v1"
+    static let smartLongChatMemoryMode = "smartLongChatMemoryMode"
     static let thinkingBlockDisplayMode = "thinkingBlockDisplayMode"
     static let codexToolDisplayMode = "codexToolDisplayMode"
     static let codeExecutionDisplayMode = "codeExecutionDisplayMode"

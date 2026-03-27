@@ -24,7 +24,6 @@ extension ChatView {
     func rebuildMessageCaches() {
         let threadID = activeModelThread?.id
         let ordered = orderedConversationMessages(threadID: threadID)
-        let historyMessages = decodedHistoryMessages(from: ordered)
         let targetUpdatedAt = conversationEntity.updatedAt
         let fallbackModelLabel = currentModelName
 
@@ -42,13 +41,14 @@ extension ChatView {
             applyDecodedRenderContext(
                 ChatDecodedRenderContext(
                     visibleMessages: context.visibleMessages,
+                    historyMessages: context.historyMessages,
                     toolResultsByCallID: context.toolResultsByCallID,
                     artifactCatalog: context.artifactCatalog
                 ),
-                historyMessages: historyMessages,
                 messageEntitiesByID: context.messageEntitiesByID,
                 messageCount: ordered.count,
-                updatedAt: targetUpdatedAt
+                updatedAt: targetUpdatedAt,
+                activeThreadID: threadID
             )
             return
         }
@@ -87,10 +87,10 @@ extension ChatView {
 
             applyDecodedRenderContext(
                 decoded,
-                historyMessages: historyMessages,
                 messageEntitiesByID: messageEntitiesByID,
                 messageCount: messageCount,
-                updatedAt: targetUpdatedAt
+                updatedAt: targetUpdatedAt,
+                activeThreadID: targetThreadID
             )
         }
     }
@@ -105,27 +105,50 @@ extension ChatView {
 
     func applyDecodedRenderContext(
         _ context: ChatDecodedRenderContext,
-        historyMessages: [Message],
         messageEntitiesByID: [UUID: MessageEntity],
         messageCount: Int,
-        updatedAt: Date
+        updatedAt: Date,
+        activeThreadID: UUID?
     ) {
         cachedVisibleMessages = context.visibleMessages
         cachedMessageEntitiesByID = messageEntitiesByID
-        cachedActiveThreadHistory = historyMessages
+        cachedActiveThreadHistory = context.historyMessages
         cachedToolResultsByCallID = context.toolResultsByCallID
         cachedArtifactCatalog = context.artifactCatalog
+        if let activeThreadID {
+            cachedThreadRenderContextsByThreadID[activeThreadID] = ChatThreadRenderContext(
+                visibleMessages: context.visibleMessages,
+                historyMessages: context.historyMessages,
+                messageEntitiesByID: messageEntitiesByID,
+                toolResultsByCallID: context.toolResultsByCallID,
+                artifactCatalog: context.artifactCatalog
+            )
+        }
+        rebuildSupplementaryThreadRenderContexts(activeThreadID: activeThreadID)
         cachedMessagesVersion &+= 1
         lastCacheRebuildMessageCount = messageCount
         lastCacheRebuildUpdatedAt = updatedAt
         syncArtifactSelectionForActiveThread()
     }
 
-    func decodedHistoryMessages(from messageEntities: [MessageEntity]) -> [Message] {
-        let decoder = JSONDecoder()
-        return messageEntities
-            .map(PersistedMessageSnapshot.init)
-            .compactMap { $0.toDomain(using: decoder) }
+    func rebuildSupplementaryThreadRenderContexts(activeThreadID: UUID?) {
+        var nextContexts = activeThreadID.flatMap { threadID in
+            cachedThreadRenderContextsByThreadID[threadID].map { [threadID: $0] }
+        } ?? [:]
+
+        for thread in selectedModelThreads where thread.id != activeThreadID {
+            let ordered = orderedConversationMessages(threadID: thread.id)
+            let fallbackModelLabel = modelName(id: thread.modelID, providerID: thread.providerID)
+            nextContexts[thread.id] = ChatMessageRenderPipeline.makeRenderContext(
+                from: ordered,
+                fallbackModelLabel: fallbackModelLabel,
+                assistantProviderIconID: { providerID in
+                    providerIconID(for: providerID)
+                }
+            )
+        }
+
+        cachedThreadRenderContextsByThreadID = nextContexts
     }
 
     func syncArtifactSelectionForActiveThread() {
