@@ -2,6 +2,7 @@ import SwiftUI
 import AppKit
 import AVFoundation
 import AVKit
+import ImageIO
 
 // MARK: - JinAVPlayerView (AppKit subclass with context menu)
 
@@ -99,13 +100,14 @@ struct ContentPartView: View {
     let part: ContentPart
     var isUser: Bool = false
     var deferCodeHighlightUpgrade: Bool = false
+    var forceNativeText: Bool = false
 
     var body: some View {
         switch part {
         case .text(let text):
             MessageTextView(
                 text: text,
-                mode: isUser ? .plainText : .markdown,
+                mode: (isUser || forceNativeText) ? .plainText : .markdown,
                 deferCodeHighlightUpgrade: (!isUser && deferCodeHighlightUpgrade)
             )
 
@@ -120,7 +122,11 @@ struct ContentPartView: View {
 
             if let data = image.data, let nsImage = NSImage(data: data) {
                 renderedImage(nsImage, fileURL: fileURL, imageData: data, mimeType: image.mimeType)
-            } else if let fileURL, let nsImage = NSImage(contentsOf: fileURL) {
+            } else if let fileURL,
+                      let nsImage = downsampledImage(
+                        at: fileURL,
+                        maxPixelSize: isUser ? 240 : 1_400
+                      ) ?? NSImage(contentsOf: fileURL) {
                 renderedImage(nsImage, fileURL: fileURL, imageData: nil, mimeType: image.mimeType)
             } else if let url = image.remoteURL {
                 RemoteMessageImageView(image: image, url: url, isUser: isUser)
@@ -357,5 +363,19 @@ struct ContentPartView: View {
                 Label("Copy Path", systemImage: "doc.on.doc")
             }
         }
+    }
+
+    private func downsampledImage(at url: URL, maxPixelSize: Int) -> NSImage? {
+        guard let source = CGImageSourceCreateWithURL(url as CFURL, nil) else { return nil }
+        let options: [CFString: Any] = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceShouldCacheImmediately: false,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceThumbnailMaxPixelSize: maxPixelSize,
+        ]
+        guard let cgImage = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary) else {
+            return nil
+        }
+        return NSImage(cgImage: cgImage, size: .zero)
     }
 }

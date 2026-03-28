@@ -44,6 +44,9 @@ struct MessageRenderItem: Identifiable, Sendable {
     let assistantProviderIconID: String?
     let responseMetrics: ResponseMetrics?
     let copyText: String
+    let preferredRenderMode: MessageRenderMode
+    let isMemoryIntensiveAssistantContent: Bool
+    let collapsedPreview: LightweightMessagePreview?
     let canEditUserMessage: Bool
     let canDeleteResponse: Bool
     let perMessageMCPServerNames: [String]
@@ -80,6 +83,8 @@ struct MessageRow: View {
     let onCancelUserEdit: () -> Void
     let editSlashCommand: EditSlashCommandContext
     let onOpenArtifact: (RenderedArtifactVersion, UUID?) -> Void
+    let renderMode: MessageRenderMode
+    let onExpandCollapsedContent: (UUID) -> Void
     let onActivate: (() -> Void)?
     @State private var isResponseMetricsPopoverPresented = false
     @State private var showingDeleteConfirmation = false
@@ -96,6 +101,7 @@ struct MessageRow: View {
         let showsCopyButton = (isUser || isAssistant) && !copyText.isEmpty
         let canEditUserMessage = item.canEditUserMessage
         let canDeleteResponse = item.canDeleteResponse
+        let shouldShowCollapsedPreview = isAssistant && renderMode == .collapsedPreview
         let visibleToolCalls = item.toolCalls.filter { call in
             !BuiltinSearchToolHub.isBuiltinSearchFunctionName(call.name)
             && !isGoogleProviderNativeToolName(call.name)
@@ -188,7 +194,9 @@ struct MessageRow: View {
                                 )
                             }
 
-                            if isUser {
+                            if shouldShowCollapsedPreview {
+                                collapsedAssistantPreview
+                            } else if isUser {
                                 userBlocksView(blocks: item.renderedBlocks)
                             } else {
                                 ForEach(Array(item.renderedBlocks.enumerated()), id: \.offset) { _, block in
@@ -197,7 +205,8 @@ struct MessageRow: View {
                                         ContentPartView(
                                             part: part,
                                             isUser: false,
-                                            deferCodeHighlightUpgrade: deferCodeHighlightUpgrade
+                                            deferCodeHighlightUpgrade: deferCodeHighlightUpgrade,
+                                            forceNativeText: renderMode == .nativeText
                                         )
 
                                     case .artifact(let artifact):
@@ -265,6 +274,59 @@ struct MessageRow: View {
             Button("Cancel", role: .cancel) {
                 pendingDeleteAction = nil
             }
+        }
+    }
+
+    @ViewBuilder
+    private var collapsedAssistantPreview: some View {
+        if let preview = item.collapsedPreview {
+            VStack(alignment: .leading, spacing: JinSpacing.small) {
+                HStack(alignment: .top, spacing: JinSpacing.small) {
+                    Image(systemName: preview.containsCode ? "curlybraces.square" : "doc.text")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 18, height: 18)
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(preview.headline)
+                            .font(.callout.weight(.semibold))
+                            .foregroundStyle(.primary)
+                            .lineLimit(2)
+
+                        if !preview.body.isEmpty {
+                            Text(preview.body)
+                                .font(.callout)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(4)
+                                .multilineTextAlignment(.leading)
+                        }
+                    }
+
+                    Spacer(minLength: 0)
+                }
+
+                HStack(spacing: JinSpacing.small) {
+                    if preview.containsCode {
+                        Text("Code")
+                            .jinTagStyle()
+                    }
+
+                    if preview.lineCount > 1 {
+                        Text("\(preview.lineCount) lines")
+                            .font(.caption)
+                            .foregroundStyle(.tertiary)
+                    }
+
+                    Spacer(minLength: 0)
+
+                    Button("Expand") {
+                        onExpandCollapsedContent(item.id)
+                    }
+                    .buttonStyle(.borderless)
+                    .font(.caption.weight(.semibold))
+                }
+            }
+            .frame(maxWidth: 420, alignment: .leading)
         }
     }
 
@@ -457,7 +519,11 @@ struct MessageRow: View {
         if !imageBlocks.isEmpty {
             HStack(spacing: JinSpacing.small) {
                 ForEach(Array(imageBlocks.enumerated()), id: \.offset) { _, part in
-                    ContentPartView(part: part, isUser: true, deferCodeHighlightUpgrade: deferCodeHighlightUpgrade)
+                    ContentPartView(
+                        part: part,
+                        isUser: true,
+                        deferCodeHighlightUpgrade: deferCodeHighlightUpgrade
+                    )
                 }
             }
         }
@@ -465,7 +531,11 @@ struct MessageRow: View {
         ForEach(Array(nonImageBlocks.enumerated()), id: \.offset) { _, block in
             switch block {
             case .content(let part):
-                ContentPartView(part: part, isUser: true, deferCodeHighlightUpgrade: deferCodeHighlightUpgrade)
+                ContentPartView(
+                    part: part,
+                    isUser: true,
+                    deferCodeHighlightUpgrade: deferCodeHighlightUpgrade
+                )
             case .artifact(let artifact):
                 MessageArtifactCardView(artifact: artifact) {
                     onOpenArtifact(artifact, item.contextThreadID)

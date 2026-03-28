@@ -113,34 +113,7 @@ enum ChatStreamingOrchestrator {
                     throw LLMError.invalidRequest(message: "Provider not found. Configure it in Settings.")
                 }
 
-                let decoder = JSONDecoder()
-                var history = ctx.messageSnapshots
-                    .filter { $0.contextThreadID == ctx.threadID }
-                    .sorted { lhs, rhs in
-                        if lhs.timestamp != rhs.timestamp {
-                            return lhs.timestamp < rhs.timestamp
-                        }
-                        return lhs.id.uuidString < rhs.id.uuidString
-                    }
-                    .compactMap { $0.toDomain(using: decoder) }
-                if let systemPrompt = ctx.systemPrompt, !systemPrompt.isEmpty {
-                    history.insert(Message(role: .system, content: [.text(systemPrompt)]), at: 0)
-                }
-
-                if let maxMessages = ctx.maxHistoryMessages, ctx.shouldTruncateMessages {
-                    history = ChatContextUsageEstimator.historyCappedByMessageCount(
-                        history,
-                        maxHistoryMessages: maxMessages
-                    )
-                }
-
-                if ctx.shouldTruncateMessages {
-                    history = ChatHistoryTruncator.truncatedHistory(
-                        history,
-                        contextWindow: ctx.modelContextWindow,
-                        reservedOutputTokens: ctx.reservedOutputTokens
-                    )
-                }
+                var history = prepareHistory(from: ctx)
 
                 let providerManager = ProviderManager()
                 let adapter = try await providerManager.createAdapter(for: providerConfig)
@@ -443,5 +416,39 @@ enum ChatStreamingOrchestrator {
                 callbacks.onSessionEnd(shouldNotifyNow, previewForNotification, ctx.threadID)
             }
         }
+    }
+
+    static func prepareHistory(from ctx: SessionContext) -> [Message] {
+        let decoder = JSONDecoder()
+        var history = ctx.messageSnapshots
+            .filter { $0.contextThreadID == ctx.threadID }
+            .sorted { lhs, rhs in
+                if lhs.timestamp != rhs.timestamp {
+                    return lhs.timestamp < rhs.timestamp
+                }
+                return lhs.id.uuidString < rhs.id.uuidString
+            }
+            .compactMap { $0.toDomain(using: decoder) }
+
+        if let systemPrompt = ctx.systemPrompt, !systemPrompt.isEmpty {
+            history.insert(Message(role: .system, content: [.text(systemPrompt)]), at: 0)
+        }
+
+        if let maxMessages = ctx.maxHistoryMessages, ctx.shouldTruncateMessages {
+            history = ChatContextUsageEstimator.historyCappedByMessageCount(
+                history,
+                maxHistoryMessages: maxMessages
+            )
+        }
+
+        if ctx.shouldTruncateMessages {
+            history = ChatHistoryTruncator.truncatedHistory(
+                history,
+                contextWindow: ctx.modelContextWindow,
+                reservedOutputTokens: ctx.reservedOutputTokens
+            )
+        }
+
+        return history
     }
 }

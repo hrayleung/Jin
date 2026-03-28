@@ -351,7 +351,7 @@ extension ChatView {
         } else {
             providerConfig = nil
         }
-        let messageSnapshots = conversationEntity.messages.map { PersistedMessageSnapshot($0) }
+        let messageSnapshots = orderedConversationMessages(threadID: threadID).map(PersistedMessageSnapshot.init)
         let assistant = conversationEntity.assistant
         let systemPrompt = resolvedSystemPrompt(
             conversationSystemPrompt: conversationEntity.systemPrompt,

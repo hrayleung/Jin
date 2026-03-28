@@ -83,6 +83,7 @@ extension ChatView {
                 activateThread(by: threadID)
             },
             onOpenArtifact: openArtifact,
+            expandedCollapsedMessageIDs: $expandedCollapsedMessageIDs,
             messageRenderLimit: $messageRenderLimit,
             pendingRestoreScrollMessageID: $pendingRestoreScrollMessageID,
             isPinnedToBottom: $isPinnedToBottom,
@@ -120,15 +121,22 @@ extension ChatView {
             onActivateThread: { threadID in
                 activateThread(by: threadID)
             },
-            onOpenArtifact: openArtifact
+            onOpenArtifact: openArtifact,
+            expandedCollapsedMessageIDs: $expandedCollapsedMessageIDs
         )
     }
 
     // MARK: - Render Contexts
 
     var singleThreadRenderContext: ChatThreadRenderContext {
-        ChatThreadRenderContext(
+        if let threadID = activeModelThread?.id,
+           let cached = cachedThreadRenderContextsByThreadID[threadID] {
+            return cached
+        }
+
+        return ChatThreadRenderContext(
             visibleMessages: cachedVisibleMessages,
+            historyMessages: cachedActiveThreadHistory,
             messageEntitiesByID: cachedMessageEntitiesByID,
             toolResultsByCallID: cachedToolResultsByCallID,
             artifactCatalog: cachedArtifactCatalog
@@ -175,6 +183,10 @@ extension ChatView {
     }
 
     func threadRenderContext(threadID: UUID) -> ChatThreadRenderContext {
+        if let cached = cachedThreadRenderContextsByThreadID[threadID] {
+            return cached
+        }
+
         let ordered = ChatMessageRenderPipeline.orderedMessages(
             from: conversationEntity.messages,
             threadID: threadID
@@ -184,13 +196,20 @@ extension ChatView {
             .map { modelName(id: $0.modelID, providerID: $0.providerID) }
             ?? currentModelName
 
-        return ChatMessageRenderPipeline.makeRenderContext(
+        let context = ChatMessageRenderPipeline.makeRenderContext(
             from: ordered,
             fallbackModelLabel: fallbackModelLabel,
             assistantProviderIconID: { providerID in
                 providerIconID(for: providerID)
             }
         )
+
+        DispatchQueue.main.async { [threadID, context] in
+            guard cachedThreadRenderContextsByThreadID[threadID] == nil else { return }
+            cachedThreadRenderContextsByThreadID[threadID] = context
+        }
+
+        return context
     }
 
     // MARK: - Message Interaction

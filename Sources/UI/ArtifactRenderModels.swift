@@ -1,5 +1,18 @@
 import Foundation
 
+enum MessageRenderMode: Equatable, Sendable {
+    case fullWeb
+    case nativeText
+    case collapsedPreview
+}
+
+struct LightweightMessagePreview: Hashable, Sendable {
+    let headline: String
+    let body: String
+    let lineCount: Int
+    let containsCode: Bool
+}
+
 struct RenderedArtifactVersion: Identifiable, Hashable, Sendable {
     let artifactID: String
     let version: Int
