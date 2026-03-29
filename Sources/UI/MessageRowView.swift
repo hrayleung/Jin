@@ -64,6 +64,7 @@ struct MessageRow: View {
     let assistantDisplayName: String
     let providerIconID: String?
     let deferCodeHighlightUpgrade: Bool
+    let payloadResolver: RenderedMessagePayloadResolver
     let toolResultsByCallID: [String: ToolResult]
     let textToSpeechEnabled: Bool
     let textToSpeechConfigured: Bool
@@ -206,7 +207,8 @@ struct MessageRow: View {
                                             part: part,
                                             isUser: false,
                                             deferCodeHighlightUpgrade: deferCodeHighlightUpgrade,
-                                            forceNativeText: renderMode == .nativeText
+                                            forceNativeText: renderMode == .nativeText,
+                                            payloadResolver: payloadResolver
                                         )
 
                                     case .artifact(let artifact):
@@ -507,7 +509,7 @@ struct MessageRow: View {
 
     @ViewBuilder
     private func userBlocksView(blocks: [RenderedMessageBlock]) -> some View {
-        let imageBlocks = blocks.compactMap { block -> ContentPart? in
+        let imageBlocks = blocks.compactMap { block -> RenderedContentPart? in
             if case .content(let part) = block, case .image = part { return part }
             return nil
         }
@@ -522,7 +524,8 @@ struct MessageRow: View {
                     ContentPartView(
                         part: part,
                         isUser: true,
-                        deferCodeHighlightUpgrade: deferCodeHighlightUpgrade
+                        deferCodeHighlightUpgrade: deferCodeHighlightUpgrade,
+                        payloadResolver: payloadResolver
                     )
                 }
             }
@@ -534,7 +537,8 @@ struct MessageRow: View {
                 ContentPartView(
                     part: part,
                     isUser: true,
-                    deferCodeHighlightUpgrade: deferCodeHighlightUpgrade
+                    deferCodeHighlightUpgrade: deferCodeHighlightUpgrade,
+                    payloadResolver: payloadResolver
                 )
             case .artifact(let artifact):
                 MessageArtifactCardView(artifact: artifact) {

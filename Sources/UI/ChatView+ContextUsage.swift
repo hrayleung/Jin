@@ -127,7 +127,7 @@ extension ChatView {
     }
 
     private func makeContextUsageComputationInput() -> ContextUsageComputationInput? {
-        guard let settings = contextUsageSettingsSnapshot else { return nil }
+        guard let settings = contextUsageSettingsSnapshot, isHistoryCacheReady else { return nil }
 
         return ContextUsageComputationInput(
             history: cachedActiveThreadHistory,

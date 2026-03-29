@@ -3,7 +3,7 @@ import AppKit
 import Kingfisher
 
 struct RemoteMessageImageView: View {
-    let image: ImageContent
+    let image: RenderedImageContent
     let url: URL
     var isUser: Bool = false
 

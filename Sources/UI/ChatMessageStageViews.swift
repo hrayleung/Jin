@@ -121,6 +121,32 @@ struct ChatMessageTimelineView: View {
     let effectiveRenderMode: (Int, MessageRenderItem) -> MessageRenderMode
     let onExpandCollapsedContent: (UUID) -> Void
 
+    private var payloadResolver: RenderedMessagePayloadResolver {
+        let contentDataByMessageID = Dictionary(
+            uniqueKeysWithValues: messageEntitiesByID.map { ($0.key, $0.value.contentData) }
+        )
+        return RenderedMessagePayloadResolver(
+            loadImageData: { deferredSource in
+                guard let contentData = contentDataByMessageID[deferredSource.messageID] else { return nil }
+                return await Task.detached(priority: .utility) {
+                    HistoricalMessagePartLoader.imageData(
+                        from: contentData,
+                        partIndex: deferredSource.partIndex
+                    )
+                }.value
+            },
+            loadFileExtractedText: { deferredSource in
+                guard let contentData = contentDataByMessageID[deferredSource.messageID] else { return nil }
+                return await Task.detached(priority: .utility) {
+                    HistoricalMessagePartLoader.fileExtractedText(
+                        from: contentData,
+                        partIndex: deferredSource.partIndex
+                    )
+                }.value
+            }
+        )
+    }
+
     @ViewBuilder
     var body: some View {
         if hiddenCount > 0,
@@ -141,6 +167,7 @@ struct ChatMessageTimelineView: View {
                 assistantDisplayName: assistantDisplayName,
                 providerIconID: providerIconID,
                 deferCodeHighlightUpgrade: index < eagerCodeHighlightStartIndex,
+                payloadResolver: payloadResolver,
                 toolResultsByCallID: toolResultsByCallID,
                 textToSpeechEnabled: interaction.textToSpeechEnabled,
                 textToSpeechConfigured: interaction.textToSpeechConfigured,

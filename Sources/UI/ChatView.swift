@@ -11,7 +11,6 @@ struct ChatView: View {
     static let eagerCodeHighlightTailCount = 6
     static let nonLazyMessageStackThreshold = 16
     static let pinnedBottomRefreshDelays: [TimeInterval] = [0, 0.04, 0.14]
-    static let asyncCacheBuildMessageThreshold = 80
     static let smartLongChatCollapseThreshold = 48
     static let smartLongChatExpandedTailCount = 8
     static let contextUsageRefreshDelay = Duration.milliseconds(180)
@@ -111,6 +110,7 @@ struct ChatView: View {
     @State var cachedMessagesVersion: Int = 0
     @State var cachedMessageEntitiesByID: [UUID: MessageEntity] = [:]
     @State var cachedActiveThreadHistory: [Message] = []
+    @State var isHistoryCacheReady = true
     @State var cachedToolResultsByCallID: [String: ToolResult] = [:]
     @State var cachedArtifactCatalog: ArtifactCatalog = .empty
     // swiftlint:disable:next private_swiftui_state
@@ -120,6 +120,7 @@ struct ChatView: View {
     @State var updatedAtDebounceTask: Task<Void, Never>?
     @State var renderContextBuildTask: Task<Void, Never>?
     @State var renderContextDecodeTask: Task<ChatDecodedRenderContext, Never>?
+    @State var historyDecodeTask: Task<Void, Never>?
     @State var activeRenderContextBuildToken = UUID()
     @State var isArtifactPaneVisible = false
     @State var selectedArtifactIDByThreadID: [UUID: String] = [:]

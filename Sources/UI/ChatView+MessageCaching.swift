@@ -30,7 +30,7 @@ extension ChatView {
         cancelRenderContextBuild()
 
         let messageEntitiesByID = Dictionary(uniqueKeysWithValues: ordered.map { ($0.id, $0) })
-        if ordered.count < Self.asyncCacheBuildMessageThreshold {
+        if !ChatMessageRenderPipeline.shouldBuildRenderContextAsynchronously(from: ordered) {
             let context = ChatMessageRenderPipeline.makeRenderContext(
                 from: ordered,
                 fallbackModelLabel: fallbackModelLabel,
@@ -92,6 +92,13 @@ extension ChatView {
                 updatedAt: targetUpdatedAt,
                 activeThreadID: targetThreadID
             )
+            scheduleDecodedHistoryMessages(
+                from: snapshots,
+                buildToken: buildToken,
+                targetConversationID: targetConversationID,
+                targetThreadID: targetThreadID,
+                updatedAt: targetUpdatedAt
+            )
         }
     }
 
@@ -101,6 +108,9 @@ extension ChatView {
         renderContextBuildTask = nil
         renderContextDecodeTask?.cancel()
         renderContextDecodeTask = nil
+        historyDecodeTask?.cancel()
+        historyDecodeTask = nil
+        isHistoryCacheReady = true
     }
 
     func applyDecodedRenderContext(
@@ -113,6 +123,7 @@ extension ChatView {
         cachedVisibleMessages = context.visibleMessages
         cachedMessageEntitiesByID = messageEntitiesByID
         cachedActiveThreadHistory = context.historyMessages
+        isHistoryCacheReady = !context.historyMessages.isEmpty || messageCount == 0
         cachedToolResultsByCallID = context.toolResultsByCallID
         cachedArtifactCatalog = context.artifactCatalog
         if let activeThreadID {
@@ -129,6 +140,50 @@ extension ChatView {
         lastCacheRebuildMessageCount = messageCount
         lastCacheRebuildUpdatedAt = updatedAt
         syncArtifactSelectionForActiveThread()
+    }
+
+    func scheduleDecodedHistoryMessages(
+        from snapshots: [PersistedMessageSnapshot],
+        buildToken: UUID,
+        targetConversationID: UUID,
+        targetThreadID: UUID?,
+        updatedAt: Date
+    ) {
+        historyDecodeTask?.cancel()
+        historyDecodeTask = Task { @MainActor in
+            let history = await Task.detached(priority: .utility) {
+                ChatMessageRenderPipeline.decodeHistoryMessages(from: snapshots)
+            }.value
+
+            guard !Task.isCancelled else { return }
+            guard activeRenderContextBuildToken == buildToken else { return }
+            guard conversationEntity.id == targetConversationID else { return }
+            guard activeModelThread?.id == targetThreadID else { return }
+            guard conversationEntity.updatedAt == updatedAt else { return }
+
+            applyDecodedHistoryMessages(history, activeThreadID: targetThreadID)
+            historyDecodeTask = nil
+        }
+    }
+
+    func applyDecodedHistoryMessages(_ historyMessages: [Message], activeThreadID: UUID?) {
+        cachedActiveThreadHistory = historyMessages
+        isHistoryCacheReady = true
+        if let activeThreadID {
+            let visibleMessages = cachedThreadRenderContextsByThreadID[activeThreadID]?.visibleMessages ?? cachedVisibleMessages
+            let messageEntitiesByID = cachedThreadRenderContextsByThreadID[activeThreadID]?.messageEntitiesByID ?? cachedMessageEntitiesByID
+            let toolResultsByCallID = cachedThreadRenderContextsByThreadID[activeThreadID]?.toolResultsByCallID ?? cachedToolResultsByCallID
+            let artifactCatalog = cachedThreadRenderContextsByThreadID[activeThreadID]?.artifactCatalog ?? cachedArtifactCatalog
+
+            cachedThreadRenderContextsByThreadID[activeThreadID] = ChatThreadRenderContext(
+                visibleMessages: visibleMessages,
+                historyMessages: historyMessages,
+                messageEntitiesByID: messageEntitiesByID,
+                toolResultsByCallID: toolResultsByCallID,
+                artifactCatalog: artifactCatalog
+            )
+        }
+        refreshContextUsageEstimate(debounced: false)
     }
 
     func rebuildSupplementaryThreadRenderContexts(activeThreadID: UUID?) {

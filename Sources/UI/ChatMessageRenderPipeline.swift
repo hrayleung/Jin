@@ -2,6 +2,10 @@ import Collections
 import Foundation
 
 enum ChatMessageRenderPipeline {
+    private static let asyncBuildMessageCountThreshold = 80
+    private static let asyncBuildTotalPayloadByteThreshold = 32_000
+    private static let asyncBuildSingleMessagePayloadByteThreshold = 12_000
+
     static func orderedMessages(from messages: [MessageEntity], threadID: UUID? = nil) -> [MessageEntity] {
         let filtered = messages.filter { entity in
             guard let threadID else { return true }
@@ -14,6 +18,23 @@ enum ChatMessageRenderPipeline {
             }
             return lhs.id.uuidString < rhs.id.uuidString
         }
+    }
+
+    static func shouldBuildRenderContextAsynchronously(from orderedMessages: [MessageEntity]) -> Bool {
+        guard !orderedMessages.isEmpty else { return false }
+
+        var totalPayloadBytes = 0
+        var largestMessagePayloadBytes = 0
+
+        for entity in orderedMessages {
+            let payloadBytes = estimatedPayloadBytes(for: entity)
+            totalPayloadBytes += payloadBytes
+            largestMessagePayloadBytes = max(largestMessagePayloadBytes, payloadBytes)
+        }
+
+        return orderedMessages.count >= asyncBuildMessageCountThreshold
+            || totalPayloadBytes >= asyncBuildTotalPayloadByteThreshold
+            || largestMessagePayloadBytes >= asyncBuildSingleMessagePayloadByteThreshold
     }
 
     static func makeRenderContext(
@@ -36,18 +57,24 @@ enum ChatMessageRenderPipeline {
             messageEntitiesByID[entity.id] = entity
             guard let message = try? entity.toDomain() else { continue }
             historyMessages.append(message)
-            guard entity.role != "tool" else { continue }
+            guard entity.role != "tool",
+                  let messageRole = MessageRole(rawValue: entity.role) else { continue }
+            let renderedContent = renderedContentParts(
+                from: message.content,
+                messageID: entity.id
+            )
             let renderedBlocks = renderedBlocks(
-                content: message.content,
-                role: message.role,
+                content: renderedContent,
+                role: messageRole,
                 messageID: entity.id,
                 timestamp: entity.timestamp,
                 artifactVersionCounts: &artifactVersionCounts,
                 artifactVersionsByID: &artifactVersionsByID
             )
-            let copyText = copyableText(from: message, role: message.role)
+            let copyText = copyableText(from: renderedContent, role: messageRole)
             let renderMetadata = renderMetadata(
-                for: message,
+                role: messageRole,
+                content: renderedContent,
                 renderedBlocks: renderedBlocks,
                 copyText: copyText
             )
@@ -81,7 +108,7 @@ enum ChatMessageRenderPipeline {
                     isMemoryIntensiveAssistantContent: renderMetadata.isMemoryIntensiveAssistantContent,
                     collapsedPreview: renderMetadata.collapsedPreview,
                     canEditUserMessage: entity.role == "user"
-                        && message.content.contains(where: { part in
+                        && renderedContent.contains(where: { part in
                             if case .text = part { return true }
                             return false
                         }),
@@ -114,8 +141,6 @@ enum ChatMessageRenderPipeline {
     ) -> ChatDecodedRenderContext {
         var renderedItems: [MessageRenderItem] = []
         renderedItems.reserveCapacity(orderedMessages.count)
-        var historyMessages: [Message] = []
-        historyMessages.reserveCapacity(orderedMessages.count)
 
         var artifactVersionCounts: [String: Int] = [:]
         var artifactVersionsByID: OrderedDictionary<String, [RenderedArtifactVersion]> = [:]
@@ -125,29 +150,46 @@ enum ChatMessageRenderPipeline {
             if Task.isCancelled {
                 break
             }
-            guard let message = snapshot.toDomain(using: decoder) else { continue }
-            historyMessages.append(message)
-            guard snapshot.role != "tool" else { continue }
+            guard snapshot.role != "tool",
+                  let messageRole = MessageRole(rawValue: snapshot.role),
+                  let renderedContent = renderedContentParts(
+                    from: snapshot.contentData,
+                    messageID: snapshot.id
+                  ) else {
+                continue
+            }
 
             let renderedBlocks = renderedBlocks(
-                content: message.content,
-                role: message.role,
+                content: renderedContent,
+                role: messageRole,
                 messageID: snapshot.id,
                 timestamp: snapshot.timestamp,
                 artifactVersionCounts: &artifactVersionCounts,
                 artifactVersionsByID: &artifactVersionsByID
             )
-            let copyText = copyableText(from: message, role: message.role)
+            let copyText = copyableText(from: renderedContent, role: messageRole)
             let renderMetadata = renderMetadata(
-                for: message,
+                role: messageRole,
+                content: renderedContent,
                 renderedBlocks: renderedBlocks,
                 copyText: copyText
             )
-            let toolCalls = message.toolCalls ?? []
-            let searchActivities = message.searchActivities ?? []
-            let codeExecutionActivities = message.codeExecutionActivities ?? []
-            let codexToolActivities = message.codexToolActivities ?? []
-            let agentToolActivities = message.agentToolActivities ?? []
+            let toolCalls = snapshot.toolCallsData.flatMap { try? decoder.decode([ToolCall].self, from: $0) } ?? []
+            let searchActivities = snapshot.searchActivitiesData.flatMap {
+                try? decoder.decode([SearchActivity].self, from: $0)
+            } ?? []
+            let codeExecutionActivities = snapshot.codeExecutionActivitiesData.flatMap {
+                try? decoder.decode([CodeExecutionActivity].self, from: $0)
+            } ?? []
+            let codexToolActivities = snapshot.codexToolActivitiesData.flatMap {
+                try? decoder.decode([CodexToolActivity].self, from: $0)
+            } ?? []
+            let agentToolActivities = snapshot.agentToolActivitiesData.flatMap {
+                try? decoder.decode([CodexToolActivity].self, from: $0)
+            } ?? []
+            let perMessageMCPServerNames = snapshot.perMessageMCPServerNamesData.flatMap {
+                try? decoder.decode([String].self, from: $0)
+            } ?? []
 
             renderedItems.append(
                 MessageRenderItem(
@@ -173,7 +215,7 @@ enum ChatMessageRenderPipeline {
                     isMemoryIntensiveAssistantContent: renderMetadata.isMemoryIntensiveAssistantContent,
                     collapsedPreview: renderMetadata.collapsedPreview,
                     canEditUserMessage: snapshot.role == "user"
-                        && message.content.contains(where: { part in
+                        && renderedContent.contains(where: { part in
                             if case .text = part { return true }
                             return false
                         }),
@@ -182,20 +224,37 @@ enum ChatMessageRenderPipeline {
                             afterUserMessage: snapshot,
                             orderedMessages: orderedMessages
                         ) != nil,
-                    perMessageMCPServerNames: message.perMessageMCPServerNames ?? []
+                    perMessageMCPServerNames: perMessageMCPServerNames
                 )
             )
         }
 
         return ChatDecodedRenderContext(
             visibleMessages: renderedItems,
-            historyMessages: historyMessages,
+            historyMessages: [],
             toolResultsByCallID: toolResultsByToolCallID(in: orderedMessages),
             artifactCatalog: ArtifactCatalog(
                 orderedArtifactIDs: Array(artifactVersionsByID.keys),
                 versionsByArtifactID: Dictionary(uniqueKeysWithValues: artifactVersionsByID.map { ($0.key, $0.value) })
             )
         )
+    }
+
+    static func decodeHistoryMessages(from orderedMessages: [PersistedMessageSnapshot]) -> [Message] {
+        let decoder = JSONDecoder()
+        var historyMessages: [Message] = []
+        historyMessages.reserveCapacity(orderedMessages.count)
+
+        for snapshot in orderedMessages {
+            if Task.isCancelled {
+                break
+            }
+            if let historyMessage = snapshot.toDomain(using: decoder) {
+                historyMessages.append(historyMessage)
+            }
+        }
+
+        return historyMessages
     }
 
     static func editableUserText(from message: Message) -> String? {
@@ -210,7 +269,7 @@ enum ChatMessageRenderPipeline {
     }
 
     private static func renderedBlocks(
-        content: [ContentPart],
+        content: [RenderedContentPart],
         role: MessageRole,
         messageID: UUID,
         timestamp: Date,
@@ -285,8 +344,8 @@ enum ChatMessageRenderPipeline {
         return result.isEmpty ? nil : result
     }
 
-    private static func copyableText(from message: Message, role: MessageRole) -> String {
-        let textParts = message.content.compactMap { part -> String? in
+    private static func copyableText(from content: [RenderedContentPart], role: MessageRole) -> String {
+        let textParts = content.compactMap { part -> String? in
             guard case .text(let text) = part else { return nil }
             let sourceText: String
             if role == .assistant {
@@ -302,7 +361,7 @@ enum ChatMessageRenderPipeline {
             return textParts.joined(separator: "\n\n")
         }
 
-        let fileParts = message.content.compactMap { part -> String? in
+        let fileParts = content.compactMap { part -> String? in
             guard case .file(let file) = part else { return nil }
             let trimmed = file.filename.trimmingCharacters(in: .whitespacesAndNewlines)
             return trimmed.isEmpty ? nil : trimmed
@@ -318,11 +377,12 @@ enum ChatMessageRenderPipeline {
     }
 
     private static func renderMetadata(
-        for message: Message,
+        role: MessageRole,
+        content: [RenderedContentPart],
         renderedBlocks: [RenderedMessageBlock],
         copyText: String
     ) -> RenderMetadata {
-        guard message.role == .assistant else {
+        guard role == .assistant else {
             return RenderMetadata(
                 preferredRenderMode: .fullWeb,
                 isMemoryIntensiveAssistantContent: false,
@@ -334,14 +394,14 @@ enum ChatMessageRenderPipeline {
             if case .artifact = block { return true }
             return false
         }
-        let textParts = message.content.compactMap { part -> String? in
+        let textParts = content.compactMap { part -> String? in
             guard case .text(let text) = part else { return nil }
             return ArtifactMarkupParser.visibleText(from: text)
         }
         let combinedText = textParts.joined(separator: "\n\n")
         let hasSingleTextPartOnly = renderedBlocks.count == 1
-            && message.content.count == 1
-            && message.content.allSatisfy { part in
+            && content.count == 1
+            && content.allSatisfy { part in
                 if case .text = part { return true }
                 return false
             }
@@ -489,5 +549,218 @@ enum ChatMessageRenderPipeline {
         }
 
         return results
+    }
+
+    private static func renderedContentParts(
+        from content: [ContentPart],
+        messageID: UUID
+    ) -> [RenderedContentPart] {
+        content.enumerated().map { index, part in
+            switch part {
+            case .text(let text):
+                return .text(text)
+            case .image(let image):
+                return .image(
+                    RenderedImageContent(
+                        mimeType: image.mimeType,
+                        inlineData: image.data,
+                        url: image.url,
+                        assetDisposition: image.assetDisposition,
+                        deferredSource: image.data == nil ? nil : DeferredMessagePartReference(
+                            messageID: messageID,
+                            partIndex: index
+                        )
+                    )
+                )
+            case .video(let video):
+                return .video(video)
+            case .file(let file):
+                return .file(
+                    RenderedFileContent(
+                        mimeType: file.mimeType,
+                        filename: file.filename,
+                        url: file.url,
+                        extractedText: file.extractedText,
+                        hasDeferredExtractedText: false,
+                        deferredSource: file.extractedText == nil ? nil : DeferredMessagePartReference(
+                            messageID: messageID,
+                            partIndex: index
+                        )
+                    )
+                )
+            case .audio(let audio):
+                return .audio(audio)
+            case .thinking(let thinking):
+                return .thinking(thinking)
+            case .redactedThinking(let thinking):
+                return .redactedThinking(thinking)
+            }
+        }
+    }
+
+    private static func renderedContentParts(
+        from contentData: Data,
+        messageID: UUID
+    ) -> [RenderedContentPart]? {
+        guard let rawParts = (try? JSONSerialization.jsonObject(with: contentData)) as? [[String: Any]] else {
+            return nil
+        }
+
+        var parts: [RenderedContentPart] = []
+        parts.reserveCapacity(rawParts.count)
+
+        for (index, rawPart) in rawParts.enumerated() {
+            guard let type = rawPart["type"] as? String else { continue }
+            let deferredSource = DeferredMessagePartReference(messageID: messageID, partIndex: index)
+
+            switch type {
+            case "text":
+                guard let text = rawPart["text"] as? String else { continue }
+                parts.append(.text(text))
+
+            case "image":
+                guard let image = rawPart["image"] as? [String: Any],
+                      let mimeType = image["mimeType"] as? String else { continue }
+                let url = url(from: image["url"])
+                let hasInlineData = image.keys.contains("data") && !(image["data"] is NSNull)
+                let assetDisposition = mediaAssetDisposition(
+                    rawValue: image["assetDisposition"] as? String,
+                    url: url,
+                    hasInlineData: hasInlineData
+                )
+                parts.append(
+                    .image(
+                        RenderedImageContent(
+                            mimeType: mimeType,
+                            inlineData: nil,
+                            url: url,
+                            assetDisposition: assetDisposition,
+                            deferredSource: hasInlineData ? deferredSource : nil
+                        )
+                    )
+                )
+
+            case "video":
+                guard let video = rawPart["video"] as? [String: Any],
+                      let mimeType = video["mimeType"] as? String else { continue }
+                parts.append(
+                    .video(
+                        VideoContent(
+                            mimeType: mimeType,
+                            data: nil,
+                            url: url(from: video["url"]),
+                            assetDisposition: mediaAssetDisposition(
+                                rawValue: video["assetDisposition"] as? String,
+                                url: url(from: video["url"]),
+                                hasInlineData: video.keys.contains("data") && !(video["data"] is NSNull)
+                            )
+                        )
+                    )
+                )
+
+            case "file":
+                guard let file = rawPart["file"] as? [String: Any],
+                      let mimeType = file["mimeType"] as? String,
+                      let filename = file["filename"] as? String else { continue }
+                let extractedText = file["extractedText"] as? String
+                let hasDeferredExtractedText = file.keys.contains("extractedText") && !(file["extractedText"] is NSNull)
+                parts.append(
+                    .file(
+                        RenderedFileContent(
+                            mimeType: mimeType,
+                            filename: filename,
+                            url: url(from: file["url"]),
+                            extractedText: extractedText,
+                            hasDeferredExtractedText: extractedText == nil && hasDeferredExtractedText,
+                            deferredSource: extractedText == nil && hasDeferredExtractedText ? deferredSource : nil
+                        )
+                    )
+                )
+
+            case "audio":
+                guard let audio = rawPart["audio"] as? [String: Any],
+                      let mimeType = audio["mimeType"] as? String else { continue }
+                parts.append(
+                    .audio(
+                        AudioContent(
+                            mimeType: mimeType,
+                            data: nil,
+                            url: url(from: audio["url"])
+                        )
+                    )
+                )
+
+            case "thinking":
+                guard let text = rawPart["thinking"] as? String else { continue }
+                parts.append(
+                    .thinking(
+                        ThinkingBlock(
+                            text: text,
+                            signature: rawPart["signature"] as? String,
+                            provider: rawPart["provider"] as? String
+                        )
+                    )
+                )
+
+            case "redactedThinking":
+                guard let data = rawPart["redactedData"] as? String else { continue }
+                parts.append(
+                    .redactedThinking(
+                        RedactedThinkingBlock(
+                            data: data,
+                            provider: rawPart["provider"] as? String
+                        )
+                    )
+                )
+
+            default:
+                continue
+            }
+        }
+
+        return parts
+    }
+
+    private static func url(from value: Any?) -> URL? {
+        guard let string = value as? String else { return nil }
+        return URL(string: string)
+    }
+
+    private static func mediaAssetDisposition(
+        rawValue: String?,
+        url: URL?,
+        hasInlineData: Bool
+    ) -> MediaAssetDisposition {
+        if let rawValue,
+           let disposition = MediaAssetDisposition(rawValue: rawValue) {
+            return disposition
+        }
+
+        if hasInlineData || url?.isFileURL == true {
+            return .managed
+        }
+
+        if url != nil {
+            return .externalReference
+        }
+
+        return .managed
+    }
+
+    private static func estimatedPayloadBytes(for entity: MessageEntity) -> Int {
+        let payloads: [Data?] = [
+            entity.toolCallsData,
+            entity.toolResultsData,
+            entity.searchActivitiesData,
+            entity.codeExecutionActivitiesData,
+            entity.codexToolActivitiesData,
+            entity.agentToolActivitiesData,
+            entity.perMessageMCPServerNamesData,
+            entity.responseMetricsData
+        ]
+
+        return entity.contentData.count + payloads.reduce(0) { partialResult, payload in
+            partialResult + (payload?.count ?? 0)
+        }
     }
 }
