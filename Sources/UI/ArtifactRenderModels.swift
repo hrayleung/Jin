@@ -6,6 +6,51 @@ enum MessageRenderMode: Equatable, Sendable {
     case collapsedPreview
 }
 
+struct DeferredMessagePartReference: Hashable, Sendable {
+    let messageID: UUID
+    let partIndex: Int
+}
+
+struct RenderedImageContent: Sendable {
+    let mimeType: String
+    let inlineData: Data?
+    let url: URL?
+    let assetDisposition: MediaAssetDisposition
+    let deferredSource: DeferredMessagePartReference?
+
+    var remoteURL: URL? {
+        guard let url, !url.isFileURL else { return nil }
+        return url
+    }
+}
+
+struct RenderedFileContent: Sendable {
+    let mimeType: String
+    let filename: String
+    let url: URL?
+    let extractedText: String?
+    let hasDeferredExtractedText: Bool
+    let deferredSource: DeferredMessagePartReference?
+
+    var hasExtractedText: Bool {
+        if let extractedText,
+           !extractedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return true
+        }
+        return hasDeferredExtractedText
+    }
+}
+
+enum RenderedContentPart: Sendable {
+    case text(String)
+    case image(RenderedImageContent)
+    case video(VideoContent)
+    case file(RenderedFileContent)
+    case audio(AudioContent)
+    case thinking(ThinkingBlock)
+    case redactedThinking(RedactedThinkingBlock)
+}
+
 struct LightweightMessagePreview: Hashable, Sendable {
     let headline: String
     let body: String
@@ -28,7 +73,7 @@ struct RenderedArtifactVersion: Identifiable, Hashable, Sendable {
 }
 
 enum RenderedMessageBlock: Sendable {
-    case content(ContentPart)
+    case content(RenderedContentPart)
     case artifact(RenderedArtifactVersion)
 }
 
