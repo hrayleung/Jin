@@ -144,11 +144,7 @@ struct DroppableTextEditor: NSViewRepresentable {
             textView.useCommandEnterToSubmit = useCommandEnterToSubmit
         }
 
-        if textView.string != text {
-            let selectedRanges = textView.selectedRanges
-            textView.string = text
-            textView.selectedRanges = selectedRanges
-            textView.needsDisplay = true
+        if textView.syncExternalTextIfNeeded(text) {
             context.coordinator.reportContentHeight(textView)
         }
 
@@ -161,11 +157,7 @@ struct DroppableTextEditor: NSViewRepresentable {
             textView.placeholder = placeholder
         }
 
-        if isFocused, nsView.window?.firstResponder != textView {
-            DispatchQueue.main.async {
-                nsView.window?.makeFirstResponder(textView)
-            }
-        }
+        textView.setProgrammaticFocusRequested(isFocused)
     }
 
     final class Coordinator: NSObject, NSTextViewDelegate {
@@ -454,8 +446,35 @@ final class DroppableNSTextView: NSTextView {
     var onCancel: (() -> Bool)?
     var onInterceptKeyDown: ((UInt16) -> Bool)?
     var useCommandEnterToSubmit = false
+    private var isProgrammaticFocusRequested = false
     var placeholder: String? {
         didSet { needsDisplay = true }
+    }
+
+    func setProgrammaticFocusRequested(_ requested: Bool) {
+        isProgrammaticFocusRequested = requested
+        if requested {
+            applyProgrammaticFocusIfNeeded()
+        }
+    }
+
+    @discardableResult
+    func syncExternalTextIfNeeded(_ text: String) -> Bool {
+        // IME composition uses marked text in the text storage. Replacing the
+        // string while marked text is active discards the in-progress candidate.
+        guard !hasMarkedText() else { return false }
+        guard string != text else { return false }
+
+        let preservedSelectedRanges = selectedRanges
+        string = text
+        selectedRanges = preservedSelectedRanges
+        needsDisplay = true
+        return true
+    }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        applyProgrammaticFocusIfNeeded()
     }
 
     override func becomeFirstResponder() -> Bool {
@@ -602,6 +621,13 @@ final class DroppableNSTextView: NSTextView {
         }
 
         super.keyDown(with: event)
+    }
+
+    @discardableResult
+    private func applyProgrammaticFocusIfNeeded() -> Bool {
+        guard isProgrammaticFocusRequested, let window else { return false }
+        guard window.firstResponder !== self else { return true }
+        return window.makeFirstResponder(self)
     }
 
     override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
