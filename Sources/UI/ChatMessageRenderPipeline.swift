@@ -566,10 +566,10 @@ enum ChatMessageRenderPipeline {
                         inlineData: image.data,
                         url: image.url,
                         assetDisposition: image.assetDisposition,
-                        deferredSource: image.data == nil ? nil : DeferredMessagePartReference(
+                        deferredSource: image.data == nil ? DeferredMessagePartReference(
                             messageID: messageID,
                             partIndex: index
-                        )
+                        ) : nil
                     )
                 )
             case .video(let video):
@@ -581,11 +581,11 @@ enum ChatMessageRenderPipeline {
                         filename: file.filename,
                         url: file.url,
                         extractedText: file.extractedText,
-                        hasDeferredExtractedText: false,
-                        deferredSource: file.extractedText == nil ? nil : DeferredMessagePartReference(
+                        hasDeferredExtractedText: file.extractedText == nil,
+                        deferredSource: file.extractedText == nil ? DeferredMessagePartReference(
                             messageID: messageID,
                             partIndex: index
-                        )
+                        ) : nil
                     )
                 )
             case .audio(let audio):

@@ -3,6 +3,7 @@ import AppKit
 import AVFoundation
 import AVKit
 import ImageIO
+import CryptoKit
 
 // MARK: - JinAVPlayerView (AppKit subclass with context menu)
 
@@ -106,6 +107,15 @@ struct RenderedMessagePayloadResolver {
     )
 }
 
+enum MessageImageCacheKeySupport {
+    static func inlineDataFingerprint(_ data: Data) -> String {
+        SHA256.hash(data: data)
+            .prefix(8)
+            .map { String(format: "%02x", $0) }
+            .joined()
+    }
+}
+
 private enum MessageImageThumbnailProvider {
     static let cache: NSCache<NSString, NSImage> = {
         let cache = NSCache<NSString, NSImage>()
@@ -122,7 +132,7 @@ private enum MessageImageThumbnailProvider {
             return "deferred|\(sizeBucket)|\(source.messageID.uuidString)|\(source.partIndex)" as NSString
         }
         if let data = image.inlineData {
-            return "inline|\(sizeBucket)|\(data.count)" as NSString
+            return "inline|\(sizeBucket)|\(MessageImageCacheKeySupport.inlineDataFingerprint(data))" as NSString
         }
         return "unknown|\(sizeBucket)|\(image.mimeType)" as NSString
     }

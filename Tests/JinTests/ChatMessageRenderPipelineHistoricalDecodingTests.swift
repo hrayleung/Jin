@@ -2,7 +2,7 @@ import XCTest
 @testable import Jin
 
 final class ChatMessageRenderPipelineHistoricalDecodingTests: XCTestCase {
-    func testDecodedRenderContextKeepsImageMessageWhenInlineImagePayloadIsMalformed() {
+    func testDecodedRenderContextKeepsImageMessageWhenInlineImagePayloadIsMalformed() throws {
         let entity = MessageEntity(
             role: MessageRole.assistant.rawValue,
             contentData: Data(
@@ -28,8 +28,8 @@ final class ChatMessageRenderPipelineHistoricalDecodingTests: XCTestCase {
         )
 
         XCTAssertEqual(context.visibleMessages.count, 1)
-        let message = try? XCTUnwrap(context.visibleMessages.first)
-        let block = try? XCTUnwrap(message?.renderedBlocks.first)
+        let message = try XCTUnwrap(context.visibleMessages.first)
+        let block = try XCTUnwrap(message.renderedBlocks.first)
 
         guard case .content(.image(let image)) = block else {
             return XCTFail("Expected lightweight image block")
@@ -39,7 +39,7 @@ final class ChatMessageRenderPipelineHistoricalDecodingTests: XCTestCase {
         XCTAssertNotNil(image.deferredSource)
     }
 
-    func testDecodedRenderContextKeepsFileMessageWhenExtractedTextIsMalformed() {
+    func testDecodedRenderContextKeepsFileMessageWhenExtractedTextIsMalformed() throws {
         let entity = MessageEntity(
             role: MessageRole.user.rawValue,
             contentData: Data(
@@ -66,8 +66,8 @@ final class ChatMessageRenderPipelineHistoricalDecodingTests: XCTestCase {
         )
 
         XCTAssertEqual(context.visibleMessages.count, 1)
-        let message = try? XCTUnwrap(context.visibleMessages.first)
-        let block = try? XCTUnwrap(message?.renderedBlocks.first)
+        let message = try XCTUnwrap(context.visibleMessages.first)
+        let block = try XCTUnwrap(message.renderedBlocks.first)
 
         guard case .content(.file(let file)) = block else {
             return XCTFail("Expected lightweight file block")
@@ -75,5 +75,77 @@ final class ChatMessageRenderPipelineHistoricalDecodingTests: XCTestCase {
 
         XCTAssertEqual(file.filename, "report.pdf")
         XCTAssertTrue(file.hasDeferredExtractedText)
+    }
+
+    func testImmediateRenderContextDoesNotCreateDeferredReferenceForInlineImageData() throws {
+        let message = Message(
+            id: UUID(),
+            role: .assistant,
+            content: [
+                .image(
+                    ImageContent(
+                        mimeType: "image/png",
+                        data: Data([0x89, 0x50, 0x4E, 0x47]),
+                        url: nil,
+                        assetDisposition: .managed
+                    )
+                )
+            ],
+            timestamp: Date(timeIntervalSince1970: 1)
+        )
+
+        let entity = try MessageEntity.fromDomain(message)
+        let context = ChatMessageRenderPipeline.makeRenderContext(
+            from: [entity],
+            fallbackModelLabel: "GPT",
+            assistantProviderIconID: { _ in nil }
+        )
+
+        let renderedMessage = try XCTUnwrap(context.visibleMessages.first)
+        let block = try XCTUnwrap(renderedMessage.renderedBlocks.first)
+
+        guard case .content(.image(let image)) = block else {
+            return XCTFail("Expected inline image block")
+        }
+
+        XCTAssertNotNil(image.inlineData)
+        XCTAssertNil(image.deferredSource)
+    }
+
+    func testImmediateRenderContextDoesNotCreateDeferredReferenceForFileWithExtractedText() throws {
+        let message = Message(
+            id: UUID(),
+            role: .user,
+            content: [
+                .file(
+                    FileContent(
+                        mimeType: "application/pdf",
+                        filename: "report.pdf",
+                        data: nil,
+                        url: URL(fileURLWithPath: "/tmp/report.pdf"),
+                        extractedText: "Already extracted"
+                    )
+                )
+            ],
+            timestamp: Date(timeIntervalSince1970: 1)
+        )
+
+        let entity = try MessageEntity.fromDomain(message)
+        let context = ChatMessageRenderPipeline.makeRenderContext(
+            from: [entity],
+            fallbackModelLabel: "GPT",
+            assistantProviderIconID: { _ in nil }
+        )
+
+        let renderedMessage = try XCTUnwrap(context.visibleMessages.first)
+        let block = try XCTUnwrap(renderedMessage.renderedBlocks.first)
+
+        guard case .content(.file(let file)) = block else {
+            return XCTFail("Expected file block")
+        }
+
+        XCTAssertEqual(file.extractedText, "Already extracted")
+        XCTAssertFalse(file.hasDeferredExtractedText)
+        XCTAssertNil(file.deferredSource)
     }
 }
