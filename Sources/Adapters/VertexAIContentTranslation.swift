@@ -5,98 +5,7 @@ extension VertexAIAdapter {
     // MARK: - Content Translation
 
     func translateMessage(_ message: Message, supportsNativePDF: Bool) throws -> [String: Any] {
-        let role: String = (message.role == .assistant) ? "model" : "user"
-
-        var parts: [[String: Any]] = []
-
-        if message.role != .tool {
-            if message.role == .assistant {
-                for part in message.content {
-                    if case .thinking(let thinking) = part {
-                        var dict: [String: Any] = [
-                            "text": thinking.text,
-                            "thought": true
-                        ]
-                        if let signature = thinking.signature {
-                            dict["thoughtSignature"] = signature
-                        }
-                        parts.append(dict)
-                    }
-                }
-            }
-
-            for part in message.content {
-                switch part {
-                case .text(let text):
-                    parts.append(["text": text])
-                case .image(let image):
-                    if let inline = try GeminiModelConstants.inlineDataPart(mimeType: image.mimeType, data: image.data, url: image.url) {
-                        parts.append(inline)
-                    }
-                case .video(let video):
-                    if let inline = try GeminiModelConstants.inlineDataPart(mimeType: video.mimeType, data: video.data, url: video.url) {
-                        parts.append(inline)
-                    }
-                case .audio(let audio):
-                    if let inline = try GeminiModelConstants.inlineDataPart(mimeType: audio.mimeType, data: audio.data, url: audio.url) {
-                        parts.append(inline)
-                    }
-                case .file(let file):
-                    if supportsNativePDF, file.mimeType == "application/pdf",
-                       let inline = try GeminiModelConstants.inlineDataPart(mimeType: "application/pdf", data: file.data, url: file.url) {
-                        parts.append(inline)
-                        continue
-                    }
-
-                    let text = googleFileFallbackText(file, providerName: "Vertex AI")
-                    parts.append(["text": text])
-                case .thinking, .redactedThinking:
-                    break
-                }
-            }
-        }
-
-        if message.role == .assistant, let toolCalls = message.toolCalls {
-            for call in toolCalls {
-                var part: [String: Any] = [
-                    "functionCall": [
-                        "name": call.name,
-                        "args": call.arguments.mapValues { $0.value }
-                    ]
-                ]
-                if let signature = call.signature {
-                    part["thoughtSignature"] = signature
-                }
-                parts.append(part)
-            }
-        }
-
-        if message.role == .tool, let toolResults = message.toolResults {
-            for result in toolResults {
-                guard let toolName = result.toolName else { continue }
-                var part: [String: Any] = [
-                    "functionResponse": [
-                        "name": toolName,
-                        "response": [
-                            "content": result.content
-                        ]
-                    ]
-                ]
-                if let signature = result.signature {
-                    part["thoughtSignature"] = signature
-                }
-                parts.append(part)
-            }
-        }
-
-        if parts.isEmpty {
-            parts.append(["text": ""])
-        }
-
-        return [
-            "role": role,
-            "parts": parts
-        ]
+        try VertexAIMessageTranslation.translateMessage(message, supportsNativePDF: supportsNativePDF)
     }
 
     // MARK: - Stream Parsing
@@ -125,10 +34,10 @@ extension VertexAIAdapter {
     func parseStreamChunk(
         _ data: String,
         codeExecutionState: inout GeminiModelConstants.GoogleCodeExecutionEventState
-    ) throws -> (events: [StreamEvent], usage: Usage?) {
+    ) throws -> (events: [StreamEvent], usage: Usage?, contentFiltered: Bool) {
         let trimmed = data.trimmingCharacters(in: .whitespacesAndNewlines)
         guard let jsonData = trimmed.data(using: .utf8) else {
-            return ([], nil)
+            return ([], nil, false)
         }
 
         let decoder = JSONDecoder()
@@ -136,19 +45,36 @@ extension VertexAIAdapter {
 
         if trimmed.hasPrefix("[") {
             let responses = try decoder.decode([VertexGenerateContentResponse].self, from: jsonData)
-            var events: [StreamEvent] = []
-            var usage: Usage?
-            for response in responses {
-                events.append(contentsOf: eventsFromVertexResponse(response, codeExecutionState: &codeExecutionState))
-                if let parsed = usageFromVertexResponse(response) {
-                    usage = parsed
-                }
-            }
-            return (events, usage)
+            return responsesFromStreamChunk(
+                responses,
+                codeExecutionState: &codeExecutionState
+            )
         }
 
         let response = try decoder.decode(VertexGenerateContentResponse.self, from: jsonData)
-        return (eventsFromVertexResponse(response, codeExecutionState: &codeExecutionState), usageFromVertexResponse(response))
+        return responsesFromStreamChunk(
+            [response],
+            codeExecutionState: &codeExecutionState
+        )
+    }
+
+    private func responsesFromStreamChunk(
+        _ responses: [VertexGenerateContentResponse],
+        codeExecutionState: inout GeminiModelConstants.GoogleCodeExecutionEventState
+    ) -> (events: [StreamEvent], usage: Usage?, contentFiltered: Bool) {
+        if responses.contains(where: isResponseContentFiltered) {
+            return ([], nil, true)
+        }
+
+        var events: [StreamEvent] = []
+        var usage: Usage?
+        for response in responses {
+            events.append(contentsOf: eventsFromVertexResponse(response, codeExecutionState: &codeExecutionState))
+            if let parsedUsage = usageFromVertexResponse(response) {
+                usage = parsedUsage
+            }
+        }
+        return (events, usage, false)
     }
 
     func extractJSONObjectStrings(from buffer: inout String) -> [String] {
@@ -236,6 +162,18 @@ extension VertexAIAdapter {
             openPrefix: "vertex-open",
             searchURLPrefix: "vertex-search-url"
         )
+    }
+
+    func isResponseContentFiltered(_ response: VertexGenerateContentResponse) -> Bool {
+        if response.promptFeedback?.blockReason != nil {
+            return true
+        }
+        return response.candidates?.contains(where: isCandidateContentFiltered) == true
+    }
+
+    func isCandidateContentFiltered(_ candidate: VertexGenerateContentResponse.Candidate) -> Bool {
+        let reason = (candidate.finishReason ?? "").uppercased()
+        return reason == "SAFETY" || reason == "BLOCKED" || reason == "PROHIBITED_CONTENT"
     }
 
     private func toSharedGrounding(_ g: VertexGenerateContentResponse.GroundingMetadata) -> GoogleGroundingSearchActivities.GroundingMetadata {

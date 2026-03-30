@@ -8,6 +8,64 @@ final class VertexAIAdapterTests: XCTestCase {
         super.tearDown()
     }
 
+    func testSendMessageUsesExplicitCachedContentAndOmitsSystemInstruction() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+        var didAssertRequest = false
+
+        protocolType.requestHandler = { request in
+            guard let url = request.url else {
+                throw URLError(.badURL)
+            }
+
+            if url.absoluteString == "https://oauth2.googleapis.com/token" {
+                let payload = try JSONSerialization.data(withJSONObject: [
+                    "access_token": "vertex-test-token",
+                    "expires_in": 3600,
+                    "token_type": "Bearer",
+                ])
+                return (HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil)!, payload)
+            }
+
+            let body = try XCTUnwrap(requestBodyData(request))
+            let json = try XCTUnwrap(try JSONSerialization.jsonObject(with: body) as? [String: Any])
+            XCTAssertEqual(json["cachedContent"] as? String, "cachedContents/abc123")
+            XCTAssertNil(json["systemInstruction"])
+            didAssertRequest = true
+
+            let responseLine = """
+            {"candidates":[{"content":{"parts":[{"text":"cached response"}]}}]}
+
+            """
+
+            return (
+                HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                Data(responseLine.utf8)
+            )
+        }
+
+        let adapter = makeVertexAIAdapter(networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [
+                Message(role: .system, content: [.text("system instruction")]),
+                Message(role: .user, content: [.text("hello")])
+            ],
+            modelID: "gemini-2.5-flash",
+            controls: GenerationControls(
+                contextCache: ContextCacheControls(
+                    mode: .explicit,
+                    cachedContentName: "cachedContents/abc123"
+                )
+            ),
+            tools: [],
+            streaming: true
+        )
+
+        for try await _ in stream {}
+
+        XCTAssertTrue(didAssertRequest)
+    }
+
     func testVertexAIAdapterBuildsCodeExecutionToolAndParsesExecutionParts() async throws {
         let (configuration, protocolType) = makeMockedSessionConfiguration()
         let networkManager = NetworkManager(configuration: configuration)
@@ -198,6 +256,386 @@ final class VertexAIAdapterTests: XCTestCase {
         for try await _ in stream {}
     }
 
+    func testSendMessageNonStreamingEmitsDecodedResponseEvents() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        protocolType.requestHandler = { request in
+            guard let url = request.url else {
+                throw URLError(.badURL)
+            }
+
+            if url.absoluteString == "https://oauth2.googleapis.com/token" {
+                let payload = try JSONSerialization.data(withJSONObject: [
+                    "access_token": "vertex-test-token",
+                    "expires_in": 3600,
+                    "token_type": "Bearer",
+                ])
+                return (HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil)!, payload)
+            }
+
+            XCTAssertEqual(
+                url.absoluteString,
+                "https://aiplatform.googleapis.com/v1/projects/project/locations/global/publishers/google/models/gemini-2.5-flash:generateContent"
+            )
+
+            let response = try JSONSerialization.data(withJSONObject: [
+                "candidates": [[
+                    "content": [
+                        "parts": [
+                            ["text": "Vertex full response"]
+                        ]
+                    ],
+                    "groundingMetadata": [
+                        "webSearchQueries": ["vertex exact query"]
+                    ]
+                ]],
+                "usageMetadata": [
+                    "promptTokenCount": 12,
+                    "candidatesTokenCount": 8,
+                    "totalTokenCount": 20
+                ]
+            ])
+
+            return (
+                HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                response
+            )
+        }
+
+        let adapter = makeVertexAIAdapter(networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hello")])],
+            modelID: "gemini-2.5-flash",
+            controls: GenerationControls(),
+            tools: [],
+            streaming: false
+        )
+
+        var didStart = false
+        var textDeltas: [String] = []
+        var searchQueries: [String] = []
+        var usage: Usage?
+
+        for try await event in stream {
+            switch event {
+            case .messageStart:
+                didStart = true
+            case .contentDelta(.text(let text)):
+                textDeltas.append(text)
+            case .searchActivity(let activity):
+                if let query = activity.arguments["query"]?.value as? String {
+                    searchQueries.append(query)
+                }
+            case .messageEnd(let finalUsage):
+                usage = finalUsage
+            default:
+                break
+            }
+        }
+
+        XCTAssertTrue(didStart)
+        XCTAssertEqual(textDeltas, ["Vertex full response"])
+        XCTAssertEqual(searchQueries, ["vertex exact query"])
+        XCTAssertEqual(usage?.inputTokens, 12)
+        XCTAssertEqual(usage?.outputTokens, 8)
+    }
+
+    func testSendMessageNonStreamingThrowsWhenPromptFeedbackBlocksResponse() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        protocolType.requestHandler = { request in
+            guard let url = request.url else {
+                throw URLError(.badURL)
+            }
+
+            if url.absoluteString == "https://oauth2.googleapis.com/token" {
+                let payload = try JSONSerialization.data(withJSONObject: [
+                    "access_token": "vertex-test-token",
+                    "expires_in": 3600,
+                    "token_type": "Bearer",
+                ])
+                return (HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil)!, payload)
+            }
+
+            let response = try JSONSerialization.data(withJSONObject: [
+                "promptFeedback": [
+                    "blockReason": "PROHIBITED_CONTENT"
+                ]
+            ])
+
+            return (
+                HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                response
+            )
+        }
+
+        let adapter = makeVertexAIAdapter(networkManager: networkManager)
+
+        await XCTAssertThrowsErrorAsync({
+            try await adapter.sendMessage(
+                messages: [Message(role: .user, content: [.text("blocked")])],
+                modelID: "gemini-2.5-flash",
+                controls: GenerationControls(),
+                tools: [],
+                streaming: false
+            )
+        }) { error in
+            guard case LLMError.contentFiltered = error else {
+                return XCTFail("Expected contentFiltered, got \(error)")
+            }
+        }
+    }
+
+    func testSendMessageNonStreamingThrowsWhenCandidateFinishReasonIsSafetyBlocked() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        protocolType.requestHandler = { request in
+            guard let url = request.url else {
+                throw URLError(.badURL)
+            }
+
+            if url.absoluteString == "https://oauth2.googleapis.com/token" {
+                let payload = try JSONSerialization.data(withJSONObject: [
+                    "access_token": "vertex-test-token",
+                    "expires_in": 3600,
+                    "token_type": "Bearer",
+                ])
+                return (HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil)!, payload)
+            }
+
+            let response = try JSONSerialization.data(withJSONObject: [
+                "candidates": [[
+                    "finishReason": "SAFETY"
+                ]]
+            ])
+
+            return (
+                HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                response
+            )
+        }
+
+        let adapter = makeVertexAIAdapter(networkManager: networkManager)
+
+        await XCTAssertThrowsErrorAsync({
+            try await adapter.sendMessage(
+                messages: [Message(role: .user, content: [.text("blocked")])],
+                modelID: "gemini-2.5-flash",
+                controls: GenerationControls(),
+                tools: [],
+                streaming: false
+            )
+        }) { error in
+            guard case LLMError.contentFiltered = error else {
+                return XCTFail("Expected contentFiltered, got \(error)")
+            }
+        }
+    }
+
+    func testSendMessageStreamingEmitsContentFilteredErrorWhenCandidateFinishReasonIsSafetyBlocked() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        protocolType.requestHandler = { request in
+            guard let url = request.url else {
+                throw URLError(.badURL)
+            }
+
+            if url.absoluteString == "https://oauth2.googleapis.com/token" {
+                let payload = try JSONSerialization.data(withJSONObject: [
+                    "access_token": "vertex-test-token",
+                    "expires_in": 3600,
+                    "token_type": "Bearer",
+                ])
+                return (HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil)!, payload)
+            }
+
+            let responseLine = """
+            {"candidates":[{"finishReason":"PROHIBITED_CONTENT"}]}
+
+            """
+
+            return (
+                HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                Data(responseLine.utf8)
+            )
+        }
+
+        let adapter = makeVertexAIAdapter(networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("blocked")])],
+            modelID: "gemini-2.5-flash",
+            controls: GenerationControls(),
+            tools: [],
+            streaming: true
+        )
+
+        var didStart = false
+        var receivedContentFiltered = false
+        var didEnd = false
+
+        for try await event in stream {
+            switch event {
+            case .messageStart:
+                didStart = true
+            case .error(.contentFiltered):
+                receivedContentFiltered = true
+            case .messageEnd:
+                didEnd = true
+            default:
+                break
+            }
+        }
+
+        XCTAssertTrue(didStart)
+        XCTAssertTrue(receivedContentFiltered)
+        XCTAssertFalse(didEnd)
+    }
+
+    func testSendMessageStreamingEmitsDecodingErrorWhenNoUsableJSONChunksAreReturned() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        protocolType.requestHandler = { request in
+            guard let url = request.url else {
+                throw URLError(.badURL)
+            }
+
+            if url.absoluteString == "https://oauth2.googleapis.com/token" {
+                let payload = try JSONSerialization.data(withJSONObject: [
+                    "access_token": "vertex-test-token",
+                    "expires_in": 3600,
+                    "token_type": "Bearer",
+                ])
+                return (HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil)!, payload)
+            }
+
+            let responseLine = """
+            event: message
+            : keepalive
+
+            """
+
+            return (
+                HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                Data(responseLine.utf8)
+            )
+        }
+
+        let adapter = makeVertexAIAdapter(networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("empty")])],
+            modelID: "gemini-2.5-flash",
+            controls: GenerationControls(),
+            tools: [],
+            streaming: true
+        )
+
+        var didStart = false
+        var decodingMessage: String?
+        var didEnd = false
+
+        for try await event in stream {
+            switch event {
+            case .messageStart:
+                didStart = true
+            case .error(.decodingError(let message)):
+                decodingMessage = message
+            case .messageEnd:
+                didEnd = true
+            default:
+                break
+            }
+        }
+
+        XCTAssertTrue(didStart)
+        XCTAssertEqual(decodingMessage, "Vertex AI returned an empty response with no usable JSON content.")
+        XCTAssertTrue(didEnd)
+    }
+
+    func testSendMessageReusesAccessTokenAcrossRequests() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+        var tokenRequestCount = 0
+        var modelRequestCount = 0
+
+        protocolType.requestHandler = { request in
+            guard let url = request.url else {
+                throw URLError(.badURL)
+            }
+
+            if url.absoluteString == "https://oauth2.googleapis.com/token" {
+                tokenRequestCount += 1
+                let payload = try JSONSerialization.data(withJSONObject: [
+                    "access_token": "vertex-test-token",
+                    "expires_in": 3600,
+                    "token_type": "Bearer",
+                ])
+                return (HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil)!, payload)
+            }
+
+            modelRequestCount += 1
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer vertex-test-token")
+
+            let responseLine = """
+            {"candidates":[{"content":{"parts":[{"text":"response \(modelRequestCount)"}]}}]}
+
+            """
+
+            return (
+                HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                Data(responseLine.utf8)
+            )
+        }
+
+        let adapter = makeVertexAIAdapter(networkManager: networkManager)
+
+        let firstStream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("first")])],
+            modelID: "gemini-2.5-flash",
+            controls: GenerationControls(),
+            tools: [],
+            streaming: true
+        )
+        for try await _ in firstStream {}
+
+        let secondStream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("second")])],
+            modelID: "gemini-2.5-flash",
+            controls: GenerationControls(),
+            tools: [],
+            streaming: true
+        )
+        for try await _ in secondStream {}
+
+        XCTAssertEqual(tokenRequestCount, 1)
+        XCTAssertEqual(modelRequestCount, 2)
+    }
+
+    func testFetchAvailableModelsReturnsCharacterizedGeminiAndImagenMetadata() async throws {
+        let adapter = makeVertexAIAdapter()
+
+        let models = try await adapter.fetchAvailableModels()
+        let flash = try XCTUnwrap(models.first(where: { $0.id == "gemini-2.5-flash" }))
+        let imagen = try XCTUnwrap(models.first(where: { $0.id == "imagen-4.0-generate-preview-06-06" }))
+
+        XCTAssertEqual(flash.contextWindow, 1_048_576)
+        XCTAssertTrue(flash.capabilities.contains(.streaming))
+        XCTAssertTrue(flash.capabilities.contains(.toolCalling))
+        XCTAssertTrue(flash.capabilities.contains(.promptCaching))
+        XCTAssertTrue(flash.capabilities.contains(.audio))
+        XCTAssertEqual(flash.reasoningConfig?.type, .budget)
+
+        XCTAssertEqual(imagen.contextWindow, 0)
+        XCTAssertTrue(imagen.capabilities.contains(.imageGeneration))
+        XCTAssertFalse(imagen.capabilities.contains(.streaming))
+        XCTAssertFalse(imagen.capabilities.contains(.toolCalling))
+        XCTAssertFalse(imagen.capabilities.contains(.promptCaching))
+    }
+
     func testVertexAIAdapterSuppressesNativeGoogleSearchToolCallEvents() async throws {
         let (configuration, protocolType) = makeMockedSessionConfiguration()
         let networkManager = NetworkManager(configuration: configuration)
@@ -281,6 +719,31 @@ final class VertexAIAdapterTests: XCTestCase {
     }
 }
 
+private func makeVertexAIAdapter(networkManager: NetworkManager = NetworkManager()) -> VertexAIAdapter {
+    VertexAIAdapter(
+        providerConfig: ProviderConfig(
+            id: "vertex",
+            name: "Vertex AI",
+            type: .vertexai,
+            apiKey: "ignored"
+        ),
+        serviceAccountJSON: ServiceAccountCredentials(
+            type: "service_account",
+            projectID: "project",
+            privateKeyID: "key-id",
+            privateKey: testVertexPrivateKey,
+            clientEmail: "svc@example.com",
+            clientID: "1234567890",
+            authURI: "https://accounts.google.com/o/oauth2/auth",
+            tokenURI: "https://oauth2.googleapis.com/token",
+            authProviderX509CertURL: "https://www.googleapis.com/oauth2/v1/certs",
+            clientX509CertURL: "https://www.googleapis.com/robot/v1/metadata/x509/svc%40example.com",
+            location: "global"
+        ),
+        networkManager: networkManager
+    )
+}
+
 private let testVertexPrivateKey = """
 -----BEGIN PRIVATE KEY-----
 MIIEvAIBADANBgkqhkiG9w0BAQEFAASCBKYwggSiAgEAAoIBAQDA1fuTdbcrqnqP
@@ -346,6 +809,20 @@ private func makeMockedSessionConfiguration() -> (URLSessionConfiguration, MockU
     let config = URLSessionConfiguration.ephemeral
     config.protocolClasses = [MockURLProtocol.self]
     return (config, MockURLProtocol.self)
+}
+
+private func XCTAssertThrowsErrorAsync<T>(
+    _ expression: @escaping @Sendable () async throws -> T,
+    _ errorHandler: (Error) -> Void,
+    file: StaticString = #filePath,
+    line: UInt = #line
+) async {
+    do {
+        _ = try await expression()
+        XCTFail("Expected error to be thrown", file: file, line: line)
+    } catch {
+        errorHandler(error)
+    }
 }
 
 private func requestBodyData(_ request: URLRequest) -> Data? {
