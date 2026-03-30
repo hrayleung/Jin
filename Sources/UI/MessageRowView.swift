@@ -27,35 +27,6 @@ struct UserMessageMCPBadgeRow: View {
     }
 }
 
-// MARK: - Render Models
-
-struct MessageRenderItem: Identifiable, Sendable {
-    let id: UUID
-    let contextThreadID: UUID?
-    let role: String
-    let timestamp: Date
-    let renderedBlocks: [RenderedMessageBlock]
-    let toolCalls: [ToolCall]
-    let searchActivities: [SearchActivity]
-    let codeExecutionActivities: [CodeExecutionActivity]
-    let codexToolActivities: [CodexToolActivity]
-    let agentToolActivities: [CodexToolActivity]
-    let assistantModelLabel: String?
-    let assistantProviderIconID: String?
-    let responseMetrics: ResponseMetrics?
-    let copyText: String
-    let preferredRenderMode: MessageRenderMode
-    let isMemoryIntensiveAssistantContent: Bool
-    let collapsedPreview: LightweightMessagePreview?
-    let canEditUserMessage: Bool
-    let canDeleteResponse: Bool
-    let perMessageMCPServerNames: [String]
-
-    var isUser: Bool { role == "user" }
-    var isAssistant: Bool { role == "assistant" }
-    var isTool: Bool { role == "tool" }
-}
-
 // MARK: - Message Row
 
 struct MessageRow: View {
@@ -102,12 +73,8 @@ struct MessageRow: View {
         let showsCopyButton = (isUser || isAssistant) && !copyText.isEmpty
         let canEditUserMessage = item.canEditUserMessage
         let canDeleteResponse = item.canDeleteResponse
-        let shouldShowCollapsedPreview = isAssistant && renderMode == .collapsedPreview
-        let visibleToolCalls = item.toolCalls.filter { call in
-            !BuiltinSearchToolHub.isBuiltinSearchFunctionName(call.name)
-            && !isGoogleProviderNativeToolName(call.name)
-            && !AgentToolHub.isAgentFunctionName(call.name)
-        }
+        let collapsedPreview = item.collapsedPreviewForDisplay(in: renderMode)
+        let visibleToolCalls = item.visibleToolCalls
 
         HStack(alignment: .top, spacing: 0) {
             if isUser {
@@ -195,8 +162,8 @@ struct MessageRow: View {
                                 )
                             }
 
-                            if shouldShowCollapsedPreview {
-                                collapsedAssistantPreview
+                            if collapsedPreview != nil {
+                                collapsedAssistantPreview(preview: collapsedPreview)
                             } else if isUser {
                                 userBlocksView(blocks: item.renderedBlocks)
                             } else {
@@ -280,55 +247,57 @@ struct MessageRow: View {
     }
 
     @ViewBuilder
-    private var collapsedAssistantPreview: some View {
-        if let preview = item.collapsedPreview {
-            VStack(alignment: .leading, spacing: JinSpacing.small) {
-                HStack(alignment: .top, spacing: JinSpacing.small) {
-                    Image(systemName: preview.containsCode ? "curlybraces.square" : "doc.text")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(.secondary)
-                        .frame(width: 18, height: 18)
+    private func collapsedAssistantPreview(preview: LightweightMessagePreview?) -> some View {
+        Group {
+            if let preview {
+                VStack(alignment: .leading, spacing: JinSpacing.small) {
+                    HStack(alignment: .top, spacing: JinSpacing.small) {
+                        Image(systemName: preview.containsCode ? "curlybraces.square" : "doc.text")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(.secondary)
+                            .frame(width: 18, height: 18)
 
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(preview.headline)
-                            .font(.callout.weight(.semibold))
-                            .foregroundStyle(.primary)
-                            .lineLimit(2)
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(preview.headline)
+                                .font(.callout.weight(.semibold))
+                                .foregroundStyle(.primary)
+                                .lineLimit(2)
 
-                        if !preview.body.isEmpty {
-                            Text(preview.body)
-                                .font(.callout)
-                                .foregroundStyle(.secondary)
-                                .lineLimit(4)
-                                .multilineTextAlignment(.leading)
+                            if !preview.body.isEmpty {
+                                Text(preview.body)
+                                    .font(.callout)
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(4)
+                                    .multilineTextAlignment(.leading)
+                            }
                         }
+
+                        Spacer(minLength: 0)
                     }
 
-                    Spacer(minLength: 0)
+                    HStack(spacing: JinSpacing.small) {
+                        if preview.containsCode {
+                            Text("Code")
+                                .jinTagStyle()
+                        }
+
+                        if preview.lineCount > 1 {
+                            Text("\(preview.lineCount) lines")
+                                .font(.caption)
+                                .foregroundStyle(.tertiary)
+                        }
+
+                        Spacer(minLength: 0)
+
+                        Button("Expand") {
+                            onExpandCollapsedContent(item.id)
+                        }
+                        .buttonStyle(.borderless)
+                        .font(.caption.weight(.semibold))
+                    }
                 }
-
-                HStack(spacing: JinSpacing.small) {
-                    if preview.containsCode {
-                        Text("Code")
-                            .jinTagStyle()
-                    }
-
-                    if preview.lineCount > 1 {
-                        Text("\(preview.lineCount) lines")
-                            .font(.caption)
-                            .foregroundStyle(.tertiary)
-                    }
-
-                    Spacer(minLength: 0)
-
-                    Button("Expand") {
-                        onExpandCollapsedContent(item.id)
-                    }
-                    .buttonStyle(.borderless)
-                    .font(.caption.weight(.semibold))
-                }
+                .frame(maxWidth: 420, alignment: .leading)
             }
-            .frame(maxWidth: 420, alignment: .leading)
         }
     }
 

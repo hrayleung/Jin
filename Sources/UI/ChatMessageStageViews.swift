@@ -15,38 +15,6 @@ struct ChatDecodedRenderContext: Sendable {
     let artifactCatalog: ArtifactCatalog
 }
 
-private enum SmartLongChatRenderPolicy {
-    static func effectiveRenderMode(
-        index: Int,
-        message: MessageRenderItem,
-        totalMessageCount: Int,
-        visibleMessageCount: Int,
-        expandedIDs: Set<UUID>
-    ) -> MessageRenderMode {
-        if message.preferredRenderMode == .nativeText {
-            return .nativeText
-        }
-
-        guard message.isAssistant,
-              message.isMemoryIntensiveAssistantContent,
-              message.collapsedPreview != nil,
-              totalMessageCount > ChatView.smartLongChatCollapseThreshold,
-              visibleMessageCount > ChatView.smartLongChatExpandedTailCount,
-              index < max(0, visibleMessageCount - ChatView.smartLongChatExpandedTailCount),
-              !expandedIDs.contains(message.id) else {
-            return .fullWeb
-        }
-
-        return .collapsedPreview
-    }
-
-    static func expand(messageID: UUID, binding: Binding<Set<UUID>>) {
-        var next = binding.wrappedValue
-        next.insert(messageID)
-        binding.wrappedValue = next
-    }
-}
-
 private struct MessageTimelineContentHeightPreferenceKey: PreferenceKey {
     static let defaultValue: CGFloat = 0
 
@@ -122,29 +90,7 @@ struct ChatMessageTimelineView: View {
     let onExpandCollapsedContent: (UUID) -> Void
 
     private var payloadResolver: RenderedMessagePayloadResolver {
-        let contentDataByMessageID = Dictionary(
-            uniqueKeysWithValues: messageEntitiesByID.map { ($0.key, $0.value.contentData) }
-        )
-        return RenderedMessagePayloadResolver(
-            loadImageData: { deferredSource in
-                guard let contentData = contentDataByMessageID[deferredSource.messageID] else { return nil }
-                return await Task.detached(priority: .utility) {
-                    HistoricalMessagePartLoader.imageData(
-                        from: contentData,
-                        partIndex: deferredSource.partIndex
-                    )
-                }.value
-            },
-            loadFileExtractedText: { deferredSource in
-                guard let contentData = contentDataByMessageID[deferredSource.messageID] else { return nil }
-                return await Task.detached(priority: .utility) {
-                    HistoricalMessagePartLoader.fileExtractedText(
-                        from: contentData,
-                        partIndex: deferredSource.partIndex
-                    )
-                }.value
-            }
-        )
+        ChatTimelinePayloadResolverFactory.make(messageEntitiesByID: messageEntitiesByID)
     }
 
     @ViewBuilder
@@ -407,16 +353,21 @@ struct ChatSingleThreadMessagesView: View {
     }
 
     private func refreshPinnedBottomIfNeeded(proxy: ScrollViewProxy) {
-        guard isPinnedToBottom else { return }
-        pinnedBottomRefreshGeneration &+= 1
-        let refreshGeneration = pinnedBottomRefreshGeneration
+        guard let plan = ChatTimelineScrollCoordinator.refreshPlan(
+            currentGeneration: pinnedBottomRefreshGeneration,
+            isPinnedToBottom: isPinnedToBottom,
+            delays: pinnedBottomRefreshDelays
+        ) else {
+            return
+        }
+        pinnedBottomRefreshGeneration = plan.generation
 
-        for delay in pinnedBottomRefreshDelays {
-            DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
-                guard refreshGeneration == pinnedBottomRefreshGeneration else { return }
-                guard isPinnedToBottom else { return }
-                scrollToBottomIfNeeded(proxy: proxy)
-            }
+        for delay in plan.delays {
+            schedulePinnedBottomRefreshAttempt(
+                after: delay,
+                expectedGeneration: plan.generation,
+                proxy: proxy
+            )
         }
     }
 
@@ -438,6 +389,23 @@ struct ChatSingleThreadMessagesView: View {
         }
     }
 
+    private func schedulePinnedBottomRefreshAttempt(
+        after delay: TimeInterval,
+        expectedGeneration: Int,
+        proxy: ScrollViewProxy
+    ) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+            guard ChatTimelineScrollCoordinator.shouldPerformRefresh(
+                expectedGeneration: expectedGeneration,
+                currentGeneration: pinnedBottomRefreshGeneration,
+                isPinnedToBottom: isPinnedToBottom
+            ) else {
+                return
+            }
+            scrollToBottomIfNeeded(proxy: proxy)
+        }
+    }
+
     private func cancelPendingPinnedBottomRefresh() {
         pendingPinnedBottomRefreshTask?.cancel()
         pendingPinnedBottomRefreshTask = nil
@@ -447,14 +415,26 @@ struct ChatSingleThreadMessagesView: View {
         proxy: ScrollViewProxy,
         allowWhenContentFits: Bool = false
     ) {
-        let contentOverflowsViewport = lastMeasuredContentHeight > containerSize.height + 0.5
-        guard allowWhenContentFits || contentOverflowsViewport else { return }
+        guard ChatTimelineScrollCoordinator.shouldScrollToBottom(
+            lastMeasuredContentHeight: lastMeasuredContentHeight,
+            viewportHeight: containerSize.height,
+            allowWhenContentFits: allowWhenContentFits
+        ) else {
+            return
+        }
         proxy.scrollTo("bottom", anchor: .bottom)
     }
 
     private func handleContentHeightChange(_ newHeight: CGFloat, proxy: ScrollViewProxy) {
-        guard abs(lastMeasuredContentHeight - newHeight) > 0.5 else { return }
-        lastMeasuredContentHeight = newHeight
+        guard let action = ChatTimelineScrollCoordinator.contentHeightChangeAction(
+            newHeight: newHeight,
+            previousHeight: lastMeasuredContentHeight,
+            isPinnedToBottom: isPinnedToBottom
+        ) else {
+            return
+        }
+        lastMeasuredContentHeight = action.measuredHeight
+        guard action.shouldScheduleRefresh else { return }
         schedulePinnedBottomRefresh(
             proxy: proxy,
             debounceNanoseconds: 120_000_000
@@ -462,7 +442,7 @@ struct ChatSingleThreadMessagesView: View {
     }
 
     private func effectiveRenderMode(index: Int, message: MessageRenderItem) -> MessageRenderMode {
-        SmartLongChatRenderPolicy.effectiveRenderMode(
+        ChatLongConversationRenderPolicy.effectiveRenderMode(
             index: index,
             message: message,
             totalMessageCount: allMessages.count,
@@ -472,7 +452,10 @@ struct ChatSingleThreadMessagesView: View {
     }
 
     private func expandCollapsedContent(_ messageID: UUID) {
-        SmartLongChatRenderPolicy.expand(messageID: messageID, binding: expandedCollapsedMessageIDs)
+        expandedCollapsedMessageIDs.wrappedValue = ChatLongConversationRenderPolicy.expandedMessageIDs(
+            byExpanding: messageID,
+            from: expandedCollapsedMessageIDs.wrappedValue
+        )
     }
 }
 
@@ -756,7 +739,7 @@ private struct ChatMultiModelThreadColumnView: View {
     }
 
     private func effectiveRenderMode(index: Int, message: MessageRenderItem) -> MessageRenderMode {
-        SmartLongChatRenderPolicy.effectiveRenderMode(
+        ChatLongConversationRenderPolicy.effectiveRenderMode(
             index: index,
             message: message,
             totalMessageCount: context.visibleMessages.count,
@@ -766,6 +749,9 @@ private struct ChatMultiModelThreadColumnView: View {
     }
 
     private func expandCollapsedContent(_ messageID: UUID) {
-        SmartLongChatRenderPolicy.expand(messageID: messageID, binding: expandedCollapsedMessageIDs)
+        expandedCollapsedMessageIDs.wrappedValue = ChatLongConversationRenderPolicy.expandedMessageIDs(
+            byExpanding: messageID,
+            from: expandedCollapsedMessageIDs.wrappedValue
+        )
     }
 }
