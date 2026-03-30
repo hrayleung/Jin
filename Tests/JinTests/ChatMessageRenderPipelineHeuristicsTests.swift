@@ -2,6 +2,46 @@ import XCTest
 @testable import Jin
 
 final class ChatMessageRenderPipelineHeuristicsTests: XCTestCase {
+    func testRenderMetadataPrefersNativeTextForSinglePlainAssistantTextBlock() {
+        let content: [RenderedContentPart] = [.text("Plain answer without markdown syntax.")]
+        let renderedBlocks: [RenderedMessageBlock] = [.content(.text("Plain answer without markdown syntax."))]
+
+        let metadata = ChatMessageRenderMetadataBuilder.renderMetadata(
+            role: .assistant,
+            content: content,
+            renderedBlocks: renderedBlocks,
+            copyText: "Plain answer without markdown syntax."
+        )
+
+        XCTAssertEqual(metadata.preferredRenderMode, .nativeText)
+        XCTAssertFalse(metadata.isMemoryIntensiveAssistantContent)
+        XCTAssertNil(metadata.collapsedPreview)
+    }
+
+    func testRenderMetadataCreatesArtifactOnlyPreviewFromArtifactBlocks() {
+        let artifact = RenderedArtifactVersion(
+            artifactID: "demo",
+            version: 1,
+            title: "Sales Dashboard",
+            contentType: .html,
+            content: "<div>artifact</div>",
+            sourceMessageID: UUID(),
+            sourceTimestamp: Date(timeIntervalSince1970: 1)
+        )
+
+        let metadata = ChatMessageRenderMetadataBuilder.renderMetadata(
+            role: .assistant,
+            content: [.text("<jinArtifact artifact_id=\"demo\" title=\"Sales Dashboard\" contentType=\"text/html\"><div>artifact</div></jinArtifact>")],
+            renderedBlocks: [.artifact(artifact)],
+            copyText: ""
+        )
+
+        XCTAssertEqual(metadata.preferredRenderMode, .fullWeb)
+        XCTAssertTrue(metadata.isMemoryIntensiveAssistantContent)
+        XCTAssertEqual(metadata.collapsedPreview?.headline, "Sales Dashboard")
+        XCTAssertEqual(metadata.collapsedPreview?.body, "HTML Artifact")
+    }
+
     func testAssistantPlainTextPrefersNativeRendering() throws {
         let message = Message(
             id: UUID(),

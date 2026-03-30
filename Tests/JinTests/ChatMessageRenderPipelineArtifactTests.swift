@@ -1,7 +1,50 @@
+import Collections
 import XCTest
 @testable import Jin
 
 final class ChatMessageRenderPipelineArtifactTests: XCTestCase {
+    func testArtifactBlockBuilderAssignsSequentialVersionsAndVisibleTextBlocks() {
+        var artifactVersionCounts: [String: Int] = [:]
+        var artifactVersionsByID: OrderedDictionary<String, [RenderedArtifactVersion]> = [:]
+        let messageID = UUID()
+        let timestamp = Date(timeIntervalSince1970: 1)
+
+        let blocks = ChatArtifactRenderBlockBuilder.renderedBlocks(
+            content: [
+                .text(
+                    """
+                    Intro
+                    <jinArtifact artifact_id="demo" title="Demo" contentType="text/html"><div>one</div></jinArtifact>
+                    Outro
+                    """
+                )
+            ],
+            role: .assistant,
+            messageID: messageID,
+            timestamp: timestamp,
+            artifactVersionCounts: &artifactVersionCounts,
+            artifactVersionsByID: &artifactVersionsByID
+        )
+
+        XCTAssertEqual(blocks.count, 3)
+        XCTAssertEqual(artifactVersionsByID["demo"]?.map(\.version), [1])
+
+        guard case .content(.text(let intro)) = blocks[0] else {
+            return XCTFail("Expected leading text block")
+        }
+        XCTAssertTrue(intro.contains("Intro"))
+
+        guard case .artifact(let artifact) = blocks[1] else {
+            return XCTFail("Expected artifact block")
+        }
+        XCTAssertEqual(artifact.version, 1)
+
+        guard case .content(.text(let outro)) = blocks[2] else {
+            return XCTFail("Expected trailing text block")
+        }
+        XCTAssertTrue(outro.contains("Outro"))
+    }
+
     func testRenderPipelineBuildsArtifactCatalogAndStripsCopyText() throws {
         let assistantOne = Message(
             id: UUID(),
