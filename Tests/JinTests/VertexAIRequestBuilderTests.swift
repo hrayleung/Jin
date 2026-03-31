@@ -106,6 +106,79 @@ final class VertexAIRequestBuilderTests: XCTestCase {
         XCTAssertNotNil(json["safetySettings"])
     }
 
+    func testBuildRequestUsesStandardParametersKeyForFunctionDeclarations() throws {
+        let builder = VertexAIRequestBuilder(
+            providerConfig: makeVertexProviderConfig(),
+            serviceAccountJSON: makeVertexCredentials(),
+            modelSupport: VertexAIModelSupport()
+        )
+
+        let request = try builder.buildRequest(
+            messages: [Message(role: .user, content: [.text("hello")])],
+            modelID: "gemini-2.5-flash",
+            controls: GenerationControls(),
+            tools: [ToolDefinition(
+                id: "weather",
+                name: "weather",
+                description: "Fetches the weather",
+                parameters: ParameterSchema(
+                    properties: [
+                        "city": PropertySchema(type: "string", description: "City name")
+                    ],
+                    required: ["city"]
+                ),
+                source: .builtin
+            )],
+            streaming: false,
+            accessToken: "vertex-token"
+        )
+
+        let json = try XCTUnwrap(try JSONSerialization.jsonObject(with: XCTUnwrap(vertexAIRequestBodyData(request))) as? [String: Any])
+        let tools = try XCTUnwrap(json["tools"] as? [[String: Any]])
+        let declarations = try XCTUnwrap(tools.first?["functionDeclarations"] as? [[String: Any]])
+        let declaration = try XCTUnwrap(declarations.first)
+
+        XCTAssertNotNil(declaration["parameters"])
+        XCTAssertNil(declaration["parametersJsonSchema"])
+    }
+
+    func testBuildRequestPreservesAssistantThinkingPartOrder() throws {
+        let builder = VertexAIRequestBuilder(
+            providerConfig: makeVertexProviderConfig(),
+            serviceAccountJSON: makeVertexCredentials(),
+            modelSupport: VertexAIModelSupport()
+        )
+
+        let request = try builder.buildRequest(
+            messages: [
+                Message(
+                    role: .assistant,
+                    content: [
+                        .text("preface"),
+                        .thinking(ThinkingBlock(text: "analysis", signature: "sig")),
+                        .text("suffix")
+                    ]
+                )
+            ],
+            modelID: "gemini-2.5-flash",
+            controls: GenerationControls(),
+            tools: [],
+            streaming: false,
+            accessToken: "vertex-token"
+        )
+
+        let json = try XCTUnwrap(try JSONSerialization.jsonObject(with: XCTUnwrap(vertexAIRequestBodyData(request))) as? [String: Any])
+        let contents = try XCTUnwrap(json["contents"] as? [[String: Any]])
+        let first = try XCTUnwrap(contents.first)
+        let parts = try XCTUnwrap(first["parts"] as? [[String: Any]])
+
+        XCTAssertEqual(parts.count, 3)
+        XCTAssertEqual(parts[0]["text"] as? String, "preface")
+        XCTAssertEqual(parts[1]["text"] as? String, "analysis")
+        XCTAssertEqual(parts[1]["thought"] as? Bool, true)
+        XCTAssertEqual(parts[2]["text"] as? String, "suffix")
+    }
+
     func testBuildRequestIncludesImageGenerationConfigForKnownImagenModel() throws {
         let builder = VertexAIRequestBuilder(
             providerConfig: makeVertexProviderConfig(),

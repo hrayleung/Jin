@@ -173,7 +173,10 @@ extension VertexAIAdapter {
 
     func isCandidateContentFiltered(_ candidate: VertexGenerateContentResponse.Candidate) -> Bool {
         let reason = (candidate.finishReason ?? "").uppercased()
-        return reason == "SAFETY" || reason == "BLOCKED" || reason == "PROHIBITED_CONTENT"
+        return reason == "SAFETY"
+            || reason == "BLOCKLIST"
+            || reason == "PROHIBITED_CONTENT"
+            || reason == "MODEL_ARMOR"
     }
 
     private func toSharedGrounding(_ g: VertexGenerateContentResponse.GroundingMetadata) -> GoogleGroundingSearchActivities.GroundingMetadata {

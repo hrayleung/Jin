@@ -85,11 +85,11 @@ struct VertexAICachedContentClient {
     }
 
     func cachedContentURL(named rawName: String) throws -> URL {
-        try validatedURL(cachedContentEndpoint(for: rawName))
+        try validatedURL(try cachedContentEndpoint(for: rawName))
     }
 
     private func cachedContentURL(named rawName: String, updateMask: String?) throws -> URL {
-        guard var components = URLComponents(string: cachedContentEndpoint(for: rawName)) else {
+        guard var components = URLComponents(string: try cachedContentEndpoint(for: rawName)) else {
             throw LLMError.invalidRequest(message: "Invalid cachedContent URL.")
         }
         if let updateMask {
@@ -160,8 +160,11 @@ struct VertexAICachedContentClient {
         return headers
     }
 
-    private func cachedContentEndpoint(for rawName: String) -> String {
+    private func cachedContentEndpoint(for rawName: String) throws -> String {
         let trimmed = rawName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            throw LLMError.invalidRequest(message: "Invalid cachedContent name.")
+        }
         if trimmed.lowercased().hasPrefix("projects/") {
             return "\(baseURL)/\(trimmed)"
         }

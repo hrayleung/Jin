@@ -32,26 +32,22 @@ enum VertexAIMessageTranslation {
     ) throws -> [[String: Any]] {
         guard message.role != .tool else { return [] }
 
-        var parts = translatedAssistantThinkingParts(for: message)
+        var parts: [[String: Any]] = []
         for part in message.content {
+            if case .thinking(let thinking) = part, message.role == .assistant {
+                var translated: [String: Any] = ["text": thinking.text, "thought": true]
+                if let signature = thinking.signature {
+                    translated["thoughtSignature"] = signature
+                }
+                parts.append(translated)
+                continue
+            }
+
             if let translated = try translateContentPart(part, supportsNativePDF: supportsNativePDF) {
                 parts.append(translated)
             }
         }
         return parts
-    }
-
-    private static func translatedAssistantThinkingParts(for message: Message) -> [[String: Any]] {
-        guard message.role == .assistant else { return [] }
-
-        return message.content.compactMap { part in
-            guard case .thinking(let thinking) = part else { return nil }
-            var translated: [String: Any] = ["text": thinking.text, "thought": true]
-            if let signature = thinking.signature {
-                translated["thoughtSignature"] = signature
-            }
-            return translated
-        }
     }
 
     private static func translateContentPart(

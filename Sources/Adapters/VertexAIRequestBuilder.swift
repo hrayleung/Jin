@@ -320,7 +320,7 @@ struct VertexAIRequestBuilder {
             [
                 "name": tool.name,
                 "description": tool.description,
-                "parametersJsonSchema": [
+                "parameters": [
                     "type": tool.parameters.type,
                     "properties": tool.parameters.properties.mapValues { $0.toDictionary() },
                     "required": tool.parameters.required

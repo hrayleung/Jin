@@ -42,6 +42,20 @@ final class ChatMessageRenderPipelineHeuristicsTests: XCTestCase {
         XCTAssertEqual(metadata.collapsedPreview?.body, "HTML Artifact")
     }
 
+    func testRenderMetadataIgnoresHiddenThinkingWhenVisibleOutputIsSingleTextBlock() {
+        let metadata = ChatMessageRenderMetadataBuilder.renderMetadata(
+            role: .assistant,
+            content: [
+                .redactedThinking(RedactedThinkingBlock(data: "hidden")),
+                .text("OK")
+            ],
+            renderedBlocks: [.content(.text("OK"))],
+            copyText: "OK"
+        )
+
+        XCTAssertEqual(metadata.preferredRenderMode, .nativeText)
+    }
+
     func testAssistantPlainTextPrefersNativeRendering() throws {
         let message = Message(
             id: UUID(),

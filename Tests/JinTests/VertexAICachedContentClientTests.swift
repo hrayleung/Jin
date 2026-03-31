@@ -162,4 +162,18 @@ final class VertexAICachedContentClientTests: XCTestCase {
             "https://aiplatform.googleapis.com/v1/projects/custom/locations/global/cachedContents/existing"
         )
     }
+
+    func testCachedContentEndpointRejectsBlankNames() {
+        let client = VertexAICachedContentClient(
+            serviceAccountJSON: makeVertexCredentials(location: "global"),
+            networkManager: NetworkManager()
+        )
+
+        XCTAssertThrowsError(try client.cachedContentURL(named: "   \n  ")) { error in
+            guard case let LLMError.invalidRequest(message) = error else {
+                return XCTFail("Expected invalidRequest, got \(error)")
+            }
+            XCTAssertEqual(message, "Invalid cachedContent name.")
+        }
+    }
 }

@@ -495,6 +495,21 @@ final class VertexAIAdapterTests: XCTestCase {
         XCTAssertFalse(didEnd)
     }
 
+    func testCandidateContentFilteredRecognizesVertexBlockingFinishReasons() async {
+        let adapter = makeVertexAIAdapter()
+        let blockingReasons = ["SAFETY", "BLOCKLIST", "PROHIBITED_CONTENT", "MODEL_ARMOR"]
+
+        for reason in blockingReasons {
+            let candidate = GoogleGenerateContentResponse.Candidate(
+                content: nil,
+                finishReason: reason,
+                groundingMetadata: nil
+            )
+            let isFiltered = await adapter.isCandidateContentFiltered(candidate)
+            XCTAssertTrue(isFiltered, "Expected \(reason) to be filtered")
+        }
+    }
+
     func testSendMessageStreamingEmitsDecodingErrorWhenNoUsableJSONChunksAreReturned() async throws {
         let (configuration, protocolType) = makeMockedSessionConfiguration()
         let networkManager = NetworkManager(configuration: configuration)

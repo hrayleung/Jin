@@ -46,10 +46,14 @@ enum ChatMessageRenderMetadataBuilder {
             if case .artifact = block { return true }
             return false
         }
+        let visibleContent = renderedBlocks.compactMap { block -> RenderedContentPart? in
+            guard case .content(let part) = block else { return nil }
+            return part
+        }
         let combinedText = assistantVisibleText(from: content)
-        let hasSingleTextPartOnly = content.count == 1
-            && renderedBlocks.count == 1
-            && content.allSatisfy(isTextPart)
+        let hasSingleTextPartOnly = renderedBlocks.count == 1
+            && visibleContent.count == 1
+            && visibleContent.allSatisfy(isTextPart)
             && !containsArtifact
         let previewSourceText = collapsedPreviewSourceText(copyText: copyText, renderedBlocks: renderedBlocks)
         let lineCount = max(1, previewSourceText.components(separatedBy: .newlines).count)
