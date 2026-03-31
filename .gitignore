@@ -53,3 +53,6 @@ tmp/sparkle-derived-data/
 
 # Codex local skills/config
 .agents/
+
+# Local agent planning/spec artifacts
+/docs/superpowers/
