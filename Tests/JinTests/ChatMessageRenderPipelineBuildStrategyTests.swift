@@ -2,6 +2,30 @@ import XCTest
 @testable import Jin
 
 final class ChatMessageRenderPipelineBuildStrategyTests: XCTestCase {
+    func testPayloadHeuristicsUseSingleMessageThreshold() throws {
+        let messages = try [
+            makeMessageEntity(
+                role: .user,
+                text: String(repeating: "Long prompt line with embedded context.\n", count: 900)
+            ),
+            makeMessageEntity(
+                role: .assistant,
+                text: "Short acknowledgement."
+            )
+        ]
+
+        XCTAssertTrue(ChatRenderPayloadHeuristics.shouldBuildRenderContextAsynchronously(from: messages))
+    }
+
+    func testPayloadHeuristicsKeepSmallConversationSynchronous() throws {
+        let messages = try [
+            makeMessageEntity(role: .user, text: "Summarize this."),
+            makeMessageEntity(role: .assistant, text: "Here is a short summary.")
+        ]
+
+        XCTAssertFalse(ChatRenderPayloadHeuristics.shouldBuildRenderContextAsynchronously(from: messages))
+    }
+
     func testLongUserPromptUsesAsynchronousBuildEvenWhenMessageCountIsSmall() throws {
         let messages = try [
             makeMessageEntity(
