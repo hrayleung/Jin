@@ -56,3 +56,6 @@ tmp/sparkle-derived-data/
 
 # Local agent planning/spec artifacts
 /docs/superpowers/
+
+# OMX local runtime/state artifacts
+.omx/

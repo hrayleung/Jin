@@ -2,10 +2,10 @@ import XCTest
 @testable import Jin
 
 final class ChatTimelineScrollCoordinatorTests: XCTestCase {
-    func testRefreshPlanIncrementsGenerationWhenPinnedToBottom() {
+    func testRefreshPlanIncrementsGenerationWhenMaintainingBottomAnchor() {
         let plan = ChatTimelineScrollCoordinator.refreshPlan(
             currentGeneration: 4,
-            isPinnedToBottom: true,
+            shouldMaintainPinnedBottomAnchor: true,
             delays: [0, 0.12, 0.35]
         )
 
@@ -13,32 +13,32 @@ final class ChatTimelineScrollCoordinatorTests: XCTestCase {
         XCTAssertEqual(plan?.delays, [0, 0.12, 0.35])
     }
 
-    func testRefreshPlanReturnsNilWhenNotPinnedToBottom() {
+    func testRefreshPlanReturnsNilWhenBottomAnchorShouldNotBeMaintained() {
         let plan = ChatTimelineScrollCoordinator.refreshPlan(
             currentGeneration: 4,
-            isPinnedToBottom: false,
+            shouldMaintainPinnedBottomAnchor: false,
             delays: [0.12]
         )
 
         XCTAssertNil(plan)
     }
 
-    func testContentHeightChangeActionSchedulesRefreshWhenHeightMeaningfullyChangesWhilePinned() {
+    func testContentHeightChangeActionSchedulesRefreshWhenHeightMeaningfullyChangesWhileMaintainingBottomAnchor() {
         let action = ChatTimelineScrollCoordinator.contentHeightChangeAction(
             newHeight: 420,
             previousHeight: 360,
-            isPinnedToBottom: true
+            shouldMaintainPinnedBottomAnchor: true
         )
 
         XCTAssertEqual(action?.measuredHeight, 420)
         XCTAssertTrue(action?.shouldScheduleRefresh == true)
     }
 
-    func testContentHeightChangeActionUpdatesHeightWithoutSchedulingWhenNotPinned() {
+    func testContentHeightChangeActionUpdatesHeightWithoutSchedulingWhenBottomAnchorShouldNotBeMaintained() {
         let action = ChatTimelineScrollCoordinator.contentHeightChangeAction(
             newHeight: 420,
             previousHeight: 360,
-            isPinnedToBottom: false
+            shouldMaintainPinnedBottomAnchor: false
         )
 
         XCTAssertEqual(action?.measuredHeight, 420)
@@ -49,10 +49,34 @@ final class ChatTimelineScrollCoordinatorTests: XCTestCase {
         let action = ChatTimelineScrollCoordinator.contentHeightChangeAction(
             newHeight: 400.2,
             previousHeight: 400,
-            isPinnedToBottom: true
+            shouldMaintainPinnedBottomAnchor: true
         )
 
         XCTAssertNil(action)
+    }
+
+    func testShouldPerformRefreshAllowsContentGrowthCompensationWhileMaintainingBottomAnchor() {
+        XCTAssertTrue(
+            ChatTimelineScrollCoordinator.shouldPerformRefresh(
+                expectedGeneration: 5,
+                currentGeneration: 5,
+                shouldMaintainPinnedBottomAnchor: true
+            )
+        )
+        XCTAssertFalse(
+            ChatTimelineScrollCoordinator.shouldPerformRefresh(
+                expectedGeneration: 5,
+                currentGeneration: 6,
+                shouldMaintainPinnedBottomAnchor: true
+            )
+        )
+        XCTAssertFalse(
+            ChatTimelineScrollCoordinator.shouldPerformRefresh(
+                expectedGeneration: 5,
+                currentGeneration: 5,
+                shouldMaintainPinnedBottomAnchor: false
+            )
+        )
     }
 
     func testShouldScrollToBottomOnlyWhenContentOverflowsUnlessForced() {
@@ -74,6 +98,32 @@ final class ChatTimelineScrollCoordinatorTests: XCTestCase {
                 viewportHeight: 400,
                 allowWhenContentFits: true
             )
+        )
+    }
+
+    func testInvalidatedRefreshGenerationBumpsGenerationToCancelPendingRefreshes() {
+        XCTAssertEqual(
+            ChatTimelineScrollCoordinator.invalidatedRefreshGeneration(current: 9),
+            10
+        )
+    }
+
+    func testPinnedBottomToleranceStaysConservativeEvenWithTallComposer() {
+        XCTAssertEqual(
+            ChatTimelineScrollCoordinator.pinnedBottomTolerance(composerHeight: 0),
+            36
+        )
+        XCTAssertEqual(
+            ChatTimelineScrollCoordinator.pinnedBottomTolerance(composerHeight: 80),
+            36
+        )
+        XCTAssertEqual(
+            ChatTimelineScrollCoordinator.pinnedBottomTolerance(composerHeight: 160),
+            40
+        )
+        XCTAssertEqual(
+            ChatTimelineScrollCoordinator.pinnedBottomTolerance(composerHeight: 600),
+            64
         )
     }
 }

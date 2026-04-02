@@ -77,6 +77,7 @@ extension ChatView {
         messageRenderLimit = Self.initialMessageRenderLimit
         pendingRestoreScrollMessageID = nil
         isPinnedToBottom = true
+        pinnedBottomRefreshGeneration = 0
         expandedCollapsedMessageIDs = []
 
         // Artifacts

@@ -20,6 +20,23 @@ enum ChatMessageRenderPipeline {
         ChatRenderPayloadHeuristics.shouldBuildRenderContextAsynchronously(from: orderedMessages)
     }
 
+    static func decodedRenderContextDroppedVisibleMessages(
+        _ decoded: ChatDecodedRenderContext,
+        orderedMessages: [MessageEntity]
+    ) -> Bool {
+        decoded.visibleMessages.count != expectedVisibleMessageCount(from: orderedMessages)
+    }
+
+    static func expectedVisibleMessageCount(from orderedMessages: [MessageEntity]) -> Int {
+        orderedMessages.reduce(into: 0) { count, entity in
+            guard entity.role != MessageRole.tool.rawValue,
+                  MessageRole(rawValue: entity.role) != nil else {
+                return
+            }
+            count += 1
+        }
+    }
+
     static func makeRenderContext(
         from orderedMessages: [MessageEntity],
         fallbackModelLabel: String,
