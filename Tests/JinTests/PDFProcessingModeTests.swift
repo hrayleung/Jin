@@ -1059,6 +1059,11 @@ private func requestBodyData(_ request: URLRequest) -> Data? {
 
 private func makeZipArchive(entries: [String: String]) throws -> Data {
     let fileManager = FileManager.default
+    let zipPath = "/usr/bin/zip"
+    guard fileManager.isExecutableFile(atPath: zipPath) else {
+        throw XCTSkip("zip binary not available at \(zipPath)")
+    }
+
     let rootURL = fileManager.temporaryDirectory
         .appendingPathComponent("JinZipArchive-\(UUID().uuidString)", isDirectory: true)
     let contentURL = rootURL.appendingPathComponent("content", isDirectory: true)
@@ -1074,7 +1079,7 @@ private func makeZipArchive(entries: [String: String]) throws -> Data {
     }
 
     let process = Process()
-    process.executableURL = URL(fileURLWithPath: "/usr/bin/zip")
+    process.executableURL = URL(fileURLWithPath: zipPath)
     process.currentDirectoryURL = contentURL
     process.arguments = ["-q", "-r", archiveURL.path, "."]
 

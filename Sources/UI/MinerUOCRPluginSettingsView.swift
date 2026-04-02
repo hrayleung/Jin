@@ -34,6 +34,7 @@ struct MinerUOCRPluginSettingsView: View {
     @State private var lastPersistedUserIdentifier = ""
     @State private var lastPersistedLanguage = MinerUOCRClient.Constants.defaultLanguage
     @State private var autoSaveTask: Task<Void, Never>?
+    @State private var validationTask: Task<Void, Never>?
 
     private var trimmedToken: String {
         apiToken.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -115,6 +116,8 @@ struct MinerUOCRPluginSettingsView: View {
         .onChange(of: selectedLanguage) { _, _ in scheduleAutoSave() }
         .onDisappear {
             autoSaveTask?.cancel()
+            validationTask?.cancel()
+            validationTask = nil
         }
     }
 
@@ -197,6 +200,7 @@ struct MinerUOCRPluginSettingsView: View {
     private func runTestConnection() {
         guard !trimmedToken.isEmpty else { return }
 
+        validationTask?.cancel()
         statusMessage = nil
         statusIsError = false
         isTesting = true
@@ -205,23 +209,27 @@ struct MinerUOCRPluginSettingsView: View {
         let userIdentifier = trimmedUserIdentifier
         let language = selectedLanguage
 
-        Task {
+        validationTask = Task {
             do {
                 let client = MinerUOCRClient(
                     apiToken: token,
                     userToken: userIdentifier.isEmpty ? nil : userIdentifier
                 )
                 try await client.validateAPIKey(language: language)
+                guard !Task.isCancelled else { return }
                 await MainActor.run {
                     isTesting = false
                     statusMessage = "Token verified."
                     statusIsError = false
+                    validationTask = nil
                 }
             } catch {
+                guard !Task.isCancelled else { return }
                 await MainActor.run {
                     isTesting = false
                     statusMessage = error.localizedDescription
                     statusIsError = true
+                    validationTask = nil
                 }
             }
         }

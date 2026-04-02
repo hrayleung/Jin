@@ -30,10 +30,11 @@ actor MinerUOCRClient {
         language: String = Constants.defaultLanguage,
         timeoutSeconds: TimeInterval = 30
     ) async throws {
+        let deadline = Date().addingTimeInterval(timeoutSeconds)
         _ = try await createBatchUpload(
             filename: "validation.pdf",
             language: language,
-            timeoutSeconds: timeoutSeconds
+            timeoutSeconds: try remainingTimeout(until: deadline)
         )
     }
 
@@ -44,23 +45,32 @@ actor MinerUOCRClient {
         timeoutSeconds: TimeInterval = 180,
         pollIntervalNanoseconds: UInt64 = Constants.defaultPollIntervalNanoseconds
     ) async throws -> String {
+        let deadline = Date().addingTimeInterval(timeoutSeconds)
+
         let bootstrap = try await createBatchUpload(
             filename: filename,
             language: language,
-            timeoutSeconds: timeoutSeconds
+            timeoutSeconds: try remainingTimeout(until: deadline)
         )
         guard let uploadURL = bootstrap.uploadURLs.first else {
             throw LLMError.decodingError(message: "MinerU did not return an upload URL.")
         }
 
-        try await uploadPDF(pdfData, to: uploadURL, timeoutSeconds: timeoutSeconds)
+        try await uploadPDF(
+            pdfData,
+            to: uploadURL,
+            timeoutSeconds: try remainingTimeout(until: deadline)
+        )
 
         let fullZipURL = try await pollForFullZipURL(
             batchID: bootstrap.batchID,
-            timeoutSeconds: timeoutSeconds,
+            timeoutSeconds: try remainingTimeout(until: deadline),
             pollIntervalNanoseconds: pollIntervalNanoseconds
         )
-        return try await downloadAndExtractMarkdown(from: fullZipURL, timeoutSeconds: timeoutSeconds)
+        return try await downloadAndExtractMarkdown(
+            from: fullZipURL,
+            timeoutSeconds: try remainingTimeout(until: deadline)
+        )
     }
 
     private func createBatchUpload(
@@ -229,6 +239,14 @@ actor MinerUOCRClient {
         return trimmed.isEmpty ? Constants.defaultLanguage : trimmed
     }
 
+    private func remainingTimeout(until deadline: Date) throws -> TimeInterval {
+        let remaining = deadline.timeIntervalSinceNow
+        guard remaining > 0 else {
+            throw LLMError.invalidRequest(message: "MinerU OCR timed out before the next request could start.")
+        }
+        return remaining
+    }
+
     private func decodeEnvelope<T: Decodable>(from data: Data) throws -> APIEnvelope<T> {
         do {
             let decoder = JSONDecoder()
@@ -255,21 +273,20 @@ actor MinerUOCRClient {
         process.arguments = arguments
 
         let stdout = Pipe()
-        let stderr = Pipe()
         process.standardOutput = stdout
-        process.standardError = stderr
+        process.standardError = FileHandle.nullDevice
 
         do {
             try process.run()
+            let data = stdout.fileHandleForReading.readDataToEndOfFile()
             process.waitUntilExit()
+            guard process.terminationStatus == 0 else {
+                return nil
+            }
+            return data
         } catch {
             return nil
         }
-
-        guard process.terminationStatus == 0 else {
-            return nil
-        }
-        return stdout.fileHandleForReading.readDataToEndOfFile()
     }
 
     private func archiveEntryPath(named filename: String, in archiveFileURL: URL) -> String? {
