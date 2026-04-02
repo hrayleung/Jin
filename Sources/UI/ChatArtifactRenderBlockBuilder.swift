@@ -12,9 +12,10 @@ enum ChatArtifactRenderBlockBuilder {
     ) -> [RenderedMessageBlock] {
         var blocks: [RenderedMessageBlock] = []
 
-        for part in content {
+        for (contentIndex, part) in content.enumerated() {
             appendBlocks(
                 for: part,
+                contentIndex: contentIndex,
                 role: role,
                 messageID: messageID,
                 timestamp: timestamp,
@@ -29,6 +30,7 @@ enum ChatArtifactRenderBlockBuilder {
 
     private static func appendBlocks(
         for part: RenderedContentPart,
+        contentIndex: Int,
         role: MessageRole,
         messageID: UUID,
         timestamp: Date,
@@ -42,6 +44,7 @@ enum ChatArtifactRenderBlockBuilder {
         case .text(let text) where role == .assistant:
             appendArtifactTextBlocks(
                 from: text,
+                anchorPrefix: stableAnchorPrefix(messageID: messageID, contentIndex: contentIndex),
                 messageID: messageID,
                 timestamp: timestamp,
                 artifactVersionCounts: &artifactVersionCounts,
@@ -49,12 +52,13 @@ enum ChatArtifactRenderBlockBuilder {
                 blocks: &blocks
             )
         default:
-            blocks.append(.content(part))
+            blocks.append(.content(anchorID: stableAnchorPrefix(messageID: messageID, contentIndex: contentIndex), part: part))
         }
     }
 
     private static func appendArtifactTextBlocks(
         from text: String,
+        anchorPrefix: String,
         messageID: UUID,
         timestamp: Date,
         artifactVersionCounts: inout [String: Int],
@@ -65,7 +69,12 @@ enum ChatArtifactRenderBlockBuilder {
         let maxIndex = max(parseResult.visibleTextSegments.count, parseResult.artifacts.count)
 
         for index in 0..<maxIndex {
-            appendVisibleTextBlock(at: index, segments: parseResult.visibleTextSegments, blocks: &blocks)
+            appendVisibleTextBlock(
+                at: index,
+                anchorPrefix: anchorPrefix,
+                segments: parseResult.visibleTextSegments,
+                blocks: &blocks
+            )
             appendArtifactBlock(
                 at: index,
                 artifacts: parseResult.artifacts,
@@ -80,13 +89,14 @@ enum ChatArtifactRenderBlockBuilder {
 
     private static func appendVisibleTextBlock(
         at index: Int,
+        anchorPrefix: String,
         segments: [String],
         blocks: inout [RenderedMessageBlock]
     ) {
         guard index < segments.count else { return }
         let segment = segments[index]
         guard !segment.isEmpty else { return }
-        blocks.append(.content(.text(segment)))
+        blocks.append(.content(anchorID: "\(anchorPrefix):segment:\(index)", part: .text(segment)))
     }
 
     private static func appendArtifactBlock(
@@ -114,5 +124,9 @@ enum ChatArtifactRenderBlockBuilder {
         )
         artifactVersionsByID[artifact.artifactID, default: []].append(version)
         blocks.append(.artifact(version))
+    }
+
+    private static func stableAnchorPrefix(messageID: UUID, contentIndex: Int) -> String {
+        "\(messageID.uuidString):content:\(contentIndex)"
     }
 }

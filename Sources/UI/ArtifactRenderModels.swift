@@ -74,7 +74,7 @@ struct RenderedArtifactVersion: Identifiable, Hashable, Sendable {
 }
 
 enum RenderedMessageBlock: Sendable {
-    case content(RenderedContentPart)
+    case content(anchorID: String, part: RenderedContentPart)
     case artifact(RenderedArtifactVersion)
 }
 

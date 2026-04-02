@@ -170,9 +170,9 @@ struct MessageRow: View {
                             } else if isUser {
                                 userBlocksView(blocks: item.renderedBlocks)
                             } else {
-                                ForEach(Array(item.renderedBlocks.enumerated()), id: \.offset) { blockIndex, block in
+                                ForEach(Array(item.renderedBlocks.enumerated()), id: \.offset) { _, block in
                                     switch block {
-                                    case .content(let part):
+                                    case .content(let anchorID, let part):
                                         ContentPartView(
                                             part: part,
                                             isUser: false,
@@ -181,9 +181,9 @@ struct MessageRow: View {
                                             payloadResolver: payloadResolver,
                                             selectionMessageID: item.id,
                                             selectionContextThreadID: item.contextThreadID,
-                                            selectionAnchorID: selectionAnchorID(for: blockIndex),
-                                            persistedHighlights: highlights(for: blockIndex),
-                                            selectionActions: selectionActions(for: blockIndex)
+                                            selectionAnchorID: anchorID,
+                                            persistedHighlights: highlights(for: anchorID),
+                                            selectionActions: selectionActions
                                         )
 
                                     case .artifact(let artifact):
@@ -257,16 +257,11 @@ struct MessageRow: View {
         }
     }
 
-    private func selectionAnchorID(for blockIndex: Int) -> String {
-        "\(item.id.uuidString):block:\(blockIndex)"
-    }
-
-    private func highlights(for blockIndex: Int) -> [MessageHighlightSnapshot] {
-        let anchorID = selectionAnchorID(for: blockIndex)
+    private func highlights(for anchorID: String) -> [MessageHighlightSnapshot] {
         return item.highlights.filter { $0.anchorID == anchorID }
     }
 
-    private func selectionActions(for blockIndex: Int) -> MessageTextSelectionActions {
+    private var selectionActions: MessageTextSelectionActions {
         guard item.isAssistant else { return .none }
         return MessageTextSelectionActions(
             onQuote: { snapshot in
@@ -510,11 +505,11 @@ struct MessageRow: View {
     @ViewBuilder
     private func userBlocksView(blocks: [RenderedMessageBlock]) -> some View {
         let imageBlocks = blocks.compactMap { block -> RenderedContentPart? in
-            if case .content(let part) = block, case .image = part { return part }
+            if case .content(_, let part) = block, case .image = part { return part }
             return nil
         }
         let nonImageBlocks = blocks.filter { block in
-            if case .content(let part) = block, case .image = part { return false }
+            if case .content(_, let part) = block, case .image = part { return false }
             return true
         }
 
@@ -533,7 +528,7 @@ struct MessageRow: View {
 
         ForEach(Array(nonImageBlocks.enumerated()), id: \.offset) { _, block in
             switch block {
-            case .content(let part):
+            case .content(_, let part):
                 ContentPartView(
                     part: part,
                     isUser: true,

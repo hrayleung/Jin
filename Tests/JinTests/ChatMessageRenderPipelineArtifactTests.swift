@@ -29,7 +29,7 @@ final class ChatMessageRenderPipelineArtifactTests: XCTestCase {
         XCTAssertEqual(blocks.count, 3)
         XCTAssertEqual(artifactVersionsByID["demo"]?.map(\.version), [1])
 
-        guard case .content(.text(let intro)) = blocks[0] else {
+        guard case .content(_, .text(let intro)) = blocks[0] else {
             return XCTFail("Expected leading text block")
         }
         XCTAssertTrue(intro.contains("Intro"))
@@ -39,7 +39,7 @@ final class ChatMessageRenderPipelineArtifactTests: XCTestCase {
         }
         XCTAssertEqual(artifact.version, 1)
 
-        guard case .content(.text(let outro)) = blocks[2] else {
+        guard case .content(_, .text(let outro)) = blocks[2] else {
             return XCTFail("Expected trailing text block")
         }
         XCTAssertTrue(outro.contains("Outro"))

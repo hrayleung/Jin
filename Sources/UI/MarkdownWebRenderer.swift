@@ -117,6 +117,7 @@ struct MarkdownWebRenderer: View {
     let markdownText: String
     var isStreaming: Bool = false
     var deferCodeHighlightUpgrade: Bool = false
+    var renderPlainText: Bool = false
     var selectionMessageID: UUID? = nil
     var selectionContextThreadID: UUID? = nil
     var selectionAnchorID: String? = nil
@@ -135,6 +136,7 @@ struct MarkdownWebRenderer: View {
         markdownText: String,
         isStreaming: Bool = false,
         deferCodeHighlightUpgrade: Bool = false,
+        renderPlainText: Bool = false,
         selectionMessageID: UUID? = nil,
         selectionContextThreadID: UUID? = nil,
         selectionAnchorID: String? = nil,
@@ -144,6 +146,7 @@ struct MarkdownWebRenderer: View {
         self.markdownText = markdownText
         self.isStreaming = isStreaming
         self.deferCodeHighlightUpgrade = deferCodeHighlightUpgrade
+        self.renderPlainText = renderPlainText
         self.selectionMessageID = selectionMessageID
         self.selectionContextThreadID = selectionContextThreadID
         self.selectionAnchorID = selectionAnchorID
@@ -164,6 +167,7 @@ struct MarkdownWebRenderer: View {
             codeBlockShowLineNumbers: codeBlockShowLineNumbers,
             codeBlockCollapseLineThreshold: codeBlockCollapseLineThreshold,
             codeBlockDisplayMode: codeBlockDisplayMode,
+            renderPlainText: renderPlainText,
             selectionMessageID: selectionMessageID,
             selectionContextThreadID: selectionContextThreadID,
             selectionAnchorID: selectionAnchorID,
@@ -185,10 +189,14 @@ struct MarkdownWebRenderer: View {
         to webView: WKWebView,
         markdown: String,
         streaming: Bool = false,
-        deferCodeHighlightUpgrade: Bool = false
+        deferCodeHighlightUpgrade: Bool = false,
+        renderPlainText: Bool = false
     ) {
         let fn = streaming ? "updateStreamingWithText" : "updateWithText"
-        let options: [String: Any] = ["deferCodeHighlightUpgrade": deferCodeHighlightUpgrade]
+        let options: [String: Any] = [
+            "deferCodeHighlightUpgrade": deferCodeHighlightUpgrade,
+            "renderPlainText": renderPlainText
+        ]
 
         if #available(macOS 11.0, *) {
             webView.callAsyncJavaScript(
@@ -206,9 +214,7 @@ struct MarkdownWebRenderer: View {
             guard let data = markdown.data(using: .utf8) else { return }
             let b64 = data.base64EncodedString()
             let legacyFn = streaming ? "updateStreamingWithBase64" : "updateWithBase64"
-            let optionsLiteral = deferCodeHighlightUpgrade
-                ? "{deferCodeHighlightUpgrade:true}"
-                : "{deferCodeHighlightUpgrade:false}"
+            let optionsLiteral = "{deferCodeHighlightUpgrade:\(deferCodeHighlightUpgrade ? "true" : "false"),renderPlainText:\(renderPlainText ? "true" : "false")}"
             webView.evaluateJavaScript("window.\(legacyFn)('\(b64)', \(optionsLiteral))", completionHandler: nil)
         }
     }
@@ -225,6 +231,7 @@ private struct MarkdownWebRendererRepresentable: NSViewRepresentable {
     let codeBlockShowLineNumbers: Bool
     let codeBlockCollapseLineThreshold: Int
     let codeBlockDisplayMode: String
+    let renderPlainText: Bool
     let selectionMessageID: UUID?
     let selectionContextThreadID: UUID?
     let selectionAnchorID: String?
@@ -270,6 +277,7 @@ private struct MarkdownWebRendererRepresentable: NSViewRepresentable {
         context.coordinator.codeBlockShowLineNumbers = codeBlockShowLineNumbers
         context.coordinator.codeBlockCollapseLineThreshold = codeBlockCollapseLineThreshold
         context.coordinator.codeBlockDisplayMode = codeBlockDisplayMode
+        context.coordinator.renderPlainText = renderPlainText
         context.coordinator.selectionMessageID = selectionMessageID
         context.coordinator.selectionContextThreadID = selectionContextThreadID
         context.coordinator.selectionAnchorID = selectionAnchorID
@@ -282,7 +290,7 @@ private struct MarkdownWebRendererRepresentable: NSViewRepresentable {
         // For non-streaming messages, embed the markdown directly in the HTML
         // so the browser renders content during the initial page load instead
         // of waiting for a Swift→JS round-trip after didFinish.
-        let shouldEmbed = !isStreaming && !markdownText.isEmpty && inlineTemplate != nil
+        let shouldEmbed = !renderPlainText && !isStreaming && !markdownText.isEmpty && inlineTemplate != nil
         if shouldEmbed {
             context.coordinator.pendingMarkdown = nil
             context.coordinator.markContentEmbedded(
@@ -307,6 +315,7 @@ private struct MarkdownWebRendererRepresentable: NSViewRepresentable {
         context.coordinator.codeFontFamily = codeFontFamily
         context.coordinator.codeBlockShowLineNumbers = codeBlockShowLineNumbers
         context.coordinator.codeBlockCollapseLineThreshold = codeBlockCollapseLineThreshold
+        context.coordinator.renderPlainText = renderPlainText
         context.coordinator.selectionMessageID = selectionMessageID
         context.coordinator.selectionContextThreadID = selectionContextThreadID
         context.coordinator.selectionAnchorID = selectionAnchorID
@@ -378,12 +387,14 @@ private struct MarkdownWebRendererRepresentable: NSViewRepresentable {
         var currentMarkdown: String?
         private(set) var lastRenderedMarkdown: String?
         private(set) var lastRenderedDeferCodeHighlightUpgrade: Bool?
+        private(set) var lastRenderedPlainTextMode: Bool?
         var appFontFamily: String = JinTypography.systemFontPreferenceValue
         var codeFontFamily: String = JinTypography.systemFontPreferenceValue
         var codeBlockDisplayMode: String = CodeBlockDisplayMode.expanded.rawValue
         var deferCodeHighlightUpgrade: Bool = false
         var codeBlockShowLineNumbers: Bool = false
         var codeBlockCollapseLineThreshold: Int = 25
+        var renderPlainText = false
         var selectionMessageID: UUID?
         var selectionContextThreadID: UUID?
         var selectionAnchorID: String?
@@ -405,6 +416,7 @@ private struct MarkdownWebRendererRepresentable: NSViewRepresentable {
         func markContentEmbedded(_ markdown: String, deferCodeHighlightUpgrade: Bool) {
             lastRenderedMarkdown = markdown
             lastRenderedDeferCodeHighlightUpgrade = deferCodeHighlightUpgrade
+            lastRenderedPlainTextMode = false
         }
 
         private func logLargeMarkdownIfNeeded(_ markdown: String) {
@@ -548,8 +560,19 @@ private struct MarkdownWebRendererRepresentable: NSViewRepresentable {
             }
 
             let encoder = JSONEncoder()
-            guard let data = try? encoder.encode(highlightsForAnchor),
-                  let payload = String(data: data, encoding: .utf8) else {
+            let data: Data
+            do {
+                data = try encoder.encode(highlightsForAnchor)
+            } catch {
+                markdownRendererLogger.warning(
+                    "Failed to encode persisted highlights for anchor \(self.selectionAnchorID ?? "", privacy: .public) count \(highlightsForAnchor.count, privacy: .public): \(error.localizedDescription, privacy: .public)"
+                )
+                return
+            }
+            guard let payload = String(data: data, encoding: .utf8) else {
+                markdownRendererLogger.warning(
+                    "Failed to convert persisted highlights payload to UTF-8 for anchor \(self.selectionAnchorID ?? "", privacy: .public)"
+                )
                 return
             }
             guard payload != lastAppliedHighlightsPayload else { return }
@@ -565,18 +588,21 @@ private struct MarkdownWebRendererRepresentable: NSViewRepresentable {
         ) {
             guard force
                     || markdown != lastRenderedMarkdown
-                    || deferCodeHighlightUpgrade != lastRenderedDeferCodeHighlightUpgrade else {
+                    || deferCodeHighlightUpgrade != lastRenderedDeferCodeHighlightUpgrade
+                    || renderPlainText != lastRenderedPlainTextMode else {
                 return
             }
 
             logLargeMarkdownIfNeeded(markdown)
             lastRenderedMarkdown = markdown
             lastRenderedDeferCodeHighlightUpgrade = deferCodeHighlightUpgrade
+            lastRenderedPlainTextMode = renderPlainText
             MarkdownWebRenderer.sendMarkdown(
                 to: webView,
                 markdown: markdown,
                 streaming: isStreaming,
-                deferCodeHighlightUpgrade: deferCodeHighlightUpgrade
+                deferCodeHighlightUpgrade: deferCodeHighlightUpgrade,
+                renderPlainText: renderPlainText
             )
         }
 

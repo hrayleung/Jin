@@ -79,6 +79,7 @@ struct ChatView: View {
     @State var messageText = ""
     @State var remoteVideoInputURLText = ""
     @State var draftAttachments: [DraftAttachment] = []
+    // swiftlint:disable:next private_swiftui_state
     @State var draftQuotes: [DraftQuote] = []
     @State var currentContextUsageEstimate: ChatContextUsageEstimate?
     @State var contextUsageRefreshTask: Task<Void, Never>?

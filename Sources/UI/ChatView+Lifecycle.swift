@@ -32,6 +32,7 @@ extension ChatView {
         messageText = ""
         draftAttachments = []
         draftQuotes = []
+        dropAttachmentImportInFlightCount = 0
         remoteVideoInputURLText = ""
         isExpandedComposerPresented = false
         isComposerHidden = false

@@ -50,6 +50,11 @@ h1, h2, h3, h4, h5, h6 { margin-top: 1em; margin-bottom: 0.5em; font-weight: 600
 h1 { font-size: 1.6em; } h2 { font-size: 1.4em; } h3 { font-size: 1.2em; } h4 { font-size: 1.1em; }
 p { margin-bottom: 0.6em; }
 p:last-child { margin-bottom: 0; }
+.plain-text-content {
+    white-space: pre-wrap;
+    word-break: break-word;
+    overflow-wrap: anywhere;
+}
 mark[data-jin-highlight-id] {
     background: var(--reader-highlight-bg);
     color: inherit;
@@ -547,19 +552,50 @@ function contentRoot() {
     return document.getElementById('content');
 }
 
+function isSelectableChromeElement(element, root) {
+    if (!element || element === root) return false;
+    if (element.hidden || element.getAttribute('aria-hidden') === 'true') return true;
+    if (
+        element.closest('.code-header, .line-numbers-gutter, .code-expand-bar, .code-actions, button') &&
+        !element.closest('mark[data-jin-highlight-id]')
+    ) {
+        return true;
+    }
+    var style = window.getComputedStyle ? window.getComputedStyle(element) : null;
+    if (style && (style.display === 'none' || style.visibility === 'hidden' || style.userSelect === 'none' || style.webkitUserSelect === 'none')) {
+        return true;
+    }
+    return false;
+}
+
+function isSelectableTextNode(node, root) {
+    if (!node || !node.nodeValue || !node.nodeValue.length) return false;
+    var current = node.parentNode;
+    while (current && current !== root) {
+        if (current.nodeType === Node.ELEMENT_NODE) {
+            var tagName = String(current.tagName || '');
+            if (tagName === 'SCRIPT' || tagName === 'STYLE') return false;
+            if (isSelectableChromeElement(current, root)) return false;
+        }
+        current = current.parentNode;
+    }
+    var parent = node.parentNode;
+    if (parent && parent.nodeType === Node.ELEMENT_NODE) {
+        if (typeof parent.getClientRects === 'function' && parent.getClientRects().length === 0) {
+            return false;
+        }
+    }
+    return true;
+}
+
 function collectTextNodes(root) {
     var nodes = [];
     if (!root) return nodes;
     var walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
         acceptNode: function(node) {
-            if (!node || !node.nodeValue || !node.nodeValue.length) {
-                return NodeFilter.FILTER_REJECT;
-            }
-            var parent = node.parentNode;
-            if (parent && parent.nodeType === Node.ELEMENT_NODE && parent.tagName === 'SCRIPT') {
-                return NodeFilter.FILTER_REJECT;
-            }
-            return NodeFilter.FILTER_ACCEPT;
+            return isSelectableTextNode(node, root)
+                ? NodeFilter.FILTER_ACCEPT
+                : NodeFilter.FILTER_REJECT;
         }
     });
     var current;
@@ -576,6 +612,52 @@ function totalTextLength(root) {
         total += nodes[i].nodeValue.length;
     }
     return total;
+}
+
+function normalizeBoundaryPosition(root, container, offset, isStart) {
+    if (!container) return null;
+    if (container.nodeType === Node.TEXT_NODE) {
+        return { node: container, offset: offset };
+    }
+
+    var nodes = collectTextNodes(root);
+    if (!nodes.length) return null;
+
+    var referenceNode = null;
+    if (container.nodeType === Node.ELEMENT_NODE) {
+        referenceNode = container.childNodes[offset] || null;
+        if (referenceNode && referenceNode.nodeType !== Node.TEXT_NODE) {
+            if (isStart) {
+                var walker = document.createTreeWalker(referenceNode, NodeFilter.SHOW_TEXT, null);
+                referenceNode = walker.nextNode();
+            } else {
+                var lastText = null;
+                var reverseWalker = document.createTreeWalker(referenceNode, NodeFilter.SHOW_TEXT, null);
+                var current;
+                while ((current = reverseWalker.nextNode())) lastText = current;
+                referenceNode = lastText;
+            }
+        }
+    }
+
+    if (referenceNode && referenceNode.nodeType === Node.TEXT_NODE) {
+        return { node: referenceNode, offset: isStart ? 0 : referenceNode.nodeValue.length };
+    }
+
+    var candidate = isStart ? nodes[0] : nodes[nodes.length - 1];
+    if (container.nodeType === Node.ELEMENT_NODE) {
+        var foundIndex = -1;
+        for (var i = 0; i < nodes.length; i += 1) {
+            if (container.contains(nodes[i])) {
+                foundIndex = i;
+                break;
+            }
+        }
+        if (foundIndex >= 0) {
+            candidate = isStart ? nodes[foundIndex] : nodes[foundIndex];
+        }
+    }
+    return { node: candidate, offset: isStart ? 0 : candidate.nodeValue.length };
 }
 
 function locateTextPosition(root, offset) {
@@ -651,6 +733,11 @@ function applyPersistedHighlights() {
 
 function rangeToOffsets(root, range) {
     var nodes = collectTextNodes(root);
+    var normalizedStart = normalizeBoundaryPosition(root, range.startContainer, range.startOffset, true);
+    var normalizedEnd = normalizeBoundaryPosition(root, range.endContainer, range.endOffset, false);
+    if (!normalizedStart || !normalizedEnd) {
+        return { start: 0, end: 0 };
+    }
     var start = 0;
     var end = 0;
     var foundStart = false;
@@ -660,16 +747,16 @@ function rangeToOffsets(root, range) {
         var node = nodes[i];
         var length = node.nodeValue.length;
         if (!foundStart) {
-            if (node === range.startContainer) {
-                start += range.startOffset;
+            if (node === normalizedStart.node) {
+                start += normalizedStart.offset;
                 foundStart = true;
             } else {
                 start += length;
             }
         }
         if (!foundEnd) {
-            if (node === range.endContainer) {
-                end += range.endOffset;
+            if (node === normalizedEnd.node) {
+                end += normalizedEnd.offset;
                 foundEnd = true;
             } else {
                 end += length;
@@ -1872,12 +1959,33 @@ function renderMarkdownContent(parserState, text) {
     reportHeight();
 }
 
+function renderPlainTextContent(text) {
+    _codeBlockId = 0;
+    _codeBlockSrc = {};
+    _codeBlockState = {};
+    var content = document.getElementById('content');
+    if (!content) return;
+    content.innerHTML = '';
+    var container = document.createElement('div');
+    container.className = 'plain-text-content';
+    container.textContent = String(text || '');
+    content.appendChild(container);
+    applyPersistedHighlights();
+    scheduleSelectionSnapshotPost();
+    reportHeight();
+}
+
 var mdState = createMarkdownParserState();
 
 async function updateContent(base64, options) {
     var ticket = ++_stableRenderTicket;
     _latestStableBase64 = base64;
     var text = decodeBase64UTF8(base64);
+    if (options && options.renderPlainText === true) {
+        _latestStableText = text;
+        renderPlainTextContent(text);
+        return;
+    }
     var needsCodeHighlight = containsLikelyCodeBlocks(text);
     var needsMath = containsLikelyMath(text);
     var deferCodeHighlightUpgrade = shouldDeferCodeHighlightUpgrade(options);
@@ -1932,6 +2040,10 @@ async function updateContentText(text, options) {
     var ticket = ++_stableRenderTicket;
     _latestStableText = String(text || '');
     var renderedText = _latestStableText;
+    if (options && options.renderPlainText === true) {
+        renderPlainTextContent(renderedText);
+        return;
+    }
     var needsCodeHighlight = containsLikelyCodeBlocks(renderedText);
     var needsMath = containsLikelyMath(renderedText);
     var deferCodeHighlightUpgrade = shouldDeferCodeHighlightUpgrade(options);

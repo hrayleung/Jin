@@ -54,7 +54,7 @@ enum ChatMessageRenderMetadataBuilder {
             return false
         }
         let visibleContent = renderedBlocks.compactMap { block -> RenderedContentPart? in
-            guard case .content(let part) = block else { return nil }
+            guard case .content(_, let part) = block else { return nil }
             return part
         }
         let combinedText = assistantVisibleText(from: content)

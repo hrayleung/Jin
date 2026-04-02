@@ -105,20 +105,13 @@ enum ChatRenderedContentDecoder {
 
     private static func decodeQuote(_ rawPart: [String: Any]) -> RenderedContentPart? {
         guard let quote = rawPart["quote"] as? [String: Any],
-              let sourceMessageIDString = quote["sourceMessageID"] as? String,
-              let sourceMessageID = UUID(uuidString: sourceMessageIDString),
-              let sourceRoleRaw = quote["sourceRole"] as? String,
-              let sourceRole = MessageRole(rawValue: sourceRoleRaw),
               let quotedText = quote["quotedText"] as? String else {
             return nil
         }
 
-        let sourceThreadID: UUID?
-        if let rawThreadID = quote["sourceThreadID"] as? String {
-            sourceThreadID = UUID(uuidString: rawThreadID)
-        } else {
-            sourceThreadID = nil
-        }
+        let sourceMessageID = (quote["sourceMessageID"] as? String).flatMap(UUID.init(uuidString:))
+        let sourceThreadID = (quote["sourceThreadID"] as? String).flatMap(UUID.init(uuidString:))
+        let sourceRole = (quote["sourceRole"] as? String).flatMap(MessageRole.init(rawValue:))
 
         let createdAt = decodeDate(quote["createdAt"]) ?? .distantPast
         return .quote(

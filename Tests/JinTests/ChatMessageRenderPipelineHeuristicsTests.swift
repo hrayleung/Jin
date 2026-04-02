@@ -4,7 +4,7 @@ import XCTest
 final class ChatMessageRenderPipelineHeuristicsTests: XCTestCase {
     func testRenderMetadataPrefersNativeTextForSinglePlainAssistantTextBlock() {
         let content: [RenderedContentPart] = [.text("Plain answer without markdown syntax.")]
-        let renderedBlocks: [RenderedMessageBlock] = [.content(.text("Plain answer without markdown syntax."))]
+        let renderedBlocks: [RenderedMessageBlock] = [.content(anchorID: "anchor-0", part: .text("Plain answer without markdown syntax."))]
 
         let metadata = ChatMessageRenderMetadataBuilder.renderMetadata(
             role: .assistant,
@@ -49,7 +49,7 @@ final class ChatMessageRenderPipelineHeuristicsTests: XCTestCase {
                 .redactedThinking(RedactedThinkingBlock(data: "hidden")),
                 .text("OK")
             ],
-            renderedBlocks: [.content(.text("OK"))],
+            renderedBlocks: [.content(anchorID: "anchor-0", part: .text("OK"))],
             copyText: "OK"
         )
 

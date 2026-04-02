@@ -21,7 +21,16 @@ extension ChatView {
 
     func addDraftQuote(from snapshot: MessageSelectionSnapshot, sourceModelName: String?) {
         guard let quote = draftQuote(from: snapshot, sourceModelName: sourceModelName) else { return }
-        if !draftQuotes.contains(where: { $0.content == quote.content }) {
+        let alreadyExists = draftQuotes.contains {
+            $0.content.sourceMessageID == quote.content.sourceMessageID
+                && $0.content.sourceThreadID == quote.content.sourceThreadID
+                && $0.content.sourceRole == quote.content.sourceRole
+                && $0.content.sourceModelName == quote.content.sourceModelName
+                && $0.content.quotedText == quote.content.quotedText
+                && $0.content.prefixContext == quote.content.prefixContext
+                && $0.content.suffixContext == quote.content.suffixContext
+        }
+        if !alreadyExists {
             draftQuotes.append(quote)
         }
         if isComposerHidden {
@@ -61,6 +70,7 @@ extension ChatView {
         )
         highlight.message = messageEntity
         highlight.conversation = conversationEntity
+        highlight.syncIDsWithRelationships()
         messageEntity.highlights.append(highlight)
         conversationEntity.messageHighlights.append(highlight)
 

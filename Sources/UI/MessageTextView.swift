@@ -15,8 +15,6 @@ struct MessageTextView: View {
     let persistedHighlights: [MessageHighlightSnapshot]
     let selectionActions: MessageTextSelectionActions
 
-    @AppStorage(AppPreferenceKeys.appFontFamily) private var appFontFamily = JinTypography.systemFontPreferenceValue
-
     init(
         text: String,
         mode: RenderingMode = .markdown,
@@ -62,14 +60,15 @@ struct MessageTextView: View {
             )
 
         case .plainText:
-            Text(text)
-                .font(chatBodyFont)
-                .fixedSize(horizontal: false, vertical: true)
-                .textSelection(.enabled)
+            MarkdownWebRenderer(
+                markdownText: text,
+                renderPlainText: true,
+                selectionMessageID: selectionMessageID,
+                selectionContextThreadID: selectionContextThreadID,
+                selectionAnchorID: selectionAnchorID,
+                persistedHighlights: persistedHighlights,
+                selectionActions: selectionActions
+            )
         }
-    }
-
-    private var chatBodyFont: Font {
-        JinTypography.chatBodyFont(appFamilyPreference: appFontFamily, scale: JinTypography.defaultChatMessageScale)
     }
 }

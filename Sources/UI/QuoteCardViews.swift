@@ -92,14 +92,16 @@ private struct QuoteCardContainer<Accessory: View>: View {
     private var sourceLine: String {
         let base: String
         switch quote.sourceRole {
-        case .assistant:
+        case .assistant?:
             base = "Assistant"
-        case .user:
+        case .user?:
             base = "User"
-        case .system:
+        case .system?:
             base = "System"
-        case .tool:
+        case .tool?:
             base = "Tool"
+        case nil:
+            base = "Quoted"
         }
 
         if let model = quote.sourceModelName?.trimmingCharacters(in: .whitespacesAndNewlines), !model.isEmpty {

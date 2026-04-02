@@ -193,7 +193,12 @@ extension ChatView {
         for thread in threads {
             try Task.checkCancellation()
             let profile = try messagePreparationProfile(for: thread)
-            if profile.supportsMediaGenerationControl && messageText.isEmpty {
+            let hasTextualPrompt =
+                !messageText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                || quoteContents.contains {
+                    !$0.quotedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                }
+            if profile.supportsMediaGenerationControl && !hasTextualPrompt {
                 let mediaType = profile.supportsVideoGenerationControl ? "Video" : "Image"
                 throw LLMError.invalidRequest(message: "\(mediaType) generation models require a text prompt. (\(profile.modelName))")
             }

@@ -80,8 +80,7 @@ extension CodexAppServerAdapter {
                 let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
                 return trimmed.isEmpty ? nil : trimmed
             case .quote(let quote):
-                let trimmed = quote.quotedText.trimmingCharacters(in: .whitespacesAndNewlines)
-                return trimmed.isEmpty ? nil : "[Quote] \(trimmed)"
+                return renderQuote(quote.quotedText)
             case .thinking(let block):
                 let trimmed = block.text.trimmingCharacters(in: .whitespacesAndNewlines)
                 return trimmed.isEmpty ? nil : "[Thinking] \(trimmed)"
@@ -131,8 +130,7 @@ extension CodexAppServerAdapter {
                         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
                         return trimmed.isEmpty ? nil : trimmed
                     case .quote(let quote):
-                        let trimmed = quote.quotedText.trimmingCharacters(in: .whitespacesAndNewlines)
-                        return trimmed.isEmpty ? nil : "[Quote] \(trimmed)"
+                        return renderQuote(quote.quotedText)
                     case .thinking(let block):
                         let trimmed = block.text.trimmingCharacters(in: .whitespacesAndNewlines)
                         return trimmed.isEmpty ? nil : "[Thinking] \(trimmed)"
@@ -167,6 +165,11 @@ extension CodexAppServerAdapter {
             return "Continue."
         }
         return trimmed
+    }
+
+    private nonisolated static func renderQuote(_ raw: String) -> String? {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : "[Quote] \(trimmed)"
     }
 
     // MARK: - Image Input

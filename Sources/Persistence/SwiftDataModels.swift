@@ -420,8 +420,18 @@ final class MessageHighlightEntity {
         set { colorStyleRaw = newValue.rawValue }
     }
 
+    func syncIDsWithRelationships() {
+        if let message {
+            messageID = message.id
+        }
+        if let conversation {
+            conversationID = conversation.id
+        }
+    }
+
     var snapshot: MessageHighlightSnapshot {
-        MessageHighlightSnapshot(
+        syncIDsWithRelationships()
+        return MessageHighlightSnapshot(
             id: id,
             messageID: messageID,
             contextThreadID: contextThreadID,

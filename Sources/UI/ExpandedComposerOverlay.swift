@@ -111,13 +111,16 @@ struct ExpandedComposerOverlay<ControlsRow: View>: View {
 
         if !draftQuotes.isEmpty {
             accessorySection(title: "Quotes", systemName: "quote.opening") {
-                VStack(alignment: .leading, spacing: JinSpacing.small) {
-                    ForEach(draftQuotes) { quote in
-                        ComposerQuoteCardView(quote: quote) {
-                            onRemoveQuote(quote)
+                ScrollView(.vertical, showsIndicators: true) {
+                    VStack(alignment: .leading, spacing: JinSpacing.small) {
+                        ForEach(draftQuotes) { quote in
+                            ComposerQuoteCardView(quote: quote) {
+                                onRemoveQuote(quote)
+                            }
                         }
                     }
                 }
+                .frame(maxHeight: 168)
             }
         }
 
