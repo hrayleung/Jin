@@ -60,9 +60,14 @@ final class ConversationSearchCache {
 
                 let texts = parts.compactMap { part -> String? in
                     switch part {
-                    case .text(let text): return text
-                    case .file(let file): return file.filename
-                    default: return nil
+                    case .text(let text):
+                        return text
+                    case .quote(let quote):
+                        return quote.quotedText
+                    case .file(let file):
+                        return file.filename
+                    default:
+                        return nil
                     }
                 }
 

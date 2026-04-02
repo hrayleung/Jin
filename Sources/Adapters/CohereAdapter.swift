@@ -185,6 +185,8 @@ actor CohereAdapter: LLMProviderAdapter {
             switch part {
             case .text(let text):
                 segments.append(text)
+            case .quote(let quote):
+                segments.append(quote.quotedText)
             case .file(let file):
                 segments.append(AttachmentPromptRenderer.fallbackText(for: file))
             case .image, .video, .audio, .thinking, .redactedThinking:

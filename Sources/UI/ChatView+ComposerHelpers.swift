@@ -18,7 +18,7 @@ extension ChatView {
     }
 
     var canSendDraft: Bool {
-        (!trimmedMessageText.isEmpty || !draftAttachments.isEmpty) && !isImportingDropAttachments
+        (!trimmedMessageText.isEmpty || !draftAttachments.isEmpty || !draftQuotes.isEmpty) && !isImportingDropAttachments
     }
 
     var assistantDisplayName: String {

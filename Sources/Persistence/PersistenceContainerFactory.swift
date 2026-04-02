@@ -10,6 +10,7 @@ enum PersistenceContainerFactory {
             ConversationModelThreadEntity.self,
             AssistantEntity.self,
             MessageEntity.self,
+            MessageHighlightEntity.self,
             ProviderConfigEntity.self,
             MCPServerConfigEntity.self,
             AttachmentEntity.self,

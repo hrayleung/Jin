@@ -11,7 +11,7 @@ final class MessageRowRenderHeuristicsTests: XCTestCase {
         )
         let item = makeItem(
             role: .assistant,
-            renderedBlocks: [.content(.text("plain text without markdown"))],
+            renderedBlocks: [.content(anchorID: "anchor-0", part: .text("plain text without markdown"))],
             collapsedPreview: preview
         )
 
@@ -23,7 +23,8 @@ final class MessageRowRenderHeuristicsTests: XCTestCase {
             role: .assistant,
             renderedBlocks: [
                 .content(
-                    .text(
+                    anchorID: "anchor-0",
+                    part: .text(
                         """
                         ```swift
                         print(\"hi\")
@@ -68,7 +69,7 @@ final class MessageRowRenderHeuristicsTests: XCTestCase {
 
     private func makeItem(
         role: MessageRole,
-        renderedBlocks: [RenderedMessageBlock] = [.content(.text("body"))],
+        renderedBlocks: [RenderedMessageBlock] = [.content(anchorID: "anchor-0", part: .text("body"))],
         toolCalls: [ToolCall] = [],
         collapsedPreview: LightweightMessagePreview?
     ) -> MessageRenderItem {

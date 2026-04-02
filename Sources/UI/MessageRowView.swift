@@ -48,6 +48,9 @@ struct MessageRow: View {
     let onEditUserMessage: (UUID) -> Void
     let onDeleteMessage: (UUID) -> Void
     let onDeleteResponse: (UUID) -> Void
+    let onQuoteSelection: (MessageSelectionSnapshot, String?) -> Void
+    let onCreateHighlight: (MessageSelectionSnapshot) -> Void
+    let onRemoveHighlights: ([UUID]) -> Void
     let editingUserMessageID: UUID?
     let editingUserMessageText: Binding<String>
     let editingUserMessageFocused: Binding<Bool>
@@ -169,13 +172,18 @@ struct MessageRow: View {
                             } else {
                                 ForEach(Array(item.renderedBlocks.enumerated()), id: \.offset) { _, block in
                                     switch block {
-                                    case .content(let part):
+                                    case .content(let anchorID, let part):
                                         ContentPartView(
                                             part: part,
                                             isUser: false,
                                             deferCodeHighlightUpgrade: deferCodeHighlightUpgrade,
                                             forceNativeText: renderMode == .nativeText,
-                                            payloadResolver: payloadResolver
+                                            payloadResolver: payloadResolver,
+                                            selectionMessageID: item.id,
+                                            selectionContextThreadID: item.contextThreadID,
+                                            selectionAnchorID: anchorID,
+                                            persistedHighlights: highlights(for: anchorID),
+                                            selectionActions: selectionActions
                                         )
 
                                     case .artifact(let artifact):
@@ -213,18 +221,16 @@ struct MessageRow: View {
                     }
                 }
             }
-            .padding(.horizontal, 16)
+            .padding(.horizontal, JinSpacing.large)
 
-            if !isUser {
-                Spacer(minLength: 0)
-            }
+            Spacer()
         }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 8)
-        .contentShape(Rectangle())
+        .frame(maxWidth: .infinity, alignment: isUser ? .trailing : .leading)
+        .padding(.vertical, JinSpacing.small)
         .onTapGesture {
             onActivate?()
         }
+        .contentShape(Rectangle())
         .alert(
             pendingDeleteAction == .response ? "Delete response?" : "Delete message?",
             isPresented: $showingDeleteConfirmation
@@ -244,6 +250,21 @@ struct MessageRow: View {
                 pendingDeleteAction = nil
             }
         }
+    }
+
+    private func highlights(for anchorID: String) -> [MessageHighlightSnapshot] {
+        return item.highlights.filter { $0.anchorID == anchorID }
+    }
+
+    private var selectionActions: MessageTextSelectionActions {
+        guard item.isAssistant else { return .none }
+        return MessageTextSelectionActions(
+            onQuote: { snapshot in
+                onQuoteSelection(snapshot, item.assistantModelLabel)
+            },
+            onHighlight: onCreateHighlight,
+            onRemoveHighlights: onRemoveHighlights
+        )
     }
 
     @ViewBuilder
@@ -479,11 +500,11 @@ struct MessageRow: View {
     @ViewBuilder
     private func userBlocksView(blocks: [RenderedMessageBlock]) -> some View {
         let imageBlocks = blocks.compactMap { block -> RenderedContentPart? in
-            if case .content(let part) = block, case .image = part { return part }
+            if case .content(_, let part) = block, case .image = part { return part }
             return nil
         }
         let nonImageBlocks = blocks.filter { block in
-            if case .content(let part) = block, case .image = part { return false }
+            if case .content(_, let part) = block, case .image = part { return false }
             return true
         }
 
@@ -502,7 +523,7 @@ struct MessageRow: View {
 
         ForEach(Array(nonImageBlocks.enumerated()), id: \.offset) { _, block in
             switch block {
-            case .content(let part):
+            case .content(_, let part):
                 ContentPartView(
                     part: part,
                     isUser: true,

@@ -9,6 +9,7 @@ struct ExpandedComposerOverlay<ControlsRow: View>: View {
     @Binding var messageText: String
     @Binding var remoteVideoURLText: String
     @Binding var draftAttachments: [DraftAttachment]
+    @Binding var draftQuotes: [DraftQuote]
     @Binding var isPresented: Bool
     @Binding var isComposerDropTargeted: Bool
 
@@ -30,6 +31,7 @@ struct ExpandedComposerOverlay<ControlsRow: View>: View {
     let onDropFileURLs: ([URL]) -> Bool
     let onDropImages: ([NSImage]) -> Bool
     let onRemoveAttachment: (DraftAttachment) -> Void
+    let onRemoveQuote: (DraftQuote) -> Void
     let slashCommandServers: [SlashCommandMCPServerItem]
     let isSlashCommandActive: Bool
     let slashCommandFilterText: String
@@ -104,6 +106,21 @@ struct ExpandedComposerOverlay<ControlsRow: View>: View {
                     }
                     .padding(.horizontal, JinSpacing.xSmall)
                 }
+            }
+        }
+
+        if !draftQuotes.isEmpty {
+            accessorySection(title: "Quotes", systemName: "quote.opening") {
+                ScrollView(.vertical, showsIndicators: true) {
+                    VStack(alignment: .leading, spacing: JinSpacing.small) {
+                        ForEach(draftQuotes) { quote in
+                            ComposerQuoteCardView(quote: quote) {
+                                onRemoveQuote(quote)
+                            }
+                        }
+                    }
+                }
+                .frame(maxHeight: 168)
             }
         }
 

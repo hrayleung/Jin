@@ -112,6 +112,12 @@ extension OpenAIAdapter {
                 "type": textType,
                 "text": text
             ]
+        case .quote(let quote):
+            let textType = (role == .assistant) ? "output_text" : "input_text"
+            return [
+                "type": textType,
+                "text": quote.quotedText
+            ]
 
         case .image(let image):
             if let data = image.data {

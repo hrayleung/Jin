@@ -142,7 +142,11 @@ extension ChatView {
 
     private func contextUsageDraftMessageParts(settings: ContextUsageSettingsSnapshot) -> [ContentPart] {
         var parts: [ContentPart] = []
-        parts.reserveCapacity(draftAttachments.count + (trimmedMessageText.isEmpty ? 0 : 1) + 1)
+        parts.reserveCapacity(draftQuotes.count + draftAttachments.count + (trimmedMessageText.isEmpty ? 0 : 1) + 1)
+
+        if !draftQuotes.isEmpty {
+            parts.append(contentsOf: draftQuotes.map { .quote($0.content) })
+        }
 
         if let remoteVideoURL = try? resolvedRemoteVideoInputURL(from: trimmedRemoteVideoInputURLText) {
             parts.append(

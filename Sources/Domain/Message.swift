@@ -11,6 +11,7 @@ enum MessageRole: String, Codable, Sendable {
 /// Content part supporting multimodal messages
 enum ContentPart: Codable, Sendable {
     case text(String)
+    case quote(QuoteContent)
     case image(ImageContent)
     case video(VideoContent)
     case file(FileContent)
@@ -21,6 +22,7 @@ enum ContentPart: Codable, Sendable {
     enum CodingKeys: String, CodingKey {
         case type
         case text
+        case quote
         case image
         case video
         case file
@@ -33,6 +35,7 @@ enum ContentPart: Codable, Sendable {
 
     enum ContentType: String, Codable {
         case text
+        case quote
         case image
         case video
         case file
@@ -49,6 +52,9 @@ enum ContentPart: Codable, Sendable {
         case .text:
             let text = try container.decode(String.self, forKey: .text)
             self = .text(text)
+        case .quote:
+            let quote = try container.decode(QuoteContent.self, forKey: .quote)
+            self = .quote(quote)
         case .image:
             let image = try container.decode(ImageContent.self, forKey: .image)
             self = .image(image)
@@ -80,6 +86,9 @@ enum ContentPart: Codable, Sendable {
         case .text(let text):
             try container.encode(ContentType.text, forKey: .type)
             try container.encode(text, forKey: .text)
+        case .quote(let quote):
+            try container.encode(ContentType.quote, forKey: .type)
+            try container.encode(quote, forKey: .quote)
         case .image(let image):
             try container.encode(ContentType.image, forKey: .type)
             try container.encode(image, forKey: .image)

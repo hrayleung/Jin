@@ -30,10 +30,10 @@ extension ChatView {
         cancelEditingUserMessage()
         speechToTextManager.cancelAndCleanup()
         messageText = ""
-        draftAttachments = []
-        clearContextUsageEstimate()
-        dropAttachmentImportInFlightCount = 0
         composerTextContentHeight = 36
+        draftAttachments = []
+        draftQuotes = []
+        dropAttachmentImportInFlightCount = 0
         remoteVideoInputURLText = ""
         isExpandedComposerPresented = false
         isComposerHidden = false

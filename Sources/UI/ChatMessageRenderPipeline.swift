@@ -85,6 +85,7 @@ enum ChatMessageRenderPipeline {
                     ? assistantProviderIconID(entity.generatedProviderID ?? "")
                     : nil,
                 responseMetrics: entity.responseMetrics,
+                highlightSnapshots: entity.highlightSnapshots,
                 canDeleteResponse: entity.role == MessageRole.user.rawValue
                     && ChatMessageEditingSupport.messagesToDeleteForResponse(
                         afterUserMessage: entity,
@@ -148,6 +149,7 @@ enum ChatMessageRenderPipeline {
                     ? (assistantProviderIconsByID[snapshot.generatedProviderID ?? ""] ?? nil)
                     : nil,
                 responseMetrics: snapshot.responseMetrics(using: decoder),
+                highlightSnapshots: snapshot.highlightSnapshots,
                 canDeleteResponse: snapshot.role == MessageRole.user.rawValue
                     && messagesToDeleteForResponse(
                         afterUserMessage: snapshot,
@@ -209,6 +211,7 @@ enum ChatMessageRenderPipeline {
         assistantModelLabel: String?,
         assistantProviderIconID: String?,
         responseMetrics: ResponseMetrics?,
+        highlightSnapshots: [MessageHighlightSnapshot],
         canDeleteResponse: Bool,
         perMessageMCPServerNames: [String],
         artifactVersionCounts: inout [String: Int],
@@ -244,6 +247,7 @@ enum ChatMessageRenderPipeline {
             assistantModelLabel: assistantModelLabel,
             assistantProviderIconID: assistantProviderIconID,
             responseMetrics: responseMetrics,
+            highlights: highlightSnapshots,
             copyText: copyText,
             preferredRenderMode: renderMetadata.preferredRenderMode,
             isMemoryIntensiveAssistantContent: renderMetadata.isMemoryIntensiveAssistantContent,

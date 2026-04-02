@@ -364,6 +364,11 @@ struct ContentPartView: View {
     var deferCodeHighlightUpgrade: Bool = false
     var forceNativeText: Bool = false
     var payloadResolver: RenderedMessagePayloadResolver = .noop
+    var selectionMessageID: UUID? = nil
+    var selectionContextThreadID: UUID? = nil
+    var selectionAnchorID: String? = nil
+    var persistedHighlights: [MessageHighlightSnapshot] = []
+    var selectionActions: MessageTextSelectionActions = .none
 
     var body: some View {
         switch part {
@@ -371,8 +376,16 @@ struct ContentPartView: View {
             MessageTextView(
                 text: text,
                 mode: (isUser || forceNativeText) ? .plainText : .markdown,
-                deferCodeHighlightUpgrade: (!isUser && deferCodeHighlightUpgrade)
+                deferCodeHighlightUpgrade: (!isUser && deferCodeHighlightUpgrade),
+                selectionMessageID: selectionMessageID,
+                selectionContextThreadID: selectionContextThreadID,
+                selectionAnchorID: selectionAnchorID,
+                persistedHighlights: persistedHighlights,
+                selectionActions: selectionActions
             )
+
+        case .quote(let quote):
+            MessageQuoteCardView(quote: quote)
 
         case .thinking(let thinking):
             ThinkingBlockView(thinking: thinking)

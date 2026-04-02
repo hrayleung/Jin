@@ -83,7 +83,7 @@ final class ChatLongConversationRenderPolicyTests: XCTestCase {
             contextThreadID: nil,
             role: MessageRole.assistant.rawValue,
             timestamp: Date(timeIntervalSince1970: 1),
-            renderedBlocks: [.content(.text("ignored"))],
+            renderedBlocks: [.content(anchorID: "anchor-0", part: .text("ignored"))],
             toolCalls: [],
             searchActivities: [],
             codeExecutionActivities: [],

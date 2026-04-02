@@ -24,6 +24,8 @@
     --code-button-hover-fg: light-dark(hsl(0, 0%, 22%), hsl(0, 0%, 84%));
     --code-button-active-bg: light-dark(rgba(0, 0, 0, 0.07), rgba(255, 255, 255, 0.10));
     --code-shadow: light-dark(0 10px 24px rgba(15, 23, 42, 0.05), 0 12px 28px rgba(2, 8, 23, 0.28));
+    --reader-highlight-bg: light-dark(rgba(250, 231, 133, 0.78), rgba(214, 161, 32, 0.34));
+    --reader-highlight-stroke: light-dark(rgba(192, 144, 22, 0.24), rgba(255, 215, 96, 0.18));
 }
 * { margin: 0; padding: 0; box-sizing: border-box; }
 html, body { overflow: hidden; }
@@ -48,6 +50,21 @@ h1, h2, h3, h4, h5, h6 { margin-top: 1em; margin-bottom: 0.5em; font-weight: 600
 h1 { font-size: 1.6em; } h2 { font-size: 1.4em; } h3 { font-size: 1.2em; } h4 { font-size: 1.1em; }
 p { margin-bottom: 0.6em; }
 p:last-child { margin-bottom: 0; }
+.plain-text-content {
+    white-space: pre-wrap;
+    word-break: break-word;
+    overflow-wrap: anywhere;
+}
+mark[data-jin-highlight-id] {
+    background: var(--reader-highlight-bg);
+    color: inherit;
+    border-radius: 0.32em;
+    padding: 0.02em 0.05em;
+    box-shadow: inset 0 -1px 0 var(--reader-highlight-stroke);
+}
+mark[data-jin-highlight-id]::selection {
+    background: color-mix(in srgb, var(--reader-highlight-bg) 72%, white 28%);
+}
 a { color: light-dark(#0066cc, #4ca6ff); text-decoration: none; }
 a:hover { text-decoration: underline; }
 code {
@@ -525,6 +542,298 @@ var _mermaidRuntimeLoadPromise = null;
 var _mermaidReadyPromise = null;
 var MAX_HIGHLIGHT_CODE_LENGTH = 24000;
 var MAX_HIGHLIGHT_CODE_LINES = 700;
+var _selectionMessageID = '';
+var _selectionContextThreadID = '';
+var _selectionAnchorID = '';
+var _persistedHighlights = [];
+var _selectionSyncTimer = null;
+
+function contentRoot() {
+    return document.getElementById('content');
+}
+
+function isSelectableChromeElement(element, root) {
+    if (!element || element === root) return false;
+    if (element.hidden || element.getAttribute('aria-hidden') === 'true') return true;
+    if (
+        element.closest('.code-header, .line-numbers-gutter, .code-expand-bar, .code-actions, button') &&
+        !element.closest('mark[data-jin-highlight-id]')
+    ) {
+        return true;
+    }
+    var style = window.getComputedStyle ? window.getComputedStyle(element) : null;
+    if (style && (style.display === 'none' || style.visibility === 'hidden' || style.userSelect === 'none' || style.webkitUserSelect === 'none')) {
+        return true;
+    }
+    return false;
+}
+
+function isSelectableTextNode(node, root) {
+    if (!node || !node.nodeValue || !node.nodeValue.length) return false;
+    var current = node.parentNode;
+    while (current && current !== root) {
+        if (current.nodeType === Node.ELEMENT_NODE) {
+            var tagName = String(current.tagName || '');
+            if (tagName === 'SCRIPT' || tagName === 'STYLE') return false;
+            if (isSelectableChromeElement(current, root)) return false;
+        }
+        current = current.parentNode;
+    }
+    var parent = node.parentNode;
+    if (parent && parent.nodeType === Node.ELEMENT_NODE) {
+        if (typeof parent.getClientRects === 'function' && parent.getClientRects().length === 0) {
+            return false;
+        }
+    }
+    return true;
+}
+
+function collectTextNodes(root) {
+    var nodes = [];
+    if (!root) return nodes;
+    var walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+        acceptNode: function(node) {
+            return isSelectableTextNode(node, root)
+                ? NodeFilter.FILTER_ACCEPT
+                : NodeFilter.FILTER_REJECT;
+        }
+    });
+    var current;
+    while ((current = walker.nextNode())) {
+        nodes.push(current);
+    }
+    return nodes;
+}
+
+function totalTextLength(root) {
+    var nodes = collectTextNodes(root);
+    var total = 0;
+    for (var i = 0; i < nodes.length; i += 1) {
+        total += nodes[i].nodeValue.length;
+    }
+    return total;
+}
+
+function normalizeBoundaryPosition(root, container, offset, isStart) {
+    if (!container) return null;
+    if (container.nodeType === Node.TEXT_NODE) {
+        return { node: container, offset: offset };
+    }
+
+    var nodes = collectTextNodes(root);
+    if (!nodes.length) return null;
+
+    var referenceNode = null;
+    if (container.nodeType === Node.ELEMENT_NODE) {
+        referenceNode = container.childNodes[offset] || null;
+        if (referenceNode && referenceNode.nodeType !== Node.TEXT_NODE) {
+            if (isStart) {
+                var walker = document.createTreeWalker(referenceNode, NodeFilter.SHOW_TEXT, null);
+                referenceNode = walker.nextNode();
+            } else {
+                var lastText = null;
+                var reverseWalker = document.createTreeWalker(referenceNode, NodeFilter.SHOW_TEXT, null);
+                var current;
+                while ((current = reverseWalker.nextNode())) lastText = current;
+                referenceNode = lastText;
+            }
+        }
+    }
+
+    if (referenceNode && referenceNode.nodeType === Node.TEXT_NODE) {
+        return { node: referenceNode, offset: isStart ? 0 : referenceNode.nodeValue.length };
+    }
+
+    var candidate = isStart ? nodes[0] : nodes[nodes.length - 1];
+    if (container.nodeType === Node.ELEMENT_NODE) {
+        var foundIndex = -1;
+        for (var i = 0; i < nodes.length; i += 1) {
+            if (container.contains(nodes[i])) {
+                foundIndex = i;
+                break;
+            }
+        }
+        if (foundIndex >= 0) {
+            candidate = isStart ? nodes[foundIndex] : nodes[foundIndex];
+        }
+    }
+    return { node: candidate, offset: isStart ? 0 : candidate.nodeValue.length };
+}
+
+function locateTextPosition(root, offset) {
+    var nodes = collectTextNodes(root);
+    if (!nodes.length) return null;
+    var remaining = Math.max(0, offset || 0);
+    for (var i = 0; i < nodes.length; i += 1) {
+        var node = nodes[i];
+        var length = node.nodeValue.length;
+        if (remaining <= length) {
+            return { node: node, offset: remaining };
+        }
+        remaining -= length;
+    }
+    var lastNode = nodes[nodes.length - 1];
+    return { node: lastNode, offset: lastNode.nodeValue.length };
+}
+
+function unwrapHighlightMarks(root) {
+    if (!root) return;
+    var marks = Array.from(root.querySelectorAll('mark[data-jin-highlight-id]'));
+    marks.forEach(function(mark) {
+        var parent = mark.parentNode;
+        if (!parent) return;
+        while (mark.firstChild) {
+            parent.insertBefore(mark.firstChild, mark);
+        }
+        parent.removeChild(mark);
+        parent.normalize();
+    });
+}
+
+function applyHighlightRange(root, highlight) {
+    if (!root || !highlight) return;
+    var start = Math.max(0, parseInt(highlight.startOffset, 10) || 0);
+    var end = Math.max(start, parseInt(highlight.endOffset, 10) || start);
+    if (end <= start) return;
+
+    var startPos = locateTextPosition(root, start);
+    var endPos = locateTextPosition(root, end);
+    if (!startPos || !endPos) return;
+
+    var range = document.createRange();
+    range.setStart(startPos.node, Math.min(startPos.offset, startPos.node.nodeValue.length));
+    range.setEnd(endPos.node, Math.min(endPos.offset, endPos.node.nodeValue.length));
+    if (range.collapsed) return;
+
+    var mark = document.createElement('mark');
+    mark.setAttribute('data-jin-highlight-id', highlight.id);
+    mark.setAttribute('data-jin-highlight-style', highlight.colorStyle || 'readerYellow');
+
+    try {
+        var fragment = range.extractContents();
+        mark.appendChild(fragment);
+        range.insertNode(mark);
+    } catch (error) {
+        console.warn('[JinMarkdown] failed to apply persisted highlight', error);
+    }
+}
+
+function applyPersistedHighlights() {
+    var root = contentRoot();
+    if (!root) return;
+    unwrapHighlightMarks(root);
+    var highlights = Array.isArray(_persistedHighlights) ? _persistedHighlights.slice() : [];
+    highlights.sort(function(a, b) {
+        return (parseInt(b.startOffset, 10) || 0) - (parseInt(a.startOffset, 10) || 0);
+    });
+    highlights.forEach(function(highlight) {
+        applyHighlightRange(root, highlight);
+    });
+}
+
+function rangeToOffsets(root, range) {
+    var nodes = collectTextNodes(root);
+    var normalizedStart = normalizeBoundaryPosition(root, range.startContainer, range.startOffset, true);
+    var normalizedEnd = normalizeBoundaryPosition(root, range.endContainer, range.endOffset, false);
+    if (!normalizedStart || !normalizedEnd) {
+        return { start: 0, end: 0 };
+    }
+    var start = 0;
+    var end = 0;
+    var foundStart = false;
+    var foundEnd = false;
+
+    for (var i = 0; i < nodes.length; i += 1) {
+        var node = nodes[i];
+        var length = node.nodeValue.length;
+        if (!foundStart) {
+            if (node === normalizedStart.node) {
+                start += normalizedStart.offset;
+                foundStart = true;
+            } else {
+                start += length;
+            }
+        }
+        if (!foundEnd) {
+            if (node === normalizedEnd.node) {
+                end += normalizedEnd.offset;
+                foundEnd = true;
+            } else {
+                end += length;
+            }
+        }
+        if (foundStart && foundEnd) break;
+    }
+
+    return {
+        start: foundStart ? start : 0,
+        end: foundEnd ? end : 0
+    };
+}
+
+function buildSelectionSnapshot() {
+    var root = contentRoot();
+    if (!root) return null;
+    var selection = window.getSelection ? window.getSelection() : null;
+    if (!selection || selection.rangeCount === 0 || selection.isCollapsed) return null;
+    var range = selection.getRangeAt(0);
+    if (!root.contains(range.commonAncestorContainer)) return null;
+
+    var offsets = rangeToOffsets(root, range);
+    var start = Math.max(0, offsets.start);
+    var end = Math.max(start, offsets.end);
+    var selectedText = String(selection.toString() || '');
+    if (!selectedText.trim()) return null;
+
+    var rootText = root.textContent || '';
+    var matchingHighlightIDs = (_persistedHighlights || [])
+        .filter(function(highlight) {
+            return (parseInt(highlight.startOffset, 10) || 0) === start
+                && (parseInt(highlight.endOffset, 10) || 0) === end;
+        })
+        .map(function(highlight) { return String(highlight.id || ''); })
+        .filter(Boolean);
+
+    return {
+        messageID: _selectionMessageID,
+        contextThreadID: _selectionContextThreadID,
+        anchorID: _selectionAnchorID,
+        selectedText: selectedText,
+        prefixContext: rootText.slice(Math.max(0, start - 48), start),
+        suffixContext: rootText.slice(end, Math.min(rootText.length, end + 48)),
+        startOffset: start,
+        endOffset: end,
+        matchingHighlightIDs: matchingHighlightIDs
+    };
+}
+
+function postSelectionSnapshot() {
+    if (!(window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.selectionChanged)) {
+        return;
+    }
+    window.webkit.messageHandlers.selectionChanged.postMessage(buildSelectionSnapshot());
+}
+
+function scheduleSelectionSnapshotPost() {
+    if (_selectionSyncTimer) clearTimeout(_selectionSyncTimer);
+    _selectionSyncTimer = setTimeout(function() {
+        _selectionSyncTimer = null;
+        postSelectionSnapshot();
+    }, 0);
+}
+
+function setSelectionContext(messageID, contextThreadID, anchorID) {
+    _selectionMessageID = String(messageID || '');
+    _selectionContextThreadID = String(contextThreadID || '');
+    _selectionAnchorID = String(anchorID || '');
+}
+
+function setPersistedHighlights(highlights) {
+    _persistedHighlights = Array.isArray(highlights) ? highlights : [];
+    applyPersistedHighlights();
+    scheduleSelectionSnapshotPost();
+    scheduleHeightReport();
+}
 
 function escapeHTML(value) {
     return String(value)
@@ -1645,6 +1954,24 @@ function renderMarkdownContent(parserState, text) {
     _codeBlockSrc = {};
     _codeBlockState = {};
     document.getElementById('content').innerHTML = parserState.instance.render(text);
+    applyPersistedHighlights();
+    scheduleSelectionSnapshotPost();
+    reportHeight();
+}
+
+function renderPlainTextContent(text) {
+    _codeBlockId = 0;
+    _codeBlockSrc = {};
+    _codeBlockState = {};
+    var content = document.getElementById('content');
+    if (!content) return;
+    content.innerHTML = '';
+    var container = document.createElement('div');
+    container.className = 'plain-text-content';
+    container.textContent = String(text || '');
+    content.appendChild(container);
+    applyPersistedHighlights();
+    scheduleSelectionSnapshotPost();
     reportHeight();
 }
 
@@ -1654,6 +1981,11 @@ async function updateContent(base64, options) {
     var ticket = ++_stableRenderTicket;
     _latestStableBase64 = base64;
     var text = decodeBase64UTF8(base64);
+    if (options && options.renderPlainText === true) {
+        _latestStableText = text;
+        renderPlainTextContent(text);
+        return;
+    }
     var needsCodeHighlight = containsLikelyCodeBlocks(text);
     var needsMath = containsLikelyMath(text);
     var deferCodeHighlightUpgrade = shouldDeferCodeHighlightUpgrade(options);
@@ -1708,6 +2040,10 @@ async function updateContentText(text, options) {
     var ticket = ++_stableRenderTicket;
     _latestStableText = String(text || '');
     var renderedText = _latestStableText;
+    if (options && options.renderPlainText === true) {
+        renderPlainTextContent(renderedText);
+        return;
+    }
     var needsCodeHighlight = containsLikelyCodeBlocks(renderedText);
     var needsMath = containsLikelyMath(renderedText);
     var deferCodeHighlightUpgrade = shouldDeferCodeHighlightUpgrade(options);
@@ -1789,6 +2125,9 @@ if (contentEl) {
     resizeObserver.observe(contentEl);
 }
 resizeObserver.observe(document.body);
+document.addEventListener('selectionchange', scheduleSelectionSnapshotPost, true);
+document.addEventListener('mouseup', scheduleSelectionSnapshotPost, true);
+document.addEventListener('contextmenu', scheduleSelectionSnapshotPost, true);
 
 window.applyCodeBlockSettings = function(settings) {
     if (!settings) return;
@@ -1825,6 +2164,8 @@ window.applyCodeBlockSettings = function(settings) {
     scheduleHeightReport();
 };
 
+window.setSelectionContext = setSelectionContext;
+window.setPersistedHighlights = setPersistedHighlights;
 window.updateWithBase64 = updateContent;
 window.updateWithText = updateContentText;
 

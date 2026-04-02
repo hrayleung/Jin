@@ -78,7 +78,7 @@ final class ChatMessageRenderPipelineHistoricalDecodingTests: XCTestCase {
         let message = try XCTUnwrap(context.visibleMessages.first)
         let block = try XCTUnwrap(message.renderedBlocks.first)
 
-        guard case .content(.image(let image)) = block else {
+        guard case .content(_, .image(let image)) = block else {
             return XCTFail("Expected lightweight image block")
         }
 
@@ -116,7 +116,7 @@ final class ChatMessageRenderPipelineHistoricalDecodingTests: XCTestCase {
         let message = try XCTUnwrap(context.visibleMessages.first)
         let block = try XCTUnwrap(message.renderedBlocks.first)
 
-        guard case .content(.file(let file)) = block else {
+        guard case .content(_, .file(let file)) = block else {
             return XCTFail("Expected lightweight file block")
         }
 
@@ -151,7 +151,7 @@ final class ChatMessageRenderPipelineHistoricalDecodingTests: XCTestCase {
         let renderedMessage = try XCTUnwrap(context.visibleMessages.first)
         let block = try XCTUnwrap(renderedMessage.renderedBlocks.first)
 
-        guard case .content(.image(let image)) = block else {
+        guard case .content(_, .image(let image)) = block else {
             return XCTFail("Expected inline image block")
         }
 
@@ -187,7 +187,7 @@ final class ChatMessageRenderPipelineHistoricalDecodingTests: XCTestCase {
         let renderedMessage = try XCTUnwrap(context.visibleMessages.first)
         let block = try XCTUnwrap(renderedMessage.renderedBlocks.first)
 
-        guard case .content(.file(let file)) = block else {
+        guard case .content(_, .file(let file)) = block else {
             return XCTFail("Expected file block")
         }
 

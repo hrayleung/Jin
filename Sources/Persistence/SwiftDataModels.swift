@@ -82,6 +82,9 @@ final class ConversationEntity {
     @Relationship(deleteRule: .cascade, inverse: \ConversationModelThreadEntity.conversation)
     var modelThreads: [ConversationModelThreadEntity] = []
 
+    @Relationship(deleteRule: .cascade, inverse: \MessageHighlightEntity.conversation)
+    var messageHighlights: [MessageHighlightEntity] = []
+
     init(
         id: UUID = UUID(),
         title: String,
@@ -230,6 +233,9 @@ final class MessageEntity {
 
     @Relationship var conversation: ConversationEntity?
 
+    @Relationship(deleteRule: .cascade, inverse: \MessageHighlightEntity.message)
+    var highlights: [MessageHighlightEntity] = []
+
     init(
         id: UUID = UUID(),
         role: String,
@@ -270,6 +276,20 @@ final class MessageEntity {
         self.thinkingVisible = thinkingVisible
         self.perMessageMCPServerNamesData = perMessageMCPServerNamesData
         self.perMessageMCPServerIDsData = perMessageMCPServerIDsData
+    }
+
+    var highlightSnapshots: [MessageHighlightSnapshot] {
+        highlights
+            .map { $0.makeSnapshot() }
+            .sorted { lhs, rhs in
+                if lhs.anchorID != rhs.anchorID {
+                    return lhs.anchorID < rhs.anchorID
+                }
+                if lhs.startOffset != rhs.startOffset {
+                    return lhs.startOffset < rhs.startOffset
+                }
+                return lhs.id.uuidString < rhs.id.uuidString
+            }
     }
 
     var responseMetrics: ResponseMetrics? {
@@ -342,6 +362,87 @@ final class MessageEntity {
             codexToolActivitiesData: codexToolActivitiesData,
             agentToolActivitiesData: agentToolActivitiesData,
             perMessageMCPServerNamesData: perMessageMCPServerNamesData
+        )
+    }
+}
+
+@Model
+final class MessageHighlightEntity {
+    @Attribute(.unique) var id: UUID
+    var messageID: UUID
+    var conversationID: UUID
+    var contextThreadID: UUID?
+    var anchorID: String
+    var selectedText: String
+    var prefixContext: String?
+    var suffixContext: String?
+    var startOffset: Int
+    var endOffset: Int
+    var colorStyleRaw: String
+    var createdAt: Date
+    var updatedAt: Date
+
+    @Relationship var conversation: ConversationEntity?
+    @Relationship var message: MessageEntity?
+
+    init(
+        id: UUID = UUID(),
+        messageID: UUID,
+        conversationID: UUID,
+        contextThreadID: UUID? = nil,
+        anchorID: String,
+        selectedText: String,
+        prefixContext: String? = nil,
+        suffixContext: String? = nil,
+        startOffset: Int,
+        endOffset: Int,
+        colorStyle: MessageHighlightColorStyle = .readerYellow,
+        createdAt: Date = Date(),
+        updatedAt: Date = Date()
+    ) {
+        self.id = id
+        self.messageID = messageID
+        self.conversationID = conversationID
+        self.contextThreadID = contextThreadID
+        self.anchorID = anchorID
+        self.selectedText = selectedText
+        self.prefixContext = prefixContext
+        self.suffixContext = suffixContext
+        self.startOffset = startOffset
+        self.endOffset = endOffset
+        self.colorStyleRaw = colorStyle.rawValue
+        self.createdAt = createdAt
+        self.updatedAt = updatedAt
+    }
+
+    var colorStyle: MessageHighlightColorStyle {
+        get { MessageHighlightColorStyle(rawValue: colorStyleRaw) ?? .readerYellow }
+        set { colorStyleRaw = newValue.rawValue }
+    }
+
+    func syncIDsWithRelationships() {
+        if let message {
+            messageID = message.id
+        }
+        if let conversation {
+            conversationID = conversation.id
+        }
+    }
+
+    func makeSnapshot() -> MessageHighlightSnapshot {
+        return MessageHighlightSnapshot(
+            id: id,
+            messageID: messageID,
+            contextThreadID: contextThreadID,
+            anchorID: anchorID,
+            selectedText: selectedText,
+            prefixContext: prefixContext,
+            suffixContext: suffixContext,
+            startOffset: startOffset,
+            endOffset: endOffset,
+            colorStyle: colorStyle,
+            createdAt: createdAt,
+            updatedAt: updatedAt
         )
     }
 }

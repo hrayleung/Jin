@@ -9,10 +9,17 @@ struct ChatMessageRenderMetadata: Sendable {
 enum ChatMessageRenderMetadataBuilder {
     static func copyableText(from content: [RenderedContentPart], role: MessageRole) -> String {
         let textParts = content.compactMap { part -> String? in
-            guard case .text(let text) = part else { return nil }
-            let sourceText = role == .assistant ? ArtifactMarkupParser.visibleText(from: text) : text
-            let trimmed = sourceText.trimmingCharacters(in: .whitespacesAndNewlines)
-            return trimmed.isEmpty ? nil : trimmed
+            switch part {
+            case .text(let text):
+                let sourceText = role == .assistant ? ArtifactMarkupParser.visibleText(from: text) : text
+                let trimmed = sourceText.trimmingCharacters(in: .whitespacesAndNewlines)
+                return trimmed.isEmpty ? nil : trimmed
+            case .quote(let quote):
+                let trimmed = quote.quotedText.trimmingCharacters(in: .whitespacesAndNewlines)
+                return trimmed.isEmpty ? nil : "“\(trimmed)”"
+            default:
+                return nil
+            }
         }
 
         if !textParts.isEmpty {
@@ -47,7 +54,7 @@ enum ChatMessageRenderMetadataBuilder {
             return false
         }
         let visibleContent = renderedBlocks.compactMap { block -> RenderedContentPart? in
-            guard case .content(let part) = block else { return nil }
+            guard case .content(_, let part) = block else { return nil }
             return part
         }
         let combinedText = assistantVisibleText(from: content)
@@ -72,15 +79,25 @@ enum ChatMessageRenderMetadataBuilder {
 
     private static func assistantVisibleText(from content: [RenderedContentPart]) -> String {
         content.compactMap { part -> String? in
-            guard case .text(let text) = part else { return nil }
-            return ArtifactMarkupParser.visibleText(from: text)
+            switch part {
+            case .text(let text):
+                return ArtifactMarkupParser.visibleText(from: text)
+            case .quote(let quote):
+                return quote.quotedText
+            default:
+                return nil
+            }
         }
         .joined(separator: "\n\n")
     }
 
     private static func isTextPart(_ part: RenderedContentPart) -> Bool {
-        if case .text = part { return true }
-        return false
+        switch part {
+        case .text, .quote:
+            return true
+        default:
+            return false
+        }
     }
 
     private static func makeCollapsedPreview(

@@ -9,6 +9,7 @@ extension ChatView {
             messageText: $messageText,
             remoteVideoURLText: $remoteVideoInputURLText,
             draftAttachments: $draftAttachments,
+            draftQuotes: $draftQuotes,
             isComposerDropTargeted: $isComposerDropTargeted,
             isComposerFocused: $isComposerFocused,
             composerTextContentHeight: $composerTextContentHeight,
@@ -23,12 +24,13 @@ extension ChatView {
             isRecording: speechToTextManager.isRecording,
             isTranscribing: speechToTextManager.isTranscribing,
             recordingDurationText: formattedRecordingDuration,
-            transcribingStatusText: speechToTextUsesAudioAttachment ? "Attaching audio\u{2026}" : "Transcribing\u{2026}",
+            transcribingStatusText: speechToTextUsesAudioAttachment ? "Attaching audio…" : "Transcribing…",
             onDropFileURLs: handleDroppedFileURLs,
             onDropImages: handleDroppedImages,
             onSubmit: handleComposerSubmit,
             onCancel: handleComposerCancel,
             onRemoveAttachment: removeDraftAttachment,
+            onRemoveQuote: removeDraftQuote,
             onExpand: {
                 isComposerFocused = false
                 isExpandedComposerPresented = true
@@ -292,7 +294,7 @@ extension ChatView {
         VStack(spacing: JinSpacing.small) {
             if isComposerHidden {
                 CollapsedComposerBar(
-                    hasContent: !messageText.isEmpty || !draftAttachments.isEmpty,
+                    hasContent: !messageText.isEmpty || !draftAttachments.isEmpty || !draftQuotes.isEmpty,
                     onExpand: showComposer
                 )
                 .transition(.move(edge: .bottom).combined(with: .opacity))
@@ -358,6 +360,7 @@ extension ChatView {
             messageText: $messageText,
             remoteVideoURLText: $remoteVideoInputURLText,
             draftAttachments: $draftAttachments,
+            draftQuotes: $draftQuotes,
             isPresented: $isExpandedComposerPresented,
             isComposerDropTargeted: $isComposerDropTargeted,
             contextUsageEstimate: currentContextUsageEstimate,
@@ -383,6 +386,7 @@ extension ChatView {
             onDropFileURLs: handleDroppedFileURLs,
             onDropImages: handleDroppedImages,
             onRemoveAttachment: removeDraftAttachment,
+            onRemoveQuote: removeDraftQuote,
             slashCommandServers: slashCommandMCPItems,
             isSlashCommandActive: isSlashMCPPopoverVisible && isComposerTarget,
             slashCommandFilterText: isComposerTarget ? slashMCPFilterText : "",
@@ -395,6 +399,10 @@ extension ChatView {
         ) {
             composerControlsRow(showsTrailingSpacer: false)
         }
+    }
+
+    func removeDraftQuote(_ quote: DraftQuote) {
+        draftQuotes.removeAll { $0.id == quote.id }
     }
 
     var fullPageDropOverlay: some View {
