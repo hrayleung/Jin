@@ -34,6 +34,8 @@ enum ChatRenderedContentDecoder {
         switch part {
         case .text(let text):
             return .text(text)
+        case .quote(let quote):
+            return .quote(quote)
         case .image(let image):
             return .image(
                 RenderedImageContent(
@@ -77,6 +79,8 @@ enum ChatRenderedContentDecoder {
         switch type {
         case "text":
             return decodeText(rawPart)
+        case "quote":
+            return decodeQuote(rawPart)
         case "image":
             return decodeImage(rawPart, deferredSource: deferredSource)
         case "video":
@@ -97,6 +101,38 @@ enum ChatRenderedContentDecoder {
     private static func decodeText(_ rawPart: [String: Any]) -> RenderedContentPart? {
         guard let text = rawPart["text"] as? String else { return nil }
         return .text(text)
+    }
+
+    private static func decodeQuote(_ rawPart: [String: Any]) -> RenderedContentPart? {
+        guard let quote = rawPart["quote"] as? [String: Any],
+              let sourceMessageIDString = quote["sourceMessageID"] as? String,
+              let sourceMessageID = UUID(uuidString: sourceMessageIDString),
+              let sourceRoleRaw = quote["sourceRole"] as? String,
+              let sourceRole = MessageRole(rawValue: sourceRoleRaw),
+              let quotedText = quote["quotedText"] as? String else {
+            return nil
+        }
+
+        let sourceThreadID: UUID?
+        if let rawThreadID = quote["sourceThreadID"] as? String {
+            sourceThreadID = UUID(uuidString: rawThreadID)
+        } else {
+            sourceThreadID = nil
+        }
+
+        let createdAt = decodeDate(quote["createdAt"]) ?? .distantPast
+        return .quote(
+            QuoteContent(
+                sourceMessageID: sourceMessageID,
+                sourceThreadID: sourceThreadID,
+                sourceRole: sourceRole,
+                sourceModelName: quote["sourceModelName"] as? String,
+                quotedText: quotedText,
+                prefixContext: quote["prefixContext"] as? String,
+                suffixContext: quote["suffixContext"] as? String,
+                createdAt: createdAt
+            )
+        )
     }
 
     private static func decodeImage(
@@ -204,6 +240,20 @@ enum ChatRenderedContentDecoder {
     private static func url(from value: Any?) -> URL? {
         guard let string = value as? String else { return nil }
         return URL(string: string)
+    }
+
+    private static func decodeDate(_ value: Any?) -> Date? {
+        if let timeInterval = value as? TimeInterval {
+            return Date(timeIntervalSinceReferenceDate: timeInterval)
+        }
+        if let number = value as? NSNumber {
+            return Date(timeIntervalSinceReferenceDate: number.doubleValue)
+        }
+        if let string = value as? String,
+           let timeInterval = TimeInterval(string) {
+            return Date(timeIntervalSinceReferenceDate: timeInterval)
+        }
+        return nil
     }
 
     private static func mediaAssetDisposition(

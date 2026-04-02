@@ -113,6 +113,10 @@ extension AnthropicAdapter {
                 var block: [String: Any] = ["type": "text", "text": text]
                 applyCache(&block)
                 content.append(block)
+            case .quote(let quote):
+                var block: [String: Any] = ["type": "text", "text": quote.quotedText]
+                applyCache(&block)
+                content.append(block)
             case .image(let image):
                 if let imageBlock = try translateImageBlock(image) {
                     content.append(imageBlock)

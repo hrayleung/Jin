@@ -117,6 +117,11 @@ struct MarkdownWebRenderer: View {
     let markdownText: String
     var isStreaming: Bool = false
     var deferCodeHighlightUpgrade: Bool = false
+    var selectionMessageID: UUID? = nil
+    var selectionContextThreadID: UUID? = nil
+    var selectionAnchorID: String? = nil
+    var persistedHighlights: [MessageHighlightSnapshot] = []
+    var selectionActions: MessageTextSelectionActions = .none
 
     @AppStorage(AppPreferenceKeys.appFontFamily) private var appFontFamily = JinTypography.systemFontPreferenceValue
     @AppStorage(AppPreferenceKeys.codeFontFamily) private var codeFontFamily = JinTypography.systemFontPreferenceValue
@@ -126,10 +131,24 @@ struct MarkdownWebRenderer: View {
 
     @State private var contentHeight: CGFloat
 
-    init(markdownText: String, isStreaming: Bool = false, deferCodeHighlightUpgrade: Bool = false) {
+    init(
+        markdownText: String,
+        isStreaming: Bool = false,
+        deferCodeHighlightUpgrade: Bool = false,
+        selectionMessageID: UUID? = nil,
+        selectionContextThreadID: UUID? = nil,
+        selectionAnchorID: String? = nil,
+        persistedHighlights: [MessageHighlightSnapshot] = [],
+        selectionActions: MessageTextSelectionActions = .none
+    ) {
         self.markdownText = markdownText
         self.isStreaming = isStreaming
         self.deferCodeHighlightUpgrade = deferCodeHighlightUpgrade
+        self.selectionMessageID = selectionMessageID
+        self.selectionContextThreadID = selectionContextThreadID
+        self.selectionAnchorID = selectionAnchorID
+        self.persistedHighlights = persistedHighlights
+        self.selectionActions = selectionActions
         let estimated = Self.estimatedHeight(for: markdownText)
         self._contentHeight = State(initialValue: estimated)
     }
@@ -144,7 +163,12 @@ struct MarkdownWebRenderer: View {
             codeFontFamily: codeFontFamily,
             codeBlockShowLineNumbers: codeBlockShowLineNumbers,
             codeBlockCollapseLineThreshold: codeBlockCollapseLineThreshold,
-            codeBlockDisplayMode: codeBlockDisplayMode
+            codeBlockDisplayMode: codeBlockDisplayMode,
+            selectionMessageID: selectionMessageID,
+            selectionContextThreadID: selectionContextThreadID,
+            selectionAnchorID: selectionAnchorID,
+            persistedHighlights: persistedHighlights,
+            selectionActions: selectionActions
         )
         .frame(height: contentHeight)
     }
@@ -201,6 +225,11 @@ private struct MarkdownWebRendererRepresentable: NSViewRepresentable {
     let codeBlockShowLineNumbers: Bool
     let codeBlockCollapseLineThreshold: Int
     let codeBlockDisplayMode: String
+    let selectionMessageID: UUID?
+    let selectionContextThreadID: UUID?
+    let selectionAnchorID: String?
+    let persistedHighlights: [MessageHighlightSnapshot]
+    let selectionActions: MessageTextSelectionActions
 
     func makeCoordinator() -> Coordinator { Coordinator() }
 
@@ -210,6 +239,7 @@ private struct MarkdownWebRendererRepresentable: NSViewRepresentable {
         config.userContentController = WKUserContentController()
         config.userContentController.add(context.coordinator, name: "heightChanged")
         config.userContentController.add(context.coordinator, name: "copyText")
+        config.userContentController.add(context.coordinator, name: "selectionChanged")
 
         // Prevent the web content from independently handling drops.
         // Without this, WKWebView's internal web process processes dropped
@@ -240,7 +270,14 @@ private struct MarkdownWebRendererRepresentable: NSViewRepresentable {
         context.coordinator.codeBlockShowLineNumbers = codeBlockShowLineNumbers
         context.coordinator.codeBlockCollapseLineThreshold = codeBlockCollapseLineThreshold
         context.coordinator.codeBlockDisplayMode = codeBlockDisplayMode
+        context.coordinator.selectionMessageID = selectionMessageID
+        context.coordinator.selectionContextThreadID = selectionContextThreadID
+        context.coordinator.selectionAnchorID = selectionAnchorID
+        context.coordinator.persistedHighlights = persistedHighlights
         context.coordinator.startObservingPreferences()
+        webView.onQuoteSelection = selectionActions.onQuote
+        webView.onCreateHighlight = selectionActions.onHighlight
+        webView.onRemoveHighlights = selectionActions.onRemoveHighlights
 
         // For non-streaming messages, embed the markdown directly in the HTML
         // so the browser renders content during the initial page load instead
@@ -270,11 +307,19 @@ private struct MarkdownWebRendererRepresentable: NSViewRepresentable {
         context.coordinator.codeFontFamily = codeFontFamily
         context.coordinator.codeBlockShowLineNumbers = codeBlockShowLineNumbers
         context.coordinator.codeBlockCollapseLineThreshold = codeBlockCollapseLineThreshold
+        context.coordinator.selectionMessageID = selectionMessageID
+        context.coordinator.selectionContextThreadID = selectionContextThreadID
+        context.coordinator.selectionAnchorID = selectionAnchorID
+        context.coordinator.persistedHighlights = persistedHighlights
+        webView.onQuoteSelection = selectionActions.onQuote
+        webView.onCreateHighlight = selectionActions.onHighlight
+        webView.onRemoveHighlights = selectionActions.onRemoveHighlights
 
         let modeChanged = context.coordinator.codeBlockDisplayMode != codeBlockDisplayMode
         context.coordinator.codeBlockDisplayMode = codeBlockDisplayMode
 
         if context.coordinator.isReady {
+            context.coordinator.applySelectionContextIfNeeded(webView: webView)
             let didUpdateFonts = context.coordinator.applyFontUpdateIfNeeded(
                 appFontFamily: appFontFamily,
                 codeFontFamily: codeFontFamily,
@@ -294,6 +339,7 @@ private struct MarkdownWebRendererRepresentable: NSViewRepresentable {
                 force: didUpdateFonts || didUpdateCodeBlockSettings || modeChanged,
                 deferCodeHighlightUpgrade: deferCodeHighlightUpgrade
             )
+            context.coordinator.applyPersistedHighlightsIfNeeded(webView: webView)
         } else {
             context.coordinator.pendingMarkdown = markdownText
         }
@@ -338,11 +384,17 @@ private struct MarkdownWebRendererRepresentable: NSViewRepresentable {
         var deferCodeHighlightUpgrade: Bool = false
         var codeBlockShowLineNumbers: Bool = false
         var codeBlockCollapseLineThreshold: Int = 25
+        var selectionMessageID: UUID?
+        var selectionContextThreadID: UUID?
+        var selectionAnchorID: String?
+        var persistedHighlights: [MessageHighlightSnapshot] = []
         var lastBodyFont: String = ""
         var lastCodeFont: String = ""
         var lastFontSize: CGFloat = 0
         var lastCodeBlockShowLineNumbers: Bool?
         var lastCodeBlockCollapseLineThreshold: Int?
+        private var lastSelectionContextKey: String?
+        private var lastAppliedHighlightsPayload: String?
         private var isObservingDefaults = false
         private var pendingHeightUpdate: CGFloat?
         private var isHeightUpdateEnqueued = false
@@ -466,6 +518,45 @@ private struct MarkdownWebRendererRepresentable: NSViewRepresentable {
             webView.evaluateJavaScript("setCodeBlockDisplayMode('\(escaped)')", completionHandler: nil)
         }
 
+        func applySelectionContextIfNeeded(webView: WKWebView) {
+            let key = [
+                selectionMessageID?.uuidString ?? "",
+                selectionContextThreadID?.uuidString ?? "",
+                selectionAnchorID ?? ""
+            ].joined(separator: "|")
+            guard key != lastSelectionContextKey else { return }
+            lastSelectionContextKey = key
+
+            let messageID = selectionMessageID?.uuidString ?? ""
+            let threadID = selectionContextThreadID?.uuidString ?? ""
+            let anchorID = selectionAnchorID ?? ""
+            let escapedMessageID = messageID.replacingOccurrences(of: "'", with: "\\'")
+            let escapedThreadID = threadID.replacingOccurrences(of: "'", with: "\\'")
+            let escapedAnchorID = anchorID.replacingOccurrences(of: "'", with: "\\'")
+            webView.evaluateJavaScript(
+                "window.setSelectionContext('\(escapedMessageID)', '\(escapedThreadID)', '\(escapedAnchorID)')",
+                completionHandler: nil
+            )
+        }
+
+        func applyPersistedHighlightsIfNeeded(webView: WKWebView) {
+            let highlightsForAnchor: [MessageHighlightSnapshot]
+            if let selectionAnchorID {
+                highlightsForAnchor = persistedHighlights.filter { $0.anchorID == selectionAnchorID }
+            } else {
+                highlightsForAnchor = []
+            }
+
+            let encoder = JSONEncoder()
+            guard let data = try? encoder.encode(highlightsForAnchor),
+                  let payload = String(data: data, encoding: .utf8) else {
+                return
+            }
+            guard payload != lastAppliedHighlightsPayload else { return }
+            lastAppliedHighlightsPayload = payload
+            webView.evaluateJavaScript("window.setPersistedHighlights(\(payload))", completionHandler: nil)
+        }
+
         func renderMarkdownIfNeeded(
             _ markdown: String,
             in webView: WKWebView,
@@ -545,6 +636,7 @@ private struct MarkdownWebRendererRepresentable: NSViewRepresentable {
                 webView: webView
             )
             applyCodeBlockDisplayMode(webView: webView)
+            applySelectionContextIfNeeded(webView: webView)
             if let pending = pendingMarkdown {
                 pendingMarkdown = nil
                 currentMarkdown = pending
@@ -555,6 +647,7 @@ private struct MarkdownWebRendererRepresentable: NSViewRepresentable {
                     deferCodeHighlightUpgrade: deferCodeHighlightUpgrade
                 )
             }
+            applyPersistedHighlightsIfNeeded(webView: webView)
         }
 
         func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction) async -> WKNavigationActionPolicy {
@@ -570,6 +663,10 @@ private struct MarkdownWebRendererRepresentable: NSViewRepresentable {
             if message.name == "copyText", let text = message.body as? String {
                 NSPasteboard.general.clearContents()
                 NSPasteboard.general.setString(text, forType: .string)
+                return
+            }
+            if message.name == "selectionChanged" {
+                webView?.selectionSnapshot = Self.decodeSelectionSnapshot(message.body)
                 return
             }
             guard message.name == "heightChanged",
@@ -607,11 +704,43 @@ private struct MarkdownWebRendererRepresentable: NSViewRepresentable {
                 binding.wrappedValue = height
             }
         }
+
+        private static func decodeSelectionSnapshot(_ body: Any) -> MessageSelectionSnapshot? {
+            guard let dict = body as? [String: Any],
+                  let messageIDRaw = dict["messageID"] as? String,
+                  let messageID = UUID(uuidString: messageIDRaw),
+                  let anchorID = dict["anchorID"] as? String,
+                  let selectedText = dict["selectedText"] as? String else {
+                return nil
+            }
+
+            let startOffset = (dict["startOffset"] as? NSNumber)?.intValue ?? 0
+            let endOffset = (dict["endOffset"] as? NSNumber)?.intValue ?? 0
+            let threadID = (dict["contextThreadID"] as? String).flatMap(UUID.init(uuidString:))
+            let matchingHighlightIDs = (dict["matchingHighlightIDs"] as? [String] ?? [])
+                .compactMap(UUID.init(uuidString:))
+
+            return MessageSelectionSnapshot(
+                messageID: messageID,
+                contextThreadID: threadID,
+                anchorID: anchorID,
+                selectedText: selectedText,
+                prefixContext: dict["prefixContext"] as? String,
+                suffixContext: dict["suffixContext"] as? String,
+                startOffset: startOffset,
+                endOffset: endOffset,
+                matchingHighlightIDs: matchingHighlightIDs
+            )
+        }
     }
 }
 
 final class MarkdownWKWebView: WKWebView {
     var contentHeight: CGFloat = 0
+    var selectionSnapshot: MessageSelectionSnapshot?
+    var onQuoteSelection: ((MessageSelectionSnapshot) -> Void)?
+    var onCreateHighlight: ((MessageSelectionSnapshot) -> Void)?
+    var onRemoveHighlights: (([UUID]) -> Void)?
 
     // Drop forwarding — set per-instance via the SwiftUI environment so
     // each window's WKWebView instances forward drops to the correct
@@ -665,6 +794,33 @@ final class MarkdownWKWebView: WKWebView {
 
     override func willOpenMenu(_ menu: NSMenu, with event: NSEvent) {
         menu.items.removeAll { $0.identifier == .init("WKMenuItemIdentifierReload") }
+        guard let selectionSnapshot, !selectionSnapshot.isEmpty else { return }
+
+        if !menu.items.isEmpty, menu.items.last?.isSeparatorItem == false {
+            menu.addItem(.separator())
+        }
+
+        let quoteItem = NSMenuItem(title: "Quote", action: #selector(quoteSelection), keyEquivalent: "")
+        quoteItem.target = self
+        quoteItem.image = NSImage(systemSymbolName: "quote.opening", accessibilityDescription: nil)
+        menu.addItem(quoteItem)
+
+        let highlightItem = NSMenuItem(title: "Highlight", action: #selector(highlightSelection), keyEquivalent: "")
+        highlightItem.target = self
+        highlightItem.image = NSImage(systemSymbolName: "highlighter", accessibilityDescription: nil)
+        menu.addItem(highlightItem)
+
+        if !selectionSnapshot.matchingHighlightIDs.isEmpty {
+            let removeItem = NSMenuItem(title: "Remove Highlight", action: #selector(removeHighlightsForSelection), keyEquivalent: "")
+            removeItem.target = self
+            removeItem.image = NSImage(systemSymbolName: "minus.circle", accessibilityDescription: nil)
+            menu.addItem(removeItem)
+        }
+
+        let copyItem = NSMenuItem(title: "Copy Selection", action: #selector(copySelectionText), keyEquivalent: "")
+        copyItem.target = self
+        copyItem.image = NSImage(systemSymbolName: "doc.on.doc", accessibilityDescription: nil)
+        menu.addItem(copyItem)
     }
 
     override func keyDown(with event: NSEvent) {
@@ -677,5 +833,27 @@ final class MarkdownWKWebView: WKWebView {
 
     override func flagsChanged(with event: NSEvent) {
         nextResponder?.flagsChanged(with: event)
+    }
+
+    @objc private func quoteSelection() {
+        guard let selectionSnapshot else { return }
+        onQuoteSelection?(selectionSnapshot)
+    }
+
+    @objc private func highlightSelection() {
+        guard let selectionSnapshot else { return }
+        onCreateHighlight?(selectionSnapshot)
+    }
+
+    @objc private func removeHighlightsForSelection() {
+        guard let selectionSnapshot else { return }
+        onRemoveHighlights?(selectionSnapshot.matchingHighlightIDs)
+    }
+
+    @objc private func copySelectionText() {
+        guard let text = selectionSnapshot?.selectedText,
+              !text.isEmpty else { return }
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(text, forType: .string)
     }
 }

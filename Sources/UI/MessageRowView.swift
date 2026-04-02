@@ -48,6 +48,9 @@ struct MessageRow: View {
     let onEditUserMessage: (UUID) -> Void
     let onDeleteMessage: (UUID) -> Void
     let onDeleteResponse: (UUID) -> Void
+    let onQuoteSelection: (MessageSelectionSnapshot, String?) -> Void
+    let onCreateHighlight: (MessageSelectionSnapshot) -> Void
+    let onRemoveHighlights: ([UUID]) -> Void
     let editingUserMessageID: UUID?
     let editingUserMessageText: Binding<String>
     let editingUserMessageFocused: Binding<Bool>
@@ -167,7 +170,7 @@ struct MessageRow: View {
                             } else if isUser {
                                 userBlocksView(blocks: item.renderedBlocks)
                             } else {
-                                ForEach(Array(item.renderedBlocks.enumerated()), id: \.offset) { _, block in
+                                ForEach(Array(item.renderedBlocks.enumerated()), id: \.offset) { blockIndex, block in
                                     switch block {
                                     case .content(let part):
                                         ContentPartView(
@@ -175,7 +178,12 @@ struct MessageRow: View {
                                             isUser: false,
                                             deferCodeHighlightUpgrade: deferCodeHighlightUpgrade,
                                             forceNativeText: renderMode == .nativeText,
-                                            payloadResolver: payloadResolver
+                                            payloadResolver: payloadResolver,
+                                            selectionMessageID: item.id,
+                                            selectionContextThreadID: item.contextThreadID,
+                                            selectionAnchorID: selectionAnchorID(for: blockIndex),
+                                            persistedHighlights: highlights(for: blockIndex),
+                                            selectionActions: selectionActions(for: blockIndex)
                                         )
 
                                     case .artifact(let artifact):
@@ -213,17 +221,20 @@ struct MessageRow: View {
                     }
                 }
             }
-            .padding(.horizontal, 16)
+            .padding(.horizontal, JinSpacing.large)
 
-            if !isUser {
-                Spacer(minLength: 0)
-            }
+            Spacer()
         }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 8)
-        .contentShape(Rectangle())
+        .frame(maxWidth: .infinity, alignment: isUser ? .trailing : .leading)
+        .padding(.vertical, JinSpacing.small)
         .onTapGesture {
             onActivate?()
+        }
+        .contentShape(Rectangle())
+        .overlay(alignment: isUser ? .topTrailing : .topLeading) {
+            if !isUser && collapsedPreview != nil {
+                EmptyView()
+            }
         }
         .alert(
             pendingDeleteAction == .response ? "Delete response?" : "Delete message?",
@@ -244,6 +255,26 @@ struct MessageRow: View {
                 pendingDeleteAction = nil
             }
         }
+    }
+
+    private func selectionAnchorID(for blockIndex: Int) -> String {
+        "\(item.id.uuidString):block:\(blockIndex)"
+    }
+
+    private func highlights(for blockIndex: Int) -> [MessageHighlightSnapshot] {
+        let anchorID = selectionAnchorID(for: blockIndex)
+        return item.highlights.filter { $0.anchorID == anchorID }
+    }
+
+    private func selectionActions(for blockIndex: Int) -> MessageTextSelectionActions {
+        guard item.isAssistant else { return .none }
+        return MessageTextSelectionActions(
+            onQuote: { snapshot in
+                onQuoteSelection(snapshot, item.assistantModelLabel)
+            },
+            onHighlight: onCreateHighlight,
+            onRemoveHighlights: onRemoveHighlights
+        )
     }
 
     @ViewBuilder

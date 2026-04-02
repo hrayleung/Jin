@@ -71,6 +71,9 @@ Rules:
                     let visibleText = ArtifactMarkupParser.visibleText(from: text)
                     let trimmed = visibleText.trimmingCharacters(in: .whitespacesAndNewlines)
                     return trimmed.isEmpty ? nil : trimmed
+                case .quote(let quote):
+                    let trimmed = quote.quotedText.trimmingCharacters(in: .whitespacesAndNewlines)
+                    return trimmed.isEmpty ? nil : trimmed
                 case .file(let file):
                     let fallback = AttachmentPromptRenderer.fallbackText(for: file)
                     let trimmed = fallback.trimmingCharacters(in: .whitespacesAndNewlines)

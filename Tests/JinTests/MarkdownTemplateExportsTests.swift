@@ -16,6 +16,20 @@ final class MarkdownTemplateExportsTests: XCTestCase {
         XCTAssertFalse(html.contains("markdown-hljs-runtime.js"), "Did not expect legacy highlight.js runtime in markdown template")
     }
 
+    func testTemplateExportsSelectionAndHighlightBridge() throws {
+        guard let url = Bundle.module.url(forResource: "markdown-template", withExtension: "html") else {
+            XCTFail("Missing markdown-template.html in Jin resource bundle")
+            return
+        }
+
+        let html = try String(contentsOf: url, encoding: .utf8)
+
+        XCTAssertTrue(html.contains("window.setSelectionContext"), "Expected selection context export in markdown template")
+        XCTAssertTrue(html.contains("window.setPersistedHighlights"), "Expected persisted highlight export in markdown template")
+        XCTAssertTrue(html.contains("messageHandlers.selectionChanged"), "Expected WKScriptMessage bridge for selection changes")
+        XCTAssertTrue(html.contains("mark[data-jin-highlight-id]"), "Expected persisted highlight styling in markdown template")
+    }
+
     func testTemplateIncludesReversibleCodeBlockHeightFolding() throws {
         guard let url = Bundle.module.url(forResource: "markdown-template", withExtension: "html") else {
             XCTFail("Missing markdown-template.html in Jin resource bundle")

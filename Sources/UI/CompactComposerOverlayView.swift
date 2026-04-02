@@ -7,6 +7,7 @@ struct CompactComposerOverlayView<ControlsRow: View>: View {
     @Binding var messageText: String
     @Binding var remoteVideoURLText: String
     @Binding var draftAttachments: [DraftAttachment]
+    @Binding var draftQuotes: [DraftQuote]
     @Binding var isComposerDropTargeted: Bool
     @Binding var isComposerFocused: Bool
     @Binding var composerTextContentHeight: CGFloat
@@ -28,6 +29,7 @@ struct CompactComposerOverlayView<ControlsRow: View>: View {
     let onSubmit: () -> Void
     let onCancel: () -> Bool
     let onRemoveAttachment: (DraftAttachment) -> Void
+    let onRemoveQuote: (DraftQuote) -> Void
     let onExpand: () -> Void
     let onHide: () -> Void
     let onSend: () -> Void
@@ -46,6 +48,7 @@ struct CompactComposerOverlayView<ControlsRow: View>: View {
         messageText: Binding<String>,
         remoteVideoURLText: Binding<String>,
         draftAttachments: Binding<[DraftAttachment]>,
+        draftQuotes: Binding<[DraftQuote]>,
         isComposerDropTargeted: Binding<Bool>,
         isComposerFocused: Binding<Bool>,
         composerTextContentHeight: Binding<CGFloat>,
@@ -66,6 +69,7 @@ struct CompactComposerOverlayView<ControlsRow: View>: View {
         onSubmit: @escaping () -> Void,
         onCancel: @escaping () -> Bool,
         onRemoveAttachment: @escaping (DraftAttachment) -> Void,
+        onRemoveQuote: @escaping (DraftQuote) -> Void,
         onExpand: @escaping () -> Void,
         onHide: @escaping () -> Void,
         onSend: @escaping () -> Void,
@@ -83,6 +87,7 @@ struct CompactComposerOverlayView<ControlsRow: View>: View {
         _messageText = messageText
         _remoteVideoURLText = remoteVideoURLText
         _draftAttachments = draftAttachments
+        _draftQuotes = draftQuotes
         _isComposerDropTargeted = isComposerDropTargeted
         _isComposerFocused = isComposerFocused
         _composerTextContentHeight = composerTextContentHeight
@@ -103,6 +108,7 @@ struct CompactComposerOverlayView<ControlsRow: View>: View {
         self.onSubmit = onSubmit
         self.onCancel = onCancel
         self.onRemoveAttachment = onRemoveAttachment
+        self.onRemoveQuote = onRemoveQuote
         self.onExpand = onExpand
         self.onHide = onHide
         self.onSend = onSend
@@ -170,6 +176,7 @@ struct CompactComposerOverlayView<ControlsRow: View>: View {
     private var leftColumn: some View {
         VStack(alignment: .leading, spacing: JinSpacing.small) {
             perMessageMCPChipsRow
+            quoteCardsRow
             attachmentChipsRow
             remoteVideoInputRow
             composerTextEditor
@@ -192,6 +199,19 @@ struct CompactComposerOverlayView<ControlsRow: View>: View {
                     }
                 }
                 .padding(.horizontal, JinSpacing.xSmall)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var quoteCardsRow: some View {
+        if !draftQuotes.isEmpty {
+            VStack(alignment: .leading, spacing: JinSpacing.small) {
+                ForEach(draftQuotes) { quote in
+                    ComposerQuoteCardView(quote: quote) {
+                        onRemoveQuote(quote)
+                    }
+                }
             }
         }
     }

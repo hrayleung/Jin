@@ -18,6 +18,7 @@ struct PersistedMessageSnapshot: Sendable {
     let generatedProviderID: String?
     let generatedModelID: String?
     let generatedModelName: String?
+    let highlightSnapshots: [MessageHighlightSnapshot]
 
     init(_ entity: MessageEntity) {
         self.id = entity.id
@@ -37,6 +38,7 @@ struct PersistedMessageSnapshot: Sendable {
         self.generatedProviderID = entity.generatedProviderID
         self.generatedModelID = entity.generatedModelID
         self.generatedModelName = entity.generatedModelName
+        self.highlightSnapshots = entity.highlightSnapshots
     }
 
     func toDomain(using decoder: JSONDecoder) -> Message? {

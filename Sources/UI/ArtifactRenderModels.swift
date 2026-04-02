@@ -43,6 +43,7 @@ struct RenderedFileContent: Sendable {
 
 enum RenderedContentPart: Sendable {
     case text(String)
+    case quote(QuoteContent)
     case image(RenderedImageContent)
     case video(VideoContent)
     case file(RenderedFileContent)

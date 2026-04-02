@@ -64,6 +64,9 @@ struct ChatMessageInteractionContext {
     let onCancelUserEdit: () -> Void
     let onDeleteMessage: (MessageEntity) -> Void
     let onDeleteResponse: (MessageEntity) -> Void
+    let onQuoteSelection: (MessageSelectionSnapshot, String?) -> Void
+    let onCreateHighlight: (MessageSelectionSnapshot) -> Void
+    let onRemoveHighlights: ([UUID]) -> Void
     let editSlashCommand: EditSlashCommandContext
 }
 
@@ -144,6 +147,9 @@ struct ChatMessageTimelineView: View {
                     guard let entity = messageEntitiesByID[messageID] else { return }
                     interaction.onDeleteResponse(entity)
                 },
+                onQuoteSelection: interaction.onQuoteSelection,
+                onCreateHighlight: interaction.onCreateHighlight,
+                onRemoveHighlights: interaction.onRemoveHighlights,
                 editingUserMessageID: interaction.editingUserMessageID,
                 editingUserMessageText: interaction.editingUserMessageText,
                 editingUserMessageFocused: interaction.editingUserMessageFocused,

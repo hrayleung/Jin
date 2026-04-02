@@ -87,6 +87,11 @@ extension XAIAdapter {
                 "type": "input_text",
                 "text": text
             ]
+        case .quote(let quote):
+            return [
+                "type": "input_text",
+                "text": quote.quotedText
+            ]
 
         case .image(let image):
             if let data = image.data {

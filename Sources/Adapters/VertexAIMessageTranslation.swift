@@ -57,6 +57,8 @@ enum VertexAIMessageTranslation {
         switch part {
         case .text(let text):
             return ["text": text]
+        case .quote(let quote):
+            return ["text": quote.quotedText]
         case .image(let image):
             return try GeminiModelConstants.inlineDataPart(
                 mimeType: image.mimeType,

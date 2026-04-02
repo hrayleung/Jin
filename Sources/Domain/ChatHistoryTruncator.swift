@@ -75,6 +75,8 @@ enum ChatHistoryTruncator {
         switch part {
         case .text(let text):
             return approximateTokenCount(for: text)
+        case .quote(let quote):
+            return approximateTokenCount(for: quote.quotedText)
         case .thinking(let thinking):
             return approximateTokenCount(for: thinking.text)
         case .redactedThinking:

@@ -203,6 +203,7 @@ enum ChatMessagePreparationSupport {
     }
 
     static func buildUserMessageParts(
+        quoteContents: [QuoteContent],
         messageText: String,
         attachments: [DraftAttachment],
         remoteVideoURL: URL?,
@@ -210,7 +211,11 @@ enum ChatMessagePreparationSupport {
         preparedContentForPDF: (DraftAttachment, MessagePreparationProfile, PDFProcessingMode, Int, Int, MistralOCRClient?, DeepInfraDeepSeekOCRClient?) async throws -> PreparedPDFContent
     ) async throws -> [ContentPart] {
         var parts: [ContentPart] = []
-        parts.reserveCapacity(attachments.count + (messageText.isEmpty ? 0 : 1) + (remoteVideoURL == nil ? 0 : 1))
+        parts.reserveCapacity(quoteContents.count + attachments.count + (messageText.isEmpty ? 0 : 1) + (remoteVideoURL == nil ? 0 : 1))
+
+        if !quoteContents.isEmpty {
+            parts.append(contentsOf: quoteContents.map(ContentPart.quote))
+        }
 
         if let remoteVideoURL {
             guard profile.supportsVideoGenerationControl else {
@@ -580,6 +585,9 @@ enum ChatMessagePreparationSupport {
             switch part {
             case .text(let value):
                 let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+                return trimmed.isEmpty ? nil : trimmed
+            case .quote(let quote):
+                let trimmed = quote.quotedText.trimmingCharacters(in: .whitespacesAndNewlines)
                 return trimmed.isEmpty ? nil : trimmed
             case .file(let file):
                 let base = (file.filename as NSString).deletingPathExtension

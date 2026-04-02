@@ -254,6 +254,15 @@ extension ChatView {
             onDeleteResponse: { entity in
                 deleteResponse(entity)
             },
+            onQuoteSelection: { snapshot, modelName in
+                addDraftQuote(from: snapshot, sourceModelName: modelName)
+            },
+            onCreateHighlight: { snapshot in
+                persistHighlight(from: snapshot)
+            },
+            onRemoveHighlights: { highlightIDs in
+                removeHighlights(ids: highlightIDs)
+            },
             editSlashCommand: editSlashCommandContext
         )
     }

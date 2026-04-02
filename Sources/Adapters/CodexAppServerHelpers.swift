@@ -79,6 +79,9 @@ extension CodexAppServerAdapter {
             case .text(let text):
                 let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
                 return trimmed.isEmpty ? nil : trimmed
+            case .quote(let quote):
+                let trimmed = quote.quotedText.trimmingCharacters(in: .whitespacesAndNewlines)
+                return trimmed.isEmpty ? nil : "[Quote] \(trimmed)"
             case .thinking(let block):
                 let trimmed = block.text.trimmingCharacters(in: .whitespacesAndNewlines)
                 return trimmed.isEmpty ? nil : "[Thinking] \(trimmed)"
@@ -127,6 +130,9 @@ extension CodexAppServerAdapter {
                     case .text(let text):
                         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
                         return trimmed.isEmpty ? nil : trimmed
+                    case .quote(let quote):
+                        let trimmed = quote.quotedText.trimmingCharacters(in: .whitespacesAndNewlines)
+                        return trimmed.isEmpty ? nil : "[Quote] \(trimmed)"
                     case .thinking(let block):
                         let trimmed = block.text.trimmingCharacters(in: .whitespacesAndNewlines)
                         return trimmed.isEmpty ? nil : "[Thinking] \(trimmed)"

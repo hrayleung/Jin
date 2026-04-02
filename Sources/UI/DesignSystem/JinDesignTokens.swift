@@ -40,4 +40,30 @@ enum JinSemanticColor {
     static let selectedSurface = Color.accentColor.opacity(0.14)
     static let selectedStroke = Color.accentColor.opacity(0.35)
     static let accentSurface = Color.accentColor.opacity(0.1)
+    static let quoteAccent = Color.accentColor.opacity(0.88)
+    static let quoteSurface = Color(
+        light: Color(red: 0.155, green: 0.155, blue: 0.155).opacity(0.055),
+        dark: Color.white.opacity(0.04)
+    )
+    static let quoteSurfaceStrong = Color(
+        light: Color.black.opacity(0.08),
+        dark: Color.white.opacity(0.08)
+    )
+    static let readerHighlight = Color(
+        light: Color(red: 0.98, green: 0.93, blue: 0.60).opacity(0.72),
+        dark: Color(red: 0.86, green: 0.68, blue: 0.16).opacity(0.34)
+    )
+}
+
+private extension Color {
+    init(light: Color, dark: Color) {
+        self = Color(nsColor: NSColor(name: nil) { appearance in
+            switch appearance.bestMatch(from: [.darkAqua, .aqua]) {
+            case .darkAqua:
+                return NSColor(dark)
+            default:
+                return NSColor(light)
+            }
+        })
+    }
 }

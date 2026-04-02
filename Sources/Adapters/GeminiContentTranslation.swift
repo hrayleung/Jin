@@ -52,6 +52,8 @@ extension GeminiAdapter {
             switch part {
             case .text(let text):
                 parts.append(["text": text])
+            case .quote(let quote):
+                parts.append(["text": quote.quotedText])
 
             case .image(let image):
                 if let inline = try inlineDataPart(mimeType: image.mimeType, data: image.data, url: image.url) {

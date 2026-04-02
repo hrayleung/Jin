@@ -64,6 +64,7 @@ extension ChatView {
         let messageTextSnapshot = trimmedMessageText
         let remoteVideoURLTextSnapshot = trimmedRemoteVideoInputURLText
         let attachmentsSnapshot = draftAttachments
+        let draftQuotesSnapshot = draftQuotes
         let selectedPerMessageMCPServers = eligibleMCPServers.filter { perMessageMCPServerIDs.contains($0.id) }
         let perMessageMCPIDsSnapshot = selectedPerMessageMCPServers.map(\.id).sorted()
         let perMessageMCPNamesSnapshot = selectedPerMessageMCPServers.map(\.name).sorted()
@@ -85,6 +86,7 @@ extension ChatView {
         remoteVideoInputURLText = ""
         composerTextContentHeight = 36
         draftAttachments = []
+        draftQuotes = []
 
         isPreparingToSend = true
         prepareToSendStatus = nil
@@ -94,6 +96,7 @@ extension ChatView {
             do {
                 let preparedMessages = try await buildUserMessagePartsForThreads(
                     threads: targetThreads,
+                    quoteContents: draftQuotesSnapshot.map(\.content),
                     messageText: messageTextSnapshot,
                     attachments: attachmentsSnapshot,
                     remoteVideoURL: remoteVideoURLSnapshot
@@ -125,6 +128,8 @@ extension ChatView {
                     if conversationEntity.title == "New Chat", !isChatNamingPluginEnabled {
                         if !messageTextSnapshot.isEmpty {
                             conversationEntity.title = makeConversationTitle(from: messageTextSnapshot)
+                        } else if let firstQuote = draftQuotesSnapshot.first {
+                            conversationEntity.title = makeConversationTitle(from: firstQuote.content.quotedText)
                         } else if let firstAttachment = attachmentsSnapshot.first {
                             conversationEntity.title = makeConversationTitle(from: (firstAttachment.filename as NSString).deletingPathExtension)
                         }
@@ -160,6 +165,7 @@ extension ChatView {
                         messageText = messageTextSnapshot
                         remoteVideoInputURLText = remoteVideoURLTextSnapshot
                         draftAttachments = attachmentsSnapshot
+                        draftQuotes = draftQuotesSnapshot
                     }
                     if !(error is CancellationError) {
                         errorMessage = error.localizedDescription
@@ -176,6 +182,7 @@ extension ChatView {
 
     func buildUserMessagePartsForThreads(
         threads: [ConversationModelThreadEntity],
+        quoteContents: [QuoteContent],
         messageText: String,
         attachments: [DraftAttachment],
         remoteVideoURL: URL?
@@ -192,6 +199,7 @@ extension ChatView {
             }
 
             let parts = try await buildUserMessageParts(
+                quoteContents: quoteContents,
                 messageText: messageText,
                 attachments: attachments,
                 remoteVideoURL: remoteVideoURL,
@@ -219,12 +227,14 @@ extension ChatView {
     }
 
     func buildUserMessageParts(
+        quoteContents: [QuoteContent],
         messageText: String,
         attachments: [DraftAttachment],
         remoteVideoURL: URL?,
         profile: ChatMessagePreparationSupport.MessagePreparationProfile
     ) async throws -> [ContentPart] {
         try await ChatMessagePreparationSupport.buildUserMessageParts(
+            quoteContents: quoteContents,
             messageText: messageText,
             attachments: attachments,
             remoteVideoURL: remoteVideoURL,
@@ -290,7 +300,6 @@ extension ChatView {
         let resolvedModelSettingsSnapshot = normalizedModelInfoSnapshot.map {
             ModelSettingsResolver.resolve(model: $0, providerType: providerTypeSnapshot)
         }
-
         return threadSupportsMCPTools(
             providerType: providerTypeSnapshot,
             resolvedModelSettings: resolvedModelSettingsSnapshot

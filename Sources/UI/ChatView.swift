@@ -79,6 +79,7 @@ struct ChatView: View {
     @State var messageText = ""
     @State var remoteVideoInputURLText = ""
     @State var draftAttachments: [DraftAttachment] = []
+    @State var draftQuotes: [DraftQuote] = []
     @State var currentContextUsageEstimate: ChatContextUsageEstimate?
     @State var contextUsageRefreshTask: Task<Void, Never>?
     @State var contextUsageRefreshGeneration: UInt = 0

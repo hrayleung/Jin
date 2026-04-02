@@ -31,9 +31,7 @@ extension ChatView {
         speechToTextManager.cancelAndCleanup()
         messageText = ""
         draftAttachments = []
-        clearContextUsageEstimate()
-        dropAttachmentImportInFlightCount = 0
-        composerTextContentHeight = 36
+        draftQuotes = []
         remoteVideoInputURLText = ""
         isExpandedComposerPresented = false
         isComposerHidden = false

@@ -84,6 +84,8 @@ func splitContentParts(
         switch part {
         case .text(let text):
             visibleParts.append(text)
+        case .quote(let quote):
+            visibleParts.append(quote.quotedText)
         case .file(let file):
             visibleParts.append(AttachmentPromptRenderer.fallbackText(for: file))
         case .image(let image):
@@ -131,6 +133,11 @@ func translateUserContentPartsToOpenAIFormat(
             out.append([
                 "type": "text",
                 "text": text
+            ])
+        case .quote(let quote):
+            out.append([
+                "type": "text",
+                "text": quote.quotedText
             ])
 
         case .image(let image):
