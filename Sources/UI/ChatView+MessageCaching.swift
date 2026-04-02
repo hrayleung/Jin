@@ -85,13 +85,39 @@ extension ChatView {
             guard activeModelThread?.id == targetThreadID else { return }
             guard conversationEntity.updatedAt == targetUpdatedAt else { return }
 
-            applyDecodedRenderContext(
+            let contextToApply: ChatDecodedRenderContext
+            if ChatMessageRenderPipeline.decodedRenderContextDroppedVisibleMessages(
                 decoded,
+                orderedMessages: ordered
+            ) {
+                let fallbackContext = ChatMessageRenderPipeline.makeRenderContext(
+                    from: ordered,
+                    fallbackModelLabel: fallbackModelLabel,
+                    assistantProviderIconID: { providerID in
+                        providerIconID(for: providerID)
+                    }
+                )
+                contextToApply = ChatDecodedRenderContext(
+                    visibleMessages: fallbackContext.visibleMessages,
+                    historyMessages: fallbackContext.historyMessages,
+                    toolResultsByCallID: fallbackContext.toolResultsByCallID,
+                    artifactCatalog: fallbackContext.artifactCatalog
+                )
+            } else {
+                contextToApply = decoded
+            }
+
+            applyDecodedRenderContext(
+                contextToApply,
                 messageEntitiesByID: messageEntitiesByID,
                 messageCount: messageCount,
                 updatedAt: targetUpdatedAt,
                 activeThreadID: targetThreadID
             )
+            guard contextToApply.historyMessages.isEmpty else {
+                refreshContextUsageEstimate(debounced: false)
+                return
+            }
             scheduleDecodedHistoryMessages(
                 from: snapshots,
                 buildToken: buildToken,
