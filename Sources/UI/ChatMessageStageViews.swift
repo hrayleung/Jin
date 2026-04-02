@@ -213,6 +213,8 @@ struct ChatSingleThreadMessagesView: View {
     @Binding var pinnedBottomRefreshGeneration: Int
     @State private var lastMeasuredContentHeight: CGFloat = 0
     @State private var pendingPinnedBottomRefreshTask: Task<Void, Never>?
+    @State private var shouldMaintainPinnedBottomAnchor = true
+    @State private var isUserScrollInProgress = false
 
     private var visibleMessagesForWindow: [MessageRenderItem] {
         Array(allMessages.suffix(messageRenderLimit))
@@ -265,6 +267,7 @@ struct ChatSingleThreadMessagesView: View {
             .overlay(alignment: .bottomTrailing) {
                 if !isPinnedToBottom {
                     Button {
+                        shouldMaintainPinnedBottomAnchor = true
                         withAnimation(.easeOut(duration: 0.2)) {
                             scrollToBottomIfNeeded(proxy: proxy, allowWhenContentFits: true)
                         }
@@ -285,8 +288,14 @@ struct ChatSingleThreadMessagesView: View {
             .animation(.easeInOut(duration: 0.2), value: isPinnedToBottom)
             .onScrollPinChange(
                 isPinned: $isPinnedToBottom,
-                bottomTolerance: composerHeight + 32
+                bottomTolerance: ChatTimelineScrollCoordinator.pinnedBottomTolerance(
+                    composerHeight: composerHeight
+                ),
+                onChange: handlePinStateChange
             )
+            .onUserScrollIntentChange { isUserDrivenScroll in
+                isUserScrollInProgress = isUserDrivenScroll
+            }
             .onChange(of: messageRenderLimit) { _, _ in
                 guard let restoreID = pendingRestoreScrollMessageID else { return }
                 DispatchQueue.main.async {
@@ -305,6 +314,8 @@ struct ChatSingleThreadMessagesView: View {
             .onChange(of: conversationID) { _, _ in
                 cancelPendingPinnedBottomRefresh()
                 lastMeasuredContentHeight = 0
+                shouldMaintainPinnedBottomAnchor = true
+                isUserScrollInProgress = false
             }
             .onPreferenceChange(MessageTimelineContentHeightPreferenceKey.self) { newHeight in
                 handleContentHeightChange(newHeight, proxy: proxy)
@@ -355,7 +366,7 @@ struct ChatSingleThreadMessagesView: View {
     private func refreshPinnedBottomIfNeeded(proxy: ScrollViewProxy) {
         guard let plan = ChatTimelineScrollCoordinator.refreshPlan(
             currentGeneration: pinnedBottomRefreshGeneration,
-            isPinnedToBottom: isPinnedToBottom,
+            shouldMaintainPinnedBottomAnchor: shouldMaintainPinnedBottomAnchor,
             delays: pinnedBottomRefreshDelays
         ) else {
             return
@@ -376,7 +387,7 @@ struct ChatSingleThreadMessagesView: View {
         debounceNanoseconds: UInt64? = nil
     ) {
         cancelPendingPinnedBottomRefresh()
-        guard isPinnedToBottom else { return }
+        guard shouldMaintainPinnedBottomAnchor else { return }
 
         pendingPinnedBottomRefreshTask = Task { @MainActor in
             if let debounceNanoseconds {
@@ -398,7 +409,7 @@ struct ChatSingleThreadMessagesView: View {
             guard ChatTimelineScrollCoordinator.shouldPerformRefresh(
                 expectedGeneration: expectedGeneration,
                 currentGeneration: pinnedBottomRefreshGeneration,
-                isPinnedToBottom: isPinnedToBottom
+                shouldMaintainPinnedBottomAnchor: shouldMaintainPinnedBottomAnchor
             ) else {
                 return
             }
@@ -429,7 +440,7 @@ struct ChatSingleThreadMessagesView: View {
         guard let action = ChatTimelineScrollCoordinator.contentHeightChangeAction(
             newHeight: newHeight,
             previousHeight: lastMeasuredContentHeight,
-            isPinnedToBottom: isPinnedToBottom
+            shouldMaintainPinnedBottomAnchor: shouldMaintainPinnedBottomAnchor
         ) else {
             return
         }
@@ -438,6 +449,22 @@ struct ChatSingleThreadMessagesView: View {
         schedulePinnedBottomRefresh(
             proxy: proxy,
             debounceNanoseconds: 120_000_000
+        )
+    }
+
+    private func handlePinStateChange(wasPinned: Bool, isPinned: Bool) {
+        guard wasPinned != isPinned else { return }
+
+        if isPinned {
+            shouldMaintainPinnedBottomAnchor = true
+            return
+        }
+
+        guard isUserScrollInProgress else { return }
+        cancelPendingPinnedBottomRefresh()
+        shouldMaintainPinnedBottomAnchor = false
+        pinnedBottomRefreshGeneration = ChatTimelineScrollCoordinator.invalidatedRefreshGeneration(
+            current: pinnedBottomRefreshGeneration
         )
     }
 

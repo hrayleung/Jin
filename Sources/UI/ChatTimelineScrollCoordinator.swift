@@ -14,12 +14,12 @@ enum ChatTimelineScrollCoordinator {
 
     static func refreshPlan(
         currentGeneration: Int,
-        isPinnedToBottom: Bool,
+        shouldMaintainPinnedBottomAnchor: Bool,
         delays: [TimeInterval]
     ) -> PinnedBottomRefreshPlan? {
         guard let generation = nextRefreshGeneration(
             current: currentGeneration,
-            isPinnedToBottom: isPinnedToBottom
+            shouldMaintainPinnedBottomAnchor: shouldMaintainPinnedBottomAnchor
         ) else {
             return nil
         }
@@ -29,7 +29,7 @@ enum ChatTimelineScrollCoordinator {
     static func contentHeightChangeAction(
         newHeight: CGFloat,
         previousHeight: CGFloat,
-        isPinnedToBottom: Bool,
+        shouldMaintainPinnedBottomAnchor: Bool,
         threshold: CGFloat = 0.5
     ) -> ContentHeightChangeAction? {
         guard let measuredHeight = measuredContentHeight(
@@ -41,22 +41,37 @@ enum ChatTimelineScrollCoordinator {
         }
         return ContentHeightChangeAction(
             measuredHeight: measuredHeight,
-            shouldScheduleRefresh: isPinnedToBottom
+            shouldScheduleRefresh: shouldMaintainPinnedBottomAnchor
         )
     }
 
-    static func nextRefreshGeneration(current: Int, isPinnedToBottom: Bool) -> Int? {
-        guard isPinnedToBottom else { return nil }
+    static func nextRefreshGeneration(
+        current: Int,
+        shouldMaintainPinnedBottomAnchor: Bool
+    ) -> Int? {
+        guard shouldMaintainPinnedBottomAnchor else { return nil }
         return current &+ 1
     }
 
     static func shouldPerformRefresh(
         expectedGeneration: Int,
         currentGeneration: Int,
-        isPinnedToBottom: Bool
+        shouldMaintainPinnedBottomAnchor: Bool
     ) -> Bool {
-        guard isPinnedToBottom else { return false }
+        guard shouldMaintainPinnedBottomAnchor else { return false }
         return expectedGeneration == currentGeneration
+    }
+
+    static func invalidatedRefreshGeneration(current: Int) -> Int {
+        current &+ 1
+    }
+
+    static func pinnedBottomTolerance(
+        composerHeight: CGFloat,
+        minimum: CGFloat = 36,
+        maximum: CGFloat = 64
+    ) -> CGFloat {
+        min(maximum, max(minimum, composerHeight * 0.25))
     }
 
     static func shouldScrollToBottom(
