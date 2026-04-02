@@ -122,7 +122,7 @@ final class MessageQuoteAndHighlightTests: XCTestCase {
 
         let fetched = try context.fetch(FetchDescriptor<MessageHighlightEntity>())
         XCTAssertEqual(fetched.count, 1)
-        XCTAssertEqual(fetched[0].snapshot.selectedText, "Assistant")
+        XCTAssertEqual(fetched[0].makeSnapshot().selectedText, "Assistant")
         XCTAssertEqual(message.highlightSnapshots.first?.anchorID, "\(message.id.uuidString):block:0")
     }
 }

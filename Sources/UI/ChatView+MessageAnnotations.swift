@@ -10,6 +10,7 @@ extension ChatView {
             content: QuoteContent(
                 sourceMessageID: snapshot.messageID,
                 sourceThreadID: snapshot.contextThreadID,
+                // Quotes currently originate from assistant reply selection only.
                 sourceRole: .assistant,
                 sourceModelName: sourceModelName,
                 quotedText: trimmed,
@@ -76,7 +77,9 @@ extension ChatView {
 
         do {
             try modelContext.save()
-            rebuildMessageCaches()
+            DispatchQueue.main.async { [self] in
+                rebuildMessageCaches()
+            }
         } catch {
             errorMessage = error.localizedDescription
             showingError = true
@@ -95,7 +98,9 @@ extension ChatView {
 
         do {
             try modelContext.save()
-            rebuildMessageCaches()
+            DispatchQueue.main.async { [self] in
+                rebuildMessageCaches()
+            }
         } catch {
             errorMessage = error.localizedDescription
             showingError = true

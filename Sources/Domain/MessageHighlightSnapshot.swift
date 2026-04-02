@@ -26,8 +26,9 @@ struct MessageHighlightSnapshot: Identifiable, Codable, Sendable, Hashable {
         endOffset: Int,
         colorStyle: MessageHighlightColorStyle = .readerYellow,
         createdAt: Date = Date(),
-        updatedAt: Date = Date()
+        updatedAt: Date? = nil
     ) {
+        let initialUpdatedAt = updatedAt ?? createdAt
         self.id = id
         self.messageID = messageID
         self.contextThreadID = contextThreadID
@@ -39,6 +40,6 @@ struct MessageHighlightSnapshot: Identifiable, Codable, Sendable, Hashable {
         self.endOffset = endOffset
         self.colorStyle = colorStyle
         self.createdAt = createdAt
-        self.updatedAt = updatedAt
+        self.updatedAt = initialUpdatedAt
     }
 }

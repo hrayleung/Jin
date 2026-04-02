@@ -231,11 +231,6 @@ struct MessageRow: View {
             onActivate?()
         }
         .contentShape(Rectangle())
-        .overlay(alignment: isUser ? .topTrailing : .topLeading) {
-            if !isUser && collapsedPreview != nil {
-                EmptyView()
-            }
-        }
         .alert(
             pendingDeleteAction == .response ? "Delete response?" : "Delete message?",
             isPresented: $showingDeleteConfirmation

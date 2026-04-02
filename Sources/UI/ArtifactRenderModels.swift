@@ -50,6 +50,35 @@ enum RenderedContentPart: Sendable {
     case audio(AudioContent)
     case thinking(ThinkingBlock)
     case redactedThinking(RedactedThinkingBlock)
+
+    var stableAnchorComponent: String {
+        switch self {
+        case .text(let text):
+            return "text:\(stableStringHash(text))"
+        case .quote(let quote):
+            return "quote:\(stableStringHash(quote.quotedText))"
+        case .image(let image):
+            return "image:\(stableStringHash(image.url?.absoluteString ?? image.mimeType))"
+        case .video(let video):
+            return "video:\(stableStringHash(video.url?.absoluteString ?? video.mimeType))"
+        case .file(let file):
+            return "file:\(stableStringHash(file.filename))"
+        case .audio(let audio):
+            return "audio:\(stableStringHash(audio.url?.absoluteString ?? audio.mimeType))"
+        case .thinking(let thinking):
+            return "thinking:\(stableStringHash(thinking.text))"
+        case .redactedThinking(let thinking):
+            return "redacted:\(stableStringHash(thinking.data))"
+        }
+    }
+}
+
+func stableStringHash(_ value: String) -> String {
+    var hash: UInt64 = 5381
+    for scalar in value.unicodeScalars {
+        hash = ((hash << 5) &+ hash) &+ UInt64(scalar.value)
+    }
+    return String(hash, radix: 16)
 }
 
 struct LightweightMessagePreview: Hashable, Sendable {

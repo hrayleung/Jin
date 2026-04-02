@@ -280,7 +280,7 @@ final class MessageEntity {
 
     var highlightSnapshots: [MessageHighlightSnapshot] {
         highlights
-            .map(\.snapshot)
+            .map { $0.makeSnapshot() }
             .sorted { lhs, rhs in
                 if lhs.anchorID != rhs.anchorID {
                     return lhs.anchorID < rhs.anchorID
@@ -429,8 +429,7 @@ final class MessageHighlightEntity {
         }
     }
 
-    var snapshot: MessageHighlightSnapshot {
-        syncIDsWithRelationships()
+    func makeSnapshot() -> MessageHighlightSnapshot {
         return MessageHighlightSnapshot(
             id: id,
             messageID: messageID,

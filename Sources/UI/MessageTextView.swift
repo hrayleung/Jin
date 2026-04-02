@@ -60,15 +60,30 @@ struct MessageTextView: View {
             )
 
         case .plainText:
-            MarkdownWebRenderer(
-                markdownText: text,
-                renderPlainText: true,
-                selectionMessageID: selectionMessageID,
-                selectionContextThreadID: selectionContextThreadID,
-                selectionAnchorID: selectionAnchorID,
-                persistedHighlights: persistedHighlights,
-                selectionActions: selectionActions
-            )
+            if needsSelectionAwarePlainTextRenderer {
+                MarkdownWebRenderer(
+                    markdownText: text,
+                    renderPlainText: true,
+                    selectionMessageID: selectionMessageID,
+                    selectionContextThreadID: selectionContextThreadID,
+                    selectionAnchorID: selectionAnchorID,
+                    persistedHighlights: persistedHighlights,
+                    selectionActions: selectionActions
+                )
+            } else {
+                Text(text)
+                    .font(.body)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .textSelection(.enabled)
+            }
         }
+    }
+
+    private var needsSelectionAwarePlainTextRenderer: Bool {
+        selectionMessageID != nil
+            && (
+                !persistedHighlights.isEmpty
+                || selectionAnchorID != nil
+            )
     }
 }

@@ -168,8 +168,9 @@ extension CodexAppServerAdapter {
     }
 
     private nonisolated static func renderQuote(_ raw: String) -> String? {
-        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? nil : "[Quote] \(trimmed)"
+        let normalized = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty else { return nil }
+        return "[Quote] \(raw)"
     }
 
     // MARK: - Image Input

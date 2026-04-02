@@ -30,6 +30,7 @@ extension ChatView {
         cancelEditingUserMessage()
         speechToTextManager.cancelAndCleanup()
         messageText = ""
+        composerTextContentHeight = 36
         draftAttachments = []
         draftQuotes = []
         dropAttachmentImportInFlightCount = 0
