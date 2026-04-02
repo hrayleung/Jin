@@ -179,10 +179,12 @@ struct ChatView: View {
     @State var imageGenerationCompressionQualityDraft = ""
     @State var imageGenerationDraftError: String?
     @State var mistralOCRConfigured = false
+    @State var mineruOCRConfigured = false
     @State var deepSeekOCRConfigured = false
     @State var textToSpeechConfigured = false
     @State var speechToTextConfigured = false
     @State var mistralOCRPluginEnabled = true
+    @State var mineruOCRPluginEnabled = true
     @State var deepSeekOCRPluginEnabled = true
     @State var textToSpeechPluginEnabled = true
     @State var speechToTextPluginEnabled = true

@@ -209,6 +209,7 @@ extension ChatView {
             providers: providers,
             controls: controls,
             mistralOCRPluginEnabled: mistralOCRPluginEnabled,
+            mineruOCRPluginEnabled: mineruOCRPluginEnabled,
             deepSeekOCRPluginEnabled: deepSeekOCRPluginEnabled,
             defaultPDFProcessingFallbackMode: defaultPDFProcessingFallbackMode
         )
@@ -229,7 +230,7 @@ extension ChatView {
             attachments: attachments,
             remoteVideoURL: remoteVideoURL,
             profile: profile,
-            preparedContentForPDF: { attachment, profile, mode, total, ordinal, mistral, deepseek in
+            preparedContentForPDF: { attachment, profile, mode, total, ordinal, mistral, mineru, deepseek in
                 try await ChatMessagePreparationSupport.preparedContentForPDF(
                     attachment,
                     profile: profile,
@@ -237,6 +238,7 @@ extension ChatView {
                     totalPDFCount: total,
                     pdfOrdinal: ordinal,
                     mistralClient: mistral,
+                    mineruClient: mineru,
                     deepSeekClient: deepseek,
                     onStatusUpdate: { [self] status in
                         prepareToSendStatus = status

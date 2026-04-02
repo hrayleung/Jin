@@ -3,6 +3,48 @@ import XCTest
 @testable import Jin
 
 final class PDFProcessingModeTests: XCTestCase {
+    func testDefaultPDFProcessingFallbackModePrefersExistingConfiguredOCRBeforeMinerU() {
+        XCTAssertEqual(
+            ChatModelCapabilitySupport.defaultPDFProcessingFallbackMode(
+                mistralOCRPluginEnabled: true,
+                mistralOCRConfigured: true,
+                mineruOCRPluginEnabled: true,
+                mineruOCRConfigured: true,
+                deepSeekOCRPluginEnabled: true,
+                deepSeekOCRConfigured: true
+            ),
+            .mistralOCR
+        )
+    }
+
+    func testDefaultPDFProcessingFallbackModeUsesMinerUWhenItIsFirstConfiguredFallback() {
+        XCTAssertEqual(
+            ChatModelCapabilitySupport.defaultPDFProcessingFallbackMode(
+                mistralOCRPluginEnabled: false,
+                mistralOCRConfigured: false,
+                mineruOCRPluginEnabled: true,
+                mineruOCRConfigured: true,
+                deepSeekOCRPluginEnabled: true,
+                deepSeekOCRConfigured: true
+            ),
+            .mineruOCR
+        )
+    }
+
+    func testResolvedPDFProcessingModeAcceptsMinerUWhenEnabled() {
+        XCTAssertEqual(
+            ChatModelCapabilitySupport.resolvedPDFProcessingMode(
+                controls: GenerationControls(pdfProcessingMode: .mineruOCR),
+                supportsNativePDF: false,
+                defaultPDFProcessingFallbackMode: .macOSExtract,
+                mistralOCRPluginEnabled: false,
+                mineruOCRPluginEnabled: true,
+                deepSeekOCRPluginEnabled: false
+            ),
+            .mineruOCR
+        )
+    }
+
     func testOpenAIAdapterSendsNativePDFWhenModeNative() async throws {
         let (configuration, protocolType) = makeMockedSessionConfiguration()
         let networkManager = NetworkManager(configuration: configuration)
@@ -659,6 +701,181 @@ final class PDFProcessingModeTests: XCTestCase {
         XCTAssertEqual(response.pages[0].markdown, "Hello")
     }
 
+    func testMinerUOCRClientBootstrapsUploadAndExtractsFullMarkdown() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+        let archiveData = try makeZipArchive(entries: ["full.md": "# Hello MinerU"])
+
+        protocolType.requestHandler = { request in
+            switch (request.url?.host, request.url?.path) {
+            case ("example.com", "/api/v4/file-urls/batch"):
+                XCTAssertEqual(request.httpMethod, "POST")
+                XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer test-token")
+                XCTAssertEqual(request.value(forHTTPHeaderField: "token"), "user-123")
+                XCTAssertEqual(request.value(forHTTPHeaderField: "Content-Type"), "application/json")
+
+                let body = try XCTUnwrap(requestBodyData(request))
+                let json = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: Any])
+                XCTAssertEqual(json["enable_formula"] as? Bool, true)
+                XCTAssertEqual(json["enable_table"] as? Bool, true)
+                XCTAssertEqual(json["language"] as? String, "en")
+                XCTAssertEqual(json["model_version"] as? String, "vlm")
+
+                let files = try XCTUnwrap(json["files"] as? [[String: Any]])
+                XCTAssertEqual(files.count, 1)
+                XCTAssertEqual(files[0]["name"] as? String, "scan.pdf")
+                XCTAssertEqual(files[0]["is_ocr"] as? Bool, true)
+                XCTAssertNotNil(files[0]["data_id"] as? String)
+
+                let response: [String: Any] = [
+                    "code": 0,
+                    "msg": "ok",
+                    "data": [
+                        "batch_id": "batch_123",
+                        "file_urls": ["https://upload.example.com/upload.pdf"]
+                    ]
+                ]
+                return (
+                    HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                    try JSONSerialization.data(withJSONObject: response)
+                )
+
+            case ("upload.example.com", "/upload.pdf"):
+                XCTAssertEqual(request.httpMethod, "PUT")
+                XCTAssertNil(request.value(forHTTPHeaderField: "Content-Type"))
+                XCTAssertEqual(requestBodyData(request), Data("PDF".utf8))
+                return (
+                    HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                    Data()
+                )
+
+            case ("example.com", "/api/v4/extract-results/batch/batch_123"):
+                XCTAssertEqual(request.httpMethod, "GET")
+                XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer test-token")
+                let response: [String: Any] = [
+                    "code": 0,
+                    "msg": "ok",
+                    "data": [
+                        "extract_result": [
+                            [
+                                "state": "done",
+                                "full_zip_url": "https://cdn.example.com/result.zip"
+                            ]
+                        ]
+                    ]
+                ]
+                return (
+                    HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                    try JSONSerialization.data(withJSONObject: response)
+                )
+
+            case ("cdn.example.com", "/result.zip"):
+                return (
+                    HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                    archiveData
+                )
+
+            default:
+                XCTFail("Unexpected request: \(request.url?.absoluteString ?? "<nil>")")
+                return (
+                    HTTPURLResponse(url: request.url ?? URL(string: "https://example.com")!, statusCode: 500, httpVersion: nil, headerFields: nil)!,
+                    Data()
+                )
+            }
+        }
+
+        let client = MinerUOCRClient(
+            apiToken: "test-token",
+            userToken: "user-123",
+            baseURL: URL(string: "https://example.com")!,
+            networkManager: networkManager
+        )
+
+        let markdown = try await client.ocrPDF(
+            Data("PDF".utf8),
+            filename: "scan.pdf",
+            language: "en",
+            timeoutSeconds: 5,
+            pollIntervalNanoseconds: 1_000_000
+        )
+        XCTAssertEqual(markdown, "# Hello MinerU")
+    }
+
+    func testMinerUOCRClientExtractsNestedFullMarkdownFromArchive() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+        let archiveData = try makeZipArchive(entries: ["results/full.md": "# Nested MinerU"])
+
+        protocolType.requestHandler = { request in
+            switch (request.url?.host, request.url?.path) {
+            case ("example.com", "/api/v4/file-urls/batch"):
+                let response: [String: Any] = [
+                    "code": 0,
+                    "msg": "ok",
+                    "data": [
+                        "batch_id": "batch_nested",
+                        "file_urls": ["https://upload.example.com/upload-nested.pdf"]
+                    ]
+                ]
+                return (
+                    HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                    try JSONSerialization.data(withJSONObject: response)
+                )
+
+            case ("upload.example.com", "/upload-nested.pdf"):
+                return (
+                    HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                    Data()
+                )
+
+            case ("example.com", "/api/v4/extract-results/batch/batch_nested"):
+                let response: [String: Any] = [
+                    "code": 0,
+                    "msg": "ok",
+                    "data": [
+                        "extract_result": [
+                            [
+                                "state": "done",
+                                "full_zip_url": "https://cdn.example.com/nested.zip"
+                            ]
+                        ]
+                    ]
+                ]
+                return (
+                    HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                    try JSONSerialization.data(withJSONObject: response)
+                )
+
+            case ("cdn.example.com", "/nested.zip"):
+                return (
+                    HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                    archiveData
+                )
+
+            default:
+                XCTFail("Unexpected request: \(request.url?.absoluteString ?? "<nil>")")
+                return (
+                    HTTPURLResponse(url: request.url ?? URL(string: "https://example.com")!, statusCode: 500, httpVersion: nil, headerFields: nil)!,
+                    Data()
+                )
+            }
+        }
+
+        let client = MinerUOCRClient(
+            apiToken: "test-token",
+            baseURL: URL(string: "https://example.com")!,
+            networkManager: networkManager
+        )
+
+        let markdown = try await client.ocrPDF(
+            Data("PDF".utf8),
+            filename: "nested.pdf",
+            timeoutSeconds: 5,
+            pollIntervalNanoseconds: 1_000_000
+        )
+        XCTAssertEqual(markdown, "# Nested MinerU")
+    }
+
     func testDeepInfraDeepSeekOCRClientBuildsChatCompletionsRequest() async throws {
         let (configuration, protocolType) = makeMockedSessionConfiguration()
         let networkManager = NetworkManager(configuration: configuration)
@@ -838,4 +1055,37 @@ private func requestBodyData(_ request: URLRequest) -> Data? {
     }
 
     return data
+}
+
+private func makeZipArchive(entries: [String: String]) throws -> Data {
+    let fileManager = FileManager.default
+    let zipPath = "/usr/bin/zip"
+    guard fileManager.isExecutableFile(atPath: zipPath) else {
+        throw XCTSkip("zip binary not available at \(zipPath)")
+    }
+
+    let rootURL = fileManager.temporaryDirectory
+        .appendingPathComponent("JinZipArchive-\(UUID().uuidString)", isDirectory: true)
+    let contentURL = rootURL.appendingPathComponent("content", isDirectory: true)
+    let archiveURL = rootURL.appendingPathComponent("archive.zip", isDirectory: false)
+
+    try fileManager.createDirectory(at: contentURL, withIntermediateDirectories: true)
+    defer { try? fileManager.removeItem(at: rootURL) }
+
+    for (path, content) in entries {
+        let fileURL = contentURL.appendingPathComponent(path, isDirectory: false)
+        try fileManager.createDirectory(at: fileURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data(content.utf8).write(to: fileURL, options: .atomic)
+    }
+
+    let process = Process()
+    process.executableURL = URL(fileURLWithPath: zipPath)
+    process.currentDirectoryURL = contentURL
+    process.arguments = ["-q", "-r", archiveURL.path, "."]
+
+    try process.run()
+    process.waitUntilExit()
+    XCTAssertEqual(process.terminationStatus, 0)
+
+    return try Data(contentsOf: archiveURL)
 }
