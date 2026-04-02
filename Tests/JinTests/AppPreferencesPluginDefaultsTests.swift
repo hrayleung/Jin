@@ -30,6 +30,7 @@ final class AppPreferencesPluginDefaultsTests: XCTestCase {
         XCTAssertTrue(AppPreferences.isPluginEnabled("text_to_speech", defaults: defaults))
         XCTAssertTrue(AppPreferences.isPluginEnabled("speech_to_text", defaults: defaults))
         XCTAssertTrue(AppPreferences.isPluginEnabled("mistral_ocr", defaults: defaults))
+        XCTAssertTrue(AppPreferences.isPluginEnabled("mineru_ocr", defaults: defaults))
         XCTAssertTrue(AppPreferences.isPluginEnabled("deepseek_ocr", defaults: defaults))
         XCTAssertTrue(AppPreferences.isPluginEnabled("web_search_builtin", defaults: defaults))
     }

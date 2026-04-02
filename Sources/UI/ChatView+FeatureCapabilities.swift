@@ -14,6 +14,8 @@ extension ChatView {
         ChatModelCapabilitySupport.defaultPDFProcessingFallbackMode(
             mistralOCRPluginEnabled: mistralOCRPluginEnabled,
             mistralOCRConfigured: mistralOCRConfigured,
+            mineruOCRPluginEnabled: mineruOCRPluginEnabled,
+            mineruOCRConfigured: mineruOCRConfigured,
             deepSeekOCRPluginEnabled: deepSeekOCRPluginEnabled,
             deepSeekOCRConfigured: deepSeekOCRConfigured
         )
@@ -28,6 +30,7 @@ extension ChatView {
             mode,
             supportsNativePDF: supportsNativePDF,
             mistralOCRPluginEnabled: mistralOCRPluginEnabled,
+            mineruOCRPluginEnabled: mineruOCRPluginEnabled,
             deepSeekOCRPluginEnabled: deepSeekOCRPluginEnabled
         )
     }
@@ -38,6 +41,7 @@ extension ChatView {
             supportsNativePDF: supportsNativePDF,
             defaultPDFProcessingFallbackMode: defaultPDFProcessingFallbackMode,
             mistralOCRPluginEnabled: mistralOCRPluginEnabled,
+            mineruOCRPluginEnabled: mineruOCRPluginEnabled,
             deepSeekOCRPluginEnabled: deepSeekOCRPluginEnabled
         )
     }
@@ -48,6 +52,8 @@ extension ChatView {
             return nil
         case .mistralOCR:
             return "OCR"
+        case .mineruOCR:
+            return "MU"
         case .deepSeekOCR:
             return "DS"
         case .macOSExtract:
@@ -61,6 +67,8 @@ extension ChatView {
             return "PDF handling: Native"
         case .mistralOCR:
             return mistralOCRConfigured ? "PDF handling: Mistral OCR" : "PDF handling: Mistral OCR (API key required)"
+        case .mineruOCR:
+            return mineruOCRConfigured ? "PDF handling: MinerU OCR" : "PDF handling: MinerU OCR (API token required)"
         case .deepSeekOCR:
             return deepSeekOCRConfigured ? "PDF handling: DeepSeek OCR (DeepInfra)" : "PDF handling: DeepSeek OCR (API key required)"
         case .macOSExtract:

@@ -276,6 +276,7 @@ enum AnthropicWebSearchDomainUtils {
 enum PDFProcessingMode: String, Codable, CaseIterable {
     case native
     case mistralOCR
+    case mineruOCR
     case deepSeekOCR
     case macOSExtract
 
@@ -283,6 +284,7 @@ enum PDFProcessingMode: String, Codable, CaseIterable {
         switch self {
         case .native: return "Native"
         case .mistralOCR: return "Mistral OCR"
+        case .mineruOCR: return "MinerU OCR"
         case .deepSeekOCR: return "DeepSeek OCR (DeepInfra)"
         case .macOSExtract: return "macOS Extract"
         }

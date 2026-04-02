@@ -188,6 +188,10 @@ extension ChatView {
             Button { setPDFProcessingMode(.mistralOCR) } label: { menuItemLabel("Mistral OCR", isSelected: resolvedPDFProcessingMode == .mistralOCR) }
         }
 
+        if mineruOCRPluginEnabled {
+            Button { setPDFProcessingMode(.mineruOCR) } label: { menuItemLabel("MinerU OCR", isSelected: resolvedPDFProcessingMode == .mineruOCR) }
+        }
+
         if deepSeekOCRPluginEnabled {
             Button { setPDFProcessingMode(.deepSeekOCR) } label: { menuItemLabel("DeepSeek OCR (DeepInfra)", isSelected: resolvedPDFProcessingMode == .deepSeekOCR) }
         }
@@ -201,6 +205,13 @@ extension ChatView {
                 .foregroundStyle(.secondary)
         }
 
+        if resolvedPDFProcessingMode == .mineruOCR, !mineruOCRConfigured {
+            Divider()
+            Text("Set API token in Settings \u{2192} Plugins \u{2192} MinerU OCR.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+
         if resolvedPDFProcessingMode == .deepSeekOCR, !deepSeekOCRConfigured {
             Divider()
             Text("Set API key in Settings \u{2192} Plugins \u{2192} DeepSeek OCR (DeepInfra).")
@@ -208,9 +219,9 @@ extension ChatView {
                 .foregroundStyle(.secondary)
         }
 
-        if !mistralOCRPluginEnabled && !deepSeekOCRPluginEnabled {
+        if !mistralOCRPluginEnabled && !mineruOCRPluginEnabled && !deepSeekOCRPluginEnabled {
             Divider()
-            Text("OCR plugins are turned off. Enable them in Settings \u{2192} Plugins to show OCR modes.")
+            Text("OCR plugins are turned off. Enable Mistral OCR, MinerU OCR, or DeepSeek OCR in Settings \u{2192} Plugins to show OCR modes.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }

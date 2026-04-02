@@ -40,6 +40,7 @@ struct SettingsView: View {
         PluginDescriptor(id: "text_to_speech", name: "Text to Speech", systemImage: "speaker.wave.2", summary: "Play assistant replies aloud."),
         PluginDescriptor(id: "speech_to_text", name: "Speech to Text", systemImage: "mic", summary: "Dictate messages by voice."),
         PluginDescriptor(id: "mistral_ocr", name: "Mistral OCR", systemImage: "doc.text.magnifyingglass", summary: "OCR PDFs when native PDF isn't available."),
+        PluginDescriptor(id: "mineru_ocr", name: "MinerU OCR", systemImage: "doc.text.magnifyingglass", summary: "OCR PDFs through MinerU Precision Extract."),
         PluginDescriptor(id: "deepseek_ocr", name: "DeepSeek OCR", systemImage: "doc.text.magnifyingglass", summary: "OCR PDFs using DeepInfra-hosted DeepSeek."),
         PluginDescriptor(id: "chat_naming", name: "Chat Naming", systemImage: "text.bubble", summary: "Auto-name chats with a selected model."),
         PluginDescriptor(id: "cloudflare_r2_upload", name: "Cloudflare R2 Upload", systemImage: "externaldrive.badge.icloud", summary: "Upload local videos to R2 for remote video URLs."),
@@ -314,6 +315,8 @@ struct SettingsView: View {
         switch selectedPluginID {
         case "mistral_ocr":
             MistralOCRPluginSettingsView().id("mistral_ocr").transition(settingsColumnTransition)
+        case "mineru_ocr":
+            MinerUOCRPluginSettingsView().id("mineru_ocr").transition(settingsColumnTransition)
         case "web_search_builtin":
             WebSearchPluginSettingsView().id("web_search_builtin").transition(settingsColumnTransition)
         case "deepseek_ocr":

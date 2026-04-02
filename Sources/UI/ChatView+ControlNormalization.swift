@@ -156,12 +156,14 @@ extension ChatView {
 
         await MainActor.run {
             mistralOCRConfigured = status.mistralOCRConfigured
+            mineruOCRConfigured = status.mineruOCRConfigured
             deepSeekOCRConfigured = status.deepSeekOCRConfigured
             textToSpeechConfigured = status.textToSpeechConfigured
             speechToTextConfigured = status.speechToTextConfigured
             webSearchPluginConfigured = status.webSearchPluginConfigured
 
             mistralOCRPluginEnabled = status.mistralOCRPluginEnabled
+            mineruOCRPluginEnabled = status.mineruOCRPluginEnabled
             deepSeekOCRPluginEnabled = status.deepSeekOCRPluginEnabled
             textToSpeechPluginEnabled = status.textToSpeechPluginEnabled
             speechToTextPluginEnabled = status.speechToTextPluginEnabled

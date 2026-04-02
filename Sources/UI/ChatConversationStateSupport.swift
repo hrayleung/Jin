@@ -3,11 +3,13 @@ import SwiftData
 
 struct ChatExtensionCredentialStatus {
     let mistralOCRConfigured: Bool
+    let mineruOCRConfigured: Bool
     let deepSeekOCRConfigured: Bool
     let textToSpeechConfigured: Bool
     let speechToTextConfigured: Bool
     let webSearchPluginConfigured: Bool
     let mistralOCRPluginEnabled: Bool
+    let mineruOCRPluginEnabled: Bool
     let deepSeekOCRPluginEnabled: Bool
     let textToSpeechPluginEnabled: Bool
     let speechToTextPluginEnabled: Bool
@@ -126,6 +128,7 @@ enum ChatConversationStateSupport {
         }
 
         let mistralConfigured = hasStoredKey(AppPreferenceKeys.pluginMistralOCRAPIKey)
+        let mineruConfigured = hasStoredKey(AppPreferenceKeys.pluginMineruOCRAPIToken)
         let deepSeekConfigured = hasStoredKey(AppPreferenceKeys.pluginDeepSeekOCRAPIKey)
 
         let ttsProvider = try? SpeechPluginConfigFactory.currentTTSProvider(defaults: defaults)
@@ -175,6 +178,7 @@ enum ChatConversationStateSupport {
         }
 
         let mistralEnabled = AppPreferences.isPluginEnabled("mistral_ocr", defaults: defaults)
+        let mineruEnabled = AppPreferences.isPluginEnabled("mineru_ocr", defaults: defaults)
         let deepSeekEnabled = AppPreferences.isPluginEnabled("deepseek_ocr", defaults: defaults)
         let ttsEnabled = AppPreferences.isPluginEnabled("text_to_speech", defaults: defaults)
         let sttEnabled = AppPreferences.isPluginEnabled("speech_to_text", defaults: defaults)
@@ -186,11 +190,13 @@ enum ChatConversationStateSupport {
 
         return ChatExtensionCredentialStatus(
             mistralOCRConfigured: mistralConfigured,
+            mineruOCRConfigured: mineruConfigured,
             deepSeekOCRConfigured: deepSeekConfigured,
             textToSpeechConfigured: ttsConfigured,
             speechToTextConfigured: sttKeyConfigured,
             webSearchPluginConfigured: webSearchConfigured,
             mistralOCRPluginEnabled: mistralEnabled,
+            mineruOCRPluginEnabled: mineruEnabled,
             deepSeekOCRPluginEnabled: deepSeekEnabled,
             textToSpeechPluginEnabled: ttsEnabled,
             speechToTextPluginEnabled: sttEnabled,

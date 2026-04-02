@@ -61,12 +61,16 @@ enum AppPreferenceKeys {
     static let pluginTextToSpeechEnabled = "pluginTextToSpeechEnabled"
     static let pluginSpeechToTextEnabled = "pluginSpeechToTextEnabled"
     static let pluginMistralOCREnabled = "pluginMistralOCREnabled"
+    static let pluginMineruOCREnabled = "pluginMineruOCREnabled"
     static let pluginDeepSeekOCREnabled = "pluginDeepSeekOCREnabled"
     static let pluginChatNamingEnabled = "pluginChatNamingEnabled"
     static let pluginCloudflareR2UploadEnabled = "pluginCloudflareR2UploadEnabled"
     static let pluginWebSearchEnabled = "pluginWebSearchEnabled"
 
     static let pluginMistralOCRAPIKey = "pluginMistralOCRAPIKey"
+    static let pluginMineruOCRAPIToken = "pluginMineruOCRAPIToken"
+    static let pluginMineruOCRUserIdentifier = "pluginMineruOCRUserIdentifier"
+    static let pluginMineruOCRLanguage = "pluginMineruOCRLanguage"
     static let pluginDeepSeekOCRAPIKey = "pluginDeepSeekOCRAPIKey"
     static let pluginWebSearchDefaultProvider = "pluginWebSearchDefaultProvider"
     static let pluginWebSearchDefaultMaxResults = "pluginWebSearchDefaultMaxResults"
@@ -361,6 +365,8 @@ enum AppPreferences {
             return AppPreferenceKeys.pluginSpeechToTextEnabled
         case "mistral_ocr":
             return AppPreferenceKeys.pluginMistralOCREnabled
+        case "mineru_ocr":
+            return AppPreferenceKeys.pluginMineruOCREnabled
         case "deepseek_ocr":
             return AppPreferenceKeys.pluginDeepSeekOCREnabled
         case "chat_naming":

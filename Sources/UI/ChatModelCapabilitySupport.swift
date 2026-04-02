@@ -416,11 +416,16 @@ enum ChatModelCapabilitySupport {
     static func defaultPDFProcessingFallbackMode(
         mistralOCRPluginEnabled: Bool,
         mistralOCRConfigured: Bool,
+        mineruOCRPluginEnabled: Bool,
+        mineruOCRConfigured: Bool,
         deepSeekOCRPluginEnabled: Bool,
         deepSeekOCRConfigured: Bool
     ) -> PDFProcessingMode {
         if mistralOCRPluginEnabled, mistralOCRConfigured {
             return .mistralOCR
+        }
+        if mineruOCRPluginEnabled, mineruOCRConfigured {
+            return .mineruOCR
         }
         if deepSeekOCRPluginEnabled, deepSeekOCRConfigured {
             return .deepSeekOCR
@@ -432,6 +437,7 @@ enum ChatModelCapabilitySupport {
         _ mode: PDFProcessingMode,
         supportsNativePDF: Bool,
         mistralOCRPluginEnabled: Bool,
+        mineruOCRPluginEnabled: Bool,
         deepSeekOCRPluginEnabled: Bool
     ) -> Bool {
         switch mode {
@@ -441,6 +447,8 @@ enum ChatModelCapabilitySupport {
             return true
         case .mistralOCR:
             return mistralOCRPluginEnabled
+        case .mineruOCR:
+            return mineruOCRPluginEnabled
         case .deepSeekOCR:
             return deepSeekOCRPluginEnabled
         }
@@ -451,6 +459,7 @@ enum ChatModelCapabilitySupport {
         supportsNativePDF: Bool,
         defaultPDFProcessingFallbackMode: PDFProcessingMode,
         mistralOCRPluginEnabled: Bool,
+        mineruOCRPluginEnabled: Bool,
         deepSeekOCRPluginEnabled: Bool
     ) -> PDFProcessingMode {
         let requested = controls.pdfProcessingMode ?? .native
@@ -458,6 +467,7 @@ enum ChatModelCapabilitySupport {
             requested,
             supportsNativePDF: supportsNativePDF,
             mistralOCRPluginEnabled: mistralOCRPluginEnabled,
+            mineruOCRPluginEnabled: mineruOCRPluginEnabled,
             deepSeekOCRPluginEnabled: deepSeekOCRPluginEnabled
         ) {
             return requested

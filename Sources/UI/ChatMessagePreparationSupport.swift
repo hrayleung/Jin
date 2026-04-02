@@ -110,6 +110,7 @@ enum ChatMessagePreparationSupport {
         providers: [ProviderConfigEntity],
         controls: GenerationControls,
         mistralOCRPluginEnabled: Bool,
+        mineruOCRPluginEnabled: Bool,
         deepSeekOCRPluginEnabled: Bool,
         defaultPDFProcessingFallbackMode: PDFProcessingMode
     ) throws -> MessagePreparationProfile {
@@ -158,6 +159,7 @@ enum ChatMessagePreparationSupport {
             supportsNativePDF: nativePDFSupported,
             defaultPDFProcessingFallbackMode: defaultPDFProcessingFallbackMode,
             mistralOCRPluginEnabled: mistralOCRPluginEnabled,
+            mineruOCRPluginEnabled: mineruOCRPluginEnabled,
             deepSeekOCRPluginEnabled: deepSeekOCRPluginEnabled
         )
         let modelName = modelInfo?.name ?? resolvedModelID
@@ -207,7 +209,7 @@ enum ChatMessagePreparationSupport {
         attachments: [DraftAttachment],
         remoteVideoURL: URL?,
         profile: MessagePreparationProfile,
-        preparedContentForPDF: (DraftAttachment, MessagePreparationProfile, PDFProcessingMode, Int, Int, MistralOCRClient?, DeepInfraDeepSeekOCRClient?) async throws -> PreparedPDFContent
+        preparedContentForPDF: (DraftAttachment, MessagePreparationProfile, PDFProcessingMode, Int, Int, MistralOCRClient?, MinerUOCRClient?, DeepInfraDeepSeekOCRClient?) async throws -> PreparedPDFContent
     ) async throws -> [ContentPart] {
         var parts: [ContentPart] = []
         parts.reserveCapacity(attachments.count + (messageText.isEmpty ? 0 : 1) + (remoteVideoURL == nil ? 0 : 1))
@@ -265,6 +267,22 @@ enum ChatMessagePreparationSupport {
             deepSeekClient = nil
         }
 
+        let mineruClient: MinerUOCRClient?
+        if pdfCount > 0, requestedMode == .mineruOCR {
+            let token = UserDefaults.standard.string(forKey: AppPreferenceKeys.pluginMineruOCRAPIToken)
+            let trimmed = (token ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+
+            if trimmed.isEmpty {
+                throw PDFProcessingError.mineruAPITokenMissing
+            }
+
+            let userIdentifier = UserDefaults.standard.string(forKey: AppPreferenceKeys.pluginMineruOCRUserIdentifier)
+            let trimmedUserIdentifier = userIdentifier?.trimmingCharacters(in: .whitespacesAndNewlines)
+            mineruClient = MinerUOCRClient(apiToken: trimmed, userToken: trimmedUserIdentifier)
+        } else {
+            mineruClient = nil
+        }
+
         var pdfOrdinal = 0
         for attachment in attachments {
             try Task.checkCancellation()
@@ -293,6 +311,7 @@ enum ChatMessagePreparationSupport {
                     pdfCount,
                     pdfOrdinal,
                     mistralClient,
+                    mineruClient,
                     deepSeekClient
                 )
 
@@ -342,6 +361,7 @@ enum ChatMessagePreparationSupport {
         totalPDFCount: Int,
         pdfOrdinal: Int,
         mistralClient: MistralOCRClient?,
+        mineruClient: MinerUOCRClient?,
         deepSeekClient: DeepInfraDeepSeekOCRClient?,
         onStatusUpdate: @MainActor @Sendable (String) -> Void
     ) async throws -> PreparedPDFContent {
@@ -494,6 +514,40 @@ enum ChatMessagePreparationSupport {
                 output = "\(prefix)\n\n[Truncated]"
             }
             return PreparedPDFContent(extractedText: output, additionalParts: imageParts)
+
+        case .mineruOCR:
+            guard let mineruClient else { throw PDFProcessingError.mineruAPITokenMissing }
+
+            await onStatusUpdate("OCR PDF \(pdfOrdinal)/\(max(1, totalPDFCount)) (MinerU): \(attachment.filename)")
+
+            guard let data = try? Data(contentsOf: attachment.fileURL) else {
+                throw PDFProcessingError.fileReadFailed(filename: attachment.filename)
+            }
+
+            let storedLanguage = UserDefaults.standard
+                .string(forKey: AppPreferenceKeys.pluginMineruOCRLanguage)?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            let language = storedLanguage.flatMap { $0.isEmpty ? nil : $0 }
+                ?? MinerUOCRClient.Constants.defaultLanguage
+            let markdown = try await mineruClient.ocrPDF(
+                data,
+                filename: attachment.filename,
+                language: language,
+                timeoutSeconds: 180
+            )
+
+            let combined = markdown.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !combined.isEmpty else {
+                throw PDFProcessingError.noTextExtracted(filename: attachment.filename, method: "MinerU OCR")
+            }
+
+            var output = "MinerU OCR (Markdown): \(attachment.filename)\n\n\(combined)"
+            output = output.trimmingCharacters(in: .whitespacesAndNewlines)
+            if output.count > AttachmentConstants.maxPDFExtractedCharacters {
+                let prefix = output.prefix(AttachmentConstants.maxPDFExtractedCharacters)
+                output = "\(prefix)\n\n[Truncated]"
+            }
+            return PreparedPDFContent(extractedText: output, additionalParts: [])
 
         case .deepSeekOCR:
             guard let deepSeekClient else { throw PDFProcessingError.deepInfraAPIKeyMissing }
