@@ -72,6 +72,57 @@ final class ModelCatalogTests: XCTestCase {
         XCTAssertEqual(gemini.contextWindow, 1_048_576)
         XCTAssertTrue(gemini.capabilities.contains(.vision))
         XCTAssertTrue(gemini.capabilities.contains(.reasoning))
+
+        let gemma4 = ModelCatalog.modelInfo(
+            for: "google/gemma-4-31b-it",
+            provider: .vercelAIGateway
+        )
+        XCTAssertEqual(gemma4.contextWindow, 262_144)
+        XCTAssertEqual(gemma4.maxOutputTokens, 131_072)
+        XCTAssertTrue(gemma4.capabilities.contains(.toolCalling))
+        XCTAssertTrue(gemma4.capabilities.contains(.vision))
+        XCTAssertTrue(gemma4.capabilities.contains(.reasoning))
+        XCTAssertFalse(gemma4.capabilities.contains(.nativePDF))
+    }
+
+    func testOpenRouterGemma4CatalogUsesExactProviderPrefixedIDs() {
+        let gemma31 = ModelCatalog.modelInfo(
+            for: "google/gemma-4-31b-it",
+            provider: .openrouter
+        )
+        XCTAssertEqual(gemma31.contextWindow, 262_144)
+        XCTAssertEqual(gemma31.maxOutputTokens, 131_072)
+        XCTAssertTrue(gemma31.capabilities.contains(.toolCalling))
+        XCTAssertTrue(gemma31.capabilities.contains(.vision))
+        XCTAssertTrue(gemma31.capabilities.contains(.reasoning))
+
+        let gemma26 = ModelCatalog.modelInfo(
+            for: "google/gemma-4-26b-a4b-it",
+            provider: .openrouter
+        )
+        XCTAssertEqual(gemma26.contextWindow, 262_144)
+        XCTAssertEqual(gemma26.maxOutputTokens, 262_144)
+        XCTAssertTrue(gemma26.capabilities.contains(.toolCalling))
+        XCTAssertTrue(gemma26.capabilities.contains(.vision))
+        XCTAssertTrue(gemma26.capabilities.contains(.reasoning))
+    }
+
+    func testGeminiGemma431CatalogUsesExactMetadata() {
+        let model = ModelCatalog.modelInfo(
+            for: "gemma-4-31b-it",
+            provider: .gemini
+        )
+        XCTAssertEqual(model.contextWindow, 262_144)
+        XCTAssertNil(model.maxOutputTokens)
+        XCTAssertTrue(model.capabilities.contains(.streaming))
+        XCTAssertTrue(model.capabilities.contains(.toolCalling))
+        XCTAssertTrue(model.capabilities.contains(.vision))
+        XCTAssertTrue(model.capabilities.contains(.reasoning))
+        XCTAssertFalse(model.capabilities.contains(.audio))
+        XCTAssertFalse(model.capabilities.contains(.nativePDF))
+        XCTAssertFalse(model.capabilities.contains(.promptCaching))
+        XCTAssertEqual(model.reasoningConfig?.type, .effort)
+        XCTAssertEqual(model.reasoningConfig?.defaultEffort, .medium)
     }
 
     func testOpenAIAudioModelsAreCatalogBackedByExactIDs() {

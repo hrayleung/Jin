@@ -1730,13 +1730,57 @@ final class GeminiAdapterTests: XCTestCase {
         XCTAssertTrue(proImage.capabilities.contains(.reasoning))
         XCTAssertNil(proImage.reasoningConfig)
 
-        XCTAssertEqual(try XCTUnwrap(byID["gemini-2.5-flash-image"]).contextWindow, 32_768)
+        XCTAssertEqual(try XCTUnwrap(byID["gemini-2.5-flash-image"]).contextWindow, 65_536)
         let nanoBanana = try XCTUnwrap(byID["gemini-3.1-flash-image-preview"])
         XCTAssertEqual(nanoBanana.contextWindow, 131_072)
         XCTAssertTrue(nanoBanana.capabilities.contains(.nativePDF))
         XCTAssertTrue(nanoBanana.capabilities.contains(.reasoning))
         XCTAssertFalse(nanoBanana.capabilities.contains(.toolCalling))
         XCTAssertEqual(nanoBanana.reasoningConfig?.defaultEffort, .minimal)
+    }
+
+    func testGeminiAdapterFetchModelsUsesCatalogMetadataForGemma431() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        let providerConfig = ProviderConfig(
+            id: "g",
+            name: "Gemini",
+            type: .gemini,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://example.com/models?pageSize=1000")
+
+            let payload: [String: Any] = [
+                "models": [
+                    [
+                        "name": "models/gemma-4-31b-it",
+                        "displayName": "Gemma 4 31B",
+                        "supportedGenerationMethods": ["generateContent", "streamGenerateContent"]
+                    ]
+                ]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: payload)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = GeminiAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let models = try await adapter.fetchAvailableModels()
+
+        let model = try XCTUnwrap(models.first(where: { $0.id == "gemma-4-31b-it" }))
+        XCTAssertEqual(model.contextWindow, 262_144)
+        XCTAssertNil(model.maxOutputTokens)
+        XCTAssertTrue(model.capabilities.contains(.streaming))
+        XCTAssertTrue(model.capabilities.contains(.toolCalling))
+        XCTAssertTrue(model.capabilities.contains(.vision))
+        XCTAssertTrue(model.capabilities.contains(.reasoning))
+        XCTAssertFalse(model.capabilities.contains(.audio))
+        XCTAssertFalse(model.capabilities.contains(.nativePDF))
+        XCTAssertFalse(model.capabilities.contains(.promptCaching))
+        XCTAssertEqual(model.reasoningConfig?.defaultEffort, .medium)
     }
 }
 

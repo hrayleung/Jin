@@ -238,6 +238,14 @@ extension GeminiAdapter {
 
     func makeModelInfo(from model: GeminiListModelsResponse.GeminiModel) -> ModelInfo {
         let id = model.id
+        if ModelCatalog.entry(for: id, provider: .gemini) != nil {
+            return ModelCatalog.modelInfo(
+                for: id,
+                provider: .gemini,
+                name: model.displayName ?? id
+            )
+        }
+
         let lower = id.lowercased()
         let methods = Set(model.supportedGenerationMethods?.map { $0.lowercased() } ?? [])
 

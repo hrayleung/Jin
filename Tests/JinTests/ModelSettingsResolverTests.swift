@@ -171,10 +171,31 @@ final class ModelSettingsResolverTests: XCTestCase {
         XCTAssertEqual(resolvedVercelGemini31Pro.contextWindow, 1_048_576)
         XCTAssertEqual(resolvedVercelGemini31Pro.maxOutputTokens, 65_536)
 
+        let vercelGemma431 = ModelCatalog.modelInfo(for: "google/gemma-4-31b-it", provider: .vercelAIGateway)
+        let resolvedVercelGemma431 = ModelSettingsResolver.resolve(model: vercelGemma431, providerType: .vercelAIGateway)
+        XCTAssertEqual(resolvedVercelGemma431.contextWindow, 262_144)
+        XCTAssertEqual(resolvedVercelGemma431.maxOutputTokens, 131_072)
+        XCTAssertEqual(resolvedVercelGemma431.reasoningConfig?.type, .effort)
+        XCTAssertEqual(resolvedVercelGemma431.reasoningConfig?.defaultEffort, .medium)
+
         let openRouterGemini31Pro = ModelCatalog.modelInfo(for: "google/gemini-3.1-pro-preview", provider: .openrouter)
         let resolvedOpenRouterGemini31Pro = ModelSettingsResolver.resolve(model: openRouterGemini31Pro, providerType: .openrouter)
         XCTAssertEqual(resolvedOpenRouterGemini31Pro.contextWindow, 1_048_576)
         XCTAssertEqual(resolvedOpenRouterGemini31Pro.maxOutputTokens, 65_536)
+
+        let openRouterGemma426 = ModelCatalog.modelInfo(for: "google/gemma-4-26b-a4b-it", provider: .openrouter)
+        let resolvedOpenRouterGemma426 = ModelSettingsResolver.resolve(model: openRouterGemma426, providerType: .openrouter)
+        XCTAssertEqual(resolvedOpenRouterGemma426.contextWindow, 262_144)
+        XCTAssertEqual(resolvedOpenRouterGemma426.maxOutputTokens, 262_144)
+        XCTAssertEqual(resolvedOpenRouterGemma426.reasoningConfig?.type, .effort)
+        XCTAssertEqual(resolvedOpenRouterGemma426.reasoningConfig?.defaultEffort, .medium)
+
+        let geminiGemma431 = ModelCatalog.modelInfo(for: "gemma-4-31b-it", provider: .gemini)
+        let resolvedGeminiGemma431 = ModelSettingsResolver.resolve(model: geminiGemma431, providerType: .gemini)
+        XCTAssertEqual(resolvedGeminiGemma431.contextWindow, 262_144)
+        XCTAssertNil(resolvedGeminiGemma431.maxOutputTokens)
+        XCTAssertEqual(resolvedGeminiGemma431.reasoningConfig?.type, .effort)
+        XCTAssertEqual(resolvedGeminiGemma431.reasoningConfig?.defaultEffort, .medium)
     }
 
     func testOpenRouterUsesUnifiedRequestShapeAcrossModelFamilies() {

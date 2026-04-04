@@ -42,10 +42,13 @@ final class JinModelSupportTests: XCTestCase {
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .vercelAIGateway, modelID: "anthropic/claude-opus-4.5"))
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .vercelAIGateway, modelID: "google/gemini-3.1-pro-preview"))
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .vercelAIGateway, modelID: "google/gemini-2.5-pro"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .vercelAIGateway, modelID: "google/gemma-4-31b-it"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .vercelAIGateway, modelID: "google/gemma-4-26b-a4b-it"))
         XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .vercelAIGateway, modelID: "gpt-5.2"))
         XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .vercelAIGateway, modelID: "anthropic/claude-sonnet-4-6-custom"))
         XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .vercelAIGateway, modelID: "xai/grok-4.1-fast-reasoning-custom"))
         XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .vercelAIGateway, modelID: "google/gemini-3"))
+        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .vercelAIGateway, modelID: "google/gemma-4-31b-it-custom"))
     }
 
     func testVercelAIGatewayNativePDFSupportStaysDisabledByDefault() {
@@ -105,6 +108,12 @@ final class JinModelSupportTests: XCTestCase {
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .openrouter, modelID: "google/gemini-3.1-pro-preview"))
     }
 
+    func testOpenRouterGemma4ModelsUseExactFullySupportedIDs() {
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .openrouter, modelID: "google/gemma-4-31b-it"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .openrouter, modelID: "google/gemma-4-26b-a4b-it"))
+        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .openrouter, modelID: "google/gemma-4-31b-it-custom"))
+    }
+
     func testOpenRouterLatestXiaomiAndMiniMaxModelsUseExactFullySupportedIDs() {
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .openrouter, modelID: "xiaomi/mimo-v2-omni"))
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .openrouter, modelID: "xiaomi/mimo-v2-pro"))
@@ -120,6 +129,8 @@ final class JinModelSupportTests: XCTestCase {
     func testGeminiProvider3Point1PreviewIsMarkedAsFullySupported() {
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .gemini, modelID: "gemini-3.1-pro-preview"))
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .gemini, modelID: "gemini-3.1-flash-image-preview"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .gemini, modelID: "gemma-4-31b-it"))
+        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .gemini, modelID: "gemma-4-31b-it-custom"))
     }
 
     func testVertexAIProvider3Point1PreviewIsMarkedAsFullySupported() {

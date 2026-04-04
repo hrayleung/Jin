@@ -514,5 +514,17 @@ extension ModelCatalog {
                maxOutputTokens: 32_768,
                reasoningConfig: nil,
                isFullySupported: true, isSeeded: false),
+        Record(id: "google/gemma-4-31b-it", displayName: "Gemma 4 31B",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               contextWindow: 262_144,
+               maxOutputTokens: 131_072,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+               isFullySupported: true, isSeeded: false),
+        Record(id: "google/gemma-4-26b-a4b-it", displayName: "Gemma 4 26B A4B",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               contextWindow: 262_144,
+               maxOutputTokens: 131_072,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+               isFullySupported: true, isSeeded: false),
     ]
 }
