@@ -196,6 +196,7 @@ final class ModelSettingsResolverTests: XCTestCase {
         XCTAssertNil(resolvedGeminiGemma431.maxOutputTokens)
         XCTAssertEqual(resolvedGeminiGemma431.reasoningConfig?.type, .effort)
         XCTAssertEqual(resolvedGeminiGemma431.reasoningConfig?.defaultEffort, .medium)
+        XCTAssertTrue(resolvedGeminiGemma431.supportsWebSearch)
     }
 
     func testOpenRouterUsesUnifiedRequestShapeAcrossModelFamilies() {

@@ -166,6 +166,57 @@ final class GeminiAdapterTests: XCTestCase {
         XCTAssertEqual(uploadFinalizeCount, 1)
     }
 
+    func testGeminiAdapterBuildsGoogleSearchToolForGemma431Trial() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        let providerConfig = ProviderConfig(
+            id: "g-gemma-search",
+            name: "Gemini",
+            type: .gemini,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://example.com/models/gemma-4-31b-it:generateContent")
+
+            let body = try XCTUnwrap(requestBodyData(request))
+            let json = try XCTUnwrap(try JSONSerialization.jsonObject(with: body) as? [String: Any])
+            let tools = try XCTUnwrap(json["tools"] as? [[String: Any]])
+            XCTAssertEqual(tools.count, 1)
+            XCTAssertNotNil(tools.first?["google_search"])
+
+            let response: [String: Any] = [
+                "candidates": [
+                    [
+                        "content": [
+                            "parts": [
+                                ["text": "OK"]
+                            ]
+                        ]
+                    ]
+                ]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = GeminiAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+
+        let stream = try await adapter.sendMessage(
+            messages: [
+                Message(role: .user, content: [.text("search for gemma 4 news")])
+            ],
+            modelID: "gemma-4-31b-it",
+            controls: GenerationControls(webSearch: WebSearchControls(enabled: true)),
+            tools: [],
+            streaming: false
+        )
+
+        for try await _ in stream {}
+    }
+
     func testGeminiAdapterWaitsForHostedFileToBecomeActiveBeforeGenerateContent() async throws {
         let (configuration, protocolType) = makeMockedSessionConfiguration()
         let networkManager = NetworkManager(configuration: configuration)

@@ -75,7 +75,8 @@ enum ModelCapabilityRegistry {
         "gemini-3-pro-image-preview",
     ]
 
-    /// Models documented by Google as supporting grounding with Google Search in Gemini API.
+    /// Models documented by Google as supporting grounding with Google Search in Gemini API,
+    /// plus narrow runtime trials we intentionally enable in Jin.
     private static let geminiGoogleSearchSupportedModelIDs: Set<String> = [
         "gemini-3.1-pro-preview",
         "gemini-3-pro-preview",
@@ -88,6 +89,7 @@ enum ModelCapabilityRegistry {
         "gemini-2.5-flash-lite",
         "gemini-2.0-flash",
         "gemini-2.0-flash-001",
+        "gemma-4-31b-it",
     ]
 
     /// Models supporting grounding with Google Search in Vertex AI.
@@ -107,7 +109,25 @@ enum ModelCapabilityRegistry {
         "gemini-2.0-flash",
     ]
 
-    /// Fallback used by proxy providers (for example OpenRouter `google/*` model IDs).
+    /// OpenRouter `plugins: [{id: "web"}]` support stays conservative and does not
+    /// inherit Gemini-only runtime trials automatically.
+    private static let openRouterGoogleSearchSupportedModelIDs: Set<String> = [
+        "gemini-3.1-pro-preview",
+        "gemini-3-pro-preview",
+        "gemini-3-flash-preview",
+        "gemini-3-pro-image-preview",
+        "gemini-3.1-flash-image-preview",
+        "gemini-3.1-flash-lite-preview",
+        "gemini-2.5-pro",
+        "gemini-2.5-flash",
+        "gemini-2.5-flash-lite",
+        "gemini-2.5-flash-preview",
+        "gemini-2.5-flash-lite-preview",
+        "gemini-2.0-flash",
+        "gemini-2.0-flash-001",
+    ]
+
+    /// Fallback used by proxy providers other than explicit provider-specific allowlists.
     private static let proxiedGoogleSearchSupportedModelIDs: Set<String> =
         geminiGoogleSearchSupportedModelIDs.union(vertexGoogleSearchSupportedModelIDs)
 
@@ -535,6 +555,8 @@ enum ModelCapabilityRegistry {
             return geminiGoogleSearchSupportedModelIDs
         case .vertexai:
             return vertexGoogleSearchSupportedModelIDs
+        case .openrouter:
+            return openRouterGoogleSearchSupportedModelIDs
         default:
             return proxiedGoogleSearchSupportedModelIDs
         }

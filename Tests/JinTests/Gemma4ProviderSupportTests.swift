@@ -67,11 +67,11 @@ final class Gemma4ProviderSupportTests: XCTestCase {
         XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .cloudflareAIGateway, modelID: "google-ai-studio/gemma-4-31b-it"))
     }
 
-    func testGemma4DoesNotEnableNativePDFOrNativeWebSearchByDefault() {
+    func testGemma4OnlyEnablesNativeWebSearchForGeminiTrial() {
         XCTAssertFalse(JinModelSupport.supportsNativePDF(providerType: .gemini, modelID: "gemma-4-31b-it"))
         XCTAssertFalse(JinModelSupport.supportsNativePDF(providerType: .vercelAIGateway, modelID: "google/gemma-4-31b-it"))
         XCTAssertFalse(JinModelSupport.supportsNativePDF(providerType: .openrouter, modelID: "google/gemma-4-31b-it"))
-        XCTAssertFalse(ModelCapabilityRegistry.supportsWebSearch(for: .gemini, modelID: "gemma-4-31b-it"))
+        XCTAssertTrue(ModelCapabilityRegistry.supportsWebSearch(for: .gemini, modelID: "gemma-4-31b-it"))
         XCTAssertFalse(ModelCapabilityRegistry.supportsWebSearch(for: .vercelAIGateway, modelID: "google/gemma-4-31b-it"))
         XCTAssertFalse(ModelCapabilityRegistry.supportsWebSearch(for: .openrouter, modelID: "google/gemma-4-31b-it"))
     }
