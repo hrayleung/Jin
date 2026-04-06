@@ -217,6 +217,57 @@ final class GeminiAdapterTests: XCTestCase {
         for try await _ in stream {}
     }
 
+    func testGeminiAdapterBuildsGoogleSearchToolForGemma426Trial() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        let providerConfig = ProviderConfig(
+            id: "g-gemma26-search",
+            name: "Gemini",
+            type: .gemini,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://example.com/models/gemma-4-26b-a4b-it:generateContent")
+
+            let body = try XCTUnwrap(requestBodyData(request))
+            let json = try XCTUnwrap(try JSONSerialization.jsonObject(with: body) as? [String: Any])
+            let tools = try XCTUnwrap(json["tools"] as? [[String: Any]])
+            XCTAssertEqual(tools.count, 1)
+            XCTAssertNotNil(tools.first?["google_search"])
+
+            let response: [String: Any] = [
+                "candidates": [
+                    [
+                        "content": [
+                            "parts": [
+                                ["text": "OK"]
+                            ]
+                        ]
+                    ]
+                ]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = GeminiAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+
+        let stream = try await adapter.sendMessage(
+            messages: [
+                Message(role: .user, content: [.text("search for gemma 4 grounding support")])
+            ],
+            modelID: "gemma-4-26b-a4b-it",
+            controls: GenerationControls(webSearch: WebSearchControls(enabled: true)),
+            tools: [],
+            streaming: false
+        )
+
+        for try await _ in stream {}
+    }
+
     func testGeminiAdapterWaitsForHostedFileToBecomeActiveBeforeGenerateContent() async throws {
         let (configuration, protocolType) = makeMockedSessionConfiguration()
         let networkManager = NetworkManager(configuration: configuration)
@@ -1822,6 +1873,50 @@ final class GeminiAdapterTests: XCTestCase {
         let models = try await adapter.fetchAvailableModels()
 
         let model = try XCTUnwrap(models.first(where: { $0.id == "gemma-4-31b-it" }))
+        XCTAssertEqual(model.contextWindow, 262_144)
+        XCTAssertNil(model.maxOutputTokens)
+        XCTAssertTrue(model.capabilities.contains(.streaming))
+        XCTAssertTrue(model.capabilities.contains(.toolCalling))
+        XCTAssertTrue(model.capabilities.contains(.vision))
+        XCTAssertTrue(model.capabilities.contains(.reasoning))
+        XCTAssertFalse(model.capabilities.contains(.audio))
+        XCTAssertFalse(model.capabilities.contains(.nativePDF))
+        XCTAssertFalse(model.capabilities.contains(.promptCaching))
+        XCTAssertEqual(model.reasoningConfig?.defaultEffort, .medium)
+    }
+
+    func testGeminiAdapterFetchModelsUsesCatalogMetadataForGemma426() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        let providerConfig = ProviderConfig(
+            id: "g",
+            name: "Gemini",
+            type: .gemini,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://example.com/models?pageSize=1000")
+
+            let payload: [String: Any] = [
+                "models": [
+                    [
+                        "name": "models/gemma-4-26b-a4b-it",
+                        "displayName": "Gemma 4 26B A4B",
+                        "supportedGenerationMethods": ["generateContent", "streamGenerateContent"]
+                    ]
+                ]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: payload)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = GeminiAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let models = try await adapter.fetchAvailableModels()
+
+        let model = try XCTUnwrap(models.first(where: { $0.id == "gemma-4-26b-a4b-it" }))
         XCTAssertEqual(model.contextWindow, 262_144)
         XCTAssertNil(model.maxOutputTokens)
         XCTAssertTrue(model.capabilities.contains(.streaming))

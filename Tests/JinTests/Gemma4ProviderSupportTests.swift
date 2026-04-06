@@ -51,9 +51,17 @@ final class Gemma4ProviderSupportTests: XCTestCase {
         XCTAssertEqual(resolvedOpenRouter.maxOutputTokens, 262_144)
         XCTAssertEqual(resolvedOpenRouter.reasoningConfig?.type, .effort)
         XCTAssertEqual(resolvedOpenRouter.reasoningConfig?.defaultEffort, .medium)
+
+        let gemini = ModelCatalog.modelInfo(for: "gemma-4-26b-a4b-it", provider: .gemini)
+        let resolvedGemini = ModelSettingsResolver.resolve(model: gemini, providerType: .gemini)
+        XCTAssertEqual(resolvedGemini.contextWindow, 262_144)
+        XCTAssertNil(resolvedGemini.maxOutputTokens)
+        XCTAssertEqual(resolvedGemini.reasoningConfig?.type, .effort)
+        XCTAssertEqual(resolvedGemini.reasoningConfig?.defaultEffort, .medium)
     }
 
     func testGemma4ExactMatchSupportIsLimitedToConfirmedProviders() {
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .gemini, modelID: "gemma-4-26b-a4b-it"))
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .gemini, modelID: "gemma-4-31b-it"))
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .vercelAIGateway, modelID: "google/gemma-4-31b-it"))
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .vercelAIGateway, modelID: "google/gemma-4-26b-a4b-it"))
@@ -68,9 +76,11 @@ final class Gemma4ProviderSupportTests: XCTestCase {
     }
 
     func testGemma4OnlyEnablesNativeWebSearchForGeminiTrial() {
+        XCTAssertFalse(JinModelSupport.supportsNativePDF(providerType: .gemini, modelID: "gemma-4-26b-a4b-it"))
         XCTAssertFalse(JinModelSupport.supportsNativePDF(providerType: .gemini, modelID: "gemma-4-31b-it"))
         XCTAssertFalse(JinModelSupport.supportsNativePDF(providerType: .vercelAIGateway, modelID: "google/gemma-4-31b-it"))
         XCTAssertFalse(JinModelSupport.supportsNativePDF(providerType: .openrouter, modelID: "google/gemma-4-31b-it"))
+        XCTAssertTrue(ModelCapabilityRegistry.supportsWebSearch(for: .gemini, modelID: "gemma-4-26b-a4b-it"))
         XCTAssertTrue(ModelCapabilityRegistry.supportsWebSearch(for: .gemini, modelID: "gemma-4-31b-it"))
         XCTAssertFalse(ModelCapabilityRegistry.supportsWebSearch(for: .vercelAIGateway, modelID: "google/gemma-4-31b-it"))
         XCTAssertFalse(ModelCapabilityRegistry.supportsWebSearch(for: .openrouter, modelID: "google/gemma-4-31b-it"))

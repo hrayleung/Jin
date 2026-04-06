@@ -129,6 +129,7 @@ final class JinModelSupportTests: XCTestCase {
     func testGeminiProvider3Point1PreviewIsMarkedAsFullySupported() {
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .gemini, modelID: "gemini-3.1-pro-preview"))
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .gemini, modelID: "gemini-3.1-flash-image-preview"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .gemini, modelID: "gemma-4-26b-a4b-it"))
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .gemini, modelID: "gemma-4-31b-it"))
         XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .gemini, modelID: "gemma-4-31b-it-custom"))
     }
