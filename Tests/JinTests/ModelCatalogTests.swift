@@ -125,6 +125,24 @@ final class ModelCatalogTests: XCTestCase {
         XCTAssertEqual(model.reasoningConfig?.defaultEffort, .medium)
     }
 
+    func testGeminiGemma426CatalogUsesExactMetadata() {
+        let model = ModelCatalog.modelInfo(
+            for: "gemma-4-26b-a4b-it",
+            provider: .gemini
+        )
+        XCTAssertEqual(model.contextWindow, 262_144)
+        XCTAssertNil(model.maxOutputTokens)
+        XCTAssertTrue(model.capabilities.contains(.streaming))
+        XCTAssertTrue(model.capabilities.contains(.toolCalling))
+        XCTAssertTrue(model.capabilities.contains(.vision))
+        XCTAssertTrue(model.capabilities.contains(.reasoning))
+        XCTAssertFalse(model.capabilities.contains(.audio))
+        XCTAssertFalse(model.capabilities.contains(.nativePDF))
+        XCTAssertFalse(model.capabilities.contains(.promptCaching))
+        XCTAssertEqual(model.reasoningConfig?.type, .effort)
+        XCTAssertEqual(model.reasoningConfig?.defaultEffort, .medium)
+    }
+
     func testOpenAIAudioModelsAreCatalogBackedByExactIDs() {
         let audioPreview = ModelCatalog.modelInfo(
             for: "gpt-4o-audio-preview",
