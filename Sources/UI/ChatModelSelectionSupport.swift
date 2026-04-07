@@ -126,16 +126,38 @@ enum ChatModelSelectionSupport {
         case .minimax, .minimaxCodingPlan:
             return models.first(where: { $0.id == "MiniMax-M2.7" })?.id
                 ?? models.first(where: { $0.id == "MiniMax-M2.5" })?.id
+        case .deepinfra:
+            return models.first(where: { $0.id == "zai-org/GLM-5" })?.id
+                ?? models.first(where: { $0.id == "Qwen/Qwen3.5-397B-A17B" })?.id
+                ?? models.first(where: { $0.id == "Qwen/Qwen3.5-122B-A10B" })?.id
+                ?? models.first(where: { $0.id == "Qwen/Qwen3.5-35B-A3B" })?.id
+                ?? models.first(where: { $0.id == "Qwen/Qwen3.5-27B" })?.id
+                ?? models.first(where: { $0.id == "Qwen/Qwen3.5-9B" })?.id
+        case .together:
+            return models.first(where: { $0.id == "moonshotai/Kimi-K2.5" })?.id
+                ?? models.first(where: { $0.id == "zai-org/GLM-5" })?.id
+                ?? models.first(where: { $0.id == "deepseek-ai/DeepSeek-V3.1" })?.id
+                ?? models.first(where: { $0.id == "openai/gpt-oss-120b" })?.id
+                ?? models.first(where: { $0.id == "Qwen/Qwen3.5-397B-A17B" })?.id
+                ?? models.first(where: { $0.id == "Qwen/Qwen3-235B-A22B-Instruct-2507-tput" })?.id
+                ?? models.first(where: { $0.id == "Qwen/Qwen3-Coder-Next-FP8" })?.id
         case .fireworks:
-            return models.first(where: { isFireworksModelID($0.id, "glm-5") })?.id
+            return models.first(where: { isFireworksModelID($0.id, "qwen3p6-plus") })?.id
+                ?? models.first(where: { isFireworksModelID($0.id, "deepseek-v3p2") })?.id
+                ?? models.first(where: { isFireworksModelID($0.id, "kimi-k2-instruct-0905") })?.id
+                ?? models.first(where: { isFireworksModelID($0.id, "glm-5") })?.id
                 ?? models.first(where: { isFireworksModelID($0.id, "minimax-m2p5") })?.id
                 ?? models.first(where: { isFireworksModelID($0.id, "kimi-k2p5") })?.id
                 ?? models.first(where: { isFireworksModelID($0.id, "glm-4p7") })?.id
         case .cerebras:
-            return models.first(where: { $0.id == "zai-glm-4.7" })?.id
+            return models.first(where: { $0.id == "qwen-3-235b-a22b-instruct-2507" })?.id
+                ?? models.first(where: { $0.id == "zai-glm-4.7" })?.id
+                ?? models.first(where: { $0.id == "gpt-oss-120b" })?.id
         case .sambanova:
             return models.first(where: { $0.id == "MiniMax-M2.5" })?.id
+                ?? models.first(where: { $0.id == "DeepSeek-V3.1" })?.id
                 ?? models.first(where: { $0.id == "gpt-oss-120b" })?.id
+                ?? models.first(where: { $0.id == "Qwen3-235B-A22B-Instruct-2507" })?.id
         case .gemini:
             for preferredID in geminiPreferredModelOrder {
                 if let exact = models.first(where: { $0.id.lowercased() == preferredID }) {
@@ -148,7 +170,7 @@ enum ChatModelSelectionSupport {
                 ?? models.first(where: { $0.id == "morph-v3-large" })?.id
         case .opencodeGo:
             return models.first?.id
-        case .codexAppServer, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter, .groq, .cohere, .mistral, .deepinfra, .together, .xai, .vertexai:
+        case .codexAppServer, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter, .groq, .cohere, .mistral, .xai, .vertexai:
             return nil
         }
     }

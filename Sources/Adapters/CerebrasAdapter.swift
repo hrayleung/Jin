@@ -5,7 +5,7 @@ import Foundation
 /// Docs:
 /// - Base URL: https://api.cerebras.ai
 /// - Endpoint: POST /v1/chat/completions
-/// - Model: `zai-glm-4.7`
+/// - Models: `qwen-3-235b-a22b-instruct-2507`, `zai-glm-4.7`, `gpt-oss-120b`
 actor CerebrasAdapter: LLMProviderAdapter {
     let providerConfig: ProviderConfig
     let capabilities: ModelCapability = [.streaming, .toolCalling, .reasoning]
@@ -159,24 +159,16 @@ actor CerebrasAdapter: LLMProviderAdapter {
     }
 
     private func makeModelInfo(id: String) -> ModelInfo {
-        let lower = id.lowercased()
-
-        var caps: ModelCapability = [.streaming, .toolCalling]
-        var contextWindow = 128000
-        var reasoningConfig: ModelReasoningConfig?
-
-        if lower == "zai-glm-4.7" {
-            caps.insert(.reasoning)
-            reasoningConfig = ModelReasoningConfig(type: .toggle)
-            contextWindow = 131_072
+        if ModelCatalog.entry(for: id, provider: .cerebras) != nil {
+            return ModelCatalog.modelInfo(for: id, provider: .cerebras)
         }
 
         return ModelInfo(
             id: id,
             name: id,
-            capabilities: caps,
-            contextWindow: contextWindow,
-            reasoningConfig: reasoningConfig
+            capabilities: [.streaming, .toolCalling],
+            contextWindow: 128_000,
+            reasoningConfig: nil
         )
     }
 }

@@ -46,12 +46,40 @@ enum ChatModelCapabilitySupport {
         let defaultReasoningConfig = ModelReasoningConfig(type: .effort, defaultEffort: .medium)
 
         switch canonicalID {
+        case "qwen3p6-plus":
+            caps.insert(.vision)
+            caps.remove(.audio)
+            caps.remove(.reasoning)
+            contextWindow = 128_000
+            reasoningConfig = nil
+            if name == model.id { name = "Qwen3.6 Plus" }
+        case "deepseek-v3p2":
+            caps.remove(.audio)
+            caps.remove(.vision)
+            caps.remove(.reasoning)
+            contextWindow = 163_800
+            reasoningConfig = nil
+            if name == model.id { name = "DeepSeek V3.2" }
+        case "kimi-k2-instruct-0905":
+            caps.remove(.audio)
+            caps.remove(.vision)
+            caps.remove(.reasoning)
+            contextWindow = 262_100
+            reasoningConfig = nil
+            if name == model.id { name = "Kimi K2 Instruct 0905" }
         case "kimi-k2p5":
             caps.insert(.vision)
             caps.insert(.reasoning)
             contextWindow = 262_100
             reasoningConfig = defaultReasoningConfig
             if name == model.id { name = "Kimi K2.5" }
+        case "qwen3-235b-a22b":
+            caps.remove(.audio)
+            caps.remove(.vision)
+            caps.remove(.reasoning)
+            contextWindow = 131_100
+            reasoningConfig = nil
+            if name == model.id { name = "Qwen3 235B A22B" }
         case "qwen3-omni-30b-a3b-instruct", "qwen3-omni-30b-a3b-thinking":
             caps.insert(.vision)
             caps.insert(.audio)

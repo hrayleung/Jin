@@ -323,14 +323,33 @@ final class ModelCatalogTests: XCTestCase {
         XCTAssertTrue(deepSeek.capabilities.contains(.reasoning))
         XCTAssertEqual(deepSeek.reasoningConfig?.type, .toggle)
 
-        let qwen35 = ModelCatalog.modelInfo(
-            for: "Qwen/Qwen3.5-9B",
+        let qwen397 = ModelCatalog.modelInfo(
+            for: "Qwen/Qwen3.5-397B-A17B",
             provider: .together
         )
-        XCTAssertEqual(qwen35.contextWindow, 262_144)
-        XCTAssertTrue(qwen35.capabilities.contains(.vision))
-        XCTAssertTrue(qwen35.capabilities.contains(.reasoning))
-        XCTAssertEqual(qwen35.reasoningConfig?.type, .toggle)
+        XCTAssertEqual(qwen397.contextWindow, 262_144)
+        XCTAssertTrue(qwen397.capabilities.contains(.toolCalling))
+        XCTAssertFalse(qwen397.capabilities.contains(.vision))
+        XCTAssertFalse(qwen397.capabilities.contains(.reasoning))
+        XCTAssertNil(qwen397.reasoningConfig)
+
+        let qwen235 = ModelCatalog.modelInfo(
+            for: "Qwen/Qwen3-235B-A22B-Instruct-2507-tput",
+            provider: .together
+        )
+        XCTAssertEqual(qwen235.contextWindow, 262_144)
+        XCTAssertTrue(qwen235.capabilities.contains(.toolCalling))
+        XCTAssertFalse(qwen235.capabilities.contains(.reasoning))
+        XCTAssertNil(qwen235.reasoningConfig)
+
+        let qwenCoderNext = ModelCatalog.modelInfo(
+            for: "Qwen/Qwen3-Coder-Next-FP8",
+            provider: .together
+        )
+        XCTAssertEqual(qwenCoderNext.contextWindow, 262_144)
+        XCTAssertTrue(qwenCoderNext.capabilities.contains(.toolCalling))
+        XCTAssertFalse(qwenCoderNext.capabilities.contains(.reasoning))
+        XCTAssertNil(qwenCoderNext.reasoningConfig)
 
         let gptOSS = ModelCatalog.modelInfo(
             for: "openai/gpt-oss-20b",
@@ -354,15 +373,25 @@ final class ModelCatalogTests: XCTestCase {
         XCTAssertFalse(glm5.capabilities.contains(.vision))
         XCTAssertNil(glm5.reasoningConfig)
 
-        let kimiInstruct = ModelCatalog.modelInfo(
-            for: "moonshotai/Kimi-K2-Instruct-0905",
+        let qwen397 = ModelCatalog.modelInfo(
+            for: "Qwen/Qwen3.5-397B-A17B",
             provider: .deepinfra
         )
-        XCTAssertEqual(kimiInstruct.contextWindow, 131_072)
-        XCTAssertTrue(kimiInstruct.capabilities.contains(.toolCalling))
-        XCTAssertTrue(kimiInstruct.capabilities.contains(.reasoning))
-        XCTAssertFalse(kimiInstruct.capabilities.contains(.vision))
-        XCTAssertNil(kimiInstruct.reasoningConfig)
+        XCTAssertEqual(qwen397.contextWindow, 262_144)
+        XCTAssertTrue(qwen397.capabilities.contains(.toolCalling))
+        XCTAssertTrue(qwen397.capabilities.contains(.vision))
+        XCTAssertFalse(qwen397.capabilities.contains(.reasoning))
+        XCTAssertNil(qwen397.reasoningConfig)
+
+        let qwen122 = ModelCatalog.modelInfo(
+            for: "Qwen/Qwen3.5-122B-A10B",
+            provider: .deepinfra
+        )
+        XCTAssertEqual(qwen122.contextWindow, 262_144)
+        XCTAssertTrue(qwen122.capabilities.contains(.toolCalling))
+        XCTAssertTrue(qwen122.capabilities.contains(.vision))
+        XCTAssertFalse(qwen122.capabilities.contains(.reasoning))
+        XCTAssertNil(qwen122.reasoningConfig)
 
         let kimiVision = ModelCatalog.modelInfo(
             for: "moonshotai/Kimi-K2.5",
@@ -373,15 +402,6 @@ final class ModelCatalogTests: XCTestCase {
         XCTAssertTrue(kimiVision.capabilities.contains(.reasoning))
         XCTAssertTrue(kimiVision.capabilities.contains(.vision))
         XCTAssertNil(kimiVision.reasoningConfig)
-
-        let deepSeek = ModelCatalog.modelInfo(
-            for: "deepseek-ai/DeepSeek-V3.2",
-            provider: .deepinfra
-        )
-        XCTAssertEqual(deepSeek.contextWindow, 163_840)
-        XCTAssertTrue(deepSeek.capabilities.contains(.toolCalling))
-        XCTAssertTrue(deepSeek.capabilities.contains(.reasoning))
-        XCTAssertNil(deepSeek.reasoningConfig)
 
         let unknown = ModelCatalog.modelInfo(
             for: "zai-org/GLM-5-custom",
@@ -398,20 +418,140 @@ final class ModelCatalogTests: XCTestCase {
             seeded,
             [
                 "zai-org/GLM-5",
-                "moonshotai/Kimi-K2-Instruct-0905",
-                "deepseek-ai/DeepSeek-V3.2",
-                "MiniMaxAI/MiniMax-M2.5",
-                "openai/gpt-oss-120b",
-                "zai-org/GLM-4.7",
+                "Qwen/Qwen3.5-397B-A17B",
+                "Qwen/Qwen3.5-122B-A10B",
+                "Qwen/Qwen3.5-35B-A3B",
+                "Qwen/Qwen3.5-27B",
+                "Qwen/Qwen3.5-9B",
             ]
         )
-        XCTAssertFalse(seeded.contains("moonshotai/Kimi-K2.5"))
+        XCTAssertFalse(seeded.contains("moonshotai/Kimi-K2-Instruct-0905"))
     }
 
     func testUnknownTogetherModelUsesConservativeFallback() {
         let unknown = ModelCatalog.modelInfo(
             for: "Qwen/Qwen3.5-397B-A17B-custom",
             provider: .together
+        )
+        XCTAssertEqual(unknown.capabilities, [.streaming, .toolCalling])
+        XCTAssertEqual(unknown.contextWindow, 128_000)
+        XCTAssertNil(unknown.reasoningConfig)
+    }
+
+    func testFireworksCatalogMetadataUsesExactIDsAndConservativeFallback() {
+        let qwen36 = ModelCatalog.modelInfo(
+            for: "fireworks/qwen3p6-plus",
+            provider: .fireworks
+        )
+        XCTAssertEqual(qwen36.contextWindow, 128_000)
+        XCTAssertTrue(qwen36.capabilities.contains(.toolCalling))
+        XCTAssertTrue(qwen36.capabilities.contains(.vision))
+        XCTAssertFalse(qwen36.capabilities.contains(.reasoning))
+        XCTAssertNil(qwen36.reasoningConfig)
+
+        let deepSeek = ModelCatalog.modelInfo(
+            for: "accounts/fireworks/models/deepseek-v3p2",
+            provider: .fireworks
+        )
+        XCTAssertEqual(deepSeek.contextWindow, 163_800)
+        XCTAssertTrue(deepSeek.capabilities.contains(.toolCalling))
+        XCTAssertFalse(deepSeek.capabilities.contains(.vision))
+        XCTAssertFalse(deepSeek.capabilities.contains(.reasoning))
+        XCTAssertNil(deepSeek.reasoningConfig)
+
+        let kimiInstruct = ModelCatalog.modelInfo(
+            for: "fireworks/kimi-k2-instruct-0905",
+            provider: .fireworks
+        )
+        XCTAssertEqual(kimiInstruct.contextWindow, 262_100)
+        XCTAssertTrue(kimiInstruct.capabilities.contains(.toolCalling))
+        XCTAssertFalse(kimiInstruct.capabilities.contains(.vision))
+        XCTAssertFalse(kimiInstruct.capabilities.contains(.reasoning))
+        XCTAssertNil(kimiInstruct.reasoningConfig)
+
+        let qwen235 = ModelCatalog.modelInfo(
+            for: "accounts/fireworks/models/qwen3-235b-a22b",
+            provider: .fireworks
+        )
+        XCTAssertEqual(qwen235.contextWindow, 131_100)
+        XCTAssertTrue(qwen235.capabilities.contains(.toolCalling))
+        XCTAssertFalse(qwen235.capabilities.contains(.reasoning))
+        XCTAssertNil(qwen235.reasoningConfig)
+
+        let unknown = ModelCatalog.modelInfo(
+            for: "accounts/fireworks/models/qwen3p6-plus-custom",
+            provider: .fireworks
+        )
+        XCTAssertEqual(unknown.capabilities, [.streaming, .toolCalling])
+        XCTAssertEqual(unknown.contextWindow, 128_000)
+        XCTAssertNil(unknown.reasoningConfig)
+    }
+
+    func testSambaNovaCatalogMetadataUsesExactIDs() {
+        let miniMax = ModelCatalog.modelInfo(
+            for: "MiniMax-M2.5",
+            provider: .sambanova
+        )
+        XCTAssertEqual(miniMax.contextWindow, 160_000)
+        XCTAssertTrue(miniMax.capabilities.contains(.vision))
+        XCTAssertFalse(miniMax.capabilities.contains(.reasoning))
+
+        let deepSeekV32 = ModelCatalog.modelInfo(
+            for: "DeepSeek-V3.2",
+            provider: .sambanova
+        )
+        XCTAssertEqual(deepSeekV32.contextWindow, 8_192)
+        XCTAssertEqual(deepSeekV32.capabilities, [.streaming])
+        XCTAssertNil(deepSeekV32.reasoningConfig)
+
+        let qwen235 = ModelCatalog.modelInfo(
+            for: "Qwen3-235B-A22B-Instruct-2507",
+            provider: .sambanova
+        )
+        XCTAssertEqual(qwen235.contextWindow, 64_000)
+        XCTAssertTrue(qwen235.capabilities.contains(.toolCalling))
+        XCTAssertTrue(qwen235.capabilities.contains(.reasoning))
+        XCTAssertEqual(qwen235.reasoningConfig?.type, .toggle)
+
+        let gptOSS = ModelCatalog.modelInfo(
+            for: "gpt-oss-120b",
+            provider: .sambanova
+        )
+        XCTAssertEqual(gptOSS.contextWindow, 128_000)
+        XCTAssertEqual(gptOSS.reasoningConfig?.type, .effort)
+    }
+
+    func testCerebrasCatalogMetadataUsesExactIDsAndConservativeFallback() {
+        let qwen235 = ModelCatalog.modelInfo(
+            for: "qwen-3-235b-a22b-instruct-2507",
+            provider: .cerebras
+        )
+        XCTAssertEqual(qwen235.contextWindow, 65_000)
+        XCTAssertEqual(qwen235.maxOutputTokens, 32_000)
+        XCTAssertTrue(qwen235.capabilities.contains(.toolCalling))
+        XCTAssertFalse(qwen235.capabilities.contains(.reasoning))
+        XCTAssertNil(qwen235.reasoningConfig)
+
+        let glm47 = ModelCatalog.modelInfo(
+            for: "zai-glm-4.7",
+            provider: .cerebras
+        )
+        XCTAssertEqual(glm47.contextWindow, 64_000)
+        XCTAssertEqual(glm47.maxOutputTokens, 40_000)
+        XCTAssertTrue(glm47.capabilities.contains(.reasoning))
+        XCTAssertEqual(glm47.reasoningConfig?.type, .toggle)
+
+        let gptOSS = ModelCatalog.modelInfo(
+            for: "gpt-oss-120b",
+            provider: .cerebras
+        )
+        XCTAssertEqual(gptOSS.contextWindow, 128_000)
+        XCTAssertTrue(gptOSS.capabilities.contains(.reasoning))
+        XCTAssertEqual(gptOSS.reasoningConfig?.type, .effort)
+
+        let unknown = ModelCatalog.modelInfo(
+            for: "qwen-3-235b-a22b-instruct-2507-custom",
+            provider: .cerebras
         )
         XCTAssertEqual(unknown.capabilities, [.streaming, .toolCalling])
         XCTAssertEqual(unknown.contextWindow, 128_000)

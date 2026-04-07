@@ -67,6 +67,16 @@ final class JinModelSupportTests: XCTestCase {
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .fireworks, modelID: "accounts/fireworks/models/minimax-m2p5"))
     }
 
+    func testFireworksLatestExactIDsUseExpectedSupportBadges() {
+        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .fireworks, modelID: "fireworks/qwen3p6-plus"))
+        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .fireworks, modelID: "accounts/fireworks/models/qwen3p6-plus"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .fireworks, modelID: "fireworks/deepseek-v3p2"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .fireworks, modelID: "accounts/fireworks/models/deepseek-v3p2"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .fireworks, modelID: "fireworks/kimi-k2-instruct-0905"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .fireworks, modelID: "accounts/fireworks/models/qwen3-235b-a22b"))
+        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .fireworks, modelID: "fireworks/qwen3p6-plus-custom"))
+    }
+
     func testZhipuCodingPlanUsesExactMatchForFullySupportedTag() {
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .zhipuCodingPlan, modelID: "glm-5"))
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .zhipuCodingPlan, modelID: "glm-4.7"))
@@ -78,8 +88,9 @@ final class JinModelSupportTests: XCTestCase {
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .together, modelID: "zai-org/GLM-5"))
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .together, modelID: "deepseek-ai/DeepSeek-V3.1"))
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .together, modelID: "openai/gpt-oss-120b"))
-        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .together, modelID: "Qwen/Qwen3-Coder-480B-A35B-Instruct-FP8"))
-        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .together, modelID: "Qwen/Qwen3.5-9B"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .together, modelID: "Qwen/Qwen3.5-397B-A17B"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .together, modelID: "Qwen/Qwen3-235B-A22B-Instruct-2507-tput"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .together, modelID: "Qwen/Qwen3-Coder-Next-FP8"))
         XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .together, modelID: "openai/gpt-oss-120b-custom"))
     }
 
@@ -87,6 +98,8 @@ final class JinModelSupportTests: XCTestCase {
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .together, modelID: "zai-org/GLM-4.7"))
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .together, modelID: "zai-org/GLM-4.5-Air-FP8"))
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .together, modelID: "openai/gpt-oss-20b"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .together, modelID: "Qwen/Qwen3-Coder-480B-A35B-Instruct-FP8"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .together, modelID: "Qwen/Qwen3.5-9B"))
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .together, modelID: "Qwen/Qwen3-Next-80B-A3B-Instruct"))
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .together, modelID: "meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8"))
         XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .together, modelID: "meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8-custom"))
@@ -94,13 +107,31 @@ final class JinModelSupportTests: XCTestCase {
 
     func testDeepInfraUsesExactMatchForFullySupportedTag() {
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .deepinfra, modelID: "zai-org/GLM-5"))
-        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .deepinfra, modelID: "moonshotai/Kimi-K2-Instruct-0905"))
-        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .deepinfra, modelID: "deepseek-ai/DeepSeek-V3.2"))
-        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .deepinfra, modelID: "MiniMaxAI/MiniMax-M2.5"))
-        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .deepinfra, modelID: "openai/gpt-oss-120b"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .deepinfra, modelID: "Qwen/Qwen3.5-397B-A17B"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .deepinfra, modelID: "Qwen/Qwen3.5-122B-A10B"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .deepinfra, modelID: "Qwen/Qwen3.5-35B-A3B"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .deepinfra, modelID: "Qwen/Qwen3.5-27B"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .deepinfra, modelID: "Qwen/Qwen3.5-9B"))
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .deepinfra, modelID: "moonshotai/Kimi-K2.5"))
         XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .deepinfra, modelID: "zai-org/GLM-5-custom"))
-        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .deepinfra, modelID: "moonshotai/Kimi-K2.5-custom"))
+        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .deepinfra, modelID: "Qwen/Qwen3.5-397B-A17B-custom"))
+    }
+
+    func testSambaNovaUsesExactMatchForFullySupportedTag() {
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .sambanova, modelID: "MiniMax-M2.5"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .sambanova, modelID: "gpt-oss-120b"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .sambanova, modelID: "DeepSeek-V3.1"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .sambanova, modelID: "Qwen3-235B-A22B-Instruct-2507"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .sambanova, modelID: "Qwen3-32B"))
+        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .sambanova, modelID: "DeepSeek-V3.2"))
+        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .sambanova, modelID: "Qwen3-235B-A22B-Instruct-2507-custom"))
+    }
+
+    func testCerebrasUsesExactMatchForFullySupportedTag() {
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .cerebras, modelID: "qwen-3-235b-a22b-instruct-2507"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .cerebras, modelID: "zai-glm-4.7"))
+        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .cerebras, modelID: "gpt-oss-120b"))
+        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .cerebras, modelID: "qwen-3-235b-a22b-instruct-2507-custom"))
     }
 
     func testOpenRouterGoogleGeminiPreviewIsMarkedAsFullySupported() {
