@@ -271,6 +271,11 @@ actor FireworksAdapter: LLMProviderAdapter {
     // MARK: - Model Info
 
     private func makeModelInfo(id: String) -> ModelInfo {
+        if ModelCatalog.entry(for: id, provider: .fireworks) != nil {
+            return ModelCatalog.modelInfo(for: id, provider: .fireworks)
+        }
+
+        // Fallback heuristics for unknown models returned by the API.
         let isQwen36Plus = isFireworksModelID(id, canonicalID: "qwen3p6-plus")
         let isDeepSeekV3p2 = isFireworksModelID(id, canonicalID: "deepseek-v3p2")
         let isKimiK2Instruct0905 = isFireworksModelID(id, canonicalID: "kimi-k2-instruct-0905")
