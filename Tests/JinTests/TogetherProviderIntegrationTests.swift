@@ -24,7 +24,7 @@ final class TogetherProviderIntegrationTests: XCTestCase {
         XCTAssertTrue(adapter is TogetherAdapter)
     }
 
-    func testDefaultProviderSeedsIncludeTogetherWithSixSeededModels() {
+    func testDefaultProviderSeedsIncludeTogetherWithLatestSeededModels() {
         let providers = DefaultProviderSeeds.allProviders()
         guard let togetherProvider = providers.first(where: { $0.type == .together }) else {
             return XCTFail("Expected Together AI in default provider seeds.")
@@ -32,7 +32,7 @@ final class TogetherProviderIntegrationTests: XCTestCase {
 
         XCTAssertEqual(togetherProvider.id, "together")
         XCTAssertEqual(togetherProvider.baseURL, ProviderType.together.defaultBaseURL)
-        XCTAssertEqual(togetherProvider.models.count, 6)
+        XCTAssertEqual(togetherProvider.models.count, 7)
         XCTAssertEqual(
             togetherProvider.models.map(\.id),
             [
@@ -40,8 +40,9 @@ final class TogetherProviderIntegrationTests: XCTestCase {
                 "zai-org/GLM-5",
                 "deepseek-ai/DeepSeek-V3.1",
                 "openai/gpt-oss-120b",
-                "Qwen/Qwen3-Coder-480B-A35B-Instruct-FP8",
-                "Qwen/Qwen3.5-9B",
+                "Qwen/Qwen3.5-397B-A17B",
+                "Qwen/Qwen3-235B-A22B-Instruct-2507-tput",
+                "Qwen/Qwen3-Coder-Next-FP8",
             ]
         )
     }

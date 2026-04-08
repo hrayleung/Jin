@@ -60,10 +60,7 @@ actor SambaNovaAdapter: LLMProviderAdapter {
         let request = makeGETRequest(url: try validatedURL("\(baseURLRoot)/v1/models"), apiKey: apiKey)
         let (data, _) = try await networkManager.sendRequest(request)
         let response = try JSONDecoder().decode(OpenAIModelsResponse.self, from: data)
-        return response.data
-            .map(\.id)
-            .filter { $0.caseInsensitiveCompare("DeepSeek-V3.2") != .orderedSame }
-            .map { makeModelInfo(id: $0) }
+        return response.data.map { makeModelInfo(id: $0.id) }
     }
 
     // MARK: - Private
@@ -257,7 +254,7 @@ actor SambaNovaAdapter: LLMProviderAdapter {
         // Fallback heuristics for unknown models returned by the API.
         let lower = id.lowercased()
         var caps: ModelCapability = [.streaming, .toolCalling]
-        var contextWindow = 131_000
+        var contextWindow = 128_000
         var reasoningConfig: ModelReasoningConfig?
 
         if lower.contains("deepseek-r1") {
@@ -275,7 +272,7 @@ actor SambaNovaAdapter: LLMProviderAdapter {
             reasoningConfig = ModelReasoningConfig(type: .effort, defaultEffort: .medium)
         } else if lower.contains("minimax-m2.5") {
             caps.insert(.vision)
-            contextWindow = 163_000
+            contextWindow = 160_000
         } else if lower.contains("maverick") {
             caps.insert(.vision)
         }
@@ -285,7 +282,9 @@ actor SambaNovaAdapter: LLMProviderAdapter {
         } else if lower.contains("qwen3-32b") {
             contextWindow = 32_000
         } else if lower.contains("qwen3-235b") {
-            contextWindow = 65_000
+            contextWindow = 64_000
+        } else if lower.contains("deepseek-v3.2") {
+            contextWindow = 8_192
         }
 
         return ModelInfo(

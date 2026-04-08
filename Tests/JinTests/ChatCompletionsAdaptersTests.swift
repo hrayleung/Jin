@@ -255,12 +255,12 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
 
             let response: [String: Any] = [
                 "data": [
+                    ["id": "fireworks/qwen3p6-plus"],
+                    ["id": "fireworks/deepseek-v3p2"],
+                    ["id": "fireworks/kimi-k2-instruct-0905"],
                     ["id": "fireworks/glm-5"],
-                    ["id": "fireworks/minimax-m2p5"],
                     ["id": "accounts/fireworks/models/minimax-m2p1"],
-                    ["id": "accounts/fireworks/models/minimax-m2"],
-                    ["id": "accounts/fireworks/models/glm-4p7"],
-                    ["id": "accounts/fireworks/models/kimi-k2p5"],
+                    ["id": "accounts/fireworks/models/qwen3-235b-a22b"],
                     ["id": "accounts/fireworks/models/glm-preview"],
                     ["id": "accounts/fireworks/models/other"]
                 ]
@@ -273,17 +273,29 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         let models = try await adapter.fetchAvailableModels()
         let byID = Dictionary(uniqueKeysWithValues: models.map { ($0.id, $0) })
 
+        let qwen36 = try XCTUnwrap(byID["fireworks/qwen3p6-plus"])
+        XCTAssertEqual(qwen36.name, "Qwen3.6 Plus")
+        XCTAssertEqual(qwen36.contextWindow, 128_000)
+        XCTAssertTrue(qwen36.capabilities.contains(.vision))
+        XCTAssertFalse(qwen36.capabilities.contains(.reasoning))
+
+        let deepSeek = try XCTUnwrap(byID["fireworks/deepseek-v3p2"])
+        XCTAssertEqual(deepSeek.name, "DeepSeek V3.2")
+        XCTAssertEqual(deepSeek.contextWindow, 163_800)
+        XCTAssertFalse(deepSeek.capabilities.contains(.vision))
+        XCTAssertFalse(deepSeek.capabilities.contains(.reasoning))
+
+        let kimiInstruct = try XCTUnwrap(byID["fireworks/kimi-k2-instruct-0905"])
+        XCTAssertEqual(kimiInstruct.name, "Kimi K2 Instruct 0905")
+        XCTAssertEqual(kimiInstruct.contextWindow, 262_100)
+        XCTAssertFalse(kimiInstruct.capabilities.contains(.vision))
+        XCTAssertFalse(kimiInstruct.capabilities.contains(.reasoning))
+
         let glm5 = try XCTUnwrap(byID["fireworks/glm-5"])
         XCTAssertEqual(glm5.name, "GLM-5")
         XCTAssertEqual(glm5.contextWindow, 202_800)
         XCTAssertTrue(glm5.capabilities.contains(.reasoning))
         XCTAssertFalse(glm5.capabilities.contains(.vision))
-
-        let minimaxM2p5 = try XCTUnwrap(byID["fireworks/minimax-m2p5"])
-        XCTAssertEqual(minimaxM2p5.name, "MiniMax M2.5")
-        XCTAssertEqual(minimaxM2p5.contextWindow, 196_600)
-        XCTAssertTrue(minimaxM2p5.capabilities.contains(.reasoning))
-        XCTAssertFalse(minimaxM2p5.capabilities.contains(.vision))
 
         let minimaxM2p1 = try XCTUnwrap(byID["accounts/fireworks/models/minimax-m2p1"])
         XCTAssertEqual(minimaxM2p1.name, "MiniMax M2.1")
@@ -291,32 +303,20 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         XCTAssertTrue(minimaxM2p1.capabilities.contains(.reasoning))
         XCTAssertFalse(minimaxM2p1.capabilities.contains(.vision))
 
-        let minimaxM2 = try XCTUnwrap(byID["accounts/fireworks/models/minimax-m2"])
-        XCTAssertEqual(minimaxM2.name, "MiniMax M2")
-        XCTAssertEqual(minimaxM2.contextWindow, 196_600)
-        XCTAssertTrue(minimaxM2.capabilities.contains(.reasoning))
-        XCTAssertFalse(minimaxM2.capabilities.contains(.vision))
-
-        let glm4p7 = try XCTUnwrap(byID["accounts/fireworks/models/glm-4p7"])
-        XCTAssertEqual(glm4p7.name, "GLM-4.7")
-        XCTAssertEqual(glm4p7.contextWindow, 202_800)
-        XCTAssertTrue(glm4p7.capabilities.contains(.reasoning))
-        XCTAssertFalse(glm4p7.capabilities.contains(.vision))
-
-        let kimiK2p5 = try XCTUnwrap(byID["accounts/fireworks/models/kimi-k2p5"])
-        XCTAssertEqual(kimiK2p5.name, "Kimi K2.5")
-        XCTAssertEqual(kimiK2p5.contextWindow, 262_100)
-        XCTAssertTrue(kimiK2p5.capabilities.contains(.reasoning))
-        XCTAssertTrue(kimiK2p5.capabilities.contains(.vision))
+        let qwen235 = try XCTUnwrap(byID["accounts/fireworks/models/qwen3-235b-a22b"])
+        XCTAssertEqual(qwen235.name, "Qwen3 235B A22B")
+        XCTAssertEqual(qwen235.contextWindow, 131_100)
+        XCTAssertFalse(qwen235.capabilities.contains(.vision))
+        XCTAssertFalse(qwen235.capabilities.contains(.reasoning))
 
         let glmPreview = try XCTUnwrap(byID["accounts/fireworks/models/glm-preview"])
         XCTAssertFalse(glmPreview.capabilities.contains(.reasoning))
         XCTAssertNil(glmPreview.reasoningConfig)
-        XCTAssertEqual(glmPreview.contextWindow, 128000)
+        XCTAssertEqual(glmPreview.contextWindow, 128_000)
 
         let other = try XCTUnwrap(byID["accounts/fireworks/models/other"])
         XCTAssertEqual(other.name, "accounts/fireworks/models/other")
-        XCTAssertEqual(other.contextWindow, 128000)
+        XCTAssertEqual(other.contextWindow, 128_000)
     }
 
     func testSambaNovaAdapterMapsReasoningOffToLowEffortForGptOss() async throws {
@@ -537,9 +537,10 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         let miniMax = try XCTUnwrap(models.first)
         XCTAssertEqual(miniMax.id, "MiniMax-M2.5")
         XCTAssertEqual(miniMax.name, "MiniMax M2.5")
+        XCTAssertEqual(miniMax.contextWindow, 160_000)
     }
 
-    func testSambaNovaAdapterFetchModelsSkipsDeepSeekV32() async throws {
+    func testSambaNovaAdapterFetchModelsIncludesDeepSeekV32() async throws {
         let (configuration, protocolType) = makeMockedSessionConfiguration()
         let networkManager = NetworkManager(configuration: configuration)
 
@@ -565,7 +566,9 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
 
         let adapter = SambaNovaAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
         let models = try await adapter.fetchAvailableModels()
-        XCTAssertFalse(models.contains(where: { $0.id.caseInsensitiveCompare("DeepSeek-V3.2") == .orderedSame }))
+        let deepSeekV32 = try XCTUnwrap(models.first(where: { $0.id.caseInsensitiveCompare("DeepSeek-V3.2") == .orderedSame }))
+        XCTAssertEqual(deepSeekV32.contextWindow, 8_192)
+        XCTAssertEqual(deepSeekV32.capabilities, [.streaming])
         XCTAssertTrue(models.contains(where: { $0.id == "DeepSeek-V3.1" }))
     }
 
@@ -780,6 +783,50 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         guard case .contentDelta(.text(let content)) = events[2] else { return XCTFail("Expected contentDelta") }
         XCTAssertEqual(content, "OK")
         guard case .messageEnd = events[3] else { return XCTFail("Expected messageEnd") }
+    }
+
+    func testCerebrasAdapterFetchModelsUsesCatalogMetadataWhenKnown() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        let providerConfig = ProviderConfig(
+            id: "c",
+            name: "Cerebras",
+            type: .cerebras,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://example.com/v1/models")
+            let payload: [String: Any] = [
+                "data": [
+                    ["id": "qwen-3-235b-a22b-instruct-2507"],
+                    ["id": "zai-glm-4.7"],
+                    ["id": "unknown-model"],
+                ]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: payload)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = CerebrasAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let models = try await adapter.fetchAvailableModels()
+        let byID = Dictionary(uniqueKeysWithValues: models.map { ($0.id, $0) })
+
+        let qwen235 = try XCTUnwrap(byID["qwen-3-235b-a22b-instruct-2507"])
+        XCTAssertEqual(qwen235.contextWindow, 65_000)
+        XCTAssertEqual(qwen235.maxOutputTokens, 32_000)
+        XCTAssertFalse(qwen235.capabilities.contains(.reasoning))
+
+        let glm47 = try XCTUnwrap(byID["zai-glm-4.7"])
+        XCTAssertEqual(glm47.contextWindow, 64_000)
+        XCTAssertEqual(glm47.maxOutputTokens, 40_000)
+        XCTAssertTrue(glm47.capabilities.contains(.reasoning))
+
+        let unknown = try XCTUnwrap(byID["unknown-model"])
+        XCTAssertEqual(unknown.contextWindow, 128_000)
+        XCTAssertNil(unknown.reasoningConfig)
     }
 
     func testDeepSeekAdapterUsesV1RouteAndParsesReasoningAndToolCalls() async throws {
@@ -1870,7 +1917,7 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
             let payload: [String: Any] = [
                 "data": [
                     ["id": "zai-org/GLM-5"],
-                    ["id": "moonshotai/Kimi-K2.5"],
+                    ["id": "Qwen/Qwen3.5-397B-A17B"],
                     ["id": "unknown-model"]
                 ]
             ]
@@ -1888,12 +1935,12 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         XCTAssertTrue(glm5.capabilities.contains(.toolCalling))
         XCTAssertTrue(glm5.capabilities.contains(.reasoning))
 
-        let kimi = try XCTUnwrap(byID["moonshotai/Kimi-K2.5"])
-        XCTAssertEqual(kimi.name, "Kimi K2.5")
-        XCTAssertEqual(kimi.contextWindow, 262_144)
-        XCTAssertTrue(kimi.capabilities.contains(.toolCalling))
-        XCTAssertTrue(kimi.capabilities.contains(.reasoning))
-        XCTAssertTrue(kimi.capabilities.contains(.vision))
+        let qwen397 = try XCTUnwrap(byID["Qwen/Qwen3.5-397B-A17B"])
+        XCTAssertEqual(qwen397.name, "Qwen3.5 397B A17B")
+        XCTAssertEqual(qwen397.contextWindow, 262_144)
+        XCTAssertTrue(qwen397.capabilities.contains(.toolCalling))
+        XCTAssertTrue(qwen397.capabilities.contains(.vision))
+        XCTAssertFalse(qwen397.capabilities.contains(.reasoning))
 
         let unknown = try XCTUnwrap(byID["unknown-model"])
         XCTAssertEqual(unknown.name, "unknown-model")
@@ -1988,9 +2035,14 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
                     "display_name": "GPT-OSS 20B",
                 ],
                 [
-                    "id": "Qwen/Qwen3.5-9B",
+                    "id": "Qwen/Qwen3-235B-A22B-Instruct-2507-tput",
                     "type": "chat",
-                    "display_name": "Qwen3.5 9B",
+                    "display_name": "Qwen3 235B A22B Instruct 2507",
+                ],
+                [
+                    "id": "Qwen/Qwen3-Coder-Next-FP8",
+                    "type": "chat",
+                    "display_name": "Qwen3 Coder Next",
                 ],
                 [
                     "id": "black-forest-labs/flux",
@@ -2008,15 +2060,23 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
 
         XCTAssertEqual(
             models.map(\.id),
-            ["deepseek-ai/DeepSeek-V3.1", "openai/gpt-oss-20b", "Qwen/Qwen3.5-9B", "black-forest-labs/flux"]
+            [
+                "deepseek-ai/DeepSeek-V3.1",
+                "openai/gpt-oss-20b",
+                "Qwen/Qwen3-235B-A22B-Instruct-2507-tput",
+                "Qwen/Qwen3-Coder-Next-FP8",
+                "black-forest-labs/flux",
+            ]
         )
         XCTAssertEqual(models[0].contextWindow, 128_000)
         XCTAssertTrue(models[0].capabilities.contains(.reasoning))
         XCTAssertEqual(models[0].reasoningConfig?.type, .toggle)
         XCTAssertEqual(models[1].reasoningConfig?.type, .effort)
-        XCTAssertTrue(models[2].capabilities.contains(.vision))
-        XCTAssertTrue(models[2].capabilities.contains(.reasoning))
-        XCTAssertEqual(models[3].capabilities, [.streaming, .toolCalling])
+        XCTAssertEqual(models[2].contextWindow, 262_144)
+        XCTAssertFalse(models[2].capabilities.contains(.reasoning))
+        XCTAssertEqual(models[3].contextWindow, 262_144)
+        XCTAssertFalse(models[3].capabilities.contains(.reasoning))
+        XCTAssertEqual(models[4].capabilities, [.streaming, .toolCalling])
     }
 
     func testTogetherAdapterAppliesReasoningTogglePayloadForToggleModels() async throws {

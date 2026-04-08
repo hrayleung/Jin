@@ -645,6 +645,36 @@ final class ModelSettingsResolverTests: XCTestCase {
         XCTAssertFalse(resolved.reasoningCanDisable)
     }
 
+    func testResolverInfersRecentFireworksCatalogMetadataForLegacyPersistedModels() {
+        let qwen36Legacy = ModelInfo(
+            id: "accounts/fireworks/models/qwen3p6-plus",
+            name: "Qwen3.6 Plus",
+            capabilities: [.streaming, .toolCalling],
+            contextWindow: 8_192,
+            reasoningConfig: nil,
+            isEnabled: true
+        )
+        let resolvedQwen36 = ModelSettingsResolver.resolve(model: qwen36Legacy, providerType: .fireworks)
+        XCTAssertEqual(resolvedQwen36.contextWindow, 128_000)
+        XCTAssertTrue(resolvedQwen36.capabilities.contains(.vision))
+        XCTAssertFalse(resolvedQwen36.capabilities.contains(.reasoning))
+        XCTAssertNil(resolvedQwen36.reasoningConfig)
+
+        let deepSeekLegacy = ModelInfo(
+            id: "fireworks/deepseek-v3p2",
+            name: "DeepSeek V3.2",
+            capabilities: [.streaming],
+            contextWindow: 8_192,
+            reasoningConfig: nil,
+            isEnabled: true
+        )
+        let resolvedDeepSeek = ModelSettingsResolver.resolve(model: deepSeekLegacy, providerType: .fireworks)
+        XCTAssertEqual(resolvedDeepSeek.contextWindow, 163_800)
+        XCTAssertTrue(resolvedDeepSeek.capabilities.contains(.toolCalling))
+        XCTAssertFalse(resolvedDeepSeek.capabilities.contains(.reasoning))
+        XCTAssertNil(resolvedDeepSeek.reasoningConfig)
+    }
+
     func testSambaNovaAlwaysOnReasoningModelsCannotDisableByDefault() {
         let gptOSS = ModelInfo(
             id: "gpt-oss-120b",
@@ -874,6 +904,95 @@ final class ModelSettingsResolverTests: XCTestCase {
         XCTAssertTrue(resolvedQwen35.capabilities.contains(.vision))
         XCTAssertEqual(resolvedQwen35.reasoningConfig?.type, .toggle)
         XCTAssertTrue(resolvedQwen35.reasoningCanDisable)
+
+        let qwen235Legacy = ModelInfo(
+            id: "Qwen/Qwen3-235B-A22B-Instruct-2507-tput",
+            name: "Qwen3 235B",
+            capabilities: [.streaming],
+            contextWindow: 8_192,
+            reasoningConfig: ModelReasoningConfig(type: .toggle),
+            isEnabled: true
+        )
+        let resolvedQwen235 = ModelSettingsResolver.resolve(model: qwen235Legacy, providerType: .together)
+        XCTAssertEqual(resolvedQwen235.contextWindow, 262_144)
+        XCTAssertTrue(resolvedQwen235.capabilities.contains(.toolCalling))
+        XCTAssertFalse(resolvedQwen235.capabilities.contains(.reasoning))
+        XCTAssertNil(resolvedQwen235.reasoningConfig)
+    }
+
+    func testResolverInfersRecentDeepInfraCatalogMetadataForLegacyPersistedModels() {
+        let qwen397Legacy = ModelInfo(
+            id: "Qwen/Qwen3.5-397B-A17B",
+            name: "Qwen3.5 397B A17B",
+            capabilities: [.streaming, .toolCalling],
+            contextWindow: 8_192,
+            reasoningConfig: ModelReasoningConfig(type: .toggle),
+            isEnabled: true
+        )
+
+        let resolved = ModelSettingsResolver.resolve(model: qwen397Legacy, providerType: .deepinfra)
+        XCTAssertEqual(resolved.contextWindow, 262_144)
+        XCTAssertTrue(resolved.capabilities.contains(.vision))
+        XCTAssertFalse(resolved.capabilities.contains(.reasoning))
+        XCTAssertNil(resolved.reasoningConfig)
+    }
+
+    func testResolverInfersRecentSambaNovaCatalogMetadataForLegacyPersistedModels() {
+        let qwen235Legacy = ModelInfo(
+            id: "Qwen3-235B-A22B-Instruct-2507",
+            name: "Qwen3 235B",
+            capabilities: [.streaming],
+            contextWindow: 8_192,
+            reasoningConfig: nil,
+            isEnabled: true
+        )
+        let resolvedQwen235 = ModelSettingsResolver.resolve(model: qwen235Legacy, providerType: .sambanova)
+        XCTAssertEqual(resolvedQwen235.contextWindow, 64_000)
+        XCTAssertTrue(resolvedQwen235.capabilities.contains(.reasoning))
+        XCTAssertEqual(resolvedQwen235.reasoningConfig?.type, .toggle)
+
+        let deepSeekV32Legacy = ModelInfo(
+            id: "DeepSeek-V3.2",
+            name: "DeepSeek V3.2",
+            capabilities: [.streaming, .toolCalling, .reasoning],
+            contextWindow: 128_000,
+            reasoningConfig: ModelReasoningConfig(type: .toggle),
+            isEnabled: true
+        )
+        let resolvedDeepSeekV32 = ModelSettingsResolver.resolve(model: deepSeekV32Legacy, providerType: .sambanova)
+        XCTAssertEqual(resolvedDeepSeekV32.contextWindow, 8_192)
+        XCTAssertEqual(resolvedDeepSeekV32.capabilities, [.streaming])
+        XCTAssertNil(resolvedDeepSeekV32.reasoningConfig)
+    }
+
+    func testResolverInfersRecentCerebrasCatalogMetadataForLegacyPersistedModels() {
+        let qwen235Legacy = ModelInfo(
+            id: "qwen-3-235b-a22b-instruct-2507",
+            name: "Qwen 3 235B",
+            capabilities: [.streaming, .toolCalling, .reasoning],
+            contextWindow: 8_192,
+            reasoningConfig: ModelReasoningConfig(type: .toggle),
+            isEnabled: true
+        )
+        let resolvedQwen235 = ModelSettingsResolver.resolve(model: qwen235Legacy, providerType: .cerebras)
+        XCTAssertEqual(resolvedQwen235.contextWindow, 65_000)
+        XCTAssertEqual(resolvedQwen235.maxOutputTokens, 32_000)
+        XCTAssertFalse(resolvedQwen235.capabilities.contains(.reasoning))
+        XCTAssertNil(resolvedQwen235.reasoningConfig)
+
+        let glmLegacy = ModelInfo(
+            id: "zai-glm-4.7",
+            name: "ZAI GLM-4.7",
+            capabilities: [.streaming, .toolCalling],
+            contextWindow: 131_072,
+            reasoningConfig: nil,
+            isEnabled: true
+        )
+        let resolvedGLM = ModelSettingsResolver.resolve(model: glmLegacy, providerType: .cerebras)
+        XCTAssertEqual(resolvedGLM.contextWindow, 64_000)
+        XCTAssertEqual(resolvedGLM.maxOutputTokens, 40_000)
+        XCTAssertTrue(resolvedGLM.capabilities.contains(.reasoning))
+        XCTAssertEqual(resolvedGLM.reasoningConfig?.type, .toggle)
     }
 
     func testOpenRouterWebSearchDefaultsByModelFamily() {
