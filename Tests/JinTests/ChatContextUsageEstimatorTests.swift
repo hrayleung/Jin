@@ -152,4 +152,38 @@ final class ChatContextUsageEstimatorTests: XCTestCase {
             "6.4% · 12.9K / 200.0K context used"
         )
     }
+
+    func testIndicatorEqualityTracksOnlyDisplayedEstimateAndModelName() {
+        let estimate = ChatContextUsageEstimate(
+            inputTokens: 12_900,
+            untruncatedInputTokens: 12_900,
+            contextWindow: 200_000,
+            availableInputTokens: 200_000,
+            reservedOutputTokens: 0,
+            messageCount: 8,
+            effectiveMessageCount: 8
+        )
+        let differentEstimate = ChatContextUsageEstimate(
+            inputTokens: 15_500,
+            untruncatedInputTokens: 15_500,
+            contextWindow: 200_000,
+            availableInputTokens: 200_000,
+            reservedOutputTokens: 0,
+            messageCount: 8,
+            effectiveMessageCount: 8
+        )
+
+        XCTAssertEqual(
+            ContextUsageIndicatorView(estimate: estimate, modelName: "GPT-5.2"),
+            ContextUsageIndicatorView(estimate: estimate, modelName: "GPT-5.2")
+        )
+        XCTAssertNotEqual(
+            ContextUsageIndicatorView(estimate: estimate, modelName: "GPT-5.2"),
+            ContextUsageIndicatorView(estimate: estimate, modelName: "Claude 4")
+        )
+        XCTAssertNotEqual(
+            ContextUsageIndicatorView(estimate: estimate, modelName: "GPT-5.2"),
+            ContextUsageIndicatorView(estimate: differentEstimate, modelName: "GPT-5.2")
+        )
+    }
 }

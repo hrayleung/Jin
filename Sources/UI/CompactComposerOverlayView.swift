@@ -165,6 +165,7 @@ struct CompactComposerOverlayView<ControlsRow: View>: View {
                     estimate: contextUsageEstimate,
                     modelName: currentModelName
                 )
+                .equatable()
                 .padding(.bottom, 2)
             }
 

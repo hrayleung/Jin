@@ -87,6 +87,17 @@ extension ChatView {
 
     func activateThread(_ thread: ConversationModelThreadEntity) {
         guard conversationEntity.modelThreads.contains(where: { $0.id == thread.id }) else { return }
+        let isAlreadyActiveThread = activeModelThread?.id == thread.id
+        let isLegacySelectionSynchronized =
+            conversationEntity.activeThreadID == thread.id
+            && conversationEntity.providerID == thread.providerID
+            && conversationEntity.modelID == thread.modelID
+            && thread.isSelected
+        // Message selection in the multi-model timeline can bubble up as a row tap.
+        // Ignore no-op reactivation so that selection does not churn caches or UI state.
+        guard !(isAlreadyActiveThread && isLegacySelectionSynchronized) else {
+            return
+        }
 
         thread.lastActivatedAt = Date()
         thread.updatedAt = Date()

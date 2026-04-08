@@ -1,10 +1,14 @@
 import SwiftUI
 
-struct ContextUsageIndicatorView: View {
+struct ContextUsageIndicatorView: View, Equatable {
     let estimate: ChatContextUsageEstimate
     var modelName: String? = nil
 
     @State private var isPopoverPresented = false
+
+    static func == (lhs: ContextUsageIndicatorView, rhs: ContextUsageIndicatorView) -> Bool {
+        lhs.estimate == rhs.estimate && lhs.modelName == rhs.modelName
+    }
 
     static func summaryText(for estimate: ChatContextUsageEstimate) -> String {
         "\(percentageText(for: estimate)) · \(compactTokenCount(estimate.inputTokens)) / \(compactTokenCount(max(estimate.contextWindow, 0))) context used"
@@ -162,8 +166,6 @@ struct ContextUsageIndicatorView: View {
         .accessibilityLabel(titleText)
         .accessibilityValue(accessibilityValueText)
         .accessibilityHint("Shows current context usage. Click to view details.")
-        .animation(.easeInOut(duration: 0.18), value: estimate.clampedUsageFraction)
-        .animation(.easeInOut(duration: 0.18), value: estimate.didTruncateHistory)
     }
 
     private var contextUsagePopover: some View {

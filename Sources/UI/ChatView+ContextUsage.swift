@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 
 struct ContextUsageSettingsSnapshot: Equatable, Sendable {
     let contextWindow: Int
@@ -53,7 +54,7 @@ extension ChatView {
         contextUsageRefreshTask = nil
 
         guard let input = makeContextUsageComputationInput() else {
-            currentContextUsageEstimate = nil
+            applyContextUsageEstimate(nil)
             contextUsageRefreshGeneration &+= 1
             return
         }
@@ -83,7 +84,7 @@ extension ChatView {
 
             await MainActor.run {
                 guard contextUsageRefreshGeneration == generation else { return }
-                currentContextUsageEstimate = estimate
+                applyContextUsageEstimate(estimate)
                 contextUsageRefreshTask = nil
             }
         }
@@ -93,7 +94,20 @@ extension ChatView {
         contextUsageRefreshTask?.cancel()
         contextUsageRefreshTask = nil
         contextUsageRefreshGeneration &+= 1
-        currentContextUsageEstimate = nil
+        applyContextUsageEstimate(nil)
+    }
+
+    @MainActor
+    private func applyContextUsageEstimate(_ estimate: ChatContextUsageEstimate?) {
+        guard currentContextUsageEstimate != estimate else { return }
+
+        if let estimate {
+            withAnimation(.easeInOut(duration: 0.18)) {
+                currentContextUsageEstimate = estimate
+            }
+        } else {
+            currentContextUsageEstimate = nil
+        }
     }
 
     private var contextUsageSettingsSnapshot: ContextUsageSettingsSnapshot? {

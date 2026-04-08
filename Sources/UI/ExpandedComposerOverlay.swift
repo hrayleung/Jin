@@ -383,6 +383,7 @@ struct ExpandedComposerOverlay<ControlsRow: View>: View {
                         estimate: contextUsageEstimate,
                         modelName: currentModelName
                     )
+                    .equatable()
                 }
 
                 Text(sendWithCommandEnter ? "⌘↩" : "↩")
