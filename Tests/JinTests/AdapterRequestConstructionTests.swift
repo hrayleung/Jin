@@ -326,7 +326,7 @@ final class AdapterRequestConstructionTests: XCTestCase {
                     data
                 )
 
-            case ("GET", "/v1/sessions/sess_123/stream"):
+            case ("GET", "/v1/sessions/sess_123/events/stream"):
                 let data = Data()
                 return (
                     HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
@@ -378,7 +378,7 @@ final class AdapterRequestConstructionTests: XCTestCase {
 
         XCTAssertEqual(observedRequests.count, 3)
         XCTAssertEqual(observedRequests[0].url?.absoluteString, "https://api.anthropic.com/v1/sessions")
-        XCTAssertEqual(observedRequests[1].url?.absoluteString, "https://api.anthropic.com/v1/sessions/sess_123/stream")
+        XCTAssertEqual(observedRequests[1].url?.absoluteString, "https://api.anthropic.com/v1/sessions/sess_123/events/stream")
         XCTAssertEqual(observedRequests[2].url?.absoluteString, "https://api.anthropic.com/v1/sessions/sess_123/events")
     }
 }

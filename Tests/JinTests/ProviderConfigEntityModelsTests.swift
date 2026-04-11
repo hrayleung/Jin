@@ -43,4 +43,33 @@ final class ProviderConfigEntityModelsTests: XCTestCase {
         XCTAssertEqual(provider.allModels.first?.id, "new-model")
         XCTAssertEqual(provider.enabledModels.count, 0)
     }
+
+    func testClaudeManagedAgentsExposeSyntheticSelectableModelWithoutLocalCatalog() throws {
+        let provider = ProviderConfigEntity(
+            id: "claude-managed",
+            name: "Claude Managed",
+            typeRaw: ProviderType.claudeManagedAgents.rawValue,
+            apiKeyKeychainID: nil,
+            modelsData: try JSONEncoder().encode([
+                ModelInfo(id: "ignored", name: "Ignored", capabilities: [.streaming], contextWindow: 1024, isEnabled: true),
+            ])
+        )
+        provider.claudeManagedDefaultAgentID = "agent_123"
+        provider.claudeManagedDefaultEnvironmentID = "env_456"
+        provider.claudeManagedDefaultAgentDisplayName = "Build Agent"
+        provider.claudeManagedDefaultAgentModelID = "claude-opus-4-6"
+
+        XCTAssertTrue(provider.allModels.isEmpty)
+        XCTAssertTrue(provider.enabledModels.isEmpty)
+        XCTAssertEqual(provider.selectableModels.count, 1)
+        XCTAssertEqual(provider.selectableModels.first?.name, "Build Agent")
+        XCTAssertEqual(
+            provider.selectableModels.first?.id,
+            ClaudeManagedAgentRuntime.syntheticThreadModelID(
+                providerID: "claude-managed",
+                agentID: "agent_123",
+                environmentID: "env_456"
+            )
+        )
+    }
 }

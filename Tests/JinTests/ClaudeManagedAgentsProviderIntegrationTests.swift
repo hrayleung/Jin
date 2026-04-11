@@ -24,7 +24,7 @@ final class ClaudeManagedAgentsProviderIntegrationTests: XCTestCase {
         XCTAssertTrue(adapter is ClaudeManagedAgentsAdapter)
     }
 
-    func testDefaultProviderSeedsIncludeClaudeManagedAgentsWithAnthropicSeededModels() {
+    func testDefaultProviderSeedsIncludeClaudeManagedAgentsWithoutLocalModelCatalog() {
         let providers = DefaultProviderSeeds.allProviders()
         guard let provider = providers.first(where: { $0.type == .claudeManagedAgents }) else {
             return XCTFail("Expected Claude Managed Agents in default provider seeds.")
@@ -32,7 +32,8 @@ final class ClaudeManagedAgentsProviderIntegrationTests: XCTestCase {
 
         XCTAssertEqual(provider.id, "claude-managed-agents")
         XCTAssertEqual(provider.baseURL, ProviderType.claudeManagedAgents.defaultBaseURL)
-        XCTAssertEqual(provider.models.map(\.id), ModelCatalog.seededModels(for: .anthropic).map(\.id))
+        XCTAssertTrue(provider.models.isEmpty)
+        XCTAssertFalse(provider.hasLocalModelCatalog)
     }
 
     func testClaudeManagedAgentsUsesAnthropicRequestShapeAndReasoningSupport() {
