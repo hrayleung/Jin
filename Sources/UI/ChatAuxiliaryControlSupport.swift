@@ -481,6 +481,12 @@ enum ChatAuxiliaryControlSupport {
                 strategy: .prefixWindow,
                 ttl: .providerDefault
             )
+        case .claudeManagedAgents:
+            return ContextCacheControls(
+                mode: .implicit,
+                strategy: .prefixWindow,
+                ttl: .providerDefault
+            )
         case .gemini, .vertexai:
             return ContextCacheControls(mode: .implicit)
         case .cloudflareAIGateway:

@@ -66,6 +66,7 @@ extension ChatView {
 
         if let threadID = messageEntity.contextThreadID ?? activeModelThread?.id {
             invalidateCodexThreadPersistence(forThreadID: threadID)
+            invalidateClaudeManagedAgentSessionPersistence(forThreadID: threadID)
         }
 
         let selectedServers = eligibleMCPServers.filter { perMessageMCPServerIDs.contains($0.id) }
@@ -170,6 +171,7 @@ extension ChatView {
     func deleteMessages(_ messages: [MessageEntity], in threadID: UUID) {
         let idsToDelete = Set(messages.map(\.id))
         recordCodexThreadHistoryMutation(forThreadID: threadID, removedMessages: messages)
+        recordClaudeManagedAgentHistoryMutation(forThreadID: threadID, removedMessages: messages)
         for message in messages {
             modelContext.delete(message)
         }
@@ -190,6 +192,7 @@ extension ChatView {
         let keepIDs = Set(ordered.prefix(normalizedKeepCount).map(\.id))
         let messagesToDelete = Array(ordered.suffix(from: normalizedKeepCount))
         recordCodexThreadHistoryMutation(forThreadID: threadID, removedMessages: messagesToDelete)
+        recordClaudeManagedAgentHistoryMutation(forThreadID: threadID, removedMessages: messagesToDelete)
 
         for message in messagesToDelete {
             modelContext.delete(message)

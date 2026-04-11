@@ -10,7 +10,7 @@ extension ChatView {
         if let mode = controls.contextCache?.mode {
             return mode
         }
-        if providerType == .anthropic {
+        if providerType == .anthropic || providerType == .claudeManagedAgents {
             return .implicit
         }
         return .off
@@ -29,19 +29,19 @@ extension ChatView {
         case .gemini, .vertexai:
             return true
         case .openai, .openaiWebSocket, .codexAppServer, .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway,
-             .openrouter, .anthropic, .perplexity, .groq, .cohere, .mistral, .deepinfra, .together,
+             .openrouter, .anthropic, .claudeManagedAgents, .perplexity, .groq, .cohere, .mistral, .deepinfra, .together,
              .xai, .deepseek, .zhipuCodingPlan, .minimax, .minimaxCodingPlan, .fireworks, .cerebras, .sambanova, .morphllm, .opencodeGo, .none:
             return false
         }
     }
 
     var supportsContextCacheStrategy: Bool {
-        providerType == .anthropic
+        providerType == .anthropic || providerType == .claudeManagedAgents
     }
 
     var supportsContextCacheTTL: Bool {
         switch providerType {
-        case .openai, .openaiWebSocket, .anthropic, .xai:
+        case .openai, .openaiWebSocket, .anthropic, .claudeManagedAgents, .xai:
             return true
         case .codexAppServer, .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter, .perplexity,
              .groq, .cohere, .mistral, .deepinfra, .together, .gemini, .vertexai, .deepseek,
@@ -58,7 +58,7 @@ extension ChatView {
         switch providerType {
         case .gemini, .vertexai:
             return "Use implicit caching for normal chats, or explicit caching with a cached content resource for long reusable context."
-        case .anthropic:
+        case .anthropic, .claudeManagedAgents:
             return "Anthropic caches tagged prompt blocks. Keep stable system/tool prefixes to improve cache hit rates."
         case .openai, .openaiWebSocket:
             return "OpenAI uses prompt cache hints. A stable key and retention hint can improve reuse across similar prompts."
@@ -77,7 +77,7 @@ extension ChatView {
             return "Explicit mode requires a valid cached content resource name. Keep it stable across requests to reuse cached tokens."
         case .openai, .openaiWebSocket, .xai:
             return "Use a stable cache key when your prompt prefix is consistent."
-        case .anthropic:
+        case .anthropic, .claudeManagedAgents:
             return "For best results, keep system prompts and tool descriptions stable so Anthropic can reuse cacheable blocks."
         case .codexAppServer, .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter, .perplexity,
              .groq, .cohere, .mistral, .deepinfra, .together, .deepseek, .zhipuCodingPlan, .minimax, .minimaxCodingPlan,
@@ -140,6 +140,10 @@ extension ChatView {
         providerType == .codexAppServer
     }
 
+    var supportsClaudeManagedAgentSessionControl: Bool {
+        providerType == .claudeManagedAgents
+    }
+
     var supportsOpenAIServiceTierControl: Bool {
         guard !supportsMediaGenerationControl else { return false }
         return providerType == .openai || providerType == .openaiWebSocket
@@ -160,5 +164,17 @@ extension ChatView {
     var codexSessionBadgeText: String? {
         guard codexSessionOverrideCount > 0 else { return nil }
         return controls.codexSandboxMode.badgeText
+    }
+
+    var claudeManagedAgentSessionOverrideCount: Int {
+        controls.claudeManagedSessionOverrideCount
+    }
+
+    var claudeManagedAgentSessionBadgeText: String? {
+        guard claudeManagedAgentSessionOverrideCount > 0 else { return nil }
+        if controls.claudeManagedAgentID != nil, controls.claudeManagedEnvironmentID != nil {
+            return "2"
+        }
+        return "1"
     }
 }

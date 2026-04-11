@@ -277,7 +277,7 @@ enum ModelCapabilityRegistry {
         switch providerType {
         case .openai, .openaiWebSocket:
             return .openAIResponses
-        case .anthropic, .minimaxCodingPlan:
+        case .anthropic, .claudeManagedAgents, .minimaxCodingPlan:
             return .anthropic
         case .gemini, .vertexai:
             return .gemini
@@ -309,7 +309,7 @@ enum ModelCapabilityRegistry {
             return supportedGeminiThinkingEfforts(lowerModelID: lowerModelID)
         case .perplexity:
             return defaultGeminiReasoningEfforts
-        case .anthropic:
+        case .anthropic, .claudeManagedAgents:
             return supportedAnthropicEfforts(lowerModelID: lowerModelID)
         default:
             break
@@ -402,6 +402,8 @@ enum ModelCapabilityRegistry {
             return supportsOpenRouterWebSearch(lowerModelID: lowerModelID)
         case .anthropic:
             return isAnthropicModelID(lowerModelID)
+        case .claudeManagedAgents:
+            return false
         case .perplexity:
             return true
         case .xai:
@@ -619,6 +621,8 @@ enum ModelCapabilityRegistry {
         case .anthropic:
             // Anthropic code_execution tool uses an exact documented model allowlist.
             return supportsAnthropicCodeExecution(lowerModelID: lowerModelID)
+        case .claudeManagedAgents:
+            return false
         case .xai:
             // xAI Responses API code_interpreter tool: Grok models
             return !isLikelyMediaGenerationModelID(lowerModelID)
@@ -660,7 +664,7 @@ enum ModelCapabilityRegistry {
             return supportsGoogleMapsGrounding(lowerModelID: lowerModelID, providerType: .gemini)
         case .vertexai:
             return supportsGoogleMapsGrounding(lowerModelID: lowerModelID, providerType: .vertexai)
-        case .openai, .openaiWebSocket, .anthropic, .xai, .codexAppServer, .githubCopilot,
+        case .openai, .openaiWebSocket, .anthropic, .claudeManagedAgents, .xai, .codexAppServer, .githubCopilot,
              .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter, .perplexity,
              .groq, .cohere, .mistral, .deepinfra, .together, .deepseek, .zhipuCodingPlan, .minimax, .minimaxCodingPlan,
              .fireworks, .cerebras, .sambanova, .morphllm, .opencodeGo, .none:
@@ -686,7 +690,7 @@ enum ModelCapabilityRegistry {
 
     /// Models that support the `web_search_20260209` tool with dynamic filtering.
     static func supportsWebSearchDynamicFiltering(for providerType: ProviderType?, modelID: String) -> Bool {
-        guard providerType == .anthropic else { return false }
+        guard providerType == .anthropic || providerType == .claudeManagedAgents else { return false }
         let lower = modelID.lowercased()
         return lower.contains("claude-opus-4-6") || lower.contains("claude-sonnet-4-6")
     }

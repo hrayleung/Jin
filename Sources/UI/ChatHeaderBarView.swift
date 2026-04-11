@@ -41,6 +41,7 @@ struct ChatHeaderBarView<ModelPickerContent: View, AddModelPickerContent: View>:
     let currentProviderIconID: String?
     let currentModelName: String
     let toolbarThreads: [ChatHeaderToolbarThread]
+    let isModelPickerEnabled: Bool
     @Binding var isModelPickerPresented: Bool
     @Binding var isAddModelPickerPresented: Bool
     let isStarred: Bool
@@ -62,6 +63,7 @@ struct ChatHeaderBarView<ModelPickerContent: View, AddModelPickerContent: View>:
         currentProviderIconID: String?,
         currentModelName: String,
         toolbarThreads: [ChatHeaderToolbarThread],
+        isModelPickerEnabled: Bool = true,
         isModelPickerPresented: Binding<Bool>,
         isAddModelPickerPresented: Binding<Bool>,
         isStarred: Bool,
@@ -82,6 +84,7 @@ struct ChatHeaderBarView<ModelPickerContent: View, AddModelPickerContent: View>:
         self.currentProviderIconID = currentProviderIconID
         self.currentModelName = currentModelName
         self.toolbarThreads = toolbarThreads
+        self.isModelPickerEnabled = isModelPickerEnabled
         _isModelPickerPresented = isModelPickerPresented
         _isAddModelPickerPresented = isAddModelPickerPresented
         self.isStarred = isStarred
@@ -143,10 +146,34 @@ struct ChatHeaderBarView<ModelPickerContent: View, AddModelPickerContent: View>:
         .help(helpText)
     }
 
+    @ViewBuilder
     private var modelPickerButton: some View {
-        Button {
-            isModelPickerPresented = true
-        } label: {
+        if isModelPickerEnabled {
+            Button {
+                isModelPickerPresented = true
+            } label: {
+                HStack(spacing: 6) {
+                    ProviderIconView(iconID: currentProviderIconID, size: 14)
+                        .frame(width: 16, height: 16)
+
+                    Text(currentModelName)
+                        .font(.callout)
+                        .fontWeight(.medium)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+
+                    Image(systemName: "chevron.down")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .buttonStyle(.plain)
+            .help("Select model")
+            .accessibilityLabel("Select model")
+            .popover(isPresented: $isModelPickerPresented, arrowEdge: .bottom) {
+                modelPickerPopover()
+            }
+        } else {
             HStack(spacing: 6) {
                 ProviderIconView(iconID: currentProviderIconID, size: 14)
                     .frame(width: 16, height: 16)
@@ -156,17 +183,7 @@ struct ChatHeaderBarView<ModelPickerContent: View, AddModelPickerContent: View>:
                     .fontWeight(.medium)
                     .lineLimit(1)
                     .truncationMode(.middle)
-
-                Image(systemName: "chevron.down")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
             }
-        }
-        .buttonStyle(.plain)
-        .help("Select model")
-        .accessibilityLabel("Select model")
-        .popover(isPresented: $isModelPickerPresented, arrowEdge: .bottom) {
-            modelPickerPopover()
         }
     }
 

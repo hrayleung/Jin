@@ -205,6 +205,16 @@ extension ChatView {
                 )
             }
 
+            if supportsClaudeManagedAgentSessionControl {
+                composerButtonControl(
+                    systemName: "person.crop.square",
+                    isActive: claudeManagedAgentSessionOverrideCount > 0,
+                    badgeText: claudeManagedAgentSessionBadgeText,
+                    help: claudeManagedAgentSessionHelpText,
+                    action: openClaudeManagedAgentSessionSettingsEditor
+                )
+            }
+
             if isAgentModeConfigured {
                 composerButtonControl(
                     systemName: "terminal.fill",

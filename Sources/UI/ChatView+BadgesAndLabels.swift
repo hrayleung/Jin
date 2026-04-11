@@ -9,7 +9,7 @@ extension ChatView {
     var reasoningHelpText: String {
         guard supportsReasoningControl else { return "Reasoning: Not supported" }
         switch providerType {
-        case .anthropic, .gemini, .vertexai:
+        case .anthropic, .claudeManagedAgents, .gemini, .vertexai:
             return "Thinking: \(reasoningLabel)"
         case .perplexity:
             return "Reasoning: \(reasoningLabel)"
@@ -55,6 +55,31 @@ extension ChatView {
         return "Codex Session: " + segments.joined(separator: " \u{00B7} ")
     }
 
+    var claudeManagedAgentSessionHelpText: String {
+        guard supportsClaudeManagedAgentSessionControl else { return "Claude Managed Agent: Not supported" }
+
+        var segments: [String] = []
+        if let agentID = controls.claudeManagedAgentID {
+            let label = controls.claudeManagedAgentDisplayName ?? agentID
+            segments.append("Agent: \(label)")
+        } else {
+            segments.append("Agent: not configured")
+        }
+
+        if let environmentID = controls.claudeManagedEnvironmentID {
+            let label = controls.claudeManagedEnvironmentDisplayName ?? environmentID
+            segments.append("Environment: \(label)")
+        } else {
+            segments.append("Environment: not configured")
+        }
+
+        if let sessionID = controls.claudeManagedSessionID {
+            segments.append("Session: \(sessionID)")
+        }
+
+        return "Claude Managed Agent: " + segments.joined(separator: " \u{00B7} ")
+    }
+
     var webSearchLabel: String {
         if usesBuiltinSearchPlugin {
             let provider = effectiveSearchPluginProvider.displayName
@@ -71,7 +96,7 @@ extension ChatView {
             return (controls.webSearch?.contextSize ?? .low).displayName
         case .xai:
             return webSearchSourcesLabel
-        case .codexAppServer, .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter, .anthropic,
+        case .codexAppServer, .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter, .anthropic, .claudeManagedAgents,
              .groq, .cohere, .mistral, .deepinfra, .together, .gemini, .vertexai, .deepseek,
              .zhipuCodingPlan, .minimax, .minimaxCodingPlan, .fireworks, .cerebras, .sambanova, .morphllm, .opencodeGo, .none:
             return "On"
@@ -154,7 +179,7 @@ extension ChatView {
             if sources == [.x] { return "X" }
             if sources.contains(.web), sources.contains(.x) { return "W+X" }
             return "On"
-        case .anthropic:
+        case .anthropic, .claudeManagedAgents:
             return "On"
         case .codexAppServer, .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter, .groq,
              .cohere, .mistral, .deepinfra, .together, .gemini, .vertexai, .deepseek,

@@ -53,6 +53,9 @@ actor ProviderManager {
         case .anthropic, .minimaxCodingPlan:
             let apiKey = requiredAPIKey(from: credentials, for: config.type)
             return AnthropicAdapter(providerConfig: config, apiKey: apiKey, networkManager: networkManager)
+        case .claudeManagedAgents:
+            let apiKey = requiredAPIKey(from: credentials, for: config.type)
+            return ClaudeManagedAgentsAdapter(providerConfig: config, apiKey: apiKey, networkManager: networkManager)
         case .perplexity:
             let apiKey = requiredAPIKey(from: credentials, for: config.type)
             return PerplexityAdapter(providerConfig: config, apiKey: apiKey, networkManager: networkManager)

@@ -6,7 +6,10 @@ import SwiftData
 extension ChatView {
 
     var currentModelName: String {
-        ChatThreadSupport.currentModelName(
+        if providerType == .claudeManagedAgents {
+            return controls.claudeManagedAgentDisplayName ?? "Managed Agent"
+        }
+        return ChatThreadSupport.currentModelName(
             providerID: conversationEntity.providerID,
             modelID: conversationEntity.modelID,
             providers: providers,
@@ -171,6 +174,9 @@ extension ChatView {
             clearCodexThreadPersistence: { thread in
                 clearCodexThreadPersistence(for: thread)
             },
+            clearClaudeManagedAgentSessionPersistence: { thread in
+                clearClaudeManagedAgentSessionPersistence(for: thread)
+            },
             synchronizeLegacyConversationModelFields: { thread in
                 synchronizeLegacyConversationModelFields(with: thread)
             },
@@ -188,8 +194,14 @@ extension ChatView {
             modelID: modelID,
             activeThread: activeModelThread,
             modelContext: modelContext,
+            providerTypeForProviderID: { providerID in
+                providerType(forProviderID: providerID)
+            },
             canonicalModelID: { providerID, modelID in
                 canonicalModelID(for: providerID, modelID: modelID)
+            },
+            clearClaudeManagedAgentSessionPersistence: { thread in
+                clearClaudeManagedAgentSessionPersistence(for: thread)
             },
             synchronizeLegacyConversationModelFields: { thread in
                 synchronizeLegacyConversationModelFields(with: thread)
@@ -208,6 +220,9 @@ extension ChatView {
             sortedThreads: sortedModelThreads,
             clearCodexThreadPersistence: { thread in
                 clearCodexThreadPersistence(for: thread)
+            },
+            clearClaudeManagedAgentSessionPersistence: { thread in
+                clearClaudeManagedAgentSessionPersistence(for: thread)
             },
             canonicalModelID: { providerID, modelID in
                 canonicalModelID(for: providerID, modelID: modelID)

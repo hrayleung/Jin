@@ -124,7 +124,7 @@ struct AddProviderView: View {
                             .foregroundStyle(.secondary)
                     }
                 case .githubCopilot, .openai, .openaiWebSocket, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter,
-                     .anthropic, .perplexity, .groq, .cohere, .mistral, .deepinfra, .together, .xai,
+                     .anthropic, .claudeManagedAgents, .perplexity, .groq, .cohere, .mistral, .deepinfra, .together, .xai,
                      .deepseek, .zhipuCodingPlan, .minimax, .minimaxCodingPlan, .fireworks, .cerebras, .sambanova, .morphllm, .opencodeGo, .gemini:
                     HStack(spacing: 8) {
                         Group {
@@ -241,7 +241,7 @@ struct AddProviderView: View {
         case .codexAppServer:
             return false
         case .githubCopilot, .openai, .openaiWebSocket, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter,
-             .anthropic, .perplexity, .groq, .cohere, .mistral, .deepinfra, .together, .xai, .deepseek,
+             .anthropic, .claudeManagedAgents, .perplexity, .groq, .cohere, .mistral, .deepinfra, .together, .xai, .deepseek,
              .zhipuCodingPlan, .minimax, .minimaxCodingPlan, .fireworks, .cerebras, .sambanova, .morphllm, .opencodeGo, .gemini:
             return apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         case .vertexai:
@@ -249,4 +249,3 @@ struct AddProviderView: View {
         }
     }
 }
-

@@ -29,6 +29,7 @@ extension ModelCatalog {
         .cloudflareAIGateway: cloudflareAIGatewayRecords,
         .vercelAIGateway: vercelAIGatewayRecords,
         .anthropic: anthropicRecords,
+        .claudeManagedAgents: anthropicRecords,
         .perplexity: perplexityRecords,
         .deepinfra: deepInfraRecords,
         .together: togetherRecords,

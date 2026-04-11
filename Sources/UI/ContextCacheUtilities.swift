@@ -222,7 +222,7 @@ enum ContextCacheUtilities {
                 messages: messages,
                 tools: tools
             )
-        case .anthropic:
+        case .anthropic, .claudeManagedAgents:
             // Anthropic's top-level automatic cache keeps the cache window aligned
             // with the evolving conversation prefix.
             adjustedControls.contextCache?.strategy = .prefixWindow

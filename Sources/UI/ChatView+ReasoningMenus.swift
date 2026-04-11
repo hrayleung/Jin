@@ -16,7 +16,7 @@ extension ChatView {
             guard let budgetTokens = controls.reasoning?.budgetTokens else { return "On" }
             return "\(budgetTokens) tokens"
         case .effort:
-            if providerType == .anthropic {
+            if providerType == .anthropic || providerType == .claudeManagedAgents {
                 if anthropicUsesEffortMode {
                     let effort = controls.reasoning?.effort ?? selectedReasoningConfig?.defaultEffort ?? .high
                     return effort == .xhigh ? "Max" : effort.displayName
@@ -42,7 +42,7 @@ extension ChatView {
             reasoningConfig: selectedReasoningConfig,
             supportsReasoningDisableToggle: supportsReasoningDisableToggle,
             isReasoningEnabled: isReasoningEnabled,
-            isAnthropicProvider: providerType == .anthropic,
+            isAnthropicProvider: providerType == .anthropic || providerType == .claudeManagedAgents,
             supportsCerebrasPreservedThinkingToggle: supportsCerebrasPreservedThinkingToggle,
             cerebrasPreserveThinkingBinding: cerebrasPreserveThinkingBinding,
             availableReasoningEffortLevels: availableReasoningEffortLevels,

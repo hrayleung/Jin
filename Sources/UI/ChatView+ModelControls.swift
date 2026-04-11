@@ -36,6 +36,15 @@ extension ChatView {
         showingCodexSessionSettingsSheet = true
     }
 
+    func openClaudeManagedAgentSessionSettingsEditor() {
+        claudeManagedAgentIDDraft = controls.claudeManagedAgentID ?? ""
+        claudeManagedEnvironmentIDDraft = controls.claudeManagedEnvironmentID ?? ""
+        claudeManagedAgentDisplayNameDraft = controls.claudeManagedAgentDisplayName ?? ""
+        claudeManagedEnvironmentDisplayNameDraft = controls.claudeManagedEnvironmentDisplayName ?? ""
+        claudeManagedAgentSettingsDraftError = nil
+        showingClaudeManagedAgentSessionSettingsSheet = true
+    }
+
     func pickCodexWorkingDirectory() {
         let panel = NSOpenPanel()
         panel.canChooseDirectories = true
@@ -69,6 +78,33 @@ extension ChatView {
             showingCodexSessionSettingsSheet = false
         case .failure(let error):
             codexWorkingDirectoryDraftError = error.localizedDescription
+        }
+    }
+
+    func applyClaudeManagedAgentSessionSettingsDraft() {
+        switch ChatEditorDraftSupport.applyClaudeManagedAgentSessionSettingsDraft(
+            agentIDDraft: claudeManagedAgentIDDraft,
+            environmentIDDraft: claudeManagedEnvironmentIDDraft,
+            agentDisplayNameDraft: claudeManagedAgentDisplayNameDraft,
+            environmentDisplayNameDraft: claudeManagedEnvironmentDisplayNameDraft,
+            controls: controls
+        ) {
+        case .success(let updatedControls):
+            var resolvedControls = updatedControls
+            if activeModelThread != nil,
+               (updatedControls.claudeManagedAgentID != controls.claudeManagedAgentID
+                   || updatedControls.claudeManagedEnvironmentID != controls.claudeManagedEnvironmentID) {
+                resolvedControls.clearClaudeManagedAgentSessionState()
+                if let activeModelThread {
+                    clearClaudeManagedAgentSessionPersistence(for: activeModelThread)
+                }
+            }
+            controls = resolvedControls
+            persistControlsToConversation()
+            claudeManagedAgentSettingsDraftError = nil
+            showingClaudeManagedAgentSessionSettingsSheet = false
+        case .failure(let error):
+            claudeManagedAgentSettingsDraftError = error.localizedDescription
         }
     }
 

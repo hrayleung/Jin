@@ -53,6 +53,12 @@ enum ChatStreamingOrchestrator {
         /// Save Codex remote thread state for a local thread.
         let persistCodexThreadState: @MainActor (CodexThreadState, _ localThreadID: UUID) -> Void
 
+        /// Save Claude Managed Agents remote session id for a local thread.
+        let persistClaudeManagedSessionID: @MainActor (_ sessionID: String?, _ localThreadID: UUID) -> Void
+
+        /// Save pending Claude Managed Agents custom tool results for the next turn.
+        let persistClaudeManagedPendingToolResults: @MainActor (_ results: [ClaudeManagedAgentPendingToolResult], _ localThreadID: UUID) -> Void
+
         /// Queue a Codex interaction request for the user.
         let appendCodexInteraction: @MainActor (CodexInteractionRequest, _ localThreadID: UUID) -> Void
 
@@ -276,6 +282,16 @@ enum ChatStreamingOrchestrator {
                             await MainActor.run {
                                 callbacks.persistCodexThreadState(state, ctx.threadID)
                             }
+                        case .claudeManagedSessionState(let state):
+                            requestControls.claudeManagedSessionID = state.remoteSessionID
+                            await MainActor.run {
+                                callbacks.persistClaudeManagedSessionID(state.remoteSessionID, ctx.threadID)
+                            }
+                        case .claudeManagedCustomToolResults(let results):
+                            requestControls.claudeManagedPendingCustomToolResults = results
+                            await MainActor.run {
+                                callbacks.persistClaudeManagedPendingToolResults(results, ctx.threadID)
+                            }
                         case .messageEnd:
                             await MainActor.run {
                                 streamingState.markThinkingComplete()
@@ -378,6 +394,27 @@ enum ChatStreamingOrchestrator {
                     )
 
                     guard !toolExecutionResult.cancelled else { return }
+
+                    if providerConfig.type == .claudeManagedAgents,
+                       !toolExecutionResult.results.isEmpty {
+                        let pendingResults = executableToolCalls.compactMap { call -> ClaudeManagedAgentPendingToolResult? in
+                            guard let result = toolExecutionResult.results.first(where: { $0.toolCallID == call.id }) else {
+                                return nil
+                            }
+                            return ClaudeManagedAgentPendingToolResult(
+                                eventID: call.id,
+                                toolCallID: call.providerContextValue(for: "underlying_tool_use_id") ?? call.id,
+                                toolName: result.toolName ?? call.name,
+                                content: result.content,
+                                isError: result.isError,
+                                sessionThreadID: call.providerContextValue(for: "session_thread_id")
+                            )
+                        }
+                        requestControls.claudeManagedPendingCustomToolResults = pendingResults
+                        await MainActor.run {
+                            callbacks.persistClaudeManagedPendingToolResults(pendingResults, ctx.threadID)
+                        }
+                    }
 
                     if let assistantMessageID = persistedAssistantMessageID, !toolExecutionResult.searchActivities.isEmpty {
                         await MainActor.run {

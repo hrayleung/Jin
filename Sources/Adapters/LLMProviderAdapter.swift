@@ -19,6 +19,8 @@ enum StreamEvent: Sendable {
     case codexToolActivity(CodexToolActivity)
     case codexInteractionRequest(CodexInteractionRequest)
     case codexThreadState(CodexThreadState)
+    case claudeManagedSessionState(ClaudeManagedAgentSessionState)
+    case claudeManagedCustomToolResults([ClaudeManagedAgentPendingToolResult])
     case messageEnd(usage: Usage?)
     case error(LLMError)
 }

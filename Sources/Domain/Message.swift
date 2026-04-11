@@ -340,12 +340,24 @@ struct ToolCall: Codable, Identifiable, Sendable {
     let name: String
     let arguments: [String: AnyCodable]
     let signature: String?
+    let providerContext: [String: String]?
 
-    init(id: String, name: String, arguments: [String: AnyCodable], signature: String? = nil) {
+    init(
+        id: String,
+        name: String,
+        arguments: [String: AnyCodable],
+        signature: String? = nil,
+        providerContext: [String: String]? = nil
+    ) {
         self.id = id
         self.name = name
         self.arguments = arguments
         self.signature = signature
+        self.providerContext = providerContext
+    }
+
+    func providerContextValue(for key: String) -> String? {
+        providerContext?[key]
     }
 }
 

@@ -50,7 +50,7 @@ enum ChatControlNormalizationSupport {
             return WebSearchControls(enabled: true, contextSize: nil, sources: nil)
         case .xai:
             return WebSearchControls(enabled: true, contextSize: nil, sources: [.web])
-        case .anthropic:
+        case .anthropic, .claudeManagedAgents:
             return WebSearchControls(enabled: true)
         case .codexAppServer, .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter, .groq,
              .cohere, .mistral, .deepinfra, .together, .gemini, .vertexai, .deepseek,
@@ -78,7 +78,7 @@ enum ChatControlNormalizationSupport {
             if sources.isEmpty {
                 controls.webSearch?.sources = [.web]
             }
-        case .anthropic:
+        case .anthropic, .claudeManagedAgents:
             controls.webSearch?.contextSize = nil
             controls.webSearch?.sources = nil
             normalizeAnthropicDomainFilters(controls: &controls)
@@ -193,6 +193,18 @@ enum ChatControlNormalizationSupport {
         controls.normalizeCodexProviderSpecific(for: providerType)
     }
 
+    static func normalizeClaudeManagedAgentProviderSpecific(
+        controls: inout GenerationControls,
+        providerType: ProviderType?
+    ) {
+        guard providerType == .claudeManagedAgents else {
+            sanitizeProviderSpecificForProvider(providerType, controls: &controls)
+            return
+        }
+
+        controls.normalizeClaudeManagedAgentProviderSpecific(for: providerType)
+    }
+
     static func normalizeOpenAIServiceTierControls(controls: inout GenerationControls) {
         if controls.openAIServiceTier == nil,
            let legacyRaw = controls.providerSpecific["service_tier"]?.value as? String,
@@ -209,8 +221,12 @@ enum ChatControlNormalizationSupport {
         _ providerType: ProviderType?,
         controls: inout GenerationControls
     ) {
-        guard providerType != .codexAppServer else { return }
-        controls.removeCodexProviderSpecificKeys()
+        if providerType != .codexAppServer {
+            controls.removeCodexProviderSpecificKeys()
+        }
+        if providerType != .claudeManagedAgents {
+            controls.removeClaudeManagedAgentProviderSpecificKeys()
+        }
     }
 
     static func normalizeSearchPluginControls(

@@ -89,7 +89,7 @@ struct CodeExecutionSheetView: View {
         switch providerType {
         case .openai, .openaiWebSocket:
             openAISettingsCard
-        case .anthropic:
+        case .anthropic, .claudeManagedAgents:
             anthropicSettingsCard
         case .gemini:
             googleInfoCard(

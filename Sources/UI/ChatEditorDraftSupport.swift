@@ -139,6 +139,35 @@ enum ChatEditorDraftSupport {
         return .success((updatedControls, normalized))
     }
 
+    static func applyClaudeManagedAgentSessionSettingsDraft(
+        agentIDDraft: String,
+        environmentIDDraft: String,
+        agentDisplayNameDraft: String,
+        environmentDisplayNameDraft: String,
+        controls: GenerationControls
+    ) -> Result<GenerationControls, ChatEditorDraftError> {
+        var updatedControls = controls
+        let trimmedAgentID = agentIDDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedEnvironmentID = environmentIDDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedAgentDisplayName = agentDisplayNameDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedEnvironmentDisplayName = environmentDisplayNameDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        if trimmedAgentID.isEmpty != trimmedEnvironmentID.isEmpty {
+            return .failure(.message("Enter both Agent ID and Environment ID, or leave both blank."))
+        }
+
+        updatedControls.claudeManagedAgentID = trimmedAgentID.isEmpty ? nil : trimmedAgentID
+        updatedControls.claudeManagedEnvironmentID = trimmedEnvironmentID.isEmpty ? nil : trimmedEnvironmentID
+        updatedControls.claudeManagedAgentDisplayName = trimmedAgentDisplayName.isEmpty ? nil : trimmedAgentDisplayName
+        updatedControls.claudeManagedEnvironmentDisplayName = trimmedEnvironmentDisplayName.isEmpty ? nil : trimmedEnvironmentDisplayName
+
+        if trimmedAgentID.isEmpty || trimmedEnvironmentID.isEmpty {
+            updatedControls.clearClaudeManagedAgentSessionState()
+        }
+
+        return .success(updatedControls)
+    }
+
     static func thinkingBudgetDraftInt(from raw: String) -> Int? {
         Int(raw.trimmingCharacters(in: .whitespacesAndNewlines))
     }

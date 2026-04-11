@@ -82,6 +82,7 @@ extension ContentView {
         var controls = inheritedControls ?? GenerationControls()
         controls.codexResumeThreadID = nil
         controls.codexPendingRollbackTurns = 0
+        controls.clearClaudeManagedAgentSessionState()
         switch newChatMCPMode {
         case .lastUsed:
             break

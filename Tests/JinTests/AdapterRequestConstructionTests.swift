@@ -268,6 +268,119 @@ final class AdapterRequestConstructionTests: XCTestCase {
 
         for try await _ in stream {}
     }
+
+    func testClaudeManagedAgentsCreatesSessionUsesManagedStreamEndpointAndSendsCustomToolResultEvent() async throws {
+        let (configuration, protocolType) = makeAdapterRequestConstructionSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        let providerConfig = ProviderConfig(
+            id: "claude-managed",
+            name: "Claude Managed Agents",
+            type: .claudeManagedAgents,
+            apiKey: "ignored",
+            baseURL: "https://api.anthropic.com"
+        )
+
+        var observedRequests: [URLRequest] = []
+        protocolType.requestHandler = { request in
+            observedRequests.append(request)
+
+            switch (request.httpMethod, request.url?.path) {
+            case ("POST", "/v1/sessions"):
+                XCTAssertEqual(request.value(forHTTPHeaderField: "x-api-key"), "test-key")
+                XCTAssertEqual(request.value(forHTTPHeaderField: "anthropic-beta"), "managed-agents-2026-04-01")
+
+                let bodyData = try XCTUnwrap(adapterRequestBodyData(request))
+                let root = try XCTUnwrap(try JSONSerialization.jsonObject(with: bodyData) as? [String: Any])
+                XCTAssertEqual(root["agent"] as? String, "agent_123")
+                XCTAssertEqual(root["environment_id"] as? String, "env_456")
+                XCTAssertNil(root["model"])
+                XCTAssertNil(root["system"])
+                XCTAssertNil(root["tools"])
+
+                let payload = ["id": "sess_123"]
+                let data = try JSONSerialization.data(withJSONObject: payload)
+                return (
+                    HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                    data
+                )
+
+            case ("POST", "/v1/sessions/sess_123/events"):
+                let bodyData = try XCTUnwrap(adapterRequestBodyData(request))
+                let root = try XCTUnwrap(try JSONSerialization.jsonObject(with: bodyData) as? [String: Any])
+                let events = try XCTUnwrap(root["events"] as? [[String: Any]])
+                XCTAssertEqual(events.count, 1)
+                let event = events[0]
+                XCTAssertEqual(event["type"] as? String, "user.custom_tool_result")
+                XCTAssertEqual(event["custom_tool_use_id"] as? String, "evt_custom_1")
+                XCTAssertEqual(event["session_thread_id"] as? String, "sthread_1")
+                XCTAssertEqual(event["is_error"] as? Bool, false)
+
+                let content = try XCTUnwrap(event["content"] as? [[String: Any]])
+                XCTAssertEqual(content.first?["type"] as? String, "text")
+                XCTAssertEqual(content.first?["text"] as? String, "tool output")
+
+                let data = try JSONSerialization.data(withJSONObject: ["ok": true])
+                return (
+                    HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                    data
+                )
+
+            case ("GET", "/v1/sessions/sess_123/stream"):
+                let data = Data()
+                return (
+                    HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                    data
+                )
+
+            default:
+                XCTFail("Unexpected request: \(request.httpMethod ?? "nil") \(request.url?.absoluteString ?? "nil")")
+                throw URLError(.badServerResponse)
+            }
+        }
+
+        let adapter = ClaudeManagedAgentsAdapter(
+            providerConfig: providerConfig,
+            apiKey: "test-key",
+            networkManager: networkManager
+        )
+
+        var controls = GenerationControls()
+        controls.claudeManagedAgentID = "agent_123"
+        controls.claudeManagedEnvironmentID = "env_456"
+        controls.claudeManagedPendingCustomToolResults = [
+            ClaudeManagedAgentPendingToolResult(
+                eventID: "evt_custom_1",
+                toolCallID: "toolu_1",
+                toolName: "workspace_search",
+                content: "tool output",
+                isError: false,
+                sessionThreadID: "sthread_1"
+            )
+        ]
+
+        let messages: [Message] = [
+            Message(role: .system, content: [.text("System prompt")]),
+            Message(role: .tool, content: [], toolResults: [
+                ToolResult(toolCallID: "toolu_1", toolName: "workspace_search", content: "tool output")
+            ])
+        ]
+
+        let stream = try await adapter.sendMessage(
+            messages: messages,
+            modelID: "claude-sonnet-4-6",
+            controls: controls,
+            tools: [],
+            streaming: true
+        )
+
+        for try await _ in stream {}
+
+        XCTAssertEqual(observedRequests.count, 3)
+        XCTAssertEqual(observedRequests[0].url?.absoluteString, "https://api.anthropic.com/v1/sessions")
+        XCTAssertEqual(observedRequests[1].url?.absoluteString, "https://api.anthropic.com/v1/sessions/sess_123/stream")
+        XCTAssertEqual(observedRequests[2].url?.absoluteString, "https://api.anthropic.com/v1/sessions/sess_123/events")
+    }
 }
 
 private final class AdapterRequestConstructionMockURLProtocol: URLProtocol {

@@ -283,6 +283,8 @@ enum LobeProviderIconCatalog {
             return "OpenRouter"
         case .anthropic:
             return "Anthropic"
+        case .claudeManagedAgents:
+            return "Claude"
         case .perplexity:
             return "Perplexity"
         case .groq:

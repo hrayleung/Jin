@@ -395,6 +395,7 @@ extension ChatView {
         )
         Self.sanitizeProviderSpecificForProvider(providerTypeSnapshot, controls: &controlsToUse)
         injectCodexThreadPersistence(into: &controlsToUse, from: thread)
+        injectClaudeManagedAgentSessionPersistence(into: &controlsToUse, from: thread)
         controlsToUse.agentMode = Self.resolvedAgentModeControls(active: isAgentModeActive)
 
         let shouldTruncateMessages = assistant?.truncateMessages ?? false
@@ -498,6 +499,12 @@ extension ChatView {
             },
             persistCodexThreadState: { [self] state, localThreadID in
                 persistCodexThreadState(state, forLocalThreadID: localThreadID)
+            },
+            persistClaudeManagedSessionID: { [self] sessionID, localThreadID in
+                persistClaudeManagedAgentSessionID(sessionID, forLocalThreadID: localThreadID)
+            },
+            persistClaudeManagedPendingToolResults: { [self] results, localThreadID in
+                persistClaudeManagedPendingCustomToolResults(results, forLocalThreadID: localThreadID)
             },
             appendCodexInteraction: { [self] request, localThreadID in
                 pendingCodexInteractions.append(PendingCodexInteraction(localThreadID: localThreadID, request: request))

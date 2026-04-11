@@ -55,6 +55,7 @@ struct ModelOverrides: Codable, Equatable {
 /// Provider type.
 enum ProviderType: String, Codable, CaseIterable {
     case anthropic
+    case claudeManagedAgents
     case cerebras
     case cloudflareAIGateway
     case codexAppServer
@@ -94,6 +95,7 @@ enum ProviderType: String, Codable, CaseIterable {
         case .vercelAIGateway: return "Vercel AI Gateway"
         case .openrouter: return "OpenRouter"
         case .anthropic: return "Anthropic"
+        case .claudeManagedAgents: return "Claude Managed Agents"
         case .perplexity: return "Perplexity"
         case .groq: return "Groq"
         case .cohere: return "Cohere"
@@ -125,7 +127,7 @@ enum ProviderType: String, Codable, CaseIterable {
     /// Providers that support native prompt caching features.
     var supportsNativePromptCaching: Bool {
         switch self {
-        case .openai, .openaiWebSocket, .anthropic, .xai, .gemini, .vertexai:
+        case .openai, .openaiWebSocket, .anthropic, .claudeManagedAgents, .xai, .gemini, .vertexai:
             return true
         default:
             return false
@@ -135,7 +137,7 @@ enum ProviderType: String, Codable, CaseIterable {
     /// Providers that support native PDF file uploads (as opposed to OCR extraction).
     var supportsNativePDFUpload: Bool {
         switch self {
-        case .openai, .openaiWebSocket, .anthropic, .perplexity, .xai, .gemini, .vertexai:
+        case .openai, .openaiWebSocket, .anthropic, .claudeManagedAgents, .perplexity, .xai, .gemini, .vertexai:
             return true
         default:
             return false
@@ -154,6 +156,7 @@ enum ProviderType: String, Codable, CaseIterable {
         case .vercelAIGateway: return "https://ai-gateway.vercel.sh/v1"
         case .openrouter: return "https://openrouter.ai/api/v1"
         case .anthropic: return "https://api.anthropic.com/v1"
+        case .claudeManagedAgents: return "https://api.anthropic.com"
         case .perplexity: return "https://api.perplexity.ai"
         case .groq: return "https://api.groq.com/openai/v1"
         case .cohere: return "https://api.cohere.com/v2"

@@ -72,9 +72,15 @@ extension ChatView {
         var controls = storedGenerationControls(for: thread) ?? GenerationControls()
         let previousResumeThreadID = controls.codexResumeThreadID
         let previousRollbackTurns = controls.codexPendingRollbackTurns
+        let previousManagedSessionID = controls.claudeManagedSessionID
+        let previousManagedSessionModelID = controls.claudeManagedSessionModelID
+        let previousManagedPendingResults = controls.claudeManagedPendingCustomToolResults
         mutate(&controls)
         guard controls.codexResumeThreadID != previousResumeThreadID
-            || controls.codexPendingRollbackTurns != previousRollbackTurns else {
+            || controls.codexPendingRollbackTurns != previousRollbackTurns
+            || controls.claudeManagedSessionID != previousManagedSessionID
+            || controls.claudeManagedSessionModelID != previousManagedSessionModelID
+            || controls.claudeManagedPendingCustomToolResults != previousManagedPendingResults else {
             return
         }
 

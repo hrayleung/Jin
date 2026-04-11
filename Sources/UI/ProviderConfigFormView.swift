@@ -105,7 +105,7 @@ struct ProviderConfigFormView: View {
                     codexAuthSection
                     codexWorkingDirectoryPresetsSection
                 case .githubCopilot, .openai, .openaiWebSocket, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter,
-                     .anthropic, .perplexity, .groq, .cohere, .mistral, .deepinfra, .together, .xai,
+                     .anthropic, .claudeManagedAgents, .perplexity, .groq, .cohere, .mistral, .deepinfra, .together, .xai,
                      .deepseek, .zhipuCodingPlan, .minimax, .minimaxCodingPlan, .fireworks, .cerebras, .sambanova, .morphllm, .opencodeGo, .gemini:
                     apiKeyField
                 case .vertexai:

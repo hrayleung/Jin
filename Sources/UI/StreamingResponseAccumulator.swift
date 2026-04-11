@@ -98,11 +98,13 @@ struct StreamingResponseAccumulator {
         let mergedArguments = (existing?.arguments ?? [:]).merging(call.arguments) { _, newValue in newValue }
         let mergedSignature = call.signature ?? existing?.signature
         let mergedName = call.name.isEmpty ? (existing?.name ?? call.name) : call.name
+        let mergedProviderContext = (existing?.providerContext ?? [:]).merging(call.providerContext ?? [:]) { _, newValue in newValue }
         toolCallsByID[call.id] = ToolCall(
             id: call.id,
             name: mergedName,
             arguments: mergedArguments,
-            signature: mergedSignature
+            signature: mergedSignature,
+            providerContext: mergedProviderContext.isEmpty ? nil : mergedProviderContext
         )
     }
 

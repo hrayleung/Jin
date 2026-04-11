@@ -106,6 +106,9 @@ enum ChatConversationStateSupport {
            let storedControls = storedGenerationControls(activeThread) {
             persistedControls.codexResumeThreadID = storedControls.codexResumeThreadID
             persistedControls.codexPendingRollbackTurns = storedControls.codexPendingRollbackTurns
+            persistedControls.claudeManagedSessionID = storedControls.claudeManagedSessionID
+            persistedControls.claudeManagedSessionModelID = storedControls.claudeManagedSessionModelID
+            persistedControls.claudeManagedPendingCustomToolResults = storedControls.claudeManagedPendingCustomToolResults
         }
 
         let data = try JSONEncoder().encode(persistedControls)

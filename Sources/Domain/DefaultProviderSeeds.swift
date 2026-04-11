@@ -18,6 +18,7 @@ enum DefaultProviderSeeds {
             cloudflareAIGateway,
             vercelAIGateway,
             anthropic,
+            claudeManagedAgents,
             cohere,
             mistral,
             perplexity,
@@ -135,6 +136,17 @@ enum DefaultProviderSeeds {
             iconID: LobeProviderIconCatalog.defaultIconID(for: .anthropic),
             baseURL: ProviderType.anthropic.defaultBaseURL,
             models: ModelCatalog.seededModels(for: .anthropic)
+        )
+    }
+
+    static var claudeManagedAgents: ProviderConfig {
+        ProviderConfig(
+            id: "claude-managed-agents",
+            name: "Claude Managed Agents",
+            type: .claudeManagedAgents,
+            iconID: LobeProviderIconCatalog.defaultIconID(for: .claudeManagedAgents),
+            baseURL: ProviderType.claudeManagedAgents.defaultBaseURL,
+            models: ModelCatalog.seededModels(for: .claudeManagedAgents)
         )
     }
 

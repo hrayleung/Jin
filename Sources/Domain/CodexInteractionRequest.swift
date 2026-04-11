@@ -119,6 +119,7 @@ final class CodexInteractionRequest: Identifiable, @unchecked Sendable {
     let turnID: String?
     let itemID: String?
     let kind: CodexInteractionKind
+    let providerContext: [String: String]
 
     private let channel = CodexInteractionResponseChannel()
 
@@ -127,23 +128,26 @@ final class CodexInteractionRequest: Identifiable, @unchecked Sendable {
         threadID: String?,
         turnID: String?,
         itemID: String?,
-        kind: CodexInteractionKind
+        kind: CodexInteractionKind,
+        providerContext: [String: String] = [:]
     ) {
         self.method = method
         self.threadID = threadID
         self.turnID = turnID
         self.itemID = itemID
         self.kind = kind
+        self.providerContext = providerContext
     }
 
     var title: String {
+        let isClaudeManaged = method.hasPrefix("claude_managed_agents/")
         switch kind {
         case .commandApproval:
-            return "Codex Wants to Run a Command"
+            return isClaudeManaged ? "Claude Agent Wants to Use a Tool" : "Codex Wants to Run a Command"
         case .fileChangeApproval:
-            return "Codex Wants to Change Files"
+            return isClaudeManaged ? "Claude Agent Wants to Change Files" : "Codex Wants to Change Files"
         case .userInput:
-            return "Codex Needs Your Input"
+            return isClaudeManaged ? "Claude Agent Needs Your Input" : "Codex Needs Your Input"
         }
     }
 
@@ -156,6 +160,10 @@ final class CodexInteractionRequest: Identifiable, @unchecked Sendable {
         case .userInput:
             return nil
         }
+    }
+
+    func providerContextValue(for key: String) -> String? {
+        providerContext[key]
     }
 
     func waitForResponse() async -> CodexInteractionResponse {

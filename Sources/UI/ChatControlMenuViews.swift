@@ -350,6 +350,8 @@ struct WebSearchControlMenuView<MenuItemLabel: View>: View {
                     }
                     Divider()
                     Button("Configure…", action: onOpenAnthropicConfiguration)
+                case .claudeManagedAgents:
+                    EmptyView()
                 case .codexAppServer, .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter, .groq,
                      .cohere, .mistral, .deepinfra, .together, .gemini, .vertexai, .deepseek,
                      .zhipuCodingPlan, .minimax, .minimaxCodingPlan, .fireworks, .cerebras, .sambanova, .morphllm, .opencodeGo, .none:

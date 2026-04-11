@@ -119,7 +119,7 @@ extension ChatView {
         case .perplexity:
             return controls.webSearch?.enabled ?? true
         case .openai, .openaiWebSocket, .codexAppServer, .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway,
-             .openrouter, .anthropic, .groq, .cohere, .mistral, .deepinfra, .together, .xai,
+             .openrouter, .anthropic, .claudeManagedAgents, .groq, .cohere, .mistral, .deepinfra, .together, .xai,
              .deepseek, .zhipuCodingPlan, .minimax, .minimaxCodingPlan, .fireworks, .cerebras, .sambanova, .gemini, .vertexai, .morphllm, .opencodeGo, .none:
             return controls.webSearch?.enabled == true
         }

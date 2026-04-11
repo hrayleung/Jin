@@ -9,6 +9,7 @@ enum ChatModelSelectionSupport {
         providers: [ProviderConfigEntity],
         modelContext: ModelContext,
         clearCodexThreadPersistence: (ConversationModelThreadEntity) -> Void,
+        clearClaudeManagedAgentSessionPersistence: (ConversationModelThreadEntity) -> Void,
         synchronizeLegacyConversationModelFields: (ConversationModelThreadEntity) -> Void,
         normalizeControlsForCurrentSelection: () -> Void,
         preferredModelID: ([ModelInfo], String) -> String?
@@ -20,6 +21,7 @@ enum ChatModelSelectionSupport {
         guard !models.isEmpty else { return }
 
         clearCodexThreadPersistence(activeThread)
+        clearClaudeManagedAgentSessionPersistence(activeThread)
         activeThread.providerID = providerID
 
         if let preferredModelID = preferredModelID(models, providerID) {
@@ -41,13 +43,18 @@ enum ChatModelSelectionSupport {
         modelID: String,
         activeThread: ConversationModelThreadEntity?,
         modelContext: ModelContext,
+        providerTypeForProviderID: (String) -> ProviderType?,
         canonicalModelID: (String, String) -> String,
+        clearClaudeManagedAgentSessionPersistence: (ConversationModelThreadEntity) -> Void,
         synchronizeLegacyConversationModelFields: (ConversationModelThreadEntity) -> Void,
         normalizeControlsForCurrentSelection: () -> Void
     ) {
         guard let activeThread else { return }
         let resolvedModelID = canonicalModelID(activeThread.providerID, modelID)
         guard resolvedModelID != canonicalModelID(activeThread.providerID, activeThread.modelID) else { return }
+        if providerTypeForProviderID(activeThread.providerID) != .claudeManagedAgents {
+            clearClaudeManagedAgentSessionPersistence(activeThread)
+        }
         activeThread.modelID = resolvedModelID
         synchronizeLegacyConversationModelFields(activeThread)
         normalizeControlsForCurrentSelection()
@@ -61,6 +68,7 @@ enum ChatModelSelectionSupport {
         activeThread: ConversationModelThreadEntity?,
         sortedThreads: [ConversationModelThreadEntity],
         clearCodexThreadPersistence: (ConversationModelThreadEntity) -> Void,
+        clearClaudeManagedAgentSessionPersistence: (ConversationModelThreadEntity) -> Void,
         canonicalModelID: (String, String) -> String,
         addOrActivateThread: (String, String) -> Void,
         activateThread: (ConversationModelThreadEntity) -> Void,
@@ -84,6 +92,7 @@ enum ChatModelSelectionSupport {
 
         if providerID != activeThread.providerID {
             clearCodexThreadPersistence(activeThread)
+            clearClaudeManagedAgentSessionPersistence(activeThread)
         }
         activeThread.providerID = providerID
         activeThread.modelID = resolvedModelID
@@ -110,7 +119,7 @@ enum ChatModelSelectionSupport {
             return models.first(where: { $0.id == "gpt-5.2" })?.id
         case .githubCopilot:
             return nil
-        case .anthropic:
+        case .anthropic, .claudeManagedAgents:
             return models.first(where: { $0.id == "claude-opus-4-6" })?.id
                 ?? models.first(where: { $0.id == "claude-sonnet-4-6" })?.id
                 ?? models.first(where: { $0.id == "claude-sonnet-4-5-20250929" })?.id

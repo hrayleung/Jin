@@ -144,6 +144,12 @@ struct ChatView: View {
     @State var codexWorkingDirectoryDraftError: String?
     @State var codexSandboxModeDraft: CodexSandboxMode = .default
     @State var codexPersonalityDraft: CodexPersonality?
+    @State var showingClaudeManagedAgentSessionSettingsSheet = false
+    @State var claudeManagedAgentIDDraft = ""
+    @State var claudeManagedEnvironmentIDDraft = ""
+    @State var claudeManagedAgentDisplayNameDraft = ""
+    @State var claudeManagedEnvironmentDisplayNameDraft = ""
+    @State var claudeManagedAgentSettingsDraftError: String?
     @State var pendingCodexInteractions: Deque<PendingCodexInteraction> = []
     @State var pendingAgentApprovals: Deque<PendingAgentApproval> = []
 
@@ -440,6 +446,17 @@ struct ChatView: View {
                 },
                 onCancel: { showingCodexSessionSettingsSheet = false },
                 onSave: { applyCodexSessionSettingsDraft() }
+            )
+        }
+        .sheet(isPresented: $showingClaudeManagedAgentSessionSettingsSheet) {
+            ClaudeManagedAgentSessionSettingsSheetView(
+                agentIDDraft: $claudeManagedAgentIDDraft,
+                environmentIDDraft: $claudeManagedEnvironmentIDDraft,
+                agentDisplayNameDraft: $claudeManagedAgentDisplayNameDraft,
+                environmentDisplayNameDraft: $claudeManagedEnvironmentDisplayNameDraft,
+                draftError: $claudeManagedAgentSettingsDraftError,
+                onCancel: { showingClaudeManagedAgentSessionSettingsSheet = false },
+                onSave: { applyClaudeManagedAgentSessionSettingsDraft() }
             )
         }
         .sheet(item: activeCodexInteractionBinding) { item in
