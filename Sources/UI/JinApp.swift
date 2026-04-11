@@ -76,7 +76,6 @@ struct JinApp: App {
                 launchCoordinator.startIfNeeded()
             }
         }
-        .windowStyle(.hiddenTitleBar)
         .commands {
             ChatCommands(shortcutsStore: shortcutsStore)
         }

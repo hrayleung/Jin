@@ -38,7 +38,7 @@ struct ContentView: View {
 
     @State var selectedAssistant: AssistantEntity?
     @State var selectedConversation: ConversationEntity?
-    @State var columnVisibility: NavigationSplitViewVisibility = .all
+    @State private var isSidebarPresented = true
     @State var didBootstrapDefaults = false
     @State var didBootstrapAssistants = false
     @State var searchText = ""
@@ -60,6 +60,7 @@ struct ContentView: View {
     @AppStorage("assistantSidebarShowName") var assistantSidebarShowName = true
     @AppStorage("assistantSidebarShowIcon") var assistantSidebarShowIcon = true
     @AppStorage("assistantSidebarGridColumns") var assistantSidebarGridColumns = 3
+    @AppStorage("mainSidebarWidth") private var persistedSidebarWidth = 280.0
     @AppStorage(AppPreferenceKeys.newChatModelMode) var newChatModelMode: NewChatModelMode = .lastUsed
     @AppStorage(AppPreferenceKeys.newChatFixedProviderID) var newChatFixedProviderID = "openai"
     @AppStorage(AppPreferenceKeys.newChatFixedModelID) var newChatFixedModelID = "gpt-5.2"
@@ -71,14 +72,30 @@ struct ContentView: View {
     @FocusState var isSidebarSearchFieldFocused: Bool
     let conversationTitleGenerator = ConversationTitleGenerator()
 
+    private var sidebarSearchFieldIsActive: Bool {
+        isSidebarSearchFieldFocused || !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private var resolvedSidebarWidth: CGFloat {
+        CGFloat(min(max(persistedSidebarWidth, 240), 340))
+    }
+
     var body: some View {
-        NavigationSplitView(columnVisibility: $columnVisibility) {
-            sidebarContent
-        } detail: {
+        HSplitView {
+            sidebarPane
+                .frame(
+                    minWidth: isSidebarVisible ? 240 : 0,
+                    idealWidth: isSidebarVisible ? resolvedSidebarWidth : 0,
+                    maxWidth: isSidebarVisible ? 340 : 0,
+                    maxHeight: .infinity
+                )
+                .opacity(isSidebarVisible ? 1 : 0)
+                .allowsHitTesting(isSidebarVisible)
+
             detailContent
+                .frame(minWidth: 0, maxWidth: .infinity, maxHeight: .infinity)
         }
-        .toolbar(removing: .sidebarToggle)
-        .hideWindowToolbarCompat()
+        .mainWindowToolbarChromeCompat()
         .task {
             bootstrapDefaultProvidersIfNeeded()
             bootstrapDefaultAssistantsIfNeeded()
@@ -142,7 +159,44 @@ struct ContentView: View {
 
     // MARK: - Sidebar
 
+    private var sidebarPane: some View {
+        sidebarContent
+            .background(sidebarWidthReader)
+        .onPreferenceChange(SidebarWidthPreferenceKey.self) { width in
+            guard isSidebarVisible else { return }
+            let clamped = min(max(width, 240), 340)
+            guard abs(clamped - persistedSidebarWidth) > 0.5 else { return }
+            persistedSidebarWidth = clamped
+        }
+    }
+
+    private var sidebarWidthReader: some View {
+        GeometryReader { proxy in
+            Color.clear
+                .preference(key: SidebarWidthPreferenceKey.self, value: proxy.size.width)
+        }
+    }
+
     private var sidebarContent: some View {
+        VStack(spacing: 0) {
+            sidebarPinnedChrome
+
+            List(selection: conversationListSelectionBinding) {
+                assistantsSection
+                chatsSection
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .listStyle(.plain)
+            .contentMargins(.vertical, 0, for: .scrollContent)
+            .overlayScrollerStyle()
+            .scrollContentBackground(.hidden)
+        }
+        .background {
+            JinSemanticColor.sidebarSurface.ignoresSafeArea()
+        }
+    }
+
+    private var sidebarPinnedChrome: some View {
         VStack(spacing: 0) {
             SidebarHeaderView(
                 assistantDisplayName: selectedAssistant?.displayName ?? "Default",
@@ -151,47 +205,59 @@ struct ContentView: View {
                 shortcutsStore: shortcutsStore
             )
 
-            HStack(spacing: JinSpacing.xSmall) {
-                Image(systemName: "magnifyingglass")
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(.secondary)
-
-                TextField(text: $searchText, prompt: Text("Search chats")) {
-                    EmptyView()
-                }
-                .textFieldStyle(.plain)
-                .focused($isSidebarSearchFieldFocused)
-                .accessibilityLabel("Search chats")
-            }
-            .padding(.horizontal, JinSpacing.medium)
-            .padding(.vertical, JinSpacing.small)
-            .background(
-                RoundedRectangle(cornerRadius: JinRadius.large, style: .continuous)
-                    .fill(JinSemanticColor.surface)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: JinRadius.large, style: .continuous)
-                    .stroke(JinSemanticColor.separator.opacity(0.45), lineWidth: JinStrokeWidth.hairline)
-            )
-            .padding(.horizontal, JinSpacing.medium)
-            .padding(.top, JinSpacing.small)
-            .padding(.bottom, JinSpacing.small)
-
-            List(selection: conversationListSelectionBinding) {
-                assistantsSection
-                chatsSection
-            }
-            .listStyle(.sidebar)
-            .contentMargins(.vertical, 0, for: .scrollContent)
-            .overlayScrollerStyle()
-            .frame(maxHeight: .infinity)
+            sidebarSearchField
         }
-        .frame(maxHeight: .infinity, alignment: .top)
-        .navigationSplitViewColumnWidth(min: 240, ideal: 280, max: 340)
-        .scrollContentBackground(.hidden)
-        .background {
-            JinSemanticColor.sidebarSurface.ignoresSafeArea()
+        .padding(.bottom, JinSpacing.small)
+        .background(JinSemanticColor.sidebarSurface)
+        .overlay(alignment: .bottom) {
+            LinearGradient(
+                colors: [
+                    JinSemanticColor.separator.opacity(0.08),
+                    .clear
+                ],
+                startPoint: .bottom,
+                endPoint: .top
+            )
+            .frame(height: 10)
+            .allowsHitTesting(false)
         }
+    }
+
+    private var sidebarSearchField: some View {
+        HStack(spacing: JinSpacing.xSmall) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 15, weight: .medium))
+                .foregroundStyle(.secondary)
+
+            TextField(text: $searchText, prompt: Text("Search chats")) {
+                EmptyView()
+            }
+            .textFieldStyle(.plain)
+            .font(.system(size: 15))
+            .focused($isSidebarSearchFieldFocused)
+            .accessibilityLabel("Search chats")
+        }
+        .padding(.horizontal, JinSpacing.medium)
+        .padding(.vertical, JinSpacing.small + 2)
+        .background(
+            RoundedRectangle(cornerRadius: 15, style: .continuous)
+                .fill(
+                    sidebarSearchFieldIsActive
+                        ? JinSemanticColor.surface
+                        : JinSemanticColor.surface.opacity(0.9)
+                )
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: 15, style: .continuous)
+                .stroke(
+                    sidebarSearchFieldIsActive
+                        ? JinSemanticColor.separator.opacity(0.28)
+                        : JinSemanticColor.separator.opacity(0.16),
+                    lineWidth: JinStrokeWidth.hairline
+                )
+        }
+        .padding(.horizontal, JinSpacing.medium)
+        .animation(.easeInOut(duration: 0.12), value: sidebarSearchFieldIsActive)
     }
 
     // MARK: - Detail
@@ -300,18 +366,18 @@ struct ContentView: View {
     // MARK: - Navigation
 
     var isSidebarVisible: Bool {
-        columnVisibility != .detailOnly
+        isSidebarPresented
     }
 
     func toggleSidebarVisibility() {
         withAnimation(.easeInOut(duration: 0.16)) {
-            columnVisibility = isSidebarVisible ? .detailOnly : .all
+            isSidebarPresented.toggle()
         }
     }
 
     func focusChatSearch() {
         if !isSidebarVisible {
-            columnVisibility = .all
+            isSidebarPresented = true
         }
         DispatchQueue.main.async {
             isSidebarSearchFieldFocused = true
@@ -349,5 +415,13 @@ struct ContentView: View {
         }
         .padding(.horizontal, JinSpacing.xLarge)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+
+private struct SidebarWidthPreferenceKey: PreferenceKey {
+    static var defaultValue: CGFloat = 280
+
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
     }
 }

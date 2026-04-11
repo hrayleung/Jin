@@ -22,18 +22,18 @@ struct SidebarConversationItem: View {
         let isStreaming = streamingStore.isStreaming(conversationID: conversation.id)
         let isStarred = conversation.isStarred == true
 
-        NavigationLink(value: conversation) {
-            ConversationRowView(
-                title: conversation.title,
-                isStarred: isStarred,
-                subtitle: subtitle,
-                providerIconID: providerIconID,
-                updatedAt: conversation.updatedAt,
-                isStreaming: isStreaming,
-                searchSnippet: searchSnippet,
-                searchQuery: searchQuery
-            )
-        }
+        ConversationRowView(
+            title: conversation.title,
+            isStarred: isStarred,
+            subtitle: subtitle,
+            providerIconID: providerIconID,
+            updatedAt: conversation.updatedAt,
+            isStreaming: isStreaming,
+            searchSnippet: searchSnippet,
+            searchQuery: searchQuery
+        )
+        .tag(conversation)
+        .contentShape(Rectangle())
         .contextMenu {
             Button {
                 onToggleStar()
@@ -76,7 +76,7 @@ struct ConversationRowView: View {
     let searchQuery: String
 
     var body: some View {
-        VStack(alignment: .leading, spacing: JinSpacing.small) {
+        VStack(alignment: .leading, spacing: JinSpacing.xSmall + 1) {
             HStack(spacing: 8) {
                 Text(title)
                     .lineLimit(1)
@@ -88,11 +88,11 @@ struct ConversationRowView: View {
                         .help("Starred")
                 }
             }
-            .font(.headline)
+            .font(.system(size: 13, weight: .medium))
 
             if let searchSnippet {
                 highlightedSnippet(searchSnippet, query: searchQuery)
-                    .font(.caption)
+                    .font(.system(size: 11))
                     .foregroundStyle(.secondary)
                     .lineLimit(2)
             }
@@ -112,10 +112,10 @@ struct ConversationRowView: View {
                 }
                 Text(updatedAt, format: .relative(presentation: .named))
             }
-            .font(.caption)
+            .font(.system(size: 11))
             .foregroundColor(.secondary)
         }
-        .padding(.vertical, JinSpacing.small)
+        .padding(.vertical, JinSpacing.xSmall + 1)
     }
 
     private func highlightedSnippet(_ text: String, query: String) -> Text {
@@ -190,27 +190,44 @@ struct AssistantTileView: View {
     let showsName: Bool
     let showsIcon: Bool
 
+    @State private var isHovered = false
+
     var body: some View {
         VStack(spacing: showsIcon && showsName ? JinSpacing.small : 0) {
             if showsIcon {
                 assistantIcon
                     .frame(width: 24, height: 24)
-                    .foregroundStyle(isSelected ? Color.accentColor : .primary)
+                    .foregroundStyle(isSelected ? Color.accentColor : .secondary)
             }
 
             if showsName {
                 Text(assistant.displayName)
-                    .font(.caption)
+                    .font(.system(size: 11, weight: .medium))
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)
-                    .foregroundStyle(.primary)
+                    .foregroundStyle(isSelected ? .primary : .secondary)
             }
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, JinSpacing.small)
         .padding(.horizontal, JinSpacing.small)
-        .jinSurface(isSelected ? .selected : .neutral, cornerRadius: JinRadius.medium)
+        .background {
+            if isSelected || isHovered {
+                RoundedRectangle(cornerRadius: JinRadius.medium, style: .continuous)
+                    .fill(isSelected ? JinSemanticColor.selectedSurface : JinSemanticColor.subtleSurface)
+            }
+        }
+        .overlay {
+            if isSelected || isHovered {
+                RoundedRectangle(cornerRadius: JinRadius.medium, style: .continuous)
+                    .stroke(
+                        isSelected ? JinSemanticColor.selectedStroke : JinSemanticColor.separator.opacity(0.32),
+                        lineWidth: JinStrokeWidth.hairline
+                    )
+            }
+        }
         .contentShape(RoundedRectangle(cornerRadius: JinRadius.medium, style: .continuous))
+        .onHover { isHovered = $0 }
     }
 
     @ViewBuilder

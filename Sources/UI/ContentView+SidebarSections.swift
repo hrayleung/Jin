@@ -43,10 +43,10 @@ extension ContentView {
             case .grid:
                 LazyVGrid(
                     columns: Array(
-                        repeating: GridItem(.flexible(minimum: 44), spacing: 10),
+                        repeating: GridItem(.flexible(minimum: 44), spacing: 8),
                         count: assistantSidebarGridColumnCount
                     ),
-                    spacing: 10
+                    spacing: 8
                 ) {
                     ForEach(displayedAssistants) { assistant in
                         let isSelected = selectedAssistant?.id == assistant.id
@@ -75,7 +75,8 @@ extension ContentView {
                         assistantContextMenu(for: assistant)
                     }
                 }
-                .listRowInsets(EdgeInsets(top: 10, leading: 12, bottom: 10, trailing: 12))
+                .listRowInsets(EdgeInsets(top: 6, leading: 12, bottom: 8, trailing: 12))
+                .listRowBackground(Color.clear)
 
             case .list:
                 ForEach(displayedAssistants) { assistant in
@@ -99,17 +100,22 @@ extension ContentView {
                 createAssistant()
             } label: {
                 Label("New Assistant", systemImage: "plus")
+                    .padding(.horizontal, 12)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.vertical, 4)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .foregroundStyle(.secondary)
             .help("New Assistant")
             .keyboardShortcut(shortcutsStore.keyboardShortcut(for: .newAssistant))
+            .listRowInsets(.init())
+            .listRowSeparator(.hidden)
+            .listRowBackground(Color.clear)
         } header: {
             HStack {
                 Text("Assistants")
-                    .font(.caption)
+                    .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(.secondary)
                 Spacer()
                 Menu {
@@ -155,7 +161,10 @@ extension ContentView {
                 .menuIndicator(.hidden)
                 .help("Assistant view options")
             }
+            .padding(.top, JinSpacing.xSmall)
+            .padding(.bottom, JinSpacing.xSmall + 1)
         }
+        .textCase(nil)
         .onDeleteCommand {
             guard let selectedAssistant else { return }
             requestDeleteAssistant(selectedAssistant)
@@ -166,7 +175,7 @@ extension ContentView {
     var chatsSection: some View {
         if !filteredConversations.isEmpty {
             ForEach(groupedConversations, id: \.key) { period, convs in
-                Section(period) {
+                Section {
                     ForEach(convs) { conversation in
                         SidebarConversationItem(
                             conversation: conversation,
@@ -180,11 +189,20 @@ extension ContentView {
                             onRegenerateTitle: { Task { await regenerateConversationTitle(conversation) } },
                             onDelete: { requestDeleteConversation(conversation) }
                         )
+                        .listRowSeparator(.hidden)
+                        .listRowBackground(Color.clear)
                     }
                     .onDelete { indexSet in
                         deleteConversations(at: indexSet, in: convs)
                     }
+                } header: {
+                    Text(period)
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                        .padding(.top, JinSpacing.medium)
+                        .padding(.bottom, JinSpacing.xSmall + 1)
                 }
+                .textCase(nil)
             }
         } else if !searchText.isEmpty {
             ContentUnavailableView.search(text: searchText)
