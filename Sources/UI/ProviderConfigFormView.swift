@@ -39,6 +39,10 @@ struct ProviderConfigFormView: View {
     @State var openRouterUsageStatus: OpenRouterUsageStatus = .idle
     @State var openRouterUsage: OpenRouterKeyUsage?
     @State var openRouterUsageTask: Task<Void, Never>?
+    @State var claudeManagedAgents: [ClaudeManagedAgentDescriptor] = []
+    @State var claudeManagedEnvironments: [ClaudeManagedEnvironmentDescriptor] = []
+    @State var isRefreshingClaudeManagedResources = false
+    @State var claudeManagedResourceError: String?
 
     let providerManager = ProviderManager()
     let networkManager = NetworkManager()
@@ -46,6 +50,175 @@ struct ProviderConfigFormView: View {
     struct FetchedModelsSelectionState: Identifiable {
         let id = UUID()
         let models: [ModelInfo]
+    }
+
+    @ViewBuilder
+    private var modelsSection: some View {
+        if let modelsError {
+            Text(modelsError)
+                .foregroundColor(.red)
+                .font(.caption)
+        }
+
+        if !decodedModels.isEmpty {
+            TextField("Search models", text: $modelSearchText)
+                .textFieldStyle(.roundedBorder)
+
+            HStack(spacing: JinSpacing.small) {
+                Text("Enabled \(enabledModelCount) / \(decodedModels.count)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                Spacer()
+
+                Button("Enable All") {
+                    setAllModelsEnabled(true)
+                }
+                .buttonStyle(.borderless)
+                .controlSize(.small)
+
+                Divider().frame(height: 12)
+
+                Button("Disable All") {
+                    setAllModelsEnabled(false)
+                }
+                .buttonStyle(.borderless)
+                .controlSize(.small)
+
+                Divider().frame(height: 12)
+
+                Menu {
+                    Button {
+                        showingKeepFullySupportedModelsConfirmation = true
+                    } label: {
+                        Label("Keep Fully Supported", systemImage: "checkmark.seal")
+                    }
+                    .disabled(!canKeepFullySupportedModels)
+
+                    Button {
+                        showingKeepEnabledModelsConfirmation = true
+                    } label: {
+                        Label("Keep Enabled Only", systemImage: "power")
+                    }
+                    .disabled(!canKeepEnabledModels)
+                } label: {
+                    Image(systemName: "ellipsis.circle")
+                        .foregroundStyle(.secondary)
+                }
+                .menuStyle(.borderlessButton)
+                .menuIndicator(.hidden)
+                .frame(width: 22)
+                .help("Filter actions")
+                .accessibilityLabel("Filter actions")
+            }
+        }
+
+        if decodedModels.isEmpty {
+            Text("No models found. Fetch from provider or add manually.")
+                .jinInfoCallout()
+        } else if filteredModels.isEmpty {
+            Text("No models match your search.")
+                .jinInfoCallout()
+        } else {
+            List(filteredModels) { model in
+                HStack(spacing: 8) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        HStack(spacing: 6) {
+                            Text(model.name)
+                                .lineLimit(1)
+
+                            if isFullySupportedModel(model.id) {
+                                Text(JinModelSupport.fullSupportSymbol)
+                                    .jinTagStyle(foreground: .green)
+                                    .help("Jin full support")
+                            }
+
+                            if model.overrides != nil {
+                                Text("Custom")
+                                    .jinTagStyle(foreground: .orange)
+                                    .help("This model has manual capability overrides.")
+                            }
+                        }
+
+                        Text(model.id)
+                            .foregroundStyle(.secondary)
+                            .font(.caption)
+                    }
+
+                    Spacer(minLength: 8)
+
+                    Button {
+                        editingModel = model
+                    } label: {
+                        Image(systemName: "slider.horizontal.3")
+                            .font(.system(size: 12))
+                            .foregroundStyle(.secondary)
+                            .frame(width: 22, height: 22)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Model Settings")
+                    .opacity(hoveredModelID == model.id ? 1 : 0)
+
+                    Button(role: .destructive) {
+                        requestDeleteModel(model)
+                    } label: {
+                        Image(systemName: "trash")
+                            .font(.system(size: 12))
+                            .foregroundStyle(.secondary)
+                            .frame(width: 22, height: 22)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Delete Model")
+                    .opacity(hoveredModelID == model.id ? 1 : 0)
+
+                    Toggle("", isOn: modelEnabledBinding(modelID: model.id))
+                        .labelsHidden()
+                }
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    editingModel = model
+                }
+                .onHover { isHovered in
+                    if isHovered {
+                        hoveredModelID = model.id
+                    } else if hoveredModelID == model.id {
+                        hoveredModelID = nil
+                    }
+                }
+            }
+            .frame(minHeight: 180)
+            .scrollContentBackground(.hidden)
+            .background(JinSemanticColor.detailSurface)
+            .jinSurface(.outlined, cornerRadius: JinRadius.medium)
+        }
+
+        HStack {
+            Button("Fetch from Provider") {
+                Task { await fetchModels() }
+            }
+            .disabled(isFetchModelsDisabled)
+
+            if isFetchingModels {
+                ProgressView().scaleEffect(0.5)
+            }
+
+            Spacer()
+
+            Button {
+                showingAddModel = true
+            } label: {
+                Label("Add", systemImage: "plus")
+            }
+            .buttonStyle(.borderless)
+
+            Button {
+                showingDeleteAllModelsConfirmation = true
+            } label: {
+                Label("Clear", systemImage: "trash")
+            }
+            .disabled(decodedModels.isEmpty)
+            .buttonStyle(.borderless)
+        }
     }
 
     var body: some View {
@@ -128,175 +301,17 @@ struct ProviderConfigFormView: View {
                 testConnectionButton
             }
 
-            Section("Models") {
-                if let modelsError {
-                    Text(modelsError)
-                        .foregroundColor(.red)
-                        .font(.caption)
+            if providerType == .claudeManagedAgents {
+                Section("Managed Defaults") {
+                    claudeManagedDefaultsSection
                 }
-
-                if !decodedModels.isEmpty {
-                    TextField("Search models", text: $modelSearchText)
-                        .textFieldStyle(.roundedBorder)
-
-                    HStack(spacing: JinSpacing.small) {
-                        Text("Enabled \(enabledModelCount) / \(decodedModels.count)")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-
-                        Spacer()
-
-                        Button("Enable All") {
-                            setAllModelsEnabled(true)
-                        }
-                        .buttonStyle(.borderless)
-                        .controlSize(.small)
-
-                        Divider().frame(height: 12)
-
-                        Button("Disable All") {
-                            setAllModelsEnabled(false)
-                        }
-                        .buttonStyle(.borderless)
-                        .controlSize(.small)
-
-                        Divider().frame(height: 12)
-
-                        Menu {
-                            Button {
-                                showingKeepFullySupportedModelsConfirmation = true
-                            } label: {
-                                Label("Keep Fully Supported", systemImage: "checkmark.seal")
-                            }
-                            .disabled(!canKeepFullySupportedModels)
-
-                            Button {
-                                showingKeepEnabledModelsConfirmation = true
-                            } label: {
-                                Label("Keep Enabled Only", systemImage: "power")
-                            }
-                            .disabled(!canKeepEnabledModels)
-                        } label: {
-                            Image(systemName: "ellipsis.circle")
-                                .foregroundStyle(.secondary)
-                        }
-                        .menuStyle(.borderlessButton)
-                        .menuIndicator(.hidden)
-                        .frame(width: 22)
-                        .help("Filter actions")
-                        .accessibilityLabel("Filter actions")
-                    }
+            } else {
+                Section("Models") {
+                    modelsSection
                 }
-
-                if decodedModels.isEmpty {
-                    Text("No models found. Fetch from provider or add manually.")
-                        .jinInfoCallout()
-                } else if filteredModels.isEmpty {
-                    Text("No models match your search.")
-                        .jinInfoCallout()
-                } else {
-                    List(filteredModels) { model in
-                        HStack(spacing: 8) {
-                            VStack(alignment: .leading, spacing: 2) {
-                                HStack(spacing: 6) {
-                                    Text(model.name)
-                                        .lineLimit(1)
-
-                                    if isFullySupportedModel(model.id) {
-                                        Text(JinModelSupport.fullSupportSymbol)
-                                            .jinTagStyle(foreground: .green)
-                                            .help("Jin full support")
-                                    }
-
-                                    if model.overrides != nil {
-                                        Text("Custom")
-                                            .jinTagStyle(foreground: .orange)
-                                            .help("This model has manual capability overrides.")
-                                    }
-                                }
-
-                                Text(model.id)
-                                    .foregroundStyle(.secondary)
-                                    .font(.caption)
-                            }
-
-                            Spacer(minLength: 8)
-
-                            Button {
-                                editingModel = model
-                            } label: {
-                                Image(systemName: "slider.horizontal.3")
-                                    .font(.system(size: 12))
-                                    .foregroundStyle(.secondary)
-                                    .frame(width: 22, height: 22)
-                            }
-                            .buttonStyle(.plain)
-                            .help("Model Settings")
-                            .opacity(hoveredModelID == model.id ? 1 : 0)
-
-                            Button(role: .destructive) {
-                                requestDeleteModel(model)
-                            } label: {
-                                Image(systemName: "trash")
-                                    .font(.system(size: 12))
-                                    .foregroundStyle(.secondary)
-                                    .frame(width: 22, height: 22)
-                            }
-                            .buttonStyle(.plain)
-                            .help("Delete Model")
-                            .opacity(hoveredModelID == model.id ? 1 : 0)
-
-                            Toggle("", isOn: modelEnabledBinding(modelID: model.id))
-                                .labelsHidden()
-                        }
-                        .contentShape(Rectangle())
-                        .onTapGesture {
-                            editingModel = model
-                        }
-                        .onHover { isHovered in
-                            if isHovered {
-                                hoveredModelID = model.id
-                            } else if hoveredModelID == model.id {
-                                hoveredModelID = nil
-                            }
-                        }
-                    }
-                    .frame(minHeight: 180)
-                    .scrollContentBackground(.hidden)
-                    .background(JinSemanticColor.detailSurface)
-                    .jinSurface(.outlined, cornerRadius: JinRadius.medium)
-                }
-
-                HStack {
-                    Button("Fetch from Provider") {
-                        Task { await fetchModels() }
-                    }
-                    .disabled(isFetchModelsDisabled)
-
-                    if isFetchingModels {
-                        ProgressView().scaleEffect(0.5)
-                    }
-
-                    Spacer()
-
-                    Button {
-                        showingAddModel = true
-                    } label: {
-                        Label("Add", systemImage: "plus")
-                    }
-                    .buttonStyle(.borderless)
-
-                    Button {
-                        showingDeleteAllModelsConfirmation = true
-                    } label: {
-                        Label("Clear", systemImage: "trash")
-                    }
-                    .disabled(decodedModels.isEmpty)
-                    .buttonStyle(.borderless)
-                }
+                .animation(.easeInOut(duration: 0.18), value: filteredModels.count)
+                .animation(.easeInOut(duration: 0.18), value: modelSearchText)
             }
-            .animation(.easeInOut(duration: 0.18), value: filteredModels.count)
-            .animation(.easeInOut(duration: 0.18), value: modelSearchText)
         }
         .formStyle(.grouped)
         .scrollContentBackground(.hidden)
@@ -318,12 +333,18 @@ struct ProviderConfigFormView: View {
             if providerType == .codexAppServer, codexAuthMode == .chatGPT {
                 await refreshCodexAccountStatus(forceRefreshToken: false)
             }
+            if providerType == .claudeManagedAgents {
+                await refreshClaudeManagedResources()
+            }
         }
         .onChange(of: apiKey) { _, _ in
             guard hasLoadedCredentials else { return }
             scheduleCredentialSave()
             if providerType == .openrouter {
                 scheduleOpenRouterUsageRefresh()
+            }
+            if providerType == .claudeManagedAgents {
+                Task { await refreshClaudeManagedResources() }
             }
         }
         .onChange(of: codexAuthMode) { _, _ in

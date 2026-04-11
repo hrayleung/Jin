@@ -137,7 +137,7 @@ struct ModelPickerPopover: View {
         sections.reserveCapacity(providersSorted.count)
 
         for provider in providersSorted {
-            let models = provider.enabledModels
+            let models = provider.selectableModels
             guard !models.isEmpty else { continue }
             var filtered = models
 

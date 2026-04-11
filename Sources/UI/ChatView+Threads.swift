@@ -7,7 +7,14 @@ extension ChatView {
 
     var currentModelName: String {
         if providerType == .claudeManagedAgents {
-            return controls.claudeManagedAgentDisplayName ?? "Managed Agent"
+            let resolvedControls = resolvedClaudeManagedControls(
+                for: conversationEntity.providerID,
+                threadControls: controls
+            )
+            return ClaudeManagedAgentRuntime.resolvedDisplayName(
+                threadModelID: conversationEntity.modelID,
+                controls: resolvedControls
+            )
         }
         return ChatThreadSupport.currentModelName(
             providerID: conversationEntity.providerID,
@@ -46,7 +53,21 @@ extension ChatView {
     }
 
     func modelName(id modelID: String, providerID: String) -> String {
-        ChatThreadSupport.modelName(
+        if providerType(forProviderID: providerID) == .claudeManagedAgents {
+            let threadControls = sortedModelThreads.first(where: {
+                $0.providerID == providerID && canonicalModelID(for: providerID, modelID: $0.modelID) == canonicalModelID(for: providerID, modelID: modelID)
+            }).flatMap(storedGenerationControls(for:))
+            let resolvedControls = resolvedClaudeManagedControls(
+                for: providerID,
+                threadControls: threadControls
+            )
+            return ClaudeManagedAgentRuntime.resolvedDisplayName(
+                threadModelID: modelID,
+                controls: resolvedControls
+            )
+        }
+
+        return ChatThreadSupport.modelName(
             modelID: modelID,
             providerID: providerID,
             providers: providers,
@@ -136,9 +157,19 @@ extension ChatView {
     }
 
     func addOrActivateThread(providerID: String, modelID: String) {
+        let resolvedModelID: String
+        if providerType(forProviderID: providerID) == .claudeManagedAgents {
+            resolvedModelID = managedAgentSyntheticModelID(
+                providerID: providerID,
+                controls: defaultClaudeManagedAgentControls(for: providerID)
+            )
+        } else {
+            resolvedModelID = modelID
+        }
+
         ChatThreadSupport.addOrActivateThread(
             providerID: providerID,
-            modelID: modelID,
+            modelID: resolvedModelID,
             conversationEntity: conversationEntity,
             sortedThreads: sortedModelThreads,
             canonicalModelID: { providerID, modelID in

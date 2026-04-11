@@ -291,11 +291,14 @@ extension ChatView {
     func threadSupportsMCPTools(for thread: ConversationModelThreadEntity) -> Bool {
         let providerEntity = providers.first(where: { $0.id == thread.providerID })
         let providerTypeSnapshot = providerEntity.flatMap { ProviderType(rawValue: $0.typeRaw) } ?? ProviderType(rawValue: thread.providerID)
-        let modelID = effectiveModelID(
-            for: thread.modelID,
-            providerEntity: providerEntity,
-            providerType: providerTypeSnapshot
-        )
+        let threadControls = (try? JSONDecoder().decode(GenerationControls.self, from: thread.modelConfigData)) ?? GenerationControls()
+        let modelID = providerTypeSnapshot == .claudeManagedAgents
+            ? ClaudeManagedAgentRuntime.resolvedRuntimeModelID(threadModelID: thread.modelID, controls: threadControls)
+            : effectiveModelID(
+                for: thread.modelID,
+                providerEntity: providerEntity,
+                providerType: providerTypeSnapshot
+            )
         let modelInfoSnapshot = resolvedModelInfo(
             for: modelID,
             providerEntity: providerEntity,
@@ -329,12 +332,36 @@ extension ChatView {
         let providerID = thread.providerID
         let providerEntity = providers.first(where: { $0.id == providerID })
         let providerTypeSnapshot = providerEntity.flatMap { ProviderType(rawValue: $0.typeRaw) } ?? ProviderType(rawValue: providerID)
-        let modelID = effectiveModelID(
-            for: thread.modelID,
-            providerEntity: providerEntity,
-            providerType: providerTypeSnapshot
-        )
-        migrateThreadModelIDIfNeeded(thread, resolvedModelID: modelID)
+        let threadControls: GenerationControls
+        do {
+            threadControls = try JSONDecoder().decode(GenerationControls.self, from: thread.modelConfigData)
+        } catch {
+            errorMessage = "Failed to load conversation settings: \(error.localizedDescription)"
+            showingError = true
+            streamingStore.endSession(conversationID: conversationID, threadID: threadID)
+            return
+        }
+        let modelID: String
+        if providerTypeSnapshot == .claudeManagedAgents {
+            var mergedControls = threadControls
+            providerEntity?.applyClaudeManagedDefaults(into: &mergedControls)
+            let syntheticModelID = managedAgentSyntheticModelID(
+                providerID: providerID,
+                controls: mergedControls
+            )
+            migrateThreadModelIDIfNeeded(thread, resolvedModelID: syntheticModelID)
+            modelID = ClaudeManagedAgentRuntime.resolvedRuntimeModelID(
+                threadModelID: syntheticModelID,
+                controls: mergedControls
+            )
+        } else {
+            modelID = effectiveModelID(
+                for: thread.modelID,
+                providerEntity: providerEntity,
+                providerType: providerTypeSnapshot
+            )
+            migrateThreadModelIDIfNeeded(thread, resolvedModelID: modelID)
+        }
         let modelInfoSnapshot = resolvedModelInfo(
             for: modelID,
             providerEntity: providerEntity,
@@ -346,7 +373,15 @@ extension ChatView {
         let resolvedModelSettingsSnapshot = normalizedModelInfoSnapshot.map {
             ModelSettingsResolver.resolve(model: $0, providerType: providerTypeSnapshot)
         }
-        let modelNameSnapshot = normalizedModelInfoSnapshot?.name ?? modelID
+        let modelNameSnapshot: String
+        if providerTypeSnapshot == .claudeManagedAgents {
+            modelNameSnapshot = ClaudeManagedAgentRuntime.resolvedDisplayName(
+                threadModelID: thread.modelID,
+                controls: threadControls
+            )
+        } else {
+            modelNameSnapshot = normalizedModelInfoSnapshot?.name ?? modelID
+        }
         let streamingState = streamingStore.beginSession(
             conversationID: conversationID,
             threadID: threadID,
@@ -373,15 +408,7 @@ extension ChatView {
             conversationSystemPrompt: conversationEntity.systemPrompt,
             assistant: assistant
         )
-        var controlsToUse: GenerationControls
-        do {
-            controlsToUse = try JSONDecoder().decode(GenerationControls.self, from: thread.modelConfigData)
-        } catch {
-            errorMessage = "Failed to load conversation settings: \(error.localizedDescription)"
-            showingError = true
-            streamingStore.endSession(conversationID: conversationID, threadID: threadID)
-            return
-        }
+        var controlsToUse = threadControls
         controlsToUse = GenerationControlsResolver.resolvedForRequest(
             base: controlsToUse,
             assistantTemperature: assistant?.temperature,
@@ -500,8 +527,8 @@ extension ChatView {
             persistCodexThreadState: { [self] state, localThreadID in
                 persistCodexThreadState(state, forLocalThreadID: localThreadID)
             },
-            persistClaudeManagedSessionID: { [self] sessionID, localThreadID in
-                persistClaudeManagedAgentSessionID(sessionID, forLocalThreadID: localThreadID)
+            persistClaudeManagedSessionState: { [self] state, localThreadID in
+                persistClaudeManagedAgentSessionState(state, forLocalThreadID: localThreadID)
             },
             persistClaudeManagedPendingToolResults: { [self] results, localThreadID in
                 persistClaudeManagedPendingCustomToolResults(results, forLocalThreadID: localThreadID)

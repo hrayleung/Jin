@@ -53,8 +53,8 @@ enum ChatStreamingOrchestrator {
         /// Save Codex remote thread state for a local thread.
         let persistCodexThreadState: @MainActor (CodexThreadState, _ localThreadID: UUID) -> Void
 
-        /// Save Claude Managed Agents remote session id for a local thread.
-        let persistClaudeManagedSessionID: @MainActor (_ sessionID: String?, _ localThreadID: UUID) -> Void
+        /// Save Claude Managed Agents remote session state for a local thread.
+        let persistClaudeManagedSessionState: @MainActor (ClaudeManagedAgentSessionState, _ localThreadID: UUID) -> Void
 
         /// Save pending Claude Managed Agents custom tool results for the next turn.
         let persistClaudeManagedPendingToolResults: @MainActor (_ results: [ClaudeManagedAgentPendingToolResult], _ localThreadID: UUID) -> Void
@@ -284,8 +284,9 @@ enum ChatStreamingOrchestrator {
                             }
                         case .claudeManagedSessionState(let state):
                             requestControls.claudeManagedSessionID = state.remoteSessionID
+                            requestControls.claudeManagedSessionModelID = state.remoteModelID
                             await MainActor.run {
-                                callbacks.persistClaudeManagedSessionID(state.remoteSessionID, ctx.threadID)
+                                callbacks.persistClaudeManagedSessionState(state, ctx.threadID)
                             }
                         case .claudeManagedCustomToolResults(let results):
                             requestControls.claudeManagedPendingCustomToolResults = results

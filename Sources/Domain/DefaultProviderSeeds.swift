@@ -140,14 +140,16 @@ enum DefaultProviderSeeds {
     }
 
     static var claudeManagedAgents: ProviderConfig {
-        ProviderConfig(
+        var config = ProviderConfig(
             id: "claude-managed-agents",
             name: "Claude Managed Agents",
             type: .claudeManagedAgents,
             iconID: LobeProviderIconCatalog.defaultIconID(for: .claudeManagedAgents),
             baseURL: ProviderType.claudeManagedAgents.defaultBaseURL,
-            models: ModelCatalog.seededModels(for: .claudeManagedAgents)
+            models: []
         )
+        config.normalizeClaudeManagedAgentDefaults()
+        return config
     }
 
     static var cohere: ProviderConfig {

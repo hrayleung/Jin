@@ -17,12 +17,24 @@ enum ChatModelSelectionSupport {
         guard let activeThread else { return }
         guard providerID != activeThread.providerID else { return }
 
-        let models = providers.first(where: { $0.id == providerID })?.enabledModels ?? []
-        guard !models.isEmpty else { return }
+        guard let provider = providers.first(where: { $0.id == providerID }) else { return }
+        let models = provider.selectableModels
 
         clearCodexThreadPersistence(activeThread)
         clearClaudeManagedAgentSessionPersistence(activeThread)
         activeThread.providerID = providerID
+
+        if ProviderType(rawValue: provider.typeRaw) == .claudeManagedAgents {
+            if let managedModelID = models.first?.id {
+                activeThread.modelID = managedModelID
+            }
+            synchronizeLegacyConversationModelFields(activeThread)
+            normalizeControlsForCurrentSelection()
+            try? modelContext.save()
+            return
+        }
+
+        guard !models.isEmpty else { return }
 
         if let preferredModelID = preferredModelID(models, providerID) {
             activeThread.modelID = preferredModelID

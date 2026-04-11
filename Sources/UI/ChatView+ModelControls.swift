@@ -37,12 +37,19 @@ extension ChatView {
     }
 
     func openClaudeManagedAgentSessionSettingsEditor() {
-        claudeManagedAgentIDDraft = controls.claudeManagedAgentID ?? ""
-        claudeManagedEnvironmentIDDraft = controls.claudeManagedEnvironmentID ?? ""
-        claudeManagedAgentDisplayNameDraft = controls.claudeManagedAgentDisplayName ?? ""
-        claudeManagedEnvironmentDisplayNameDraft = controls.claudeManagedEnvironmentDisplayName ?? ""
+        let providerDefaults = providers.first(where: { $0.id == conversationEntity.providerID })
+        claudeManagedProviderDefaultAgentID = providerDefaults?.claudeManagedDefaultAgentID ?? ""
+        claudeManagedProviderDefaultEnvironmentID = providerDefaults?.claudeManagedDefaultEnvironmentID ?? ""
+        claudeManagedProviderDefaultAgentDisplayName = providerDefaults?.claudeManagedDefaultAgentDisplayName ?? ""
+        claudeManagedProviderDefaultEnvironmentDisplayName = providerDefaults?.claudeManagedDefaultEnvironmentDisplayName ?? ""
+
+        claudeManagedAgentIDDraft = controls.claudeManagedAgentID ?? claudeManagedProviderDefaultAgentID
+        claudeManagedEnvironmentIDDraft = controls.claudeManagedEnvironmentID ?? claudeManagedProviderDefaultEnvironmentID
+        claudeManagedAgentDisplayNameDraft = controls.claudeManagedAgentDisplayName ?? claudeManagedProviderDefaultAgentDisplayName
+        claudeManagedEnvironmentDisplayNameDraft = controls.claudeManagedEnvironmentDisplayName ?? claudeManagedProviderDefaultEnvironmentDisplayName
         claudeManagedAgentSettingsDraftError = nil
         showingClaudeManagedAgentSessionSettingsSheet = true
+        Task { await refreshClaudeManagedAgentSessionResources() }
     }
 
     func pickCodexWorkingDirectory() {
@@ -100,11 +107,76 @@ extension ChatView {
                 }
             }
             controls = resolvedControls
+            if let activeModelThread,
+               providerType(forProviderID: activeModelThread.providerID) == .claudeManagedAgents {
+                let syntheticModelID = managedAgentSyntheticModelID(
+                    providerID: activeModelThread.providerID,
+                    controls: resolvedClaudeManagedControls(
+                        for: activeModelThread.providerID,
+                        threadControls: resolvedControls
+                    )
+                )
+                activeModelThread.modelID = syntheticModelID
+                synchronizeLegacyConversationModelFields(with: activeModelThread)
+            }
             persistControlsToConversation()
             claudeManagedAgentSettingsDraftError = nil
             showingClaudeManagedAgentSessionSettingsSheet = false
         case .failure(let error):
             claudeManagedAgentSettingsDraftError = error.localizedDescription
+        }
+    }
+
+    @MainActor
+    func refreshClaudeManagedAgentSessionResources(force: Bool = false) async {
+        guard providerType == .claudeManagedAgents else { return }
+        guard !isRefreshingClaudeManagedSessionResources else { return }
+
+        guard let providerEntity = providers.first(where: { $0.id == conversationEntity.providerID }),
+              let config = try? providerEntity.toDomain(),
+              let adapter = try? await ProviderManager().createAdapter(for: config) as? ClaudeManagedAgentsAdapter else {
+            if force {
+                claudeManagedAgentSettingsDraftError = "Failed to initialize Claude Managed Agents provider."
+            }
+            return
+        }
+
+        let apiKey = config.apiKey?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard !apiKey.isEmpty else {
+            if force {
+                claudeManagedAgentSettingsDraftError = "Enter an Anthropic API key in provider settings first."
+            }
+            return
+        }
+
+        isRefreshingClaudeManagedSessionResources = true
+        defer { isRefreshingClaudeManagedSessionResources = false }
+
+        do {
+            async let agents = adapter.listAgents()
+            async let environments = adapter.listEnvironments()
+
+            claudeManagedAvailableAgents = try await agents.sorted {
+                $0.name.localizedStandardCompare($1.name) == .orderedAscending
+            }
+            claudeManagedAvailableEnvironments = try await environments.sorted {
+                $0.name.localizedStandardCompare($1.name) == .orderedAscending
+            }
+
+            if claudeManagedAgentDisplayNameDraft.isEmpty,
+               let selected = claudeManagedAvailableAgents.first(where: { $0.id == claudeManagedAgentIDDraft }) {
+                claudeManagedAgentDisplayNameDraft = selected.name
+            }
+            if claudeManagedEnvironmentDisplayNameDraft.isEmpty,
+               let selected = claudeManagedAvailableEnvironments.first(where: { $0.id == claudeManagedEnvironmentIDDraft }) {
+                claudeManagedEnvironmentDisplayNameDraft = selected.name
+            }
+
+            claudeManagedAgentSettingsDraftError = nil
+        } catch {
+            if force || (claudeManagedAvailableAgents.isEmpty && claudeManagedAvailableEnvironments.isEmpty) {
+                claudeManagedAgentSettingsDraftError = error.localizedDescription
+            }
         }
     }
 

@@ -116,17 +116,57 @@ enum ChatMessagePreparationSupport {
     ) throws -> MessagePreparationProfile {
         let providerTypeSnapshot = providerType(forProviderID: thread.providerID, providers: providers)
         let providerEntity = providers.first(where: { $0.id == thread.providerID })
-        let resolvedModelID = ChatModelCapabilitySupport.effectiveModelID(
-            modelID: thread.modelID,
-            providerEntity: providerEntity,
-            providerType: providerTypeSnapshot
-        )
+        let threadControls: GenerationControls
+        do {
+            threadControls = try JSONDecoder().decode(GenerationControls.self, from: thread.modelConfigData)
+        } catch {
+            throw LLMError.decodingError(message: "Failed to load conversation settings: \(error.localizedDescription)")
+        }
+        let resolvedManagedControls: GenerationControls = {
+            guard providerTypeSnapshot == .claudeManagedAgents else { return threadControls }
+            var merged = threadControls
+            providerEntity?.applyClaudeManagedDefaults(into: &merged)
+            return merged
+        }()
+        let resolvedModelID: String
+        if providerTypeSnapshot == .claudeManagedAgents {
+            resolvedModelID = ClaudeManagedAgentRuntime.resolvedRuntimeModelID(
+                threadModelID: thread.modelID,
+                controls: resolvedManagedControls
+            )
+        } else {
+            resolvedModelID = ChatModelCapabilitySupport.effectiveModelID(
+                modelID: thread.modelID,
+                providerEntity: providerEntity,
+                providerType: providerTypeSnapshot
+            )
+        }
         let lowerModelID = resolvedModelID.lowercased()
-        let modelInfo = ChatModelCapabilitySupport.resolvedModelInfo(
-            modelID: thread.modelID,
-            providerEntity: providerEntity,
-            providerType: providerTypeSnapshot
-        )
+        let modelInfo: ModelInfo? = {
+            if providerTypeSnapshot == .claudeManagedAgents {
+                let remoteModelID = resolvedModelID
+                let remoteModel = ModelCatalog.seededModels(for: .anthropic).first(where: { $0.id == remoteModelID })
+                guard let remoteModel else { return nil }
+                return ModelInfo(
+                    id: remoteModelID,
+                    name: resolvedManagedControls.claudeManagedAgentModelDisplayName
+                        ?? resolvedManagedControls.claudeManagedAgentDisplayName
+                        ?? remoteModel.name,
+                    capabilities: remoteModel.capabilities,
+                    contextWindow: remoteModel.contextWindow,
+                    maxOutputTokens: remoteModel.maxOutputTokens,
+                    reasoningConfig: remoteModel.reasoningConfig,
+                    overrides: remoteModel.overrides,
+                    catalogMetadata: remoteModel.catalogMetadata,
+                    isEnabled: true
+                )
+            }
+            return ChatModelCapabilitySupport.resolvedModelInfo(
+                modelID: thread.modelID,
+                providerEntity: providerEntity,
+                providerType: providerTypeSnapshot
+            )
+        }()
         let normalizedModelInfoSnapshot = modelInfo.map {
             ChatModelCapabilitySupport.normalizedSelectedModelInfo($0, providerType: providerTypeSnapshot)
         }
@@ -148,21 +188,18 @@ enum ChatMessagePreparationSupport {
         let supportsVision = (resolvedModelSettings?.capabilities.contains(.vision) == true)
             || supportsImageGen
             || supportsVideoGen
-        let threadControls: GenerationControls
-        do {
-            threadControls = try JSONDecoder().decode(GenerationControls.self, from: thread.modelConfigData)
-        } catch {
-            throw LLMError.decodingError(message: "Failed to load conversation settings: \(error.localizedDescription)")
-        }
         let pdfMode = ChatModelCapabilitySupport.resolvedPDFProcessingMode(
-            controls: threadControls,
+            controls: resolvedManagedControls,
             supportsNativePDF: nativePDFSupported,
             defaultPDFProcessingFallbackMode: defaultPDFProcessingFallbackMode,
             mistralOCRPluginEnabled: mistralOCRPluginEnabled,
             mineruOCRPluginEnabled: mineruOCRPluginEnabled,
             deepSeekOCRPluginEnabled: deepSeekOCRPluginEnabled
         )
-        let modelName = modelInfo?.name ?? resolvedModelID
+        let modelName = modelInfo?.name
+            ?? (providerTypeSnapshot == .claudeManagedAgents
+                ? ClaudeManagedAgentRuntime.resolvedDisplayName(threadModelID: thread.modelID, controls: resolvedManagedControls)
+                : resolvedModelID)
 
         return MessagePreparationProfile(
             threadID: thread.id,

@@ -83,11 +83,53 @@ private final class ProviderModelsDecodeCache: @unchecked Sendable {
 extension ProviderConfigEntity {
     private static let modelsCache = ProviderModelsDecodeCache()
 
+    var selectableModels: [ModelInfo] {
+        if ProviderType(rawValue: typeRaw) == .claudeManagedAgents {
+            return claudeManagedSelectableModels
+        }
+        return enabledModels
+    }
+
     var allModels: [ModelInfo] {
-        Self.modelsCache.resolvedModels(for: self).all
+        if ProviderType(rawValue: typeRaw) == .claudeManagedAgents {
+            return []
+        }
+        return Self.modelsCache.resolvedModels(for: self).all
     }
 
     var enabledModels: [ModelInfo] {
-        Self.modelsCache.resolvedModels(for: self).enabled
+        if ProviderType(rawValue: typeRaw) == .claudeManagedAgents {
+            return []
+        }
+        return Self.modelsCache.resolvedModels(for: self).enabled
+    }
+
+    private var claudeManagedSelectableModels: [ModelInfo] {
+        guard ProviderType(rawValue: typeRaw) == .claudeManagedAgents else { return [] }
+
+        let syntheticID = ClaudeManagedAgentRuntime.syntheticThreadModelID(
+            providerID: id,
+            agentID: claudeManagedDefaultAgentID,
+            environmentID: claudeManagedDefaultEnvironmentID
+        )
+        let remoteModelID = claudeManagedDefaultAgentModelID ?? "claude-sonnet-4-6"
+        let remoteModel = ModelCatalog.seededModels(for: .anthropic).first(where: { $0.id == remoteModelID })
+
+        return [
+            ModelInfo(
+                id: syntheticID,
+                name: claudeManagedDefaultAgentDisplayName
+                    ?? claudeManagedDefaultAgentModelDisplayName
+                    ?? claudeManagedDefaultAgentID
+                    ?? "Managed Agent",
+                capabilities: remoteModel?.capabilities ?? [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .nativePDF],
+                contextWindow: remoteModel?.contextWindow ?? 200_000,
+                maxOutputTokens: remoteModel?.maxOutputTokens,
+                reasoningConfig: remoteModel?.reasoningConfig,
+                overrides: remoteModel?.overrides,
+                catalogMetadata: remoteModel?.catalogMetadata,
+                isEnabled: true
+            )
+        ]
     }
 }

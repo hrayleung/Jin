@@ -1,7 +1,12 @@
 import Foundation
 
 actor ClaudeManagedAgentsAdapter: LLMProviderAdapter {
+    // Session API (`/v1/sessions/*`) — public managed-agents beta.
     private static let managedAgentsBeta = "managed-agents-2026-04-01"
+    // Agent / environment catalog API (`/v1/agents`, `/v1/environments`) —
+    // older `agent-api` beta. Incompatible with managed-agents; the server
+    // rejects requests that include both values in a single header.
+    private static let agentCatalogBeta = "agent-api-2026-03-01"
 
     let providerConfig: ProviderConfig
     let capabilities: ModelCapability = [.streaming, .toolCalling, .vision, .reasoning, .promptCaching]
@@ -42,17 +47,15 @@ actor ClaudeManagedAgentsAdapter: LLMProviderAdapter {
         if let existingSessionID {
             activeSessionID = existingSessionID
         } else {
-            let createdSessionID = try await createSession(
+            let createdSession = try await createSession(
                 agentID: agentID,
                 environmentID: environmentID,
                 modelID: modelID,
                 systemPrompt: systemPrompt(from: messages),
                 tools: tools
             )
-            activeSessionID = createdSessionID
-            startupEvents.append(.claudeManagedSessionState(
-                ClaudeManagedAgentSessionState(remoteSessionID: createdSessionID)
-            ))
+            activeSessionID = createdSession.remoteSessionID
+            startupEvents.append(.claudeManagedSessionState(createdSession))
         }
 
         let initialRequest = try buildTurnSubmissionRequest(
@@ -148,10 +151,11 @@ actor ClaudeManagedAgentsAdapter: LLMProviderAdapter {
     }
 
     func validateAPIKey(_ key: String) async throws -> Bool {
+        // `/v1/agents` lives on the agent-api beta, not managed-agents.
         let request = NetworkRequestFactory.makeRequest(
             url: try validatedURL("\(baseURL)/v1/agents"),
             method: "GET",
-            headers: anthropicHeaders(apiKey: key)
+            headers: agentCatalogHeaders(apiKey: key)
         )
 
         do {
@@ -182,6 +186,73 @@ actor ClaudeManagedAgentsAdapter: LLMProviderAdapter {
         return try await adapter.fetchAvailableModels()
     }
 
+    func listAgents() async throws -> [ClaudeManagedAgentDescriptor] {
+        let object = try await fetchManagedAgentsCollection(path: "/v1/agents")
+        let items = Self.extractCollectionItems(from: object)
+
+        return items.compactMap { item in
+            guard let id = normalizedTrimmedString(
+                item.string(at: ["id"])
+                    ?? item.string(at: ["agent", "id"])
+            ) else {
+                return nil
+            }
+
+            let name = normalizedTrimmedString(
+                item.string(at: ["name"])
+                    ?? item.string(at: ["display_name"])
+                    ?? item.string(at: ["agent", "name"])
+                    ?? item.string(at: ["agent", "display_name"])
+            ) ?? id
+
+            let modelID = normalizedTrimmedString(
+                item.string(at: ["model", "id"])
+                    ?? item.string(at: ["agent", "model", "id"])
+                    ?? item.string(at: ["model_id"])
+                    ?? item.string(at: ["agent", "model_id"])
+                    ?? item.string(at: ["agent", "model"])
+                    ?? item.string(at: ["model"])
+            )
+
+            let modelDisplayName = normalizedTrimmedString(
+                item.string(at: ["model", "display_name"])
+                    ?? item.string(at: ["model", "name"])
+                    ?? item.string(at: ["agent", "model", "display_name"])
+                    ?? item.string(at: ["agent", "model", "name"])
+            )
+
+            return ClaudeManagedAgentDescriptor(
+                id: id,
+                name: name,
+                modelID: modelID,
+                modelDisplayName: modelDisplayName
+            )
+        }
+    }
+
+    func listEnvironments() async throws -> [ClaudeManagedEnvironmentDescriptor] {
+        let object = try await fetchManagedAgentsCollection(path: "/v1/environments")
+        let items = Self.extractCollectionItems(from: object)
+
+        return items.compactMap { item in
+            guard let id = normalizedTrimmedString(
+                item.string(at: ["id"])
+                    ?? item.string(at: ["environment", "id"])
+            ) else {
+                return nil
+            }
+
+            let name = normalizedTrimmedString(
+                item.string(at: ["name"])
+                    ?? item.string(at: ["display_name"])
+                    ?? item.string(at: ["environment", "name"])
+                    ?? item.string(at: ["environment", "display_name"])
+            ) ?? id
+
+            return ClaudeManagedEnvironmentDescriptor(id: id, name: name)
+        }
+    }
+
     func translateTools(_ tools: [ToolDefinition]) -> Any {
         tools.map { tool in
             [
@@ -201,11 +272,23 @@ actor ClaudeManagedAgentsAdapter: LLMProviderAdapter {
         providerConfig.baseURL ?? "https://api.anthropic.com"
     }
 
+    /// Headers for the managed-agents session API (`/v1/sessions/*`).
     private func anthropicHeaders(apiKey: String) -> [String: String] {
         [
             "x-api-key": apiKey,
             "anthropic-version": "2023-06-01",
             "anthropic-beta": Self.managedAgentsBeta
+        ]
+    }
+
+    /// Headers for the agent / environment catalog API (`/v1/agents`,
+    /// `/v1/environments`). Uses a different beta and cannot be combined with
+    /// `managed-agents-*` in a single request.
+    private func agentCatalogHeaders(apiKey: String) -> [String: String] {
+        [
+            "x-api-key": apiKey,
+            "anthropic-version": "2023-06-01",
+            "anthropic-beta": Self.agentCatalogBeta
         ]
     }
 
@@ -222,7 +305,7 @@ actor ClaudeManagedAgentsAdapter: LLMProviderAdapter {
         modelID _: String,
         systemPrompt _: String?,
         tools _: [ToolDefinition]
-    ) async throws -> String {
+    ) async throws -> ClaudeManagedAgentSessionState {
         // Per managed-agents-2026-04-01 docs, `agent` accepts either the agent
         // ID string (pins the latest version) or a full agent object.
         let body: [String: Any] = [
@@ -238,17 +321,39 @@ actor ClaudeManagedAgentsAdapter: LLMProviderAdapter {
         let (data, _) = try await networkManager.sendRequest(request)
         let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
 
-        if let id = normalizedTrimmedString(json?["id"] as? String) {
-            return id
-        }
-        if let session = json?["session"] as? [String: Any],
-           let id = normalizedTrimmedString(session["id"] as? String) {
-            return id
+        let object = Self.dictionaryToJSONValueObject(json)
+        let sessionID = normalizedTrimmedString(json?["id"] as? String)
+            ?? normalizedTrimmedString((json?["session"] as? [String: Any])?["id"] as? String)
+            ?? object.string(at: ["id"])
+            ?? object.string(at: ["session", "id"])
+
+        if let sessionID {
+            return ClaudeManagedAgentSessionState(
+                remoteSessionID: sessionID,
+                remoteModelID: Self.extractRemoteModelID(from: object)
+            )
         }
 
         throw LLMError.decodingError(
             message: "Claude Managed Agents session response did not include an id."
         )
+    }
+
+    private func fetchManagedAgentsCollection(path: String) async throws -> [String: JSONValue] {
+        // `/v1/agents` and `/v1/environments` are served by the agent-api
+        // beta, which is incompatible with the managed-agents header used by
+        // sessions. Use the catalog-specific headers here.
+        let request = NetworkRequestFactory.makeRequest(
+            url: try validatedURL("\(baseURL)\(path)"),
+            method: "GET",
+            headers: agentCatalogHeaders(apiKey: apiKey)
+        )
+        let (data, _) = try await networkManager.sendRequest(request)
+        let decoded = try JSONDecoder().decode(JSONValue.self, from: data)
+        guard let object = decoded.objectValue else {
+            throw LLMError.decodingError(message: "Managed Agents list response was not an object.")
+        }
+        return object
     }
 
     private func buildTurnSubmissionRequest(
@@ -311,6 +416,9 @@ actor ClaudeManagedAgentsAdapter: LLMProviderAdapter {
                     "custom_tool_use_id": result.eventID,
                     "is_error": result.isError
                 ]
+                if let sessionThreadID = normalizedTrimmedString(result.sessionThreadID) {
+                    event["session_thread_id"] = sessionThreadID
+                }
                 event["content"] = try Self.managedAgentResultContentBlocks(result.content)
                 return event
             }
@@ -347,6 +455,7 @@ actor ClaudeManagedAgentsAdapter: LLMProviderAdapter {
     }
 
     private func buildStreamRequest(sessionID: String) throws -> URLRequest {
+        // Per managed-agents-2026-04-01 docs: `GET /v1/sessions/{id}/events/stream`
         var headers = anthropicHeaders(apiKey: apiKey)
         headers["Accept"] = "text/event-stream"
         return NetworkRequestFactory.makeRequest(
@@ -513,7 +622,10 @@ actor ClaudeManagedAgentsAdapter: LLMProviderAdapter {
            sessionID != state.sessionID {
             state.sessionID = sessionID
             events.append(.claudeManagedSessionState(
-                ClaudeManagedAgentSessionState(remoteSessionID: sessionID)
+                ClaudeManagedAgentSessionState(
+                    remoteSessionID: sessionID,
+                    remoteModelID: Self.extractRemoteModelID(from: object)
+                )
             ))
         }
 
@@ -543,14 +655,25 @@ actor ClaudeManagedAgentsAdapter: LLMProviderAdapter {
             if !requiresApproval {
                 let inputObject = object.object(at: ["input"]) ?? [:]
                 let arguments = inputObject.mapValues { AnyCodable($0.rawJSONValue) }
-                let activity = SearchActivity(
-                    id: eventID,
-                    type: toolName,
-                    status: .inProgress,
-                    arguments: arguments
-                )
-                state.pendingSearchActivities[eventID] = activity
-                events.append(.searchActivity(activity))
+                if ToolSearchActivityFactory.isSearchToolName(toolName) {
+                    let activity = SearchActivity(
+                        id: eventID,
+                        type: toolName,
+                        status: .inProgress,
+                        arguments: arguments
+                    )
+                    state.pendingSearchActivities[eventID] = activity
+                    events.append(.searchActivity(activity))
+                } else {
+                    let activity = CodexToolActivity(
+                        id: eventID,
+                        toolName: toolName,
+                        status: .running,
+                        arguments: arguments
+                    )
+                    state.pendingGenericToolActivities[eventID] = activity
+                    events.append(.codexToolActivity(activity))
+                }
             } else {
                 // Tool needs user approval — queue and present when status_idle confirms.
                 if let interaction = makeToolConfirmationInteraction(from: object, sessionID: state.sessionID) {
@@ -562,28 +685,26 @@ actor ClaudeManagedAgentsAdapter: LLMProviderAdapter {
             // Per docs: references the agent.tool_use event via tool_use_id.
             let referencedID = object.string(at: ["tool_use_id"]) ?? ""
             if let activity = state.pendingSearchActivities[referencedID] {
-                let completed = SearchActivity(
-                    id: activity.id,
-                    type: activity.type,
-                    status: .completed,
-                    arguments: activity.arguments
-                )
+                let completed = Self.completedSearchActivity(from: object, fallback: activity)
                 state.pendingSearchActivities.removeValue(forKey: referencedID)
                 events.append(.searchActivity(completed))
+            } else if let activity = state.pendingGenericToolActivities[referencedID] {
+                let completed = Self.completedGenericToolActivity(from: object, fallback: activity)
+                state.pendingGenericToolActivities.removeValue(forKey: referencedID)
+                events.append(.codexToolActivity(completed))
             }
 
         case "agent.mcp_tool_result":
             // Per docs: references the agent.mcp_tool_use event via mcp_tool_use_id.
             let referencedID = object.string(at: ["mcp_tool_use_id"]) ?? ""
             if let activity = state.pendingSearchActivities[referencedID] {
-                let completed = SearchActivity(
-                    id: activity.id,
-                    type: activity.type,
-                    status: .completed,
-                    arguments: activity.arguments
-                )
+                let completed = Self.completedSearchActivity(from: object, fallback: activity)
                 state.pendingSearchActivities.removeValue(forKey: referencedID)
                 events.append(.searchActivity(completed))
+            } else if let activity = state.pendingGenericToolActivities[referencedID] {
+                let completed = Self.completedGenericToolActivity(from: object, fallback: activity)
+                state.pendingGenericToolActivities.removeValue(forKey: referencedID)
+                events.append(.codexToolActivity(completed))
             }
 
         case "agent.custom_tool_use":
@@ -612,7 +733,10 @@ actor ClaudeManagedAgentsAdapter: LLMProviderAdapter {
                 events.append(.messageEnd(usage: nil))
             }
             events.append(.claudeManagedSessionState(
-                ClaudeManagedAgentSessionState(remoteSessionID: state.sessionID)
+                ClaudeManagedAgentSessionState(
+                    remoteSessionID: state.sessionID,
+                    remoteModelID: Self.extractRemoteModelID(from: object)
+                )
             ))
             events.append(.claudeManagedCustomToolResults([]))
 
@@ -674,6 +798,161 @@ actor ClaudeManagedAgentsAdapter: LLMProviderAdapter {
             return []
         }
         return eventIDs.compactMap(\.stringValue)
+    }
+
+    private static func extractCollectionItems(from object: [String: JSONValue]) -> [[String: JSONValue]] {
+        if let data = object.array(at: ["data"])?.compactMap(\.objectValue), !data.isEmpty {
+            return data
+        }
+        if let items = object.array(at: ["items"])?.compactMap(\.objectValue), !items.isEmpty {
+            return items
+        }
+        if let agents = object.array(at: ["agents"])?.compactMap(\.objectValue), !agents.isEmpty {
+            return agents
+        }
+        if let environments = object.array(at: ["environments"])?.compactMap(\.objectValue), !environments.isEmpty {
+            return environments
+        }
+        return []
+    }
+
+    private static func extractRemoteModelID(from object: [String: JSONValue]) -> String? {
+        normalizedTrimmedString(
+            object.string(at: ["model", "id"])
+                ?? object.string(at: ["session", "model", "id"])
+                ?? object.string(at: ["agent", "model", "id"])
+                ?? object.string(at: ["session", "agent", "model", "id"])
+                ?? object.string(at: ["model_id"])
+                ?? object.string(at: ["session", "model_id"])
+                ?? object.string(at: ["agent", "model_id"])
+                ?? object.string(at: ["model"])
+        )
+    }
+
+    private static func dictionaryToJSONValueObject(_ dictionary: [String: Any]?) -> [String: JSONValue] {
+        guard let dictionary else { return [:] }
+        guard let data = try? JSONSerialization.data(withJSONObject: dictionary),
+              let decoded = try? JSONDecoder().decode(JSONValue.self, from: data),
+              let object = decoded.objectValue else {
+            return [:]
+        }
+        return object
+    }
+
+    private static func completedSearchActivity(
+        from object: [String: JSONValue],
+        fallback: SearchActivity
+    ) -> SearchActivity {
+        let extractedSources = extractSearchSources(from: object)
+        var arguments = fallback.arguments
+        if !extractedSources.isEmpty {
+            arguments["sources"] = AnyCodable(extractedSources)
+            if let firstURL = extractedSources.first?["url"] as? String {
+                arguments["url"] = AnyCodable(firstURL)
+            }
+            if let firstTitle = extractedSources.first?["title"] as? String {
+                arguments["title"] = AnyCodable(firstTitle)
+            }
+        }
+
+        return SearchActivity(
+            id: fallback.id,
+            type: fallback.type,
+            status: object.bool(at: ["is_error"]) == true ? .failed : .completed,
+            arguments: arguments
+        )
+    }
+
+    private static func completedGenericToolActivity(
+        from object: [String: JSONValue],
+        fallback: CodexToolActivity
+    ) -> CodexToolActivity {
+        let output = extractToolResultOutput(from: object)
+        return CodexToolActivity(
+            id: fallback.id,
+            toolName: fallback.toolName,
+            status: object.bool(at: ["is_error"]) == true ? .failed : .completed,
+            arguments: fallback.arguments,
+            output: output
+        )
+    }
+
+    private static func extractToolResultOutput(from object: [String: JSONValue]) -> String? {
+        if let content = object.array(at: ["content"]) {
+            let chunks = content.compactMap { value -> String? in
+                guard let item = value.objectValue else { return nil }
+                if let text = normalizedTrimmedString(item.string(at: ["text"])) {
+                    return text
+                }
+                if let url = normalizedTrimmedString(item.string(at: ["url"])) {
+                    return url
+                }
+                return nil
+            }
+            let joined = chunks.joined(separator: "\n")
+            if let normalized = normalizedTrimmedString(joined) {
+                return normalized
+            }
+        }
+
+        if let text = normalizedTrimmedString(object.string(at: ["text"])) {
+            return text
+        }
+
+        if let result = normalizedTrimmedString(object.string(at: ["result"])) {
+            return result
+        }
+
+        return nil
+    }
+
+    private static func extractSearchSources(from object: [String: JSONValue]) -> [[String: Any]] {
+        var sources: [[String: Any]] = []
+        var seenURLs: Set<String> = []
+
+        let candidates = object.array(at: ["content"]) ?? []
+        for candidate in candidates {
+            guard let contentObject = candidate.objectValue else { continue }
+            if let url = normalizedTrimmedString(contentObject.string(at: ["url"])) {
+                let dedupeKey = url.lowercased()
+                guard !seenURLs.contains(dedupeKey) else { continue }
+                seenURLs.insert(dedupeKey)
+                var item: [String: Any] = ["url": url]
+                if let title = normalizedTrimmedString(contentObject.string(at: ["title"])) {
+                    item["title"] = title
+                }
+                if let snippet = normalizedTrimmedString(contentObject.string(at: ["text"]) ?? contentObject.string(at: ["snippet"])) {
+                    item["snippet"] = snippet
+                }
+                sources.append(item)
+            }
+        }
+
+        if !sources.isEmpty {
+            return sources
+        }
+
+        guard let output = extractToolResultOutput(from: object) else {
+            return []
+        }
+
+        let pattern = #"https?://[^\s\])>"']+"#
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive) else {
+            return []
+        }
+        let nsRange = NSRange(output.startIndex..<output.endIndex, in: output)
+        let matches = regex.matches(in: output, options: [], range: nsRange)
+
+        for match in matches {
+            guard let range = Range(match.range, in: output) else { continue }
+            let url = String(output[range])
+            let dedupeKey = url.lowercased()
+            guard !seenURLs.contains(dedupeKey) else { continue }
+            seenURLs.insert(dedupeKey)
+            sources.append(["url": url])
+        }
+
+        return sources
     }
 
     private static func makeToolConfirmationInteraction(
@@ -776,6 +1055,7 @@ private struct ClaudeManagedAgentsStreamState {
     var currentMessageID: String?
     var pendingApprovalInteractions: [CodexInteractionRequest] = []
     var pendingSearchActivities: [String: SearchActivity] = [:]
+    var pendingGenericToolActivities: [String: CodexToolActivity] = [:]
 }
 
 private extension JSONValue {

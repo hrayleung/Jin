@@ -215,6 +215,10 @@ struct ProviderConfig: Identifiable, Codable {
         self.models = models
         self.isEnabled = isEnabled
     }
+
+    var hasLocalModelCatalog: Bool {
+        type != .claudeManagedAgents
+    }
 }
 
 /// Model information.

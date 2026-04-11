@@ -173,7 +173,9 @@ extension ProviderConfigFormView {
              .zhipuCodingPlan, .minimax, .minimaxCodingPlan, .fireworks, .cerebras, .sambanova, .morphllm, .opencodeGo, .gemini:
             let key = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
             await MainActor.run {
-                provider.apiKeyKeychainID = nil
+                if ProviderType(rawValue: provider.typeRaw) != .claudeManagedAgents {
+                    provider.apiKeyKeychainID = nil
+                }
                 provider.apiKey = key.isEmpty ? nil : key
                 provider.serviceAccountJSON = nil
                 try? modelContext.save()

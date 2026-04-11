@@ -497,9 +497,14 @@ final class ProviderConfigEntity {
         }
 
         let decoder = JSONDecoder()
-        let models = try decoder.decode([ModelInfo].self, from: modelsData)
+        let models: [ModelInfo]
+        if providerType == .claudeManagedAgents {
+            models = []
+        } else {
+            models = try decoder.decode([ModelInfo].self, from: modelsData)
+        }
 
-        return ProviderConfig(
+        var config = ProviderConfig(
             id: id,
             name: name,
             type: providerType,
@@ -511,12 +516,16 @@ final class ProviderConfigEntity {
             models: models,
             isEnabled: isEnabled
         )
+        if providerType == .claudeManagedAgents {
+            config.normalizeClaudeManagedAgentDefaults()
+        }
+        return config
     }
 
     /// Create from domain model
     static func fromDomain(_ config: ProviderConfig) throws -> ProviderConfigEntity {
         let encoder = JSONEncoder()
-        let modelsData = try encoder.encode(config.models)
+        let modelsData = try encoder.encode(config.hasLocalModelCatalog ? config.models : [])
 
         return ProviderConfigEntity(
             id: config.id,

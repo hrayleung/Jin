@@ -150,6 +150,13 @@ struct ChatView: View {
     @State var claudeManagedAgentDisplayNameDraft = ""
     @State var claudeManagedEnvironmentDisplayNameDraft = ""
     @State var claudeManagedAgentSettingsDraftError: String?
+    @State var claudeManagedAvailableAgents: [ClaudeManagedAgentDescriptor] = []
+    @State var claudeManagedAvailableEnvironments: [ClaudeManagedEnvironmentDescriptor] = []
+    @State var isRefreshingClaudeManagedSessionResources = false
+    @State var claudeManagedProviderDefaultAgentID = ""
+    @State var claudeManagedProviderDefaultEnvironmentID = ""
+    @State var claudeManagedProviderDefaultAgentDisplayName = ""
+    @State var claudeManagedProviderDefaultEnvironmentDisplayName = ""
     @State var pendingCodexInteractions: Deque<PendingCodexInteraction> = []
     @State var pendingAgentApprovals: Deque<PendingAgentApproval> = []
 
@@ -455,6 +462,23 @@ struct ChatView: View {
                 agentDisplayNameDraft: $claudeManagedAgentDisplayNameDraft,
                 environmentDisplayNameDraft: $claudeManagedEnvironmentDisplayNameDraft,
                 draftError: $claudeManagedAgentSettingsDraftError,
+                availableAgents: claudeManagedAvailableAgents,
+                availableEnvironments: claudeManagedAvailableEnvironments,
+                isRefreshingResources: isRefreshingClaudeManagedSessionResources,
+                providerDefaultAgentID: claudeManagedProviderDefaultAgentID,
+                providerDefaultEnvironmentID: claudeManagedProviderDefaultEnvironmentID,
+                providerDefaultAgentDisplayName: claudeManagedProviderDefaultAgentDisplayName,
+                providerDefaultEnvironmentDisplayName: claudeManagedProviderDefaultEnvironmentDisplayName,
+                onRefreshResources: {
+                    Task { await refreshClaudeManagedAgentSessionResources(force: true) }
+                },
+                onUseProviderDefaults: {
+                    claudeManagedAgentIDDraft = claudeManagedProviderDefaultAgentID
+                    claudeManagedEnvironmentIDDraft = claudeManagedProviderDefaultEnvironmentID
+                    claudeManagedAgentDisplayNameDraft = claudeManagedProviderDefaultAgentDisplayName
+                    claudeManagedEnvironmentDisplayNameDraft = claudeManagedProviderDefaultEnvironmentDisplayName
+                    claudeManagedAgentSettingsDraftError = nil
+                },
                 onCancel: { showingClaudeManagedAgentSessionSettingsSheet = false },
                 onSave: { applyClaudeManagedAgentSessionSettingsDraft() }
             )

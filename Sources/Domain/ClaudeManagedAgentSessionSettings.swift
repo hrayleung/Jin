@@ -5,6 +5,8 @@ private enum ClaudeManagedAgentProviderSpecificKey {
     static let environmentID = "claude_managed_environment_id"
     static let agentDisplayName = "claude_managed_agent_display_name"
     static let environmentDisplayName = "claude_managed_environment_display_name"
+    static let agentModelID = "claude_managed_agent_model_id"
+    static let agentModelDisplayName = "claude_managed_agent_model_display_name"
     static let sessionID = "claude_managed_internal_session_id"
     static let sessionModelID = "claude_managed_internal_session_model_id"
     static let pendingCustomToolResults = "claude_managed_internal_pending_custom_tool_results"
@@ -38,6 +40,16 @@ extension GenerationControls {
     var claudeManagedEnvironmentDisplayName: String? {
         get { normalizedClaudeManagedAgentString(for: ClaudeManagedAgentProviderSpecificKey.environmentDisplayName) }
         set { setClaudeManagedAgentString(newValue, for: ClaudeManagedAgentProviderSpecificKey.environmentDisplayName) }
+    }
+
+    var claudeManagedAgentModelID: String? {
+        get { normalizedClaudeManagedAgentString(for: ClaudeManagedAgentProviderSpecificKey.agentModelID) }
+        set { setClaudeManagedAgentString(newValue, for: ClaudeManagedAgentProviderSpecificKey.agentModelID) }
+    }
+
+    var claudeManagedAgentModelDisplayName: String? {
+        get { normalizedClaudeManagedAgentString(for: ClaudeManagedAgentProviderSpecificKey.agentModelDisplayName) }
+        set { setClaudeManagedAgentString(newValue, for: ClaudeManagedAgentProviderSpecificKey.agentModelDisplayName) }
     }
 
     var claudeManagedSessionID: String? {
@@ -100,6 +112,8 @@ extension GenerationControls {
         claudeManagedEnvironmentID = claudeManagedEnvironmentID
         claudeManagedAgentDisplayName = claudeManagedAgentDisplayName
         claudeManagedEnvironmentDisplayName = claudeManagedEnvironmentDisplayName
+        claudeManagedAgentModelID = claudeManagedAgentModelID
+        claudeManagedAgentModelDisplayName = claudeManagedAgentModelDisplayName
         claudeManagedSessionID = claudeManagedSessionID
         claudeManagedSessionModelID = claudeManagedSessionModelID
         claudeManagedPendingCustomToolResults = claudeManagedPendingCustomToolResults

@@ -109,7 +109,7 @@ struct DefaultsSettingsView: View {
         guard let provider = providers.first(where: { $0.id == providerID }) else {
             return []
         }
-        return provider.enabledModels
+        return provider.selectableModels
     }
 
     private func ensureValidFixedModelSelection() {
