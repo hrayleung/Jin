@@ -31,8 +31,32 @@ extension ChatView {
     var messageStageContainer: some View {
         ZStack(alignment: .bottom) {
             messageStage
+                .overlay(alignment: .bottom) {
+                    messageStageBottomFade
+                }
             floatingComposer
         }
+    }
+
+    @ViewBuilder
+    var messageStageBottomFade: some View {
+        let baseHeight = isComposerHidden ? 64.0 : max(88.0, composerHeight + 20)
+        let fadeHeight = min(180.0, baseHeight)
+
+        LinearGradient(
+            stops: [
+                .init(color: JinSemanticColor.detailSurface.opacity(0), location: 0),
+                .init(color: JinSemanticColor.detailSurface.opacity(0.10), location: 0.24),
+                .init(color: JinSemanticColor.detailSurface.opacity(0.34), location: 0.58),
+                .init(color: JinSemanticColor.detailSurface.opacity(0.72), location: 0.84),
+                .init(color: JinSemanticColor.detailSurface, location: 1)
+            ],
+            startPoint: .top,
+            endPoint: .bottom
+        )
+        .frame(height: fadeHeight)
+        .opacity(isExpandedComposerPresented ? 0 : 1)
+        .allowsHitTesting(false)
     }
 
     var artifactPane: some View {
