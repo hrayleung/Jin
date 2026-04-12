@@ -60,7 +60,7 @@ struct ContentView: View {
     @AppStorage("assistantSidebarShowName") var assistantSidebarShowName = true
     @AppStorage("assistantSidebarShowIcon") var assistantSidebarShowIcon = true
     @AppStorage("assistantSidebarGridColumns") var assistantSidebarGridColumns = 3
-    @AppStorage("mainSidebarWidth") private var persistedSidebarWidth = 280.0
+    @AppStorage(AppPreferenceKeys.mainSidebarWidth) private var persistedSidebarWidth = Double(SidebarWidthPersistence.defaultWidth)
     @AppStorage(AppPreferenceKeys.newChatModelMode) var newChatModelMode: NewChatModelMode = .lastUsed
     @AppStorage(AppPreferenceKeys.newChatFixedProviderID) var newChatFixedProviderID = "openai"
     @AppStorage(AppPreferenceKeys.newChatFixedModelID) var newChatFixedModelID = "gpt-5.2"
@@ -77,16 +77,16 @@ struct ContentView: View {
     }
 
     private var resolvedSidebarWidth: CGFloat {
-        CGFloat(min(max(persistedSidebarWidth, 240), 340))
+        SidebarWidthPersistence.resolvedWidth(from: persistedSidebarWidth)
     }
 
     var body: some View {
         HSplitView {
             sidebarPane
                 .frame(
-                    minWidth: isSidebarVisible ? 240 : 0,
+                    minWidth: isSidebarVisible ? SidebarWidthPersistence.minimumWidth : 0,
                     idealWidth: isSidebarVisible ? resolvedSidebarWidth : 0,
-                    maxWidth: isSidebarVisible ? 340 : 0,
+                    maxWidth: isSidebarVisible ? SidebarWidthPersistence.maximumWidth : 0,
                     maxHeight: .infinity
                 )
                 .opacity(isSidebarVisible ? 1 : 0)
@@ -161,19 +161,16 @@ struct ContentView: View {
 
     private var sidebarPane: some View {
         sidebarContent
-            .background(sidebarWidthReader)
-        .onPreferenceChange(SidebarWidthPreferenceKey.self) { width in
-            guard isSidebarVisible else { return }
-            let clamped = min(max(width, 240), 340)
-            guard abs(clamped - persistedSidebarWidth) > 0.5 else { return }
-            persistedSidebarWidth = clamped
-        }
+            .background(sidebarSplitViewPersistenceBridge)
     }
 
-    private var sidebarWidthReader: some View {
-        GeometryReader { proxy in
-            Color.clear
-                .preference(key: SidebarWidthPreferenceKey.self, value: proxy.size.width)
+    private var sidebarSplitViewPersistenceBridge: some View {
+        SidebarSplitViewPersistenceBridge(
+            desiredSidebarWidth: resolvedSidebarWidth,
+            isSidebarVisible: isSidebarVisible
+        ) { width in
+            guard abs(width - persistedSidebarWidth) > 0.5 else { return }
+            persistedSidebarWidth = width
         }
     }
 
@@ -415,13 +412,5 @@ struct ContentView: View {
         }
         .padding(.horizontal, JinSpacing.xLarge)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-}
-
-private struct SidebarWidthPreferenceKey: PreferenceKey {
-    static var defaultValue: CGFloat = 280
-
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        value = nextValue()
     }
 }

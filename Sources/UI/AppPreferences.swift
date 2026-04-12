@@ -32,6 +32,7 @@ enum AppPreferenceKeys {
     static let codexWorkingDirectoryPresetsJSON = "codexWorkingDirectoryPresetsJSON"
     static let codeBlockShowLineNumbers = "codeBlockShowLineNumbers"
     static let codeBlockCollapseLineThreshold = "codeBlockCollapseLineThreshold"
+    static let mainSidebarWidth = "mainSidebarWidth"
 
     // Agent Mode
     static let agentModeEnabled = "agentModeEnabled"
