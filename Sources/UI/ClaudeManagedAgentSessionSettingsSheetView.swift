@@ -251,13 +251,25 @@ struct ClaudeManagedAgentSessionSettingsSheetView: View {
     }
 
     private func applyAgentSelection(_ id: String) {
-        guard let selected = availableAgents.first(where: { $0.id == id }) else { return }
+        let trimmedID = id.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedID.isEmpty else {
+            agentIDDraft = ""
+            return
+        }
+
+        guard let selected = availableAgents.first(where: { $0.id == trimmedID }) else { return }
         agentIDDraft = selected.id
         agentDisplayNameDraft = selected.name
     }
 
     private func applyEnvironmentSelection(_ id: String) {
-        guard let selected = availableEnvironments.first(where: { $0.id == id }) else { return }
+        let trimmedID = id.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedID.isEmpty else {
+            environmentIDDraft = ""
+            return
+        }
+
+        guard let selected = availableEnvironments.first(where: { $0.id == trimmedID }) else { return }
         environmentIDDraft = selected.id
         environmentDisplayNameDraft = selected.name
     }

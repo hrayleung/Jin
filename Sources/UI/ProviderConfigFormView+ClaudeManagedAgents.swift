@@ -1,6 +1,15 @@
 import SwiftUI
 
 extension ProviderConfigFormView {
+    func scheduleClaudeManagedResourcesRefresh() {
+        claudeManagedRefreshTask?.cancel()
+        claudeManagedRefreshTask = Task {
+            try? await Task.sleep(for: .milliseconds(300))
+            guard !Task.isCancelled else { return }
+            await refreshClaudeManagedResources()
+        }
+    }
+
     var claudeManagedDefaultsSection: some View {
         VStack(alignment: .leading, spacing: JinSpacing.medium) {
             HStack(alignment: .center, spacing: JinSpacing.small) {

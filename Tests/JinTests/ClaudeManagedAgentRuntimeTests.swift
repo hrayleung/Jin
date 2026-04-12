@@ -32,4 +32,24 @@ final class ClaudeManagedAgentRuntimeTests: XCTestCase {
 
         XCTAssertEqual(displayName, "Build Agent")
     }
+
+    func testSyntheticThreadDescriptorParsesStructuredManagedThreadIDs() {
+        let descriptor = ClaudeManagedAgentRuntime.syntheticThreadDescriptor(
+            modelID: "claude-managed::managed-provider::agent_123::env_456",
+            providerID: "managed-provider"
+        )
+
+        XCTAssertEqual(descriptor?.agentID, "agent_123")
+        XCTAssertEqual(descriptor?.environmentID, "env_456")
+    }
+
+    func testSyntheticThreadDescriptorTreatsPlaceholdersAsMissingValues() {
+        let descriptor = ClaudeManagedAgentRuntime.syntheticThreadDescriptor(
+            modelID: "claude-managed::managed-provider::agent::env",
+            providerID: "managed-provider"
+        )
+
+        XCTAssertNil(descriptor?.agentID)
+        XCTAssertNil(descriptor?.environmentID)
+    }
 }

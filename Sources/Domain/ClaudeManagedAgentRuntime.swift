@@ -46,6 +46,23 @@ enum ClaudeManagedAgentRuntime {
         modelID.hasPrefix("\(syntheticModelPrefix)::")
     }
 
+    static func syntheticThreadDescriptor(
+        modelID: String,
+        providerID: String
+    ) -> (agentID: String?, environmentID: String?)? {
+        let components = modelID.components(separatedBy: "::")
+        guard components.count == 4,
+              components[0] == syntheticModelPrefix,
+              components[1] == providerID else {
+            return nil
+        }
+
+        return (
+            decodeSyntheticComponent(components[2], placeholder: "agent"),
+            decodeSyntheticComponent(components[3], placeholder: "env")
+        )
+    }
+
     static func resolvedRuntimeModelID(
         threadModelID: String,
         controls: GenerationControls
@@ -109,5 +126,14 @@ enum ClaudeManagedAgentRuntime {
     private static func normalizedComponent(_ value: String?) -> String? {
         let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines)
         return (trimmed?.isEmpty == false) ? trimmed : nil
+    }
+
+    private static func decodeSyntheticComponent(
+        _ value: String,
+        placeholder: String
+    ) -> String? {
+        let normalized = normalizedComponent(value)
+        guard normalized != placeholder else { return nil }
+        return normalized
     }
 }

@@ -152,7 +152,8 @@ extension ChatView {
 
     func addOrActivateThread(providerID: String, modelID: String) {
         let resolvedModelID: String
-        if providerType(forProviderID: providerID) == .claudeManagedAgents {
+        if providerType(forProviderID: providerID) == .claudeManagedAgents,
+           modelID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             resolvedModelID = managedAgentSyntheticModelID(
                 providerID: providerID,
                 controls: defaultClaudeManagedAgentControls(for: providerID)

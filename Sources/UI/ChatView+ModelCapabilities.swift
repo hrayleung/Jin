@@ -104,11 +104,15 @@ extension ChatView {
             let threadControls = sortedModelThreads.first(where: {
                 $0.providerID == providerID && $0.modelID == modelID
             }).flatMap(storedGenerationControls(for:))
-            let mergedControls = resolvedClaudeManagedControls(
-                for: providerID,
-                threadControls: threadControls ?? controls
+            return ClaudeManagedAgentResolutionSupport.canonicalManagedThreadModelID(
+                providerID: providerID,
+                requestedModelID: modelID,
+                fallbackControls: controls,
+                storedThreadControls: threadControls,
+                applyProviderDefaults: { candidateControls in
+                    providers.first(where: { $0.id == providerID })?.applyClaudeManagedDefaults(into: &candidateControls)
+                }
             )
-            return managedAgentSyntheticModelID(providerID: providerID, controls: mergedControls)
         }
         return effectiveModelID(
             for: modelID,

@@ -39,6 +39,7 @@ struct ProviderConfigFormView: View {
     @State var openRouterUsageStatus: OpenRouterUsageStatus = .idle
     @State var openRouterUsage: OpenRouterKeyUsage?
     @State var openRouterUsageTask: Task<Void, Never>?
+    @State var claudeManagedRefreshTask: Task<Void, Never>?
     @State var claudeManagedAgents: [ClaudeManagedAgentDescriptor] = []
     @State var claudeManagedEnvironments: [ClaudeManagedEnvironmentDescriptor] = []
     @State var isRefreshingClaudeManagedResources = false
@@ -349,7 +350,7 @@ struct ProviderConfigFormView: View {
                 scheduleOpenRouterUsageRefresh()
             }
             if providerType == .claudeManagedAgents {
-                Task { await refreshClaudeManagedResources() }
+                scheduleClaudeManagedResourcesRefresh()
             }
         }
         .onChange(of: codexAuthMode) { _, _ in
@@ -372,6 +373,7 @@ struct ProviderConfigFormView: View {
             credentialSaveTask?.cancel()
             openRouterUsageTask?.cancel()
             codexAuthTask?.cancel()
+            claudeManagedRefreshTask?.cancel()
         }
         .sheet(isPresented: $showingCodexWorkingDirectoryPresetsSheet) {
             CodexWorkingDirectoryPresetsManagerSheetView(

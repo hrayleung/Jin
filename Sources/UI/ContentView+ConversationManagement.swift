@@ -337,6 +337,25 @@ extension ContentView {
         providers.first(where: { $0.id == providerID })?.resolvedProviderIconID
     }
 
+    func modelName(for conversation: ConversationEntity) -> String {
+        guard let provider = providers.first(where: { $0.id == conversation.providerID }) else {
+            return conversation.modelID
+        }
+
+        if ProviderType(rawValue: provider.typeRaw) == .claudeManagedAgents {
+            let storedControls = try? JSONDecoder().decode(GenerationControls.self, from: conversation.modelConfigData)
+            return ClaudeManagedAgentResolutionSupport.resolvedConversationDisplayName(
+                threadModelID: conversation.modelID,
+                storedControls: storedControls,
+                applyProviderDefaults: { controls in
+                    provider.applyClaudeManagedDefaults(into: &controls)
+                }
+            )
+        }
+
+        return provider.allModels.first(where: { $0.id == conversation.modelID })?.name ?? conversation.modelID
+    }
+
     func modelName(id modelID: String, providerID: String) -> String {
         guard let provider = providers.first(where: { $0.id == providerID }) else {
             return modelID
