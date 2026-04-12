@@ -32,6 +32,10 @@ struct ModelPickerPopover: View {
 
     var body: some View {
         VStack(spacing: 12) {
+            if let managedAgentContext {
+                managedAgentSummaryCard(managedAgentContext)
+            }
+
             searchField
 
             Picker("", selection: $scope) {
@@ -106,6 +110,82 @@ struct ModelPickerPopover: View {
         )
     }
 
+    @ViewBuilder
+    private func managedAgentSummaryCard(_ managedAgentContext: ManagedAgentContext) -> some View {
+        VStack(alignment: .leading, spacing: JinSpacing.small) {
+            HStack(alignment: .top, spacing: JinSpacing.small) {
+                HStack(spacing: JinSpacing.small) {
+                    ProviderIconView(
+                        iconID: managedAgentContext.provider.resolvedProviderIconID,
+                        fallbackSystemName: "network",
+                        size: 14
+                    )
+                    .frame(width: 18, height: 18)
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Managed Agent")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+
+                        Text(selectedManagedAgentName(in: managedAgentContext) ?? "Select an agent")
+                            .font(.subheadline.weight(.semibold))
+                            .lineLimit(1)
+                    }
+                }
+
+                Spacer(minLength: 8)
+
+                headerActionButton(systemName: "slider.horizontal.3", helpText: "Agent settings") {
+                    managedAgentContext.onOpenSettings()
+                }
+
+                headerActionButton(systemName: "arrow.clockwise", helpText: "Refresh agents") {
+                    managedAgentContext.onRefresh()
+                }
+                .overlay {
+                    if managedAgentContext.isRefreshing {
+                        ProgressView()
+                            .controlSize(.small)
+                    }
+                }
+                .disabled(managedAgentContext.isRefreshing)
+            }
+
+            if let selectedAgentID = managedAgentContext.selectedAgentID,
+               let selectedAgentName = selectedManagedAgentName(in: managedAgentContext),
+               selectedAgentName != selectedAgentID {
+                Text(selectedAgentID)
+                    .jinTagStyle()
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .jinSurface(.subtleStrong, cornerRadius: JinRadius.medium)
+    }
+
+    private func headerActionButton(systemName: String, helpText: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: systemName)
+                .font(.system(size: 12, weight: .semibold))
+                .frame(width: JinControlMetrics.iconButtonHitSize, height: JinControlMetrics.iconButtonHitSize)
+        }
+        .buttonStyle(.plain)
+        .background(
+            Circle()
+                .fill(JinSemanticColor.surface.opacity(0.7))
+        )
+        .overlay(
+            Circle()
+                .stroke(JinSemanticColor.separator.opacity(0.35), lineWidth: JinStrokeWidth.hairline)
+        )
+        .help(helpText)
+    }
+
+    private func selectedManagedAgentName(in managedAgentContext: ManagedAgentContext) -> String? {
+        guard let selectedAgentID = managedAgentContext.selectedAgentID else { return nil }
+        return managedAgentContext.availableAgents.first(where: { $0.id == selectedAgentID })?.name ?? selectedAgentID
+    }
+
     private var modelList: some View {
         let sections = filteredSections
 
@@ -131,11 +211,7 @@ struct ModelPickerPopover: View {
                         Section {
                             managedAgentSectionRows(managedAgentContext)
                         } header: {
-                            ManagedAgentSectionHeader(
-                                provider: managedAgentContext.provider,
-                                isRefreshing: managedAgentContext.isRefreshing,
-                                onRefresh: managedAgentContext.onRefresh
-                            )
+                            ManagedAgentSectionHeader()
                         }
                     }
 
@@ -219,30 +295,6 @@ struct ModelPickerPopover: View {
                 .listRowSeparator(.hidden)
                 .listRowBackground(Color.clear)
             }
-        }
-
-        if trimmedSearchText.isEmpty {
-            Button {
-                managedAgentContext.onOpenSettings()
-            } label: {
-                HStack(spacing: 8) {
-                    Image(systemName: "slider.horizontal.3")
-                        .foregroundStyle(.secondary)
-
-                    Text("Agent Settings")
-                        .frame(maxWidth: .infinity, alignment: .leading)
-
-                    Image(systemName: "arrow.up.right.square")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                .padding(.vertical, 8)
-                .padding(.horizontal, 10)
-            }
-            .buttonStyle(.plain)
-            .listRowInsets(EdgeInsets(top: 4, leading: 8, bottom: 2, trailing: 8))
-            .listRowSeparator(.hidden)
-            .listRowBackground(Color.clear)
         }
     }
 
@@ -359,38 +411,11 @@ private struct ProviderSectionHeader: View {
 }
 
 private struct ManagedAgentSectionHeader: View {
-    let provider: ProviderConfigEntity
-    let isRefreshing: Bool
-    let onRefresh: () -> Void
-
     var body: some View {
-        HStack(alignment: .center, spacing: 8) {
-            HStack(spacing: 6) {
-                ProviderIconView(iconID: provider.resolvedProviderIconID, fallbackSystemName: "network", size: 12)
-                    .frame(width: 12, height: 12)
-
-                Text(provider.name)
-                    .font(.caption)
-                    .fontWeight(.semibold)
-                    .foregroundStyle(.secondary)
-            }
-
-            Spacer()
-
-            Button {
-                onRefresh()
-            } label: {
-                if isRefreshing {
-                    ProgressView()
-                        .controlSize(.small)
-                } else {
-                    Image(systemName: "arrow.clockwise")
-                        .font(.caption)
-                }
-            }
-            .buttonStyle(.plain)
-            .help("Refresh agents")
-        }
+        Text("Agents")
+            .font(.caption)
+            .fontWeight(.semibold)
+            .foregroundStyle(.secondary)
         .textCase(nil)
         .padding(.top, 6)
         .padding(.bottom, 2)
@@ -404,37 +429,29 @@ private struct ManagedAgentPickerRow: View {
 
     var body: some View {
         Button(action: onSelect) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(isSelected ? Color.accentColor.opacity(0.16) : Color.clear)
+            HStack(spacing: 10) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(agent.name)
+                        .font(.system(.body, design: .default))
+                        .lineLimit(1)
 
-                HStack(spacing: 10) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(agent.name)
-                            .font(.system(.body, design: .default))
+                    if let subtitle = subtitle, !subtitle.isEmpty {
+                        Text(subtitle)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                             .lineLimit(1)
-
-                        if let subtitle = subtitle, !subtitle.isEmpty {
-                            Text(subtitle)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                                .lineLimit(1)
-                        }
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-
-                    if isSelected {
-                        Image(systemName: "checkmark")
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundStyle(Color.accentColor)
-                            .frame(width: 22, height: 22)
-                    } else {
-                        Color.clear.frame(width: 22, height: 22)
                     }
                 }
-                .padding(.vertical, 6)
-                .padding(.horizontal, 10)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+                if isSelected {
+                    Text("Current")
+                        .jinTagStyle(foreground: .accentColor)
+                }
             }
+            .padding(.vertical, 8)
+            .padding(.horizontal, 10)
+            .jinSurface(isSelected ? .selected : .subtle, cornerRadius: JinRadius.small)
         }
         .buttonStyle(.plain)
     }
