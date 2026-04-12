@@ -149,7 +149,9 @@ struct MessageRow: View {
                                     )
                                     .frame(minHeight: 36, maxHeight: 400)
                                 } else {
-                                    if isUser, !item.perMessageMCPServerNames.isEmpty {
+                                    if isUser,
+                                       !hidesManagedAgentInternalUI,
+                                       !item.perMessageMCPServerNames.isEmpty {
                                         UserMessageMCPBadgeRow(serverNames: item.perMessageMCPServerNames)
                                     }
 

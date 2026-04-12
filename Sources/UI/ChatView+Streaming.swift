@@ -280,6 +280,7 @@ extension ChatView {
         providerType: ProviderType?,
         resolvedModelSettings: ResolvedModelSettings?
     ) -> Bool {
+        guard !ManagedAgentUIVisibilitySupport.hidesInternalUI(providerType: providerType) else { return false }
         guard providerType != .codexAppServer else { return false }
         guard !(resolvedModelSettings?.capabilities.contains(.imageGeneration) == true
                 || resolvedModelSettings?.capabilities.contains(.videoGeneration) == true) else {
@@ -448,7 +449,8 @@ extension ChatView {
             return
         }
         let chatNamingTarget = resolvedChatNamingTarget()
-        let supportsBuiltinSearchPlugin = (resolvedModelSettingsSnapshot?.capabilities.contains(.toolCalling) == true)
+        let supportsBuiltinSearchPlugin = !ManagedAgentUIVisibilitySupport.hidesInternalUI(providerType: providerTypeSnapshot)
+            && (resolvedModelSettingsSnapshot?.capabilities.contains(.toolCalling) == true)
             && webSearchPluginEnabled
             && webSearchPluginConfigured
         let supportsNativeSearch = ModelCapabilityRegistry.supportsWebSearch(for: providerTypeSnapshot, modelID: modelID)

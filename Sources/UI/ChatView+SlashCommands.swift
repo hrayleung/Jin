@@ -5,7 +5,8 @@ import SwiftUI
 extension ChatView {
 
     var slashCommandMCPItems: [SlashCommandMCPServerItem] {
-        eligibleMCPServers.map { server in
+        guard !ManagedAgentUIVisibilitySupport.hidesInternalUI(providerType: providerType) else { return [] }
+        return eligibleMCPServers.map { server in
             SlashCommandMCPServerItem(
                 id: server.id,
                 name: server.name,
@@ -15,6 +16,7 @@ extension ChatView {
     }
 
     var perMessageMCPChips: [SlashCommandMCPServerItem] {
+        guard !ManagedAgentUIVisibilitySupport.hidesInternalUI(providerType: providerType) else { return [] }
         let eligible = Set(eligibleMCPServers.map(\.id))
         return perMessageMCPServerIDs
             .filter { eligible.contains($0) }
