@@ -67,7 +67,10 @@ struct SidebarSplitViewPersistenceBridge: NSViewRepresentable {
         }
 
         private func refreshAttachment() {
-            guard let splitView = findEnclosingSplitView() else { return }
+            guard let splitView = findEnclosingSplitView() else {
+                stopObservingSplitView()
+                return
+            }
             guard observedSplitView !== splitView else { return }
 
             stopObservingSplitView()
