@@ -1,6 +1,38 @@
 import Foundation
 
 enum ChatModelCapabilitySupport {
+    static func resolvedClaudeManagedAgentModelInfo(
+        threadModelID: String,
+        providerEntity: ProviderConfigEntity?,
+        threadControls: GenerationControls?
+    ) -> ModelInfo? {
+        var controls = threadControls ?? GenerationControls()
+        providerEntity?.applyClaudeManagedDefaults(into: &controls)
+
+        let remoteModelID = ClaudeManagedAgentRuntime.resolvedRuntimeModelID(
+            threadModelID: threadModelID,
+            controls: controls
+        )
+
+        if let remoteModel = ModelCatalog.seededModels(for: .anthropic).first(where: { $0.id == remoteModelID }) {
+            return ModelInfo(
+                id: remoteModelID,
+                name: controls.claudeManagedAgentModelDisplayName
+                    ?? controls.claudeManagedAgentDisplayName
+                    ?? remoteModel.name,
+                capabilities: remoteModel.capabilities,
+                contextWindow: remoteModel.contextWindow,
+                maxOutputTokens: remoteModel.maxOutputTokens,
+                reasoningConfig: remoteModel.reasoningConfig,
+                overrides: remoteModel.overrides,
+                catalogMetadata: remoteModel.catalogMetadata,
+                isEnabled: true
+            )
+        }
+
+        return providerEntity?.selectableModels.first(where: { $0.id == threadModelID })
+    }
+
     static func resolvedModelInfo(
         modelID: String,
         providerEntity: ProviderConfigEntity?,

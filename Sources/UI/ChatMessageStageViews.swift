@@ -77,6 +77,7 @@ struct ChatMessageTimelineView: View {
     let onLoadEarlier: (() -> Void)?
     let bubbleMaxWidth: CGFloat
     let assistantDisplayName: String
+    let providerType: ProviderType?
     let providerIconID: String?
     let eagerCodeHighlightStartIndex: Int
     let toolResultsByCallID: [String: ToolResult]
@@ -114,6 +115,7 @@ struct ChatMessageTimelineView: View {
                 item: message,
                 maxBubbleWidth: bubbleMaxWidth,
                 assistantDisplayName: assistantDisplayName,
+                providerType: providerType,
                 providerIconID: providerIconID,
                 deferCodeHighlightUpgrade: index < eagerCodeHighlightStartIndex,
                 payloadResolver: payloadResolver,
@@ -179,6 +181,7 @@ struct ChatMessageTimelineView: View {
                 maxBubbleWidth: bubbleMaxWidth,
                 assistantDisplayName: assistantDisplayName,
                 modelLabel: streamingModelLabel,
+                providerType: providerType,
                 providerIconID: providerIconID,
                 onContentUpdate: { }
             )
@@ -199,6 +202,7 @@ struct ChatSingleThreadMessagesView: View {
     let toolResultsByCallID: [String: ToolResult]
     let messageEntitiesByID: [UUID: MessageEntity]
     let assistantDisplayName: String
+    let providerType: ProviderType?
     let providerIconID: String?
     let composerHeight: CGFloat
     let isStreaming: Bool
@@ -349,6 +353,7 @@ struct ChatSingleThreadMessagesView: View {
             },
             bubbleMaxWidth: bubbleMaxWidth,
             assistantDisplayName: assistantDisplayName,
+            providerType: providerType,
             providerIconID: providerIconID,
             eagerCodeHighlightStartIndex: eagerCodeHighlightStartIndex,
             toolResultsByCallID: toolResultsByCallID,
@@ -507,6 +512,7 @@ struct ChatMultiModelStageView: View {
     let nonLazyMessageStackThreshold: Int
     let interaction: ChatMessageInteractionContext
     let modelNameForThread: (ConversationModelThreadEntity) -> String
+    let providerTypeForThread: (ConversationModelThreadEntity) -> ProviderType?
     let providerIconIDForProviderID: (String) -> String?
     let streamingMessageForThread: (UUID) -> StreamingMessageState?
     let streamingModelLabelForThread: (UUID) -> String?
@@ -531,6 +537,7 @@ struct ChatMultiModelStageView: View {
                             columnWidth: columnWidth,
                             containerHeight: containerSize.height,
                             assistantDisplayName: assistantDisplayName,
+                            providerType: providerTypeForThread(thread),
                             providerIconID: providerIconIDForProviderID(thread.providerID),
                             threadTitle: modelNameForThread(thread),
                             composerHeight: composerHeight,
@@ -564,6 +571,7 @@ private struct ChatMultiModelThreadColumnView: View {
     let columnWidth: CGFloat
     let containerHeight: CGFloat
     let assistantDisplayName: String
+    let providerType: ProviderType?
     let providerIconID: String?
     let threadTitle: String
     let composerHeight: CGFloat
@@ -590,6 +598,7 @@ private struct ChatMultiModelThreadColumnView: View {
         columnWidth: CGFloat,
         containerHeight: CGFloat,
         assistantDisplayName: String,
+        providerType: ProviderType?,
         providerIconID: String?,
         threadTitle: String,
         composerHeight: CGFloat,
@@ -612,6 +621,7 @@ private struct ChatMultiModelThreadColumnView: View {
         self.columnWidth = columnWidth
         self.containerHeight = containerHeight
         self.assistantDisplayName = assistantDisplayName
+        self.providerType = providerType
         self.providerIconID = providerIconID
         self.threadTitle = threadTitle
         self.composerHeight = composerHeight
@@ -754,6 +764,7 @@ private struct ChatMultiModelThreadColumnView: View {
             } : nil,
             bubbleMaxWidth: bubbleMaxWidth,
             assistantDisplayName: assistantDisplayName,
+            providerType: providerType,
             providerIconID: providerIconID,
             eagerCodeHighlightStartIndex: eagerCodeHighlightStartIndex,
             toolResultsByCallID: context.toolResultsByCallID,

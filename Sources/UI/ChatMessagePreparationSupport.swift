@@ -144,21 +144,10 @@ enum ChatMessagePreparationSupport {
         let lowerModelID = resolvedModelID.lowercased()
         let modelInfo: ModelInfo? = {
             if providerTypeSnapshot == .claudeManagedAgents {
-                let remoteModelID = resolvedModelID
-                let remoteModel = ModelCatalog.seededModels(for: .anthropic).first(where: { $0.id == remoteModelID })
-                guard let remoteModel else { return nil }
-                return ModelInfo(
-                    id: remoteModelID,
-                    name: resolvedManagedControls.claudeManagedAgentModelDisplayName
-                        ?? resolvedManagedControls.claudeManagedAgentDisplayName
-                        ?? remoteModel.name,
-                    capabilities: remoteModel.capabilities,
-                    contextWindow: remoteModel.contextWindow,
-                    maxOutputTokens: remoteModel.maxOutputTokens,
-                    reasoningConfig: remoteModel.reasoningConfig,
-                    overrides: remoteModel.overrides,
-                    catalogMetadata: remoteModel.catalogMetadata,
-                    isEnabled: true
+                return ChatModelCapabilitySupport.resolvedClaudeManagedAgentModelInfo(
+                    threadModelID: thread.modelID,
+                    providerEntity: providerEntity,
+                    threadControls: threadControls
                 )
             }
             return ChatModelCapabilitySupport.resolvedModelInfo(

@@ -56,6 +56,8 @@ extension ChatView {
 
     @ViewBuilder
     func composerControlsRow(showsTrailingSpacer: Bool = true) -> some View {
+        let hidesManagedAgentInternalUI = ManagedAgentUIVisibilitySupport.hidesInternalUI(providerType: providerType)
+
         HStack(spacing: 6) {
             if speechToTextPluginEnabled || speechToTextManagerActive {
                 composerButtonControl(
@@ -100,7 +102,7 @@ extension ChatView {
                 }
             }
 
-            if supportsReasoningControl {
+            if supportsReasoningControl && !hidesManagedAgentInternalUI {
                 composerMenuControl(
                     systemName: "brain",
                     isActive: isReasoningEnabled,

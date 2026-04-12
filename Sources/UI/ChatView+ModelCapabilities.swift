@@ -8,11 +8,24 @@ extension ChatView {
     // MARK: - Model Info
 
     var selectedModelInfo: ModelInfo? {
+        if providerType == .claudeManagedAgents {
+            let threadControls = activeModelThread.flatMap(storedGenerationControls(for:))
+            if let model = ChatModelCapabilitySupport.resolvedClaudeManagedAgentModelInfo(
+                threadModelID: conversationEntity.modelID,
+                providerEntity: currentProvider,
+                threadControls: threadControls
+            ) {
+                return ChatModelCapabilitySupport.normalizedSelectedModelInfo(
+                    model,
+                    providerType: providerType
+                )
+            }
+        }
+
         guard let model = ChatModelCapabilitySupport.resolvedModelInfo(
             modelID: conversationEntity.modelID,
             providerEntity: currentProvider,
-            providerType: providerType,
-            availableModels: currentProvider?.allModels
+            providerType: providerType
         ) else {
             return nil
         }

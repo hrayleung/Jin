@@ -24,19 +24,25 @@ struct StreamingMessageView: View {
     let maxBubbleWidth: CGFloat
     let assistantDisplayName: String
     let modelLabel: String?
+    let providerType: ProviderType?
     let providerIconID: String?
     let onContentUpdate: () -> Void
     @AppStorage(AppPreferenceKeys.appFontFamily) private var appFontFamily = JinTypography.systemFontPreferenceValue
     @AppStorage(AppPreferenceKeys.codeFontFamily) private var codeFontFamily = JinTypography.systemFontPreferenceValue
 
     var body: some View {
+        let hidesManagedAgentInternalUI = ManagedAgentUIVisibilitySupport.hidesInternalUI(providerType: providerType)
         let visibleText = state.visibleText
         let showsCopyButton = !visibleText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        let visibleToolCalls = state.streamingToolCalls.filter { call in
+        let visibleToolCalls = hidesManagedAgentInternalUI ? [] : state.streamingToolCalls.filter { call in
             !BuiltinSearchToolHub.isBuiltinSearchFunctionName(call.name)
             && !isGoogleProviderNativeToolName(call.name)
             && !AgentToolHub.isAgentFunctionName(call.name)
         }
+        let visibleCodexToolActivities = hidesManagedAgentInternalUI ? [] : state.codexToolActivities
+        let visibleAgentToolActivities = hidesManagedAgentInternalUI ? [] : state.agentToolActivities
+        let visibleCodeExecutionActivities = hidesManagedAgentInternalUI ? [] : state.codeExecutionActivities
+        let visibleThinkingChunks = hidesManagedAgentInternalUI ? [] : state.thinkingChunks
 
         HStack(alignment: .top, spacing: 0) {
             ConstrainedWidth(maxBubbleWidth) {
@@ -69,23 +75,23 @@ struct StreamingMessageView: View {
                             )
                         }
 
-                        if !state.codexToolActivities.isEmpty {
+                        if !visibleCodexToolActivities.isEmpty {
                             CodexToolTimelineView(
-                                activities: state.codexToolActivities,
+                                activities: visibleCodexToolActivities,
                                 isStreaming: true
                             )
                         }
 
-                        if !state.agentToolActivities.isEmpty {
+                        if !visibleAgentToolActivities.isEmpty {
                             AgentToolTimelineView(
-                                activities: state.agentToolActivities,
+                                activities: visibleAgentToolActivities,
                                 isStreaming: true
                             )
                         }
 
-                        if !state.codeExecutionActivities.isEmpty {
+                        if !visibleCodeExecutionActivities.isEmpty {
                             CodeExecutionTimelineView(
-                                activities: state.codeExecutionActivities,
+                                activities: visibleCodeExecutionActivities,
                                 isStreaming: true
                             )
                         }
@@ -98,9 +104,9 @@ struct StreamingMessageView: View {
                             )
                         }
 
-                        if !state.thinkingChunks.isEmpty {
+                        if !visibleThinkingChunks.isEmpty {
                             StreamingThinkingBlockView(
-                                chunks: state.thinkingChunks,
+                                chunks: visibleThinkingChunks,
                                 codeFont: chatCodeFont,
                                 isThinkingComplete: state.isThinkingComplete
                             )
@@ -114,7 +120,12 @@ struct StreamingMessageView: View {
                             ForEach(Array(state.artifacts.enumerated()), id: \.offset) { _, artifact in
                                 StreamingArtifactIndicator(artifact: artifact)
                             }
-                        } else if state.thinkingChunks.isEmpty && state.searchActivities.isEmpty && state.codexToolActivities.isEmpty && state.agentToolActivities.isEmpty && state.codeExecutionActivities.isEmpty && visibleToolCalls.isEmpty {
+                        } else if visibleThinkingChunks.isEmpty
+                                    && state.searchActivities.isEmpty
+                                    && visibleCodexToolActivities.isEmpty
+                                    && visibleAgentToolActivities.isEmpty
+                                    && visibleCodeExecutionActivities.isEmpty
+                                    && visibleToolCalls.isEmpty {
                             HStack(spacing: 6) {
                                 ProgressView().scaleEffect(0.5)
                                 Text("Generating...")

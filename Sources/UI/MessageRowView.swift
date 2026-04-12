@@ -33,6 +33,7 @@ struct MessageRow: View {
     let item: MessageRenderItem
     let maxBubbleWidth: CGFloat
     let assistantDisplayName: String
+    let providerType: ProviderType?
     let providerIconID: String?
     let deferCodeHighlightUpgrade: Bool
     let payloadResolver: RenderedMessagePayloadResolver
@@ -70,6 +71,7 @@ struct MessageRow: View {
         let isUser = item.isUser
         let isAssistant = item.isAssistant
         let isTool = item.isTool
+        let hidesManagedAgentInternalUI = ManagedAgentUIVisibilitySupport.hidesInternalUI(providerType: providerType)
         let isEditingUserMessage = isUser && editingUserMessageID == item.id
         let assistantModelLabel = item.assistantModelLabel
         let copyText = item.copyText
@@ -77,177 +79,195 @@ struct MessageRow: View {
         let canEditUserMessage = item.canEditUserMessage
         let canDeleteResponse = item.canDeleteResponse
         let collapsedPreview = item.collapsedPreviewForDisplay(in: renderMode)
-        let visibleToolCalls = item.visibleToolCalls
+        let visibleToolCalls = hidesManagedAgentInternalUI ? [] : item.visibleToolCalls
+        let visibleCodexToolActivities = hidesManagedAgentInternalUI ? [] : item.codexToolActivities
+        let visibleAgentToolActivities = hidesManagedAgentInternalUI ? [] : item.agentToolActivities
+        let visibleCodeExecutionActivities = hidesManagedAgentInternalUI ? [] : item.codeExecutionActivities
+        let visibleRenderedBlocks = item.renderedBlocks.filter {
+            ManagedAgentUIVisibilitySupport.isVisibleRenderedBlock($0, providerType: providerType)
+        }
+        let hasVisibleAssistantPresentation = collapsedPreview != nil
+            || !item.searchActivities.isEmpty
+            || !visibleCodexToolActivities.isEmpty
+            || !visibleAgentToolActivities.isEmpty
+            || !visibleCodeExecutionActivities.isEmpty
+            || !visibleRenderedBlocks.isEmpty
+            || !visibleToolCalls.isEmpty
+        Group {
+            if isAssistant && !hasVisibleAssistantPresentation {
+                EmptyView()
+            } else {
+                HStack(alignment: .top, spacing: 0) {
+                    if isUser {
+                        Spacer(minLength: 0)
+                    }
 
-        HStack(alignment: .top, spacing: 0) {
-            if isUser {
-                Spacer(minLength: 0)
-            }
+                    ConstrainedWidth(maxBubbleWidth) {
+                        VStack(alignment: isUser ? .trailing : .leading, spacing: 6) {
+                            headerView(isUser: isUser, isTool: isTool, assistantModelLabel: assistantModelLabel)
 
-            ConstrainedWidth(maxBubbleWidth) {
-                VStack(alignment: isUser ? .trailing : .leading, spacing: 6) {
-                    headerView(isUser: isUser, isTool: isTool, assistantModelLabel: assistantModelLabel)
-
-                    VStack(alignment: .leading, spacing: 8) {
-                        if isEditingUserMessage {
-                            if editSlashCommand.isActive {
-                                SlashCommandMCPPopover(
-                                    servers: editSlashCommand.servers,
-                                    filterText: editSlashCommand.filterText,
-                                    highlightedIndex: editSlashCommand.highlightedIndex,
-                                    onSelectServer: editSlashCommand.onSelectServer,
-                                    onDismiss: editSlashCommand.onDismiss
-                                )
-                                .transition(.opacity.combined(with: .move(edge: .bottom)))
-                                .animation(.easeOut(duration: 0.12), value: editSlashCommand.isActive)
-                            }
-
-                            if !editSlashCommand.perMessageChips.isEmpty {
-                                ScrollView(.horizontal, showsIndicators: false) {
-                                    HStack(spacing: JinSpacing.xSmall) {
-                                        ForEach(editSlashCommand.perMessageChips) { chip in
-                                            PerMessageMCPChip(
-                                                name: chip.name,
-                                                onRemove: { editSlashCommand.onRemovePerMessageServer(chip.id) }
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-
-                            DroppableTextEditor(
-                                text: editingUserMessageText,
-                                isDropTargeted: .constant(false),
-                                isFocused: editingUserMessageFocused,
-                                font: NSFont.preferredFont(forTextStyle: .body),
-                                onDropFileURLs: { _ in false },
-                                onDropImages: { _ in false },
-                                onSubmit: { onSubmitUserEdit(item.id) },
-                                onCancel: {
-                                    onCancelUserEdit()
-                                    return true
-                                },
-                                onInterceptKeyDown: editSlashCommand.onInterceptKeyDown
-                            )
-                            .frame(minHeight: 36, maxHeight: 400)
-                        } else {
-                            if isUser, !item.perMessageMCPServerNames.isEmpty {
-                                UserMessageMCPBadgeRow(serverNames: item.perMessageMCPServerNames)
-                            }
-
-                            if !item.searchActivities.isEmpty {
-                                SearchActivityTimelineView(
-                                    activities: item.searchActivities,
-                                    isStreaming: false,
-                                    providerLabel: assistantDisplayName == "Assistant" ? nil : assistantDisplayName,
-                                    modelLabel: assistantModelLabel
-                                )
-                            }
-
-                            if !item.codexToolActivities.isEmpty {
-                                CodexToolTimelineView(
-                                    activities: item.codexToolActivities,
-                                    isStreaming: false
-                                )
-                            }
-
-                            if !item.agentToolActivities.isEmpty {
-                                AgentToolTimelineView(
-                                    activities: item.agentToolActivities,
-                                    isStreaming: false
-                                )
-                            }
-
-                            if !item.codeExecutionActivities.isEmpty {
-                                CodeExecutionTimelineView(
-                                    activities: item.codeExecutionActivities,
-                                    isStreaming: false
-                                )
-                            }
-
-                            if collapsedPreview != nil {
-                                collapsedAssistantPreview(preview: collapsedPreview)
-                            } else if isUser {
-                                userBlocksView(blocks: item.renderedBlocks)
-                            } else {
-                                ForEach(Array(item.renderedBlocks.enumerated()), id: \.offset) { _, block in
-                                    switch block {
-                                    case .content(let anchorID, let part):
-                                        ContentPartView(
-                                            part: part,
-                                            isUser: false,
-                                            deferCodeHighlightUpgrade: deferCodeHighlightUpgrade,
-                                            forceNativeText: renderMode == .nativeText,
-                                            payloadResolver: payloadResolver,
-                                            selectionMessageID: item.id,
-                                            selectionContextThreadID: item.contextThreadID,
-                                            selectionAnchorID: anchorID,
-                                            persistedHighlights: highlights(for: anchorID),
-                                            selectionActions: selectionActions
+                            VStack(alignment: .leading, spacing: 8) {
+                                if isEditingUserMessage {
+                                    if editSlashCommand.isActive {
+                                        SlashCommandMCPPopover(
+                                            servers: editSlashCommand.servers,
+                                            filterText: editSlashCommand.filterText,
+                                            highlightedIndex: editSlashCommand.highlightedIndex,
+                                            onSelectServer: editSlashCommand.onSelectServer,
+                                            onDismiss: editSlashCommand.onDismiss
                                         )
+                                        .transition(.opacity.combined(with: .move(edge: .bottom)))
+                                        .animation(.easeOut(duration: 0.12), value: editSlashCommand.isActive)
+                                    }
 
-                                    case .artifact(let artifact):
-                                        MessageArtifactCardView(artifact: artifact) {
-                                            onOpenArtifact(artifact, item.contextThreadID)
+                                    if !editSlashCommand.perMessageChips.isEmpty {
+                                        ScrollView(.horizontal, showsIndicators: false) {
+                                            HStack(spacing: JinSpacing.xSmall) {
+                                                ForEach(editSlashCommand.perMessageChips) { chip in
+                                                    PerMessageMCPChip(
+                                                        name: chip.name,
+                                                        onRemove: { editSlashCommand.onRemovePerMessageServer(chip.id) }
+                                                    )
+                                                }
+                                            }
                                         }
+                                    }
+
+                                    DroppableTextEditor(
+                                        text: editingUserMessageText,
+                                        isDropTargeted: .constant(false),
+                                        isFocused: editingUserMessageFocused,
+                                        font: NSFont.preferredFont(forTextStyle: .body),
+                                        onDropFileURLs: { _ in false },
+                                        onDropImages: { _ in false },
+                                        onSubmit: { onSubmitUserEdit(item.id) },
+                                        onCancel: {
+                                            onCancelUserEdit()
+                                            return true
+                                        },
+                                        onInterceptKeyDown: editSlashCommand.onInterceptKeyDown
+                                    )
+                                    .frame(minHeight: 36, maxHeight: 400)
+                                } else {
+                                    if isUser, !item.perMessageMCPServerNames.isEmpty {
+                                        UserMessageMCPBadgeRow(serverNames: item.perMessageMCPServerNames)
+                                    }
+
+                                    if !item.searchActivities.isEmpty {
+                                        SearchActivityTimelineView(
+                                            activities: item.searchActivities,
+                                            isStreaming: false,
+                                            providerLabel: assistantDisplayName == "Assistant" ? nil : assistantDisplayName,
+                                            modelLabel: assistantModelLabel
+                                        )
+                                    }
+
+                                    if !visibleCodexToolActivities.isEmpty {
+                                        CodexToolTimelineView(
+                                            activities: visibleCodexToolActivities,
+                                            isStreaming: false
+                                        )
+                                    }
+
+                                    if !visibleAgentToolActivities.isEmpty {
+                                        AgentToolTimelineView(
+                                            activities: visibleAgentToolActivities,
+                                            isStreaming: false
+                                        )
+                                    }
+
+                                    if !visibleCodeExecutionActivities.isEmpty {
+                                        CodeExecutionTimelineView(
+                                            activities: visibleCodeExecutionActivities,
+                                            isStreaming: false
+                                        )
+                                    }
+
+                                    if collapsedPreview != nil {
+                                        collapsedAssistantPreview(preview: collapsedPreview)
+                                    } else if isUser {
+                                        userBlocksView(blocks: item.renderedBlocks)
+                                    } else {
+                                        ForEach(Array(visibleRenderedBlocks.enumerated()), id: \.offset) { _, block in
+                                            switch block {
+                                            case .content(let anchorID, let part):
+                                                ContentPartView(
+                                                    part: part,
+                                                    isUser: false,
+                                                    deferCodeHighlightUpgrade: deferCodeHighlightUpgrade,
+                                                    forceNativeText: renderMode == .nativeText,
+                                                    payloadResolver: payloadResolver,
+                                                    selectionMessageID: item.id,
+                                                    selectionContextThreadID: item.contextThreadID,
+                                                    selectionAnchorID: anchorID,
+                                                    persistedHighlights: highlights(for: anchorID),
+                                                    selectionActions: selectionActions
+                                                )
+
+                                            case .artifact(let artifact):
+                                                MessageArtifactCardView(artifact: artifact) {
+                                                    onOpenArtifact(artifact, item.contextThreadID)
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    if !visibleToolCalls.isEmpty {
+                                        MCPToolTimelineView(
+                                            toolCalls: visibleToolCalls,
+                                            toolResultsByCallID: toolResultsByCallID,
+                                            isStreaming: false
+                                        )
                                     }
                                 }
                             }
+                            .padding(JinSpacing.medium)
+                            .jinSurface(bubbleBackground(isUser: isUser, isTool: isTool), cornerRadius: JinRadius.medium)
 
-                            if !visibleToolCalls.isEmpty {
-                                MCPToolTimelineView(
-                                    toolCalls: visibleToolCalls,
-                                    toolResultsByCallID: toolResultsByCallID,
-                                    isStreaming: false
+                            if isUser || isAssistant {
+                                footerView(
+                                    isUser: isUser,
+                                    isAssistant: isAssistant,
+                                    isEditingUserMessage: isEditingUserMessage,
+                                    showsCopyButton: showsCopyButton,
+                                    copyText: copyText,
+                                    canEditUserMessage: canEditUserMessage,
+                                    canDeleteResponse: canDeleteResponse,
+                                    responseMetrics: item.responseMetrics
                                 )
+                                .padding(.top, 2)
                             }
                         }
                     }
-                    .padding(JinSpacing.medium)
-                    .jinSurface(bubbleBackground(isUser: isUser, isTool: isTool), cornerRadius: JinRadius.medium)
+                    .padding(.horizontal, JinSpacing.large)
 
-                    if isUser || isAssistant {
-                        footerView(
-                            isUser: isUser,
-                            isAssistant: isAssistant,
-                            isEditingUserMessage: isEditingUserMessage,
-                            showsCopyButton: showsCopyButton,
-                            copyText: copyText,
-                            canEditUserMessage: canEditUserMessage,
-                            canDeleteResponse: canDeleteResponse,
-                            responseMetrics: item.responseMetrics
-                        )
-                        .padding(.top, 2)
+                    Spacer()
+                }
+                .frame(maxWidth: .infinity, alignment: isUser ? .trailing : .leading)
+                .padding(.vertical, JinSpacing.small)
+                .onTapGesture {
+                    onActivate?()
+                }
+                .contentShape(Rectangle())
+                .alert(
+                    pendingDeleteAction == .response ? "Delete response?" : "Delete message?",
+                    isPresented: $showingDeleteConfirmation
+                ) {
+                    Button("Delete", role: .destructive) {
+                        switch pendingDeleteAction {
+                        case .message:
+                            onDeleteMessage(item.id)
+                        case .response:
+                            onDeleteResponse(item.id)
+                        case .none:
+                            break
+                        }
+                        pendingDeleteAction = nil
+                    }
+                    Button("Cancel", role: .cancel) {
+                        pendingDeleteAction = nil
                     }
                 }
-            }
-            .padding(.horizontal, JinSpacing.large)
-
-            Spacer()
-        }
-        .frame(maxWidth: .infinity, alignment: isUser ? .trailing : .leading)
-        .padding(.vertical, JinSpacing.small)
-        .onTapGesture {
-            onActivate?()
-        }
-        .contentShape(Rectangle())
-        .alert(
-            pendingDeleteAction == .response ? "Delete response?" : "Delete message?",
-            isPresented: $showingDeleteConfirmation
-        ) {
-            Button("Delete", role: .destructive) {
-                switch pendingDeleteAction {
-                case .message:
-                    onDeleteMessage(item.id)
-                case .response:
-                    onDeleteResponse(item.id)
-                case .none:
-                    break
-                }
-                pendingDeleteAction = nil
-            }
-            Button("Cancel", role: .cancel) {
-                pendingDeleteAction = nil
             }
         }
     }

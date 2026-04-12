@@ -66,6 +66,7 @@ extension ChatView {
             toolResultsByCallID: singleThreadRenderContext.toolResultsByCallID,
             messageEntitiesByID: singleThreadRenderContext.messageEntitiesByID,
             assistantDisplayName: assistantDisplayName,
+            providerType: providerType,
             providerIconID: currentProviderIconID,
             composerHeight: composerHeight,
             isStreaming: isStreaming,
@@ -108,6 +109,9 @@ extension ChatView {
             interaction: messageInteractionContext,
             modelNameForThread: { thread in
                 modelName(id: thread.modelID, providerID: thread.providerID)
+            },
+            providerTypeForThread: { thread in
+                providerType(forProviderID: thread.providerID)
             },
             providerIconIDForProviderID: { providerID in
                 providerIconID(for: providerID)

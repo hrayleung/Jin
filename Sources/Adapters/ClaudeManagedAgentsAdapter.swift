@@ -92,7 +92,7 @@ actor ClaudeManagedAgentsAdapter: LLMProviderAdapter {
                             switch sseEvent {
                             case .done:
                                 if state.didEmitMessageStart, !state.didEmitMessageEnd {
-                                    continuation.yield(.messageEnd(usage: nil))
+                                    continuation.yield(.messageEnd(usage: state.accumulatedUsage))
                                     state.didEmitMessageEnd = true
                                 }
                                 continuation.finish()
@@ -643,9 +643,21 @@ actor ClaudeManagedAgentsAdapter: LLMProviderAdapter {
                 events.append(.contentDelta(.text(text)))
             }
 
+            let extractedSources = extractSearchSources(from: object)
+            if !extractedSources.isEmpty {
+                events.append(.searchActivity(
+                    SearchActivity(
+                        id: "\(messageID):sources",
+                        type: "url_citation",
+                        status: .completed,
+                        arguments: searchActivityArguments(sources: extractedSources)
+                    )
+                ))
+            }
+
         case "agent.tool_use", "agent.mcp_tool_use":
             let eventID = object.string(at: ["id"]) ?? UUID().uuidString
-            let toolName = object.string(at: ["name"]) ?? "tool"
+            let toolName = object.string(at: ["name"]) ?? object.string(at: ["tool_name"]) ?? "tool"
             let permission = object.string(at: ["evaluated_permission"])
             // Per docs: values are "allow" | "ask" | "deny". When missing we
             // optimistically treat it as allowed (built-in tools that don't
@@ -713,6 +725,11 @@ actor ClaudeManagedAgentsAdapter: LLMProviderAdapter {
                 events.append(.toolCallEnd(toolCall))
             }
 
+        case "span.model_request_end":
+            if let usage = usageFromModelRequestEnd(object) {
+                state.accumulatedUsage = mergedUsage(state.accumulatedUsage, with: usage)
+            }
+
         case "session.status_idle":
             let requiredActionEventIDs = extractRequiredActionEventIDs(from: object)
             state.didReachIdle = false
@@ -730,7 +747,7 @@ actor ClaudeManagedAgentsAdapter: LLMProviderAdapter {
             state.didReachIdle = true
             if !state.didEmitMessageEnd, state.didEmitMessageStart {
                 state.didEmitMessageEnd = true
-                events.append(.messageEnd(usage: nil))
+                events.append(.messageEnd(usage: state.accumulatedUsage))
             }
             events.append(.claudeManagedSessionState(
                 ClaudeManagedAgentSessionState(
@@ -754,13 +771,13 @@ actor ClaudeManagedAgentsAdapter: LLMProviderAdapter {
             state.didReachIdle = true
             if !state.didEmitMessageEnd, state.didEmitMessageStart {
                 state.didEmitMessageEnd = true
-                events.append(.messageEnd(usage: nil))
+                events.append(.messageEnd(usage: state.accumulatedUsage))
             }
 
         default:
             // Ignore: session.status_running, session.status_rescheduled,
             // agent.thinking, agent.thread_context_compacted,
-            // span.model_request_start / _end, echoed user.* events.
+            // span.model_request_start, echoed user.* events.
             break
         }
 
@@ -845,15 +862,7 @@ actor ClaudeManagedAgentsAdapter: LLMProviderAdapter {
     ) -> SearchActivity {
         let extractedSources = extractSearchSources(from: object)
         var arguments = fallback.arguments
-        if !extractedSources.isEmpty {
-            arguments["sources"] = AnyCodable(extractedSources)
-            if let firstURL = extractedSources.first?["url"] as? String {
-                arguments["url"] = AnyCodable(firstURL)
-            }
-            if let firstTitle = extractedSources.first?["title"] as? String {
-                arguments["title"] = AnyCodable(firstTitle)
-            }
-        }
+        arguments.merge(searchActivityArguments(sources: extractedSources)) { _, newValue in newValue }
 
         return SearchActivity(
             id: fallback.id,
@@ -907,52 +916,213 @@ actor ClaudeManagedAgentsAdapter: LLMProviderAdapter {
     }
 
     private static func extractSearchSources(from object: [String: JSONValue]) -> [[String: Any]] {
-        var sources: [[String: Any]] = []
-        var seenURLs: Set<String> = []
+        var orderedKeys: [String] = []
+        var sourcesByKey: [String: [String: Any]] = [:]
 
-        let candidates = object.array(at: ["content"]) ?? []
-        for candidate in candidates {
-            guard let contentObject = candidate.objectValue else { continue }
-            if let url = normalizedTrimmedString(contentObject.string(at: ["url"])) {
-                let dedupeKey = url.lowercased()
-                guard !seenURLs.contains(dedupeKey) else { continue }
-                seenURLs.insert(dedupeKey)
-                var item: [String: Any] = ["url": url]
-                if let title = normalizedTrimmedString(contentObject.string(at: ["title"])) {
-                    item["title"] = title
-                }
-                if let snippet = normalizedTrimmedString(contentObject.string(at: ["text"]) ?? contentObject.string(at: ["snippet"])) {
-                    item["snippet"] = snippet
-                }
-                sources.append(item)
+        func appendSource(url rawURL: String?, title: String?, snippet: String?) {
+            guard let normalizedURL = normalizedTrimmedString(rawURL) else { return }
+            let dedupeKey = urlDeduplicationKey(for: normalizedURL)
+
+            var source = sourcesByKey[dedupeKey] ?? ["url": normalizedURL]
+            if source["title"] == nil, let title = normalizedTrimmedString(title) {
+                source["title"] = title
+            }
+            if source["snippet"] == nil, let snippet = normalizedTrimmedString(snippet) {
+                source["snippet"] = snippet
+            }
+            if sourcesByKey[dedupeKey] == nil {
+                orderedKeys.append(dedupeKey)
+            }
+            sourcesByKey[dedupeKey] = source
+        }
+
+        func visit(_ value: JSONValue) {
+            switch value {
+            case .array(let array):
+                array.forEach(visit)
+
+            case .object(let candidate):
+                let nestedSource = candidate.object(at: ["source"])
+                let directURL = normalizedTrimmedString(candidate.string(at: ["url"]))
+                    ?? normalizedTrimmedString(candidate.string(at: ["source"])).flatMap { looksLikeURL($0) ? $0 : nil }
+                    ?? nestedSource?.string(at: ["url"])
+
+                appendSource(
+                    url: directURL,
+                    title: candidate.string(at: ["title"])
+                        ?? candidate.string(at: ["name"])
+                        ?? nestedSource?.string(at: ["title"])
+                        ?? nestedSource?.string(at: ["name"]),
+                    snippet: preferredSearchSnippet(from: candidate)
+                        ?? nestedSource.flatMap(preferredSearchSnippet(from:))
+                )
+
+                candidate.values.forEach(visit)
+
+            default:
+                break
             }
         }
 
-        if !sources.isEmpty {
-            return sources
+        visit(.object(object))
+
+        if sourcesByKey.isEmpty {
+            let allText = collectTextFragments(from: .object(object)).joined(separator: "\n")
+            for url in extractURLs(from: allText) {
+                appendSource(url: url, title: nil, snippet: nil)
+            }
         }
 
-        guard let output = extractToolResultOutput(from: object) else {
+        return orderedKeys.compactMap { sourcesByKey[$0] }
+    }
+
+    private static func searchActivityArguments(sources: [[String: Any]]) -> [String: AnyCodable] {
+        guard !sources.isEmpty else { return [:] }
+
+        var arguments: [String: AnyCodable] = [
+            "sources": AnyCodable(sources)
+        ]
+
+        if let firstURL = sources.first?["url"] as? String {
+            arguments["url"] = AnyCodable(firstURL)
+        }
+        if let firstTitle = sources.first?["title"] as? String {
+            arguments["title"] = AnyCodable(firstTitle)
+        }
+
+        return arguments
+    }
+
+    private static func usageFromModelRequestEnd(_ object: [String: JSONValue]) -> Usage? {
+        let usageObject = object.object(at: ["model_usage"]) ?? object.object(at: ["span", "model_usage"])
+        guard let usageObject else { return nil }
+
+        let inputTokens = usageObject.int(at: ["input_tokens"]) ?? 0
+        let outputTokens = usageObject.int(at: ["output_tokens"]) ?? 0
+        let thinkingTokens = usageObject.int(at: ["thinking_tokens"])
+        let cachedTokens = usageObject.int(at: ["cache_read_input_tokens"])
+        let cacheCreationTokens = usageObject.int(at: ["cache_creation_input_tokens"])
+
+        guard inputTokens > 0
+            || outputTokens > 0
+            || thinkingTokens != nil
+            || cachedTokens != nil
+            || cacheCreationTokens != nil else {
+            return nil
+        }
+
+        return Usage(
+            inputTokens: inputTokens,
+            outputTokens: outputTokens,
+            thinkingTokens: thinkingTokens,
+            cachedTokens: cachedTokens,
+            cacheCreationTokens: cacheCreationTokens
+        )
+    }
+
+    private static func mergedUsage(_ existing: Usage?, with newUsage: Usage) -> Usage {
+        guard let existing else { return newUsage }
+
+        return Usage(
+            inputTokens: existing.inputTokens + newUsage.inputTokens,
+            outputTokens: existing.outputTokens + newUsage.outputTokens,
+            thinkingTokens: summedOptional(existing.thinkingTokens, newUsage.thinkingTokens),
+            cachedTokens: summedOptional(existing.cachedTokens, newUsage.cachedTokens),
+            cacheCreationTokens: summedOptional(existing.cacheCreationTokens, newUsage.cacheCreationTokens),
+            cacheWriteTokens: summedOptional(existing.cacheWriteTokens, newUsage.cacheWriteTokens),
+            serviceTier: newUsage.serviceTier ?? existing.serviceTier,
+            inferenceGeo: newUsage.inferenceGeo ?? existing.inferenceGeo
+        )
+    }
+
+    private static func summedOptional(_ lhs: Int?, _ rhs: Int?) -> Int? {
+        switch (lhs, rhs) {
+        case (nil, nil):
+            return nil
+        case (let lhs?, nil):
+            return lhs
+        case (nil, let rhs?):
+            return rhs
+        case (let lhs?, let rhs?):
+            return lhs + rhs
+        }
+    }
+
+    private static func preferredSearchSnippet(from object: [String: JSONValue]) -> String? {
+        let candidatePaths: [[String]] = [
+            ["snippet"],
+            ["summary"],
+            ["description"],
+            ["preview"],
+            ["excerpt"],
+            ["cited_text"],
+            ["citedText"],
+            ["quote"],
+            ["abstract"],
+            ["text"],
+        ]
+
+        for path in candidatePaths {
+            if let snippet = normalizedTrimmedString(object.string(at: path)) {
+                return snippet
+            }
+        }
+
+        return nil
+    }
+
+    private static func collectTextFragments(from value: JSONValue) -> [String] {
+        switch value {
+        case .string(let text):
+            return [text]
+        case .array(let array):
+            return array.flatMap(collectTextFragments(from:))
+        case .object(let object):
+            return object.values.flatMap(collectTextFragments(from:))
+        default:
+            return []
+        }
+    }
+
+    private static func extractURLs(from text: String) -> [String] {
+        guard !text.isEmpty else { return [] }
+
+        let pattern = #"https?://[^\s<>"'\]\)]+"#
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else {
             return []
         }
 
-        let pattern = #"https?://[^\s\])>"']+"#
-        guard let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive) else {
-            return []
-        }
-        let nsRange = NSRange(output.startIndex..<output.endIndex, in: output)
-        let matches = regex.matches(in: output, options: [], range: nsRange)
+        let nsText = text as NSString
+        let matches = regex.matches(in: text, options: [], range: NSRange(location: 0, length: nsText.length))
 
+        var results: [String] = []
+        var seenKeys: Set<String> = []
         for match in matches {
-            guard let range = Range(match.range, in: output) else { continue }
-            let url = String(output[range])
-            let dedupeKey = url.lowercased()
-            guard !seenURLs.contains(dedupeKey) else { continue }
-            seenURLs.insert(dedupeKey)
-            sources.append(["url": url])
+            let url = nsText.substring(with: match.range)
+                .trimmingCharacters(in: CharacterSet(charactersIn: ".,;:!?)]}>\"'"))
+            guard !url.isEmpty else { continue }
+            let dedupeKey = urlDeduplicationKey(for: url)
+            guard !seenKeys.contains(dedupeKey) else { continue }
+            seenKeys.insert(dedupeKey)
+            results.append(url)
         }
 
-        return sources
+        return results
+    }
+
+    private static func urlDeduplicationKey(for rawURL: String) -> String {
+        guard var components = URLComponents(string: rawURL) else {
+            return rawURL.lowercased()
+        }
+
+        components.scheme = components.scheme?.lowercased()
+        components.host = components.host?.lowercased()
+        return (components.string ?? rawURL).lowercased()
+    }
+
+    private static func looksLikeURL(_ rawValue: String) -> Bool {
+        let lowercased = rawValue.lowercased()
+        return lowercased.hasPrefix("http://") || lowercased.hasPrefix("https://")
     }
 
     private static func makeToolConfirmationInteraction(
@@ -1053,6 +1223,7 @@ private struct ClaudeManagedAgentsStreamState {
     var didEmitMessageEnd = false
     var didReachIdle = false
     var currentMessageID: String?
+    var accumulatedUsage: Usage?
     var pendingApprovalInteractions: [CodexInteractionRequest] = []
     var pendingSearchActivities: [String: SearchActivity] = [:]
     var pendingGenericToolActivities: [String: CodexToolActivity] = [:]
