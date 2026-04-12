@@ -296,7 +296,6 @@ extension ChatView {
             currentProviderIconID: currentProviderIconID,
             currentModelName: currentModelName,
             toolbarThreads: headerToolbarThreads,
-            isModelPickerEnabled: providerType != .claudeManagedAgents,
             isModelPickerPresented: $isModelPickerPresented,
             isAddModelPickerPresented: $isAddModelPickerPresented,
             isStarred: conversationEntity.isStarred == true,
