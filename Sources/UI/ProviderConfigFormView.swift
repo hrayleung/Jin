@@ -43,6 +43,8 @@ struct ProviderConfigFormView: View {
     @State var claudeManagedEnvironments: [ClaudeManagedEnvironmentDescriptor] = []
     @State var isRefreshingClaudeManagedResources = false
     @State var claudeManagedResourceError: String?
+    @State var claudeManagedAgentIDDraft = ""
+    @State var claudeManagedEnvironmentIDDraft = ""
 
     let providerManager = ProviderManager()
     let networkManager = NetworkManager()
@@ -334,6 +336,9 @@ struct ProviderConfigFormView: View {
                 await refreshCodexAccountStatus(forceRefreshToken: false)
             }
             if providerType == .claudeManagedAgents {
+                await MainActor.run {
+                    syncClaudeManagedDefaultDrafts()
+                }
                 await refreshClaudeManagedResources()
             }
         }

@@ -35,7 +35,9 @@ extension ProviderConfigFormView {
             }
 
             managedAgentPicker
+            managedAgentManualEntry
             managedEnvironmentPicker
+            managedEnvironmentManualEntry
 
             if provider.claudeManagedDefaultAgentID != nil || provider.claudeManagedDefaultEnvironmentID != nil {
                 VStack(alignment: .leading, spacing: 6) {
@@ -58,7 +60,7 @@ extension ProviderConfigFormView {
             }
 
             if claudeManagedAgents.isEmpty || claudeManagedEnvironments.isEmpty {
-                Text("If the API does not return lists for your workspace, you can still paste IDs manually in a thread’s session settings.")
+                Text("If Anthropic does not return lists for your workspace, enter the Agent ID and Environment ID manually here. Those IDs will still seed new chat threads.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -81,6 +83,11 @@ extension ProviderConfigFormView {
                 )
             ) {
                 Text("None").tag("")
+                if let selectedAgentID = provider.claudeManagedDefaultAgentID,
+                   !selectedAgentID.isEmpty,
+                   !claudeManagedAgents.contains(where: { $0.id == selectedAgentID }) {
+                    Text("Manual ID (\(selectedAgentID))").tag(selectedAgentID)
+                }
                 ForEach(claudeManagedAgents) { agent in
                     Text(agent.name).tag(agent.id)
                 }
@@ -89,9 +96,33 @@ extension ProviderConfigFormView {
             .pickerStyle(.menu)
 
             if !claudeManagedAgents.isEmpty {
-                Text(provider.claudeManagedDefaultAgentDisplayName ?? "No agent selected")
+                Text(provider.claudeManagedDefaultAgentDisplayName ?? provider.claudeManagedDefaultAgentID ?? "No agent selected")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private var managedAgentManualEntry: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Agent ID")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            TextField("agent_...", text: $claudeManagedAgentIDDraft)
+                .textFieldStyle(.roundedBorder)
+
+            HStack(spacing: JinSpacing.small) {
+                Button("Use ID") {
+                    applyClaudeManagedAgentSelection(agentID: claudeManagedAgentIDDraft)
+                }
+                .disabled(!canApplyClaudeManagedAgentIDDraft)
+
+                Button("Clear") {
+                    applyClaudeManagedAgentSelection(agentID: "")
+                }
+                .disabled(provider.claudeManagedDefaultAgentID == nil && trimmedClaudeManagedAgentIDDraft.isEmpty)
+                .buttonStyle(.borderless)
             }
         }
     }
@@ -112,6 +143,11 @@ extension ProviderConfigFormView {
                 )
             ) {
                 Text("None").tag("")
+                if let selectedEnvironmentID = provider.claudeManagedDefaultEnvironmentID,
+                   !selectedEnvironmentID.isEmpty,
+                   !claudeManagedEnvironments.contains(where: { $0.id == selectedEnvironmentID }) {
+                    Text("Manual ID (\(selectedEnvironmentID))").tag(selectedEnvironmentID)
+                }
                 ForEach(claudeManagedEnvironments) { environment in
                     Text(environment.name).tag(environment.id)
                 }
@@ -120,9 +156,33 @@ extension ProviderConfigFormView {
             .pickerStyle(.menu)
 
             if !claudeManagedEnvironments.isEmpty {
-                Text(provider.claudeManagedDefaultEnvironmentDisplayName ?? "No environment selected")
+                Text(provider.claudeManagedDefaultEnvironmentDisplayName ?? provider.claudeManagedDefaultEnvironmentID ?? "No environment selected")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private var managedEnvironmentManualEntry: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Environment ID")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            TextField("env_...", text: $claudeManagedEnvironmentIDDraft)
+                .textFieldStyle(.roundedBorder)
+
+            HStack(spacing: JinSpacing.small) {
+                Button("Use ID") {
+                    applyClaudeManagedEnvironmentSelection(environmentID: claudeManagedEnvironmentIDDraft)
+                }
+                .disabled(!canApplyClaudeManagedEnvironmentIDDraft)
+
+                Button("Clear") {
+                    applyClaudeManagedEnvironmentSelection(environmentID: "")
+                }
+                .disabled(provider.claudeManagedDefaultEnvironmentID == nil && trimmedClaudeManagedEnvironmentIDDraft.isEmpty)
+                .buttonStyle(.borderless)
             }
         }
     }
@@ -151,29 +211,36 @@ extension ProviderConfigFormView {
                 throw LLMError.invalidRequest(message: "Failed to initialize Claude Managed Agents adapter.")
             }
 
-            async let agents = adapter.listAgents()
-            async let environments = adapter.listEnvironments()
+            var fetchErrors: [String] = []
 
-            let fetchedAgents = try await agents.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
-            let fetchedEnvironments = try await environments.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+            do {
+                let fetchedAgents = try await adapter.listAgents().sorted {
+                    $0.name.localizedStandardCompare($1.name) == .orderedAscending
+                }
+                claudeManagedAgents = fetchedAgents
+            } catch {
+                fetchErrors.append("Agents: \(error.localizedDescription)")
+            }
 
-            claudeManagedAgents = fetchedAgents
-            claudeManagedEnvironments = fetchedEnvironments
-            claudeManagedResourceError = nil
+            do {
+                let fetchedEnvironments = try await adapter.listEnvironments().sorted {
+                    $0.name.localizedStandardCompare($1.name) == .orderedAscending
+                }
+                claudeManagedEnvironments = fetchedEnvironments
+            } catch {
+                fetchErrors.append("Environments: \(error.localizedDescription)")
+            }
 
-            if let defaultAgentID = provider.claudeManagedDefaultAgentID,
-               !fetchedAgents.contains(where: { $0.id == defaultAgentID }) {
-                applyClaudeManagedAgentSelection(agentID: "")
-            } else if let defaultAgentID = provider.claudeManagedDefaultAgentID {
+            claudeManagedResourceError = fetchErrors.isEmpty ? nil : fetchErrors.joined(separator: "\n")
+
+            if let defaultAgentID = provider.claudeManagedDefaultAgentID {
                 applyClaudeManagedAgentSelection(agentID: defaultAgentID, preserveSelectionIfMissing: true)
             }
 
-            if let defaultEnvironmentID = provider.claudeManagedDefaultEnvironmentID,
-               !fetchedEnvironments.contains(where: { $0.id == defaultEnvironmentID }) {
-                applyClaudeManagedEnvironmentSelection(environmentID: "")
-            } else if let defaultEnvironmentID = provider.claudeManagedDefaultEnvironmentID {
+            if let defaultEnvironmentID = provider.claudeManagedDefaultEnvironmentID {
                 applyClaudeManagedEnvironmentSelection(environmentID: defaultEnvironmentID, preserveSelectionIfMissing: true)
             }
+            syncClaudeManagedDefaultDrafts()
         } catch {
             claudeManagedResourceError = error.localizedDescription
         }
@@ -191,13 +258,18 @@ extension ProviderConfigFormView {
             provider.claudeManagedDefaultAgentModelID = nil
             provider.claudeManagedDefaultAgentModelDisplayName = nil
             try? modelContext.save()
+            syncClaudeManagedDefaultDrafts()
             return
         }
 
         guard let descriptor = claudeManagedAgents.first(where: { $0.id == trimmedID }) else {
             if !preserveSelectionIfMissing {
                 provider.claudeManagedDefaultAgentID = trimmedID
+                provider.claudeManagedDefaultAgentDisplayName = nil
+                provider.claudeManagedDefaultAgentModelID = nil
+                provider.claudeManagedDefaultAgentModelDisplayName = nil
                 try? modelContext.save()
+                syncClaudeManagedDefaultDrafts()
             }
             return
         }
@@ -207,6 +279,7 @@ extension ProviderConfigFormView {
         provider.claudeManagedDefaultAgentModelID = descriptor.modelID
         provider.claudeManagedDefaultAgentModelDisplayName = descriptor.modelDisplayName
         try? modelContext.save()
+        syncClaudeManagedDefaultDrafts()
     }
 
     @MainActor
@@ -219,13 +292,16 @@ extension ProviderConfigFormView {
             provider.claudeManagedDefaultEnvironmentID = nil
             provider.claudeManagedDefaultEnvironmentDisplayName = nil
             try? modelContext.save()
+            syncClaudeManagedDefaultDrafts()
             return
         }
 
         guard let descriptor = claudeManagedEnvironments.first(where: { $0.id == trimmedID }) else {
             if !preserveSelectionIfMissing {
                 provider.claudeManagedDefaultEnvironmentID = trimmedID
+                provider.claudeManagedDefaultEnvironmentDisplayName = nil
                 try? modelContext.save()
+                syncClaudeManagedDefaultDrafts()
             }
             return
         }
@@ -233,5 +309,30 @@ extension ProviderConfigFormView {
         provider.claudeManagedDefaultEnvironmentID = descriptor.id
         provider.claudeManagedDefaultEnvironmentDisplayName = descriptor.name
         try? modelContext.save()
+        syncClaudeManagedDefaultDrafts()
+    }
+
+    private var trimmedClaudeManagedAgentIDDraft: String {
+        claudeManagedAgentIDDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var trimmedClaudeManagedEnvironmentIDDraft: String {
+        claudeManagedEnvironmentIDDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var canApplyClaudeManagedAgentIDDraft: Bool {
+        let currentID = provider.claudeManagedDefaultAgentID ?? ""
+        return !trimmedClaudeManagedAgentIDDraft.isEmpty && trimmedClaudeManagedAgentIDDraft != currentID
+    }
+
+    private var canApplyClaudeManagedEnvironmentIDDraft: Bool {
+        let currentID = provider.claudeManagedDefaultEnvironmentID ?? ""
+        return !trimmedClaudeManagedEnvironmentIDDraft.isEmpty && trimmedClaudeManagedEnvironmentIDDraft != currentID
+    }
+
+    @MainActor
+    func syncClaudeManagedDefaultDrafts() {
+        claudeManagedAgentIDDraft = provider.claudeManagedDefaultAgentID ?? ""
+        claudeManagedEnvironmentIDDraft = provider.claudeManagedDefaultEnvironmentID ?? ""
     }
 }

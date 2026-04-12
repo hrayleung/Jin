@@ -377,9 +377,9 @@ final class AdapterRequestConstructionTests: XCTestCase {
         for try await _ in stream {}
 
         XCTAssertEqual(observedRequests.count, 3)
-        XCTAssertEqual(observedRequests[0].url?.absoluteString, "https://api.anthropic.com/v1/sessions")
-        XCTAssertEqual(observedRequests[1].url?.absoluteString, "https://api.anthropic.com/v1/sessions/sess_123/events/stream")
-        XCTAssertEqual(observedRequests[2].url?.absoluteString, "https://api.anthropic.com/v1/sessions/sess_123/events")
+        XCTAssertEqual(observedRequests[0].url?.absoluteString, "https://api.anthropic.com/v1/sessions?beta=true")
+        XCTAssertEqual(observedRequests[1].url?.absoluteString, "https://api.anthropic.com/v1/sessions/sess_123/events/stream?beta=true")
+        XCTAssertEqual(observedRequests[2].url?.absoluteString, "https://api.anthropic.com/v1/sessions/sess_123/events?beta=true")
     }
 }
 

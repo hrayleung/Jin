@@ -188,18 +188,30 @@ struct ClaudeManagedAgentSessionSettingsSheetView: View {
 
     private func applyAgentSelection(_ id: String) {
         guard let selected = availableAgents.first(where: { $0.id == id }) else { return }
+        let previousSelectedID = agentIDDraft
         agentIDDraft = selected.id
-        if agentDisplayNameDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            || agentDisplayNameDraft == providerDefaultAgentDisplayName {
+        let availableAgentLabelsByID = Dictionary(uniqueKeysWithValues: availableAgents.map { ($0.id, $0.name) })
+        if ChatEditorDraftSupport.shouldAutoUpdateClaudeManagedSelectionLabel(
+            existingLabel: agentDisplayNameDraft,
+            previousSelectionID: previousSelectedID,
+            availableLabelsByID: availableAgentLabelsByID,
+            providerDefaultLabel: providerDefaultAgentDisplayName
+        ) {
             agentDisplayNameDraft = selected.name
         }
     }
 
     private func applyEnvironmentSelection(_ id: String) {
         guard let selected = availableEnvironments.first(where: { $0.id == id }) else { return }
+        let previousSelectedID = environmentIDDraft
         environmentIDDraft = selected.id
-        if environmentDisplayNameDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            || environmentDisplayNameDraft == providerDefaultEnvironmentDisplayName {
+        let availableEnvironmentLabelsByID = Dictionary(uniqueKeysWithValues: availableEnvironments.map { ($0.id, $0.name) })
+        if ChatEditorDraftSupport.shouldAutoUpdateClaudeManagedSelectionLabel(
+            existingLabel: environmentDisplayNameDraft,
+            previousSelectionID: previousSelectedID,
+            availableLabelsByID: availableEnvironmentLabelsByID,
+            providerDefaultLabel: providerDefaultEnvironmentDisplayName
+        ) {
             environmentDisplayNameDraft = selected.name
         }
     }

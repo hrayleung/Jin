@@ -1,12 +1,9 @@
 import Foundation
 
 actor ClaudeManagedAgentsAdapter: LLMProviderAdapter {
-    // Session API (`/v1/sessions/*`) — public managed-agents beta.
+    // Managed Agents beta endpoints require the beta query flag and the
+    // managed-agents beta header together.
     private static let managedAgentsBeta = "managed-agents-2026-04-01"
-    // Agent / environment catalog API (`/v1/agents`, `/v1/environments`) —
-    // older `agent-api` beta. Incompatible with managed-agents; the server
-    // rejects requests that include both values in a single header.
-    private static let agentCatalogBeta = "agent-api-2026-03-01"
 
     let providerConfig: ProviderConfig
     let capabilities: ModelCapability = [.streaming, .toolCalling, .vision, .reasoning, .promptCaching]
@@ -151,11 +148,10 @@ actor ClaudeManagedAgentsAdapter: LLMProviderAdapter {
     }
 
     func validateAPIKey(_ key: String) async throws -> Bool {
-        // `/v1/agents` lives on the agent-api beta, not managed-agents.
         let request = NetworkRequestFactory.makeRequest(
-            url: try validatedURL("\(baseURL)/v1/agents"),
+            url: try managedAgentsBetaURL("/v1/agents"),
             method: "GET",
-            headers: agentCatalogHeaders(apiKey: key)
+            headers: anthropicHeaders(apiKey: key)
         )
 
         do {
@@ -272,23 +268,11 @@ actor ClaudeManagedAgentsAdapter: LLMProviderAdapter {
         providerConfig.baseURL ?? "https://api.anthropic.com"
     }
 
-    /// Headers for the managed-agents session API (`/v1/sessions/*`).
     private func anthropicHeaders(apiKey: String) -> [String: String] {
         [
             "x-api-key": apiKey,
             "anthropic-version": "2023-06-01",
             "anthropic-beta": Self.managedAgentsBeta
-        ]
-    }
-
-    /// Headers for the agent / environment catalog API (`/v1/agents`,
-    /// `/v1/environments`). Uses a different beta and cannot be combined with
-    /// `managed-agents-*` in a single request.
-    private func agentCatalogHeaders(apiKey: String) -> [String: String] {
-        [
-            "x-api-key": apiKey,
-            "anthropic-version": "2023-06-01",
-            "anthropic-beta": Self.agentCatalogBeta
         ]
     }
 
@@ -314,7 +298,7 @@ actor ClaudeManagedAgentsAdapter: LLMProviderAdapter {
         ]
 
         let request = try NetworkRequestFactory.makeJSONRequest(
-            url: validatedURL("\(baseURL)/v1/sessions"),
+            url: managedAgentsBetaURL("/v1/sessions"),
             headers: anthropicHeaders(apiKey: apiKey),
             body: body
         )
@@ -340,13 +324,10 @@ actor ClaudeManagedAgentsAdapter: LLMProviderAdapter {
     }
 
     private func fetchManagedAgentsCollection(path: String) async throws -> [String: JSONValue] {
-        // `/v1/agents` and `/v1/environments` are served by the agent-api
-        // beta, which is incompatible with the managed-agents header used by
-        // sessions. Use the catalog-specific headers here.
         let request = NetworkRequestFactory.makeRequest(
-            url: try validatedURL("\(baseURL)\(path)"),
+            url: try managedAgentsBetaURL(path),
             method: "GET",
-            headers: agentCatalogHeaders(apiKey: apiKey)
+            headers: anthropicHeaders(apiKey: apiKey)
         )
         let (data, _) = try await networkManager.sendRequest(request)
         let decoded = try JSONDecoder().decode(JSONValue.self, from: data)
@@ -442,7 +423,7 @@ actor ClaudeManagedAgentsAdapter: LLMProviderAdapter {
         events: [[String: Any]]
     ) throws -> URLRequest {
         try NetworkRequestFactory.makeJSONRequest(
-            url: validatedURL("\(baseURL)/v1/sessions/\(sessionID)/events"),
+            url: managedAgentsBetaURL("/v1/sessions/\(sessionID)/events"),
             headers: anthropicHeaders(apiKey: apiKey),
             body: [
                 "events": events
@@ -459,10 +440,14 @@ actor ClaudeManagedAgentsAdapter: LLMProviderAdapter {
         var headers = anthropicHeaders(apiKey: apiKey)
         headers["Accept"] = "text/event-stream"
         return NetworkRequestFactory.makeRequest(
-            url: try validatedURL("\(baseURL)/v1/sessions/\(sessionID)/events/stream"),
+            url: try managedAgentsBetaURL("/v1/sessions/\(sessionID)/events/stream"),
             method: "GET",
             headers: headers
         )
+    }
+
+    private func managedAgentsBetaURL(_ path: String) throws -> URL {
+        try validatedURL("\(baseURL)\(path)?beta=true")
     }
 
 

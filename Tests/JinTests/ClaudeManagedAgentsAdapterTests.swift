@@ -23,6 +23,7 @@ final class ClaudeManagedAgentsAdapterTests: XCTestCase {
             guard let url = request.url else {
                 throw URLError(.badURL)
             }
+            try assertManagedAgentsBetaRequest(request, expectedPath: url.path)
 
             switch (request.httpMethod, url.path) {
             case ("POST", "/v1/sessions"):
@@ -130,6 +131,84 @@ final class ClaudeManagedAgentsAdapterTests: XCTestCase {
         XCTAssertEqual(finalUsage?.cachedTokens, 26)
         XCTAssertEqual(finalUsage?.cacheCreationTokens, 34)
     }
+
+    func testManagedAgentCatalogRequestsUseManagedAgentsBetaRequestShape() async throws {
+        let (configuration, protocolType) = makeClaudeManagedAgentsMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        let providerConfig = ProviderConfig(
+            id: "claude-managed",
+            name: "Claude Managed Agents",
+            type: .claudeManagedAgents,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        protocolType.requestHandler = { request in
+            guard let url = request.url else {
+                throw URLError(.badURL)
+            }
+            try assertManagedAgentsBetaRequest(request, expectedPath: url.path)
+
+            switch (request.httpMethod, url.path) {
+            case ("GET", "/v1/agents"):
+                let payload = try JSONSerialization.data(withJSONObject: [
+                    "data": [
+                        [
+                            "id": "agent_123",
+                            "name": "Build Agent",
+                            "model": [
+                                "id": "claude-sonnet-4-6",
+                                "display_name": "Claude Sonnet 4.6"
+                            ]
+                        ]
+                    ]
+                ])
+                return (
+                    HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                    payload
+                )
+
+            case ("GET", "/v1/environments"):
+                let payload = try JSONSerialization.data(withJSONObject: [
+                    "data": [
+                        [
+                            "id": "env_456",
+                            "name": "Production"
+                        ]
+                    ]
+                ])
+                return (
+                    HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                    payload
+                )
+
+            default:
+                throw URLError(.badServerResponse)
+            }
+        }
+
+        let adapter = ClaudeManagedAgentsAdapter(
+            providerConfig: providerConfig,
+            apiKey: "test-key",
+            networkManager: networkManager
+        )
+
+        let agents = try await adapter.listAgents()
+        let environments = try await adapter.listEnvironments()
+
+        XCTAssertEqual(agents, [
+            ClaudeManagedAgentDescriptor(
+                id: "agent_123",
+                name: "Build Agent",
+                modelID: "claude-sonnet-4-6",
+                modelDisplayName: "Claude Sonnet 4.6"
+            )
+        ])
+        XCTAssertEqual(environments, [
+            ClaudeManagedEnvironmentDescriptor(id: "env_456", name: "Production")
+        ])
+    }
 }
 
 private final class ClaudeManagedAgentsMockURLProtocol: URLProtocol {
@@ -166,4 +245,35 @@ private func makeClaudeManagedAgentsMockedSessionConfiguration() -> (URLSessionC
     let config = URLSessionConfiguration.ephemeral
     config.protocolClasses = [ClaudeManagedAgentsMockURLProtocol.self]
     return (config, ClaudeManagedAgentsMockURLProtocol.self)
+}
+
+private func assertManagedAgentsBetaRequest(_ request: URLRequest, expectedPath: String) throws {
+    guard let url = request.url else {
+        throw URLError(.badURL)
+    }
+    guard url.path == expectedPath else {
+        throw NSError(
+            domain: "ClaudeManagedAgentsAdapterTests",
+            code: 1,
+            userInfo: [NSLocalizedDescriptionKey: "Unexpected request path: \(url.path)"]
+        )
+    }
+
+    let queryItems = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems ?? []
+    guard queryItems.contains(where: { $0.name == "beta" && $0.value == "true" }) else {
+        throw NSError(
+            domain: "ClaudeManagedAgentsAdapterTests",
+            code: 2,
+            userInfo: [NSLocalizedDescriptionKey: "Managed Agents request is missing ?beta=true: \(url.absoluteString)"]
+        )
+    }
+
+    let betaHeader = request.value(forHTTPHeaderField: "anthropic-beta")
+    guard betaHeader == "managed-agents-2026-04-01" else {
+        throw NSError(
+            domain: "ClaudeManagedAgentsAdapterTests",
+            code: 3,
+            userInfo: [NSLocalizedDescriptionKey: "Unexpected anthropic-beta header: \(betaHeader ?? "<nil>")"]
+        )
+    }
 }

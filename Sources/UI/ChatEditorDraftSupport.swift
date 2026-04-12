@@ -168,6 +168,29 @@ enum ChatEditorDraftSupport {
         return .success(updatedControls)
     }
 
+    static func shouldAutoUpdateClaudeManagedSelectionLabel(
+        existingLabel: String,
+        previousSelectionID: String,
+        availableLabelsByID: [String: String],
+        providerDefaultLabel: String
+    ) -> Bool {
+        let trimmedExistingLabel = existingLabel.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedExistingLabel.isEmpty else { return true }
+
+        let trimmedProviderDefaultLabel = providerDefaultLabel.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmedProviderDefaultLabel.isEmpty, trimmedExistingLabel == trimmedProviderDefaultLabel {
+            return true
+        }
+
+        let trimmedPreviousSelectionID = previousSelectionID.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let previousSelectionLabel = availableLabelsByID[trimmedPreviousSelectionID],
+           trimmedExistingLabel == previousSelectionLabel.trimmingCharacters(in: .whitespacesAndNewlines) {
+            return true
+        }
+
+        return false
+    }
+
     static func thinkingBudgetDraftInt(from raw: String) -> Int? {
         Int(raw.trimmingCharacters(in: .whitespacesAndNewlines))
     }
