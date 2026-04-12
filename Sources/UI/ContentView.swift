@@ -25,6 +25,9 @@ enum AssistantSidebarSort: String, CaseIterable {
 }
 
 struct ContentView: View {
+    private static let sidebarMinWidth: CGFloat = 240
+    private static let sidebarMaxWidth: CGFloat = 340
+
     @Environment(\.modelContext) var modelContext
     @EnvironmentObject var streamingStore: ConversationStreamingStore
     @EnvironmentObject var shortcutsStore: AppShortcutsStore
@@ -76,17 +79,21 @@ struct ContentView: View {
         isSidebarSearchFieldFocused || !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
+    private func clampedSidebarWidth(_ width: CGFloat) -> CGFloat {
+        min(max(width, Self.sidebarMinWidth), Self.sidebarMaxWidth)
+    }
+
     private var resolvedSidebarWidth: CGFloat {
-        CGFloat(min(max(persistedSidebarWidth, 240), 340))
+        clampedSidebarWidth(CGFloat(persistedSidebarWidth))
     }
 
     var body: some View {
         HSplitView {
             sidebarPane
                 .frame(
-                    minWidth: isSidebarVisible ? 240 : 0,
+                    minWidth: isSidebarVisible ? Self.sidebarMinWidth : 0,
                     idealWidth: isSidebarVisible ? resolvedSidebarWidth : 0,
-                    maxWidth: isSidebarVisible ? 340 : 0,
+                    maxWidth: isSidebarVisible ? Self.sidebarMaxWidth : 0,
                     maxHeight: .infinity
                 )
                 .opacity(isSidebarVisible ? 1 : 0)
@@ -164,9 +171,9 @@ struct ContentView: View {
             .background(sidebarWidthReader)
         .onPreferenceChange(SidebarWidthPreferenceKey.self) { width in
             guard isSidebarVisible else { return }
-            let clamped = min(max(width, 240), 340)
+            let clamped = clampedSidebarWidth(width)
             guard abs(clamped - persistedSidebarWidth) > 0.5 else { return }
-            persistedSidebarWidth = clamped
+            persistedSidebarWidth = Double(clamped)
         }
     }
 

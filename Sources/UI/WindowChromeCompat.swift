@@ -145,7 +145,8 @@ private struct WindowChromeObserverModifier: ViewModifier {
             if !window.isMovableByWindowBackground {
                 window.isMovableByWindowBackground = true
             }
-            // Ensure AppKit doesn't keep an extra top content border when entering full screen.
+            // Clear any residual `.minY` content border AppKit may preserve during
+            // fullscreen transitions. Standard windows do not support `.maxY`.
             if window.contentBorderThickness(for: .minY) != 0 {
                 window.setContentBorderThickness(0, for: .minY)
             }
