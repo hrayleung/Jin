@@ -55,7 +55,7 @@ struct ClaudeManagedAgentSessionSettingsSheetView: View {
 
                 Spacer()
 
-                Button("Use Provider Default") {
+                Button("Use Default") {
                     onUseProviderDefaults()
                 }
                 .buttonStyle(.borderless)
@@ -63,7 +63,7 @@ struct ClaudeManagedAgentSessionSettingsSheetView: View {
             }
 
             if providerDefaultAgentID.isEmpty && providerDefaultEnvironmentID.isEmpty {
-                Text("No provider defaults are configured yet. You can set them in Settings → Providers.")
+                Text("No default configured.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             } else {
@@ -86,7 +86,7 @@ struct ClaudeManagedAgentSessionSettingsSheetView: View {
     private var configurationSection: some View {
         VStack(alignment: .leading, spacing: JinSpacing.small) {
             HStack(alignment: .firstTextBaseline) {
-                Label("Thread Override", systemImage: "slider.horizontal.3")
+                Label("This Chat", systemImage: "slider.horizontal.3")
                     .font(.subheadline.weight(.semibold))
 
                 Spacer()
@@ -114,7 +114,7 @@ struct ClaudeManagedAgentSessionSettingsSheetView: View {
                         }
                     )
                 ) {
-                    Text("Manual / custom").tag("")
+                    Text("Custom ID").tag("")
                     ForEach(availableAgents) { agent in
                         Text(agent.name).tag(agent.id)
                     }
@@ -135,7 +135,7 @@ struct ClaudeManagedAgentSessionSettingsSheetView: View {
                         }
                     )
                 ) {
-                    Text("Manual / custom").tag("")
+                    Text("Custom ID").tag("")
                     ForEach(availableEnvironments) { environment in
                         Text(environment.name).tag(environment.id)
                     }
@@ -145,10 +145,6 @@ struct ClaudeManagedAgentSessionSettingsSheetView: View {
 
             TextField("Environment ID", text: $environmentIDDraft, prompt: Text("env_..."))
                 .textFieldStyle(.roundedBorder)
-
-            Text("Jin creates or resumes a Managed Agents session for this thread using the selected Agent and Environment IDs.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
 
             if let draftError, !draftError.isEmpty {
                 Text(draftError)
@@ -162,7 +158,7 @@ struct ClaudeManagedAgentSessionSettingsSheetView: View {
 
     private var detailsSection: some View {
         VStack(alignment: .leading, spacing: JinSpacing.small) {
-            Label("Fallback Labels", systemImage: "tag")
+            Label("Labels", systemImage: "tag")
                 .font(.subheadline.weight(.semibold))
 
             TextField("Agent Name", text: $agentDisplayNameDraft, prompt: Text("Claude coding agent"))
@@ -170,9 +166,6 @@ struct ClaudeManagedAgentSessionSettingsSheetView: View {
             TextField("Environment Name", text: $environmentDisplayNameDraft, prompt: Text("macOS workspace"))
                 .textFieldStyle(.roundedBorder)
 
-            Text("Jin uses Anthropic's agent and environment names when available. These fields are only fallback labels for manual IDs or missing metadata.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
         }
         .padding(JinSpacing.medium)
         .jinSurface(.raised, cornerRadius: JinRadius.large)

@@ -12,7 +12,6 @@ struct ModelPickerPopover: View {
     struct ManagedAgentContext {
         let provider: ProviderConfigEntity
         let selectedAgentID: String?
-        let selectedEnvironmentName: String?
         let availableAgents: [ClaudeManagedAgentDescriptor]
         let isRefreshing: Bool
         let onRefresh: () -> Void
@@ -61,7 +60,7 @@ struct ModelPickerPopover: View {
     }
 
     private var searchPlaceholder: String {
-        managedAgentContext == nil ? "Search models" : "Search agents or models"
+        "Search"
     }
 
     private var shouldShowManagedAgentSection: Bool {
@@ -134,7 +133,6 @@ struct ModelPickerPopover: View {
                         } header: {
                             ManagedAgentSectionHeader(
                                 provider: managedAgentContext.provider,
-                                environmentName: managedAgentContext.selectedEnvironmentName,
                                 isRefreshing: managedAgentContext.isRefreshing,
                                 onRefresh: managedAgentContext.onRefresh
                             )
@@ -201,11 +199,7 @@ struct ModelPickerPopover: View {
             .listRowSeparator(.hidden)
             .listRowBackground(Color.clear)
         } else if filteredManagedAgents.isEmpty {
-            Text(
-                trimmedSearchText.isEmpty
-                    ? "No agent list loaded yet. Refresh or open settings to enter Agent and Environment IDs manually."
-                    : "No agents match your search."
-            )
+            Text(trimmedSearchText.isEmpty ? "No agents" : "No matches")
             .font(.caption)
             .foregroundStyle(.secondary)
             .padding(.vertical, 8)
@@ -235,7 +229,7 @@ struct ModelPickerPopover: View {
                     Image(systemName: "slider.horizontal.3")
                         .foregroundStyle(.secondary)
 
-                    Text("Agent & Environment Settings")
+                    Text("Agent Settings")
                         .frame(maxWidth: .infinity, alignment: .leading)
 
                     Image(systemName: "arrow.up.right.square")
@@ -256,14 +250,14 @@ struct ModelPickerPopover: View {
         if scope == .favorites {
             return "No favorite models"
         }
-        return managedAgentContext == nil ? "No models found" : "No agents or models found"
+        return "No results"
     }
 
     private var emptyStateDescription: String {
         if scope == .favorites {
             return "Star a model to pin it here."
         }
-        return managedAgentContext == nil ? "Try a different search." : "Try a different search or open managed agent settings."
+        return "Try another search."
     }
 
     private var filteredSections: [ProviderSection] {
@@ -366,7 +360,6 @@ private struct ProviderSectionHeader: View {
 
 private struct ManagedAgentSectionHeader: View {
     let provider: ProviderConfigEntity
-    let environmentName: String?
     let isRefreshing: Bool
     let onRefresh: () -> Void
 
@@ -376,18 +369,10 @@ private struct ManagedAgentSectionHeader: View {
                 ProviderIconView(iconID: provider.resolvedProviderIconID, fallbackSystemName: "network", size: 12)
                     .frame(width: 12, height: 12)
 
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(provider.name)
-                        .font(.caption)
-                        .fontWeight(.semibold)
-                        .foregroundStyle(.secondary)
-
-                    if let environmentName, !environmentName.isEmpty {
-                        Text("Environment: \(environmentName)")
-                            .font(.caption2)
-                            .foregroundStyle(.tertiary)
-                    }
-                }
+                Text(provider.name)
+                    .font(.caption)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(.secondary)
             }
 
             Spacer()
@@ -457,12 +442,6 @@ private struct ManagedAgentPickerRow: View {
     private var subtitle: String? {
         if let modelDisplayName = agent.modelDisplayName, !modelDisplayName.isEmpty {
             return modelDisplayName
-        }
-        if let modelID = agent.modelID, !modelID.isEmpty {
-            return modelID
-        }
-        if agent.name != agent.id {
-            return agent.id
         }
         return nil
     }

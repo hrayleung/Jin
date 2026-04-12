@@ -372,10 +372,6 @@ extension ChatView {
         return ModelPickerPopover.ManagedAgentContext(
             provider: currentProvider,
             selectedAgentID: resolvedControls.claudeManagedAgentID,
-            selectedEnvironmentName: resolvedClaudeManagedEnvironmentDisplayName(
-                for: conversationEntity.providerID,
-                threadControls: controls
-            ),
             availableAgents: resolvedClaudeManagedAgentOptions(
                 for: conversationEntity.providerID,
                 threadControls: controls
