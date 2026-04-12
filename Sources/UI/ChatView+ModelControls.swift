@@ -45,11 +45,60 @@ extension ChatView {
 
         claudeManagedAgentIDDraft = controls.claudeManagedAgentID ?? claudeManagedProviderDefaultAgentID
         claudeManagedEnvironmentIDDraft = controls.claudeManagedEnvironmentID ?? claudeManagedProviderDefaultEnvironmentID
-        claudeManagedAgentDisplayNameDraft = controls.claudeManagedAgentDisplayName ?? claudeManagedProviderDefaultAgentDisplayName
-        claudeManagedEnvironmentDisplayNameDraft = controls.claudeManagedEnvironmentDisplayName ?? claudeManagedProviderDefaultEnvironmentDisplayName
+        claudeManagedAgentDisplayNameDraft = resolvedClaudeManagedAgentDisplayName(
+            for: conversationEntity.providerID,
+            threadModelID: conversationEntity.modelID,
+            threadControls: controls
+        )
+        claudeManagedEnvironmentDisplayNameDraft = resolvedClaudeManagedEnvironmentDisplayName(
+            for: conversationEntity.providerID,
+            threadControls: controls
+        ) ?? claudeManagedProviderDefaultEnvironmentDisplayName
         claudeManagedAgentSettingsDraftError = nil
         showingClaudeManagedAgentSessionSettingsSheet = true
         Task { await refreshClaudeManagedAgentSessionResources() }
+    }
+
+    @MainActor
+    func applyClaudeManagedAgentSelection(_ descriptor: ClaudeManagedAgentDescriptor) {
+        guard providerType == .claudeManagedAgents else { return }
+
+        let currentResolvedControls = resolvedClaudeManagedControls(
+            for: conversationEntity.providerID,
+            threadControls: controls
+        )
+        var updatedControls = controls
+        updatedControls.claudeManagedAgentID = descriptor.id
+        updatedControls.claudeManagedAgentDisplayName = descriptor.name
+        updatedControls.claudeManagedAgentModelID = descriptor.modelID
+        updatedControls.claudeManagedAgentModelDisplayName = descriptor.modelDisplayName
+
+        let updatedResolvedControls = resolvedClaudeManagedControls(
+            for: conversationEntity.providerID,
+            threadControls: updatedControls
+        )
+
+        if activeModelThread != nil,
+           (updatedResolvedControls.claudeManagedAgentID != currentResolvedControls.claudeManagedAgentID
+               || updatedResolvedControls.claudeManagedEnvironmentID != currentResolvedControls.claudeManagedEnvironmentID) {
+            updatedControls.clearClaudeManagedAgentSessionState()
+            if let activeModelThread {
+                clearClaudeManagedAgentSessionPersistence(for: activeModelThread)
+            }
+        }
+
+        controls = updatedControls
+
+        if let activeModelThread,
+           providerType(forProviderID: activeModelThread.providerID) == .claudeManagedAgents {
+            activeModelThread.modelID = managedAgentSyntheticModelID(
+                providerID: activeModelThread.providerID,
+                controls: updatedResolvedControls
+            )
+            synchronizeLegacyConversationModelFields(with: activeModelThread)
+        }
+
+        persistControlsToConversation()
     }
 
     func pickCodexWorkingDirectory() {
@@ -97,10 +146,18 @@ extension ChatView {
             controls: controls
         ) {
         case .success(let updatedControls):
+            let currentResolvedControls = resolvedClaudeManagedControls(
+                for: conversationEntity.providerID,
+                threadControls: controls
+            )
             var resolvedControls = updatedControls
+            let updatedResolvedControls = resolvedClaudeManagedControls(
+                for: conversationEntity.providerID,
+                threadControls: updatedControls
+            )
             if activeModelThread != nil,
-               (updatedControls.claudeManagedAgentID != controls.claudeManagedAgentID
-                   || updatedControls.claudeManagedEnvironmentID != controls.claudeManagedEnvironmentID) {
+               (updatedResolvedControls.claudeManagedAgentID != currentResolvedControls.claudeManagedAgentID
+                   || updatedResolvedControls.claudeManagedEnvironmentID != currentResolvedControls.claudeManagedEnvironmentID) {
                 resolvedControls.clearClaudeManagedAgentSessionState()
                 if let activeModelThread {
                     clearClaudeManagedAgentSessionPersistence(for: activeModelThread)

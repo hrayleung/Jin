@@ -69,11 +69,11 @@ enum ClaudeManagedAgentRuntime {
         if let name = normalizedComponent(controls.claudeManagedAgentDisplayName) {
             return name
         }
-        if let name = normalizedComponent(controls.claudeManagedAgentModelDisplayName) {
-            return name
-        }
         if let id = normalizedComponent(controls.claudeManagedAgentID) {
             return id
+        }
+        if let name = normalizedComponent(controls.claudeManagedAgentModelDisplayName) {
+            return name
         }
         if isSyntheticThreadModelID(threadModelID) {
             return "Managed Agent"

@@ -7,13 +7,10 @@ extension ChatView {
 
     var currentModelName: String {
         if providerType == .claudeManagedAgents {
-            let resolvedControls = resolvedClaudeManagedControls(
+            return resolvedClaudeManagedAgentDisplayName(
                 for: conversationEntity.providerID,
-                threadControls: controls
-            )
-            return ClaudeManagedAgentRuntime.resolvedDisplayName(
                 threadModelID: conversationEntity.modelID,
-                controls: resolvedControls
+                threadControls: controls
             )
         }
         return ChatThreadSupport.currentModelName(
@@ -57,13 +54,10 @@ extension ChatView {
             let threadControls = sortedModelThreads.first(where: {
                 $0.providerID == providerID && canonicalModelID(for: providerID, modelID: $0.modelID) == canonicalModelID(for: providerID, modelID: modelID)
             }).flatMap(storedGenerationControls(for:))
-            let resolvedControls = resolvedClaudeManagedControls(
+            return resolvedClaudeManagedAgentDisplayName(
                 for: providerID,
-                threadControls: threadControls
-            )
-            return ClaudeManagedAgentRuntime.resolvedDisplayName(
                 threadModelID: modelID,
-                controls: resolvedControls
+                threadControls: threadControls
             )
         }
 

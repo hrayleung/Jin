@@ -295,6 +295,7 @@ extension ChatView {
             onNewChat: onNewChat,
             currentProviderIconID: currentProviderIconID,
             currentModelName: currentModelName,
+            modelPickerHelpText: providerType == .claudeManagedAgents ? "Select managed agent or model" : "Select model",
             toolbarThreads: headerToolbarThreads,
             isModelPickerPresented: $isModelPickerPresented,
             isAddModelPickerPresented: $isAddModelPickerPresented,
@@ -317,12 +318,12 @@ extension ChatView {
                 removeModelThread(thread)
             }
         ) {
-            modelPickerPopoverContent { providerID, modelID in
+            modelPickerPopoverContent(includeManagedAgentSelection: true) { providerID, modelID in
                 setProviderAndModel(providerID: providerID, modelID: modelID)
                 isModelPickerPresented = false
             }
         } addModelPopover: {
-            modelPickerPopoverContent { providerID, modelID in
+            modelPickerPopoverContent(includeManagedAgentSelection: false) { providerID, modelID in
                 addOrActivateThread(providerID: providerID, modelID: modelID)
                 isAddModelPickerPresented = false
             }
@@ -345,13 +346,51 @@ extension ChatView {
         )
     }
 
-    func modelPickerPopoverContent(onSelect: @escaping (String, String) -> Void) -> some View {
+    func modelPickerPopoverContent(
+        includeManagedAgentSelection: Bool,
+        onSelect: @escaping (String, String) -> Void
+    ) -> some View {
         ModelPickerPopover(
             favoritesStore: favoriteModelsStore,
             providers: providers,
             selectedProviderID: conversationEntity.providerID,
             selectedModelID: conversationEntity.modelID,
+            managedAgentContext: includeManagedAgentSelection ? currentManagedAgentPickerContext : nil,
             onSelect: onSelect
+        )
+    }
+
+    var currentManagedAgentPickerContext: ModelPickerPopover.ManagedAgentContext? {
+        guard providerType == .claudeManagedAgents,
+              let currentProvider else { return nil }
+
+        let resolvedControls = resolvedClaudeManagedControls(
+            for: conversationEntity.providerID,
+            threadControls: controls
+        )
+
+        return ModelPickerPopover.ManagedAgentContext(
+            provider: currentProvider,
+            selectedAgentID: resolvedControls.claudeManagedAgentID,
+            selectedEnvironmentName: resolvedClaudeManagedEnvironmentDisplayName(
+                for: conversationEntity.providerID,
+                threadControls: controls
+            ),
+            availableAgents: resolvedClaudeManagedAgentOptions(
+                for: conversationEntity.providerID,
+                threadControls: controls
+            ),
+            isRefreshing: isRefreshingClaudeManagedSessionResources,
+            onRefresh: {
+                Task { await refreshClaudeManagedAgentSessionResources() }
+            },
+            onOpenSettings: {
+                openClaudeManagedAgentSessionSettingsEditor()
+            },
+            onSelectAgent: { descriptor in
+                applyClaudeManagedAgentSelection(descriptor)
+                isModelPickerPresented = false
+            }
         )
     }
 }

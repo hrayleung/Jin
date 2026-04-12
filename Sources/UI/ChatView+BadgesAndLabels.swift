@@ -59,21 +59,33 @@ extension ChatView {
         guard supportsClaudeManagedAgentSessionControl else { return "Claude Managed Agent: Not supported" }
 
         var segments: [String] = []
-        if let agentID = controls.claudeManagedAgentID {
-            let label = controls.claudeManagedAgentDisplayName ?? agentID
+        let resolvedControls = resolvedClaudeManagedControls(
+            for: conversationEntity.providerID,
+            threadControls: controls
+        )
+
+        if resolvedControls.claudeManagedAgentID != nil {
+            let label = resolvedClaudeManagedAgentDisplayName(
+                for: conversationEntity.providerID,
+                threadModelID: conversationEntity.modelID,
+                threadControls: controls
+            )
             segments.append("Agent: \(label)")
         } else {
             segments.append("Agent: not configured")
         }
 
-        if let environmentID = controls.claudeManagedEnvironmentID {
-            let label = controls.claudeManagedEnvironmentDisplayName ?? environmentID
+        if resolvedControls.claudeManagedEnvironmentID != nil,
+           let label = resolvedClaudeManagedEnvironmentDisplayName(
+                for: conversationEntity.providerID,
+                threadControls: controls
+           ) {
             segments.append("Environment: \(label)")
         } else {
             segments.append("Environment: not configured")
         }
 
-        if let sessionID = controls.claudeManagedSessionID {
+        if let sessionID = resolvedControls.claudeManagedSessionID {
             segments.append("Session: \(sessionID)")
         }
 

@@ -17,6 +17,61 @@ extension ChatView {
         resolvedClaudeManagedControls(for: providerID, threadControls: nil)
     }
 
+    func resolvedClaudeManagedAgentOptions(
+        for providerID: String,
+        threadControls: GenerationControls?
+    ) -> [ClaudeManagedAgentDescriptor] {
+        let resolvedControls = resolvedClaudeManagedControls(for: providerID, threadControls: threadControls)
+        var agents = providerID == conversationEntity.providerID ? claudeManagedAvailableAgents : []
+
+        if let selectedAgentID = resolvedControls.claudeManagedAgentID,
+           !agents.contains(where: { $0.id == selectedAgentID }) {
+            agents.insert(
+                ClaudeManagedAgentDescriptor(
+                    id: selectedAgentID,
+                    name: resolvedControls.claudeManagedAgentDisplayName ?? selectedAgentID,
+                    modelID: resolvedControls.claudeManagedAgentModelID,
+                    modelDisplayName: resolvedControls.claudeManagedAgentModelDisplayName
+                ),
+                at: 0
+            )
+        }
+
+        return agents
+    }
+
+    func resolvedClaudeManagedAgentDisplayName(
+        for providerID: String,
+        threadModelID: String,
+        threadControls: GenerationControls?
+    ) -> String {
+        let resolvedControls = resolvedClaudeManagedControls(for: providerID, threadControls: threadControls)
+        if let selectedAgentID = resolvedControls.claudeManagedAgentID,
+           let descriptor = resolvedClaudeManagedAgentOptions(for: providerID, threadControls: threadControls)
+            .first(where: { $0.id == selectedAgentID }) {
+            return descriptor.name
+        }
+
+        return ClaudeManagedAgentRuntime.resolvedDisplayName(
+            threadModelID: threadModelID,
+            controls: resolvedControls
+        )
+    }
+
+    func resolvedClaudeManagedEnvironmentDisplayName(
+        for providerID: String,
+        threadControls: GenerationControls?
+    ) -> String? {
+        let resolvedControls = resolvedClaudeManagedControls(for: providerID, threadControls: threadControls)
+        if let selectedEnvironmentID = resolvedControls.claudeManagedEnvironmentID,
+           providerID == conversationEntity.providerID,
+           let descriptor = claudeManagedAvailableEnvironments.first(where: { $0.id == selectedEnvironmentID }) {
+            return descriptor.name
+        }
+
+        return resolvedControls.claudeManagedEnvironmentDisplayName ?? resolvedControls.claudeManagedEnvironmentID
+    }
+
     func managedAgentSyntheticModelID(
         providerID: String,
         controls: GenerationControls

@@ -162,7 +162,7 @@ struct ClaudeManagedAgentSessionSettingsSheetView: View {
 
     private var detailsSection: some View {
         VStack(alignment: .leading, spacing: JinSpacing.small) {
-            Label("Optional Labels", systemImage: "tag")
+            Label("Fallback Labels", systemImage: "tag")
                 .font(.subheadline.weight(.semibold))
 
             TextField("Agent Name", text: $agentDisplayNameDraft, prompt: Text("Claude coding agent"))
@@ -170,7 +170,7 @@ struct ClaudeManagedAgentSessionSettingsSheetView: View {
             TextField("Environment Name", text: $environmentDisplayNameDraft, prompt: Text("macOS workspace"))
                 .textFieldStyle(.roundedBorder)
 
-            Text("These labels are local to Jin. They do not rename the remote agent or environment.")
+            Text("Jin uses Anthropic's agent and environment names when available. These fields are only fallback labels for manual IDs or missing metadata.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
@@ -188,31 +188,13 @@ struct ClaudeManagedAgentSessionSettingsSheetView: View {
 
     private func applyAgentSelection(_ id: String) {
         guard let selected = availableAgents.first(where: { $0.id == id }) else { return }
-        let previousSelectedID = agentIDDraft
         agentIDDraft = selected.id
-        let availableAgentLabelsByID = Dictionary(uniqueKeysWithValues: availableAgents.map { ($0.id, $0.name) })
-        if ChatEditorDraftSupport.shouldAutoUpdateClaudeManagedSelectionLabel(
-            existingLabel: agentDisplayNameDraft,
-            previousSelectionID: previousSelectedID,
-            availableLabelsByID: availableAgentLabelsByID,
-            providerDefaultLabel: providerDefaultAgentDisplayName
-        ) {
-            agentDisplayNameDraft = selected.name
-        }
+        agentDisplayNameDraft = selected.name
     }
 
     private func applyEnvironmentSelection(_ id: String) {
         guard let selected = availableEnvironments.first(where: { $0.id == id }) else { return }
-        let previousSelectedID = environmentIDDraft
         environmentIDDraft = selected.id
-        let availableEnvironmentLabelsByID = Dictionary(uniqueKeysWithValues: availableEnvironments.map { ($0.id, $0.name) })
-        if ChatEditorDraftSupport.shouldAutoUpdateClaudeManagedSelectionLabel(
-            existingLabel: environmentDisplayNameDraft,
-            previousSelectionID: previousSelectedID,
-            availableLabelsByID: availableEnvironmentLabelsByID,
-            providerDefaultLabel: providerDefaultEnvironmentDisplayName
-        ) {
-            environmentDisplayNameDraft = selected.name
-        }
+        environmentDisplayNameDraft = selected.name
     }
 }

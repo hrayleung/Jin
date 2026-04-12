@@ -2,58 +2,40 @@ import XCTest
 @testable import Jin
 
 final class ChatEditorDraftSupportTests: XCTestCase {
-    func testManagedSelectionLabelAutoUpdatesWhenExistingLabelIsBlank() {
-        XCTAssertTrue(
-            ChatEditorDraftSupport.shouldAutoUpdateClaudeManagedSelectionLabel(
-                existingLabel: "",
-                previousSelectionID: "agent_old",
-                availableLabelsByID: [
-                    "agent_old": "Deep researcher",
-                    "agent_new": "Stock & Investment Analyst"
-                ],
-                providerDefaultLabel: "Default agent"
-            )
+    func testApplyClaudeManagedAgentSessionSettingsDraftRequiresBothAgentAndEnvironment() {
+        let result = ChatEditorDraftSupport.applyClaudeManagedAgentSessionSettingsDraft(
+            agentIDDraft: "agent_123",
+            environmentIDDraft: "",
+            agentDisplayNameDraft: "Build Agent",
+            environmentDisplayNameDraft: "",
+            controls: GenerationControls()
         )
+
+        switch result {
+        case .success:
+            XCTFail("Expected validation failure when only one managed agent identifier is provided.")
+        case .failure(let error):
+            XCTAssertEqual(error.localizedDescription, "Enter both Agent ID and Environment ID, or leave both blank.")
+        }
     }
 
-    func testManagedSelectionLabelAutoUpdatesWhenExistingLabelMatchesProviderDefault() {
-        XCTAssertTrue(
-            ChatEditorDraftSupport.shouldAutoUpdateClaudeManagedSelectionLabel(
-                existingLabel: "Default agent",
-                previousSelectionID: "agent_old",
-                availableLabelsByID: [
-                    "agent_old": "Deep researcher"
-                ],
-                providerDefaultLabel: "Default agent"
-            )
+    func testApplyClaudeManagedAgentSessionSettingsDraftNormalizesConfiguredValues() {
+        let result = ChatEditorDraftSupport.applyClaudeManagedAgentSessionSettingsDraft(
+            agentIDDraft: " agent_123 ",
+            environmentIDDraft: " env_456 ",
+            agentDisplayNameDraft: " Build Agent ",
+            environmentDisplayNameDraft: " macOS Workspace ",
+            controls: GenerationControls()
         )
-    }
 
-    func testManagedSelectionLabelAutoUpdatesWhenExistingLabelMatchesPreviousSelectedAgentName() {
-        XCTAssertTrue(
-            ChatEditorDraftSupport.shouldAutoUpdateClaudeManagedSelectionLabel(
-                existingLabel: "Deep researcher",
-                previousSelectionID: "agent_old",
-                availableLabelsByID: [
-                    "agent_old": "Deep researcher",
-                    "agent_new": "Stock & Investment Analyst"
-                ],
-                providerDefaultLabel: "Default agent"
-            )
-        )
-    }
-
-    func testManagedSelectionLabelPreservesCustomLabel() {
-        XCTAssertFalse(
-            ChatEditorDraftSupport.shouldAutoUpdateClaudeManagedSelectionLabel(
-                existingLabel: "My custom label",
-                previousSelectionID: "agent_old",
-                availableLabelsByID: [
-                    "agent_old": "Deep researcher",
-                    "agent_new": "Stock & Investment Analyst"
-                ],
-                providerDefaultLabel: "Default agent"
-            )
-        )
+        switch result {
+        case .success(let controls):
+            XCTAssertEqual(controls.claudeManagedAgentID, "agent_123")
+            XCTAssertEqual(controls.claudeManagedEnvironmentID, "env_456")
+            XCTAssertEqual(controls.claudeManagedAgentDisplayName, "Build Agent")
+            XCTAssertEqual(controls.claudeManagedEnvironmentDisplayName, "macOS Workspace")
+        case .failure(let error):
+            XCTFail("Unexpected validation error: \(error.localizedDescription)")
+        }
     }
 }

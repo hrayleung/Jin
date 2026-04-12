@@ -40,6 +40,7 @@ struct ChatHeaderBarView<ModelPickerContent: View, AddModelPickerContent: View>:
     let onNewChat: (() -> Void)?
     let currentProviderIconID: String?
     let currentModelName: String
+    let modelPickerHelpText: String
     let toolbarThreads: [ChatHeaderToolbarThread]
     let isModelPickerEnabled: Bool
     @Binding var isModelPickerPresented: Bool
@@ -62,6 +63,7 @@ struct ChatHeaderBarView<ModelPickerContent: View, AddModelPickerContent: View>:
         onNewChat: (() -> Void)? = nil,
         currentProviderIconID: String?,
         currentModelName: String,
+        modelPickerHelpText: String = "Select model",
         toolbarThreads: [ChatHeaderToolbarThread],
         isModelPickerEnabled: Bool = true,
         isModelPickerPresented: Binding<Bool>,
@@ -83,6 +85,7 @@ struct ChatHeaderBarView<ModelPickerContent: View, AddModelPickerContent: View>:
         self.onNewChat = onNewChat
         self.currentProviderIconID = currentProviderIconID
         self.currentModelName = currentModelName
+        self.modelPickerHelpText = modelPickerHelpText
         self.toolbarThreads = toolbarThreads
         self.isModelPickerEnabled = isModelPickerEnabled
         _isModelPickerPresented = isModelPickerPresented
@@ -168,8 +171,8 @@ struct ChatHeaderBarView<ModelPickerContent: View, AddModelPickerContent: View>:
                 }
             }
             .buttonStyle(.plain)
-            .help("Select model")
-            .accessibilityLabel("Select model")
+            .help(modelPickerHelpText)
+            .accessibilityLabel(modelPickerHelpText)
             .popover(isPresented: $isModelPickerPresented, arrowEdge: .bottom) {
                 modelPickerPopover()
             }
