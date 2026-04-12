@@ -25,6 +25,9 @@ enum AssistantSidebarSort: String, CaseIterable {
 }
 
 struct ContentView: View {
+    private static let sidebarMinWidth: CGFloat = 240
+    private static let sidebarMaxWidth: CGFloat = 340
+
     @Environment(\.modelContext) var modelContext
     @EnvironmentObject var streamingStore: ConversationStreamingStore
     @EnvironmentObject var shortcutsStore: AppShortcutsStore
@@ -76,17 +79,21 @@ struct ContentView: View {
         isSidebarSearchFieldFocused || !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
+    private func clampedSidebarWidth(_ width: CGFloat) -> CGFloat {
+        min(max(width, Self.sidebarMinWidth), Self.sidebarMaxWidth)
+    }
+
     private var resolvedSidebarWidth: CGFloat {
-        CGFloat(min(max(persistedSidebarWidth, 240), 340))
+        clampedSidebarWidth(CGFloat(persistedSidebarWidth))
     }
 
     var body: some View {
         HSplitView {
             sidebarPane
                 .frame(
-                    minWidth: isSidebarVisible ? 240 : 0,
+                    minWidth: isSidebarVisible ? Self.sidebarMinWidth : 0,
                     idealWidth: isSidebarVisible ? resolvedSidebarWidth : 0,
-                    maxWidth: isSidebarVisible ? 340 : 0,
+                    maxWidth: isSidebarVisible ? Self.sidebarMaxWidth : 0,
                     maxHeight: .infinity
                 )
                 .opacity(isSidebarVisible ? 1 : 0)
@@ -164,9 +171,9 @@ struct ContentView: View {
             .background(sidebarWidthReader)
         .onPreferenceChange(SidebarWidthPreferenceKey.self) { width in
             guard isSidebarVisible else { return }
-            let clamped = min(max(width, 240), 340)
+            let clamped = clampedSidebarWidth(width)
             guard abs(clamped - persistedSidebarWidth) > 0.5 else { return }
-            persistedSidebarWidth = clamped
+            persistedSidebarWidth = Double(clamped)
         }
     }
 
@@ -278,45 +285,14 @@ struct ContentView: View {
                 .background(JinSemanticColor.detailSurface)
                 .environmentObject(ttsPlaybackManager)
             } else {
-                noConversationSelectedView
-                    .overlay(alignment: .topLeading) {
-                        if !isSidebarVisible {
-                            HStack(spacing: JinSpacing.small) {
-                                Button(action: toggleSidebarVisibility) {
-                                    Image(systemName: "sidebar.leading")
-                                        .font(.system(size: 13, weight: .medium))
-                                        .foregroundStyle(.secondary)
-                                        .frame(width: 20, height: 20)
-                                }
-                                .buttonStyle(.plain)
-                                .help("Show Sidebar")
-
-                                Button(action: createNewConversation) {
-                                    Image(systemName: "square.and.pencil")
-                                        .font(.system(size: 13, weight: .medium))
-                                        .foregroundStyle(.secondary)
-                                        .frame(width: 20, height: 20)
-                                }
-                                .buttonStyle(.plain)
-                                .help("New Chat")
-                            }
-                            .padding(JinSpacing.medium)
-                        }
-                    }
-                    .overlay(alignment: .topTrailing) {
-                        Button(action: openAssistantSettings) {
-                            Image(systemName: "slider.horizontal.3")
-                                .font(.system(size: 13, weight: .medium))
-                                .foregroundStyle(.secondary)
-                        }
-                        .buttonStyle(.plain)
-                        .help("Assistant Settings")
-                        .keyboardShortcut(shortcutsStore.keyboardShortcut(for: .openAssistantSettings))
-                        .padding(JinSpacing.medium)
-                    }
+                VStack(spacing: 0) {
+                    emptyDetailHeaderBar
+                    noConversationSelectedView
+                }
                     .background(JinSemanticColor.detailSurface)
             }
         }
+        .ignoresSafeArea(.container, edges: .top)
         .background { JinSemanticColor.detailSurface.ignoresSafeArea() }
         .overlay(alignment: .leading) {
             LinearGradient(
@@ -361,6 +337,45 @@ struct ContentView: View {
             }
         }
         .animation(.spring(response: 0.4, dampingFraction: 0.82), value: miniPlayerEnabled && ttsPlaybackManager.state != .idle)
+    }
+
+    private var emptyDetailHeaderBar: some View {
+        HStack(spacing: JinSpacing.small) {
+            if !isSidebarVisible {
+                Button(action: toggleSidebarVisibility) {
+                    Image(systemName: "sidebar.leading")
+                        .font(.system(size: JinControlMetrics.iconButtonGlyphSize, weight: .semibold))
+                }
+                .buttonStyle(JinIconButtonStyle(showBackground: false))
+                .help("Show Sidebar")
+
+                Button(action: createNewConversation) {
+                    Image(systemName: "square.and.pencil")
+                        .font(.system(size: JinControlMetrics.iconButtonGlyphSize, weight: .semibold))
+                }
+                .buttonStyle(JinIconButtonStyle(showBackground: false))
+                .help("New Chat")
+            }
+
+            Spacer(minLength: 0)
+
+            Button(action: openAssistantSettings) {
+                Image(systemName: "slider.horizontal.3")
+                    .font(.system(size: JinControlMetrics.iconButtonGlyphSize, weight: .semibold))
+            }
+            .buttonStyle(JinIconButtonStyle())
+            .help("Assistant Settings")
+            .keyboardShortcut(shortcutsStore.keyboardShortcut(for: .openAssistantSettings))
+        }
+        .padding(.horizontal, JinSpacing.medium)
+        .padding(.vertical, JinSpacing.small)
+        .frame(minHeight: 38)
+        .background(JinSemanticColor.detailSurface)
+        .overlay(alignment: .bottom) {
+            Rectangle()
+                .fill(JinSemanticColor.separator.opacity(0.45))
+                .frame(height: JinStrokeWidth.hairline)
+        }
     }
 
     // MARK: - Navigation

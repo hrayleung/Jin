@@ -33,7 +33,7 @@ extension ContentView {
                         }
                     }
                 }
-                .listRowInsets(EdgeInsets(top: 8, leading: 12, bottom: 8, trailing: 12))
+                .listRowInsets(EdgeInsets(top: 8, leading: 14, bottom: 8, trailing: 14))
                 .contextMenu {
                     if let assistant = selectedAssistant ?? assistants.first(where: { $0.id == "default" }) {
                         assistantContextMenu(for: assistant)
@@ -75,7 +75,7 @@ extension ContentView {
                         assistantContextMenu(for: assistant)
                     }
                 }
-                .listRowInsets(EdgeInsets(top: 6, leading: 12, bottom: 8, trailing: 12))
+                .listRowInsets(EdgeInsets(top: 6, leading: 14, bottom: 8, trailing: 14))
                 .listRowBackground(Color.clear)
 
             case .list:
@@ -100,7 +100,7 @@ extension ContentView {
                 createAssistant()
             } label: {
                 Label("New Assistant", systemImage: "plus")
-                    .padding(.horizontal, 12)
+                    .padding(.horizontal, 14)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.vertical, 4)
                     .contentShape(Rectangle())
@@ -161,6 +161,7 @@ extension ContentView {
                 .menuIndicator(.hidden)
                 .help("Assistant view options")
             }
+            .padding(.horizontal, JinSpacing.medium + 2)
             .padding(.top, JinSpacing.xSmall)
             .padding(.bottom, JinSpacing.xSmall + 1)
         }
@@ -189,6 +190,7 @@ extension ContentView {
                             onRegenerateTitle: { Task { await regenerateConversationTitle(conversation) } },
                             onDelete: { requestDeleteConversation(conversation) }
                         )
+                        .listRowInsets(EdgeInsets(top: 4, leading: 14, bottom: 4, trailing: 14))
                         .listRowSeparator(.hidden)
                         .listRowBackground(Color.clear)
                     }
@@ -199,6 +201,7 @@ extension ContentView {
                     Text(period)
                         .font(.system(size: 11, weight: .semibold))
                         .foregroundStyle(.secondary)
+                        .padding(.horizontal, JinSpacing.medium + 2)
                         .padding(.top, JinSpacing.medium)
                         .padding(.bottom, JinSpacing.xSmall + 1)
                 }
