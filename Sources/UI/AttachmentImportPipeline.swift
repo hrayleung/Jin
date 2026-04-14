@@ -30,10 +30,6 @@ enum AttachmentImportPipeline {
     }
 
     static func importRecordedAudioClip(_ clip: SpeechToTextManager.RecordedClip) async throws -> DraftAttachment {
-        guard clip.data.count <= AttachmentConstants.maxAttachmentBytes else {
-            throw AttachmentImportError(message: "\(clip.filename): exceeds \(AttachmentConstants.maxAttachmentBytes / (1024 * 1024))MB limit.")
-        }
-
         let storage = try AttachmentStorageManager()
         let stored = try await storage.saveAttachment(data: clip.data, filename: clip.filename, mimeType: clip.mimeType)
         return DraftAttachment(
@@ -49,10 +45,6 @@ enum AttachmentImportPipeline {
         guard let tiff = image.tiffRepresentation,
               let rep = NSBitmapImageRep(data: tiff),
               let data = rep.representation(using: .png, properties: [:]) else {
-            return nil
-        }
-
-        if data.count > AttachmentConstants.maxAttachmentBytes {
             return nil
         }
 
@@ -260,14 +252,9 @@ enum AttachmentImportPipeline {
         }
 
         let filename = sourceURL.lastPathComponent.isEmpty ? "Attachment" : sourceURL.lastPathComponent
-        let resourceValues = try? sourceURL.resourceValues(forKeys: [.isDirectoryKey, .fileSizeKey])
+        let resourceValues = try? sourceURL.resourceValues(forKeys: [.isDirectoryKey])
         if resourceValues?.isDirectory == true {
             return .failure(AttachmentImportError(message: "\(filename): folders are not supported."))
-        }
-
-        let fileSize = resourceValues?.fileSize ?? 0
-        if fileSize > AttachmentConstants.maxAttachmentBytes {
-            return .failure(AttachmentImportError(message: "\(filename): exceeds \(AttachmentConstants.maxAttachmentBytes / (1024 * 1024))MB limit."))
         }
 
         guard let type = UTType(filenameExtension: sourceURL.pathExtension.lowercased()) else {

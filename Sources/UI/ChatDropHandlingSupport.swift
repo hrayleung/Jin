@@ -10,6 +10,11 @@ enum ChatDropHandlingSupport {
         var errors: [String] = []
     }
 
+    struct AttachmentImportPlan: Equatable {
+        let urlsToImport: [URL]
+        let errors: [String]
+    }
+
     static func persistDroppedFileRepresentation(_ temporaryURL: URL) throws -> URL {
         let dir = FileManager.default.temporaryDirectory
             .appendingPathComponent("JinDroppedFiles", isDirectory: true)
@@ -234,23 +239,47 @@ enum ChatDropHandlingSupport {
 
     static func importAttachments(
         from urls: [URL],
-        currentAttachmentCount: Int,
-        maxAttachments: Int
+        currentAttachmentCount: Int = 0,
+        maxAttachments: Int? = nil
     ) async -> (attachments: [DraftAttachment], errors: [String]) {
-        guard !urls.isEmpty else { return ([], []) }
+        let plan = makeAttachmentImportPlan(
+            from: urls,
+            currentAttachmentCount: currentAttachmentCount,
+            maxAttachments: maxAttachments
+        )
+        guard !plan.urlsToImport.isEmpty else {
+            return ([], plan.errors)
+        }
+
+        let (newAttachments, errors) = await Task.detached(priority: .userInitiated) {
+            await AttachmentImportPipeline.importInBackground(from: plan.urlsToImport)
+        }.value
+
+        return (newAttachments, plan.errors + errors)
+    }
+
+    static func makeAttachmentImportPlan(
+        from urls: [URL],
+        currentAttachmentCount: Int,
+        maxAttachments: Int?
+    ) -> AttachmentImportPlan {
+        guard !urls.isEmpty else {
+            return AttachmentImportPlan(urlsToImport: [], errors: [])
+        }
+
+        guard let maxAttachments else {
+            return AttachmentImportPlan(urlsToImport: urls, errors: [])
+        }
 
         let remainingSlots = max(0, maxAttachments - currentAttachmentCount)
+        let limitMessage = "You can attach up to \(maxAttachments) files per message."
         guard remainingSlots > 0 else {
-            return ([], ["You can attach up to \(maxAttachments) files per message."])
+            return AttachmentImportPlan(urlsToImport: [], errors: [limitMessage])
         }
 
         let urlsToImport = Array(urls.prefix(remainingSlots))
-
-        let (newAttachments, errors) = await Task.detached(priority: .userInitiated) {
-            await AttachmentImportPipeline.importInBackground(from: urlsToImport)
-        }.value
-
-        return (newAttachments, errors)
+        let errors = (urlsToImport.count < urls.count) ? [limitMessage] : []
+        return AttachmentImportPlan(urlsToImport: urlsToImport, errors: errors)
     }
 
     static func appendTextChunksToComposer(

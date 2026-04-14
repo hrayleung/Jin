@@ -234,8 +234,6 @@ extension ChatView {
                 var allErrors = result.errors
 
                 if !result.fileURLs.isEmpty {
-                    let maxAttachments = AttachmentConstants.maxDraftAttachments
-                    let attachmentCountAtDrop = draftAttachments.count
                     dropAttachmentImportInFlightCount += 1
                     defer {
                         if conversationEntity.id == dropConversationID {
@@ -243,9 +241,7 @@ extension ChatView {
                         }
                     }
                     let (newAttachments, importErrors) = await ChatDropHandlingSupport.importAttachments(
-                        from: result.fileURLs,
-                        currentAttachmentCount: attachmentCountAtDrop,
-                        maxAttachments: maxAttachments
+                        from: result.fileURLs
                     )
 
                     guard conversationEntity.id == dropConversationID else { return }
@@ -254,20 +250,7 @@ extension ChatView {
                     allErrors.append(contentsOf: importErrors)
 
                     if !newAttachments.isEmpty {
-                        let remainingSlots = max(0, maxAttachments - draftAttachments.count)
-                        let limitMessage = "You can attach up to \(maxAttachments) files per message."
-
-                        if remainingSlots <= 0 {
-                            if !allErrors.contains(limitMessage) {
-                                allErrors.append(limitMessage)
-                            }
-                        } else {
-                            let attachmentsToAppend = newAttachments.prefix(remainingSlots)
-                            if attachmentsToAppend.count < newAttachments.count, !allErrors.contains(limitMessage) {
-                                allErrors.append(limitMessage)
-                            }
-                            draftAttachments.append(contentsOf: attachmentsToAppend)
-                        }
+                        draftAttachments.append(contentsOf: newAttachments)
                     }
                 }
 
@@ -288,9 +271,7 @@ extension ChatView {
         guard !urls.isEmpty, !isStreaming else { return }
 
         let (newAttachments, errors) = await ChatDropHandlingSupport.importAttachments(
-            from: urls,
-            currentAttachmentCount: draftAttachments.count,
-            maxAttachments: AttachmentConstants.maxDraftAttachments
+            from: urls
         )
 
         await MainActor.run {

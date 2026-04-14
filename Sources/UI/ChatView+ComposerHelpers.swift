@@ -127,10 +127,6 @@ extension ChatView {
             do {
                 if speechToTextManager.isRecording {
                     if speechToTextUsesAudioAttachment {
-                        guard draftAttachments.count < AttachmentConstants.maxDraftAttachments else {
-                            throw AttachmentImportError(message: "You can attach up to \(AttachmentConstants.maxDraftAttachments) files per message.")
-                        }
-
                         let clip = try await speechToTextManager.stopAndCollectRecording()
                         let attachment = try await AttachmentImportPipeline.importRecordedAudioClip(clip)
                         draftAttachments.append(attachment)
@@ -155,9 +151,6 @@ extension ChatView {
 
                 guard speechToTextPluginEnabled else { return }
                 if speechToTextUsesAudioAttachment {
-                    guard draftAttachments.count < AttachmentConstants.maxDraftAttachments else {
-                        throw AttachmentImportError(message: "You can attach up to \(AttachmentConstants.maxDraftAttachments) files per message.")
-                    }
                     try await speechToTextManager.startRecording()
                     return
                 }
