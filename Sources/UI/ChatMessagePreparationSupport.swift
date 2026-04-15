@@ -17,6 +17,7 @@ enum ChatMessagePreparationSupport {
         let supportsNativePDF: Bool
         let supportsVision: Bool
         let pdfProcessingMode: PDFProcessingMode
+        let firecrawlPDFParserMode: FirecrawlPDFParserMode
     }
 
     struct PreparedPDFContent {
@@ -112,6 +113,7 @@ enum ChatMessagePreparationSupport {
         mistralOCRPluginEnabled: Bool,
         mineruOCRPluginEnabled: Bool,
         deepSeekOCRPluginEnabled: Bool,
+        firecrawlOCRPluginEnabled: Bool,
         defaultPDFProcessingFallbackMode: PDFProcessingMode
     ) throws -> MessagePreparationProfile {
         let providerTypeSnapshot = providerType(forProviderID: thread.providerID, providers: providers)
@@ -183,8 +185,10 @@ enum ChatMessagePreparationSupport {
             defaultPDFProcessingFallbackMode: defaultPDFProcessingFallbackMode,
             mistralOCRPluginEnabled: mistralOCRPluginEnabled,
             mineruOCRPluginEnabled: mineruOCRPluginEnabled,
-            deepSeekOCRPluginEnabled: deepSeekOCRPluginEnabled
+            deepSeekOCRPluginEnabled: deepSeekOCRPluginEnabled,
+            firecrawlOCRPluginEnabled: firecrawlOCRPluginEnabled
         )
+        let firecrawlPDFParserMode = resolvedManagedControls.firecrawlPDFParserMode ?? .ocr
         let modelName = modelInfo?.name
             ?? (providerTypeSnapshot == .claudeManagedAgents
                 ? ClaudeManagedAgentRuntime.resolvedDisplayName(threadModelID: thread.modelID, controls: resolvedManagedControls)
@@ -197,7 +201,8 @@ enum ChatMessagePreparationSupport {
             supportsMediaGenerationControl: supportsMediaGen,
             supportsNativePDF: nativePDFSupported,
             supportsVision: supportsVision,
-            pdfProcessingMode: pdfMode
+            pdfProcessingMode: pdfMode,
+            firecrawlPDFParserMode: firecrawlPDFParserMode
         )
     }
 
@@ -236,7 +241,7 @@ enum ChatMessagePreparationSupport {
         attachments: [DraftAttachment],
         remoteVideoURL: URL?,
         profile: MessagePreparationProfile,
-        preparedContentForPDF: (DraftAttachment, MessagePreparationProfile, PDFProcessingMode, Int, Int, MistralOCRClient?, MinerUOCRClient?, DeepInfraDeepSeekOCRClient?) async throws -> PreparedPDFContent
+        preparedContentForPDF: (DraftAttachment, MessagePreparationProfile, PDFProcessingMode, Int, Int, MistralOCRClient?, MinerUOCRClient?, DeepInfraDeepSeekOCRClient?, FirecrawlPDFOCRClient?, CloudflareR2Uploader?) async throws -> PreparedPDFContent
     ) async throws -> [ContentPart] {
         var parts: [ContentPart] = []
         parts.reserveCapacity(quoteContents.count + attachments.count + (messageText.isEmpty ? 0 : 1) + (remoteVideoURL == nil ? 0 : 1))
@@ -298,6 +303,23 @@ enum ChatMessagePreparationSupport {
             deepSeekClient = nil
         }
 
+        let firecrawlClient: FirecrawlPDFOCRClient?
+        let r2Uploader: CloudflareR2Uploader?
+        if pdfCount > 0, requestedMode == .firecrawlOCR {
+            let key = UserDefaults.standard.string(forKey: AppPreferenceKeys.pluginWebSearchFirecrawlAPIKey)
+            let trimmed = (key ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+
+            if trimmed.isEmpty {
+                throw PDFProcessingError.firecrawlAPIKeyMissing
+            }
+
+            firecrawlClient = FirecrawlPDFOCRClient(apiKey: trimmed)
+            r2Uploader = CloudflareR2Uploader()
+        } else {
+            firecrawlClient = nil
+            r2Uploader = nil
+        }
+
         let mineruClient: MinerUOCRClient?
         if pdfCount > 0, requestedMode == .mineruOCR {
             let token = UserDefaults.standard.string(forKey: AppPreferenceKeys.pluginMineruOCRAPIToken)
@@ -343,7 +365,9 @@ enum ChatMessagePreparationSupport {
                     pdfOrdinal,
                     mistralClient,
                     mineruClient,
-                    deepSeekClient
+                    deepSeekClient,
+                    firecrawlClient,
+                    r2Uploader
                 )
 
                 parts.append(
@@ -394,6 +418,8 @@ enum ChatMessagePreparationSupport {
         mistralClient: MistralOCRClient?,
         mineruClient: MinerUOCRClient?,
         deepSeekClient: DeepInfraDeepSeekOCRClient?,
+        firecrawlClient: FirecrawlPDFOCRClient?,
+        r2Uploader: CloudflareR2Uploader?,
         onStatusUpdate: @MainActor @Sendable (String) -> Void
     ) async throws -> PreparedPDFContent {
         let shouldSendNativePDF = profile.supportsNativePDF && requestedMode == .native
@@ -647,6 +673,44 @@ enum ChatMessagePreparationSupport {
                 output = "\(prefix)\n\n[Truncated]"
             }
             return PreparedPDFContent(extractedText: output, additionalParts: imageParts)
+
+        case .firecrawlOCR:
+            guard let firecrawlClient else { throw PDFProcessingError.firecrawlAPIKeyMissing }
+            guard let r2Uploader else {
+                throw LLMError.invalidRequest(message: "Firecrawl OCR requires the Cloudflare R2 uploader.")
+            }
+
+            await onStatusUpdate("Uploading PDF \(pdfOrdinal)/\(max(1, totalPDFCount)) (Cloudflare R2): \(attachment.filename)")
+
+            let hostedURL = try await r2Uploader.uploadPDF(
+                FileContent(
+                    mimeType: attachment.mimeType,
+                    filename: attachment.filename,
+                    data: nil,
+                    url: attachment.fileURL
+                )
+            )
+
+            let parserMode = profile.firecrawlPDFParserMode
+            await onStatusUpdate("OCR PDF \(pdfOrdinal)/\(max(1, totalPDFCount)) (Firecrawl \(parserMode.displayName)): \(attachment.filename)")
+
+            let markdown = try await firecrawlClient.scrapePDF(
+                at: hostedURL,
+                mode: parserMode,
+                timeoutSeconds: 180
+            )
+            let combined = markdown.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !combined.isEmpty else {
+                throw PDFProcessingError.noTextExtracted(filename: attachment.filename, method: "Firecrawl OCR")
+            }
+
+            var output = "Firecrawl OCR (\(parserMode.displayName) Markdown): \(attachment.filename)\n\n\(combined)"
+            output = output.trimmingCharacters(in: .whitespacesAndNewlines)
+            if output.count > AttachmentConstants.maxPDFExtractedCharacters {
+                let prefix = output.prefix(AttachmentConstants.maxPDFExtractedCharacters)
+                output = "\(prefix)\n\n[Truncated]"
+            }
+            return PreparedPDFContent(extractedText: output, additionalParts: [])
 
         case .native:
             throw PDFProcessingError.nativePDFNotSupported(modelName: profile.modelName)

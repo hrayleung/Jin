@@ -273,11 +273,27 @@ enum AnthropicWebSearchDomainUtils {
 }
 
 /// How to process PDF attachments before sending to the model.
+enum FirecrawlPDFParserMode: String, Codable, CaseIterable, Sendable {
+    case fast
+    case auto
+    case ocr
+
+    var displayName: String {
+        switch self {
+        case .fast: return "Fast"
+        case .auto: return "Auto"
+        case .ocr: return "OCR"
+        }
+    }
+}
+
+/// How to process PDF attachments before sending to the model.
 enum PDFProcessingMode: String, Codable, CaseIterable {
     case native
     case mistralOCR
     case mineruOCR
     case deepSeekOCR
+    case firecrawlOCR
     case macOSExtract
 
     var displayName: String {
@@ -286,6 +302,7 @@ enum PDFProcessingMode: String, Codable, CaseIterable {
         case .mistralOCR: return "Mistral OCR"
         case .mineruOCR: return "MinerU OCR"
         case .deepSeekOCR: return "DeepSeek OCR (DeepInfra)"
+        case .firecrawlOCR: return "Firecrawl OCR"
         case .macOSExtract: return "macOS Extract"
         }
     }

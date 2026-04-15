@@ -42,6 +42,7 @@ struct SettingsView: View {
         PluginDescriptor(id: "mistral_ocr", name: "Mistral OCR", systemImage: "doc.text.magnifyingglass", summary: "OCR PDFs when native PDF isn't available."),
         PluginDescriptor(id: "mineru_ocr", name: "MinerU OCR", systemImage: "doc.text.magnifyingglass", summary: "OCR PDFs through MinerU Precision Extract."),
         PluginDescriptor(id: "deepseek_ocr", name: "DeepSeek OCR", systemImage: "doc.text.magnifyingglass", summary: "OCR PDFs using DeepInfra-hosted DeepSeek."),
+        PluginDescriptor(id: "firecrawl_ocr", name: "Firecrawl OCR", systemImage: "doc.text.magnifyingglass", summary: "OCR PDFs via Firecrawl after temporary Cloudflare R2 upload."),
         PluginDescriptor(id: "chat_naming", name: "Chat Naming", systemImage: "text.bubble", summary: "Auto-name chats with a selected model."),
         PluginDescriptor(id: "cloudflare_r2_upload", name: "Cloudflare R2 Upload", systemImage: "externaldrive.badge.icloud", summary: "Upload local videos to R2 for remote video URLs."),
         PluginDescriptor(id: "agent_mode", name: "Agent Mode", systemImage: "terminal", summary: "Execute local tools through the bundled RTK helper and local file operations.")
@@ -321,6 +322,8 @@ struct SettingsView: View {
             WebSearchPluginSettingsView().id("web_search_builtin").transition(settingsColumnTransition)
         case "deepseek_ocr":
             DeepSeekOCRPluginSettingsView().id("deepseek_ocr").transition(settingsColumnTransition)
+        case "firecrawl_ocr":
+            FirecrawlOCRPluginSettingsView().id("firecrawl_ocr").transition(settingsColumnTransition)
         case "text_to_speech":
             TextToSpeechPluginSettingsView().id("text_to_speech").transition(settingsColumnTransition)
         case "speech_to_text":

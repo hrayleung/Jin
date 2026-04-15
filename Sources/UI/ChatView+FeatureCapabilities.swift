@@ -17,7 +17,9 @@ extension ChatView {
             mineruOCRPluginEnabled: mineruOCRPluginEnabled,
             mineruOCRConfigured: mineruOCRConfigured,
             deepSeekOCRPluginEnabled: deepSeekOCRPluginEnabled,
-            deepSeekOCRConfigured: deepSeekOCRConfigured
+            deepSeekOCRConfigured: deepSeekOCRConfigured,
+            firecrawlOCRPluginEnabled: firecrawlOCRPluginEnabled,
+            firecrawlOCRConfigured: firecrawlOCRConfigured
         )
     }
 
@@ -31,7 +33,8 @@ extension ChatView {
             supportsNativePDF: supportsNativePDF,
             mistralOCRPluginEnabled: mistralOCRPluginEnabled,
             mineruOCRPluginEnabled: mineruOCRPluginEnabled,
-            deepSeekOCRPluginEnabled: deepSeekOCRPluginEnabled
+            deepSeekOCRPluginEnabled: deepSeekOCRPluginEnabled,
+            firecrawlOCRPluginEnabled: firecrawlOCRPluginEnabled
         )
     }
 
@@ -42,8 +45,13 @@ extension ChatView {
             defaultPDFProcessingFallbackMode: defaultPDFProcessingFallbackMode,
             mistralOCRPluginEnabled: mistralOCRPluginEnabled,
             mineruOCRPluginEnabled: mineruOCRPluginEnabled,
-            deepSeekOCRPluginEnabled: deepSeekOCRPluginEnabled
+            deepSeekOCRPluginEnabled: deepSeekOCRPluginEnabled,
+            firecrawlOCRPluginEnabled: firecrawlOCRPluginEnabled
         )
+    }
+
+    var resolvedFirecrawlPDFParserMode: FirecrawlPDFParserMode {
+        controls.firecrawlPDFParserMode ?? .ocr
     }
 
     var pdfProcessingBadgeText: String? {
@@ -56,6 +64,8 @@ extension ChatView {
             return "MU"
         case .deepSeekOCR:
             return "DS"
+        case .firecrawlOCR:
+            return "FC"
         case .macOSExtract:
             return "mac"
         }
@@ -71,6 +81,12 @@ extension ChatView {
             return mineruOCRConfigured ? "PDF handling: MinerU OCR" : "PDF handling: MinerU OCR (API token required)"
         case .deepSeekOCR:
             return deepSeekOCRConfigured ? "PDF handling: DeepSeek OCR (DeepInfra)" : "PDF handling: DeepSeek OCR (API key required)"
+        case .firecrawlOCR:
+            let mode = resolvedFirecrawlPDFParserMode.displayName
+            if firecrawlOCRConfigured {
+                return "PDF handling: Firecrawl OCR (\(mode))"
+            }
+            return "PDF handling: Firecrawl OCR (\(mode), Firecrawl API key + Cloudflare R2 required)"
         case .macOSExtract:
             return "PDF handling: macOS Extract"
         }

@@ -5,12 +5,14 @@ struct ChatExtensionCredentialStatus {
     let mistralOCRConfigured: Bool
     let mineruOCRConfigured: Bool
     let deepSeekOCRConfigured: Bool
+    let firecrawlOCRConfigured: Bool
     let textToSpeechConfigured: Bool
     let speechToTextConfigured: Bool
     let webSearchPluginConfigured: Bool
     let mistralOCRPluginEnabled: Bool
     let mineruOCRPluginEnabled: Bool
     let deepSeekOCRPluginEnabled: Bool
+    let firecrawlOCRPluginEnabled: Bool
     let textToSpeechPluginEnabled: Bool
     let speechToTextPluginEnabled: Bool
     let webSearchPluginEnabled: Bool
@@ -133,6 +135,8 @@ enum ChatConversationStateSupport {
         let mistralConfigured = hasStoredKey(AppPreferenceKeys.pluginMistralOCRAPIKey)
         let mineruConfigured = hasStoredKey(AppPreferenceKeys.pluginMineruOCRAPIToken)
         let deepSeekConfigured = hasStoredKey(AppPreferenceKeys.pluginDeepSeekOCRAPIKey)
+        let firecrawlConfigured = hasStoredKey(AppPreferenceKeys.pluginWebSearchFirecrawlAPIKey)
+            && ((try? CloudflareR2Configuration.load(from: defaults).validated()) != nil)
 
         let ttsProvider = try? SpeechPluginConfigFactory.currentTTSProvider(defaults: defaults)
         let sttProvider = try? SpeechPluginConfigFactory.currentSTTProvider(defaults: defaults)
@@ -183,6 +187,7 @@ enum ChatConversationStateSupport {
         let mistralEnabled = AppPreferences.isPluginEnabled("mistral_ocr", defaults: defaults)
         let mineruEnabled = AppPreferences.isPluginEnabled("mineru_ocr", defaults: defaults)
         let deepSeekEnabled = AppPreferences.isPluginEnabled("deepseek_ocr", defaults: defaults)
+        let firecrawlEnabled = AppPreferences.isPluginEnabled("firecrawl_ocr", defaults: defaults)
         let ttsEnabled = AppPreferences.isPluginEnabled("text_to_speech", defaults: defaults)
         let sttEnabled = AppPreferences.isPluginEnabled("speech_to_text", defaults: defaults)
         let webSearchSettings = WebSearchPluginSettingsStore.load(defaults: defaults)
@@ -195,12 +200,14 @@ enum ChatConversationStateSupport {
             mistralOCRConfigured: mistralConfigured,
             mineruOCRConfigured: mineruConfigured,
             deepSeekOCRConfigured: deepSeekConfigured,
+            firecrawlOCRConfigured: firecrawlConfigured,
             textToSpeechConfigured: ttsConfigured,
             speechToTextConfigured: sttKeyConfigured,
             webSearchPluginConfigured: webSearchConfigured,
             mistralOCRPluginEnabled: mistralEnabled,
             mineruOCRPluginEnabled: mineruEnabled,
             deepSeekOCRPluginEnabled: deepSeekEnabled,
+            firecrawlOCRPluginEnabled: firecrawlEnabled,
             textToSpeechPluginEnabled: ttsEnabled,
             speechToTextPluginEnabled: sttEnabled,
             webSearchPluginEnabled: webSearchEnabled

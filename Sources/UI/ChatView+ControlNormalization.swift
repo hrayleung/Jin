@@ -158,6 +158,7 @@ extension ChatView {
             mistralOCRConfigured = status.mistralOCRConfigured
             mineruOCRConfigured = status.mineruOCRConfigured
             deepSeekOCRConfigured = status.deepSeekOCRConfigured
+            firecrawlOCRConfigured = status.firecrawlOCRConfigured
             textToSpeechConfigured = status.textToSpeechConfigured
             speechToTextConfigured = status.speechToTextConfigured
             webSearchPluginConfigured = status.webSearchPluginConfigured
@@ -165,6 +166,7 @@ extension ChatView {
             mistralOCRPluginEnabled = status.mistralOCRPluginEnabled
             mineruOCRPluginEnabled = status.mineruOCRPluginEnabled
             deepSeekOCRPluginEnabled = status.deepSeekOCRPluginEnabled
+            firecrawlOCRPluginEnabled = status.firecrawlOCRPluginEnabled
             textToSpeechPluginEnabled = status.textToSpeechPluginEnabled
             speechToTextPluginEnabled = status.speechToTextPluginEnabled
             webSearchPluginEnabled = status.webSearchPluginEnabled

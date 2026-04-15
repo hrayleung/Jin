@@ -64,6 +64,7 @@ enum AppPreferenceKeys {
     static let pluginMistralOCREnabled = "pluginMistralOCREnabled"
     static let pluginMineruOCREnabled = "pluginMineruOCREnabled"
     static let pluginDeepSeekOCREnabled = "pluginDeepSeekOCREnabled"
+    static let pluginFirecrawlOCREnabled = "pluginFirecrawlOCREnabled"
     static let pluginChatNamingEnabled = "pluginChatNamingEnabled"
     static let pluginCloudflareR2UploadEnabled = "pluginCloudflareR2UploadEnabled"
     static let pluginWebSearchEnabled = "pluginWebSearchEnabled"
@@ -370,6 +371,8 @@ enum AppPreferences {
             return AppPreferenceKeys.pluginMineruOCREnabled
         case "deepseek_ocr":
             return AppPreferenceKeys.pluginDeepSeekOCREnabled
+        case "firecrawl_ocr":
+            return AppPreferenceKeys.pluginFirecrawlOCREnabled
         case "chat_naming":
             return AppPreferenceKeys.pluginChatNamingEnabled
         case "cloudflare_r2_upload":
