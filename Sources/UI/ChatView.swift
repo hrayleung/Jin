@@ -193,6 +193,8 @@ struct ChatView: View {
     @State var imageGenerationSeedDraft = ""
     @State var imageGenerationCompressionQualityDraft = ""
     @State var imageGenerationDraftError: String?
+    // Accessed from ChatView extensions in separate files.
+    // swiftlint:disable private_swiftui_state
     @State var mistralOCRConfigured = false
     @State var mineruOCRConfigured = false
     @State var deepSeekOCRConfigured = false
@@ -207,6 +209,7 @@ struct ChatView: View {
     @State var speechToTextPluginEnabled = true
     @State var webSearchPluginEnabled = true
     @State var webSearchPluginConfigured = false
+    // swiftlint:enable private_swiftui_state
     @State var isAgentModeActive = false
     @State var isAgentModePopoverPresented = false
     @State var isPreparingToSend = false

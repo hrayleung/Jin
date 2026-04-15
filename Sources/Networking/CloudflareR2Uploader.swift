@@ -108,6 +108,48 @@ struct CloudflareR2Configuration: Equatable {
         }
         return url
     }
+
+    func objectKey(for publicURL: URL) throws -> String {
+        guard let baseComponents = URLComponents(string: publicBaseURL),
+              let baseScheme = baseComponents.scheme?.lowercased(),
+              let baseHost = baseComponents.host?.lowercased(),
+              let publicScheme = publicURL.scheme?.lowercased(),
+              let publicHost = publicURL.host?.lowercased(),
+              baseScheme == publicScheme,
+              baseHost == publicHost else {
+            throw CloudflareR2UploaderError.publicURLValidationFailed(
+                message: "Uploaded object URL does not match the configured Cloudflare R2 public base URL."
+            )
+        }
+
+        let basePath = baseComponents.percentEncodedPath
+            .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        let publicPath = (URLComponents(url: publicURL, resolvingAgainstBaseURL: false)?.percentEncodedPath ?? publicURL.path)
+            .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        let expectedPrefix = basePath.isEmpty ? "" : "\(basePath)/"
+
+        let encodedKey: String
+        if basePath.isEmpty {
+            encodedKey = publicPath
+        } else if publicPath.hasPrefix(expectedPrefix) {
+            encodedKey = String(publicPath.dropFirst(expectedPrefix.count))
+        } else {
+            throw CloudflareR2UploaderError.publicURLValidationFailed(
+                message: "Uploaded object URL does not live under the configured Cloudflare R2 public base path."
+            )
+        }
+
+        guard !encodedKey.isEmpty else {
+            throw CloudflareR2UploaderError.publicURLValidationFailed(
+                message: "Uploaded object URL did not contain an object key."
+            )
+        }
+
+        return encodedKey
+            .split(separator: "/")
+            .map { $0.removingPercentEncoding ?? String($0) }
+            .joined(separator: "/")
+    }
 }
 
 enum CloudflareR2UploaderError: LocalizedError {
@@ -198,6 +240,28 @@ actor CloudflareR2Uploader {
             namespace: "jin-pdfs",
             validationKind: .pdf
         )
+    }
+
+    func deleteUploadedObject(
+        at publicURL: URL,
+        configuration overrideConfiguration: CloudflareR2Configuration? = nil
+    ) async throws {
+        let configuration = try (overrideConfiguration ?? currentConfiguration()).validated()
+        let objectKey = try configuration.objectKey(for: publicURL)
+        let request = try signedRequest(
+            method: "DELETE",
+            configuration: configuration,
+            objectKey: objectKey,
+            payloadData: Data(),
+            contentType: nil
+        )
+        let (responseData, response) = try await networkManager.sendRawRequest(request)
+        guard (200..<300).contains(response.statusCode) else {
+            throw CloudflareR2UploaderError.uploadRejected(
+                statusCode: response.statusCode,
+                message: Self.previewString(from: responseData)
+            )
+        }
     }
 
     func testConnection(configuration overrideConfiguration: CloudflareR2Configuration? = nil) async throws {

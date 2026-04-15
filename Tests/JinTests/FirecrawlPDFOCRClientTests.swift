@@ -192,6 +192,7 @@ final class FirecrawlPDFOCRClientTests: XCTestCase {
         var sawUpload = false
         var sawValidation = false
         var sawFirecrawl = false
+        let deleteExpectation = expectation(description: "Deletes uploaded PDF from R2")
 
         protocolType.requestHandler = { request in
             guard let url = request.url else {
@@ -219,6 +220,14 @@ final class FirecrawlPDFOCRClientTests: XCTestCase {
                         headerFields: ["Content-Type": "application/pdf"]
                     )!,
                     Data("%PDF".utf8)
+                )
+
+            case ("test-account.r2.cloudflarestorage.com", "DELETE"):
+                sawUpload = true
+                deleteExpectation.fulfill()
+                return (
+                    HTTPURLResponse(url: url, statusCode: 204, httpVersion: nil, headerFields: nil)!,
+                    Data()
                 )
 
             case ("api.firecrawl.dev", "POST"):
@@ -271,6 +280,7 @@ final class FirecrawlPDFOCRClientTests: XCTestCase {
         XCTAssertTrue(prepared.additionalParts.isEmpty)
         XCTAssertTrue(prepared.extractedText?.hasPrefix("Firecrawl OCR (Auto Markdown): a.pdf") == true)
         XCTAssertTrue(prepared.extractedText?.hasSuffix("[Truncated]") == true)
+        await fulfillment(of: [deleteExpectation], timeout: 1.0)
     }
 
     func testResolveExtensionCredentialStatusRequiresFirecrawlKeyAndValidR2Config() {
@@ -298,11 +308,11 @@ final class FirecrawlPDFOCRClientTests: XCTestCase {
 private final class FirecrawlMockURLProtocol: URLProtocol {
     static var requestHandler: ((URLRequest) throws -> (HTTPURLResponse, Data))?
 
-    override class func canInit(with request: URLRequest) -> Bool {
+    override static func canInit(with request: URLRequest) -> Bool {
         true
     }
 
-    override class func canonicalRequest(for request: URLRequest) -> URLRequest {
+    override static func canonicalRequest(for request: URLRequest) -> URLRequest {
         request
     }
 

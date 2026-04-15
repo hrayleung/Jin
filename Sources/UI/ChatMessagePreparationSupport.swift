@@ -690,6 +690,11 @@ enum ChatMessagePreparationSupport {
                     url: attachment.fileURL
                 )
             )
+            defer {
+                Task {
+                    try? await r2Uploader.deleteUploadedObject(at: hostedURL)
+                }
+            }
 
             let parserMode = profile.firecrawlPDFParserMode
             await onStatusUpdate("OCR PDF \(pdfOrdinal)/\(max(1, totalPDFCount)) (Firecrawl \(parserMode.displayName)): \(attachment.filename)")
