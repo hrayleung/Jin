@@ -57,7 +57,7 @@ extension OpenRouterAdapter {
         images: [ImageContent],
         controls: GenerationControls
     ) throws -> URLRequest {
-        let videoControls = controls.openRouterVideoGeneration
+        let videoControls = sanitizedVideoControls(controls.openRouterVideoGeneration, for: modelID)
 
         var body: [String: Any] = [
             "model": modelID,
@@ -148,11 +148,13 @@ extension OpenRouterAdapter {
             case .pending:
                 continue
             case .completed:
-                let downloadURL = try resolvedDownloadURL(jobID: jobID, responseJSON: pollJSON)
+                let downloadTarget = try resolvedDownloadTarget(jobID: jobID, responseJSON: pollJSON)
                 let (localURL, mimeType) = try await VideoAttachmentUtility.downloadToLocal(
-                    from: downloadURL,
+                    from: downloadTarget.url,
                     networkManager: networkManager,
-                    authHeader: (key: "Authorization", value: "Bearer \(apiKey)")
+                    authHeader: downloadTarget.requiresAuthorization
+                        ? (key: "Authorization", value: "Bearer \(apiKey)")
+                        : nil
                 )
                 continuation.yield(.contentDelta(.video(VideoContent(mimeType: mimeType, data: nil, url: localURL))))
                 continuation.yield(.messageEnd(usage: nil))
@@ -175,24 +177,29 @@ extension OpenRouterAdapter {
     private func resolvedPollingURL(jobID: String, pollURLString: String?) throws -> URL {
         if let pollURLString,
            let pollURL = URL(string: pollURLString),
-           let scheme = pollURL.scheme?.lowercased(),
-           (scheme == "http" || scheme == "https") {
+           isTrustedOpenRouterURL(pollURL) {
             return pollURL
         }
 
         return try validatedURL("\(baseURL)/videos/\(jobID)")
     }
 
-    private func resolvedDownloadURL(jobID: String, responseJSON: [String: Any]) throws -> URL {
+    private func resolvedDownloadTarget(jobID: String, responseJSON: [String: Any]) throws -> OpenRouterVideoDownloadTarget {
         if let unsignedURLs = responseJSON["unsigned_urls"] as? [String],
            let first = unsignedURLs.first,
            let url = URL(string: first),
            let scheme = url.scheme?.lowercased(),
            (scheme == "http" || scheme == "https") {
-            return url
+            return OpenRouterVideoDownloadTarget(
+                url: url,
+                requiresAuthorization: false
+            )
         }
 
-        return try validatedURL("\(baseURL)/videos/\(jobID)/content?index=0")
+        return OpenRouterVideoDownloadTarget(
+            url: try validatedURL("\(baseURL)/videos/\(jobID)/content?index=0"),
+            requiresAuthorization: true
+        )
     }
 
     private func passthroughParameters(for modelID: String, controls: GenerationControls) -> [String: Any] {
@@ -255,18 +262,59 @@ extension OpenRouterAdapter {
         }
     }
 
+    private func sanitizedVideoControls(
+        _ controls: OpenRouterVideoGenerationControls?,
+        for modelID: String
+    ) -> OpenRouterVideoGenerationControls? {
+        guard var controls else { return nil }
+
+        if let duration = controls.durationSeconds,
+           !OpenRouterVideoModelSupport.supportedDurations(for: modelID).contains(duration) {
+            controls.durationSeconds = nil
+        }
+
+        if let aspectRatio = controls.aspectRatio,
+           !OpenRouterVideoModelSupport.supportedAspectRatios(for: modelID).contains(aspectRatio) {
+            controls.aspectRatio = nil
+        }
+
+        if let resolution = controls.resolution,
+           !OpenRouterVideoModelSupport.supportedResolutions(for: modelID).contains(resolution) {
+            controls.resolution = nil
+        }
+
+        if OpenRouterVideoModelSupport.supportsAudio(for: modelID) == false {
+            controls.generateAudio = nil
+        }
+
+        if OpenRouterVideoModelSupport.supportsWatermark(for: modelID) == false {
+            controls.watermark = nil
+        }
+
+        return controls.isEmpty ? nil : controls
+    }
+
     private func frameImagePayload(url: String, frameType: String) -> [String: Any] {
-        [
-            "type": "input_image",
-            "image_url": url,
-            "frame_type": frameType,
-        ]
+        var payload = imageURLPayload(url: url)
+        payload["frame_type"] = frameType
+        return payload
     }
 
     private func referenceImagePayload(url: String) -> [String: Any] {
         [
-            "type": "input_image",
-            "image_url": url,
+            "type": "image_url",
+            "image_url": [
+                "url": url
+            ],
+        ]
+    }
+
+    private func imageURLPayload(url: String) -> [String: Any] {
+        [
+            "type": "image_url",
+            "image_url": [
+                "url": url
+            ]
         ]
     }
 
@@ -391,6 +439,36 @@ extension OpenRouterAdapter {
         return trimmed.isEmpty ? nil : trimmed
     }
 
+    private func isTrustedOpenRouterURL(_ url: URL) -> Bool {
+        guard let scheme = url.scheme?.lowercased(),
+              let host = url.host?.lowercased(),
+              (scheme == "http" || scheme == "https"),
+              let trustedBaseURL = URL(string: baseURL),
+              let trustedScheme = trustedBaseURL.scheme?.lowercased(),
+              let trustedHost = trustedBaseURL.host?.lowercased() else {
+            return false
+        }
+
+        return scheme == trustedScheme
+            && host == trustedHost
+            && normalizedPort(for: url) == normalizedPort(for: trustedBaseURL)
+    }
+
+    private func normalizedPort(for url: URL) -> Int? {
+        if let port = url.port {
+            return port
+        }
+
+        switch url.scheme?.lowercased() {
+        case "http":
+            return 80
+        case "https":
+            return 443
+        default:
+            return nil
+        }
+    }
+
     private static let videoProviderPassthroughKeys: Set<String> = [
         "req_key",
         "watermark",
@@ -401,4 +479,9 @@ private enum OpenRouterVideoPollStatus {
     case pending
     case completed
     case failed(String?)
+}
+
+private struct OpenRouterVideoDownloadTarget {
+    let url: URL
+    let requiresAuthorization: Bool
 }

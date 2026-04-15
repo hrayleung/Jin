@@ -426,20 +426,10 @@ enum ChatModelCapabilitySupport {
 
         switch providerType {
         case .gemini, .vertexai:
-            let gc = controls.googleVideoGeneration
-            if let duration = gc?.durationSeconds { return "\(duration)s" }
-            if let ratio = gc?.aspectRatio { return ratio.displayName }
-            if let resolution = gc?.resolution { return resolution.displayName }
             return isVideoGenerationConfigured ? "On" : nil
         case .xai:
-            if let duration = controls.xaiVideoGeneration?.duration { return "\(duration)s" }
-            if let ratio = controls.xaiVideoGeneration?.aspectRatio { return ratio.displayName }
-            if let resolution = controls.xaiVideoGeneration?.resolution { return resolution.displayName }
             return isVideoGenerationConfigured ? "On" : nil
         case .openrouter:
-            if let duration = controls.openRouterVideoGeneration?.durationSeconds { return "\(duration)s" }
-            if let ratio = controls.openRouterVideoGeneration?.aspectRatio { return ratio.displayName }
-            if let resolution = controls.openRouterVideoGeneration?.resolution { return resolution.displayName }
             return isVideoGenerationConfigured ? "On" : nil
         default:
             return nil
