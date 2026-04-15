@@ -148,13 +148,9 @@ extension OpenRouterAdapter {
             case .pending:
                 continue
             case .completed:
-                let downloadTarget = try resolvedDownloadTarget(jobID: jobID, responseJSON: pollJSON)
-                let (localURL, mimeType) = try await VideoAttachmentUtility.downloadToLocal(
-                    from: downloadTarget.url,
-                    networkManager: networkManager,
-                    authHeader: downloadTarget.requiresAuthorization
-                        ? (key: "Authorization", value: "Bearer \(apiKey)")
-                        : nil
+                let (localURL, mimeType) = try await downloadCompletedVideo(
+                    jobID: jobID,
+                    responseJSON: pollJSON
                 )
                 continuation.yield(.contentDelta(.video(VideoContent(mimeType: mimeType, data: nil, url: localURL))))
                 continuation.yield(.messageEnd(usage: nil))
@@ -184,21 +180,50 @@ extension OpenRouterAdapter {
         return try validatedURL("\(baseURL)/videos/\(jobID)")
     }
 
-    private func resolvedDownloadTarget(jobID: String, responseJSON: [String: Any]) throws -> OpenRouterVideoDownloadTarget {
-        if let unsignedURLs = responseJSON["unsigned_urls"] as? [String],
-           let first = unsignedURLs.first,
-           let url = URL(string: first),
-           let scheme = url.scheme?.lowercased(),
-           (scheme == "http" || scheme == "https") {
-            return OpenRouterVideoDownloadTarget(
-                url: url,
-                requiresAuthorization: false
-            )
+    private func downloadCompletedVideo(
+        jobID: String,
+        responseJSON: [String: Any]
+    ) async throws -> (localURL: URL, mimeType: String) {
+        let contentEndpoint = OpenRouterVideoDownloadTarget(
+            url: try validatedURL("\(baseURL)/videos/\(jobID)/content?index=0"),
+            requiresAuthorization: true
+        )
+
+        do {
+            return try await downloadVideo(from: contentEndpoint)
+        } catch {
+            let unsignedTarget = resolvedUnsignedDownloadTarget(responseJSON: responseJSON)
+            if let unsignedTarget {
+                return try await downloadVideo(from: unsignedTarget)
+            }
+            throw error
+        }
+    }
+
+    private func downloadVideo(
+        from target: OpenRouterVideoDownloadTarget
+    ) async throws -> (localURL: URL, mimeType: String) {
+        try await VideoAttachmentUtility.downloadToLocal(
+            from: target.url,
+            networkManager: networkManager,
+            authHeader: target.requiresAuthorization
+                ? (key: "Authorization", value: "Bearer \(apiKey)")
+                : nil
+        )
+    }
+
+    private func resolvedUnsignedDownloadTarget(responseJSON: [String: Any]) -> OpenRouterVideoDownloadTarget? {
+        guard let unsignedURLs = responseJSON["unsigned_urls"] as? [String],
+              let first = unsignedURLs.first,
+              let url = URL(string: first),
+              let scheme = url.scheme?.lowercased(),
+              (scheme == "http" || scheme == "https") else {
+            return nil
         }
 
         return OpenRouterVideoDownloadTarget(
-            url: try validatedURL("\(baseURL)/videos/\(jobID)/content?index=0"),
-            requiresAuthorization: true
+            url: url,
+            requiresAuthorization: false
         )
     }
 

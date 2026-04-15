@@ -2756,7 +2756,7 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         XCTAssertEqual(id, "vid_seed_proxy_1")
     }
 
-    func testOpenRouterVideoGenerationPollsUntilDoneAndDownloadsVideo() async throws {
+    func testOpenRouterVideoGenerationPollsUntilDoneAndPrefersAuthorizedContentEndpoint() async throws {
         let (configuration, protocolType) = makeMockedSessionConfiguration()
         let networkManager = NetworkManager(configuration: configuration)
 
@@ -2799,7 +2799,7 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
                 return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
             } else {
                 XCTAssertEqual(request.url?.absoluteString, "https://openrouter.ai/api/v1/videos/vid_seed_done_1/content?index=0")
-                XCTAssertNil(request.value(forHTTPHeaderField: "Authorization"))
+                XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer test-key")
                 return (
                     HTTPURLResponse(
                         url: request.url!,
@@ -2854,6 +2854,110 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
             return XCTFail("Expected messageEnd")
         }
         XCTAssertNil(usage)
+    }
+
+    func testOpenRouterVideoGenerationFallsBackToUnsignedURLWhenAuthorizedContentDownloadFails() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        let providerConfig = ProviderConfig(
+            id: "or",
+            name: "OpenRouter",
+            type: .openrouter,
+            apiKey: "ignored",
+            baseURL: "https://openrouter.ai/api/v1",
+            models: [
+                ModelCatalog.modelInfo(for: "bytedance/seedance-2.0-fast", provider: .openrouter)
+            ]
+        )
+
+        let fakeVideoBytes = Data([0x00, 0x00, 0x00, 0x1C, 0x66, 0x74, 0x79, 0x70])
+
+        var requestCount = 0
+        protocolType.requestHandler = { request in
+            requestCount += 1
+
+            if requestCount == 1 {
+                XCTAssertEqual(request.url?.absoluteString, "https://openrouter.ai/api/v1/videos")
+                let response: [String: Any] = [
+                    "id": "vid_seed_unsigned_fallback_1",
+                    "status": "pending",
+                    "polling_url": "https://openrouter.ai/api/v1/videos/vid_seed_unsigned_fallback_1"
+                ]
+                let data = try JSONSerialization.data(withJSONObject: response)
+                return (HTTPURLResponse(url: request.url!, statusCode: 202, httpVersion: nil, headerFields: nil)!, data)
+            } else if requestCount == 2 {
+                XCTAssertEqual(request.url?.absoluteString, "https://openrouter.ai/api/v1/videos/vid_seed_unsigned_fallback_1")
+                XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer test-key")
+                let response: [String: Any] = [
+                    "id": "vid_seed_unsigned_fallback_1",
+                    "status": "completed",
+                    "output": [["type": "video"]],
+                    "unsigned_urls": ["https://cdn.example.com/seedance/video.mp4"]
+                ]
+                let data = try JSONSerialization.data(withJSONObject: response)
+                return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+            } else if requestCount == 3 {
+                XCTAssertEqual(
+                    request.url?.absoluteString,
+                    "https://openrouter.ai/api/v1/videos/vid_seed_unsigned_fallback_1/content?index=0"
+                )
+                XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer test-key")
+                let data = Data("{\"error\":\"not ready\"}".utf8)
+                return (
+                    HTTPURLResponse(
+                        url: request.url!,
+                        statusCode: 404,
+                        httpVersion: nil,
+                        headerFields: ["Content-Type": "application/json"]
+                    )!,
+                    data
+                )
+            }
+
+            XCTAssertEqual(request.url?.absoluteString, "https://cdn.example.com/seedance/video.mp4")
+            XCTAssertNil(request.value(forHTTPHeaderField: "Authorization"))
+            return (
+                HTTPURLResponse(
+                    url: request.url!,
+                    statusCode: 200,
+                    httpVersion: nil,
+                    headerFields: ["Content-Type": "video/mp4"]
+                )!,
+                fakeVideoBytes
+            )
+        }
+
+        let adapter = OpenRouterAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("A glowing jellyfish drifts over downtown")])],
+            modelID: "bytedance/seedance-2.0-fast",
+            controls: GenerationControls(),
+            tools: [],
+            streaming: false
+        )
+
+        var events: [StreamEvent] = []
+        for try await event in stream {
+            events.append(event)
+        }
+
+        XCTAssertEqual(requestCount, 4)
+
+        let videoEvent = events.first { event in
+            if case .contentDelta(.video) = event { return true }
+            return false
+        }
+        guard case .contentDelta(.video(let video)) = videoEvent else {
+            return XCTFail("Expected contentDelta with video")
+        }
+        XCTAssertEqual(video.mimeType, "video/mp4")
+
+        let localURL = try XCTUnwrap(video.url)
+        let savedData = try Data(contentsOf: localURL)
+        XCTAssertEqual(savedData, fakeVideoBytes)
+        try? FileManager.default.removeItem(at: localURL)
     }
 
     func testOpenRouterVideoGenerationUsesAuthorizedFallbackDownloadEndpoint() async throws {
