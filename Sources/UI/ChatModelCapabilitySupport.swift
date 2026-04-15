@@ -488,7 +488,9 @@ enum ChatModelCapabilitySupport {
         mineruOCRPluginEnabled: Bool,
         mineruOCRConfigured: Bool,
         deepSeekOCRPluginEnabled: Bool,
-        deepSeekOCRConfigured: Bool
+        deepSeekOCRConfigured: Bool,
+        firecrawlOCRPluginEnabled: Bool,
+        firecrawlOCRConfigured: Bool
     ) -> PDFProcessingMode {
         if mistralOCRPluginEnabled, mistralOCRConfigured {
             return .mistralOCR
@@ -499,6 +501,9 @@ enum ChatModelCapabilitySupport {
         if deepSeekOCRPluginEnabled, deepSeekOCRConfigured {
             return .deepSeekOCR
         }
+        if firecrawlOCRPluginEnabled, firecrawlOCRConfigured {
+            return .firecrawlOCR
+        }
         return .macOSExtract
     }
 
@@ -507,7 +512,8 @@ enum ChatModelCapabilitySupport {
         supportsNativePDF: Bool,
         mistralOCRPluginEnabled: Bool,
         mineruOCRPluginEnabled: Bool,
-        deepSeekOCRPluginEnabled: Bool
+        deepSeekOCRPluginEnabled: Bool,
+        firecrawlOCRPluginEnabled: Bool
     ) -> Bool {
         switch mode {
         case .native:
@@ -520,6 +526,8 @@ enum ChatModelCapabilitySupport {
             return mineruOCRPluginEnabled
         case .deepSeekOCR:
             return deepSeekOCRPluginEnabled
+        case .firecrawlOCR:
+            return firecrawlOCRPluginEnabled
         }
     }
 
@@ -529,7 +537,8 @@ enum ChatModelCapabilitySupport {
         defaultPDFProcessingFallbackMode: PDFProcessingMode,
         mistralOCRPluginEnabled: Bool,
         mineruOCRPluginEnabled: Bool,
-        deepSeekOCRPluginEnabled: Bool
+        deepSeekOCRPluginEnabled: Bool,
+        firecrawlOCRPluginEnabled: Bool
     ) -> PDFProcessingMode {
         let requested = controls.pdfProcessingMode ?? .native
         if isPDFProcessingModeAvailable(
@@ -537,7 +546,8 @@ enum ChatModelCapabilitySupport {
             supportsNativePDF: supportsNativePDF,
             mistralOCRPluginEnabled: mistralOCRPluginEnabled,
             mineruOCRPluginEnabled: mineruOCRPluginEnabled,
-            deepSeekOCRPluginEnabled: deepSeekOCRPluginEnabled
+            deepSeekOCRPluginEnabled: deepSeekOCRPluginEnabled,
+            firecrawlOCRPluginEnabled: firecrawlOCRPluginEnabled
         ) {
             return requested
         }

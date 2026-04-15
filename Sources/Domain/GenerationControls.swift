@@ -24,6 +24,7 @@ struct GenerationControls: Codable {
     var mcpTools: MCPToolsControls?
     var contextCache: ContextCacheControls?
     var pdfProcessingMode: PDFProcessingMode?
+    var firecrawlPDFParserMode: FirecrawlPDFParserMode?
     var imageGeneration: ImageGenerationControls?
     var openaiImageGeneration: OpenAIImageGenerationControls?
     var xaiImageGeneration: XAIImageGenerationControls?
@@ -46,6 +47,7 @@ struct GenerationControls: Codable {
         mcpTools: MCPToolsControls? = nil,
         contextCache: ContextCacheControls? = nil,
         pdfProcessingMode: PDFProcessingMode? = nil,
+        firecrawlPDFParserMode: FirecrawlPDFParserMode? = nil,
         imageGeneration: ImageGenerationControls? = nil,
         openaiImageGeneration: OpenAIImageGenerationControls? = nil,
         xaiImageGeneration: XAIImageGenerationControls? = nil,
@@ -67,6 +69,7 @@ struct GenerationControls: Codable {
         self.mcpTools = mcpTools
         self.contextCache = contextCache
         self.pdfProcessingMode = pdfProcessingMode
+        self.firecrawlPDFParserMode = firecrawlPDFParserMode
         self.imageGeneration = imageGeneration
         self.openaiImageGeneration = openaiImageGeneration
         self.xaiImageGeneration = xaiImageGeneration

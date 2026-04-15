@@ -215,6 +215,11 @@ extension ChatView {
         persistControlsToConversation()
     }
 
+    func setFirecrawlPDFParserMode(_ mode: FirecrawlPDFParserMode) {
+        controls.firecrawlPDFParserMode = (mode == .ocr) ? nil : mode
+        persistControlsToConversation()
+    }
+
     @ViewBuilder
     var pdfProcessingMenuContent: some View {
         if supportsNativePDF {
@@ -231,6 +236,10 @@ extension ChatView {
 
         if deepSeekOCRPluginEnabled {
             Button { setPDFProcessingMode(.deepSeekOCR) } label: { menuItemLabel("DeepSeek OCR (DeepInfra)", isSelected: resolvedPDFProcessingMode == .deepSeekOCR) }
+        }
+
+        if firecrawlOCRPluginEnabled {
+            Button { setPDFProcessingMode(.firecrawlOCR) } label: { menuItemLabel("Firecrawl OCR", isSelected: resolvedPDFProcessingMode == .firecrawlOCR) }
         }
 
         Button { setPDFProcessingMode(.macOSExtract) } label: { menuItemLabel("macOS Extract", isSelected: resolvedPDFProcessingMode == .macOSExtract) }
@@ -256,9 +265,28 @@ extension ChatView {
                 .foregroundStyle(.secondary)
         }
 
-        if !mistralOCRPluginEnabled && !mineruOCRPluginEnabled && !deepSeekOCRPluginEnabled {
+        if resolvedPDFProcessingMode == .firecrawlOCR {
             Divider()
-            Text("OCR plugins are turned off. Enable Mistral OCR, MinerU OCR, or DeepSeek OCR in Settings \u{2192} Plugins to show OCR modes.")
+            Menu {
+                ForEach(FirecrawlPDFParserMode.allCases, id: \.rawValue) { mode in
+                    Button { setFirecrawlPDFParserMode(mode) } label: {
+                        menuItemLabel(mode.displayName, isSelected: resolvedFirecrawlPDFParserMode == mode)
+                    }
+                }
+            } label: {
+                Text("Firecrawl parser mode: \(resolvedFirecrawlPDFParserMode.displayName)")
+            }
+
+            if !firecrawlOCRConfigured {
+                Text("Set the Firecrawl API key in Settings \u{2192} Plugins \u{2192} Firecrawl OCR, then configure Cloudflare R2 Upload for temporary PDF hosting.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+
+        if !mistralOCRPluginEnabled && !mineruOCRPluginEnabled && !deepSeekOCRPluginEnabled && !firecrawlOCRPluginEnabled {
+            Divider()
+            Text("OCR plugins are turned off. Enable Mistral OCR, MinerU OCR, DeepSeek OCR, or Firecrawl OCR in Settings \u{2192} Plugins to show OCR modes.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }

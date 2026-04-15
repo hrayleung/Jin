@@ -11,7 +11,9 @@ final class PDFProcessingModeTests: XCTestCase {
                 mineruOCRPluginEnabled: true,
                 mineruOCRConfigured: true,
                 deepSeekOCRPluginEnabled: true,
-                deepSeekOCRConfigured: true
+                deepSeekOCRConfigured: true,
+                firecrawlOCRPluginEnabled: true,
+                firecrawlOCRConfigured: true
             ),
             .mistralOCR
         )
@@ -25,9 +27,27 @@ final class PDFProcessingModeTests: XCTestCase {
                 mineruOCRPluginEnabled: true,
                 mineruOCRConfigured: true,
                 deepSeekOCRPluginEnabled: true,
-                deepSeekOCRConfigured: true
+                deepSeekOCRConfigured: true,
+                firecrawlOCRPluginEnabled: true,
+                firecrawlOCRConfigured: true
             ),
             .mineruOCR
+        )
+    }
+
+    func testDefaultPDFProcessingFallbackModeUsesFirecrawlBeforeMacOSExtract() {
+        XCTAssertEqual(
+            ChatModelCapabilitySupport.defaultPDFProcessingFallbackMode(
+                mistralOCRPluginEnabled: false,
+                mistralOCRConfigured: false,
+                mineruOCRPluginEnabled: false,
+                mineruOCRConfigured: false,
+                deepSeekOCRPluginEnabled: false,
+                deepSeekOCRConfigured: false,
+                firecrawlOCRPluginEnabled: true,
+                firecrawlOCRConfigured: true
+            ),
+            .firecrawlOCR
         )
     }
 
@@ -39,10 +59,39 @@ final class PDFProcessingModeTests: XCTestCase {
                 defaultPDFProcessingFallbackMode: .macOSExtract,
                 mistralOCRPluginEnabled: false,
                 mineruOCRPluginEnabled: true,
-                deepSeekOCRPluginEnabled: false
+                deepSeekOCRPluginEnabled: false,
+                firecrawlOCRPluginEnabled: false
             ),
             .mineruOCR
         )
+    }
+
+    func testResolvedPDFProcessingModeAcceptsFirecrawlWhenEnabled() {
+        XCTAssertEqual(
+            ChatModelCapabilitySupport.resolvedPDFProcessingMode(
+                controls: GenerationControls(pdfProcessingMode: .firecrawlOCR),
+                supportsNativePDF: false,
+                defaultPDFProcessingFallbackMode: .macOSExtract,
+                mistralOCRPluginEnabled: false,
+                mineruOCRPluginEnabled: false,
+                deepSeekOCRPluginEnabled: false,
+                firecrawlOCRPluginEnabled: true
+            ),
+            .firecrawlOCR
+        )
+    }
+
+    func testGenerationControlsRoundTripPreservesFirecrawlParserMode() throws {
+        let controls = GenerationControls(
+            pdfProcessingMode: .firecrawlOCR,
+            firecrawlPDFParserMode: .fast
+        )
+
+        let data = try JSONEncoder().encode(controls)
+        let decoded = try JSONDecoder().decode(GenerationControls.self, from: data)
+
+        XCTAssertEqual(decoded.pdfProcessingMode, .firecrawlOCR)
+        XCTAssertEqual(decoded.firecrawlPDFParserMode, .fast)
     }
 
     func testOpenAIAdapterSendsNativePDFWhenModeNative() async throws {
