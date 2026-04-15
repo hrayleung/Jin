@@ -2471,6 +2471,236 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         for try await _ in stream {}
     }
 
+    func testOpenRouterVideoGenerationBuildsSeedanceRequestWithFrameControls() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        let providerConfig = ProviderConfig(
+            id: "or",
+            name: "OpenRouter",
+            type: .openrouter,
+            apiKey: "ignored",
+            baseURL: "https://openrouter.ai/api/v1",
+            models: [
+                ModelCatalog.modelInfo(for: "bytedance/seedance-2.0", provider: .openrouter)
+            ]
+        )
+
+        let imageOneURL = URL(fileURLWithPath: "/tmp/seedance-first.png")
+        let imageTwoURL = URL(fileURLWithPath: "/tmp/seedance-last.png")
+        try Data([0x01, 0x02, 0x03]).write(to: imageOneURL, options: .atomic)
+        try Data([0x04, 0x05, 0x06]).write(to: imageTwoURL, options: .atomic)
+        defer {
+            try? FileManager.default.removeItem(at: imageOneURL)
+            try? FileManager.default.removeItem(at: imageTwoURL)
+        }
+
+        var requestCount = 0
+        protocolType.requestHandler = { request in
+            requestCount += 1
+
+            if requestCount == 1 {
+                XCTAssertEqual(request.url?.absoluteString, "https://openrouter.ai/api/v1/videos")
+                XCTAssertEqual(request.httpMethod, "POST")
+                XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer test-key")
+
+                let body = try XCTUnwrap(requestBodyData(request))
+                let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+                let root = try XCTUnwrap(json)
+
+                XCTAssertEqual(root["model"] as? String, "bytedance/seedance-2.0")
+                XCTAssertEqual(root["prompt"] as? String, "Animate this character turnaround")
+                XCTAssertEqual(root["duration"] as? Int, 8)
+                XCTAssertEqual(root["aspect_ratio"] as? String, "16:9")
+                XCTAssertEqual(root["resolution"] as? String, "720p")
+                XCTAssertEqual(root["generate_audio"] as? Bool, true)
+
+                let frameImages = try XCTUnwrap(root["frame_images"] as? [[String: Any]])
+                XCTAssertEqual(frameImages.count, 2)
+                XCTAssertEqual(frameImages[0]["type"] as? String, "input_image")
+                XCTAssertEqual(frameImages[0]["frame_type"] as? String, "first_frame")
+                XCTAssertTrue((frameImages[0]["image_url"] as? String)?.hasPrefix("data:image/png;base64,") == true)
+                XCTAssertEqual(frameImages[1]["frame_type"] as? String, "last_frame")
+
+                let provider = try XCTUnwrap(root["provider"] as? [String: Any])
+                let options = try XCTUnwrap(provider["options"] as? [String: Any])
+                let seedOptions = try XCTUnwrap(options["seed"] as? [String: Any])
+                let parameters = try XCTUnwrap(seedOptions["parameters"] as? [String: Any])
+                XCTAssertEqual(parameters["watermark"] as? Bool, true)
+                XCTAssertEqual(parameters["req_key"] as? String, "job-key-123")
+
+                let response: [String: Any] = [
+                    "id": "vid_seed_123",
+                    "status": "pending",
+                    "polling_url": "https://openrouter.ai/api/v1/videos/vid_seed_123"
+                ]
+                let data = try JSONSerialization.data(withJSONObject: response)
+                return (HTTPURLResponse(url: request.url!, statusCode: 202, httpVersion: nil, headerFields: nil)!, data)
+            }
+
+            let response: [String: Any] = [
+                "status": "failed",
+                "error": ["message": "stop after request inspection"]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = OpenRouterAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+
+        let stream = try await adapter.sendMessage(
+            messages: [
+                Message(
+                    role: .user,
+                    content: [
+                        .image(ImageContent(mimeType: "image/png", data: nil, url: imageOneURL)),
+                        .image(ImageContent(mimeType: "image/png", data: nil, url: imageTwoURL)),
+                        .text("Animate this character turnaround")
+                    ]
+                )
+            ],
+            modelID: "bytedance/seedance-2.0",
+            controls: GenerationControls(
+                openRouterVideoGeneration: OpenRouterVideoGenerationControls(
+                    durationSeconds: 8,
+                    aspectRatio: .ratio16x9,
+                    resolution: .res720p,
+                    imageInputMode: .frameImages,
+                    generateAudio: true,
+                    watermark: true
+                ),
+                providerSpecific: ["req_key": AnyCodable("job-key-123")]
+            ),
+            tools: [],
+            streaming: false
+        )
+
+        var events: [StreamEvent] = []
+        do {
+            for try await event in stream {
+                events.append(event)
+            }
+        } catch let error as LLMError {
+            guard case .providerError(let code, let message) = error else {
+                return XCTFail("Expected provider error, got \(error)")
+            }
+            XCTAssertEqual(code, "video_generation_failed")
+            XCTAssertEqual(message, "stop after request inspection")
+        }
+
+        guard case .messageStart(let id)? = events.first else {
+            return XCTFail("Expected messageStart")
+        }
+        XCTAssertEqual(id, "vid_seed_123")
+    }
+
+    func testOpenRouterVideoGenerationPollsUntilDoneAndDownloadsVideo() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        let providerConfig = ProviderConfig(
+            id: "or",
+            name: "OpenRouter",
+            type: .openrouter,
+            apiKey: "ignored",
+            baseURL: "https://openrouter.ai/api/v1",
+            models: [
+                ModelCatalog.modelInfo(for: "bytedance/seedance-2.0-fast", provider: .openrouter)
+            ]
+        )
+
+        let fakeVideoBytes = Data([0x00, 0x00, 0x00, 0x1C, 0x66, 0x74, 0x79, 0x70])
+
+        var requestCount = 0
+        protocolType.requestHandler = { request in
+            requestCount += 1
+
+            if requestCount == 1 {
+                XCTAssertEqual(request.url?.absoluteString, "https://openrouter.ai/api/v1/videos")
+                let response: [String: Any] = [
+                    "id": "vid_seed_done_1",
+                    "status": "pending",
+                    "polling_url": "https://openrouter.ai/api/v1/videos/vid_seed_done_1"
+                ]
+                let data = try JSONSerialization.data(withJSONObject: response)
+                return (HTTPURLResponse(url: request.url!, statusCode: 202, httpVersion: nil, headerFields: nil)!, data)
+            } else if requestCount == 2 {
+                XCTAssertEqual(request.url?.absoluteString, "https://openrouter.ai/api/v1/videos/vid_seed_done_1")
+                let response: [String: Any] = [
+                    "id": "vid_seed_done_1",
+                    "status": "processing"
+                ]
+                let data = try JSONSerialization.data(withJSONObject: response)
+                return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+            } else if requestCount == 3 {
+                XCTAssertEqual(request.url?.absoluteString, "https://openrouter.ai/api/v1/videos/vid_seed_done_1")
+                let response: [String: Any] = [
+                    "id": "vid_seed_done_1",
+                    "status": "completed",
+                    "output": [["type": "video"]],
+                    "unsigned_urls": ["https://openrouter.ai/api/v1/videos/vid_seed_done_1/content?index=0"]
+                ]
+                let data = try JSONSerialization.data(withJSONObject: response)
+                return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+            } else {
+                XCTAssertEqual(request.url?.absoluteString, "https://openrouter.ai/api/v1/videos/vid_seed_done_1/content?index=0")
+                XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer test-key")
+                return (
+                    HTTPURLResponse(
+                        url: request.url!,
+                        statusCode: 200,
+                        httpVersion: nil,
+                        headerFields: ["Content-Type": "video/mp4"]
+                    )!,
+                    fakeVideoBytes
+                )
+            }
+        }
+
+        let adapter = OpenRouterAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("A neon city drive at night")])],
+            modelID: "bytedance/seedance-2.0-fast",
+            controls: GenerationControls(),
+            tools: [],
+            streaming: false
+        )
+
+        var events: [StreamEvent] = []
+        for try await event in stream {
+            events.append(event)
+        }
+
+        XCTAssertEqual(requestCount, 4)
+
+        guard case .messageStart(let id) = events[0] else {
+            return XCTFail("Expected messageStart")
+        }
+        XCTAssertEqual(id, "vid_seed_done_1")
+
+        let videoEvent = events.first { event in
+            if case .contentDelta(.video) = event { return true }
+            return false
+        }
+        guard case .contentDelta(.video(let video)) = videoEvent else {
+            return XCTFail("Expected contentDelta with video")
+        }
+        XCTAssertEqual(video.mimeType, "video/mp4")
+        XCTAssertNotNil(video.url)
+        XCTAssertTrue(video.url?.isFileURL == true)
+
+        let localURL = try XCTUnwrap(video.url)
+        let savedData = try Data(contentsOf: localURL)
+        XCTAssertEqual(savedData, fakeVideoBytes)
+        try? FileManager.default.removeItem(at: localURL)
+
+        guard case .messageEnd(let usage)? = events.last else {
+            return XCTFail("Expected messageEnd")
+        }
+        XCTAssertNil(usage)
+    }
+
     func testZhipuCodingPlanAdapterUsesDedicatedEndpointAndThinkingPayload() async throws {
         let (configuration, protocolType) = makeMockedSessionConfiguration()
         let networkManager = NetworkManager(configuration: configuration)

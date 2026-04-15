@@ -1054,4 +1054,15 @@ final class ModelSettingsResolverTests: XCTestCase {
         XCTAssertFalse(resolvedMiniMax01.capabilities.contains(.reasoning))
     }
 
+    func testOpenRouterSeedanceCatalogCarriesVideoGenerationMetadata() {
+        let seedance20 = ModelCatalog.modelInfo(for: "bytedance/seedance-2.0", provider: .openrouter)
+        let resolvedSeedance20 = ModelSettingsResolver.resolve(model: seedance20, providerType: .openrouter)
+        XCTAssertEqual(resolvedSeedance20.modelType, .video)
+        XCTAssertTrue(resolvedSeedance20.capabilities.contains(.videoGeneration))
+        XCTAssertFalse(resolvedSeedance20.capabilities.contains(.streaming))
+        XCTAssertEqual(resolvedSeedance20.contextWindow, 32_768)
+        XCTAssertNil(resolvedSeedance20.maxOutputTokens)
+        XCTAssertNil(resolvedSeedance20.reasoningConfig)
+    }
+
 }

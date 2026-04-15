@@ -200,6 +200,50 @@ extension ChatView {
                     persistControlsToConversation()
                 }
             )
+        case .openrouter:
+            OpenRouterVideoGenerationMenuView(
+                isConfigured: isVideoGenerationConfigured,
+                supportedDurations: OpenRouterVideoModelSupport.supportedDurations(for: lowerModelID),
+                supportedAspectRatios: OpenRouterVideoModelSupport.supportedAspectRatios(for: lowerModelID),
+                supportedResolutions: OpenRouterVideoModelSupport.supportedResolutions(for: lowerModelID),
+                currentDurationSeconds: controls.openRouterVideoGeneration?.durationSeconds,
+                currentAspectRatio: controls.openRouterVideoGeneration?.aspectRatio,
+                currentResolution: controls.openRouterVideoGeneration?.resolution,
+                currentImageInputMode: controls.openRouterVideoGeneration?.imageInputMode,
+                showsAudioToggle: OpenRouterVideoModelSupport.supportsAudio(for: lowerModelID),
+                showsWatermarkToggle: OpenRouterVideoModelSupport.supportsWatermark(for: lowerModelID),
+                generateAudioBinding: Binding(
+                    get: { controls.openRouterVideoGeneration?.generateAudio ?? false },
+                    set: { newValue in
+                        updateOpenRouterVideoGeneration { $0.generateAudio = newValue ? true : nil }
+                    }
+                ),
+                watermarkBinding: Binding(
+                    get: { controls.openRouterVideoGeneration?.watermark ?? false },
+                    set: { newValue in
+                        updateOpenRouterVideoGeneration { $0.watermark = newValue ? true : nil }
+                    }
+                ),
+                menuItemLabel: { title, isSelected in
+                    menuItemLabel(title, isSelected: isSelected)
+                },
+                onSetDurationSeconds: { value in
+                    updateOpenRouterVideoGeneration { $0.durationSeconds = value }
+                },
+                onSetAspectRatio: { value in
+                    updateOpenRouterVideoGeneration { $0.aspectRatio = value }
+                },
+                onSetResolution: { value in
+                    updateOpenRouterVideoGeneration { $0.resolution = value }
+                },
+                onSetImageInputMode: { value in
+                    updateOpenRouterVideoGeneration { $0.imageInputMode = value }
+                },
+                onReset: {
+                    controls.openRouterVideoGeneration = nil
+                    persistControlsToConversation()
+                }
+            )
         default:
             EmptyView()
         }
@@ -216,6 +260,13 @@ extension ChatView {
         var draft = controls.googleVideoGeneration ?? GoogleVideoGenerationControls()
         mutate(&draft)
         controls.googleVideoGeneration = draft.isEmpty ? nil : draft
+        persistControlsToConversation()
+    }
+
+    func updateOpenRouterVideoGeneration(_ mutate: (inout OpenRouterVideoGenerationControls) -> Void) {
+        var draft = controls.openRouterVideoGeneration ?? OpenRouterVideoGenerationControls()
+        mutate(&draft)
+        controls.openRouterVideoGeneration = draft.isEmpty ? nil : draft
         persistControlsToConversation()
     }
 }

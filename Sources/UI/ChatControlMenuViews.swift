@@ -531,6 +531,108 @@ struct XAIVideoGenerationMenuView<MenuItemLabel: View>: View {
     }
 }
 
+struct OpenRouterVideoGenerationMenuView<MenuItemLabel: View>: View {
+    let isConfigured: Bool
+    let supportedDurations: [Int]
+    let supportedAspectRatios: [OpenRouterVideoAspectRatio]
+    let supportedResolutions: [OpenRouterVideoResolution]
+    let currentDurationSeconds: Int?
+    let currentAspectRatio: OpenRouterVideoAspectRatio?
+    let currentResolution: OpenRouterVideoResolution?
+    let currentImageInputMode: OpenRouterVideoImageInputMode?
+    let showsAudioToggle: Bool
+    let showsWatermarkToggle: Bool
+    let generateAudioBinding: Binding<Bool>
+    let watermarkBinding: Binding<Bool>
+    let menuItemLabel: (String, Bool) -> MenuItemLabel
+    let onSetDurationSeconds: (Int?) -> Void
+    let onSetAspectRatio: (OpenRouterVideoAspectRatio?) -> Void
+    let onSetResolution: (OpenRouterVideoResolution?) -> Void
+    let onSetImageInputMode: (OpenRouterVideoImageInputMode?) -> Void
+    let onReset: () -> Void
+
+    var body: some View {
+        Text("OpenRouter Video")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+
+        Divider()
+
+        Menu("Duration") {
+            Button {
+                onSetDurationSeconds(nil)
+            } label: {
+                menuItemLabel("Default", currentDurationSeconds == nil)
+            }
+            ForEach(supportedDurations, id: \.self) { seconds in
+                Button {
+                    onSetDurationSeconds(seconds)
+                } label: {
+                    menuItemLabel("\(seconds)s", currentDurationSeconds == seconds)
+                }
+            }
+        }
+
+        Menu("Aspect ratio") {
+            Button {
+                onSetAspectRatio(nil)
+            } label: {
+                menuItemLabel("Default", currentAspectRatio == nil)
+            }
+            ForEach(supportedAspectRatios, id: \.self) { ratio in
+                Button {
+                    onSetAspectRatio(ratio)
+                } label: {
+                    menuItemLabel(ratio.displayName, currentAspectRatio == ratio)
+                }
+            }
+        }
+
+        Menu("Resolution") {
+            Button {
+                onSetResolution(nil)
+            } label: {
+                menuItemLabel("Default", currentResolution == nil)
+            }
+            ForEach(supportedResolutions, id: \.self) { resolution in
+                Button {
+                    onSetResolution(resolution)
+                } label: {
+                    menuItemLabel(resolution.displayName, currentResolution == resolution)
+                }
+            }
+        }
+
+        Menu("Image mode") {
+            Button {
+                onSetImageInputMode(nil)
+            } label: {
+                menuItemLabel("Default (Smart)", currentImageInputMode == nil)
+            }
+            ForEach(OpenRouterVideoImageInputMode.allCases, id: \.self) { mode in
+                Button {
+                    onSetImageInputMode(mode)
+                } label: {
+                    menuItemLabel(mode.displayName, currentImageInputMode == mode)
+                }
+            }
+        }
+
+        if showsAudioToggle {
+            Toggle("Generate audio", isOn: generateAudioBinding)
+        }
+
+        if showsWatermarkToggle {
+            Toggle("Watermark", isOn: watermarkBinding)
+        }
+
+        if isConfigured {
+            Divider()
+            Button("Reset", role: .destructive, action: onReset)
+        }
+    }
+}
+
 struct XAIImageGenerationMenuView<MenuItemLabel: View>: View {
     let isConfigured: Bool
     let currentCount: Int?

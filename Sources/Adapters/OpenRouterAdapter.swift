@@ -6,12 +6,13 @@ import Foundation
 /// - Base URL: https://openrouter.ai/api/v1
 /// - Endpoint: POST /chat/completions
 /// - Models: GET /models
+/// - Async video models: GET /videos/models
 actor OpenRouterAdapter: LLMProviderAdapter {
     let providerConfig: ProviderConfig
-    let capabilities: ModelCapability = [.streaming, .toolCalling, .vision, .audio, .reasoning]
+    let capabilities: ModelCapability = [.streaming, .toolCalling, .vision, .audio, .reasoning, .videoGeneration]
 
-    private let networkManager: NetworkManager
-    private let apiKey: String
+    let networkManager: NetworkManager
+    let apiKey: String
 
     init(providerConfig: ProviderConfig, apiKey: String, networkManager: NetworkManager = NetworkManager()) {
         self.providerConfig = providerConfig
@@ -26,6 +27,14 @@ actor OpenRouterAdapter: LLMProviderAdapter {
         tools: [ToolDefinition],
         streaming: Bool
     ) async throws -> AsyncThrowingStream<StreamEvent, Error> {
+        if isVideoGenerationModel(modelID) {
+            return try makeVideoGenerationStream(
+                messages: messages,
+                modelID: modelID,
+                controls: controls
+            )
+        }
+
         let request = try buildRequest(
             messages: messages,
             modelID: modelID,
@@ -59,6 +68,16 @@ actor OpenRouterAdapter: LLMProviderAdapter {
     }
 
     func fetchAvailableModels() async throws -> [ModelInfo] {
+        let standardModels = try await fetchStandardModels()
+        let videoModels = await fetchVideoModelsIfAvailable()
+
+        var seenIDs = Set<String>()
+        return (standardModels + videoModels).filter { model in
+            seenIDs.insert(model.id).inserted
+        }
+    }
+
+    private func fetchStandardModels() async throws -> [ModelInfo] {
         let request = makeGETRequest(
             url: try validatedURL("\(baseURL)/models"),
             apiKey: apiKey,
@@ -73,9 +92,32 @@ actor OpenRouterAdapter: LLMProviderAdapter {
         return response.data.map(makeModelInfo(from:))
     }
 
+    private func fetchVideoModelsIfAvailable() async -> [ModelInfo] {
+        do {
+            return try await fetchVideoModels()
+        } catch {
+            return []
+        }
+    }
+
+    private func fetchVideoModels() async throws -> [ModelInfo] {
+        let request = makeGETRequest(
+            url: try validatedURL("\(baseURL)/videos/models"),
+            apiKey: apiKey,
+            additionalHeaders: openRouterHeaders,
+            includeUserAgent: false
+        )
+
+        let (data, _) = try await networkManager.sendRequest(request)
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        let response = try decoder.decode(OpenRouterVideoModelsResponse.self, from: data)
+        return response.data.map(makeModelInfo(from:))
+    }
+
     // MARK: - Private
 
-    private var baseURL: String {
+    var baseURL: String {
         let raw = (providerConfig.baseURL ?? "https://openrouter.ai/api/v1")
             .trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmed = raw.hasSuffix("/") ? String(raw.dropLast()) : raw
@@ -98,7 +140,7 @@ actor OpenRouterAdapter: LLMProviderAdapter {
         return trimmed
     }
 
-    private var openRouterHeaders: [String: String] {
+    var openRouterHeaders: [String: String] {
         [
             "HTTP-Referer": "https://jin.app",
             "X-Title": "Jin"
@@ -296,28 +338,32 @@ actor OpenRouterAdapter: LLMProviderAdapter {
         let supportsReasoning = supportedParameters.contains("reasoning")
             || supportedParameters.contains("include_reasoning")
             || supportedParameters.contains("reasoning_effort")
+        let outputsText = outputModalities.contains(where: { $0.contains("text") })
+        let outputsImage = outputModalities.contains(where: { $0.contains("image") }) || lower.contains("image")
+        let outputsVideo = outputModalities.contains(where: { $0.contains("video") }) || lower.contains("video")
+        let isMediaOnlyModel = (outputsImage || outputsVideo) && !outputsText
 
-        var caps: ModelCapability = [.streaming]
+        var caps: ModelCapability = isMediaOnlyModel ? [] : [.streaming]
 
-        if supportedParameters.contains("tools") {
+        if !isMediaOnlyModel, supportedParameters.contains("tools") {
             caps.insert(.toolCalling)
         }
         if hasImageLikeModalities {
             caps.insert(.vision)
         }
-        if hasAudioLikeModalities || isAudioInputModelID(lower) {
+        if !isMediaOnlyModel, hasAudioLikeModalities || isAudioInputModelID(lower) {
             caps.insert(.audio)
         }
-        if supportsReasoning {
+        if !isMediaOnlyModel, supportsReasoning {
             caps.insert(.reasoning)
         }
-        if model.pricing?.inputCacheRead != nil {
+        if !isMediaOnlyModel, model.pricing?.inputCacheRead != nil {
             caps.insert(.promptCaching)
         }
-        if outputModalities.contains(where: { $0.contains("image") }) || lower.contains("image") {
+        if outputsImage {
             caps.insert(.imageGeneration)
         }
-        if outputModalities.contains(where: { $0.contains("video") }) || lower.contains("video") {
+        if outputsVideo {
             caps.insert(.videoGeneration)
         }
 
@@ -327,13 +373,50 @@ actor OpenRouterAdapter: LLMProviderAdapter {
             capabilities: caps,
             contextWindow: apiContextWindow ?? 128_000,
             maxOutputTokens: apiMaxOutputTokens,
-            reasoningConfig: supportsReasoning ? ModelReasoningConfig(type: .effort, defaultEffort: .medium) : nil
+            reasoningConfig: (!isMediaOnlyModel && supportsReasoning)
+                ? ModelReasoningConfig(type: .effort, defaultEffort: .medium)
+                : nil
+        )
+    }
+
+    private func makeModelInfo(from model: OpenRouterVideoModelsResponse.Model) -> ModelInfo {
+        let id = model.id
+
+        if let entry = ModelCatalog.entry(for: id, provider: .openrouter) {
+            return ModelInfo(
+                id: id,
+                name: entry.displayName,
+                capabilities: entry.capabilities,
+                contextWindow: entry.contextWindow,
+                maxOutputTokens: entry.maxOutputTokens,
+                reasoningConfig: entry.reasoningConfig
+            )
+        }
+
+        return ModelInfo(
+            id: id,
+            name: model.name ?? id,
+            capabilities: [.videoGeneration],
+            contextWindow: 32_768,
+            maxOutputTokens: nil,
+            reasoningConfig: nil
         )
     }
 
     private func positiveInt(_ value: Int?) -> Int? {
         guard let value, value > 0 else { return nil }
         return value
+    }
+
+    private func isVideoGenerationModel(_ modelID: String) -> Bool {
+        if let model = findConfiguredModel(in: providerConfig, for: modelID) {
+            let resolved = ModelSettingsResolver.resolve(model: model, providerType: providerConfig.type)
+            if resolved.capabilities.contains(.videoGeneration) {
+                return true
+            }
+        }
+
+        return ModelCatalog.entry(for: modelID, provider: .openrouter)?.capabilities.contains(.videoGeneration) == true
     }
 
 }
@@ -363,5 +446,14 @@ private struct OpenRouterModelsResponse: Decodable {
 
     struct Pricing: Decodable {
         let inputCacheRead: String?
+    }
+}
+
+private struct OpenRouterVideoModelsResponse: Decodable {
+    let data: [Model]
+
+    struct Model: Decodable {
+        let id: String
+        let name: String?
     }
 }

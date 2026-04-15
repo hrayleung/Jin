@@ -107,6 +107,26 @@ final class ModelCatalogTests: XCTestCase {
         XCTAssertTrue(gemma26.capabilities.contains(.reasoning))
     }
 
+    func testOpenRouterSeedanceCatalogUsesExactVideoModelIDs() {
+        let seedance20 = ModelCatalog.modelInfo(
+            for: "bytedance/seedance-2.0",
+            provider: .openrouter
+        )
+        XCTAssertTrue(seedance20.capabilities.contains(.videoGeneration))
+        XCTAssertFalse(seedance20.capabilities.contains(.streaming))
+        XCTAssertEqual(seedance20.contextWindow, 32_768)
+        XCTAssertNil(seedance20.maxOutputTokens)
+        XCTAssertNil(seedance20.reasoningConfig)
+
+        let unknown = ModelCatalog.modelInfo(
+            for: "bytedance/seedance-2.0-custom",
+            provider: .openrouter
+        )
+        XCTAssertEqual(unknown.capabilities, [.streaming, .toolCalling])
+        XCTAssertEqual(unknown.contextWindow, 128_000)
+        XCTAssertNil(unknown.reasoningConfig)
+    }
+
     func testGeminiGemma431CatalogUsesExactMetadata() {
         let model = ModelCatalog.modelInfo(
             for: "gemma-4-31b-it",
