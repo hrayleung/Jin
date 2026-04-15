@@ -11,6 +11,7 @@ import Foundation
 /// - `OpenAIImageGenerationControls.swift` -- OpenAI image generation
 /// - `XAIMediaGenerationControls.swift` -- xAI image/video generation
 /// - `GoogleMediaGenerationControls.swift` -- Gemini/Vertex image/video generation
+/// - `OpenRouterVideoGenerationControls.swift` -- OpenRouter video generation
 /// - `ProviderTypes.swift` -- ProviderType, ProviderConfig, ModelInfo, Usage
 struct GenerationControls: Codable {
     var temperature: Double?
@@ -28,6 +29,7 @@ struct GenerationControls: Codable {
     var xaiImageGeneration: XAIImageGenerationControls?
     var xaiVideoGeneration: XAIVideoGenerationControls?
     var googleVideoGeneration: GoogleVideoGenerationControls?
+    var openRouterVideoGeneration: OpenRouterVideoGenerationControls?
     var googleMaps: GoogleMapsControls?
     var codeExecution: CodeExecutionControls?
     var agentMode: AgentModeControls?
@@ -49,6 +51,7 @@ struct GenerationControls: Codable {
         xaiImageGeneration: XAIImageGenerationControls? = nil,
         xaiVideoGeneration: XAIVideoGenerationControls? = nil,
         googleVideoGeneration: GoogleVideoGenerationControls? = nil,
+        openRouterVideoGeneration: OpenRouterVideoGenerationControls? = nil,
         googleMaps: GoogleMapsControls? = nil,
         codeExecution: CodeExecutionControls? = nil,
         agentMode: AgentModeControls? = nil,
@@ -69,6 +72,7 @@ struct GenerationControls: Codable {
         self.xaiImageGeneration = xaiImageGeneration
         self.xaiVideoGeneration = xaiVideoGeneration
         self.googleVideoGeneration = googleVideoGeneration
+        self.openRouterVideoGeneration = openRouterVideoGeneration
         self.googleMaps = googleMaps
         self.codeExecution = codeExecution
         self.agentMode = agentMode

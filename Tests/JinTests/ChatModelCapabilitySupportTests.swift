@@ -39,4 +39,45 @@ final class ChatModelCapabilitySupportTests: XCTestCase {
         XCTAssertEqual(resolved.maxOutputTokens, remoteModel.maxOutputTokens)
         XCTAssertEqual(resolved.capabilities, remoteModel.capabilities)
     }
+
+    func testVideoGenerationBadgeTextUsesGenericOnState() {
+        let openRouterBadge = ChatModelCapabilitySupport.videoGenerationBadgeText(
+            supportsVideoGenerationControl: true,
+            providerType: .openrouter,
+            controls: GenerationControls(
+                openRouterVideoGeneration: OpenRouterVideoGenerationControls(
+                    durationSeconds: 4,
+                    resolution: .res480p
+                )
+            ),
+            isVideoGenerationConfigured: true
+        )
+        XCTAssertEqual(openRouterBadge, "On")
+
+        let xaiBadge = ChatModelCapabilitySupport.videoGenerationBadgeText(
+            supportsVideoGenerationControl: true,
+            providerType: .xai,
+            controls: GenerationControls(
+                xaiVideoGeneration: XAIVideoGenerationControls(
+                    duration: 5,
+                    resolution: .res720p
+                )
+            ),
+            isVideoGenerationConfigured: true
+        )
+        XCTAssertEqual(xaiBadge, "On")
+
+        let googleBadge = ChatModelCapabilitySupport.videoGenerationBadgeText(
+            supportsVideoGenerationControl: true,
+            providerType: .gemini,
+            controls: GenerationControls(
+                googleVideoGeneration: GoogleVideoGenerationControls(
+                    durationSeconds: 8,
+                    resolution: .res720p
+                )
+            ),
+            isVideoGenerationConfigured: true
+        )
+        XCTAssertEqual(googleBadge, "On")
+    }
 }

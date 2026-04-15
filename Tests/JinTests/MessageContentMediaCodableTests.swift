@@ -67,6 +67,31 @@ final class MessageContentMediaCodableTests: XCTestCase {
         XCTAssertEqual(decoded.xaiImageGeneration?.user, "tester")
     }
 
+    func testGenerationControlsRoundTripIncludesOpenRouterVideoControls() throws {
+        let controls = GenerationControls(
+            openRouterVideoGeneration: OpenRouterVideoGenerationControls(
+                durationSeconds: 8,
+                aspectRatio: .ratio21x9,
+                resolution: .res720p,
+                imageInputMode: .referenceImages,
+                generateAudio: true,
+                watermark: true,
+                seed: 42
+            )
+        )
+
+        let encoded = try JSONEncoder().encode(controls)
+        let decoded = try JSONDecoder().decode(GenerationControls.self, from: encoded)
+
+        XCTAssertEqual(decoded.openRouterVideoGeneration?.durationSeconds, 8)
+        XCTAssertEqual(decoded.openRouterVideoGeneration?.aspectRatio, .ratio21x9)
+        XCTAssertEqual(decoded.openRouterVideoGeneration?.resolution, .res720p)
+        XCTAssertEqual(decoded.openRouterVideoGeneration?.imageInputMode, .referenceImages)
+        XCTAssertEqual(decoded.openRouterVideoGeneration?.generateAudio, true)
+        XCTAssertEqual(decoded.openRouterVideoGeneration?.watermark, true)
+        XCTAssertEqual(decoded.openRouterVideoGeneration?.seed, 42)
+    }
+
     func testGenerationControlsRoundTripIncludesAnthropicWebSearchControls() throws {
         let controls = GenerationControls(
             webSearch: WebSearchControls(

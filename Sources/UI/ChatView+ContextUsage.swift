@@ -112,6 +112,7 @@ extension ChatView {
 
     private var contextUsageSettingsSnapshot: ContextUsageSettingsSnapshot? {
         guard activeModelThread != nil || selectedModelInfo != nil else { return nil }
+        guard resolvedModelSettings?.modelType != .video else { return nil }
 
         let assistant = conversationEntity.assistant
         var controlsToUse = GenerationControlsResolver.resolvedForRequest(

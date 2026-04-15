@@ -20,23 +20,40 @@ final class AdapterRequestConstructionTests: XCTestCase {
         )
 
         protocolType.requestHandler = { request in
-            XCTAssertEqual(request.url?.absoluteString, "https://openrouter.ai/api/v1/models")
+            let url = try XCTUnwrap(request.url?.absoluteString)
             XCTAssertEqual(request.httpMethod, "GET")
             XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer test-key")
             XCTAssertEqual(request.value(forHTTPHeaderField: "Accept"), "application/json")
             XCTAssertEqual(request.value(forHTTPHeaderField: "HTTP-Referer"), "https://jin.app")
             XCTAssertEqual(request.value(forHTTPHeaderField: "X-Title"), "Jin")
 
-            let payload: [String: Any] = [
-                "data": [
-                    [
-                        "id": "openai/gpt-4o",
-                        "architecture": [
-                            "input_modalities": ["text", "image"]
+            let payload: [String: Any]
+            switch url {
+            case "https://openrouter.ai/api/v1/models":
+                payload = [
+                    "data": [
+                        [
+                            "id": "openai/gpt-4o",
+                            "architecture": [
+                                "input_modalities": ["text", "image"]
+                            ]
                         ]
                     ]
                 ]
-            ]
+            case "https://openrouter.ai/api/v1/videos/models":
+                payload = [
+                    "data": [
+                        [
+                            "id": "bytedance/seedance-2.0",
+                            "name": "ByteDance: Seedance 2.0"
+                        ]
+                    ]
+                ]
+            default:
+                XCTFail("Unexpected URL: \(url)")
+                throw URLError(.badURL)
+            }
+
             let data = try JSONSerialization.data(withJSONObject: payload)
             return (
                 HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
@@ -47,7 +64,7 @@ final class AdapterRequestConstructionTests: XCTestCase {
         let adapter = OpenRouterAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
         let models = try await adapter.fetchAvailableModels()
 
-        XCTAssertEqual(models.first?.id, "openai/gpt-4o")
+        XCTAssertEqual(models.map(\.id), ["openai/gpt-4o", "bytedance/seedance-2.0"])
     }
 
     func testOpenRouterAdapterFetchModelsUsesCatalogAndAPIModelMetadata() async throws {
@@ -63,45 +80,55 @@ final class AdapterRequestConstructionTests: XCTestCase {
         )
 
         protocolType.requestHandler = { request in
-            XCTAssertEqual(request.url?.absoluteString, "https://openrouter.ai/api/v1/models")
+            let url = try XCTUnwrap(request.url?.absoluteString)
 
-            let payload: [String: Any] = [
-                "data": [
-                    [
-                        "id": "xiaomi/mimo-v2-omni",
-                        "name": "Xiaomi: MiMo-V2-Omni",
-                        "context_length": 262_144,
-                        "architecture": [
-                            "input_modalities": ["text", "image", "audio", "video"],
-                            "output_modalities": ["text"],
-                        ],
-                        "supported_parameters": ["reasoning", "tools", "tool_choice"],
-                        "top_provider": [
+            let payload: [String: Any]
+            switch url {
+            case "https://openrouter.ai/api/v1/models":
+                payload = [
+                    "data": [
+                        [
+                            "id": "xiaomi/mimo-v2-omni",
+                            "name": "Xiaomi: MiMo-V2-Omni",
                             "context_length": 262_144,
-                            "max_completion_tokens": 65_536,
+                            "architecture": [
+                                "input_modalities": ["text", "image", "audio", "video"],
+                                "output_modalities": ["text"],
+                            ],
+                            "supported_parameters": ["reasoning", "tools", "tool_choice"],
+                            "top_provider": [
+                                "context_length": 262_144,
+                                "max_completion_tokens": 65_536,
+                            ],
+                            "pricing": [
+                                "input_cache_read": "0.00000008",
+                            ],
                         ],
-                        "pricing": [
-                            "input_cache_read": "0.00000008",
+                        [
+                            "id": "vendor/unknown-vision-reasoner",
+                            "name": "Unknown Vision Reasoner",
+                            "context_length": 321_000,
+                            "architecture": [
+                                "input_modalities": ["text", "image"],
+                                "output_modalities": ["text"],
+                            ],
+                            "supported_parameters": ["reasoning", "tools"],
+                            "top_provider": [
+                                "max_completion_tokens": 12_345,
+                            ],
+                            "pricing": [
+                                "input_cache_read": "0.00000001",
+                            ],
                         ],
                     ],
-                    [
-                        "id": "vendor/unknown-vision-reasoner",
-                        "name": "Unknown Vision Reasoner",
-                        "context_length": 321_000,
-                        "architecture": [
-                            "input_modalities": ["text", "image"],
-                            "output_modalities": ["text"],
-                        ],
-                        "supported_parameters": ["reasoning", "tools"],
-                        "top_provider": [
-                            "max_completion_tokens": 12_345,
-                        ],
-                        "pricing": [
-                            "input_cache_read": "0.00000001",
-                        ],
-                    ],
-                ],
-            ]
+                ]
+            case "https://openrouter.ai/api/v1/videos/models":
+                payload = ["data": []]
+            default:
+                XCTFail("Unexpected URL: \(url)")
+                throw URLError(.badURL)
+            }
+
             let data = try JSONSerialization.data(withJSONObject: payload)
             return (
                 HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
@@ -133,6 +160,104 @@ final class AdapterRequestConstructionTests: XCTestCase {
         XCTAssertTrue(unknown.capabilities.contains(.reasoning))
         XCTAssertTrue(unknown.capabilities.contains(.promptCaching))
         XCTAssertEqual(unknown.reasoningConfig?.type, .effort)
+    }
+
+    func testOpenRouterAdapterFetchModelsMergesAsyncVideoModelsIntoSelectionResults() async throws {
+        let (configuration, protocolType) = makeAdapterRequestConstructionSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        let providerConfig = ProviderConfig(
+            id: "or",
+            name: "OpenRouter",
+            type: .openrouter,
+            apiKey: "ignored",
+            baseURL: "https://openrouter.ai/api/v1"
+        )
+
+        protocolType.requestHandler = { request in
+            let url = try XCTUnwrap(request.url?.absoluteString)
+
+            let payload: [String: Any]
+            switch url {
+            case "https://openrouter.ai/api/v1/models":
+                payload = [
+                    "data": [
+                        [
+                            "id": "openai/gpt-4o",
+                            "name": "GPT-4o",
+                            "context_length": 128_000,
+                            "architecture": [
+                                "input_modalities": ["text", "image"],
+                                "output_modalities": ["text"],
+                            ],
+                            "supported_parameters": ["tools"],
+                        ],
+                        [
+                            "id": "bytedance/seedance-2.0",
+                            "name": "ByteDance: Seedance 2.0",
+                            "context_length": 0,
+                            "architecture": [
+                                "input_modalities": ["text", "image"],
+                                "output_modalities": ["video"],
+                            ],
+                        ],
+                    ],
+                ]
+            case "https://openrouter.ai/api/v1/videos/models":
+                payload = [
+                    "data": [
+                        [
+                            "id": "bytedance/seedance-2.0",
+                            "name": "ByteDance: Seedance 2.0"
+                        ],
+                        [
+                            "id": "bytedance/seedance-2.0-fast",
+                            "name": "ByteDance: Seedance 2.0 Fast"
+                        ],
+                        [
+                            "id": "bytedance/seedance-1-5-pro",
+                            "name": "ByteDance: Seedance 1.5 Pro"
+                        ],
+                    ]
+                ]
+            default:
+                XCTFail("Unexpected URL: \(url)")
+                throw URLError(.badURL)
+            }
+
+            let data = try JSONSerialization.data(withJSONObject: payload)
+            return (
+                HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                data
+            )
+        }
+
+        let adapter = OpenRouterAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let models = try await adapter.fetchAvailableModels()
+        let byID = Dictionary(uniqueKeysWithValues: models.map { ($0.id, $0) })
+
+        XCTAssertEqual(models.map(\.id), [
+            "openai/gpt-4o",
+            "bytedance/seedance-2.0",
+            "bytedance/seedance-2.0-fast",
+            "bytedance/seedance-1-5-pro"
+        ])
+
+        let seedance = try XCTUnwrap(byID["bytedance/seedance-2.0"])
+        XCTAssertEqual(seedance.name, "Seedance 2.0")
+        XCTAssertEqual(seedance.contextWindow, 32_768)
+        XCTAssertEqual(seedance.capabilities, [.videoGeneration])
+        XCTAssertNil(seedance.reasoningConfig)
+
+        let seedanceFast = try XCTUnwrap(byID["bytedance/seedance-2.0-fast"])
+        XCTAssertEqual(seedanceFast.name, "Seedance 2.0 Fast")
+        XCTAssertEqual(seedanceFast.contextWindow, 32_768)
+        XCTAssertEqual(seedanceFast.capabilities, [.videoGeneration])
+
+        let seedancePro = try XCTUnwrap(byID["bytedance/seedance-1-5-pro"])
+        XCTAssertEqual(seedancePro.name, "Seedance 1.5 Pro")
+        XCTAssertEqual(seedancePro.contextWindow, 32_768)
+        XCTAssertEqual(seedancePro.capabilities, [.videoGeneration])
     }
 
     func testOpenAICompatibleGitHubCatalogFetchIncludesGitHubHeaders() async throws {

@@ -673,7 +673,9 @@ extension ChatView {
     func normalizeVideoGenerationControls() {
         ChatControlNormalizationSupport.normalizeVideoGenerationControls(
             controls: &controls,
-            supportsVideoGenerationControl: supportsVideoGenerationControl
+            supportsVideoGenerationControl: supportsVideoGenerationControl,
+            providerType: providerType,
+            lowerModelID: lowerModelID
         )
     }
 

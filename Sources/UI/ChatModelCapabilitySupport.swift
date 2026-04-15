@@ -409,6 +409,8 @@ enum ChatModelCapabilitySupport {
             return !(controls.googleVideoGeneration?.isEmpty ?? true)
         case .xai:
             return !(controls.xaiVideoGeneration?.isEmpty ?? true)
+        case .openrouter:
+            return !(controls.openRouterVideoGeneration?.isEmpty ?? true)
         default:
             return false
         }
@@ -424,15 +426,10 @@ enum ChatModelCapabilitySupport {
 
         switch providerType {
         case .gemini, .vertexai:
-            let gc = controls.googleVideoGeneration
-            if let duration = gc?.durationSeconds { return "\(duration)s" }
-            if let ratio = gc?.aspectRatio { return ratio.displayName }
-            if let resolution = gc?.resolution { return resolution.displayName }
             return isVideoGenerationConfigured ? "On" : nil
         case .xai:
-            if let duration = controls.xaiVideoGeneration?.duration { return "\(duration)s" }
-            if let ratio = controls.xaiVideoGeneration?.aspectRatio { return ratio.displayName }
-            if let resolution = controls.xaiVideoGeneration?.resolution { return resolution.displayName }
+            return isVideoGenerationConfigured ? "On" : nil
+        case .openrouter:
             return isVideoGenerationConfigured ? "On" : nil
         default:
             return nil
@@ -464,6 +461,18 @@ enum ChatModelCapabilitySupport {
             if let duration = controls.xaiVideoGeneration?.duration { parts.append("\(duration)s") }
             if let ratio = controls.xaiVideoGeneration?.aspectRatio { parts.append(ratio.displayName) }
             if let resolution = controls.xaiVideoGeneration?.resolution { parts.append(resolution.displayName) }
+            if parts.isEmpty {
+                return isVideoGenerationConfigured ? "Video Generation: Customized" : "Video Generation: Default"
+            }
+            return "Video Generation: \(parts.joined(separator: ", "))"
+        case .openrouter:
+            var parts: [String] = []
+            if let duration = controls.openRouterVideoGeneration?.durationSeconds { parts.append("\(duration)s") }
+            if let ratio = controls.openRouterVideoGeneration?.aspectRatio { parts.append(ratio.displayName) }
+            if let resolution = controls.openRouterVideoGeneration?.resolution { parts.append(resolution.displayName) }
+            if let mode = controls.openRouterVideoGeneration?.imageInputMode { parts.append(mode.displayName) }
+            if controls.openRouterVideoGeneration?.generateAudio == true { parts.append("Audio") }
+            if controls.openRouterVideoGeneration?.watermark == true { parts.append("Watermark") }
             if parts.isEmpty {
                 return isVideoGenerationConfigured ? "Video Generation: Customized" : "Video Generation: Default"
             }
