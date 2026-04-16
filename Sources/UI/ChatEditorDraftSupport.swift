@@ -178,6 +178,23 @@ enum ChatEditorDraftSupport {
         return value
     }
 
+    static func resolvedAnthropicMaxTokensDraftInt(
+        from raw: String,
+        currentMaxTokens: Int?,
+        modelID: String
+    ) -> Int? {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty {
+            let fallback = currentMaxTokens ?? AnthropicModelLimits.resolvedMaxTokens(
+                requested: nil,
+                for: modelID,
+                fallback: 4096
+            )
+            return fallback > 0 ? fallback : nil
+        }
+        return maxTokensDraftInt(from: raw)
+    }
+
     static func prepareThinkingBudgetEditorDraft(
         anthropicUsesAdaptiveThinking: Bool,
         budgetTokens: Int?,
@@ -216,13 +233,18 @@ enum ChatEditorDraftSupport {
         providerType: ProviderType?,
         modelID: String,
         thinkingBudgetDraft: String,
-        maxTokensDraft: String
+        maxTokensDraft: String,
+        currentMaxTokens: Int?
     ) -> Bool {
         if !anthropicUsesAdaptiveThinking {
             guard let budget = thinkingBudgetDraftInt(from: thinkingBudgetDraft), budget > 0 else { return false }
         }
         guard providerType == .anthropic else { return true }
-        guard let maxTokens = maxTokensDraftInt(from: maxTokensDraft) else { return false }
+        guard let maxTokens = resolvedAnthropicMaxTokensDraftInt(
+            from: maxTokensDraft,
+            currentMaxTokens: currentMaxTokens,
+            modelID: modelID
+        ) else { return false }
         if let modelMax = AnthropicModelLimits.maxOutputTokens(for: modelID), maxTokens > modelMax {
             return false
         }
@@ -234,12 +256,18 @@ enum ChatEditorDraftSupport {
         anthropicUsesAdaptiveThinking: Bool,
         modelID: String,
         thinkingBudgetDraft: String,
-        maxTokensDraft: String
+        maxTokensDraft: String,
+        currentMaxTokens: Int?
     ) -> String? {
         guard providerType == .anthropic else { return nil }
 
         let thinkingBudgetDraftInt = thinkingBudgetDraftInt(from: thinkingBudgetDraft)
-        let maxTokensDraftInt = maxTokensDraftInt(from: maxTokensDraft)
+        let trimmedMaxTokensDraft = maxTokensDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        let maxTokensDraftInt = resolvedAnthropicMaxTokensDraftInt(
+            from: maxTokensDraft,
+            currentMaxTokens: currentMaxTokens,
+            modelID: modelID
+        )
 
         if !anthropicUsesAdaptiveThinking {
             guard let budget = thinkingBudgetDraftInt else { return "Enter an integer token budget (e.g., 4096)." }
@@ -253,7 +281,7 @@ enum ChatEditorDraftSupport {
             }
         }
 
-        if maxTokensDraftInt == nil {
+        if !trimmedMaxTokensDraft.isEmpty && maxTokensDraftInt == nil {
             return "Enter a valid positive max output token value."
         }
 

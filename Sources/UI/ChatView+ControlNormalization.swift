@@ -345,7 +345,8 @@ extension ChatView {
             providerType: providerType,
             modelID: conversationEntity.modelID,
             thinkingBudgetDraft: thinkingBudgetDraft,
-            maxTokensDraft: maxTokensDraft
+            maxTokensDraft: maxTokensDraft,
+            currentMaxTokens: controls.maxTokens
         )
     }
 
@@ -355,7 +356,8 @@ extension ChatView {
             anthropicUsesAdaptiveThinking: anthropicUsesAdaptiveThinking,
             modelID: conversationEntity.modelID,
             thinkingBudgetDraft: thinkingBudgetDraft,
-            maxTokensDraft: maxTokensDraft
+            maxTokensDraft: maxTokensDraft,
+            currentMaxTokens: controls.maxTokens
         )
     }
 

@@ -2,6 +2,53 @@ import XCTest
 @testable import Jin
 
 final class ChatEditorDraftSupportTests: XCTestCase {
+    func testAnthropicThinkingDraftValidationUsesCurrentMaxTokensFallbackWhenDraftIsEmpty() {
+        XCTAssertTrue(
+            ChatEditorDraftSupport.isThinkingBudgetDraftValid(
+                anthropicUsesAdaptiveThinking: true,
+                providerType: .anthropic,
+                modelID: "claude-opus-4-7",
+                thinkingBudgetDraft: "",
+                maxTokensDraft: "",
+                currentMaxTokens: 64_000
+            )
+        )
+        XCTAssertNil(
+            ChatEditorDraftSupport.thinkingBudgetValidationWarning(
+                providerType: .anthropic,
+                anthropicUsesAdaptiveThinking: true,
+                modelID: "claude-opus-4-7",
+                thinkingBudgetDraft: "",
+                maxTokensDraft: "",
+                currentMaxTokens: 64_000
+            )
+        )
+    }
+
+    func testAnthropicThinkingDraftValidationStillRejectsNonNumericMaxTokens() {
+        XCTAssertFalse(
+            ChatEditorDraftSupport.isThinkingBudgetDraftValid(
+                anthropicUsesAdaptiveThinking: true,
+                providerType: .anthropic,
+                modelID: "claude-opus-4-7",
+                thinkingBudgetDraft: "",
+                maxTokensDraft: "abc",
+                currentMaxTokens: 64_000
+            )
+        )
+        XCTAssertEqual(
+            ChatEditorDraftSupport.thinkingBudgetValidationWarning(
+                providerType: .anthropic,
+                anthropicUsesAdaptiveThinking: true,
+                modelID: "claude-opus-4-7",
+                thinkingBudgetDraft: "",
+                maxTokensDraft: "abc",
+                currentMaxTokens: 64_000
+            ),
+            "Enter a valid positive max output token value."
+        )
+    }
+
     func testApplyClaudeManagedAgentSessionSettingsDraftRequiresBothAgentAndEnvironment() {
         let result = ChatEditorDraftSupport.applyClaudeManagedAgentSessionSettingsDraft(
             agentIDDraft: "agent_123",
