@@ -118,7 +118,7 @@ enum GeminiModelConstants {
             return "LOW"
         case .medium:
             return supportsMedium ? "MEDIUM" : "HIGH"
-        case .high, .xhigh:
+        case .high, .xhigh, .max:
             return "HIGH"
         }
     }

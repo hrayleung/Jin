@@ -92,6 +92,13 @@ final class ModelSettingsResolverTests: XCTestCase {
     }
 
     func testAnthropicCatalogCarriesDocsVerifiedContextAndMaxOutput() {
+        let opus47 = ModelCatalog.modelInfo(for: "claude-opus-4-7", provider: .anthropic)
+        let resolvedOpus47 = ModelSettingsResolver.resolve(model: opus47, providerType: .anthropic)
+        XCTAssertEqual(resolvedOpus47.contextWindow, 1_000_000)
+        XCTAssertEqual(resolvedOpus47.maxOutputTokens, 128_000)
+        XCTAssertEqual(resolvedOpus47.reasoningConfig?.type, .effort)
+        XCTAssertEqual(resolvedOpus47.reasoningConfig?.defaultEffort, .high)
+
         let opus46 = ModelCatalog.modelInfo(for: "claude-opus-4-6", provider: .anthropic)
         let resolvedOpus46 = ModelSettingsResolver.resolve(model: opus46, providerType: .anthropic)
         XCTAssertEqual(resolvedOpus46.contextWindow, 200_000)
@@ -151,6 +158,11 @@ final class ModelSettingsResolverTests: XCTestCase {
         XCTAssertEqual(resolvedCFO3.contextWindow, 200_000)
         XCTAssertEqual(resolvedCFO3.maxOutputTokens, 100_000)
 
+        let cfClaude47 = ModelCatalog.modelInfo(for: "anthropic/claude-opus-4-7", provider: .cloudflareAIGateway)
+        let resolvedCFClaude47 = ModelSettingsResolver.resolve(model: cfClaude47, providerType: .cloudflareAIGateway)
+        XCTAssertEqual(resolvedCFClaude47.contextWindow, 1_000_000)
+        XCTAssertEqual(resolvedCFClaude47.maxOutputTokens, 128_000)
+
         let cfClaude46 = ModelCatalog.modelInfo(for: "anthropic/claude-opus-4-6", provider: .cloudflareAIGateway)
         let resolvedCFClaude46 = ModelSettingsResolver.resolve(model: cfClaude46, providerType: .cloudflareAIGateway)
         XCTAssertEqual(resolvedCFClaude46.contextWindow, 200_000)
@@ -165,6 +177,11 @@ final class ModelSettingsResolverTests: XCTestCase {
         let resolvedVercelClaude45 = ModelSettingsResolver.resolve(model: vercelClaude45, providerType: .vercelAIGateway)
         XCTAssertEqual(resolvedVercelClaude45.contextWindow, 200_000)
         XCTAssertEqual(resolvedVercelClaude45.maxOutputTokens, 64_000)
+
+        let vercelClaude47 = ModelCatalog.modelInfo(for: "anthropic/claude-opus-4.7", provider: .vercelAIGateway)
+        let resolvedVercelClaude47 = ModelSettingsResolver.resolve(model: vercelClaude47, providerType: .vercelAIGateway)
+        XCTAssertEqual(resolvedVercelClaude47.contextWindow, 1_000_000)
+        XCTAssertEqual(resolvedVercelClaude47.maxOutputTokens, 128_000)
 
         let vercelGemini31Pro = ModelCatalog.modelInfo(for: "google/gemini-3.1-pro-preview", provider: .vercelAIGateway)
         let resolvedVercelGemini31Pro = ModelSettingsResolver.resolve(model: vercelGemini31Pro, providerType: .vercelAIGateway)

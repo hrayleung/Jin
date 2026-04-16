@@ -5,10 +5,12 @@ struct ThinkingBudgetSheetView: View {
     let usesEffortMode: Bool
     let modelID: String
     let modelMaxOutputTokens: Int?
-    let supportsMaxEffort: Bool
+    let supportedEffortLevels: [ReasoningEffort]
 
     @Binding var thinkingBudgetDraft: String
     @Binding var maxTokensDraft: String
+    let supportsThinkingDisplayControl: Bool
+    @Binding var thinkingDisplaySelection: AnthropicThinkingDisplay
     @Binding var effortSelection: ReasoningEffort
 
     var isValid: Bool
@@ -25,17 +27,40 @@ struct ThinkingBudgetSheetView: View {
 
                     if usesEffortMode {
                         settingRow("Effort") {
-                            Picker("Effort", selection: $effortSelection) {
-                                Text("Low").tag(ReasoningEffort.low)
-                                Text("Medium").tag(ReasoningEffort.medium)
-                                Text("High").tag(ReasoningEffort.high)
-                                if supportsMaxEffort {
-                                    Text("Max").tag(ReasoningEffort.xhigh)
+                            Group {
+                                if supportedEffortLevels.count <= 4 {
+                                    Picker("Effort", selection: $effortSelection) {
+                                        ForEach(supportedEffortLevels, id: \.self) { level in
+                                            Text(level.anthropicDisplayName).tag(level)
+                                        }
+                                    }
+                                    .labelsHidden()
+                                    .pickerStyle(.segmented)
+                                    .frame(width: 320)
+                                } else {
+                                    Picker("Effort", selection: $effortSelection) {
+                                        ForEach(supportedEffortLevels, id: \.self) { level in
+                                            Text(level.anthropicDisplayName).tag(level)
+                                        }
+                                    }
+                                    .labelsHidden()
+                                    .pickerStyle(.menu)
+                                    .frame(width: 140)
+                                }
+                            }
+                        }
+                    }
+
+                    if supportsThinkingDisplayControl {
+                        settingRow("Visible thinking") {
+                            Picker("Visible thinking", selection: $thinkingDisplaySelection) {
+                                ForEach(AnthropicThinkingDisplay.allCases, id: \.self) { option in
+                                    Text(option.displayName).tag(option)
                                 }
                             }
                             .labelsHidden()
                             .pickerStyle(.segmented)
-                            .frame(width: 260)
+                            .frame(width: 220)
                         }
                     }
 

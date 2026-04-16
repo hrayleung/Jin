@@ -169,7 +169,7 @@ actor SambaNovaAdapter: LLMProviderAdapter {
             return "low"
         case .medium:
             return "medium"
-        case .high, .xhigh:
+        case .high, .xhigh, .max:
             return "high"
         }
     }

@@ -144,6 +144,8 @@ enum OpenAICompatibleReasoningSupport {
             return "high"
         case .xhigh:
             return "xhigh"
+        case .max:
+            return "xhigh"
         }
     }
 
@@ -156,6 +158,8 @@ enum OpenAICompatibleReasoningSupport {
         case .high:
             return "high"
         case .xhigh:
+            return "xhigh"
+        case .max:
             return "max"
         }
     }
@@ -168,7 +172,7 @@ enum OpenAICompatibleReasoningSupport {
             return "LOW"
         case .medium:
             return "MEDIUM"
-        case .high, .xhigh:
+        case .high, .xhigh, .max:
             return "HIGH"
         }
     }

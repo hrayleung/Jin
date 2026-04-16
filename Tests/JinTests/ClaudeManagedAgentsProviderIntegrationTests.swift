@@ -38,15 +38,15 @@ final class ClaudeManagedAgentsProviderIntegrationTests: XCTestCase {
 
     func testClaudeManagedAgentsUsesAnthropicRequestShapeAndReasoningSupport() {
         XCTAssertEqual(
-            ModelCapabilityRegistry.requestShape(for: .claudeManagedAgents, modelID: "claude-opus-4-6"),
+            ModelCapabilityRegistry.requestShape(for: .claudeManagedAgents, modelID: "claude-opus-4-7"),
             .anthropic
         )
         XCTAssertEqual(
             ModelCapabilityRegistry.supportedReasoningEfforts(
                 for: .claudeManagedAgents,
-                modelID: "claude-opus-4-6"
+                modelID: "claude-opus-4-7"
             ),
-            [.low, .medium, .high, .xhigh]
+            [.low, .medium, .high, .xhigh, .max]
         )
     }
 

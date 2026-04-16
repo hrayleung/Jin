@@ -19,7 +19,7 @@ extension ChatView {
             if providerType == .anthropic || providerType == .claudeManagedAgents {
                 if anthropicUsesEffortMode {
                     let effort = controls.reasoning?.effort ?? selectedReasoningConfig?.defaultEffort ?? .high
-                    return effort == .xhigh ? "Max" : effort.displayName
+                    return effort.anthropicDisplayName
                 }
                 let budgetTokens = controls.reasoning?.budgetTokens ?? anthropicDefaultBudgetTokens
                 return "\(budgetTokens) tokens"

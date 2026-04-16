@@ -221,6 +221,169 @@ final class AnthropicAdapterTests: XCTestCase {
         for try await _ in stream {}
     }
 
+    func testAnthropicOpus47OmitsSamplingParametersWithoutReasoning() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        let providerConfig = ProviderConfig(
+            id: "anthropic",
+            name: "Anthropic",
+            type: .anthropic,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        protocolType.requestHandler = { request in
+            let body = try XCTUnwrap(requestBodyData(request))
+            let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+            let root = try XCTUnwrap(json)
+
+            XCTAssertEqual(root["model"] as? String, "claude-opus-4-7")
+            XCTAssertEqual(root["max_tokens"] as? Int, 128_000)
+            XCTAssertNil(root["thinking"])
+            XCTAssertNil(root["temperature"])
+            XCTAssertNil(root["top_p"])
+            XCTAssertNil(root["top_k"])
+
+            let response = Data("data: [DONE]\n\n".utf8)
+            return (
+                HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                response
+            )
+        }
+
+        let adapter = AnthropicAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+
+        let controls = GenerationControls(
+            temperature: 0.3,
+            topP: 0.8,
+            reasoning: ReasoningControls(enabled: false),
+            providerSpecific: [
+                "temperature": AnyCodable(0.2),
+                "top_p": AnyCodable(0.7),
+                "top_k": AnyCodable(5)
+            ]
+        )
+
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hi")])],
+            modelID: "claude-opus-4-7",
+            controls: controls,
+            tools: [],
+            streaming: true
+        )
+
+        for try await _ in stream {}
+    }
+
+    func testAnthropicOpus47NormalizesLegacyThinkingConfigToAdaptiveSummarized() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        let providerConfig = ProviderConfig(
+            id: "anthropic",
+            name: "Anthropic",
+            type: .anthropic,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        protocolType.requestHandler = { request in
+            let body = try XCTUnwrap(requestBodyData(request))
+            let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+            let root = try XCTUnwrap(json)
+
+            XCTAssertEqual(root["model"] as? String, "claude-opus-4-7")
+            XCTAssertEqual(root["max_tokens"] as? Int, 128_000)
+
+            let thinking = try XCTUnwrap(root["thinking"] as? [String: Any])
+            XCTAssertEqual(thinking["type"] as? String, "adaptive")
+            XCTAssertEqual(thinking["display"] as? String, "summarized")
+            XCTAssertNil(thinking["budget_tokens"])
+
+            let outputConfig = try XCTUnwrap(root["output_config"] as? [String: Any])
+            XCTAssertEqual(outputConfig["effort"] as? String, "xhigh")
+
+            let response = Data("data: [DONE]\n\n".utf8)
+            return (
+                HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                response
+            )
+        }
+
+        let adapter = AnthropicAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+
+        let controls = GenerationControls(
+            reasoning: ReasoningControls(enabled: true, effort: .xhigh, budgetTokens: 2048),
+            providerSpecific: [
+                "thinking": AnyCodable([
+                    "type": "enabled",
+                    "budget_tokens": 2048
+                ])
+            ]
+        )
+
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hi")])],
+            modelID: "claude-opus-4-7",
+            controls: controls,
+            tools: [],
+            streaming: true
+        )
+
+        for try await _ in stream {}
+    }
+
+    func testAnthropicOpus47HonorsExplicitOmittedThinkingDisplaySelection() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        let providerConfig = ProviderConfig(
+            id: "anthropic",
+            name: "Anthropic",
+            type: .anthropic,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        protocolType.requestHandler = { request in
+            let body = try XCTUnwrap(requestBodyData(request))
+            let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+            let root = try XCTUnwrap(json)
+
+            let thinking = try XCTUnwrap(root["thinking"] as? [String: Any])
+            XCTAssertEqual(thinking["type"] as? String, "adaptive")
+            XCTAssertEqual(thinking["display"] as? String, "omitted")
+            XCTAssertNil(thinking["budget_tokens"])
+
+            let response = Data("data: [DONE]\n\n".utf8)
+            return (
+                HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                response
+            )
+        }
+
+        let adapter = AnthropicAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+
+        let controls = GenerationControls(
+            reasoning: ReasoningControls(
+                enabled: true,
+                effort: .xhigh,
+                anthropicThinkingDisplay: .omitted
+            )
+        )
+
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hi")])],
+            modelID: "claude-opus-4-7",
+            controls: controls,
+            tools: [],
+            streaming: true
+        )
+
+        for try await _ in stream {}
+    }
+
     func testAnthropicSonnet46BuildsAdaptiveThinkingWithoutMaxEffort() async throws {
         let (configuration, protocolType) = makeMockedSessionConfiguration()
         let networkManager = NetworkManager(configuration: configuration)
@@ -1193,6 +1356,7 @@ final class AnthropicAdapterTests: XCTestCase {
     }
 
     func testAnthropicModelLimitsKnownClaude45AndClaude46Series() {
+        XCTAssertEqual(AnthropicModelLimits.maxOutputTokens(for: "claude-opus-4-7"), 128000)
         XCTAssertEqual(AnthropicModelLimits.maxOutputTokens(for: "claude-opus-4-6"), 128000)
         XCTAssertEqual(AnthropicModelLimits.maxOutputTokens(for: "claude-sonnet-4-6"), 64000)
         XCTAssertEqual(AnthropicModelLimits.maxOutputTokens(for: "claude-opus-4-5-20251101"), 64000)
@@ -1203,8 +1367,16 @@ final class AnthropicAdapterTests: XCTestCase {
     }
 
     func testAnthropicThinkingCapabilitiesSplit46From45Series() {
+        XCTAssertTrue(AnthropicModelLimits.supportsAdaptiveThinking(for: "claude-opus-4-7"))
+        XCTAssertTrue(AnthropicModelLimits.supportsEffort(for: "claude-opus-4-7"))
+        XCTAssertTrue(AnthropicModelLimits.supportsXHighEffort(for: "claude-opus-4-7"))
+        XCTAssertTrue(AnthropicModelLimits.supportsMaxEffort(for: "claude-opus-4-7"))
+        XCTAssertFalse(AnthropicModelLimits.supportsSamplingParameters(for: "claude-opus-4-7"))
+        XCTAssertTrue(AnthropicModelLimits.requiresExplicitThinkingDisplay(for: "claude-opus-4-7"))
+
         XCTAssertTrue(AnthropicModelLimits.supportsAdaptiveThinking(for: "claude-opus-4-6"))
         XCTAssertTrue(AnthropicModelLimits.supportsEffort(for: "claude-opus-4-6"))
+        XCTAssertFalse(AnthropicModelLimits.supportsXHighEffort(for: "claude-opus-4-6"))
         XCTAssertTrue(AnthropicModelLimits.supportsMaxEffort(for: "claude-opus-4-6"))
 
         XCTAssertTrue(AnthropicModelLimits.supportsAdaptiveThinking(for: "claude-sonnet-4-6"))

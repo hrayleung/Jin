@@ -158,7 +158,7 @@ actor TogetherAdapter: LLMProviderAdapter {
                 body["reasoning_effort"] = "low"
             case .medium:
                 body["reasoning_effort"] = "medium"
-            case .high, .xhigh:
+            case .high, .xhigh, .max:
                 body["reasoning_effort"] = "high"
             }
 

@@ -266,6 +266,10 @@ actor AnthropicAdapter: LLMProviderAdapter {
         AnthropicModelLimits.supportsMaxEffort(for: modelID)
     }
 
+    private func supportsSamplingParameters(_ modelID: String) -> Bool {
+        AnthropicModelLimits.supportsSamplingParameters(for: modelID)
+    }
+
     private func supportsWebSearch(_ modelID: String) -> Bool {
         modelSupportsWebSearch(providerConfig: providerConfig, modelID: modelID)
     }
@@ -282,7 +286,13 @@ actor AnthropicAdapter: LLMProviderAdapter {
     }
 
     private func mapAnthropicEffort(_ effort: ReasoningEffort, modelID: String) -> String {
-        switch effort {
+        let normalized = ModelCapabilityRegistry.normalizedReasoningEffort(
+            effort,
+            for: .anthropic,
+            modelID: modelID
+        )
+
+        switch normalized {
         case .none:
             return "high"
         case .minimal, .low:
@@ -292,6 +302,8 @@ actor AnthropicAdapter: LLMProviderAdapter {
         case .high:
             return "high"
         case .xhigh:
+            return "xhigh"
+        case .max:
             return supportsMaxEffort(modelID) ? "max" : "high"
         }
     }
@@ -444,6 +456,48 @@ actor AnthropicAdapter: LLMProviderAdapter {
         body["output_config"] = merged
     }
 
+    private func normalizedAnthropicThinkingConfig(
+        _ config: [String: Any],
+        modelID: String,
+        displayOverride: AnthropicThinkingDisplay? = nil
+    ) -> [String: Any] {
+        var normalized = config
+
+        if supportsAdaptiveThinking(modelID) {
+            normalized["type"] = "adaptive"
+            normalized.removeValue(forKey: "budget_tokens")
+            if let displayOverride {
+                normalized["display"] = displayOverride.rawValue
+            } else if AnthropicModelLimits.requiresExplicitThinkingDisplay(for: modelID),
+                      normalized["display"] == nil {
+                normalized["display"] = "summarized"
+            }
+        } else if normalized["type"] as? String == "adaptive" {
+            normalized["type"] = "enabled"
+        }
+
+        return normalized
+    }
+
+    private func resolvedAnthropicThinkingDisplay(from reasoning: ReasoningControls?, modelID: String) -> AnthropicThinkingDisplay? {
+        guard AnthropicModelLimits.requiresExplicitThinkingDisplay(for: modelID) else { return nil }
+        return reasoning?.anthropicThinkingDisplay ?? .summarized
+    }
+
+    private func appendSamplingControls(
+        to body: inout [String: Any],
+        controls: GenerationControls,
+        modelID: String
+    ) {
+        guard supportsSamplingParameters(modelID) else { return }
+        if let temperature = controls.temperature {
+            body["temperature"] = temperature
+        }
+        if let topP = controls.topP {
+            body["top_p"] = topP
+        }
+    }
+
     private func buildRequest(
         messages: [Message],
         modelID: String,
@@ -542,21 +596,20 @@ actor AnthropicAdapter: LLMProviderAdapter {
     private func appendThinkingConfig(to body: inout [String: Any], controls: GenerationControls, modelID: String) {
         let thinkingEnabled = controls.reasoning?.enabled == true
         let providerSpecificHasThinking = controls.providerSpecific["thinking"] != nil
+        let displayOverride = resolvedAnthropicThinkingDisplay(from: controls.reasoning, modelID: modelID)
 
         if !thinkingEnabled {
-            if let temperature = controls.temperature {
-                body["temperature"] = temperature
-            }
-            if let topP = controls.topP {
-                body["top_p"] = topP
-            }
+            appendSamplingControls(to: &body, controls: controls, modelID: modelID)
             return
         }
 
         if !providerSpecificHasThinking {
             if supportsAdaptiveThinking(modelID) {
-                // 4.6 models: always adaptive. budget_tokens is deprecated.
-                body["thinking"] = ["type": "adaptive"]
+                body["thinking"] = normalizedAnthropicThinkingConfig(
+                    ["type": "adaptive"],
+                    modelID: modelID,
+                    displayOverride: displayOverride
+                )
             } else {
                 body["thinking"] = [
                     "type": "enabled",
@@ -652,8 +705,26 @@ actor AnthropicAdapter: LLMProviderAdapter {
                 continue
             }
 
+            if (key == "temperature" || key == "top_p" || key == "top_k")
+                && !supportsSamplingParameters(modelID) {
+                continue
+            }
+
             if key == "tools" {
                 body[key] = normalizeAnthropicProviderSpecificTools(value.value, modelID: modelID)
+                continue
+            }
+
+            if key == "thinking" {
+                guard controls.reasoning?.enabled == true,
+                      let dict = providerSpecificJSONDictionary(value.value) else {
+                    continue
+                }
+                body[key] = normalizedAnthropicThinkingConfig(
+                    dict,
+                    modelID: modelID,
+                    displayOverride: resolvedAnthropicThinkingDisplay(from: controls.reasoning, modelID: modelID)
+                )
                 continue
             }
 

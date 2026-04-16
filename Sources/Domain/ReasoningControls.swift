@@ -5,17 +5,20 @@ struct ReasoningControls: Codable, Equatable {
     var enabled: Bool
     var effort: ReasoningEffort?
     var budgetTokens: Int?
+    var anthropicThinkingDisplay: AnthropicThinkingDisplay?
     var summary: ReasoningSummary?
 
     init(
         enabled: Bool = true,
         effort: ReasoningEffort? = nil,
         budgetTokens: Int? = nil,
+        anthropicThinkingDisplay: AnthropicThinkingDisplay? = nil,
         summary: ReasoningSummary? = nil
     ) {
         self.enabled = enabled
         self.effort = effort
         self.budgetTokens = budgetTokens
+        self.anthropicThinkingDisplay = anthropicThinkingDisplay
         self.summary = summary
     }
 }
@@ -28,6 +31,7 @@ enum ReasoningEffort: String, Codable, CaseIterable {
     case medium
     case high
     case xhigh
+    case max
 
     var displayName: String {
         switch self {
@@ -37,6 +41,32 @@ enum ReasoningEffort: String, Codable, CaseIterable {
         case .medium: return "Medium"
         case .high: return "High"
         case .xhigh: return "Extreme"
+        case .max: return "Max"
+        }
+    }
+
+    var anthropicDisplayName: String {
+        switch self {
+        case .xhigh:
+            return "X-High"
+        case .max:
+            return "Max"
+        default:
+            return displayName
+        }
+    }
+}
+
+enum AnthropicThinkingDisplay: String, Codable, CaseIterable {
+    case summarized
+    case omitted
+
+    var displayName: String {
+        switch self {
+        case .summarized:
+            return "Summarized"
+        case .omitted:
+            return "Omitted"
         }
     }
 }

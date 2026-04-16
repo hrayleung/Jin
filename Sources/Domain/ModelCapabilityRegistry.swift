@@ -232,6 +232,7 @@ enum ModelCapabilityRegistry {
 
     /// Exact model IDs that Anthropic currently documents as supporting the code execution tool.
     private static let anthropicCodeExecutionSupportedModelIDs: Set<String> = [
+        "claude-opus-4-7",
         "claude-opus-4-6",
         "claude-sonnet-4-6",
         "claude-sonnet-4-5-20250929",
@@ -251,6 +252,7 @@ enum ModelCapabilityRegistry {
         .medium: 3,
         .high: 4,
         .xhigh: 5,
+        .max: 6,
     ]
 
     private static let defaultReasoningEfforts: [ReasoningEffort] = [.low, .medium, .high]
@@ -327,8 +329,11 @@ enum ModelCapabilityRegistry {
     }
 
     private static func supportedAnthropicEfforts(lowerModelID: String) -> [ReasoningEffort] {
+        if AnthropicModelLimits.supportsXHighEffort(for: lowerModelID) {
+            return [.low, .medium, .high, .xhigh, .max]
+        }
         if AnthropicModelLimits.supportsMaxEffort(for: lowerModelID) {
-            return [.low, .medium, .high, .xhigh]
+            return [.low, .medium, .high, .max]
         }
         return defaultReasoningEfforts
     }
@@ -692,6 +697,8 @@ enum ModelCapabilityRegistry {
     static func supportsWebSearchDynamicFiltering(for providerType: ProviderType?, modelID: String) -> Bool {
         guard providerType == .anthropic || providerType == .claudeManagedAgents else { return false }
         let lower = modelID.lowercased()
-        return lower.contains("claude-opus-4-6") || lower.contains("claude-sonnet-4-6")
+        return lower == "claude-opus-4-7"
+            || lower == "claude-opus-4-6"
+            || lower == "claude-sonnet-4-6"
     }
 }

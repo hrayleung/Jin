@@ -123,6 +123,22 @@ final class MessageContentMediaCodableTests: XCTestCase {
         XCTAssertEqual(decoded.webSearch?.dynamicFiltering, true)
     }
 
+    func testGenerationControlsRoundTripIncludesAnthropicThinkingDisplaySelection() throws {
+        let controls = GenerationControls(
+            reasoning: ReasoningControls(
+                enabled: true,
+                effort: .xhigh,
+                anthropicThinkingDisplay: .omitted
+            )
+        )
+
+        let encoded = try JSONEncoder().encode(controls)
+        let decoded = try JSONDecoder().decode(GenerationControls.self, from: encoded)
+
+        XCTAssertEqual(decoded.reasoning?.effort, .xhigh)
+        XCTAssertEqual(decoded.reasoning?.anthropicThinkingDisplay, .omitted)
+    }
+
     func testGenerationControlsRoundTripIncludesSearchPluginEnginePreference() throws {
         let controls = GenerationControls(
             webSearch: WebSearchControls(enabled: true),

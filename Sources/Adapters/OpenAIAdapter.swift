@@ -351,6 +351,8 @@ actor OpenAIAdapter: LLMProviderAdapter {
             return "high"
         case .xhigh:
             return "xhigh"
+        case .max:
+            return "xhigh"
         }
     }
 

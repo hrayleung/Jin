@@ -412,7 +412,7 @@ extension ContentView {
         guard !models.isEmpty else {
             switch providerID {
             case "anthropic":
-                return "claude-opus-4-6"
+                return "claude-opus-4-7"
             case "xai":
                 return "grok-4-1-fast"
             case "deepseek":
@@ -448,6 +448,9 @@ extension ContentView {
         }
         if providerID == "vercel-ai-gateway", let gpt5 = models.first(where: { $0.id == "openai/gpt-5" }) {
             return gpt5.id
+        }
+        if providerID == "anthropic", let opus47 = models.first(where: { $0.id == "claude-opus-4-7" }) {
+            return opus47.id
         }
         if providerID == "anthropic", let opus46 = models.first(where: { $0.id == "claude-opus-4-6" }) {
             return opus46.id
@@ -530,7 +533,7 @@ extension ContentView {
         }
 
         if providerID == "anthropic" {
-            return "claude-opus-4-6"
+            return "claude-opus-4-7"
         }
         if providerID == "vercel-ai-gateway" {
             return "openai/gpt-5.2"

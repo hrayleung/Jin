@@ -181,6 +181,42 @@ enum ChatControlNormalizationSupport {
         }
     }
 
+    static func normalizeAnthropicProviderSpecific(
+        controls: inout GenerationControls,
+        providerType: ProviderType?,
+        modelID: String
+    ) {
+        guard providerType == .anthropic else { return }
+
+        if !AnthropicModelLimits.supportsSamplingParameters(for: modelID) {
+            controls.providerSpecific.removeValue(forKey: "temperature")
+            controls.providerSpecific.removeValue(forKey: "top_p")
+            controls.providerSpecific.removeValue(forKey: "top_k")
+        }
+
+        guard controls.reasoning?.enabled == true else {
+            controls.providerSpecific.removeValue(forKey: "thinking")
+            return
+        }
+
+        guard var thinking = providerSpecificJSONDictionary(controls.providerSpecific["thinking"]?.value) else {
+            return
+        }
+
+        if AnthropicModelLimits.supportsAdaptiveThinking(for: modelID) {
+            thinking["type"] = "adaptive"
+            thinking.removeValue(forKey: "budget_tokens")
+            if AnthropicModelLimits.requiresExplicitThinkingDisplay(for: modelID) {
+                let display = controls.reasoning?.anthropicThinkingDisplay ?? .summarized
+                thinking["display"] = display.rawValue
+            }
+        } else if thinking["type"] as? String == "adaptive" {
+            thinking["type"] = "enabled"
+        }
+
+        controls.providerSpecific["thinking"] = AnyCodable(thinking)
+    }
+
     static func normalizeCodexProviderSpecific(
         controls: inout GenerationControls,
         providerType: ProviderType?
@@ -227,6 +263,16 @@ enum ChatControlNormalizationSupport {
         if providerType != .claudeManagedAgents {
             controls.removeClaudeManagedAgentProviderSpecificKeys()
         }
+    }
+
+    private static func providerSpecificJSONDictionary(_ value: Any?) -> [String: Any]? {
+        if let dictionary = value as? [String: Any] {
+            return dictionary
+        }
+        if let codableDictionary = value as? [String: AnyCodable] {
+            return codableDictionary.mapValues { $0.value }
+        }
+        return nil
     }
 
     static func normalizeSearchPluginControls(

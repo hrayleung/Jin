@@ -3,6 +3,23 @@ import XCTest
 
 final class AnthropicReasoningNormalizerTests: XCTestCase {
 
+    // MARK: - Opus 4.7 (adaptive thinking + xhigh/max effort)
+
+    func testOpus47ClearsBudgetTokensAndDefaultsEffort() {
+        var reasoning = ReasoningControls(enabled: true, budgetTokens: 8192)
+        var maxTokens: Int? = nil
+
+        AnthropicReasoningNormalizer.normalize(
+            reasoning: &reasoning,
+            maxTokens: &maxTokens,
+            modelID: "claude-opus-4-7"
+        )
+
+        XCTAssertNil(reasoning.budgetTokens, "budget_tokens must be nil on 4.7")
+        XCTAssertEqual(reasoning.effort, .high, "effort should default to high")
+        XCTAssertEqual(maxTokens, 128_000, "Opus 4.7 should resolve to model max when unset")
+    }
+
     // MARK: - Opus 4.6 (adaptive thinking)
 
     func testOpus46ClearsBudgetTokensAndDefaultsEffort() {
@@ -78,7 +95,7 @@ final class AnthropicReasoningNormalizerTests: XCTestCase {
     }
 
     func testOpus45DefaultsEffortWhenNone() {
-        var reasoning = ReasoningControls(enabled: true, effort: .none, budgetTokens: 4096)
+        var reasoning = ReasoningControls(enabled: true, effort: ReasoningEffort.none, budgetTokens: 4096)
         var maxTokens: Int? = 16000
 
         AnthropicReasoningNormalizer.normalize(

@@ -152,6 +152,7 @@ extension ChatView {
             case .medium: return "M"
             case .high: return "H"
             case .xhigh: return "X"
+            case .max: return "Max"
             }
         case .toggle:
             return "On"
