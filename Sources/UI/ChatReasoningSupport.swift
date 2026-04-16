@@ -198,9 +198,18 @@ enum ChatReasoningSupport {
         defaultEffort: ReasoningEffort,
         defaultBudget: Int
     ) -> String? {
-        guard providerType != .anthropic || maxTokens != nil else { return nil }
+        let resolvedRequestedMaxTokens: Int?
+        if providerType == .anthropic {
+            resolvedRequestedMaxTokens = maxTokens ?? AnthropicModelLimits.resolvedMaxTokens(
+                requested: controls.maxTokens,
+                for: modelID,
+                fallback: 4096
+            )
+        } else {
+            resolvedRequestedMaxTokens = maxTokens
+        }
 
-        controls.maxTokens = maxTokens
+        controls.maxTokens = resolvedRequestedMaxTokens
 
         if anthropicUsesAdaptiveThinking {
             normalizeAnthropicReasoningAndMaxTokens(
