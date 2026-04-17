@@ -134,6 +134,7 @@ struct ChatView: View {
     @State var showingThinkingBudgetSheet = false
     @State var thinkingBudgetDraft = ""
     @State var maxTokensDraft = ""
+    // swiftlint:disable:next private_swiftui_state
     @State var anthropicThinkingDisplayDraft: AnthropicThinkingDisplay = .summarized
     @State var showingCodeExecutionSheet = false
     @State var codeExecutionDraft = CodeExecutionControls()

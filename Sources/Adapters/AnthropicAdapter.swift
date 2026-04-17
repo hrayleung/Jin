@@ -456,34 +456,6 @@ actor AnthropicAdapter: LLMProviderAdapter {
         body["output_config"] = merged
     }
 
-    private func normalizedAnthropicThinkingConfig(
-        _ config: [String: Any],
-        modelID: String,
-        displayOverride: AnthropicThinkingDisplay? = nil
-    ) -> [String: Any] {
-        var normalized = config
-
-        if supportsAdaptiveThinking(modelID) {
-            normalized["type"] = "adaptive"
-            normalized.removeValue(forKey: "budget_tokens")
-            if let displayOverride {
-                normalized["display"] = displayOverride.rawValue
-            } else if AnthropicModelLimits.requiresExplicitThinkingDisplay(for: modelID),
-                      normalized["display"] == nil {
-                normalized["display"] = "summarized"
-            }
-        } else if normalized["type"] as? String == "adaptive" {
-            normalized["type"] = "enabled"
-        }
-
-        return normalized
-    }
-
-    private func resolvedAnthropicThinkingDisplay(from reasoning: ReasoningControls?, modelID: String) -> AnthropicThinkingDisplay? {
-        guard AnthropicModelLimits.requiresExplicitThinkingDisplay(for: modelID) else { return nil }
-        return reasoning?.anthropicThinkingDisplay ?? .summarized
-    }
-
     private func appendSamplingControls(
         to body: inout [String: Any],
         controls: GenerationControls,
@@ -595,20 +567,21 @@ actor AnthropicAdapter: LLMProviderAdapter {
 
     private func appendThinkingConfig(to body: inout [String: Any], controls: GenerationControls, modelID: String) {
         let thinkingEnabled = controls.reasoning?.enabled == true
-        let providerSpecificHasThinking = controls.providerSpecific["thinking"] != nil
-        let displayOverride = resolvedAnthropicThinkingDisplay(from: controls.reasoning, modelID: modelID)
+        let providerSpecificThinking = AnthropicThinkingConfigSupport.providerSpecificThinkingDictionary(
+            from: controls.providerSpecific["thinking"]?.value
+        )
 
         if !thinkingEnabled {
             appendSamplingControls(to: &body, controls: controls, modelID: modelID)
             return
         }
 
-        if !providerSpecificHasThinking {
+        if providerSpecificThinking == nil {
             if supportsAdaptiveThinking(modelID) {
-                body["thinking"] = normalizedAnthropicThinkingConfig(
+                body["thinking"] = AnthropicThinkingConfigSupport.normalizedThinkingConfiguration(
                     ["type": "adaptive"],
-                    modelID: modelID,
-                    displayOverride: displayOverride
+                    reasoning: controls.reasoning,
+                    modelID: modelID
                 )
             } else {
                 body["thinking"] = [
@@ -717,13 +690,13 @@ actor AnthropicAdapter: LLMProviderAdapter {
 
             if key == "thinking" {
                 guard controls.reasoning?.enabled == true,
-                      let dict = providerSpecificJSONDictionary(value.value) else {
+                      let dict = AnthropicThinkingConfigSupport.providerSpecificThinkingDictionary(from: value.value) else {
                     continue
                 }
-                body[key] = normalizedAnthropicThinkingConfig(
+                body[key] = AnthropicThinkingConfigSupport.normalizedThinkingConfiguration(
                     dict,
-                    modelID: modelID,
-                    displayOverride: resolvedAnthropicThinkingDisplay(from: controls.reasoning, modelID: modelID)
+                    reasoning: controls.reasoning,
+                    modelID: modelID
                 )
                 continue
             }

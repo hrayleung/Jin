@@ -199,22 +199,20 @@ enum ChatControlNormalizationSupport {
             return
         }
 
-        guard var thinking = providerSpecificJSONDictionary(controls.providerSpecific["thinking"]?.value) else {
+        guard let thinking = AnthropicThinkingConfigSupport.providerSpecificThinkingDictionary(
+            from: controls.providerSpecific["thinking"]?.value
+        ) else {
+            controls.providerSpecific.removeValue(forKey: "thinking")
             return
         }
 
-        if AnthropicModelLimits.supportsAdaptiveThinking(for: modelID) {
-            thinking["type"] = "adaptive"
-            thinking.removeValue(forKey: "budget_tokens")
-            if AnthropicModelLimits.requiresExplicitThinkingDisplay(for: modelID) {
-                let display = controls.reasoning?.anthropicThinkingDisplay ?? .summarized
-                thinking["display"] = display.rawValue
-            }
-        } else if thinking["type"] as? String == "adaptive" {
-            thinking["type"] = "enabled"
-        }
-
-        controls.providerSpecific["thinking"] = AnyCodable(thinking)
+        controls.providerSpecific["thinking"] = AnyCodable(
+            AnthropicThinkingConfigSupport.normalizedThinkingConfiguration(
+                thinking,
+                reasoning: controls.reasoning,
+                modelID: modelID
+            )
+        )
     }
 
     static func normalizeCodexProviderSpecific(
@@ -263,16 +261,6 @@ enum ChatControlNormalizationSupport {
         if providerType != .claudeManagedAgents {
             controls.removeClaudeManagedAgentProviderSpecificKeys()
         }
-    }
-
-    private static func providerSpecificJSONDictionary(_ value: Any?) -> [String: Any]? {
-        if let dictionary = value as? [String: Any] {
-            return dictionary
-        }
-        if let codableDictionary = value as? [String: AnyCodable] {
-            return codableDictionary.mapValues { $0.value }
-        }
-        return nil
     }
 
     static func normalizeSearchPluginControls(
