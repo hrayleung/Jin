@@ -16,17 +16,9 @@ struct CodeExecutionSheetView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: JinSpacing.large) {
-                    summaryCard
+                    basicsCard
                     providerSettingsCard
-
-                    if let draftError {
-                        Text(draftError)
-                            .jinInlineErrorText()
-                            .padding(.horizontal, JinSpacing.small)
-                            .jinSurface(.subtleStrong, cornerRadius: JinRadius.small)
-                    } else {
-                        guidanceCard
-                    }
+                    footerCard
                 }
                 .padding(JinSpacing.large)
             }
@@ -70,15 +62,18 @@ struct CodeExecutionSheetView: View {
 
     // MARK: - Cards
 
-    private var summaryCard: some View {
+    private var basicsCard: some View {
         VStack(alignment: .leading, spacing: JinSpacing.medium) {
+            HStack(alignment: .center, spacing: JinSpacing.small) {
+                Text("Basics")
+                    .font(.headline)
+                Spacer()
+                Text(draft.enabled ? "On" : "Off")
+                    .jinTagStyle(foreground: draft.enabled ? .accentColor : .secondary)
+            }
+
             Toggle("Enable code execution", isOn: $draft.enabled)
                 .toggleStyle(.switch)
-
-            Text(summaryText)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
         }
         .padding(JinSpacing.large)
         .jinSurface(.raised, cornerRadius: JinRadius.large)
@@ -122,10 +117,7 @@ struct CodeExecutionSheetView: View {
             Text("OpenAI Container")
                 .font(.headline)
 
-            fieldRow(
-                "Mode",
-                hint: "Use an auto-created container for each request, or reuse an existing container by ID."
-            ) {
+            JinFormFieldRow("Mode") {
                 Picker("Mode", selection: $openAIUseExistingContainer) {
                     Text("Auto").tag(false)
                     Text("Existing").tag(true)
@@ -136,10 +128,7 @@ struct CodeExecutionSheetView: View {
             }
 
             if openAIUseExistingContainer {
-                fieldRow(
-                    "Container ID",
-                    hint: "Reuse an existing OpenAI container. Jin sends this value directly as the code_interpreter container reference."
-                ) {
+                JinFormFieldRow("Container ID", supportingText: "Reuses an existing container.") {
                     TextField(text: openAIContainerIDBinding, prompt: Text("cntr_...")) {
                         EmptyView()
                     }
@@ -147,10 +136,7 @@ struct CodeExecutionSheetView: View {
                     .textFieldStyle(.roundedBorder)
                 }
             } else {
-                fieldRow(
-                    "Memory limit",
-                    hint: "Optional. OpenAI supports 1g, 4g, 16g, or 64g for auto-created containers."
-                ) {
+                JinFormFieldRow("Memory limit", supportingText: "Optional.") {
                     Picker("Memory limit", selection: openAIMemoryLimitBinding) {
                         Text("Provider default").tag("")
                         Text("1g").tag("1g")
@@ -163,10 +149,7 @@ struct CodeExecutionSheetView: View {
                     .frame(maxWidth: 220, alignment: .leading)
                 }
 
-                fieldRow(
-                    "Extra file IDs",
-                    hint: "Optional. One file ID per line or comma-separated. These are copied into the auto-created container in addition to conversation attachments."
-                ) {
+                JinFormFieldRow("Extra file IDs", supportingText: "One file ID per line or comma-separated.") {
                     TextEditor(text: $openAIFileIDsDraft)
                         .font(.system(.body, design: .monospaced))
                         .frame(minHeight: 84)
@@ -183,19 +166,13 @@ struct CodeExecutionSheetView: View {
             Text("Anthropic Container")
                 .font(.headline)
 
-            fieldRow(
-                "Container ID",
-                hint: "Optional. Reuse an existing Anthropic code execution container between requests."
-            ) {
+            JinFormFieldRow("Container ID", supportingText: "Optional.") {
                 TextField(text: anthropicContainerIDBinding, prompt: Text("container_...")) {
                     EmptyView()
                 }
                 .font(.system(.body, design: .monospaced))
                 .textFieldStyle(.roundedBorder)
             }
-
-            Text("When code execution is enabled, Jin sends supported uploaded documents as container uploads so Claude can access them directly inside the execution sandbox.")
-                .jinInfoCallout()
         }
         .padding(JinSpacing.large)
         .jinSurface(.raised, cornerRadius: JinRadius.large)
@@ -203,28 +180,51 @@ struct CodeExecutionSheetView: View {
 
     private func googleInfoCard(title: String, body: String) -> some View {
         VStack(alignment: .leading, spacing: JinSpacing.medium) {
-            Text(title)
-                .font(.headline)
+            HStack(alignment: .center, spacing: JinSpacing.small) {
+                Text(title)
+                    .font(.headline)
+                Spacer()
+                Text("No extra settings")
+                    .jinTagStyle()
+            }
 
             Text(body)
-                .jinInfoCallout()
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
         }
         .padding(JinSpacing.large)
         .jinSurface(.raised, cornerRadius: JinRadius.large)
     }
 
-    @ViewBuilder
-    private var guidanceCard: some View {
-        switch providerType {
-        case .openai, .openaiWebSocket:
-            Text("OpenAI code execution uses the Responses API code_interpreter tool. Auto mode configures the request-level container; Existing mode reuses a pre-created container ID.")
-                .jinInfoCallout()
-        case .anthropic:
-            Text("Anthropic code execution uses the Messages API code_execution_20250825 tool. Reusing a container preserves files and state across requests until the container expires.")
-                .jinInfoCallout()
-        default:
-            Text("Configuration changes apply only to this conversation.")
-                .jinInfoCallout()
+    private var footerCard: some View {
+        VStack(alignment: .leading, spacing: JinSpacing.medium) {
+            if let draftError {
+                Text(draftError)
+                    .jinInlineErrorText()
+                    .padding(.horizontal, JinSpacing.small)
+                    .jinSurface(.subtleStrong, cornerRadius: JinRadius.small)
+            }
+
+            JinDetailsDisclosure {
+                Text(summaryText)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                switch providerType {
+                case .openai, .openaiWebSocket:
+                    Text("Auto creates a request-scoped container. Existing sends a pre-created container reference.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                case .anthropic, .claudeManagedAgents:
+                    Text("Claude can reuse a container between requests. Supported uploads are mounted into the sandbox.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                default:
+                    Text("Configuration changes apply only to this conversation.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
         }
     }
 
@@ -283,23 +283,4 @@ struct CodeExecutionSheetView: View {
         }
     }
 
-    @ViewBuilder
-    private func fieldRow<Control: View>(
-        _ title: String,
-        hint: String? = nil,
-        @ViewBuilder control: () -> Control
-    ) -> some View {
-        VStack(alignment: .leading, spacing: JinSpacing.xSmall) {
-            Text(title)
-                .font(.subheadline.weight(.semibold))
-            control()
-                .frame(maxWidth: .infinity, alignment: .leading)
-            if let hint, !hint.isEmpty {
-                Text(hint)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-        }
-    }
 }

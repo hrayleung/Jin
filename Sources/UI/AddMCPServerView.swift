@@ -86,8 +86,14 @@ struct AddMCPServerView: View {
                                     .font(.caption)
                                     .jinInlineErrorText()
                             } else {
-                                Text("Supports Claude Desktop-style configs (`mcpServers`) plus single-server payloads. HTTP imports are mapped to native HTTP transport.")
-                                    .jinInfoCallout()
+                                JinDetailsDisclosure(title: "Import Details") {
+                                    Text("Supports Claude Desktop-style `mcpServers` configs plus single-server payloads.")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                    Text("HTTP imports are mapped to native HTTP transport.")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
                             }
                         }
                         .padding(.top, 4)
@@ -97,7 +103,7 @@ struct AddMCPServerView: View {
                     }
                 }
 
-                Section("Server") {
+                Section("MCP Server") {
                     TextField("ID", text: $id)
                         .help("Short identifier (e.g. 'git').")
                     TextField("Name", text: $name)
@@ -123,8 +129,14 @@ struct AddMCPServerView: View {
                             .font(.system(.body, design: .monospaced))
 
                         if shouldShowNodeIsolationNote {
-                            Text("For Node launchers (`npx`, `npm`, `pnpm`, `yarn`, `bunx`, `bun`), Jin isolates npm HOME/cache under Application Support to avoid ~/.npmrc permission or prefix conflicts.")
-                                .jinInfoCallout()
+                            JinDetailsDisclosure(title: "Launcher Details") {
+                                Text("For Node launchers (`npx`, `npm`, `pnpm`, `yarn`, `bunx`, `bun`), Jin isolates npm HOME/cache under Application Support.")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                Text("This avoids `~/.npmrc` permission and prefix conflicts.")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
                         }
                     }
 
@@ -133,7 +145,7 @@ struct AddMCPServerView: View {
                     }
                 } else {
                     Section("HTTP transport") {
-                        TextField("Endpoint", text: $endpoint)
+                        TextField("Endpoint URL", text: $endpoint)
                             .font(.system(.body, design: .monospaced))
 
                         Toggle("Enable streaming (SSE)", isOn: $httpStreaming)

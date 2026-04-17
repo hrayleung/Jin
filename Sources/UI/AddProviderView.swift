@@ -58,43 +58,21 @@ struct AddProviderView: View {
                 }
 
                 if providerType != .vertexai {
-                    TextField("Base URL", text: $baseURL)
+                    TextField("API Base URL", text: $baseURL)
                         .help("Default endpoint is pre-filled.")
                 }
 
-                if providerType == .codexAppServer {
-                    Text("Codex App Server expects a running `codex app-server --listen ws://127.0.0.1:4500` process. Recommended stable runtime: `codex` 0.107.0+.")
+                if let providerSetupCallout {
+                    Text(providerSetupCallout)
                         .jinInfoCallout()
                 }
 
-                if providerType == .openaiWebSocket {
-                    Text("OpenAI WebSocket mode keeps a persistent connection to `/v1/responses` and can speed up tool-heavy workflows. Only one response can be in flight per connection.")
-                        .jinInfoCallout()
-                }
-
-                if providerType == .cloudflareAIGateway {
-                    Text("Recommended: use a Cloudflare API Token (BYOK mode). Fill in `{account_id}` and `{gateway_slug}`, keep the `/compat` Base URL, configure upstream provider keys in AI Gateway, then use model IDs like `openai/gpt-5` or `anthropic/claude-sonnet-4.5`.")
-                        .jinInfoCallout()
-                }
-
-                if providerType == .zhipuCodingPlan {
-                    Text("Use the dedicated Coding Plan endpoint: `https://open.bigmodel.cn/api/coding/paas/v4` (not the generic `/api/paas/v4`). Recommended model IDs: `glm-5`, `glm-4.7`.")
-                        .jinInfoCallout()
-                }
-
-                if providerType == .minimax {
-                    Text("International endpoint: `https://api.minimax.io/v1`. Recommended models: `MiniMax-M2.7`, `MiniMax-M2.5`.")
-                        .jinInfoCallout()
-                }
-
-                if providerType == .minimaxCodingPlan {
-                    Text("Uses MiniMax's Anthropic-compatible endpoint: `https://api.minimaxi.com/anthropic/v1`. Supports both pay-as-you-go and Coding Plan (Token Plan) API keys.")
-                        .jinInfoCallout()
-                }
-
-                if providerType == .githubCopilot {
-                    Text("Uses GitHub Models' official inference API at `https://models.github.ai/inference`. Configure a GitHub token with GitHub Models access to use this provider.")
-                        .jinInfoCallout()
+                if let providerDetailsText {
+                    JinDetailsDisclosure(title: "Provider Details") {
+                        Text(providerDetailsText)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                 }
 
                 switch providerType {
@@ -163,8 +141,7 @@ struct AddProviderView: View {
 
                 if let saveError {
                     Text(saveError)
-                        .foregroundColor(.red)
-                        .font(.caption)
+                        .jinInlineErrorText()
                 }
             }
             .formStyle(.grouped)
@@ -230,6 +207,36 @@ struct AddProviderView: View {
                     saveError = error.localizedDescription
                 }
             }
+        }
+    }
+
+    private var providerSetupCallout: String? {
+        switch providerType {
+        case .codexAppServer:
+            return "Requires a running `codex app-server` process."
+        default:
+            return nil
+        }
+    }
+
+    private var providerDetailsText: String? {
+        switch providerType {
+        case .openaiWebSocket:
+            return "Keeps a persistent connection to `/v1/responses`. Only one response can be in flight per connection."
+        case .cloudflareAIGateway:
+            return "Recommended: use a Cloudflare API Token (BYOK mode). Keep the `/compat` base URL, configure upstream provider keys in AI Gateway, then use model IDs like `openai/gpt-5` or `anthropic/claude-sonnet-4.5`."
+        case .zhipuCodingPlan:
+            return "Use `https://open.bigmodel.cn/api/coding/paas/v4` instead of the generic `/api/paas/v4`. Recommended models: `glm-5`, `glm-4.7`."
+        case .minimax:
+            return "International endpoint: `https://api.minimax.io/v1`. Recommended models: `MiniMax-M2.7`, `MiniMax-M2.5`."
+        case .minimaxCodingPlan:
+            return "Uses MiniMax's Anthropic-compatible endpoint: `https://api.minimaxi.com/anthropic/v1`. Supports both pay-as-you-go and Coding Plan API keys."
+        case .githubCopilot:
+            return "Uses GitHub Models at `https://models.github.ai/inference`. Configure a GitHub token with GitHub Models access."
+        case .codexAppServer:
+            return "Expected listen address: `ws://127.0.0.1:4500`. Recommended stable runtime: `codex` 0.107.0+."
+        default:
+            return nil
         }
     }
 

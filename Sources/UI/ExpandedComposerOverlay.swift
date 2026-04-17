@@ -94,7 +94,7 @@ struct ExpandedComposerOverlay<ControlsRow: View>: View {
     @ViewBuilder
     private var inlineAccessoryRows: some View {
         if !perMessageMCPChips.isEmpty {
-            accessorySection(title: "Servers", systemName: "hammer") {
+            accessorySection(title: "MCP Servers", systemName: "hammer") {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: JinSpacing.small) {
                         ForEach(perMessageMCPChips) { chip in
@@ -141,7 +141,7 @@ struct ExpandedComposerOverlay<ControlsRow: View>: View {
         }
 
         if showsRemoteVideoURLField {
-            accessorySection(title: "Video URL", systemName: "link") {
+            accessorySection(title: "Source Video URL", systemName: "link") {
                 remoteVideoURLField
             }
         }
@@ -231,12 +231,7 @@ struct ExpandedComposerOverlay<ControlsRow: View>: View {
 
     private var panelHeader: some View {
         HStack(alignment: .top, spacing: JinSpacing.large) {
-            VStack(alignment: .leading, spacing: 0) {
-                Text("Compose Message")
-                    .font(.title3.weight(.semibold))
-            }
-
-            Spacer(minLength: JinSpacing.medium)
+            Spacer(minLength: 0)
 
             HStack(spacing: JinSpacing.small) {
                 headerActionButton(systemName: "arrow.down.right.and.arrow.up.left", help: "Compact composer") {
@@ -282,7 +277,7 @@ struct ExpandedComposerOverlay<ControlsRow: View>: View {
             Image(systemName: "link")
                 .foregroundStyle(.secondary)
 
-            TextField("Source video URL", text: $remoteVideoURLText)
+            TextField("Source Video URL", text: $remoteVideoURLText)
                 .textFieldStyle(.plain)
                 .font(.callout)
                 .disabled(isBusy)
@@ -312,11 +307,6 @@ struct ExpandedComposerOverlay<ControlsRow: View>: View {
 
     private var editorSection: some View {
         VStack(alignment: .leading, spacing: JinSpacing.medium) {
-            VStack(alignment: .leading, spacing: 0) {
-                Text("Message")
-                    .font(.headline)
-            }
-
             ComposerEditorSurface(
                 isFocused: isEditorFocused,
                 isDropTargeted: isComposerDropTargeted

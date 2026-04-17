@@ -254,7 +254,7 @@ struct ProviderConfigFormView: View {
 
                 if let providerType, let defaultBaseURL = providerType.defaultBaseURL {
                     HStack {
-                        TextField("Base URL", text: baseURLBinding(defaultBaseURL: defaultBaseURL))
+                        TextField("API Base URL", text: baseURLBinding(defaultBaseURL: defaultBaseURL))
                         Button("Reset") {
                             provider.baseURL = defaultBaseURL
                         }

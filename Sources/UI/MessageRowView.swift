@@ -596,7 +596,7 @@ struct MessageRow: View {
 
     private var textToSpeechHelpText: String {
         if !textToSpeechConfigured {
-            return "Configure Text to Speech in Settings -> Plugins -> Text to Speech"
+            return "Configure Text to Speech in Settings → Plugins → Text to Speech"
         }
         if textToSpeechIsGenerating {
             return "Generating speech..."
