@@ -84,8 +84,13 @@ struct CodeExecutionSheetView: View {
         switch providerType {
         case .openai, .openaiWebSocket:
             openAISettingsCard
-        case .anthropic, .claudeManagedAgents:
+        case .anthropic:
             anthropicSettingsCard
+        case .claudeManagedAgents:
+            googleInfoCard(
+                title: "Claude Managed Agents",
+                body: "Code execution runs inside the selected managed agent session environment. Jin does not expose per-request container controls here."
+            )
         case .gemini:
             googleInfoCard(
                 title: "Gemini API (AI Studio)",
@@ -206,23 +211,29 @@ struct CodeExecutionSheetView: View {
                     .jinSurface(.subtleStrong, cornerRadius: JinRadius.small)
             }
 
-            JinDetailsDisclosure {
-                Text(summaryText)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                switch providerType {
-                case .openai, .openaiWebSocket:
-                    Text("Auto creates a request-scoped container. Existing sends a pre-created container reference.")
+            if draftError == nil {
+                JinDetailsDisclosure {
+                    Text(summaryText)
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                case .anthropic, .claudeManagedAgents:
-                    Text("Claude can reuse a container between requests. Supported uploads are mounted into the sandbox.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                default:
-                    Text("Configuration changes apply only to this conversation.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    switch providerType {
+                    case .openai, .openaiWebSocket:
+                        Text("Auto creates a request-scoped container. Existing sends a pre-created container reference.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    case .anthropic:
+                        Text("Claude can reuse a container between requests. Supported uploads are mounted into the sandbox.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    case .claudeManagedAgents:
+                        Text("Managed agents provision execution inside the remote session environment selected in thread settings.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    default:
+                        Text("Configuration changes apply only to this conversation.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                 }
             }
         }
@@ -274,6 +285,8 @@ struct CodeExecutionSheetView: View {
             return "OpenAI supports request-level container configuration for code interpreter, including memory limits, extra file IDs, and explicit container reuse."
         case .anthropic:
             return "Anthropic supports reusable code execution containers. Supported uploaded files can be attached directly to the sandbox."
+        case .claudeManagedAgents:
+            return "Claude Managed Agents runs tools inside the selected remote agent environment and session."
         case .gemini:
             return "Gemini supports code execution, but there are no extra request fields to tune here."
         case .vertexai:

@@ -140,13 +140,15 @@ struct AnthropicWebSearchSheetView: View {
                     .jinSurface(.subtleStrong, cornerRadius: JinRadius.small)
             }
 
-            JinDetailsDisclosure {
-                Text("User location biases result ranking toward the specified area.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Text("It does not inject location context into the conversation.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+            if draftError == nil {
+                JinDetailsDisclosure {
+                    Text("User location biases result ranking toward the specified area.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Text("It does not inject location context into the conversation.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
         }
     }

@@ -25,8 +25,7 @@ struct AddProviderView: View {
                 TextField("Name", text: $name, prompt: Text("e.g., \(providerType.displayName)"))
                 if name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                     Text("Name is required.")
-                        .font(.caption)
-                        .foregroundStyle(.red)
+                        .jinInlineErrorText()
                 }
 
                 ProviderIconPickerField(
