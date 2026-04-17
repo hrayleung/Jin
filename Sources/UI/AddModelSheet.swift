@@ -116,14 +116,9 @@ struct AddModelSheet: View {
 
     private var headerSection: some View {
         VStack(alignment: .leading, spacing: JinSpacing.small) {
-            Text("Create a custom model entry")
+            Text("Custom model entry")
                 .font(.title3.weight(.semibold))
                 .foregroundStyle(.primary)
-
-            Text("Nickname is optional. Model ID should exactly match the provider identifier.")
-                .font(.callout)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
         }
     }
 
@@ -137,7 +132,7 @@ struct AddModelSheet: View {
                 fieldBlock(
                     title: "Nickname",
                     prompt: "Optional display name",
-                    helperText: "Leave empty to use Model ID as the display name.",
+                    helperText: nil,
                     text: $nickname,
                     monospaced: false
                 )
@@ -145,7 +140,7 @@ struct AddModelSheet: View {
                 fieldBlock(
                     title: "Model ID",
                     prompt: "Required (for example: gpt-5.2-codex)",
-                    helperText: "Used for API calls and capability inference.",
+                    helperText: "Must match the provider model ID exactly.",
                     text: $modelID,
                     monospaced: true
                 )
@@ -167,11 +162,6 @@ struct AddModelSheet: View {
                         .jinTagStyle(foreground: .accentColor)
                 }
             }
-
-            Text("Fine-tune capabilities, token limits, and reasoning behavior for this model.")
-                .font(.callout)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
 
             Button(action: openModelSettings) {
                 HStack(spacing: JinSpacing.small) {
@@ -204,7 +194,7 @@ struct AddModelSheet: View {
             .disabled(!canAddModel)
 
             if !canAddModel {
-                Label("Enter Model ID first to configure settings.", systemImage: "info.circle")
+                Text("Enter Model ID first.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -216,7 +206,7 @@ struct AddModelSheet: View {
     private func fieldBlock(
         title: String,
         prompt: String,
-        helperText: String,
+        helperText: String?,
         text: Binding<String>,
         monospaced: Bool
     ) -> some View {
@@ -244,9 +234,11 @@ struct AddModelSheet: View {
                     }
                 }
 
-            Text(helperText)
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            if let helperText, !helperText.isEmpty {
+                Text(helperText)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
         }
     }
 

@@ -72,7 +72,7 @@ struct DefaultsSettingsView: View {
                         if !newChatFixedMCPUseAllServers {
                             let eligibleServers = eligibleMCPServers
                             if eligibleServers.isEmpty {
-                                Text("No eligible MCP servers. Enable servers in MCP Servers settings.")
+                                Text("No eligible MCP servers. Enable servers in Settings → MCP Servers.")
                                     .jinInfoCallout()
                             } else {
                                 VStack(alignment: .leading, spacing: 8) {

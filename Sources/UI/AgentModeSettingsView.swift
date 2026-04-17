@@ -44,8 +44,6 @@ struct AgentModeSettingsView: View {
                 Toggle("Enable Agent Mode", isOn: $agentModeEnabled)
             } header: {
                 Text("Agent Mode")
-            } footer: {
-                Text("Execute local shell commands, read/write files, and search codebases.")
             }
 
             if agentModeEnabled {
@@ -60,6 +58,8 @@ struct AgentModeSettingsView: View {
                 allowedPrefixesSection
 
                 safetySection
+
+                detailsSection
             }
         }
         .formStyle(.grouped)
@@ -107,8 +107,6 @@ struct AgentModeSettingsView: View {
                 .textSelection(.enabled)
         } header: {
             Text("Working Directory")
-        } footer: {
-            Text("The default working directory for shell commands and file operations. Empty uses no default cwd.")
         }
     }
 
@@ -136,8 +134,6 @@ struct AgentModeSettingsView: View {
             }
         } header: {
             Text("Enabled Tools")
-        } footer: {
-            Text("Shell, grep, and glob tools run through the bundled RTK helper. File read/write/edit stay local to preserve precise edit context.")
         }
     }
 
@@ -226,8 +222,6 @@ struct AgentModeSettingsView: View {
             }
         } header: {
             Text("Bundled RTK")
-        } footer: {
-            Text("Agent shell commands must be rewriteable by RTK. Jin manages RTK tee output so you can reopen full raw logs when the compact view is not enough.")
         }
     }
 
@@ -290,8 +284,6 @@ struct AgentModeSettingsView: View {
             .foregroundStyle(.secondary)
         } header: {
             Text("Safe Commands")
-        } footer: {
-            Text("Commands starting with these prefixes are auto-approved without manual confirmation, but RTK still rejects commands it cannot rewrite.")
         }
     }
 
@@ -346,8 +338,6 @@ struct AgentModeSettingsView: View {
             }
         } header: {
             Text("Additional Allowed Prefixes")
-        } footer: {
-            Text("Extra command prefixes to auto-approve, in addition to the safe commands above.")
         }
     }
 
@@ -356,10 +346,6 @@ struct AgentModeSettingsView: View {
     private var safetySection: some View {
         Section("Safety") {
             Toggle("Auto-approve file reads", isOn: $autoApproveFileReads)
-
-            Text("When enabled, file read operations are executed without asking for approval.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
 
             LabeledContent("Command Timeout") {
                 HStack(spacing: JinSpacing.small) {
@@ -376,10 +362,43 @@ struct AgentModeSettingsView: View {
                         .frame(width: 45, alignment: .trailing)
                 }
             }
+        }
+    }
 
-            Text("Maximum time in seconds before a shell command is terminated.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+    private var detailsSection: some View {
+        Section("Details") {
+            JinDetailsDisclosure(title: "How Agent Mode Works") {
+                Text("Agent Mode can run shell commands, search codebases, and edit local files.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Text("Shell, grep, and glob run through RTK. File reads and edits stay local.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            JinDetailsDisclosure(title: "Approval Rules") {
+                Text("Safe commands are auto-approved by prefix, but RTK still rejects commands it cannot rewrite.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Text("Additional allowed prefixes extend that auto-approval list.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Text("Auto-approve file reads skips approval prompts for reads only.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            JinDetailsDisclosure(title: "RTK") {
+                Text("Agent shell commands must be rewriteable by RTK.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Text("Jin manages RTK tee output so you can reopen the full raw logs later.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Text("Command timeout is the maximum runtime before a shell command is terminated.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
         }
     }
 

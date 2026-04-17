@@ -24,23 +24,13 @@ struct ContextCacheSheetView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: JinSpacing.large) {
-                    summaryCard
                     basicsCard
 
                     if supportsAdvancedOptions, draft.mode != .off {
                         advancedCard
                     }
 
-                    if let draftError {
-                        Text(draftError)
-                            .foregroundStyle(.red)
-                            .font(.caption)
-                            .padding(JinSpacing.small)
-                            .jinSurface(.subtleStrong, cornerRadius: JinRadius.small)
-                    } else {
-                        Text(guidanceText)
-                            .jinInfoCallout()
-                    }
+                    footerCard
                 }
                 .padding(JinSpacing.large)
             }
@@ -66,38 +56,19 @@ struct ContextCacheSheetView: View {
         .frame(minWidth: 640, idealWidth: 700, minHeight: 480, idealHeight: 560)
     }
 
-    // MARK: - Summary Card
+    // MARK: - Basics Card
 
-    private var summaryCard: some View {
-        VStack(alignment: .leading, spacing: JinSpacing.small) {
+    private var basicsCard: some View {
+        VStack(alignment: .leading, spacing: JinSpacing.medium) {
             HStack(alignment: .center, spacing: JinSpacing.small) {
-                Text("Current mode")
-                    .font(.subheadline.weight(.semibold))
+                Text("Basics")
+                    .font(.headline)
                 Spacer()
                 Text(draft.mode.displayName)
                     .jinTagStyle(foreground: draft.mode == .off ? .secondary : .accentColor)
             }
 
-            Text(summaryText)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-        .padding(JinSpacing.large)
-        .jinSurface(.raised, cornerRadius: JinRadius.large)
-    }
-
-    // MARK: - Basics Card
-
-    private var basicsCard: some View {
-        VStack(alignment: .leading, spacing: JinSpacing.medium) {
-            Text("Basics")
-                .font(.headline)
-
-            fieldRow(
-                "Mode",
-                hint: "Implicit works for OpenAI, Anthropic, and xAI. Gemini/Vertex can also use Explicit mode with a cached content resource."
-            ) {
+            JinFormFieldRow("Mode") {
                 Picker("Mode", selection: $draft.mode) {
                     Text("Off").tag(ContextCacheMode.off)
                     Text("Implicit").tag(ContextCacheMode.implicit)
@@ -111,10 +82,7 @@ struct ContextCacheSheetView: View {
             }
 
             if supportsStrategy, draft.mode != .off {
-                fieldRow(
-                    "Strategy",
-                    hint: "Anthropic only. Controls which stable prompt prefix is marked cacheable."
-                ) {
+                JinFormFieldRow("Strategy", supportingText: "Anthropic only.") {
                     Picker("Strategy", selection: Binding(
                         get: { draft.strategy ?? .systemOnly },
                         set: { draft.strategy = $0 }
@@ -130,10 +98,7 @@ struct ContextCacheSheetView: View {
             }
 
             if supportsExplicitMode, draft.mode == .explicit {
-                fieldRow(
-                    "Cached content name",
-                    hint: "Gemini/Vertex resource name. Example: cachedContents/project-brief-v2"
-                ) {
+                JinFormFieldRow("Cached content name", supportingText: "Example: cachedContents/project-brief-v2") {
                     TextField("cachedContents/project-brief-v2", text: Binding(
                         get: { draft.cachedContentName ?? "" },
                         set: { draft.cachedContentName = $0 }
@@ -141,13 +106,6 @@ struct ContextCacheSheetView: View {
                     .font(.system(.body, design: .monospaced))
                     .textFieldStyle(.roundedBorder)
                 }
-            }
-
-            if draft.mode == .off {
-                Text("Turn on Implicit or Explicit mode to configure caching options.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
             }
         }
         .padding(JinSpacing.large)
@@ -192,10 +150,7 @@ struct ContextCacheSheetView: View {
     // MARK: - Advanced Sections
 
     private var ttlSection: some View {
-        fieldRow(
-            "TTL",
-            hint: "OpenAI, Anthropic, and xAI support cache retention hints."
-        ) {
+        JinFormFieldRow("TTL") {
             VStack(alignment: .leading, spacing: JinSpacing.small) {
                 Picker("TTL", selection: $ttlPreset) {
                     Text("Provider default").tag(ContextCacheTTLPreset.providerDefault)
@@ -218,10 +173,7 @@ struct ContextCacheSheetView: View {
     }
 
     private var cacheKeySection: some View {
-        fieldRow(
-            "Cache key",
-            hint: "Optional stable key for request prefixes that should map to the same cache."
-        ) {
+        JinFormFieldRow("Cache key", supportingText: "Optional stable key.") {
             TextField("stable-prefix-key", text: Binding(
                 get: { draft.cacheKey ?? "" },
                 set: { draft.cacheKey = $0 }
@@ -232,10 +184,7 @@ struct ContextCacheSheetView: View {
     }
 
     private var minTokensSection: some View {
-        fieldRow(
-            "Min tokens threshold",
-            hint: "Optional. Cache hints apply only when prompt tokens are above this value."
-        ) {
+        JinFormFieldRow("Min tokens threshold", supportingText: "Optional.") {
             TextField("1024", text: $minTokensDraft)
                 .font(.system(.body, design: .monospaced))
                 .textFieldStyle(.roundedBorder)
@@ -244,10 +193,7 @@ struct ContextCacheSheetView: View {
     }
 
     private var conversationIDSection: some View {
-        fieldRow(
-            "Conversation ID",
-            hint: "Optional xAI conversation scope for cache continuity."
-        ) {
+        JinFormFieldRow("Conversation ID", supportingText: "Optional xAI scope.") {
             TextField("x-grok-conv-id", text: Binding(
                 get: { draft.conversationID ?? "" },
                 set: { draft.conversationID = $0 }
@@ -257,24 +203,22 @@ struct ContextCacheSheetView: View {
         }
     }
 
-    // MARK: - Reusable Field Layout
+    private var footerCard: some View {
+        VStack(alignment: .leading, spacing: JinSpacing.medium) {
+            if let draftError {
+                Text(draftError)
+                    .jinInlineErrorText()
+                    .padding(.horizontal, JinSpacing.small)
+                    .jinSurface(.subtleStrong, cornerRadius: JinRadius.small)
+            }
 
-    @ViewBuilder
-    private func fieldRow<Control: View>(
-        _ title: String,
-        hint: String? = nil,
-        @ViewBuilder control: () -> Control
-    ) -> some View {
-        VStack(alignment: .leading, spacing: JinSpacing.xSmall) {
-            Text(title)
-                .font(.subheadline.weight(.semibold))
-            control()
-                .frame(maxWidth: .infinity, alignment: .leading)
-            if let hint, !hint.isEmpty {
-                Text(hint)
+            JinDetailsDisclosure {
+                Text(summaryText)
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
+                Text(guidanceText)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
         }
     }

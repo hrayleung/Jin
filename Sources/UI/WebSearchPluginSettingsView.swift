@@ -83,15 +83,15 @@ struct WebSearchPluginSettingsView: View {
 
     private var formContent: some View {
         Form {
-            Section("Built-in Web Search") {
-                Toggle("Enable plugin", isOn: $pluginEnabled)
+            Section("Web Search") {
+                Toggle("Enable Web Search", isOn: $pluginEnabled)
             }
 
             defaultsSection
 
             providerCredentialsSection
 
-            Section("Provider Advanced") {
+            Section("Provider Settings") {
                 providerAdvancedContent()
             }
         }
@@ -102,8 +102,8 @@ struct WebSearchPluginSettingsView: View {
     }
 
     private var defaultsSection: some View {
-        Section("Defaults") {
-            Picker("Default provider", selection: $defaultProviderRaw) {
+        Section("Search Defaults") {
+            Picker("Default search provider", selection: $defaultProviderRaw) {
                 ForEach(SearchPluginProvider.allCases) { provider in
                     Text(provider.displayName).tag(provider.rawValue)
                 }
@@ -128,8 +128,8 @@ struct WebSearchPluginSettingsView: View {
     }
 
     private var providerCredentialsSection: some View {
-        Section("Provider Credentials") {
-            Picker("Edit provider", selection: $credentialEditorProviderRaw) {
+        Section("Search Providers") {
+            Picker("Provider", selection: $credentialEditorProviderRaw) {
                 ForEach(SearchPluginProvider.allCases) { provider in
                     Text(provider.displayName).tag(provider.rawValue)
                 }

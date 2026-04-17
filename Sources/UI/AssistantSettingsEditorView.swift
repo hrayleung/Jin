@@ -16,7 +16,6 @@ struct AssistantSettingsEditorView: View {
 
                 sectionCard(
                     title: "System Prompt",
-                    subtitle: "Base instruction prepended to every request.",
                     systemImage: "text.quote"
                 ) {
                     systemInstructionEditor
@@ -24,7 +23,6 @@ struct AssistantSettingsEditorView: View {
 
                 sectionCard(
                     title: "Generation Defaults",
-                    subtitle: "Model parameter defaults. Can still be overridden per chat.",
                     systemImage: "dial.high"
                 ) {
                     VStack(alignment: .leading, spacing: JinSpacing.medium) {
@@ -72,7 +70,6 @@ struct AssistantSettingsEditorView: View {
 
                 sectionCard(
                     title: "Conversation Limits",
-                    subtitle: "Keep long chats manageable and context-efficient.",
                     systemImage: "clock.arrow.circlepath"
                 ) {
                     VStack(alignment: .leading, spacing: JinSpacing.medium) {
@@ -103,14 +100,14 @@ struct AssistantSettingsEditorView: View {
                             }
                         }
 
-                        Text("When enabled, oldest messages are dropped as history grows.")
-                            .jinInfoCallout()
+                        Text("Oldest messages are dropped as history grows.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                     }
                 }
 
                 sectionCard(
                     title: "Response Language",
-                    subtitle: "Set a preferred language for assistant replies.",
                     systemImage: "globe"
                 ) {
                     VStack(alignment: .leading, spacing: JinSpacing.medium) {
@@ -206,7 +203,6 @@ struct AssistantSettingsEditorView: View {
 
     private func sectionCard<Content: View>(
         title: String,
-        subtitle: String,
         systemImage: String,
         @ViewBuilder content: () -> Content
     ) -> some View {
@@ -221,9 +217,6 @@ struct AssistantSettingsEditorView: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(title)
                         .font(.headline)
-                    Text(subtitle)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
                 }
             }
 
@@ -265,7 +258,7 @@ struct AssistantSettingsEditorView: View {
                 .jinSurface(.neutral, cornerRadius: JinRadius.small)
 
             if assistant.systemInstruction.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                Text("Act as a helpful assistant. Be concise and clear...")
+                Text("Base system prompt")
                     .foregroundStyle(.tertiary)
                     .padding(.top, 18)
                     .padding(.leading, 16)

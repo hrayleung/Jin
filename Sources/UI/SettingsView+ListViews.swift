@@ -207,7 +207,7 @@ extension SettingsView {
                 Button(role: .destructive) {
                     requestDeleteServer(server)
                 } label: {
-                    Label("Delete Server", systemImage: "trash")
+                    Label("Delete MCP Server", systemImage: "trash")
                 }
             }
         }

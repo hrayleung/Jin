@@ -241,7 +241,7 @@ struct CompactComposerOverlayView<ControlsRow: View>: View {
                 Image(systemName: "link")
                     .foregroundStyle(.secondary)
 
-                TextField("Public video URL (optional, for video edit)", text: $remoteVideoURLText)
+                TextField("Source Video URL", text: $remoteVideoURLText)
                     .textFieldStyle(.plain)
                     .font(.callout)
                     .disabled(isBusy)
@@ -254,7 +254,7 @@ struct CompactComposerOverlayView<ControlsRow: View>: View {
                             .foregroundStyle(.secondary)
                     }
                     .buttonStyle(.plain)
-                    .help("Clear video URL")
+                    .help("Clear source video URL")
                     .disabled(isBusy)
                 }
             }
@@ -347,7 +347,7 @@ struct CompactComposerOverlayView<ControlsRow: View>: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .help("Hide composer (\u{21E7}\u{2318}H)")
+        .help("Hide composer")
     }
 
     private var expandButton: some View {
@@ -359,7 +359,7 @@ struct CompactComposerOverlayView<ControlsRow: View>: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .help("Expand composer (⇧⌘E)")
+        .help("Expand composer")
         .disabled(isBusy)
     }
 

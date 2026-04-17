@@ -25,7 +25,6 @@ struct GoogleMapsSheetView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: JinSpacing.large) {
-                    summaryCard
                     basicsCard
                     locationCard
                     advancedCard
@@ -84,45 +83,22 @@ struct GoogleMapsSheetView: View {
         #endif
     }
 
-    private var summaryCard: some View {
-        VStack(alignment: .leading, spacing: JinSpacing.medium) {
-            summaryRow(
-                "Current mode",
-                value: draft.enabled ? "Grounded" : "Off",
-                foreground: draft.enabled ? .accentColor : .secondary
-            )
-
-            summaryRow(
-                "Location bias",
-                value: hasLiveLocation ? "Pinned" : "None"
-            )
-
-            if providerType == .vertexai,
-               let locale = trimmedLanguageCode {
-                summaryRow("Result locale", value: locale)
-            }
-
-            Text(summaryText)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-        .padding(JinSpacing.large)
-        .jinSurface(.raised, cornerRadius: JinRadius.large)
-    }
-
     private var basicsCard: some View {
         VStack(alignment: .leading, spacing: JinSpacing.medium) {
-            Text("Basics")
-                .font(.headline)
+            HStack(alignment: .center, spacing: JinSpacing.small) {
+                Text("Basics")
+                    .font(.headline)
+                Spacer()
+                Text(draft.enabled ? "On" : "Off")
+                    .jinTagStyle(foreground: draft.enabled ? .accentColor : .secondary)
+                if hasLiveLocation {
+                    Text("Pinned")
+                        .jinTagStyle()
+                }
+            }
 
             Toggle("Enable Google Maps grounding", isOn: $draft.enabled)
                 .toggleStyle(.switch)
-
-            Text("Use Maps data for nearby places, directions, travel context, and other location-aware prompts.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
         }
         .padding(JinSpacing.large)
         .jinSurface(.raised, cornerRadius: JinRadius.large)
@@ -133,18 +109,14 @@ struct GoogleMapsSheetView: View {
             Text("Location Bias")
                 .font(.headline)
 
-            Text("Optional. Provide coordinates to bias results around a specific area.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-
             HStack(spacing: JinSpacing.medium) {
-                fieldRow("Latitude", hint: "Between -90 and 90.") {
+                JinFormFieldRow("Latitude", supportingText: "-90 to 90") {
                     TextField("34.050481", text: $latitudeDraft)
                         .font(.system(.body, design: .monospaced))
                         .textFieldStyle(.roundedBorder)
                 }
 
-                fieldRow("Longitude", hint: "Between -180 and 180.") {
+                JinFormFieldRow("Longitude", supportingText: "-180 to 180") {
                     TextField("-118.248526", text: $longitudeDraft)
                         .font(.system(.body, design: .monospaced))
                         .textFieldStyle(.roundedBorder)
@@ -175,13 +147,6 @@ struct GoogleMapsSheetView: View {
                     && longitudeDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
             .font(.caption.weight(.medium))
-
-            if hasLiveLocation {
-                Text("Saved coordinates are only used to bias Maps grounding for this conversation.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
         }
         .padding(JinSpacing.large)
         .jinSurface(.raised, cornerRadius: JinRadius.large)
@@ -191,7 +156,7 @@ struct GoogleMapsSheetView: View {
         DisclosureGroup(isExpanded: $advancedExpanded) {
             VStack(alignment: .leading, spacing: JinSpacing.medium) {
                 if providerType == .vertexai {
-                    fieldRow("Locale", hint: "Optional Vertex AI locale, for example en_US or ja_JP.") {
+                    JinFormFieldRow("Locale", supportingText: "Optional. Example: en_US") {
                         TextField("en_US", text: $languageCodeDraft)
                             .font(.system(.body, design: .monospaced))
                             .textFieldStyle(.roundedBorder)
@@ -199,10 +164,7 @@ struct GoogleMapsSheetView: View {
                     }
                 }
 
-                fieldRow(
-                    "Widget Token",
-                    hint: "Experimental. Jin does not render the Google Maps widget yet; this only requests the context token."
-                ) {
+                JinFormFieldRow("Widget Token", supportingText: "Experimental.") {
                     Toggle("Request widget token", isOn: enableWidgetBinding)
                         .toggleStyle(.switch)
                 }
@@ -223,14 +185,32 @@ struct GoogleMapsSheetView: View {
 
     @ViewBuilder
     private var footerContent: some View {
-        if let draftError {
-            Text(draftError)
-                .jinInlineErrorText()
-                .padding(.horizontal, JinSpacing.small)
-                .jinSurface(.subtleStrong, cornerRadius: JinRadius.small)
-        } else {
-            Text("Google Maps results appear in the response timeline as grounded place sources. Enable the widget token only if you plan to embed Google's widget yourself later.")
-                .jinInfoCallout()
+        VStack(alignment: .leading, spacing: JinSpacing.medium) {
+            if let draftError {
+                Text(draftError)
+                    .jinInlineErrorText()
+                    .padding(.horizontal, JinSpacing.small)
+                    .jinSurface(.subtleStrong, cornerRadius: JinRadius.small)
+            }
+
+            JinDetailsDisclosure {
+                Text(summaryText)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Text("Results appear in the response timeline as grounded place sources.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                if hasLiveLocation {
+                    Text("Saved coordinates only bias this conversation.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                if enableWidgetBinding.wrappedValue {
+                    Text("Jin requests a widget token but does not render the Google widget.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
         }
     }
 
@@ -243,14 +223,14 @@ struct GoogleMapsSheetView: View {
     private var summaryText: String {
         if draft.enabled {
             if hasLiveLocation {
-                return "Maps grounding is on and will bias results using your pinned coordinates."
+                return "Maps grounding is on and uses your pinned coordinates."
             }
-            return "Maps grounding is on. Gemini can cite places and other Maps-backed sources when the prompt needs them."
+            return "Maps grounding is on."
         }
         if hasLiveLocation {
-            return "A location is saved, but Maps grounding is currently off."
+            return "A location is saved, but grounding is off."
         }
-        return "Turn Maps grounding on when you want nearby places, area summaries, and other place-aware answers."
+        return "Turn Maps grounding on for place-aware answers."
     }
 
     private var trimmedLanguageCode: String? {
@@ -263,36 +243,6 @@ struct GoogleMapsSheetView: View {
             get: { draft.enableWidget == true },
             set: { draft.enableWidget = $0 ? true : nil }
         )
-    }
-
-    private func summaryRow(_ title: String, value: String, foreground: Color = .secondary) -> some View {
-        HStack(alignment: .center, spacing: JinSpacing.small) {
-            Text(title)
-                .font(.subheadline.weight(.semibold))
-            Spacer(minLength: 0)
-            Text(value)
-                .jinTagStyle(foreground: foreground)
-        }
-    }
-
-    @ViewBuilder
-    private func fieldRow<Control: View>(
-        _ title: String,
-        hint: String? = nil,
-        @ViewBuilder control: () -> Control
-    ) -> some View {
-        VStack(alignment: .leading, spacing: JinSpacing.xSmall) {
-            Text(title)
-                .font(.subheadline.weight(.semibold))
-            control()
-                .frame(maxWidth: .infinity, alignment: .leading)
-            if let hint, !hint.isEmpty {
-                Text(hint)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-        }
     }
 
     private static func formattedCoordinateValue(_ value: Double) -> String {

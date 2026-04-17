@@ -88,7 +88,7 @@ struct MCPServerConfigFormView: View {
     }
 
     private var serverSection: some View {
-        Section("Server") {
+        Section("MCP Server") {
             Picker("Transport", selection: $transportKind) {
                 Text("Command-line (stdio)").tag(MCPTransportKind.stdio)
                 Text("Remote HTTP").tag(MCPTransportKind.http)
@@ -155,7 +155,7 @@ struct MCPServerConfigFormView: View {
     private var httpSections: some View {
         Group {
             Section("HTTP transport") {
-                TextField("Endpoint", text: $endpoint)
+                TextField("Endpoint URL", text: $endpoint)
                     .font(.system(.body, design: .monospaced))
                     .textSelection(.enabled)
 

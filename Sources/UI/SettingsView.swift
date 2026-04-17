@@ -186,10 +186,10 @@ struct SettingsView: View {
         .onChange(of: selectedSection) { _, _ in ensureValidSelection() }
         .onChange(of: providers.count) { _, _ in ensureValidSelection() }
         .onChange(of: mcpServers.count) { _, _ in ensureValidSelection() }
-        .alert("Error", isPresented: $showingOperationError) {
+        .alert("Couldn't update settings", isPresented: $showingOperationError) {
             Button("OK", role: .cancel) {}
         } message: {
-            Text(operationErrorMessage ?? "Something went wrong.")
+            Text(operationErrorMessage ?? "Please try again.")
         }
         .task { await refreshPluginStatus() }
         .onReceive(NotificationCenter.default.publisher(for: .pluginCredentialsDidChange)) { _ in
@@ -306,7 +306,7 @@ struct SettingsView: View {
                 .id(id)
                 .transition(settingsColumnTransition)
         } else {
-            ContentUnavailableView("Select an MCP Server", systemImage: "server.rack")
+            ContentUnavailableView("Select an MCP server", systemImage: "server.rack")
                 .transition(settingsColumnTransition)
         }
     }

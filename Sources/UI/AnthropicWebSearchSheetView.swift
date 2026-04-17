@@ -8,7 +8,7 @@ struct AnthropicWebSearchSheetView: View {
     @Binding var draftError: String?
 
     var onCancel: () -> Void
-    var onApply: () -> Void
+    var onSave: () -> Void
 
     var body: some View {
         NavigationStack {
@@ -30,7 +30,7 @@ struct AnthropicWebSearchSheetView: View {
                     Button("Cancel") { onCancel() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Apply") { onApply() }
+                    Button("Save") { onSave() }
                 }
             }
         }
@@ -44,7 +44,7 @@ struct AnthropicWebSearchSheetView: View {
             Text("Domain Filtering")
                 .font(.headline)
 
-            fieldRow("Mode") {
+            JinFormFieldRow("Mode") {
                 Picker("Mode", selection: $domainMode) {
                     Text("None").tag(AnthropicDomainFilterMode.none)
                     Text("Allowed only").tag(AnthropicDomainFilterMode.allowed)
@@ -55,9 +55,9 @@ struct AnthropicWebSearchSheetView: View {
             }
 
             if domainMode != .none {
-                fieldRow(
+                JinFormFieldRow(
                     domainMode == .allowed ? "Allowed domains" : "Blocked domains",
-                    hint: "One domain per line. Subdomains are included automatically."
+                    supportingText: "One domain per line."
                 ) {
                     TextEditor(text: currentDomainsDraft)
                         .font(.system(.body, design: .monospaced))
@@ -85,7 +85,7 @@ struct AnthropicWebSearchSheetView: View {
                 .font(.headline)
 
             HStack(spacing: JinSpacing.medium) {
-                fieldRow("City") {
+                JinFormFieldRow("City") {
                     TextField("San Francisco", text: Binding(
                         get: { locationDraft.city ?? "" },
                         set: { locationDraft.city = $0.isEmpty ? nil : $0 }
@@ -93,7 +93,7 @@ struct AnthropicWebSearchSheetView: View {
                     .textFieldStyle(.roundedBorder)
                 }
 
-                fieldRow("Region") {
+                JinFormFieldRow("Region") {
                     TextField("California", text: Binding(
                         get: { locationDraft.region ?? "" },
                         set: { locationDraft.region = $0.isEmpty ? nil : $0 }
@@ -103,7 +103,7 @@ struct AnthropicWebSearchSheetView: View {
             }
 
             HStack(spacing: JinSpacing.medium) {
-                fieldRow("Country (2-letter)") {
+                JinFormFieldRow("Country", supportingText: "2-letter code") {
                     TextField("US", text: Binding(
                         get: { locationDraft.country ?? "" },
                         set: { val in
@@ -115,7 +115,7 @@ struct AnthropicWebSearchSheetView: View {
                     .frame(maxWidth: 120)
                 }
 
-                fieldRow("Timezone") {
+                JinFormFieldRow("Timezone") {
                     TextField("America/Los_Angeles", text: Binding(
                         get: { locationDraft.timezone ?? "" },
                         set: { locationDraft.timezone = $0.isEmpty ? nil : $0 }
@@ -132,15 +132,24 @@ struct AnthropicWebSearchSheetView: View {
 
     @ViewBuilder
     private var footerMessage: some View {
-        if let draftError {
-            Text(draftError)
-                .foregroundStyle(.red)
-                .font(.caption)
-                .padding(JinSpacing.small)
-                .jinSurface(.subtleStrong, cornerRadius: JinRadius.small)
-        } else {
-            Text("User location biases search result ranking toward the specified area. It does not inject location context into the conversation.")
-                .jinInfoCallout()
+        VStack(alignment: .leading, spacing: JinSpacing.medium) {
+            if let draftError {
+                Text(draftError)
+                    .jinInlineErrorText()
+                    .padding(.horizontal, JinSpacing.small)
+                    .jinSurface(.subtleStrong, cornerRadius: JinRadius.small)
+            }
+
+            if draftError == nil {
+                JinDetailsDisclosure {
+                    Text("User location biases result ranking toward the specified area.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Text("It does not inject location context into the conversation.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
         }
     }
 
@@ -169,25 +178,5 @@ struct AnthropicWebSearchSheetView: View {
                 }
             }
         )
-    }
-
-    @ViewBuilder
-    private func fieldRow<Control: View>(
-        _ title: String,
-        hint: String? = nil,
-        @ViewBuilder control: () -> Control
-    ) -> some View {
-        VStack(alignment: .leading, spacing: JinSpacing.xSmall) {
-            Text(title)
-                .font(.subheadline.weight(.semibold))
-            control()
-                .frame(maxWidth: .infinity, alignment: .leading)
-            if let hint, !hint.isEmpty {
-                Text(hint)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-        }
     }
 }

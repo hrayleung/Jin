@@ -333,10 +333,10 @@ struct ChatView: View {
         .onChange(of: contextUsageRefreshToken) { _, _ in
             refreshContextUsageEstimate()
         }
-        .alert("Error", isPresented: $showingError) {
+        .alert("Couldn't complete chat action", isPresented: $showingError) {
             Button("OK", role: .cancel) {}
         } message: {
-            Text(errorMessage ?? "Something went wrong.")
+            Text(errorMessage ?? "Please try again.")
         }
         .fileImporter(
             isPresented: $isFileImporterPresented,
@@ -414,7 +414,7 @@ struct ChatView: View {
                 locationDraft: $anthropicWebSearchLocationDraft,
                 draftError: $anthropicWebSearchDraftError,
                 onCancel: { showingAnthropicWebSearchSheet = false },
-                onApply: { applyAnthropicWebSearchDraft() }
+                onSave: { applyAnthropicWebSearchDraft() }
             )
         }
         .sheet(isPresented: $showingGoogleMapsSheet) {
