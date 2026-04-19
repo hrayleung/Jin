@@ -336,6 +336,11 @@
       ]
     },
     {
+      "id": "conf",
+      "name": "conf",
+      "aliases": []
+    },
+    {
       "id": "cooklang",
       "name": "cooklang",
       "aliases": []
@@ -1985,6 +1990,7 @@
     "astro": "markup",
     "blade": "php",
     "terraform": "hcl",
+    "conf": "ini",
     "ssh-config": "ini",
     "mdx": "markdown",
     "rst": "markdown",
@@ -2066,6 +2072,7 @@
     "jsonc": "json",
     "jsonl": "json",
     "jsonnet": "jsonnet",
+    "conf": "ini",
     "angular-html": "angular",
     "angular-ts": "angular",
     "vue": "vue",

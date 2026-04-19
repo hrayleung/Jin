@@ -11,7 +11,9 @@ final class MarkdownPrismManifestTests: XCTestCase {
 
         let prismVersion: String
         let canonicalLanguages: [Language]
+        let customCanonicalToPrism: [String: String]
         let customAliases: [String: String]
+        let customLogoKeys: [String: String]
     }
 
     private func loadManifest() throws -> Manifest {
@@ -62,10 +64,12 @@ final class MarkdownPrismManifestTests: XCTestCase {
         let manifest = try loadManifest()
 
         XCTAssertFalse(manifest.prismVersion.isEmpty)
+        XCTAssertEqual(manifest.customCanonicalToPrism["conf"], "ini")
         XCTAssertEqual(manifest.customAliases["assembly"], "asm")
         XCTAssertEqual(manifest.customAliases["mermaid-svg"], "mermaid")
         XCTAssertEqual(manifest.customAliases["objectivec"], "objective-c")
         XCTAssertEqual(manifest.customAliases["nu"], "nushell")
+        XCTAssertEqual(manifest.customLogoKeys["conf"], "ini")
 
         let aliasLookup = Dictionary(uniqueKeysWithValues: manifest.canonicalLanguages.map { ($0.id, Set($0.aliases)) })
         XCTAssertTrue(aliasLookup["javascript", default: []].contains("js"))
@@ -73,5 +77,6 @@ final class MarkdownPrismManifestTests: XCTestCase {
         XCTAssertTrue(aliasLookup["bash", default: []].contains("sh"))
         XCTAssertTrue(aliasLookup["shellscript", default: []].contains("shell"))
         XCTAssertTrue(aliasLookup["shellsession", default: []].contains("terminal"))
+        XCTAssertTrue(aliasLookup.keys.contains("conf"))
     }
 }

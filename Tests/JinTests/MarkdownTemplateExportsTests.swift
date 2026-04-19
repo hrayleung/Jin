@@ -46,4 +46,16 @@ final class MarkdownTemplateExportsTests: XCTestCase {
         XCTAssertTrue(html.contains("collapseLineThreshold"), "Expected collapse line threshold setting support")
         XCTAssertTrue(html.contains("toggleCodeHeightFold"), "Expected header fold button to control height collapse")
     }
+
+    func testTemplateMapsConfCodeBlocksToConfigLogo() throws {
+        guard let url = Bundle.module.url(forResource: "markdown-template", withExtension: "html") else {
+            XCTFail("Missing markdown-template.html in Jin resource bundle")
+            return
+        }
+
+        let html = try String(contentsOf: url, encoding: .utf8)
+
+        XCTAssertTrue(html.contains("conf: 'ini'"), "Expected conf language alias to reuse ini logo")
+        XCTAssertTrue(html.contains("file-settings-outline"), "Expected config-style fallback icon URL in markdown template")
+    }
 }
