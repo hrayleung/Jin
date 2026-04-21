@@ -58,4 +58,15 @@ final class MarkdownTemplateExportsTests: XCTestCase {
         XCTAssertTrue(html.contains("conf: 'ini'"), "Expected conf language alias to reuse ini logo")
         XCTAssertTrue(html.contains("file-settings-outline"), "Expected config-style fallback icon URL in markdown template")
     }
+
+    func testTemplateMapsTmuxCodeBlocksToTmuxLogo() throws {
+        guard let url = Bundle.module.url(forResource: "markdown-template", withExtension: "html") else {
+            XCTFail("Missing markdown-template.html in Jin resource bundle")
+            return
+        }
+
+        let html = try String(contentsOf: url, encoding: .utf8)
+
+        XCTAssertTrue(html.contains("tmux-original.svg"), "Expected tmux code blocks to use the tmux logo")
+    }
 }
