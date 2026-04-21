@@ -258,6 +258,7 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
                     ["id": "fireworks/qwen3p6-plus"],
                     ["id": "fireworks/deepseek-v3p2"],
                     ["id": "fireworks/kimi-k2-instruct-0905"],
+                    ["id": "fireworks/kimi-k2p6"],
                     ["id": "fireworks/glm-5"],
                     ["id": "accounts/fireworks/models/minimax-m2p1"],
                     ["id": "accounts/fireworks/models/qwen3-235b-a22b"],
@@ -290,6 +291,13 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         XCTAssertEqual(kimiInstruct.contextWindow, 262_100)
         XCTAssertFalse(kimiInstruct.capabilities.contains(.vision))
         XCTAssertFalse(kimiInstruct.capabilities.contains(.reasoning))
+
+        let kimiK26 = try XCTUnwrap(byID["fireworks/kimi-k2p6"])
+        XCTAssertEqual(kimiK26.name, "Kimi K2.6")
+        XCTAssertEqual(kimiK26.contextWindow, 262_100)
+        XCTAssertTrue(kimiK26.capabilities.contains(.vision))
+        XCTAssertTrue(kimiK26.capabilities.contains(.reasoning))
+        XCTAssertEqual(kimiK26.reasoningConfig?.defaultEffort, .medium)
 
         let glm5 = try XCTUnwrap(byID["fireworks/glm-5"])
         XCTAssertEqual(glm5.name, "GLM-5")
@@ -1772,6 +1780,183 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         for try await _ in stream {}
     }
 
+    func testCloudflareAIGatewayAdapterUsesKimiK26ThinkingToggleWhenReasoningEnabled() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        let providerConfig = ProviderConfig(
+            id: "cf",
+            name: "Cloudflare AI Gateway",
+            type: .cloudflareAIGateway,
+            apiKey: "ignored",
+            baseURL: "https://gateway.ai.cloudflare.com/v1/account/gateway/compat"
+        )
+
+        protocolType.requestHandler = { request in
+            let body = try XCTUnwrap(requestBodyData(request))
+            let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+            let root = try XCTUnwrap(json)
+
+            XCTAssertEqual(root["model"] as? String, "@cf/moonshotai/kimi-k2.6")
+            XCTAssertNil(root["reasoning"])
+            XCTAssertEqual(root["reasoning_effort"] as? String, "medium")
+
+            let template = try XCTUnwrap(root["chat_template_kwargs"] as? [String: Any])
+            XCTAssertEqual(template["thinking"] as? Bool, true)
+            XCTAssertEqual(template["existing"] as? String, "value")
+
+            let response: [String: Any] = [
+                "id": "cmpl_cf_k26_enabled",
+                "choices": [
+                    [
+                        "message": [
+                            "role": "assistant",
+                            "content": "OK"
+                        ],
+                        "finish_reason": "stop"
+                    ]
+                ]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        var controls = GenerationControls(reasoning: ReasoningControls(enabled: true, effort: .medium))
+        controls.providerSpecific = [
+            "chat_template_kwargs": AnyCodable(["existing": "value"])
+        ]
+
+        let adapter = OpenAICompatibleAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hello")])],
+            modelID: "@cf/moonshotai/kimi-k2.6",
+            controls: controls,
+            tools: [],
+            streaming: false
+        )
+
+        for try await _ in stream {}
+    }
+
+    func testCloudflareAIGatewayAdapterUsesKimiK26ThinkingToggleWhenReasoningDisabled() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        let providerConfig = ProviderConfig(
+            id: "cf",
+            name: "Cloudflare AI Gateway",
+            type: .cloudflareAIGateway,
+            apiKey: "ignored",
+            baseURL: "https://gateway.ai.cloudflare.com/v1/account/gateway/compat"
+        )
+
+        protocolType.requestHandler = { request in
+            let body = try XCTUnwrap(requestBodyData(request))
+            let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+            let root = try XCTUnwrap(json)
+
+            XCTAssertEqual(root["model"] as? String, "@cf/moonshotai/kimi-k2.6")
+            XCTAssertNil(root["reasoning"])
+            XCTAssertNil(root["reasoning_effort"])
+
+            let template = try XCTUnwrap(root["chat_template_kwargs"] as? [String: Any])
+            XCTAssertEqual(template["thinking"] as? Bool, false)
+
+            let response: [String: Any] = [
+                "id": "cmpl_cf_k26_disabled",
+                "choices": [
+                    [
+                        "message": [
+                            "role": "assistant",
+                            "content": "OK"
+                        ],
+                        "finish_reason": "stop"
+                    ]
+                ]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = OpenAICompatibleAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hello")])],
+            modelID: "@cf/moonshotai/kimi-k2.6",
+            controls: GenerationControls(reasoning: ReasoningControls(enabled: false)),
+            tools: [],
+            streaming: false
+        )
+
+        for try await _ in stream {}
+    }
+
+    func testCloudflareAIGatewayAdapterParsesKimiK26ReasoningField() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        let providerConfig = ProviderConfig(
+            id: "cf",
+            name: "Cloudflare AI Gateway",
+            type: .cloudflareAIGateway,
+            apiKey: "ignored",
+            baseURL: "https://gateway.ai.cloudflare.com/v1/account/gateway/compat"
+        )
+
+        protocolType.requestHandler = { request in
+            let response: [String: Any] = [
+                "id": "cmpl_cf_reasoning",
+                "choices": [
+                    [
+                        "message": [
+                            "role": "assistant",
+                            "content": "OK",
+                            "reasoning": "R"
+                        ],
+                        "finish_reason": "stop"
+                    ]
+                ],
+                "usage": [
+                    "prompt_tokens": 5,
+                    "completion_tokens": 7,
+                    "total_tokens": 12
+                ]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = OpenAICompatibleAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hello")])],
+            modelID: "@cf/moonshotai/kimi-k2.6",
+            controls: GenerationControls(),
+            tools: [],
+            streaming: false
+        )
+
+        var events: [StreamEvent] = []
+        for try await event in stream {
+            events.append(event)
+        }
+
+        XCTAssertEqual(events.count, 4)
+
+        guard case .messageStart(let id) = events[0] else { return XCTFail("Expected messageStart") }
+        XCTAssertEqual(id, "cmpl_cf_reasoning")
+
+        guard case .thinkingDelta(.thinking(let reasoning, _)) = events[1] else {
+            return XCTFail("Expected thinkingDelta")
+        }
+        XCTAssertEqual(reasoning, "R")
+
+        guard case .contentDelta(.text(let content)) = events[2] else { return XCTFail("Expected contentDelta") }
+        XCTAssertEqual(content, "OK")
+
+        guard case .messageEnd(let usage) = events[3] else { return XCTFail("Expected messageEnd") }
+        XCTAssertEqual(usage?.inputTokens, 5)
+        XCTAssertEqual(usage?.outputTokens, 7)
+    }
+
     func testCloudflareAIGatewayAdapterSendsSkipCacheHeaderWhenContextCacheOff() async throws {
         let (configuration, protocolType) = makeMockedSessionConfiguration()
         let networkManager = NetworkManager(configuration: configuration)
@@ -1879,6 +2064,14 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
                         "type": "language",
                         "tags": ["tool-use", "reasoning", "vision", "implicit-caching"],
                     ],
+                    [
+                        "id": "moonshotai/kimi-k2.6",
+                        "name": "Kimi K2.6 (Gateway)",
+                        "context_window": 262_144,
+                        "max_tokens": 262_144,
+                        "type": "language",
+                        "tags": ["tool-use", "reasoning", "vision", "implicit-caching"],
+                    ],
                 ],
             ]
             let data = try JSONSerialization.data(withJSONObject: payload)
@@ -1887,7 +2080,8 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
 
         let adapter = OpenAICompatibleAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
         let models = try await adapter.fetchAvailableModels()
-        let model = try XCTUnwrap(models.first)
+        let byID = Dictionary(uniqueKeysWithValues: models.map { ($0.id, $0) })
+        let model = try XCTUnwrap(byID["openai/gpt-5.2"])
 
         XCTAssertEqual(model.id, "openai/gpt-5.2")
         XCTAssertEqual(model.name, "GPT-5.2")
@@ -1895,6 +2089,15 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         XCTAssertTrue(model.capabilities.contains(.reasoning))
         XCTAssertTrue(model.capabilities.contains(.promptCaching))
         XCTAssertEqual(model.reasoningConfig?.type, .effort)
+
+        let kimi = try XCTUnwrap(byID["moonshotai/kimi-k2.6"])
+        XCTAssertEqual(kimi.name, "Kimi K2.6")
+        XCTAssertEqual(kimi.contextWindow, 262_144)
+        XCTAssertEqual(kimi.maxOutputTokens, 262_144)
+        XCTAssertTrue(kimi.capabilities.contains(.vision))
+        XCTAssertTrue(kimi.capabilities.contains(.reasoning))
+        XCTAssertTrue(kimi.capabilities.contains(.promptCaching))
+        XCTAssertEqual(kimi.reasoningConfig?.defaultEffort, .medium)
     }
 
     func testOpenAICompatibleAdapterFetchModelsForDeepInfraUsesCatalogMetadataWhenKnown() async throws {

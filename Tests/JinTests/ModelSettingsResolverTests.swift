@@ -692,6 +692,87 @@ final class ModelSettingsResolverTests: XCTestCase {
         XCTAssertNil(resolvedDeepSeek.reasoningConfig)
     }
 
+    func testResolverInfersVerifiedKimiK26MetadataForLegacyPersistedModels() {
+        let opencodeLegacy = ModelInfo(
+            id: "kimi-k2.6",
+            name: "Kimi K2.6",
+            capabilities: [.streaming, .toolCalling],
+            contextWindow: 8_192,
+            reasoningConfig: nil,
+            isEnabled: true
+        )
+        let resolvedOpencode = ModelSettingsResolver.resolve(model: opencodeLegacy, providerType: .opencodeGo)
+        XCTAssertEqual(resolvedOpencode.contextWindow, 262_144)
+        XCTAssertNil(resolvedOpencode.maxOutputTokens)
+        XCTAssertTrue(resolvedOpencode.capabilities.contains(.vision))
+        XCTAssertTrue(resolvedOpencode.capabilities.contains(.reasoning))
+        XCTAssertEqual(resolvedOpencode.reasoningConfig?.defaultEffort, .medium)
+
+        let openRouterLegacy = ModelInfo(
+            id: "moonshotai/kimi-k2.6",
+            name: "Kimi K2.6",
+            capabilities: [.streaming, .toolCalling],
+            contextWindow: 8_192,
+            reasoningConfig: nil,
+            isEnabled: true
+        )
+        let resolvedOpenRouter = ModelSettingsResolver.resolve(model: openRouterLegacy, providerType: .openrouter)
+        XCTAssertEqual(resolvedOpenRouter.contextWindow, 262_144)
+        XCTAssertEqual(resolvedOpenRouter.maxOutputTokens, 262_144)
+        XCTAssertTrue(resolvedOpenRouter.capabilities.contains(.vision))
+        XCTAssertTrue(resolvedOpenRouter.capabilities.contains(.reasoning))
+        XCTAssertTrue(resolvedOpenRouter.capabilities.contains(.promptCaching))
+        XCTAssertEqual(resolvedOpenRouter.reasoningConfig?.defaultEffort, .medium)
+
+        let fireworksLegacy = ModelInfo(
+            id: "fireworks/kimi-k2p6",
+            name: "Kimi K2.6",
+            capabilities: [.streaming, .toolCalling],
+            contextWindow: 8_192,
+            reasoningConfig: nil,
+            isEnabled: true
+        )
+        let resolvedFireworks = ModelSettingsResolver.resolve(model: fireworksLegacy, providerType: .fireworks)
+        XCTAssertEqual(resolvedFireworks.contextWindow, 262_100)
+        XCTAssertNil(resolvedFireworks.maxOutputTokens)
+        XCTAssertTrue(resolvedFireworks.capabilities.contains(.vision))
+        XCTAssertTrue(resolvedFireworks.capabilities.contains(.reasoning))
+        XCTAssertFalse(resolvedFireworks.capabilities.contains(.promptCaching))
+        XCTAssertEqual(resolvedFireworks.reasoningConfig?.defaultEffort, .medium)
+
+        let cloudflareLegacy = ModelInfo(
+            id: "@cf/moonshotai/kimi-k2.6",
+            name: "Kimi K2.6",
+            capabilities: [.streaming, .toolCalling],
+            contextWindow: 8_192,
+            reasoningConfig: nil,
+            isEnabled: true
+        )
+        let resolvedCloudflare = ModelSettingsResolver.resolve(model: cloudflareLegacy, providerType: .cloudflareAIGateway)
+        XCTAssertEqual(resolvedCloudflare.contextWindow, 262_144)
+        XCTAssertNil(resolvedCloudflare.maxOutputTokens)
+        XCTAssertTrue(resolvedCloudflare.capabilities.contains(.vision))
+        XCTAssertTrue(resolvedCloudflare.capabilities.contains(.reasoning))
+        XCTAssertTrue(resolvedCloudflare.capabilities.contains(.promptCaching))
+        XCTAssertEqual(resolvedCloudflare.reasoningConfig?.defaultEffort, .medium)
+
+        let vercelLegacy = ModelInfo(
+            id: "moonshotai/kimi-k2.6",
+            name: "Kimi K2.6",
+            capabilities: [.streaming, .toolCalling],
+            contextWindow: 8_192,
+            reasoningConfig: nil,
+            isEnabled: true
+        )
+        let resolvedVercel = ModelSettingsResolver.resolve(model: vercelLegacy, providerType: .vercelAIGateway)
+        XCTAssertEqual(resolvedVercel.contextWindow, 262_144)
+        XCTAssertEqual(resolvedVercel.maxOutputTokens, 262_144)
+        XCTAssertTrue(resolvedVercel.capabilities.contains(.vision))
+        XCTAssertTrue(resolvedVercel.capabilities.contains(.reasoning))
+        XCTAssertTrue(resolvedVercel.capabilities.contains(.promptCaching))
+        XCTAssertEqual(resolvedVercel.reasoningConfig?.defaultEffort, .medium)
+    }
+
     func testSambaNovaAlwaysOnReasoningModelsCannotDisableByDefault() {
         let gptOSS = ModelInfo(
             id: "gpt-oss-120b",

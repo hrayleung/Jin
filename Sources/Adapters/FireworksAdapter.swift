@@ -279,6 +279,7 @@ actor FireworksAdapter: LLMProviderAdapter {
         let isQwen36Plus = isFireworksModelID(id, canonicalID: "qwen3p6-plus")
         let isDeepSeekV3p2 = isFireworksModelID(id, canonicalID: "deepseek-v3p2")
         let isKimiK2Instruct0905 = isFireworksModelID(id, canonicalID: "kimi-k2-instruct-0905")
+        let isKimiK2p6 = isFireworksModelID(id, canonicalID: "kimi-k2p6")
         let isKimiK2p5 = isFireworksModelID(id, canonicalID: "kimi-k2p5")
         let isGLM4p7 = isFireworksModelID(id, canonicalID: "glm-4p7")
         let isGLM5 = isFireworksModelID(id, canonicalID: "glm-5")
@@ -311,6 +312,12 @@ actor FireworksAdapter: LLMProviderAdapter {
         } else if isKimiK2Instruct0905 {
             contextWindow = 262_100
             name = "Kimi K2 Instruct 0905"
+        } else if isKimiK2p6 {
+            caps.insert(.vision)
+            caps.insert(.reasoning)
+            reasoningConfig = ModelReasoningConfig(type: .effort, defaultEffort: .medium)
+            contextWindow = 262_100
+            name = "Kimi K2.6"
         } else if isKimiK2p5 {
             caps.insert(.vision)
             caps.insert(.reasoning)

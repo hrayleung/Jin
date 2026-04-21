@@ -506,6 +506,13 @@ extension ContentView {
            }) {
             return kimiK2Instruct.id
         }
+        if providerID == "fireworks",
+           let kimiK2p6 = models.first(where: {
+               $0.id == "fireworks/kimi-k2p6"
+                   || $0.id == "accounts/fireworks/models/kimi-k2p6"
+           }) {
+            return kimiK2p6.id
+        }
         if providerID == "together", let kimiK2p5 = models.first(where: { $0.id == "moonshotai/Kimi-K2.5" }) {
             return kimiK2p5.id
         }

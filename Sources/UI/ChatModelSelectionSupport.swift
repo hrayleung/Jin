@@ -164,13 +164,22 @@ enum ChatModelSelectionSupport {
                 ?? models.first(where: { $0.id == "Qwen/Qwen3-235B-A22B-Instruct-2507-tput" })?.id
                 ?? models.first(where: { $0.id == "Qwen/Qwen3-Coder-Next-FP8" })?.id
         case .fireworks:
-            return models.first(where: { isFireworksModelID($0.id, "qwen3p6-plus") })?.id
-                ?? models.first(where: { isFireworksModelID($0.id, "deepseek-v3p2") })?.id
-                ?? models.first(where: { isFireworksModelID($0.id, "kimi-k2-instruct-0905") })?.id
-                ?? models.first(where: { isFireworksModelID($0.id, "glm-5") })?.id
-                ?? models.first(where: { isFireworksModelID($0.id, "minimax-m2p5") })?.id
-                ?? models.first(where: { isFireworksModelID($0.id, "kimi-k2p5") })?.id
-                ?? models.first(where: { isFireworksModelID($0.id, "glm-4p7") })?.id
+            let preferredFireworksModels = [
+                "qwen3p6-plus",
+                "deepseek-v3p2",
+                "kimi-k2-instruct-0905",
+                "glm-5",
+                "minimax-m2p5",
+                "kimi-k2p6",
+                "kimi-k2p5",
+                "glm-4p7"
+            ]
+            for canonicalID in preferredFireworksModels {
+                if let modelID = models.first(where: { isFireworksModelID($0.id, canonicalID) })?.id {
+                    return modelID
+                }
+            }
+            return nil
         case .cerebras:
             return models.first(where: { $0.id == "qwen-3-235b-a22b-instruct-2507" })?.id
                 ?? models.first(where: { $0.id == "zai-glm-4.7" })?.id
