@@ -488,30 +488,8 @@ extension ContentView {
             return qwen397.id
         }
         if providerID == "fireworks",
-           let qwen36Plus = models.first(where: {
-               $0.id == "fireworks/qwen3p6-plus" || $0.id == "accounts/fireworks/models/qwen3p6-plus"
-           }) {
-            return qwen36Plus.id
-        }
-        if providerID == "fireworks",
-           let deepSeekV32 = models.first(where: {
-               $0.id == "fireworks/deepseek-v3p2" || $0.id == "accounts/fireworks/models/deepseek-v3p2"
-           }) {
-            return deepSeekV32.id
-        }
-        if providerID == "fireworks",
-           let kimiK2Instruct = models.first(where: {
-               $0.id == "fireworks/kimi-k2-instruct-0905"
-                   || $0.id == "accounts/fireworks/models/kimi-k2-instruct-0905"
-           }) {
-            return kimiK2Instruct.id
-        }
-        if providerID == "fireworks",
-           let kimiK2p6 = models.first(where: {
-               $0.id == "fireworks/kimi-k2p6"
-                   || $0.id == "accounts/fireworks/models/kimi-k2p6"
-           }) {
-            return kimiK2p6.id
+           let preferredFireworksModelID = ChatModelSelectionSupport.preferredFireworksModelID(in: models) {
+            return preferredFireworksModelID
         }
         if providerID == "together", let kimiK2p5 = models.first(where: { $0.id == "moonshotai/Kimi-K2.5" }) {
             return kimiK2p5.id

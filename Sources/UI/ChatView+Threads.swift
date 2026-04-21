@@ -276,10 +276,7 @@ extension ChatView {
             in: models,
             providerID: providerID,
             providers: providers,
-            geminiPreferredModelOrder: Self.geminiPreferredModelOrder,
-            isFireworksModelID: { modelID, canonicalID in
-                isFireworksModelID(modelID, canonicalID: canonicalID)
-            }
+            geminiPreferredModelOrder: Self.geminiPreferredModelOrder
         )
     }
 }
