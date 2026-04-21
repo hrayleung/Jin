@@ -80,4 +80,26 @@ final class ChatModelCapabilitySupportTests: XCTestCase {
         )
         XCTAssertEqual(googleBadge, "On")
     }
+
+    func testNormalizedFireworksModelInfoAddsExactKimiK26Metadata() {
+        let model = ModelInfo(
+            id: "accounts/fireworks/models/kimi-k2p6",
+            name: "accounts/fireworks/models/kimi-k2p6",
+            capabilities: [.streaming, .toolCalling],
+            contextWindow: 8_192,
+            reasoningConfig: nil,
+            isEnabled: true
+        )
+
+        let normalized = ChatModelCapabilitySupport.normalizedSelectedModelInfo(
+            model,
+            providerType: .fireworks
+        )
+
+        XCTAssertEqual(normalized.name, "Kimi K2.6")
+        XCTAssertEqual(normalized.contextWindow, 262_100)
+        XCTAssertTrue(normalized.capabilities.contains(.vision))
+        XCTAssertTrue(normalized.capabilities.contains(.reasoning))
+        XCTAssertEqual(normalized.reasoningConfig?.defaultEffort, .medium)
+    }
 }

@@ -257,6 +257,11 @@ extension ModelCatalog {
                contextWindow: 128_000,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
                isFullySupported: true, isSeeded: false),
+        Record(id: "@cf/moonshotai/kimi-k2.6", displayName: "Kimi K2.6",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 262_144,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+               isFullySupported: true, isSeeded: false),
 
         // Anthropic
         Record(id: "anthropic/claude-opus-4-7", displayName: "Claude Opus 4.7",
@@ -442,6 +447,12 @@ extension ModelCatalog {
         Record(id: "openai/gpt-oss-120b", displayName: "GPT-OSS 120B",
                capabilities: [.streaming, .toolCalling, .reasoning],
                contextWindow: 131_072,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+               isFullySupported: true, isSeeded: false),
+        Record(id: "moonshotai/kimi-k2.6", displayName: "Kimi K2.6",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 262_144,
+               maxOutputTokens: 262_144,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
                isFullySupported: true, isSeeded: false),
 

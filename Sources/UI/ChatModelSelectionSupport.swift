@@ -2,6 +2,26 @@ import Foundation
 import SwiftData
 
 enum ChatModelSelectionSupport {
+    static let preferredFireworksModelOrder: [String] = [
+        "qwen3p6-plus",
+        "deepseek-v3p2",
+        "kimi-k2-instruct-0905",
+        "kimi-k2p6",
+        "glm-5",
+        "minimax-m2p5",
+        "kimi-k2p5",
+        "glm-4p7"
+    ]
+
+    static func preferredFireworksModelID(in models: [ModelInfo]) -> String? {
+        for canonicalID in preferredFireworksModelOrder {
+            if let modelID = models.first(where: { fireworksCanonicalModelID($0.id) == canonicalID })?.id {
+                return modelID
+            }
+        }
+        return nil
+    }
+
     @MainActor
     static func setProvider(
         providerID: String,
@@ -118,8 +138,7 @@ enum ChatModelSelectionSupport {
         in models: [ModelInfo],
         providerID: String,
         providers: [ProviderConfigEntity],
-        geminiPreferredModelOrder: [String],
-        isFireworksModelID: (String, String) -> Bool
+        geminiPreferredModelOrder: [String]
     ) -> String? {
         guard let provider = providers.first(where: { $0.id == providerID }),
               let type = ProviderType(rawValue: provider.typeRaw) else {
@@ -164,13 +183,7 @@ enum ChatModelSelectionSupport {
                 ?? models.first(where: { $0.id == "Qwen/Qwen3-235B-A22B-Instruct-2507-tput" })?.id
                 ?? models.first(where: { $0.id == "Qwen/Qwen3-Coder-Next-FP8" })?.id
         case .fireworks:
-            return models.first(where: { isFireworksModelID($0.id, "qwen3p6-plus") })?.id
-                ?? models.first(where: { isFireworksModelID($0.id, "deepseek-v3p2") })?.id
-                ?? models.first(where: { isFireworksModelID($0.id, "kimi-k2-instruct-0905") })?.id
-                ?? models.first(where: { isFireworksModelID($0.id, "glm-5") })?.id
-                ?? models.first(where: { isFireworksModelID($0.id, "minimax-m2p5") })?.id
-                ?? models.first(where: { isFireworksModelID($0.id, "kimi-k2p5") })?.id
-                ?? models.first(where: { isFireworksModelID($0.id, "glm-4p7") })?.id
+            return preferredFireworksModelID(in: models)
         case .cerebras:
             return models.first(where: { $0.id == "qwen-3-235b-a22b-instruct-2507" })?.id
                 ?? models.first(where: { $0.id == "zai-glm-4.7" })?.id

@@ -127,6 +127,105 @@ final class ModelCatalogTests: XCTestCase {
         XCTAssertNil(unknown.reasoningConfig)
     }
 
+    func testVerifiedKimiK26CatalogMetadataUsesExactProviderIDs() {
+        let opencode = ModelCatalog.modelInfo(
+            for: "kimi-k2.6",
+            provider: .opencodeGo
+        )
+        XCTAssertEqual(opencode.contextWindow, 262_144)
+        XCTAssertNil(opencode.maxOutputTokens)
+        XCTAssertTrue(opencode.capabilities.contains(.vision))
+        XCTAssertTrue(opencode.capabilities.contains(.reasoning))
+        XCTAssertEqual(opencode.reasoningConfig?.defaultEffort, .medium)
+
+        let openRouter = ModelCatalog.modelInfo(
+            for: "moonshotai/kimi-k2.6",
+            provider: .openrouter
+        )
+        XCTAssertEqual(openRouter.contextWindow, 262_144)
+        XCTAssertEqual(openRouter.maxOutputTokens, 262_144)
+        XCTAssertTrue(openRouter.capabilities.contains(.vision))
+        XCTAssertTrue(openRouter.capabilities.contains(.reasoning))
+        XCTAssertTrue(openRouter.capabilities.contains(.promptCaching))
+        XCTAssertEqual(openRouter.reasoningConfig?.defaultEffort, .medium)
+
+        let fireworks = ModelCatalog.modelInfo(
+            for: "fireworks/kimi-k2p6",
+            provider: .fireworks
+        )
+        XCTAssertEqual(fireworks.contextWindow, 262_100)
+        XCTAssertNil(fireworks.maxOutputTokens)
+        XCTAssertTrue(fireworks.capabilities.contains(.vision))
+        XCTAssertTrue(fireworks.capabilities.contains(.reasoning))
+        XCTAssertFalse(fireworks.capabilities.contains(.promptCaching))
+        XCTAssertEqual(fireworks.reasoningConfig?.defaultEffort, .medium)
+
+        let fireworksAccount = ModelCatalog.modelInfo(
+            for: "accounts/fireworks/models/kimi-k2p6",
+            provider: .fireworks
+        )
+        XCTAssertEqual(fireworksAccount.contextWindow, 262_100)
+        XCTAssertTrue(fireworksAccount.capabilities.contains(.vision))
+        XCTAssertTrue(fireworksAccount.capabilities.contains(.reasoning))
+
+        let vercel = ModelCatalog.modelInfo(
+            for: "moonshotai/kimi-k2.6",
+            provider: .vercelAIGateway
+        )
+        XCTAssertEqual(vercel.contextWindow, 262_144)
+        XCTAssertEqual(vercel.maxOutputTokens, 262_144)
+        XCTAssertTrue(vercel.capabilities.contains(.vision))
+        XCTAssertTrue(vercel.capabilities.contains(.reasoning))
+        XCTAssertTrue(vercel.capabilities.contains(.promptCaching))
+
+        let cloudflare = ModelCatalog.modelInfo(
+            for: "@cf/moonshotai/kimi-k2.6",
+            provider: .cloudflareAIGateway
+        )
+        XCTAssertEqual(cloudflare.contextWindow, 262_144)
+        XCTAssertNil(cloudflare.maxOutputTokens)
+        XCTAssertTrue(cloudflare.capabilities.contains(.vision))
+        XCTAssertTrue(cloudflare.capabilities.contains(.reasoning))
+        XCTAssertTrue(cloudflare.capabilities.contains(.promptCaching))
+    }
+
+    func testVerifiedKimiK26CatalogRequiresExactIDs() {
+        let opencode = ModelCatalog.modelInfo(
+            for: "kimi-k2.6-custom",
+            provider: .opencodeGo
+        )
+        XCTAssertEqual(opencode.capabilities, [.streaming, .toolCalling])
+        XCTAssertEqual(opencode.contextWindow, 128_000)
+
+        let openRouter = ModelCatalog.modelInfo(
+            for: "moonshotai/kimi-k2.6-custom",
+            provider: .openrouter
+        )
+        XCTAssertEqual(openRouter.capabilities, [.streaming, .toolCalling])
+        XCTAssertEqual(openRouter.contextWindow, 128_000)
+
+        let fireworks = ModelCatalog.modelInfo(
+            for: "fireworks/kimi-k2p6-custom",
+            provider: .fireworks
+        )
+        XCTAssertEqual(fireworks.capabilities, [.streaming, .toolCalling])
+        XCTAssertEqual(fireworks.contextWindow, 128_000)
+
+        let vercel = ModelCatalog.modelInfo(
+            for: "moonshotai/kimi-k2.6-custom",
+            provider: .vercelAIGateway
+        )
+        XCTAssertEqual(vercel.capabilities, [.streaming, .toolCalling])
+        XCTAssertEqual(vercel.contextWindow, 128_000)
+
+        let cloudflare = ModelCatalog.modelInfo(
+            for: "@cf/moonshotai/kimi-k2.6-custom",
+            provider: .cloudflareAIGateway
+        )
+        XCTAssertEqual(cloudflare.capabilities, [.streaming, .toolCalling])
+        XCTAssertEqual(cloudflare.contextWindow, 128_000)
+    }
+
     func testGeminiGemma431CatalogUsesExactMetadata() {
         let model = ModelCatalog.modelInfo(
             for: "gemma-4-31b-it",

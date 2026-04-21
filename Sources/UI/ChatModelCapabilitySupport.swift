@@ -105,6 +105,12 @@ enum ChatModelCapabilitySupport {
             contextWindow = 262_100
             reasoningConfig = defaultReasoningConfig
             if name == model.id { name = "Kimi K2.5" }
+        case "kimi-k2p6":
+            caps.insert(.vision)
+            caps.insert(.reasoning)
+            contextWindow = 262_100
+            reasoningConfig = defaultReasoningConfig
+            if name == model.id { name = "Kimi K2.6" }
         case "qwen3-235b-a22b":
             caps.remove(.audio)
             caps.remove(.vision)

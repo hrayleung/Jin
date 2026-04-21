@@ -193,6 +193,19 @@ actor OpenAICompatibleAdapter: LLMProviderAdapter {
             if providerConfig.type == .openai, key == "service_tier" {
                 continue
             }
+
+            if key == "chat_template_kwargs",
+               OpenAICompatibleReasoningSupport.isCloudflareKimiK26Model(
+                   providerConfig: providerConfig,
+                   modelID: modelID
+               ),
+               let templateKwargs = value.value as? [String: Any] {
+                OpenAICompatibleReasoningSupport.mergeChatTemplateKwargs(
+                    into: &body,
+                    additional: templateKwargs
+                )
+                continue
+            }
             body[key] = value.value
         }
 
@@ -423,6 +436,7 @@ actor OpenAICompatibleAdapter: LLMProviderAdapter {
                 name: entry.displayName,
                 capabilities: entry.capabilities,
                 contextWindow: entry.contextWindow,
+                maxOutputTokens: entry.maxOutputTokens,
                 reasoningConfig: entry.reasoningConfig
             )
         }

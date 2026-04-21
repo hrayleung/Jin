@@ -48,6 +48,29 @@ enum OpenAICompatibleReasoningSupport {
         modelID: String,
         requestShape: ModelRequestShape
     ) -> Bool {
+        if isCloudflareKimiK26Model(providerConfig: providerConfig, modelID: modelID) {
+            let isDisabled = reasoning.enabled == false || (reasoning.effort ?? ReasoningEffort.none) == .none
+            mergeChatTemplateKwargs(
+                into: &body,
+                additional: ["thinking": !isDisabled]
+            )
+
+            if isDisabled {
+                body.removeValue(forKey: "reasoning")
+                body.removeValue(forKey: "reasoning_effort")
+                return false
+            }
+
+            let effort = reasoning.effort ?? .medium
+            body.removeValue(forKey: "reasoning")
+            body["reasoning_effort"] = mapReasoningEffort(
+                effort,
+                providerConfig: providerConfig,
+                modelID: modelID
+            )
+            return false
+        }
+
         if providerConfig.type == .zhipuCodingPlan
             || providerConfig.type == .minimax {
             let isDisabled = !reasoning.enabled || reasoning.effort == ReasoningEffort.none
@@ -180,5 +203,15 @@ enum OpenAICompatibleReasoningSupport {
     private static func mergeOutputConfig(into body: inout [String: Any], additional: [String: Any]) {
         let existing = (body["output_config"] as? [String: Any]) ?? [:]
         body["output_config"] = existing.merging(additional) { _, new in new }
+    }
+
+    static func isCloudflareKimiK26Model(providerConfig: ProviderConfig, modelID: String) -> Bool {
+        providerConfig.type == .cloudflareAIGateway
+            && modelID.lowercased() == "@cf/moonshotai/kimi-k2.6"
+    }
+
+    static func mergeChatTemplateKwargs(into body: inout [String: Any], additional: [String: Any]) {
+        let existing = (body["chat_template_kwargs"] as? [String: Any]) ?? [:]
+        body["chat_template_kwargs"] = existing.merging(additional) { _, new in new }
     }
 }
