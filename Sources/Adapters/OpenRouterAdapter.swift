@@ -157,6 +157,13 @@ actor OpenRouterAdapter: LLMProviderAdapter {
         let imageGenerationModel = isImageGenerationModel(modelID)
         let lowerModelID = modelID.lowercased()
         let omitsSamplingParameters = lowerModelID == "openai/gpt-5.4-image-2"
+        let unsupportedSamplingParameterKeys: Set<String> = [
+            "temperature",
+            "top_p",
+            "top_k",
+            "min_p",
+            "repetition_penalty"
+        ]
 
         var body: [String: Any] = [
             "model": modelID,
@@ -202,7 +209,8 @@ actor OpenRouterAdapter: LLMProviderAdapter {
         }
 
         for (key, value) in controls.providerSpecific {
-            if omitsSamplingParameters, key == "temperature" || key == "top_p" {
+            if omitsSamplingParameters,
+               unsupportedSamplingParameterKeys.contains(key.lowercased()) {
                 continue
             }
             body[key] = value.value
