@@ -127,6 +127,7 @@ enum SpeechPluginConfigFactory {
             let fileFormat = normalized(defaults.string(forKey: AppPreferenceKeys.sttElevenLabsFileFormat))
             let temperature = defaults.object(forKey: AppPreferenceKeys.sttElevenLabsTemperature) as? Double
             let noVerbatim = defaults.object(forKey: AppPreferenceKeys.sttElevenLabsNoVerbatim) as? Bool
+            let supportedNoVerbatim = modelId == "scribe_v2" ? noVerbatim : nil
 
             return .elevenlabs(
                 SpeechToTextManager.ElevenLabsConfig(
@@ -140,7 +141,7 @@ enum SpeechPluginConfigFactory {
                     diarize: diarize,
                     fileFormat: fileFormat,
                     temperature: temperature,
-                    noVerbatim: noVerbatim
+                    noVerbatim: supportedNoVerbatim
                 )
             )
 

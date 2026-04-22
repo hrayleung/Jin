@@ -214,7 +214,7 @@ extension TextToSpeechPluginSettingsView {
                 }
 
                 if provider == .elevenlabs {
-                    await loadElevenLabsVoicesAndModels()
+                    await loadElevenLabsVoicesAndModels(updateStatus: false)
                 }
             } catch {
                 await MainActor.run {
@@ -230,7 +230,7 @@ extension TextToSpeechPluginSettingsView {
         }
     }
 
-    func loadElevenLabsVoicesAndModels() async {
+    func loadElevenLabsVoicesAndModels(updateStatus: Bool = true) async {
         guard provider == .elevenlabs else { return }
         guard !trimmedAPIKey.isEmpty else { return }
 
@@ -251,11 +251,13 @@ extension TextToSpeechPluginSettingsView {
                 .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
         } catch {
             await MainActor.run {
-                elevenLabsVoices = []
-                elevenLabsModels = []
                 isLoadingVoices = false
-                statusMessage = error.localizedDescription
-                statusIsError = true
+                if updateStatus {
+                    elevenLabsVoices = []
+                    elevenLabsModels = []
+                    statusMessage = error.localizedDescription
+                    statusIsError = true
+                }
             }
             return
         }
