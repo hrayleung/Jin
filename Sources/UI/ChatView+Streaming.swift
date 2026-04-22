@@ -23,6 +23,21 @@ extension ChatView {
     }
 
     func sendMessageInternal() {
+        // #region agent log
+        ChatDiagnosticLogger.log(
+            runId: "initial",
+            hypothesisId: "H4",
+            message: "chat_send_entry",
+            data: [
+                "conversationID": conversationEntity.id.uuidString,
+                "messageCount": String(conversationEntity.messages.count),
+                "isStreaming": String(isStreaming),
+                "isPreparingToSend": String(isPreparingToSend),
+                "isImportingDropAttachments": String(isImportingDropAttachments),
+                "canSendDraft": String(canSendDraft)
+            ]
+        )
+        // #endregion
         if isStreaming {
             streamingStore.cancel(conversationID: conversationEntity.id)
             return
@@ -94,6 +109,7 @@ extension ChatView {
 
         let task = Task {
             do {
+                let prepareStartedAt = ProcessInfo.processInfo.systemUptime
                 let preparedMessages = try await buildUserMessagePartsForThreads(
                     threads: targetThreads,
                     quoteContents: draftQuotesSnapshot.map(\.content),
@@ -101,8 +117,43 @@ extension ChatView {
                     attachments: attachmentsSnapshot,
                     remoteVideoURL: remoteVideoURLSnapshot
                 )
+                let prepareDurationMs = Int((ProcessInfo.processInfo.systemUptime - prepareStartedAt) * 1000)
+
+                // #region agent log
+                ChatDiagnosticLogger.log(
+                    runId: "initial",
+                    hypothesisId: "H3",
+                    message: "chat_prepare_complete",
+                    data: [
+                        "conversationID": conversationEntity.id.uuidString,
+                        "turnID": turnID.uuidString,
+                        "preparedThreadCount": String(preparedMessages.count),
+                        "targetThreadCount": String(targetThreads.count),
+                        "attachmentCount": String(attachmentsSnapshot.count),
+                        "quoteCount": String(draftQuotesSnapshot.count),
+                        "textCount": String(messageTextSnapshot.count),
+                        "durationMs": String(prepareDurationMs)
+                    ]
+                )
+                // #endregion
 
                 await MainActor.run {
+                    let persistBlockStartedAt = ProcessInfo.processInfo.systemUptime
+
+                    // #region agent log
+                    ChatDiagnosticLogger.log(
+                        runId: "initial",
+                        hypothesisId: "H1",
+                        message: "chat_persist_block_start",
+                        data: [
+                            "conversationID": conversationEntity.id.uuidString,
+                            "turnID": turnID.uuidString,
+                            "messageCountBeforePersist": String(conversationEntity.messages.count),
+                            "preparedMessageCount": String(preparedMessages.count)
+                        ]
+                    )
+                    // #endregion
+
                     if conversationEntity.messages.isEmpty {
                         onPersistConversationIfNeeded()
                     }
@@ -135,8 +186,46 @@ extension ChatView {
                         }
                     }
                     conversationEntity.updatedAt = askedAt
+                    let rebuildStartedAt = ProcessInfo.processInfo.systemUptime
                     rebuildMessageCaches()
+                    let rebuildDurationMs = Int((ProcessInfo.processInfo.systemUptime - rebuildStartedAt) * 1000)
+
+                    // #region agent log
+                    ChatDiagnosticLogger.log(
+                        runId: "initial",
+                        hypothesisId: "H1",
+                        message: "chat_persist_rebuild_complete",
+                        data: [
+                            "conversationID": conversationEntity.id.uuidString,
+                            "turnID": turnID.uuidString,
+                            "messageCountAfterAppend": String(conversationEntity.messages.count),
+                            "cachedVisibleCount": String(cachedVisibleMessages.count),
+                            "cachedHistoryCount": String(cachedActiveThreadHistory.count),
+                            "historyCacheReady": String(isHistoryCacheReady),
+                            "durationMs": String(rebuildDurationMs)
+                        ]
+                    )
+                    // #endregion
+
+                    let saveStartedAt = ProcessInfo.processInfo.systemUptime
                     try? modelContext.save()
+                    let saveDurationMs = Int((ProcessInfo.processInfo.systemUptime - saveStartedAt) * 1000)
+                    let totalPersistDurationMs = Int((ProcessInfo.processInfo.systemUptime - persistBlockStartedAt) * 1000)
+
+                    // #region agent log
+                    ChatDiagnosticLogger.log(
+                        runId: "initial",
+                        hypothesisId: "H1",
+                        message: "chat_persist_save_complete",
+                        data: [
+                            "conversationID": conversationEntity.id.uuidString,
+                            "turnID": turnID.uuidString,
+                            "messageCountAfterSave": String(conversationEntity.messages.count),
+                            "saveDurationMs": String(saveDurationMs),
+                            "totalPersistDurationMs": String(totalPersistDurationMs)
+                        ]
+                    )
+                    // #endregion
                 }
 
                 await MainActor.run {
@@ -406,7 +495,25 @@ extension ChatView {
         } else {
             providerConfig = nil
         }
+        let snapshotBuildStartedAt = ProcessInfo.processInfo.systemUptime
         let messageSnapshots = orderedConversationMessages(threadID: threadID).map(PersistedMessageSnapshot.init)
+        let snapshotBuildDurationMs = Int((ProcessInfo.processInfo.systemUptime - snapshotBuildStartedAt) * 1000)
+
+        // #region agent log
+        ChatDiagnosticLogger.log(
+            runId: "initial",
+            hypothesisId: "H2",
+            message: "chat_stream_context_ready",
+            data: [
+                "conversationID": conversationID.uuidString,
+                "threadID": threadID.uuidString,
+                "triggeredByUserSend": String(triggeredByUserSend),
+                "snapshotCount": String(messageSnapshots.count),
+                "conversationMessageCount": String(conversationEntity.messages.count),
+                "durationMs": String(snapshotBuildDurationMs)
+            ]
+        )
+        // #endregion
         let assistant = conversationEntity.assistant
         let systemPrompt = resolvedSystemPrompt(
             conversationSystemPrompt: conversationEntity.systemPrompt,
