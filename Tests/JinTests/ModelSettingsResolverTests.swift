@@ -224,6 +224,60 @@ final class ModelSettingsResolverTests: XCTestCase {
         XCTAssertTrue(resolvedGeminiGemma426.supportsWebSearch)
     }
 
+    func testOpenRouterGPT54Image2CarriesExactMetadataAndGPT54ReasoningDefaults() {
+        let model = ModelCatalog.modelInfo(for: "openai/gpt-5.4-image-2", provider: .openrouter)
+        let resolved = ModelSettingsResolver.resolve(model: model, providerType: .openrouter)
+
+        XCTAssertEqual(resolved.modelType, .image)
+        XCTAssertEqual(resolved.contextWindow, 272_000)
+        XCTAssertEqual(resolved.maxOutputTokens, 128_000)
+        XCTAssertTrue(resolved.capabilities.contains(.streaming))
+        XCTAssertTrue(resolved.capabilities.contains(.vision))
+        XCTAssertTrue(resolved.capabilities.contains(.reasoning))
+        XCTAssertTrue(resolved.capabilities.contains(.promptCaching))
+        XCTAssertTrue(resolved.capabilities.contains(.imageGeneration))
+        XCTAssertFalse(resolved.capabilities.contains(.toolCalling))
+        XCTAssertFalse(resolved.supportsWebSearch)
+        XCTAssertEqual(resolved.reasoningConfig?.type, .effort)
+        XCTAssertEqual(resolved.reasoningConfig?.defaultEffort, ReasoningEffort.none)
+        XCTAssertTrue(resolved.supportsOpenAIStyleExtremeEffort)
+        XCTAssertEqual(
+            ModelCapabilityRegistry.normalizedReasoningEffort(.xhigh, for: .openrouter, modelID: "openai/gpt-5.4-image-2"),
+            .xhigh
+        )
+    }
+
+    func testResolverAppliesCatalogMetadataForLegacyOpenRouterGPT54Image2Model() {
+        let legacyModel = ModelInfo(
+            id: "openai/gpt-5.4-image-2",
+            name: "GPT-5.4 Image 2",
+            capabilities: [.streaming, .toolCalling],
+            contextWindow: 128_000,
+            maxOutputTokens: 4_096,
+            reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+            isEnabled: true
+        )
+
+        let resolved = ModelSettingsResolver.resolve(model: legacyModel, providerType: .openrouter)
+        XCTAssertEqual(resolved.modelType, .image)
+        XCTAssertEqual(resolved.contextWindow, 272_000)
+        XCTAssertEqual(resolved.maxOutputTokens, 128_000)
+        XCTAssertTrue(resolved.capabilities.contains(.streaming))
+        XCTAssertTrue(resolved.capabilities.contains(.vision))
+        XCTAssertTrue(resolved.capabilities.contains(.reasoning))
+        XCTAssertTrue(resolved.capabilities.contains(.promptCaching))
+        XCTAssertTrue(resolved.capabilities.contains(.imageGeneration))
+        XCTAssertFalse(resolved.capabilities.contains(.toolCalling))
+        XCTAssertFalse(resolved.supportsWebSearch)
+        XCTAssertEqual(resolved.reasoningConfig?.type, .effort)
+        XCTAssertEqual(resolved.reasoningConfig?.defaultEffort, ReasoningEffort.none)
+        XCTAssertTrue(resolved.supportsOpenAIStyleExtremeEffort)
+        XCTAssertEqual(
+            ModelCapabilityRegistry.normalizedReasoningEffort(.xhigh, for: .openrouter, modelID: "openai/gpt-5.4-image-2"),
+            .xhigh
+        )
+    }
+
     func testOpenRouterUsesUnifiedRequestShapeAcrossModelFamilies() {
         let claudeModel = ModelInfo(
             id: "anthropic/claude-sonnet-4.6",

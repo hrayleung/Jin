@@ -306,6 +306,9 @@ enum ChatModelCapabilitySupport {
     }
 
     static func supportedCurrentModelImageAspectRatios(lowerModelID: String) -> [ImageAspectRatio] {
+        if lowerModelID == "openai/gpt-5.4-image-2" {
+            return []
+        }
         if lowerModelID == "gemini-3.1-flash-image-preview" {
             return ImageAspectRatio.nanoBanana2SupportedCases
         }

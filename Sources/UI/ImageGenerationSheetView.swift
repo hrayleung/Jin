@@ -60,10 +60,12 @@ struct ImageGenerationSheetView: View {
                 }
             }
 
-            Picker("Aspect Ratio", selection: $draft.aspectRatio) {
-                Text("Default").tag(Optional<ImageAspectRatio>.none)
-                ForEach(supportedAspectRatios, id: \.self) { ratio in
-                    Text(ratio.displayName).tag(Optional(ratio))
+            if !supportedAspectRatios.isEmpty {
+                Picker("Aspect Ratio", selection: $draft.aspectRatio) {
+                    Text("Default").tag(Optional<ImageAspectRatio>.none)
+                    ForEach(supportedAspectRatios, id: \.self) { ratio in
+                        Text(ratio.displayName).tag(Optional(ratio))
+                    }
                 }
             }
 

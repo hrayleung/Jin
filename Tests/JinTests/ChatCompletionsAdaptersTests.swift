@@ -1385,6 +1385,305 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         XCTAssertEqual(reasoning, "R")
     }
 
+    func testOpenRouterImageGenerationModelBuildsModalitiesSeedAndParsesImages() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        let providerConfig = ProviderConfig(
+            id: "or",
+            name: "OpenRouter",
+            type: .openrouter,
+            apiKey: "ignored",
+            baseURL: "https://openrouter.ai/api/v1"
+        )
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://openrouter.ai/api/v1/chat/completions")
+            XCTAssertEqual(request.httpMethod, "POST")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer test-key")
+
+            let body = try XCTUnwrap(requestBodyData(request))
+            let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+            let root = try XCTUnwrap(json)
+
+            XCTAssertEqual(root["model"] as? String, "openai/gpt-5.4-image-2")
+            XCTAssertEqual(root["stream"] as? Bool, false)
+            XCTAssertEqual(root["seed"] as? Int, 42)
+            XCTAssertNil(root["temperature"])
+            XCTAssertNil(root["top_p"])
+            XCTAssertNil(root["top_k"])
+            XCTAssertNil(root["min_p"])
+            XCTAssertNil(root["repetition_penalty"])
+            XCTAssertNil(root["tools"])
+            XCTAssertNil(root["plugins"])
+
+            let modalities = try XCTUnwrap(root["modalities"] as? [String])
+            XCTAssertEqual(modalities, ["image"])
+
+            let response: [String: Any] = [
+                "id": "cmpl_or_img_1",
+                "choices": [
+                    [
+                        "message": [
+                            "role": "assistant",
+                            "images": [
+                                [
+                                    "type": "image_url",
+                                    "image_url": "data:image/png;base64,AQID"
+                                ]
+                            ]
+                        ],
+                        "finish_reason": "stop"
+                    ]
+                ],
+                "usage": [
+                    "prompt_tokens": 4,
+                    "completion_tokens": 6,
+                    "total_tokens": 10
+                ]
+            ]
+
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = OpenRouterAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("draw a lantern")])],
+            modelID: "openai/gpt-5.4-image-2",
+            controls: GenerationControls(
+                temperature: 0.7,
+                topP: 0.9,
+                imageGeneration: ImageGenerationControls(
+                    responseMode: .imageOnly,
+                    aspectRatio: .ratio16x9,
+                    seed: 42
+                ),
+                providerSpecific: [
+                    "temperature": AnyCodable(0.3),
+                    "top_p": AnyCodable(0.4),
+                    "top_k": AnyCodable(50),
+                    "min_p": AnyCodable(0.2),
+                    "repetition_penalty": AnyCodable(1.1)
+                ]
+            ),
+            tools: [],
+            streaming: false
+        )
+
+        var events: [StreamEvent] = []
+        for try await event in stream {
+            events.append(event)
+        }
+
+        guard events.count == 3 else {
+            return XCTFail("Expected 3 events, got \(events.count)")
+        }
+        guard case .messageStart(let id) = events[0] else { return XCTFail("Expected messageStart") }
+        XCTAssertEqual(id, "cmpl_or_img_1")
+
+        guard case .contentDelta(.image(let image)) = events[1] else { return XCTFail("Expected image delta") }
+        XCTAssertEqual(image.mimeType, "image/png")
+        XCTAssertEqual(image.data, Data([0x01, 0x02, 0x03]))
+
+        guard case .messageEnd(let usage) = events[2] else { return XCTFail("Expected messageEnd") }
+        XCTAssertEqual(usage?.inputTokens, 4)
+        XCTAssertEqual(usage?.outputTokens, 6)
+    }
+
+    func testOpenRouterImageGenerationModelStreamingParsesDeltaImages() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        let providerConfig = ProviderConfig(
+            id: "or",
+            name: "OpenRouter",
+            type: .openrouter,
+            apiKey: "ignored",
+            baseURL: "https://openrouter.ai/api/v1"
+        )
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://openrouter.ai/api/v1/chat/completions")
+
+            let body = try XCTUnwrap(requestBodyData(request))
+            let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+            let root = try XCTUnwrap(json)
+            let modalities = try XCTUnwrap(root["modalities"] as? [String])
+            XCTAssertEqual(modalities, ["text", "image"])
+
+            let sse = """
+            data: {"id":"cmpl_or_img_stream","choices":[{"index":0,"delta":{"content":"Rendered","images":[{"type":"image_url","image_url":"data:image/png;base64,BAUG"}]}}]}
+
+            data: [DONE]
+            """
+
+            return (
+                HTTPURLResponse(
+                    url: request.url!,
+                    statusCode: 200,
+                    httpVersion: nil,
+                    headerFields: ["Content-Type": "text/event-stream"]
+                )!,
+                Data(sse.utf8)
+            )
+        }
+
+        let adapter = OpenRouterAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("draw a lantern")])],
+            modelID: "openai/gpt-5.4-image-2",
+            controls: GenerationControls(),
+            tools: [],
+            streaming: true
+        )
+
+        var events: [StreamEvent] = []
+        for try await event in stream {
+            events.append(event)
+        }
+
+        guard events.count == 4 else {
+            return XCTFail("Expected 4 events, got \(events.count)")
+        }
+        guard case .messageStart(let id) = events[0] else { return XCTFail("Expected messageStart") }
+        XCTAssertEqual(id, "cmpl_or_img_stream")
+
+        guard case .contentDelta(.text(let text)) = events[1] else { return XCTFail("Expected text delta") }
+        XCTAssertEqual(text, "Rendered")
+
+        guard case .contentDelta(.image(let image)) = events[2] else { return XCTFail("Expected image delta") }
+        XCTAssertEqual(image.mimeType, "image/png")
+        XCTAssertEqual(image.data, Data([0x04, 0x05, 0x06]))
+
+        guard case .messageEnd = events[3] else { return XCTFail("Expected messageEnd") }
+    }
+
+    func testOpenRouterImageGenerationModelRejectsNonHTTPRemoteImageURLSchemes() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        let providerConfig = ProviderConfig(
+            id: "or",
+            name: "OpenRouter",
+            type: .openrouter,
+            apiKey: "ignored",
+            baseURL: "https://openrouter.ai/api/v1"
+        )
+
+        protocolType.requestHandler = { request in
+            let response: [String: Any] = [
+                "id": "cmpl_or_img_scheme",
+                "choices": [
+                    [
+                        "message": [
+                            "role": "assistant",
+                            "images": [
+                                [
+                                    "type": "image_url",
+                                    "image_url": "file:///etc/passwd"
+                                ]
+                            ]
+                        ],
+                        "finish_reason": "stop"
+                    ]
+                ]
+            ]
+
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = OpenRouterAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("draw a lantern")])],
+            modelID: "openai/gpt-5.4-image-2",
+            controls: GenerationControls(),
+            tools: [],
+            streaming: false
+        )
+
+        var events: [StreamEvent] = []
+        for try await event in stream {
+            events.append(event)
+        }
+
+        guard events.count == 2 else {
+            return XCTFail("Expected 2 events, got \(events.count)")
+        }
+        guard case .messageStart = events[0] else { return XCTFail("Expected messageStart") }
+        guard case .messageEnd = events[1] else { return XCTFail("Expected messageEnd") }
+    }
+
+    func testOpenRouterImageGenerationModelParsesDataURLsWithoutExplicitMediaType() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        let providerConfig = ProviderConfig(
+            id: "or",
+            name: "OpenRouter",
+            type: .openrouter,
+            apiKey: "ignored",
+            baseURL: "https://openrouter.ai/api/v1"
+        )
+
+        protocolType.requestHandler = { request in
+            let response: [String: Any] = [
+                "id": "cmpl_or_img_data_url",
+                "choices": [
+                    [
+                        "message": [
+                            "role": "assistant",
+                            "images": [
+                                [
+                                    "type": "image_url",
+                                    "image_url": "data:;base64,AQID"
+                                ],
+                                [
+                                    "type": "image_url",
+                                    "image_url": "data:,hello%20world"
+                                ]
+                            ]
+                        ],
+                        "finish_reason": "stop"
+                    ]
+                ]
+            ]
+
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = OpenRouterAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("draw a lantern")])],
+            modelID: "openai/gpt-5.4-image-2",
+            controls: GenerationControls(),
+            tools: [],
+            streaming: false
+        )
+
+        var events: [StreamEvent] = []
+        for try await event in stream {
+            events.append(event)
+        }
+
+        guard events.count == 4 else {
+            return XCTFail("Expected 4 events, got \(events.count)")
+        }
+        guard case .contentDelta(.image(let firstImage)) = events[1] else {
+            return XCTFail("Expected first image delta")
+        }
+        XCTAssertEqual(firstImage.mimeType, "image/png")
+        XCTAssertEqual(firstImage.data, Data([0x01, 0x02, 0x03]))
+
+        guard case .contentDelta(.image(let secondImage)) = events[2] else {
+            return XCTFail("Expected second image delta")
+        }
+        XCTAssertEqual(secondImage.mimeType, "image/png")
+        XCTAssertEqual(secondImage.data, Data("hello world".utf8))
+    }
+
 
     func testOpenAICompatibleAdapterNormalizesRootBaseURLAndParsesReasoningContent() async throws {
         let (configuration, protocolType) = makeMockedSessionConfiguration()

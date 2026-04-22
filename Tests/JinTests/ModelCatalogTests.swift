@@ -107,6 +107,25 @@ final class ModelCatalogTests: XCTestCase {
         XCTAssertTrue(gemma26.capabilities.contains(.reasoning))
     }
 
+    func testOpenRouterGPT54Image2CatalogUsesExactProviderPrefixedID() {
+        let model = ModelCatalog.modelInfo(
+            for: "openai/gpt-5.4-image-2",
+            provider: .openrouter
+        )
+
+        XCTAssertEqual(model.contextWindow, 272_000)
+        XCTAssertEqual(model.maxOutputTokens, 128_000)
+        XCTAssertTrue(model.capabilities.contains(.streaming))
+        XCTAssertTrue(model.capabilities.contains(.vision))
+        XCTAssertTrue(model.capabilities.contains(.reasoning))
+        XCTAssertTrue(model.capabilities.contains(.promptCaching))
+        XCTAssertTrue(model.capabilities.contains(.imageGeneration))
+        XCTAssertFalse(model.capabilities.contains(.toolCalling))
+        XCTAssertFalse(model.capabilities.contains(.nativePDF))
+        XCTAssertEqual(model.reasoningConfig?.type, .effort)
+        XCTAssertEqual(model.reasoningConfig?.defaultEffort, ReasoningEffort.none)
+    }
+
     func testOpenRouterSeedanceCatalogUsesExactVideoModelIDs() {
         let seedance20 = ModelCatalog.modelInfo(
             for: "bytedance/seedance-2.0",

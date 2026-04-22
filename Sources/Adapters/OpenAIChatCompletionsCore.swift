@@ -44,6 +44,10 @@ enum OpenAIChatCompletionsCore {
                     }
                 }
 
+                for image in imageOutputs(choice.message.images) {
+                    continuation.yield(.contentDelta(.image(image)))
+                }
+
                 if let toolCalls = choice.message.toolCalls, !toolCalls.isEmpty {
                     for call in toolCalls {
                         let name = call.function?.name ?? ""
@@ -126,6 +130,10 @@ enum OpenAIChatCompletionsCore {
                                 if !split.visible.isEmpty {
                                     continuation.yield(.contentDelta(.text(split.visible)))
                                 }
+                            }
+
+                            for image in imageOutputs(choice.delta.images) {
+                                continuation.yield(.contentDelta(.image(image)))
                             }
 
                             if let toolDeltas = choice.delta.toolCalls {
@@ -325,6 +333,80 @@ enum OpenAIChatCompletionsCore {
         guard let value else { return nil }
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? nil : value
+    }
+
+    private static func imageOutputs(
+        _ payloads: [OpenAIChatCompletionsResponse.GeneratedImage]?
+    ) -> [ImageContent] {
+        guard let payloads, !payloads.isEmpty else { return [] }
+        return payloads.compactMap(imageContent(from:))
+    }
+
+    private static func imageContent(
+        from payload: OpenAIChatCompletionsResponse.GeneratedImage
+    ) -> ImageContent? {
+        guard let rawURL = payload.resolvedImageURL?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !rawURL.isEmpty else { return nil }
+
+        if let parsed = parseDataURL(rawURL) {
+            let mimeType = payload.mimeType ?? parsed.mimeType ?? "image/png"
+            return ImageContent(mimeType: mimeType, data: parsed.data)
+        }
+
+        guard let url = URL(string: rawURL),
+              let scheme = url.scheme?.lowercased(),
+              scheme == "http" || scheme == "https" else { return nil }
+        let mimeType = payload.mimeType ?? inferImageMIMEType(from: url) ?? "image/png"
+        return ImageContent(mimeType: mimeType, data: nil, url: url, assetDisposition: .managed)
+    }
+
+    private static func parseDataURL(_ value: String) -> (mimeType: String?, data: Data)? {
+        guard value.range(of: "data:", options: [.anchored, .caseInsensitive]) != nil,
+              let commaIndex = value.firstIndex(of: ",") else {
+            return nil
+        }
+
+        let metadataStart = value.index(value.startIndex, offsetBy: 5)
+        let metadata = value[metadataStart..<commaIndex]
+        let payloadStart = value.index(after: commaIndex)
+        let payload = String(value[payloadStart...])
+
+        let metadataParts = metadata
+            .split(separator: ";", omittingEmptySubsequences: false)
+            .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }
+        let mimeType: String?
+        if let firstPart = metadataParts.first,
+           !firstPart.isEmpty,
+           firstPart.contains("/") {
+            mimeType = firstPart
+        } else {
+            mimeType = nil
+        }
+
+        if metadataParts.contains(where: { $0.caseInsensitiveCompare("base64") == .orderedSame }),
+           let data = Data(base64Encoded: payload) {
+            return (mimeType, data)
+        }
+
+        guard let decoded = payload.removingPercentEncoding?.data(using: .utf8) else {
+            return nil
+        }
+        return (mimeType, decoded)
+    }
+
+    private static func inferImageMIMEType(from url: URL) -> String? {
+        switch url.pathExtension.lowercased() {
+        case "jpg", "jpeg":
+            return "image/jpeg"
+        case "png":
+            return "image/png"
+        case "webp":
+            return "image/webp"
+        case "gif":
+            return "image/gif"
+        default:
+            return nil
+        }
     }
 
     private static func sourcesMarkdown(
@@ -545,14 +627,14 @@ struct OpenAIModelsResponse: Codable {
     }
 }
 
-struct OpenAIChatCompletionsResponse: Codable {
+struct OpenAIChatCompletionsResponse: Decodable {
     let id: String
     let choices: [Choice]
     let usage: UsageInfo?
     let citations: [String]?
     let searchResults: [OpenAIChatCompletionsSearchResult]?
 
-    struct Choice: Codable {
+    struct Choice: Decodable {
         let message: AssistantMessage
         let finishReason: String?
         let reasoning: String?
@@ -560,27 +642,63 @@ struct OpenAIChatCompletionsResponse: Codable {
         let reasoningDetails: [[String: AnyCodable]]?
     }
 
-    struct AssistantMessage: Codable {
+    struct AssistantMessage: Decodable {
         let role: String?
         let content: String?
         let reasoning: String?
         let reasoningContent: String?
         let reasoningDetails: [[String: AnyCodable]]?
         let toolCalls: [ToolCall]?
+        let images: [GeneratedImage]?
     }
 
-    struct ToolCall: Codable {
+    struct ToolCall: Decodable {
         let id: String?
         let type: String?
         let function: Function?
 
-        struct Function: Codable {
+        struct Function: Decodable {
             let name: String?
             let arguments: String?
         }
     }
 
-    struct UsageInfo: Codable {
+    struct GeneratedImage: Decodable {
+        let type: String?
+        let imageURL: ImageURL?
+        let mimeType: String?
+
+        var resolvedImageURL: String? {
+            imageURL?.url
+        }
+
+        enum CodingKeys: String, CodingKey {
+            case type
+            case imageURL = "imageUrl"
+            case mimeType
+        }
+    }
+
+    struct ImageURL: Decodable {
+        let url: String
+
+        private enum CodingKeys: String, CodingKey {
+            case url
+        }
+
+        init(from decoder: Decoder) throws {
+            let singleValue = try decoder.singleValueContainer()
+            if let raw = try? singleValue.decode(String.self) {
+                url = raw
+                return
+            }
+
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            url = try container.decode(String.self, forKey: .url)
+        }
+    }
+
+    struct UsageInfo: Decodable {
         let promptTokens: Int?
         let completionTokens: Int?
         let totalTokens: Int?
@@ -593,14 +711,14 @@ struct OpenAIChatCompletionsResponse: Codable {
     }
 }
 
-struct OpenAIChatCompletionsChunk: Codable {
+struct OpenAIChatCompletionsChunk: Decodable {
     let id: String?
     let choices: [Choice]
     let usage: OpenAIChatCompletionsResponse.UsageInfo?
     let citations: [String]?
     let searchResults: [OpenAIChatCompletionsSearchResult]?
 
-    struct Choice: Codable {
+    struct Choice: Decodable {
         let index: Int?
         let delta: Delta
         let finishReason: String?
@@ -609,22 +727,23 @@ struct OpenAIChatCompletionsChunk: Codable {
         let reasoningDetails: [[String: AnyCodable]]?
     }
 
-    struct Delta: Codable {
+    struct Delta: Decodable {
         let role: String?
         let content: String?
         let reasoning: String?
         let reasoningContent: String?
         let reasoningDetails: [[String: AnyCodable]]?
         let toolCalls: [ToolCallDelta]?
+        let images: [OpenAIChatCompletionsResponse.GeneratedImage]?
     }
 
-    struct ToolCallDelta: Codable {
+    struct ToolCallDelta: Decodable {
         let index: Int?
         let id: String?
         let type: String?
         let function: FunctionDelta?
 
-        struct FunctionDelta: Codable {
+        struct FunctionDelta: Decodable {
             let name: String?
             let arguments: String?
         }
