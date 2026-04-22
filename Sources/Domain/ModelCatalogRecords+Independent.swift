@@ -434,6 +434,11 @@ extension ModelCatalog {
 
     static let fireworksRecords: [Record] = [
         // Seeded (canonical "fireworks/" prefix IDs)
+        Record(id: "fireworks/kimi-k2p6", displayName: "Kimi K2.6",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               contextWindow: 262_100,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+               isFullySupported: true, isSeeded: true),
         Record(id: "fireworks/qwen3p6-plus", displayName: "Qwen3.6 Plus",
                capabilities: [.streaming, .toolCalling, .vision],
                contextWindow: 128_000,
@@ -460,11 +465,6 @@ extension ModelCatalog {
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
                isFullySupported: true, isSeeded: true),
         // Catalog-only
-        Record(id: "fireworks/kimi-k2p6", displayName: "Kimi K2.6",
-               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
-               contextWindow: 262_100,
-               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
-               isFullySupported: true, isSeeded: false),
         Record(id: "fireworks/kimi-k2p5", displayName: "Kimi K2.5",
                capabilities: [.streaming, .toolCalling, .vision, .reasoning],
                contextWindow: 262_100,

@@ -236,7 +236,7 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         for try await _ in stream {}
     }
 
-    func testFireworksAdapterFetchModelsMapsKnownMetadata() async throws {
+    func testFireworksAdapterFetchModelsPrefersServerlessCatalogListing() async throws {
         let (configuration, protocolType) = makeMockedSessionConfiguration()
         let networkManager = NetworkManager(configuration: configuration)
 
@@ -248,24 +248,51 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
             baseURL: "https://example.com"
         )
 
+        var requestedURLs: [String] = []
         protocolType.requestHandler = { request in
-            XCTAssertEqual(request.url?.absoluteString, "https://example.com/models")
+            let url = try XCTUnwrap(request.url?.absoluteString)
+            requestedURLs.append(url)
             XCTAssertEqual(request.httpMethod, "GET")
             XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer test-key")
 
-            let response: [String: Any] = [
-                "data": [
-                    ["id": "fireworks/qwen3p6-plus"],
-                    ["id": "fireworks/deepseek-v3p2"],
-                    ["id": "fireworks/kimi-k2-instruct-0905"],
-                    ["id": "fireworks/kimi-k2p6"],
-                    ["id": "fireworks/glm-5"],
-                    ["id": "accounts/fireworks/models/minimax-m2p1"],
-                    ["id": "accounts/fireworks/models/qwen3-235b-a22b"],
-                    ["id": "accounts/fireworks/models/glm-preview"],
-                    ["id": "accounts/fireworks/models/other"]
+            let response: [String: Any]
+            let components = try XCTUnwrap(URLComponents(url: request.url!, resolvingAgainstBaseURL: false))
+            let queryItems = Dictionary(
+                uniqueKeysWithValues: (components.queryItems ?? []).map { ($0.name, $0.value ?? "") }
+            )
+
+            switch (components.path, queryItems["pageToken"]) {
+            case ("/v1/accounts/fireworks/models", nil):
+                XCTAssertEqual(queryItems["filter"], "supports_serverless=true")
+                XCTAssertEqual(queryItems["pageSize"], "200")
+                response = [
+                    "models": [
+                        ["name": "accounts/fireworks/models/qwen3p6-plus"],
+                        ["name": "accounts/fireworks/models/deepseek-v3p2"],
+                        ["name": "accounts/fireworks/models/kimi-k2-instruct-0905"],
+                        ["name": "accounts/fireworks/models/kimi-k2p6"],
+                        ["name": "accounts/fireworks/models/glm-5"]
+                    ],
+                    "nextPageToken": "page-2"
                 ]
-            ]
+            case ("/v1/accounts/fireworks/models", "page-2"):
+                XCTAssertEqual(queryItems["filter"], "supports_serverless=true")
+                XCTAssertEqual(queryItems["pageSize"], "200")
+                response = [
+                    "models": [
+                        ["name": "accounts/fireworks/models/minimax-m2p1"],
+                        ["name": "accounts/fireworks/models/qwen3-235b-a22b"],
+                        ["name": "accounts/fireworks/models/glm-preview"],
+                        ["name": "accounts/fireworks/models/other"]
+                    ]
+                ]
+            default:
+                return (
+                    HTTPURLResponse(url: request.url!, statusCode: 404, httpVersion: nil, headerFields: nil)!,
+                    Data()
+                )
+            }
+
             let data = try JSONSerialization.data(withJSONObject: response)
             return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
         }
@@ -273,6 +300,14 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         let adapter = FireworksAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
         let models = try await adapter.fetchAvailableModels()
         let byID = Dictionary(uniqueKeysWithValues: models.map { ($0.id, $0) })
+
+        XCTAssertEqual(
+            requestedURLs,
+            [
+                "https://example.com/v1/accounts/fireworks/models?filter=supports_serverless%3Dtrue&pageSize=200",
+                "https://example.com/v1/accounts/fireworks/models?filter=supports_serverless%3Dtrue&pageSize=200&pageToken=page-2"
+            ]
+        )
 
         let qwen36 = try XCTUnwrap(byID["fireworks/qwen3p6-plus"])
         XCTAssertEqual(qwen36.name, "Qwen3.6 Plus")
@@ -305,26 +340,79 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         XCTAssertTrue(glm5.capabilities.contains(.reasoning))
         XCTAssertFalse(glm5.capabilities.contains(.vision))
 
-        let minimaxM2p1 = try XCTUnwrap(byID["accounts/fireworks/models/minimax-m2p1"])
+        let minimaxM2p1 = try XCTUnwrap(byID["fireworks/minimax-m2p1"])
         XCTAssertEqual(minimaxM2p1.name, "MiniMax M2.1")
         XCTAssertEqual(minimaxM2p1.contextWindow, 204_800)
         XCTAssertTrue(minimaxM2p1.capabilities.contains(.reasoning))
         XCTAssertFalse(minimaxM2p1.capabilities.contains(.vision))
 
-        let qwen235 = try XCTUnwrap(byID["accounts/fireworks/models/qwen3-235b-a22b"])
+        let qwen235 = try XCTUnwrap(byID["fireworks/qwen3-235b-a22b"])
         XCTAssertEqual(qwen235.name, "Qwen3 235B A22B")
         XCTAssertEqual(qwen235.contextWindow, 131_100)
         XCTAssertFalse(qwen235.capabilities.contains(.vision))
         XCTAssertFalse(qwen235.capabilities.contains(.reasoning))
 
-        let glmPreview = try XCTUnwrap(byID["accounts/fireworks/models/glm-preview"])
+        let glmPreview = try XCTUnwrap(byID["fireworks/glm-preview"])
         XCTAssertFalse(glmPreview.capabilities.contains(.reasoning))
         XCTAssertNil(glmPreview.reasoningConfig)
         XCTAssertEqual(glmPreview.contextWindow, 128_000)
 
-        let other = try XCTUnwrap(byID["accounts/fireworks/models/other"])
-        XCTAssertEqual(other.name, "accounts/fireworks/models/other")
+        let other = try XCTUnwrap(byID["fireworks/other"])
+        XCTAssertEqual(other.name, "fireworks/other")
         XCTAssertEqual(other.contextWindow, 128_000)
+    }
+
+    func testFireworksAdapterFetchModelsDoesNotFallBackToOpenAICompatibleModelsEndpoint() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        let providerConfig = ProviderConfig(
+            id: "fw",
+            name: "Fireworks",
+            type: .fireworks,
+            apiKey: "ignored",
+            baseURL: "https://example.com/inference/v1"
+        )
+
+        var requestedURLs: [String] = []
+        protocolType.requestHandler = { request in
+            let url = try XCTUnwrap(request.url?.absoluteString)
+            requestedURLs.append(url)
+
+            if let components = URLComponents(url: request.url!, resolvingAgainstBaseURL: false),
+               components.path == "/v1/accounts/fireworks/models" {
+                let queryItems = Dictionary(
+                    uniqueKeysWithValues: (components.queryItems ?? []).map { ($0.name, $0.value ?? "") }
+                )
+                XCTAssertEqual(queryItems["filter"], "supports_serverless=true")
+                XCTAssertEqual(queryItems["pageSize"], "200")
+                let invalidJSON = Data("{".utf8)
+                return (
+                    HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                    invalidJSON
+                )
+            }
+
+            return (
+                HTTPURLResponse(url: request.url!, statusCode: 404, httpVersion: nil, headerFields: nil)!,
+                Data()
+            )
+        }
+
+        let adapter = FireworksAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        do {
+            _ = try await adapter.fetchAvailableModels()
+            XCTFail("Expected fetchAvailableModels to fail when the Fireworks catalog response is invalid.")
+        } catch is DecodingError {
+            // Expected: Fireworks model discovery should fail rather than silently falling back.
+        } catch {
+            XCTFail("Expected DecodingError, got \(error).")
+        }
+
+        XCTAssertEqual(
+            requestedURLs,
+            ["https://example.com/v1/accounts/fireworks/models?filter=supports_serverless%3Dtrue&pageSize=200"]
+        )
     }
 
     func testSambaNovaAdapterMapsReasoningOffToLowEffortForGptOss() async throws {
