@@ -87,6 +87,11 @@ enum AppDataLocations {
             .appendingPathComponent("network-trace", isDirectory: true)
     }
 
+    static func chatDiagnosticsDirectoryURL(fileManager: FileManager = .default) throws -> URL {
+        try logsDirectoryURL(fileManager: fileManager)
+            .appendingPathComponent("chat-diagnostics", isDirectory: true)
+    }
+
     static func mcpRuntimeDirectoryURL(fileManager: FileManager = .default) throws -> URL {
         try rootDirectoryURL(fileManager: fileManager)
             .appendingPathComponent("MCP", isDirectory: true)
@@ -125,6 +130,7 @@ enum AppDataLocations {
             preferencesDirectoryURL(fileManager: fileManager),
             logsDirectoryURL(fileManager: fileManager),
             networkTraceDirectoryURL(fileManager: fileManager),
+            chatDiagnosticsDirectoryURL(fileManager: fileManager),
             mcpRuntimeDirectoryURL(fileManager: fileManager),
             rtkDirectoryURL(fileManager: fileManager)
         ]

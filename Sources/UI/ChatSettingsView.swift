@@ -6,6 +6,7 @@ struct ChatSettingsView: View {
     @AppStorage(AppPreferenceKeys.sendWithCommandEnter) private var sendWithCommandEnter = false
     @AppStorage(AppPreferenceKeys.notifyOnBackgroundResponseCompletion) private var notifyOnBackgroundResponseCompletion = false
     @AppStorage(AppPreferenceKeys.networkDebugLoggingEnabled) private var networkDebugLoggingEnabled = false
+    @AppStorage(AppPreferenceKeys.chatDiagnosticLoggingEnabled) private var chatDiagnosticLoggingEnabled = false
 
     var body: some View {
         Form {
@@ -35,6 +36,30 @@ struct ChatSettingsView: View {
                 }
             } header: {
                 Text("Network Trace")
+            }
+
+            Section {
+                Toggle("Enable Chat Diagnostics", isOn: $chatDiagnosticLoggingEnabled)
+                Text("Lightweight NDJSON timing logs for the chat send/stream pipeline.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                HStack(spacing: JinSpacing.small) {
+                    Button("Open Diagnostic Folder") {
+                        let folder = ChatDiagnosticLogger.logRootDirectoryURL
+                        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+                        NSWorkspace.shared.open(folder)
+                    }
+                    .disabled(!chatDiagnosticLoggingEnabled)
+
+                    Button("Clear Diagnostics") {
+                        Task {
+                            try? await ChatDiagnosticLogger.shared.clearLogs()
+                        }
+                    }
+                }
+            } header: {
+                Text("Chat Diagnostics")
             }
 
             Section("Notifications") {

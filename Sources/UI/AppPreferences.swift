@@ -137,6 +137,7 @@ enum AppPreferenceKeys {
 
     // Networking / Debug
     static let networkDebugLoggingEnabled = "networkDebugLoggingEnabled"
+    static let chatDiagnosticLoggingEnabled = "chatDiagnosticLoggingEnabled"
 
     // Speech to Text
     static let sttProvider = "sttProvider"

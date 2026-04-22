@@ -11,6 +11,7 @@ enum ChatStreamingOrchestrator {
         let conversationID: UUID
         let threadID: UUID
         let turnID: UUID?
+        let diagnosticRunID: String
         let providerID: String
         let providerConfig: ProviderConfig?
         let providerType: ProviderType?
@@ -119,7 +120,26 @@ enum ChatStreamingOrchestrator {
                     throw LLMError.invalidRequest(message: "Provider not found. Configure it in Settings.")
                 }
 
+                let prepareHistoryStartedAt = ProcessInfo.processInfo.systemUptime
                 var history = prepareHistory(from: ctx)
+                let prepareHistoryDurationMs = Int((ProcessInfo.processInfo.systemUptime - prepareHistoryStartedAt) * 1000)
+
+                // #region agent log
+                ChatDiagnosticLogger.log(
+                    runId: ctx.diagnosticRunID,
+                    hypothesisId: "H3",
+                    message: "chat_prepare_history_complete",
+                    data: [
+                        "conversationID": ctx.conversationID.uuidString,
+                        "threadID": ctx.threadID.uuidString,
+                        "snapshotCount": String(ctx.messageSnapshots.count),
+                        "historyCount": String(history.count),
+                        "shouldTruncateMessages": String(ctx.shouldTruncateMessages),
+                        "maxHistoryMessages": ctx.maxHistoryMessages.map(String.init) ?? "nil",
+                        "durationMs": String(prepareHistoryDurationMs)
+                    ]
+                )
+                // #endregion
 
                 let providerManager = ProviderManager()
                 let adapter = try await providerManager.createAdapter(for: providerConfig)
@@ -163,6 +183,7 @@ enum ChatStreamingOrchestrator {
                         streamingState.reset()
                     }
 
+                    let streamCreationStartedAt = ProcessInfo.processInfo.systemUptime
                     let stream = try await adapter.sendMessage(
                         messages: history,
                         modelID: ctx.modelID,
@@ -170,11 +191,33 @@ enum ChatStreamingOrchestrator {
                         tools: allTools,
                         streaming: ctx.resolvedModelSettings?.capabilities.contains(.streaming) ?? true
                     )
+                    let streamCreationDurationMs = Int((ProcessInfo.processInfo.systemUptime - streamCreationStartedAt) * 1000)
+
+                    // #region agent log
+                    ChatDiagnosticLogger.log(
+                        runId: ctx.diagnosticRunID,
+                        hypothesisId: "H3",
+                        message: "chat_adapter_stream_created",
+                        data: [
+                            "conversationID": ctx.conversationID.uuidString,
+                            "threadID": ctx.threadID.uuidString,
+                            "providerType": String(describing: providerConfig.type),
+                            "modelID": ctx.modelID,
+                            "historyCount": String(history.count),
+                            "toolCount": String(allTools.count),
+                            "durationMs": String(streamCreationDurationMs)
+                        ]
+                    )
+                    // #endregion
 
                     var lastUIFlushUptime: TimeInterval = 0
                     var pendingTextDelta = ""
                     var pendingThinkingDelta = ""
                     var streamedCharacterCount = 0
+                    var didLogFirstStreamEvent = false
+                    var didLogFirstUIFlush = false
+                    var didLogFirstContentDelta = false
+                    var didLogFirstThinkingDelta = false
 
                     func uiFlushInterval() -> TimeInterval {
                         switch streamedCharacterCount {
@@ -198,9 +241,55 @@ enum ChatStreamingOrchestrator {
                         pendingTextDelta = ""
                         pendingThinkingDelta = ""
 
+                        if !didLogFirstUIFlush {
+                            didLogFirstUIFlush = true
+                            // #region agent log
+                            ChatDiagnosticLogger.log(
+                                runId: ctx.diagnosticRunID,
+                                hypothesisId: "H6",
+                                message: "chat_first_ui_flush",
+                                data: [
+                                    "conversationID": ctx.conversationID.uuidString,
+                                    "threadID": ctx.threadID.uuidString,
+                                    "force": String(force),
+                                    "textDeltaCount": String(textDelta.count),
+                                    "thinkingDeltaCount": String(thinkingDelta.count)
+                                ]
+                            )
+                            // #endregion
+                        }
+
+                        // #region agent log
+                        ChatDiagnosticLogger.log(
+                            runId: ctx.diagnosticRunID,
+                            hypothesisId: "H8",
+                            message: "chat_ui_flush_mainactor_start",
+                            data: [
+                                "conversationID": ctx.conversationID.uuidString,
+                                "threadID": ctx.threadID.uuidString,
+                                "textDeltaCount": String(textDelta.count),
+                                "thinkingDeltaCount": String(thinkingDelta.count)
+                            ]
+                        )
+                        // #endregion
+
                         await MainActor.run {
                             streamingState.appendDeltas(textDelta: textDelta, thinkingDelta: thinkingDelta)
                         }
+
+                        // #region agent log
+                        ChatDiagnosticLogger.log(
+                            runId: ctx.diagnosticRunID,
+                            hypothesisId: "H8",
+                            message: "chat_ui_flush_mainactor_end",
+                            data: [
+                                "conversationID": ctx.conversationID.uuidString,
+                                "threadID": ctx.threadID.uuidString,
+                                "textDeltaCount": String(textDelta.count),
+                                "thinkingDeltaCount": String(thinkingDelta.count)
+                            ]
+                        )
+                        // #endregion
                     }
 
                     for try await event in stream {
@@ -208,11 +297,76 @@ enum ChatStreamingOrchestrator {
                         let eventTimestamp = Date()
                         metricsCollector.observe(event: event, at: eventTimestamp)
 
+                        if !didLogFirstStreamEvent {
+                            didLogFirstStreamEvent = true
+                            let eventName: String
+                            switch event {
+                            case .messageStart:
+                                eventName = "messageStart"
+                            case .contentDelta:
+                                eventName = "contentDelta"
+                            case .thinkingDelta:
+                                eventName = "thinkingDelta"
+                            case .toolCallStart:
+                                eventName = "toolCallStart"
+                            case .toolCallDelta:
+                                eventName = "toolCallDelta"
+                            case .toolCallEnd:
+                                eventName = "toolCallEnd"
+                            case .searchActivity:
+                                eventName = "searchActivity"
+                            case .codeExecutionActivity:
+                                eventName = "codeExecutionActivity"
+                            case .codexToolActivity:
+                                eventName = "codexToolActivity"
+                            case .codexInteractionRequest:
+                                eventName = "codexInteractionRequest"
+                            case .codexThreadState:
+                                eventName = "codexThreadState"
+                            case .claudeManagedSessionState:
+                                eventName = "claudeManagedSessionState"
+                            case .claudeManagedCustomToolResults:
+                                eventName = "claudeManagedCustomToolResults"
+                            case .messageEnd:
+                                eventName = "messageEnd"
+                            case .error:
+                                eventName = "error"
+                            }
+
+                            // #region agent log
+                            ChatDiagnosticLogger.log(
+                                runId: ctx.diagnosticRunID,
+                                hypothesisId: "H5",
+                                message: "chat_first_stream_event",
+                                data: [
+                                    "conversationID": ctx.conversationID.uuidString,
+                                    "threadID": ctx.threadID.uuidString,
+                                    "event": eventName
+                                ]
+                            )
+                            // #endregion
+                        }
+
                         switch event {
                         case .messageStart:
                             break
                         case .contentDelta(let part):
                             if case .text(let delta) = part {
+                                if !didLogFirstContentDelta {
+                                    didLogFirstContentDelta = true
+                                    // #region agent log
+                                    ChatDiagnosticLogger.log(
+                                        runId: ctx.diagnosticRunID,
+                                        hypothesisId: "H7",
+                                        message: "chat_first_content_delta",
+                                        data: [
+                                            "conversationID": ctx.conversationID.uuidString,
+                                            "threadID": ctx.threadID.uuidString,
+                                            "textDeltaCount": String(delta.count)
+                                        ]
+                                    )
+                                    // #endregion
+                                }
                                 accumulator.appendTextDelta(delta)
                                 pendingTextDelta.append(delta)
                                 streamedCharacterCount += delta.count
@@ -226,6 +380,21 @@ enum ChatStreamingOrchestrator {
                             switch delta {
                             case .thinking(let textDelta, _):
                                 if !textDelta.isEmpty {
+                                    if !didLogFirstThinkingDelta {
+                                        didLogFirstThinkingDelta = true
+                                        // #region agent log
+                                        ChatDiagnosticLogger.log(
+                                            runId: ctx.diagnosticRunID,
+                                            hypothesisId: "H7",
+                                            message: "chat_first_thinking_delta",
+                                            data: [
+                                                "conversationID": ctx.conversationID.uuidString,
+                                                "threadID": ctx.threadID.uuidString,
+                                                "thinkingDeltaCount": String(textDelta.count)
+                                            ]
+                                        )
+                                        // #endregion
+                                    }
                                     pendingThinkingDelta.append(textDelta)
                                     streamedCharacterCount += textDelta.count
                                 }
