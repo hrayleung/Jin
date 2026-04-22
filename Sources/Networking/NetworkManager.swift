@@ -143,13 +143,21 @@ actor NetworkManager {
                     let responseBody = capturedResponseData.isEmpty ? nil : capturedResponseData
                     let wasTruncated = responseBodyTruncated
 
+                    let resolvedResult = self.resolveStreamCompletion(
+                        completion: completion,
+                        response: finalResponse,
+                        responseBody: responseBody
+                    )
+
+                    if case .success = resolvedResult {
+                        parserCopy.finish()
+                        while let event = parserCopy.nextEvent() {
+                            continuation.yield(event)
+                        }
+                    }
+
                     Task {
                         let requestID = await requestIDTask.value
-                        let resolvedResult = self.resolveStreamCompletion(
-                            completion: completion,
-                            response: finalResponse,
-                            responseBody: responseBody
-                        )
 
                         switch resolvedResult {
                         case .success:
@@ -458,6 +466,11 @@ protocol StreamParser: Sendable {
     associatedtype Event: Sendable
     mutating func append(_ byte: UInt8)
     mutating func nextEvent() -> Event?
+    mutating func finish()
+}
+
+extension StreamParser {
+    mutating func finish() {}
 }
 
 /// Streaming task manager for cancellation

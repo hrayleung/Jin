@@ -24,6 +24,7 @@ enum ModelCapabilityRegistry {
         "gpt-5.2-2025-12-11",
         "gpt-5.4",
         "gpt-5.4-2026-03-05",
+        "gpt-5.4-image-2",
         "gpt-5.4-mini",
         "gpt-5.4-mini-2026-03-17",
         "gpt-5.4-nano",
@@ -38,6 +39,7 @@ enum ModelCapabilityRegistry {
     private static let openAIStyleExtremeEffortModelIDs: Set<String> = [
         "gpt-5.4",
         "gpt-5.4-2026-03-05",
+        "gpt-5.4-image-2",
         "gpt-5.4-pro",
         "gpt-5.4-pro-2026-03-05",
         "gpt-5.4-mini",
