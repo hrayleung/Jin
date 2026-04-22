@@ -44,8 +44,16 @@ struct OpenAIImageCustomSizeSheetView: View {
         return OpenAIImageModelSupport.validate(size: parsedSize, for: modelID)
     }
 
-    private var isValid: Bool {
-        currentValidationError == nil
+    private var displayedValidationError: String? {
+        if let validationError {
+            return validationError
+        }
+        guard !trimmedDraft.isEmpty else { return nil }
+        return currentValidationError
+    }
+
+    private var canSubmit: Bool {
+        !trimmedDraft.isEmpty
     }
 
     var body: some View {
@@ -65,7 +73,7 @@ struct OpenAIImageCustomSizeSheetView: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
 
-                if let validationError {
+                if let validationError = displayedValidationError {
                     Section {
                         Text(validationError)
                             .foregroundStyle(.red)
@@ -94,7 +102,7 @@ struct OpenAIImageCustomSizeSheetView: View {
                         onSave(parsedSize)
                         dismiss()
                     }
-                    .disabled(!isValid)
+                    .disabled(!canSubmit)
                 }
             }
         }

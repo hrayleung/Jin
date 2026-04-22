@@ -163,11 +163,20 @@ extension OpenAIAdapter {
             body["input_fidelity"] = fidelity.rawValue
         }
 
-        if isImageEdit,
-           let firstImage = inputImages.first,
-           let imageURL = imageURLString(firstImage),
-           !imageURL.isEmpty {
-            body["images"] = [["image_url": imageURL]]
+        if isImageEdit {
+            let imagePayloads = inputImages.compactMap { image -> [String: String]? in
+                guard let imageURL = imageURLString(image),
+                      !imageURL.isEmpty else {
+                    return nil
+                }
+                return ["image_url": imageURL]
+            }
+
+            guard !imagePayloads.isEmpty else {
+                throw LLMError.invalidRequest(message: "OpenAI image editing requires at least one readable input image.")
+            }
+
+            body["images"] = Array(imagePayloads.prefix(16))
         }
 
         if !profile.isGPTImageModel {

@@ -41,6 +41,19 @@ final class OpenAIImageModelSupportTests: XCTestCase {
         )
     }
 
+    func testGPTImage2SizeValidationRejectsMalformedDimensionStrings() {
+        let malformedSize = OpenAIImageSize(rawValue: "1024xx1024")
+
+        XCTAssertNil(malformedSize.pixelDimensions)
+        XCTAssertEqual(
+            OpenAIImageModelSupport.validate(
+                size: malformedSize,
+                for: "gpt-image-2"
+            ),
+            "Custom size must be `WIDTHxHEIGHT` or `auto`."
+        )
+    }
+
     func testNormalizeOpenAIImageControlsClearsUnsupportedGPTImage2Fields() {
         var controls = OpenAIImageGenerationControls(
             size: OpenAIImageSize(rawValue: "1025x1025"),

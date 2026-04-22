@@ -307,6 +307,68 @@ final class OpenAIAdapterImageGenerationTests: XCTestCase {
 
         XCTAssertEqual(imageData, expected)
     }
+
+    func testOpenAILegacyImageEditSendsAllReadableJSONInputImages() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        let providerConfig = ProviderConfig(
+            id: "openai",
+            name: "OpenAI",
+            type: .openai,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        let expected = Data("PNG".utf8)
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://example.com/images/edits")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Content-Type"), "application/json")
+
+            let body = try XCTUnwrap(requestBodyData(request))
+            let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+            let root = try XCTUnwrap(json)
+            let images = try XCTUnwrap(root["images"] as? [[String: Any]])
+
+            XCTAssertEqual(images.count, 2)
+            XCTAssertEqual(images[0]["image_url"] as? String, "https://cdn.example.com/source-1.png")
+            let secondImageURL = try XCTUnwrap(images[1]["image_url"] as? String)
+            XCTAssertTrue(secondImageURL.contains(Data("SECONDPNG".utf8).base64EncodedString()))
+
+            let response: [String: Any] = [
+                "data": [
+                    ["b64_json": expected.base64EncodedString()]
+                ]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (
+                HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                data
+            )
+        }
+
+        let adapter = OpenAIAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [
+                Message(role: .user, content: [
+                    .text("Blend these together"),
+                    .image(ImageContent(mimeType: "image/png", data: nil, url: URL(string: "https://cdn.example.com/source-1.png"))),
+                    .image(ImageContent(mimeType: "image/png", data: Data("SECONDPNG".utf8), url: nil))
+                ])
+            ],
+            modelID: "gpt-image-1.5",
+            controls: GenerationControls(
+                openaiImageGeneration: OpenAIImageGenerationControls(
+                    quality: .high
+                )
+            ),
+            tools: [],
+            streaming: false
+        )
+
+        for try await _ in stream {}
+    }
 }
 
 // MARK: - URLProtocol stubbing

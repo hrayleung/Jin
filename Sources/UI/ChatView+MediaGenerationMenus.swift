@@ -67,7 +67,7 @@ extension ChatView {
                     updateOpenAIImageGeneration { $0.size = value }
                 },
                 onShowCustomSizeEditor: {
-                    showingOpenAIImageCustomSizeSheet = true
+                    presentOpenAIImageCustomSizeSheet()
                 },
                 onSetQuality: { value in
                     updateOpenAIImageGeneration { $0.quality = value }
@@ -117,6 +117,33 @@ extension ChatView {
 
         controls.openaiImageGeneration = draft.isEmpty ? nil : draft
         persistControlsToConversation()
+    }
+
+    func presentOpenAIImageCustomSizeSheet() {
+        openAIImageCustomSizeTargetThreadID = activeModelThread?.id
+        openAIImageCustomSizeTargetModelID = lowerModelID
+        showingOpenAIImageCustomSizeSheet = true
+    }
+
+    func dismissOpenAIImageCustomSizeSheet() {
+        showingOpenAIImageCustomSizeSheet = false
+        openAIImageCustomSizeTargetThreadID = nil
+        openAIImageCustomSizeTargetModelID = ""
+    }
+
+    func handleOpenAIImageCustomSizeSave(_ size: OpenAIImageSize) {
+        let targetThreadID = openAIImageCustomSizeTargetThreadID
+        let targetModelID = openAIImageCustomSizeTargetModelID
+        dismissOpenAIImageCustomSizeSheet()
+
+        guard targetThreadID == activeModelThread?.id,
+              targetModelID == lowerModelID else {
+            errorMessage = "The selected OpenAI image model changed while the custom size sheet was open. Reopen the sheet and try again."
+            showingError = true
+            return
+        }
+
+        updateOpenAIImageGeneration { $0.size = size }
     }
 
     func updateXAIImageGeneration(_ mutate: (inout XAIImageGenerationControls) -> Void) {

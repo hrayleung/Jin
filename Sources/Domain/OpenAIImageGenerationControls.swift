@@ -78,7 +78,7 @@ struct OpenAIImageSize: RawRepresentable, Codable, Hashable, Sendable {
 
     var pixelDimensions: (Int, Int)? {
         guard !isAuto else { return nil }
-        let parts = rawValue.split(separator: "x")
+        let parts = rawValue.split(separator: "x", omittingEmptySubsequences: false)
         guard parts.count == 2,
               let width = Int(parts[0]),
               let height = Int(parts[1]) else {
