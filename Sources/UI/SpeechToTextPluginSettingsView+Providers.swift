@@ -14,18 +14,12 @@ extension SpeechToTextPluginSettingsView {
                         .font(.system(.body, design: .monospaced))
                         .textFieldStyle(.roundedBorder)
 
-                    if !openAIModels.isEmpty {
-                        Picker("Model", selection: $openAIModel) {
-                            ForEach(displayedOpenAIModels) { model in
-                                Text(model.name).tag(model.id)
-                            }
+                    Picker("Model", selection: $openAIModel) {
+                        ForEach(displayedOpenAIModels) { model in
+                            Text(model.name).tag(model.id)
                         }
-                        .pickerStyle(.menu)
-                    } else {
-                        TextField("Model", text: $openAIModel)
-                            .font(.system(.body, design: .monospaced))
-                            .textFieldStyle(.roundedBorder)
                     }
+                    .pickerStyle(.menu)
 
                     Toggle("Translate to English", isOn: $openAITranslateToEnglish)
 
@@ -62,18 +56,12 @@ extension SpeechToTextPluginSettingsView {
                         .font(.system(.body, design: .monospaced))
                         .textFieldStyle(.roundedBorder)
 
-                    if !groqModels.isEmpty {
-                        Picker("Model", selection: $groqModel) {
-                            ForEach(displayedGroqModels) { model in
-                                Text(model.name).tag(model.id)
-                            }
+                    Picker("Model", selection: $groqModel) {
+                        ForEach(displayedGroqModels) { model in
+                            Text(model.name).tag(model.id)
                         }
-                        .pickerStyle(.menu)
-                    } else {
-                        TextField("Model", text: $groqModel)
-                            .font(.system(.body, design: .monospaced))
-                            .textFieldStyle(.roundedBorder)
                     }
+                    .pickerStyle(.menu)
 
                     Toggle("Translate to English", isOn: $groqTranslateToEnglish)
 
@@ -110,18 +98,12 @@ extension SpeechToTextPluginSettingsView {
                         .font(.system(.body, design: .monospaced))
                         .textFieldStyle(.roundedBorder)
 
-                    if !mistralModels.isEmpty {
-                        Picker("Model", selection: $mistralModel) {
-                            ForEach(displayedMistralModels) { model in
-                                Text(model.name).tag(model.id)
-                            }
+                    Picker("Model", selection: $mistralModel) {
+                        ForEach(displayedMistralModels) { model in
+                            Text(model.name).tag(model.id)
                         }
-                        .pickerStyle(.menu)
-                    } else {
-                        TextField("Model", text: $mistralModel)
-                            .font(.system(.body, design: .monospaced))
-                            .textFieldStyle(.roundedBorder)
                     }
+                    .pickerStyle(.menu)
 
                     TextField("Language (optional)", text: $mistralLanguage)
                         .font(.system(.body, design: .monospaced))
@@ -163,18 +145,12 @@ extension SpeechToTextPluginSettingsView {
                         .font(.system(.body, design: .monospaced))
                         .textFieldStyle(.roundedBorder)
 
-                    if !elevenLabsModels.isEmpty {
-                        Picker("Model", selection: $elevenLabsModel) {
-                            ForEach(displayedElevenLabsModels) { model in
-                                Text(model.name).tag(model.id)
-                            }
+                    Picker("Model", selection: $elevenLabsModel) {
+                        ForEach(displayedElevenLabsModels) { model in
+                            Text(model.name).tag(model.id)
                         }
-                        .pickerStyle(.menu)
-                    } else {
-                        TextField("Model", text: $elevenLabsModel)
-                            .font(.system(.body, design: .monospaced))
-                            .textFieldStyle(.roundedBorder)
                     }
+                    .pickerStyle(.menu)
 
                     TextField("Language Code (optional)", text: $elevenLabsLanguageCode)
                         .font(.system(.body, design: .monospaced))
@@ -273,20 +249,44 @@ extension SpeechToTextPluginSettingsView {
         }
     }
 
+    var availableOpenAIModels: [SpeechProviderModelChoice] {
+        openAIModels.isEmpty
+            ? SpeechProviderModelCatalog.defaultSpeechToTextChoices(for: .openai)
+            : openAIModels
+    }
+
     var displayedOpenAIModels: [SpeechProviderModelChoice] {
-        SpeechProviderModelCatalog.presentingChoices(openAIModels, selectedModelID: openAIModel)
+        SpeechProviderModelCatalog.presentingChoices(availableOpenAIModels, selectedModelID: openAIModel)
+    }
+
+    var availableGroqModels: [SpeechProviderModelChoice] {
+        groqModels.isEmpty
+            ? SpeechProviderModelCatalog.defaultSpeechToTextChoices(for: .groq)
+            : groqModels
     }
 
     var displayedGroqModels: [SpeechProviderModelChoice] {
-        SpeechProviderModelCatalog.presentingChoices(groqModels, selectedModelID: groqModel)
+        SpeechProviderModelCatalog.presentingChoices(availableGroqModels, selectedModelID: groqModel)
+    }
+
+    var availableMistralModels: [SpeechProviderModelChoice] {
+        mistralModels.isEmpty
+            ? SpeechProviderModelCatalog.defaultSpeechToTextChoices(for: .mistral)
+            : mistralModels
     }
 
     var displayedMistralModels: [SpeechProviderModelChoice] {
-        SpeechProviderModelCatalog.presentingChoices(mistralModels, selectedModelID: mistralModel)
+        SpeechProviderModelCatalog.presentingChoices(availableMistralModels, selectedModelID: mistralModel)
+    }
+
+    var availableElevenLabsModels: [SpeechProviderModelChoice] {
+        elevenLabsModels.isEmpty
+            ? SpeechProviderModelCatalog.defaultSpeechToTextChoices(for: .elevenlabs)
+            : elevenLabsModels
     }
 
     var displayedElevenLabsModels: [SpeechProviderModelChoice] {
-        SpeechProviderModelCatalog.presentingChoices(elevenLabsModels, selectedModelID: elevenLabsModel)
+        SpeechProviderModelCatalog.presentingChoices(availableElevenLabsModels, selectedModelID: elevenLabsModel)
     }
 
     // MARK: - Static Constants

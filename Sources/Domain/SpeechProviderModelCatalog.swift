@@ -66,6 +66,65 @@ enum SpeechProviderModelCatalog {
         return [SpeechProviderModelChoice(id: trimmedSelection)] + choices
     }
 
+    static func defaultTextToSpeechChoices(
+        for provider: TextToSpeechProvider
+    ) -> [SpeechProviderModelChoice] {
+        switch provider {
+        case .openai:
+            return [
+                SpeechProviderModelChoice(id: "gpt-4o-mini-tts", name: "GPT-4o mini TTS"),
+                SpeechProviderModelChoice(id: "tts-1", name: "TTS-1"),
+                SpeechProviderModelChoice(id: "tts-1-hd", name: "TTS-1 HD")
+            ]
+        case .groq:
+            return [
+                SpeechProviderModelChoice(id: "canopylabs/orpheus-v1-english", name: "Orpheus English"),
+                SpeechProviderModelChoice(id: "canopylabs/orpheus-arabic-saudi", name: "Orpheus Arabic Saudi")
+            ]
+        case .elevenlabs:
+            return [
+                SpeechProviderModelChoice(id: "eleven_multilingual_v2", name: "Eleven Multilingual v2"),
+                SpeechProviderModelChoice(id: "eleven_flash_v2_5", name: "Eleven Flash v2.5"),
+                SpeechProviderModelChoice(id: "eleven_flash_v2", name: "Eleven Flash v2"),
+                SpeechProviderModelChoice(id: "eleven_turbo_v2_5", name: "Eleven Turbo v2.5"),
+                SpeechProviderModelChoice(id: "eleven_turbo_v2", name: "Eleven Turbo v2"),
+                SpeechProviderModelChoice(id: "eleven_v3", name: "Eleven v3")
+            ]
+        case .whisperKit:
+            return []
+        }
+    }
+
+    static func defaultSpeechToTextChoices(
+        for provider: SpeechToTextProvider
+    ) -> [SpeechProviderModelChoice] {
+        switch provider {
+        case .openai:
+            return [
+                SpeechProviderModelChoice(id: "gpt-4o-mini-transcribe", name: "GPT-4o mini Transcribe"),
+                SpeechProviderModelChoice(id: "gpt-4o-transcribe", name: "GPT-4o Transcribe"),
+                SpeechProviderModelChoice(id: "gpt-4o-transcribe-diarize", name: "GPT-4o Transcribe Diarize"),
+                SpeechProviderModelChoice(id: "whisper-1", name: "Whisper-1")
+            ]
+        case .groq:
+            return [
+                SpeechProviderModelChoice(id: "whisper-large-v3-turbo", name: "Whisper Large v3 Turbo"),
+                SpeechProviderModelChoice(id: "whisper-large-v3", name: "Whisper Large v3")
+            ]
+        case .mistral:
+            return [
+                SpeechProviderModelChoice(id: "voxtral-mini-latest", name: "Voxtral Mini Latest")
+            ]
+        case .elevenlabs:
+            return [
+                SpeechProviderModelChoice(id: "scribe_v2", name: "Scribe v2"),
+                SpeechProviderModelChoice(id: "scribe_v1", name: "Scribe v1")
+            ]
+        case .whisperKit:
+            return []
+        }
+    }
+
     private static func filteredChoices(
         _ choices: [SpeechProviderModelChoice],
         matches: (String) -> Bool

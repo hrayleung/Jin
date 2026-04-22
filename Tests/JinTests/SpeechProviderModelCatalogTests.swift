@@ -94,4 +94,45 @@ final class SpeechProviderModelCatalogTests: XCTestCase {
 
         XCTAssertEqual(models.map(\.id), ["custom-audio-model", "gpt-4o-mini-tts"])
     }
+
+    func testDefaultSpeechChoicesProvidePickerFallbacks() {
+        XCTAssertEqual(
+            SpeechProviderModelCatalog.defaultSpeechToTextChoices(for: .openai).map(\.id),
+            ["gpt-4o-mini-transcribe", "gpt-4o-transcribe", "gpt-4o-transcribe-diarize", "whisper-1"]
+        )
+        XCTAssertEqual(
+            SpeechProviderModelCatalog.defaultSpeechToTextChoices(for: .groq).map(\.id),
+            ["whisper-large-v3-turbo", "whisper-large-v3"]
+        )
+        XCTAssertEqual(
+            SpeechProviderModelCatalog.defaultSpeechToTextChoices(for: .mistral).map(\.id),
+            ["voxtral-mini-latest"]
+        )
+        XCTAssertEqual(
+            SpeechProviderModelCatalog.defaultSpeechToTextChoices(for: .elevenlabs).map(\.id),
+            ["scribe_v2", "scribe_v1"]
+        )
+    }
+
+    func testDefaultTextToSpeechChoicesProvidePickerFallbacks() {
+        XCTAssertEqual(
+            SpeechProviderModelCatalog.defaultTextToSpeechChoices(for: .openai).map(\.id),
+            ["gpt-4o-mini-tts", "tts-1", "tts-1-hd"]
+        )
+        XCTAssertEqual(
+            SpeechProviderModelCatalog.defaultTextToSpeechChoices(for: .groq).map(\.id),
+            ["canopylabs/orpheus-v1-english", "canopylabs/orpheus-arabic-saudi"]
+        )
+        XCTAssertEqual(
+            SpeechProviderModelCatalog.defaultTextToSpeechChoices(for: .elevenlabs).map(\.id),
+            [
+                "eleven_multilingual_v2",
+                "eleven_flash_v2_5",
+                "eleven_flash_v2",
+                "eleven_turbo_v2_5",
+                "eleven_turbo_v2",
+                "eleven_v3"
+            ]
+        )
+    }
 }
