@@ -381,6 +381,35 @@ final class ModelCatalogTests: XCTestCase {
         XCTAssertEqual(vertex.reasoningConfig?.defaultEffort, .minimal)
     }
 
+    func testOpenAIImage2CatalogUsesExactIDs() {
+        let alias = ModelCatalog.modelInfo(
+            for: "gpt-image-2",
+            provider: .openai
+        )
+        XCTAssertEqual(alias.contextWindow, 32_000)
+        XCTAssertEqual(alias.capabilities, [.imageGeneration])
+        XCTAssertNil(alias.reasoningConfig)
+
+        let snapshot = ModelCatalog.modelInfo(
+            for: "gpt-image-2-2026-04-21",
+            provider: .openai
+        )
+        XCTAssertEqual(snapshot.contextWindow, 32_000)
+        XCTAssertEqual(snapshot.capabilities, [.imageGeneration])
+        XCTAssertNil(snapshot.reasoningConfig)
+
+        let unknown = ModelCatalog.modelInfo(
+            for: "gpt-image-2-custom",
+            provider: .openai
+        )
+        XCTAssertEqual(unknown.capabilities, [.streaming, .toolCalling])
+        XCTAssertEqual(unknown.contextWindow, 128_000)
+
+        let seeded = Set(ModelCatalog.seededModels(for: .openai).map(\.id))
+        XCTAssertTrue(seeded.contains("gpt-image-2"))
+        XCTAssertFalse(seeded.contains("gpt-image-2-2026-04-21"))
+    }
+
     func testGemini31FlashLiteCatalogMetadata() {
         let gemini = ModelCatalog.modelInfo(
             for: "gemini-3.1-flash-lite-preview",

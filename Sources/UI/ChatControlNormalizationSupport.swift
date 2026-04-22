@@ -426,38 +426,56 @@ enum ChatControlNormalizationSupport {
         _ controls: inout OpenAIImageGenerationControls,
         lowerModelID: String
     ) {
-        let isGPTImage = lowerModelID.hasPrefix("gpt-image")
-        let isDallE3 = lowerModelID.hasPrefix("dall-e-3")
-        let isDallE2 = lowerModelID.hasPrefix("dall-e-2")
-
-        if isGPTImage {
+        guard let profile = OpenAIImageModelSupport.profile(for: lowerModelID) else {
+            controls.size = nil
+            controls.quality = nil
             controls.style = nil
-        } else if isDallE3 {
             controls.background = nil
             controls.outputFormat = nil
             controls.outputCompression = nil
             controls.moderation = nil
             controls.inputFidelity = nil
-            if let quality = controls.quality, quality != .standard && quality != .hd {
-                controls.quality = nil
-            }
-        } else if isDallE2 {
-            controls.background = nil
-            controls.outputFormat = nil
-            controls.outputCompression = nil
-            controls.moderation = nil
-            controls.inputFidelity = nil
-            controls.style = nil
-            if let quality = controls.quality, quality != .standard {
-                controls.quality = nil
-            }
-            if let size = controls.size, !OpenAIImageSize.dallE2Sizes.contains(size) {
-                controls.size = nil
-            }
+            return
         }
 
-        if lowerModelID != "gpt-image-1" {
+        if let size = controls.size,
+           OpenAIImageModelSupport.validate(size: size, for: lowerModelID) != nil {
+            controls.size = nil
+        }
+
+        if let quality = controls.quality,
+           !profile.qualityOptions.contains(quality) {
+            controls.quality = nil
+        }
+
+        if !profile.supportsStyle {
+            controls.style = nil
+        }
+
+        if let background = controls.background,
+           !profile.backgroundOptions.contains(background) {
+            controls.background = nil
+        }
+
+        if !profile.supportsOutputFormat {
+            controls.outputFormat = nil
+        }
+
+        if !profile.supportsOutputCompression {
+            controls.outputCompression = nil
+        }
+
+        if !profile.supportsModeration {
+            controls.moderation = nil
+        }
+
+        if !profile.supportsInputFidelity {
             controls.inputFidelity = nil
+        }
+
+        if controls.background == .transparent,
+           controls.outputFormat == .jpeg {
+            controls.outputFormat = .png
         }
 
         if controls.outputFormat == nil || controls.outputFormat == .png {

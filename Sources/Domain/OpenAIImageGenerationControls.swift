@@ -4,7 +4,8 @@ import Foundation
 
 /// OpenAI image-generation controls (`/v1/images/generations` + `/v1/images/edits`).
 ///
-/// Supports `gpt-image-1`, `gpt-image-1.5`, `gpt-image-1-mini`, `dall-e-3`, and `dall-e-2`.
+/// Supports `gpt-image-2`, `gpt-image-1`, `gpt-image-1.5`, `gpt-image-1-mini`,
+/// `dall-e-3`, and `dall-e-2`.
 struct OpenAIImageGenerationControls: Codable {
     var count: Int?
     var size: OpenAIImageSize?
@@ -58,24 +59,72 @@ struct OpenAIImageGenerationControls: Codable {
 
 /// Supported image sizes.
 ///
-/// GPT image models: `1024x1024`, `1536x1024`, `1024x1536`, `auto`.
+/// GPT image models: `auto` plus provider-specific presets and, for `gpt-image-2`,
+/// arbitrary `WIDTHxHEIGHT` values that satisfy OpenAI's documented constraints.
 /// DALL-E 3: `1024x1024`, `1792x1024`, `1024x1792`.
 /// DALL-E 2: `256x256`, `512x512`, `1024x1024`.
-enum OpenAIImageSize: String, Codable, CaseIterable {
-    case auto
-    case size1024x1024 = "1024x1024"
-    case size1536x1024 = "1536x1024"
-    case size1024x1536 = "1024x1536"
-    case size1792x1024 = "1792x1024"
-    case size1024x1792 = "1024x1792"
-    case size512x512 = "512x512"
-    case size256x256 = "256x256"
+struct OpenAIImageSize: RawRepresentable, Codable, Hashable, Sendable {
+    let rawValue: String
+
+    init(rawValue: String) {
+        self.rawValue = rawValue.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    }
 
     var displayName: String { rawValue }
 
-    /// Sizes supported by GPT Image models (gpt-image-1, gpt-image-1.5, gpt-image-1-mini).
-    static let gptImageSizes: [OpenAIImageSize] = [
+    var isAuto: Bool {
+        rawValue == Self.auto.rawValue
+    }
+
+    var pixelDimensions: (Int, Int)? {
+        guard !isAuto else { return nil }
+        let parts = rawValue.split(separator: "x", omittingEmptySubsequences: false)
+        guard parts.count == 2,
+              let width = Int(parts[0]),
+              let height = Int(parts[1]) else {
+            return nil
+        }
+        return (width, height)
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        self.init(rawValue: try container.decode(String.self))
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(rawValue)
+    }
+
+    static let auto = Self(rawValue: "auto")
+    static let size1024x1024 = Self(rawValue: "1024x1024")
+    static let size1536x1024 = Self(rawValue: "1536x1024")
+    static let size1024x1536 = Self(rawValue: "1024x1536")
+    static let size1792x1024 = Self(rawValue: "1792x1024")
+    static let size1024x1792 = Self(rawValue: "1024x1792")
+    static let size2048x2048 = Self(rawValue: "2048x2048")
+    static let size2048x1152 = Self(rawValue: "2048x1152")
+    static let size3840x2160 = Self(rawValue: "3840x2160")
+    static let size2160x3840 = Self(rawValue: "2160x3840")
+    static let size512x512 = Self(rawValue: "512x512")
+    static let size256x256 = Self(rawValue: "256x256")
+
+    /// Sizes supported by GPT Image 1 / 1.5 / 1 Mini.
+    static let gptImageLegacyPresetSizes: [OpenAIImageSize] = [
         .auto, .size1024x1024, .size1536x1024, .size1024x1536,
+    ]
+
+    /// Suggested presets for GPT Image 2.
+    static let gptImage2SuggestedSizes: [OpenAIImageSize] = [
+        .auto,
+        .size1024x1024,
+        .size1536x1024,
+        .size1024x1536,
+        .size2048x2048,
+        .size2048x1152,
+        .size3840x2160,
+        .size2160x3840,
     ]
 
     /// Sizes supported by DALL-E 3.
@@ -109,7 +158,7 @@ enum OpenAIImageQuality: String, Codable, CaseIterable {
         }
     }
 
-    /// Quality options for GPT Image models.
+    /// Quality options for GPT Image models, including `gpt-image-2`.
     static let gptImageQualities: [OpenAIImageQuality] = [.auto, .low, .medium, .high]
 
     /// Quality options for DALL-E 3.

@@ -432,7 +432,10 @@ extension ChatView {
         let shouldTruncateMessages = assistant?.truncateMessages ?? false
         let maxHistoryMessages = assistant?.maxHistoryMessages
         let modelContextWindow = resolvedModelSettingsSnapshot?.contextWindow ?? 128000
-        let reservedOutputTokens = max(0, controlsToUse.maxTokens ?? 2048)
+        let reservedOutputTokens = ModelContextUsageSupport.reservedOutputTokens(
+            for: resolvedModelSettingsSnapshot?.modelType,
+            requestedMaxTokens: controlsToUse.maxTokens
+        )
         let threadSupportsPerMessageMCP = threadSupportsMCPTools(
             providerType: providerTypeSnapshot,
             resolvedModelSettings: resolvedModelSettingsSnapshot

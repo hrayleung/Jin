@@ -112,7 +112,9 @@ extension ChatView {
 
     private var contextUsageSettingsSnapshot: ContextUsageSettingsSnapshot? {
         guard activeModelThread != nil || selectedModelInfo != nil else { return nil }
-        guard resolvedModelSettings?.modelType != .video else { return nil }
+        guard ModelContextUsageSupport.shouldShowIndicator(for: resolvedModelSettings?.modelType) else {
+            return nil
+        }
 
         let assistant = conversationEntity.assistant
         var controlsToUse = GenerationControlsResolver.resolvedForRequest(
@@ -129,7 +131,10 @@ extension ChatView {
 
         return ContextUsageSettingsSnapshot(
             contextWindow: max(0, resolvedContextWindow),
-            reservedOutputTokens: max(0, controlsToUse.maxTokens ?? 2_048),
+            reservedOutputTokens: ModelContextUsageSupport.reservedOutputTokens(
+                for: resolvedModelSettings?.modelType,
+                requestedMaxTokens: controlsToUse.maxTokens
+            ),
             systemPrompt: resolvedSystemPrompt(
                 conversationSystemPrompt: conversationEntity.systemPrompt,
                 assistant: assistant
