@@ -51,6 +51,18 @@ actor OpenAIAudioClient {
         _ = try await networkManager.sendRequest(request)
     }
 
+    func listModels(timeoutSeconds: TimeInterval = 30) async throws -> [SpeechProviderModelChoice] {
+        let request = NetworkRequestFactory.makeRequest(
+            url: baseURL.appendingPathComponent("models"),
+            method: .get,
+            timeoutSeconds: timeoutSeconds,
+            headers: NetworkRequestFactory.bearerHeaders(apiKey: apiKey)
+        )
+
+        let (data, _) = try await networkManager.sendRequest(request)
+        return try OpenAICompatibleAudioClientSupport.decodeAvailableModels(data)
+    }
+
     func createSpeech(
         input: String,
         model: String,

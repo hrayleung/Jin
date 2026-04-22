@@ -1,21 +1,31 @@
 import SwiftUI
 import AVFoundation
 
-// MARK: - API Key Persistence, Test Connection & Voice Loading
+// MARK: - API Key Persistence, Test Connection, Model & Voice Loading
 
 extension TextToSpeechPluginSettingsView {
 
-    func loadExistingKeyAndMaybeVoices() async {
+    func loadExistingKeyAndMaybeProviderResources() async {
         await loadExistingKey()
-        if provider == .elevenlabs, !trimmedAPIKey.isEmpty {
-            await loadElevenLabsVoicesAndModels()
-        } else {
+
+        guard let provider, !trimmedAPIKey.isEmpty else {
             await MainActor.run {
-                elevenLabsVoices = []
-                elevenLabsModels = []
-                isPlayingVoicePreview = false
-                voicePreviewPlayer?.stop()
-                voicePreviewPlayer = nil
+                clearFetchedTextToSpeechModels()
+            }
+            return
+        }
+
+        switch provider {
+        case .openai, .groq:
+            await loadRemoteTextToSpeechModels()
+            await MainActor.run {
+                clearFetchedTextToSpeechModels(for: .elevenlabs)
+            }
+        case .elevenlabs:
+            await loadElevenLabsVoicesAndModels()
+        case .whisperKit:
+            await MainActor.run {
+                clearFetchedTextToSpeechModels()
             }
         }
     }
@@ -63,8 +73,7 @@ extension TextToSpeechPluginSettingsView {
         apiKey = ""
         statusMessage = "Cleared."
         statusIsError = false
-        elevenLabsVoices = []
-        elevenLabsModels = []
+        clearFetchedTextToSpeechModels(for: provider)
         NotificationCenter.default.post(name: .pluginCredentialsDidChange, object: nil)
     }
 
@@ -213,8 +222,13 @@ extension TextToSpeechPluginSettingsView {
                     statusIsError = false
                 }
 
-                if provider == .elevenlabs {
+                switch provider {
+                case .openai, .groq:
+                    await loadRemoteTextToSpeechModels(updateStatus: false)
+                case .elevenlabs:
                     await loadElevenLabsVoicesAndModels(updateStatus: false)
+                case .whisperKit:
+                    break
                 }
             } catch {
                 await MainActor.run {
@@ -224,6 +238,54 @@ extension TextToSpeechPluginSettingsView {
                     } else {
                         statusMessage = error.localizedDescription
                     }
+                    statusIsError = true
+                }
+            }
+        }
+    }
+
+    func loadRemoteTextToSpeechModels(updateStatus: Bool = true) async {
+        guard let provider else { return }
+        guard !trimmedAPIKey.isEmpty else { return }
+        guard provider == .openai || provider == .groq else { return }
+
+        await MainActor.run {
+            isLoadingModels = true
+        }
+
+        do {
+            let availableModels: [SpeechProviderModelChoice]
+            switch provider {
+            case .openai:
+                let base = URL(string: openAIBaseURL.trimmingCharacters(in: .whitespacesAndNewlines))
+                    ?? OpenAIAudioClient.Constants.defaultBaseURL
+                let client = OpenAIAudioClient(apiKey: trimmedAPIKey, baseURL: base)
+                availableModels = try await client.listModels()
+            case .groq:
+                let base = URL(string: groqBaseURL.trimmingCharacters(in: .whitespacesAndNewlines))
+                    ?? GroqAudioClient.Constants.defaultBaseURL
+                let client = GroqAudioClient(apiKey: trimmedAPIKey, baseURL: base)
+                availableModels = try await client.listModels()
+            case .elevenlabs, .whisperKit:
+                return
+            }
+
+            let filteredModels = SpeechProviderModelCatalog.textToSpeechChoices(
+                for: provider,
+                availableModels: availableModels
+            )
+
+            await MainActor.run {
+                setFetchedTextToSpeechModels(filteredModels, for: provider)
+                normalizeTextToSpeechModelSelectionIfNeeded(for: provider, using: filteredModels)
+                isLoadingModels = false
+            }
+        } catch {
+            await MainActor.run {
+                clearFetchedTextToSpeechModels(for: provider)
+                isLoadingModels = false
+                if updateStatus {
+                    statusMessage = error.localizedDescription
                     statusIsError = true
                 }
             }
@@ -289,6 +351,66 @@ extension TextToSpeechPluginSettingsView {
             }
 
             isLoadingVoices = false
+        }
+    }
+
+    @MainActor
+    func clearFetchedTextToSpeechModels(for provider: TextToSpeechProvider? = nil) {
+        switch provider {
+        case .openai:
+            openAIModels = []
+        case .groq:
+            groqModels = []
+        case .elevenlabs:
+            elevenLabsVoices = []
+            elevenLabsModels = []
+            isPlayingVoicePreview = false
+            voicePreviewPlayer?.stop()
+            voicePreviewPlayer = nil
+        case .whisperKit, .none:
+            openAIModels = []
+            groqModels = []
+            elevenLabsVoices = []
+            elevenLabsModels = []
+            isPlayingVoicePreview = false
+            voicePreviewPlayer?.stop()
+            voicePreviewPlayer = nil
+        }
+    }
+
+    @MainActor
+    func setFetchedTextToSpeechModels(_ models: [SpeechProviderModelChoice], for provider: TextToSpeechProvider) {
+        switch provider {
+        case .openai:
+            openAIModels = models
+        case .groq:
+            groqModels = models
+        case .elevenlabs, .whisperKit:
+            break
+        }
+    }
+
+    @MainActor
+    func normalizeTextToSpeechModelSelectionIfNeeded(
+        for provider: TextToSpeechProvider,
+        using models: [SpeechProviderModelChoice]
+    ) {
+        guard !models.isEmpty else { return }
+
+        switch provider {
+        case .openai:
+            let currentModel = openAIModel.trimmingCharacters(in: .whitespacesAndNewlines)
+            if currentModel.isEmpty || !models.contains(where: { $0.id == currentModel }) {
+                openAIModel = models.first?.id ?? openAIModel
+            }
+        case .groq:
+            let currentModel = groqModel.trimmingCharacters(in: .whitespacesAndNewlines)
+            if currentModel.isEmpty || !models.contains(where: { $0.id == currentModel }) {
+                groqModel = models.first?.id ?? groqModel
+            }
+            normalizeGroqVoiceIfNeeded()
+        case .elevenlabs, .whisperKit:
+            break
         }
     }
 

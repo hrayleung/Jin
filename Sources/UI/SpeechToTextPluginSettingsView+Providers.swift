@@ -14,9 +14,18 @@ extension SpeechToTextPluginSettingsView {
                         .font(.system(.body, design: .monospaced))
                         .textFieldStyle(.roundedBorder)
 
-                    TextField("Model", text: $openAIModel)
-                        .font(.system(.body, design: .monospaced))
-                        .textFieldStyle(.roundedBorder)
+                    if !displayedOpenAIModels.isEmpty {
+                        Picker("Model", selection: $openAIModel) {
+                            ForEach(displayedOpenAIModels) { model in
+                                Text(model.name).tag(model.id)
+                            }
+                        }
+                        .pickerStyle(.menu)
+                    } else {
+                        TextField("Model", text: $openAIModel)
+                            .font(.system(.body, design: .monospaced))
+                            .textFieldStyle(.roundedBorder)
+                    }
 
                     Toggle("Translate to English", isOn: $openAITranslateToEnglish)
 
@@ -53,9 +62,18 @@ extension SpeechToTextPluginSettingsView {
                         .font(.system(.body, design: .monospaced))
                         .textFieldStyle(.roundedBorder)
 
-                    TextField("Model", text: $groqModel)
-                        .font(.system(.body, design: .monospaced))
-                        .textFieldStyle(.roundedBorder)
+                    if !displayedGroqModels.isEmpty {
+                        Picker("Model", selection: $groqModel) {
+                            ForEach(displayedGroqModels) { model in
+                                Text(model.name).tag(model.id)
+                            }
+                        }
+                        .pickerStyle(.menu)
+                    } else {
+                        TextField("Model", text: $groqModel)
+                            .font(.system(.body, design: .monospaced))
+                            .textFieldStyle(.roundedBorder)
+                    }
 
                     Toggle("Translate to English", isOn: $groqTranslateToEnglish)
 
@@ -92,9 +110,18 @@ extension SpeechToTextPluginSettingsView {
                         .font(.system(.body, design: .monospaced))
                         .textFieldStyle(.roundedBorder)
 
-                    TextField("Model", text: $mistralModel)
-                        .font(.system(.body, design: .monospaced))
-                        .textFieldStyle(.roundedBorder)
+                    if !displayedMistralModels.isEmpty {
+                        Picker("Model", selection: $mistralModel) {
+                            ForEach(displayedMistralModels) { model in
+                                Text(model.name).tag(model.id)
+                            }
+                        }
+                        .pickerStyle(.menu)
+                    } else {
+                        TextField("Model", text: $mistralModel)
+                            .font(.system(.body, design: .monospaced))
+                            .textFieldStyle(.roundedBorder)
+                    }
 
                     TextField("Language (optional)", text: $mistralLanguage)
                         .font(.system(.body, design: .monospaced))
@@ -136,11 +163,18 @@ extension SpeechToTextPluginSettingsView {
                         .font(.system(.body, design: .monospaced))
                         .textFieldStyle(.roundedBorder)
 
-                    Picker("Model", selection: $elevenLabsModel) {
-                        Text("Scribe v2").tag("scribe_v2")
-                        Text("Scribe v1").tag("scribe_v1")
+                    if !displayedElevenLabsModels.isEmpty {
+                        Picker("Model", selection: $elevenLabsModel) {
+                            ForEach(displayedElevenLabsModels) { model in
+                                Text(model.name).tag(model.id)
+                            }
+                        }
+                        .pickerStyle(.menu)
+                    } else {
+                        TextField("Model", text: $elevenLabsModel)
+                            .font(.system(.body, design: .monospaced))
+                            .textFieldStyle(.roundedBorder)
                     }
-                    .pickerStyle(.menu)
 
                     TextField("Language Code (optional)", text: $elevenLabsLanguageCode)
                         .font(.system(.body, design: .monospaced))
@@ -237,6 +271,22 @@ extension SpeechToTextPluginSettingsView {
         case .elevenlabs, .whisperKit:
             break
         }
+    }
+
+    var displayedOpenAIModels: [SpeechProviderModelChoice] {
+        SpeechProviderModelCatalog.presentingChoices(openAIModels, selectedModelID: openAIModel)
+    }
+
+    var displayedGroqModels: [SpeechProviderModelChoice] {
+        SpeechProviderModelCatalog.presentingChoices(groqModels, selectedModelID: groqModel)
+    }
+
+    var displayedMistralModels: [SpeechProviderModelChoice] {
+        SpeechProviderModelCatalog.presentingChoices(mistralModels, selectedModelID: mistralModel)
+    }
+
+    var displayedElevenLabsModels: [SpeechProviderModelChoice] {
+        SpeechProviderModelCatalog.presentingChoices(elevenLabsModels, selectedModelID: elevenLabsModel)
     }
 
     // MARK: - Static Constants
