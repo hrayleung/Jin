@@ -333,7 +333,7 @@ final class StreamingMessageState: ObservableObject {
             let totalDurationMs = Int((ProcessInfo.processInfo.systemUptime - appendStartedAt) * 1000)
             // #region agent log
             ChatDiagnosticLogger.log(
-                runId: "initial",
+                runId: debugContext?.diagnosticRunID ?? "unknown",
                 hypothesisId: "H7",
                 message: "chat_first_delta_apply_complete",
                 data: [
@@ -451,6 +451,7 @@ final class StreamingMessageState: ObservableObject {
 struct StreamingDebugContext {
     let conversationID: UUID
     let threadID: UUID
+    let diagnosticRunID: String
 }
 
 // MARK: - Preference Keys

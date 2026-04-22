@@ -11,6 +11,7 @@ enum ChatStreamingOrchestrator {
         let conversationID: UUID
         let threadID: UUID
         let turnID: UUID?
+        let diagnosticRunID: String
         let providerID: String
         let providerConfig: ProviderConfig?
         let providerType: ProviderType?
@@ -125,7 +126,7 @@ enum ChatStreamingOrchestrator {
 
                 // #region agent log
                 ChatDiagnosticLogger.log(
-                    runId: "initial",
+                    runId: ctx.diagnosticRunID,
                     hypothesisId: "H3",
                     message: "chat_prepare_history_complete",
                     data: [
@@ -194,7 +195,7 @@ enum ChatStreamingOrchestrator {
 
                     // #region agent log
                     ChatDiagnosticLogger.log(
-                        runId: "initial",
+                        runId: ctx.diagnosticRunID,
                         hypothesisId: "H3",
                         message: "chat_adapter_stream_created",
                         data: [
@@ -244,7 +245,7 @@ enum ChatStreamingOrchestrator {
                             didLogFirstUIFlush = true
                             // #region agent log
                             ChatDiagnosticLogger.log(
-                                runId: "initial",
+                                runId: ctx.diagnosticRunID,
                                 hypothesisId: "H6",
                                 message: "chat_first_ui_flush",
                                 data: [
@@ -260,7 +261,7 @@ enum ChatStreamingOrchestrator {
 
                         // #region agent log
                         ChatDiagnosticLogger.log(
-                            runId: "initial",
+                            runId: ctx.diagnosticRunID,
                             hypothesisId: "H8",
                             message: "chat_ui_flush_mainactor_start",
                             data: [
@@ -278,7 +279,7 @@ enum ChatStreamingOrchestrator {
 
                         // #region agent log
                         ChatDiagnosticLogger.log(
-                            runId: "initial",
+                            runId: ctx.diagnosticRunID,
                             hypothesisId: "H8",
                             message: "chat_ui_flush_mainactor_end",
                             data: [
@@ -334,7 +335,7 @@ enum ChatStreamingOrchestrator {
 
                             // #region agent log
                             ChatDiagnosticLogger.log(
-                                runId: "initial",
+                                runId: ctx.diagnosticRunID,
                                 hypothesisId: "H5",
                                 message: "chat_first_stream_event",
                                 data: [
@@ -355,7 +356,7 @@ enum ChatStreamingOrchestrator {
                                     didLogFirstContentDelta = true
                                     // #region agent log
                                     ChatDiagnosticLogger.log(
-                                        runId: "initial",
+                                        runId: ctx.diagnosticRunID,
                                         hypothesisId: "H7",
                                         message: "chat_first_content_delta",
                                         data: [
@@ -383,7 +384,7 @@ enum ChatStreamingOrchestrator {
                                         didLogFirstThinkingDelta = true
                                         // #region agent log
                                         ChatDiagnosticLogger.log(
-                                            runId: "initial",
+                                            runId: ctx.diagnosticRunID,
                                             hypothesisId: "H7",
                                             message: "chat_first_thinking_delta",
                                             data: [

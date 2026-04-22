@@ -32,13 +32,15 @@ actor ChatDiagnosticLogger {
     ) {
         guard isLoggingEnabled else { return }
         let location = "\(fileID):\(line)"
+        let emittedAt = Date()
         Task.detached(priority: .utility) {
             await shared.append(
                 runId: runId,
                 hypothesisId: hypothesisId,
                 location: location,
                 message: message,
-                data: data
+                data: data,
+                emittedAt: emittedAt
             )
         }
     }
@@ -56,7 +58,8 @@ actor ChatDiagnosticLogger {
         hypothesisId: String,
         location: String,
         message: String,
-        data: [String: String]
+        data: [String: String],
+        emittedAt: Date
     ) {
         guard Self.isLoggingEnabled else { return }
 
@@ -67,7 +70,7 @@ actor ChatDiagnosticLogger {
             "location": location,
             "message": message,
             "data": data,
-            "timestamp": Int(Date().timeIntervalSince1970 * 1000),
+            "timestamp": Int(emittedAt.timeIntervalSince1970 * 1000),
             "sessionStartedAt": isoFormatter.string(from: sessionStartedAt),
             "appVersion": Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "",
             "appBuild": Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? ""

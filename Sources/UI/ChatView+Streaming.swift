@@ -23,9 +23,10 @@ extension ChatView {
     }
 
     func sendMessageInternal() {
+        let diagnosticRunID = UUID().uuidString
         // #region agent log
         ChatDiagnosticLogger.log(
-            runId: "initial",
+            runId: diagnosticRunID,
             hypothesisId: "H4",
             message: "chat_send_entry",
             data: [
@@ -121,7 +122,7 @@ extension ChatView {
 
                 // #region agent log
                 ChatDiagnosticLogger.log(
-                    runId: "initial",
+                    runId: diagnosticRunID,
                     hypothesisId: "H3",
                     message: "chat_prepare_complete",
                     data: [
@@ -142,7 +143,7 @@ extension ChatView {
 
                     // #region agent log
                     ChatDiagnosticLogger.log(
-                        runId: "initial",
+                        runId: diagnosticRunID,
                         hypothesisId: "H1",
                         message: "chat_persist_block_start",
                         data: [
@@ -192,7 +193,7 @@ extension ChatView {
 
                     // #region agent log
                     ChatDiagnosticLogger.log(
-                        runId: "initial",
+                        runId: diagnosticRunID,
                         hypothesisId: "H1",
                         message: "chat_persist_rebuild_complete",
                         data: [
@@ -214,7 +215,7 @@ extension ChatView {
 
                     // #region agent log
                     ChatDiagnosticLogger.log(
-                        runId: "initial",
+                        runId: diagnosticRunID,
                         hypothesisId: "H1",
                         message: "chat_persist_save_complete",
                         data: [
@@ -239,6 +240,7 @@ extension ChatView {
                             for: threadID,
                             triggeredByUserSend: threadID == namingThreadID,
                             turnID: turnID,
+                            diagnosticRunID: diagnosticRunID,
                             perMessageMCPServerIDs: perMessageMCPSnapshot
                         )
                     }
@@ -416,6 +418,7 @@ extension ChatView {
         for threadID: UUID,
         triggeredByUserSend: Bool = false,
         turnID: UUID? = nil,
+        diagnosticRunID: String = UUID().uuidString,
         perMessageMCPServerIDs: Set<String> = []
     ) {
         let conversationID = conversationEntity.id
@@ -482,7 +485,8 @@ extension ChatView {
         )
         streamingState.debugContext = StreamingDebugContext(
             conversationID: conversationID,
-            threadID: threadID
+            threadID: threadID,
+            diagnosticRunID: diagnosticRunID
         )
         streamingState.reset()
 
@@ -505,7 +509,7 @@ extension ChatView {
 
         // #region agent log
         ChatDiagnosticLogger.log(
-            runId: "initial",
+            runId: diagnosticRunID,
             hypothesisId: "H2",
             message: "chat_stream_context_ready",
             data: [
@@ -582,6 +586,7 @@ extension ChatView {
             conversationID: conversationID,
             threadID: threadID,
             turnID: turnID,
+            diagnosticRunID: diagnosticRunID,
             providerID: providerID,
             providerConfig: providerConfig,
             providerType: providerTypeSnapshot,

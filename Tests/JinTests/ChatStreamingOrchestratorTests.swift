@@ -39,6 +39,7 @@ final class ChatStreamingOrchestratorTests: XCTestCase {
             conversationID: UUID(),
             threadID: threadID,
             turnID: nil,
+            diagnosticRunID: "test-run-id",
             providerID: "provider",
             providerConfig: nil,
             providerType: nil,
@@ -64,7 +65,7 @@ final class ChatStreamingOrchestratorTests: XCTestCase {
         )
 
         let history = ChatStreamingOrchestrator.prepareHistory(from: context)
-        XCTAssertEqual(history.map(\.role), [.system, .user, .assistant])
+        XCTAssertEqual(history.map { $0.role }, [MessageRole.system, .user, .assistant])
         XCTAssertEqual(history.compactMap { message -> String? in
             guard case .text(let text) = message.content.first else { return nil }
             return text
