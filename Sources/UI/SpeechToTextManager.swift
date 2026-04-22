@@ -50,10 +50,25 @@ final class SpeechToTextManager: NSObject, ObservableObject {
         let translateToEnglish: Bool
     }
 
+    struct ElevenLabsConfig: Sendable {
+        let apiKey: String
+        let baseURL: URL
+        let modelId: String
+        let languageCode: String?
+        let tagAudioEvents: Bool?
+        let numSpeakers: Int?
+        let timestampsGranularity: String?
+        let diarize: Bool?
+        let fileFormat: String?
+        let temperature: Double?
+        let noVerbatim: Bool?
+    }
+
     enum TranscriptionConfig: Sendable {
         case openai(OpenAIConfig)
         case groq(GroqConfig)
         case mistral(MistralConfig)
+        case elevenlabs(ElevenLabsConfig)
         case whisperKit(WhisperKitConfig)
     }
 
@@ -268,6 +283,23 @@ final class SpeechToTextManager: NSObject, ObservableObject {
                 responseFormat: mistral.responseFormat,
                 temperature: mistral.temperature,
                 timestampGranularities: mistral.timestampGranularities
+            )
+
+        case .elevenlabs(let config):
+            let client = ElevenLabsSTTClient(apiKey: config.apiKey, baseURL: config.baseURL)
+            return try await client.createTranscription(
+                fileData: data,
+                filename: "recording.wav",
+                mimeType: "audio/wav",
+                modelId: config.modelId,
+                languageCode: config.languageCode,
+                tagAudioEvents: config.tagAudioEvents,
+                numSpeakers: config.numSpeakers,
+                timestampsGranularity: config.timestampsGranularity,
+                diarize: config.diarize,
+                fileFormat: config.fileFormat,
+                temperature: config.temperature,
+                noVerbatim: config.noVerbatim
             )
 
         case .whisperKit:

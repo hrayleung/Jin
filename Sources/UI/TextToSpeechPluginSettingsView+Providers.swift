@@ -81,9 +81,18 @@ extension TextToSpeechPluginSettingsView {
                         .font(.system(.body, design: .monospaced))
                         .textFieldStyle(.roundedBorder)
 
-                    TextField("Model", text: $elevenLabsModelID)
-                        .font(.system(.body, design: .monospaced))
-                        .textFieldStyle(.roundedBorder)
+                    if !elevenLabsModels.isEmpty {
+                        Picker("Model", selection: $elevenLabsModelID) {
+                            ForEach(elevenLabsModels) { model in
+                                Text(model.name).tag(model.modelId)
+                            }
+                        }
+                        .pickerStyle(.menu)
+                    } else {
+                        TextField("Model ID", text: $elevenLabsModelID)
+                            .font(.system(.body, design: .monospaced))
+                            .textFieldStyle(.roundedBorder)
+                    }
 
                     if !elevenLabsVoices.isEmpty {
                         HStack {

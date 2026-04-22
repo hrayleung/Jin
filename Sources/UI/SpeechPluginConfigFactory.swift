@@ -113,6 +113,37 @@ enum SpeechPluginConfigFactory {
                 )
             )
 
+        case .elevenlabs:
+            let baseURL = try resolvedBaseURL(
+                defaults.string(forKey: AppPreferenceKeys.sttElevenLabsBaseURL),
+                fallback: ElevenLabsSTTClient.Constants.defaultBaseURL.absoluteString
+            )
+            let modelId = defaults.string(forKey: AppPreferenceKeys.sttElevenLabsModel) ?? "scribe_v2"
+            let languageCode = normalized(defaults.string(forKey: AppPreferenceKeys.sttElevenLabsLanguageCode))
+            let tagAudioEvents = defaults.object(forKey: AppPreferenceKeys.sttElevenLabsTagAudioEvents) as? Bool
+            let numSpeakers = defaults.object(forKey: AppPreferenceKeys.sttElevenLabsNumSpeakers) as? Int
+            let timestampsGranularity = normalized(defaults.string(forKey: AppPreferenceKeys.sttElevenLabsTimestampsGranularity))
+            let diarize = defaults.object(forKey: AppPreferenceKeys.sttElevenLabsDiarize) as? Bool
+            let fileFormat = normalized(defaults.string(forKey: AppPreferenceKeys.sttElevenLabsFileFormat))
+            let temperature = defaults.object(forKey: AppPreferenceKeys.sttElevenLabsTemperature) as? Double
+            let noVerbatim = defaults.object(forKey: AppPreferenceKeys.sttElevenLabsNoVerbatim) as? Bool
+
+            return .elevenlabs(
+                SpeechToTextManager.ElevenLabsConfig(
+                    apiKey: apiKey,
+                    baseURL: baseURL,
+                    modelId: modelId,
+                    languageCode: languageCode,
+                    tagAudioEvents: tagAudioEvents,
+                    numSpeakers: numSpeakers,
+                    timestampsGranularity: timestampsGranularity,
+                    diarize: diarize,
+                    fileFormat: fileFormat,
+                    temperature: temperature,
+                    noVerbatim: noVerbatim
+                )
+            )
+
         case .whisperKit:
             // Handled by early return above; unreachable
             fatalError("WhisperKit config should be handled before this switch")
@@ -291,6 +322,7 @@ enum SpeechPluginConfigFactory {
         case .openai: return AppPreferenceKeys.sttOpenAIAPIKey
         case .groq: return AppPreferenceKeys.sttGroqAPIKey
         case .mistral: return AppPreferenceKeys.sttMistralAPIKey
+        case .elevenlabs: return AppPreferenceKeys.sttElevenLabsAPIKey
         case .whisperKit: return ""
         }
     }

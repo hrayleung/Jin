@@ -8,10 +8,11 @@ extension TextToSpeechPluginSettingsView {
     func loadExistingKeyAndMaybeVoices() async {
         await loadExistingKey()
         if provider == .elevenlabs, !trimmedAPIKey.isEmpty {
-            await loadElevenLabsVoices()
+            await loadElevenLabsVoicesAndModels()
         } else {
             await MainActor.run {
                 elevenLabsVoices = []
+                elevenLabsModels = []
                 isPlayingVoicePreview = false
                 voicePreviewPlayer?.stop()
                 voicePreviewPlayer = nil
@@ -63,6 +64,7 @@ extension TextToSpeechPluginSettingsView {
         statusMessage = "Cleared."
         statusIsError = false
         elevenLabsVoices = []
+        elevenLabsModels = []
         NotificationCenter.default.post(name: .pluginCredentialsDidChange, object: nil)
     }
 
@@ -212,7 +214,7 @@ extension TextToSpeechPluginSettingsView {
                 }
 
                 if provider == .elevenlabs {
-                    await loadElevenLabsVoices()
+                    await loadElevenLabsVoicesAndModels()
                 }
             } catch {
                 await MainActor.run {
@@ -228,7 +230,7 @@ extension TextToSpeechPluginSettingsView {
         }
     }
 
-    func loadElevenLabsVoices() async {
+    func loadElevenLabsVoicesAndModels() async {
         guard provider == .elevenlabs else { return }
         guard !trimmedAPIKey.isEmpty else { return }
 
@@ -236,27 +238,55 @@ extension TextToSpeechPluginSettingsView {
             isLoadingVoices = true
         }
 
+        let base = URL(string: elevenLabsBaseURL.trimmingCharacters(in: .whitespacesAndNewlines)) ?? ElevenLabsTTSClient.Constants.defaultBaseURL
+        let client = ElevenLabsTTSClient(apiKey: trimmedAPIKey, baseURL: base)
+
+        // Fetch voices (required) and models (optional) independently so a
+        // scoped key without models_read permission still loads voices.
+        var voices: [ElevenLabsTTSClient.Voice] = []
+        var models: [ElevenLabsTTSClient.Model] = []
+
         do {
-            let base = URL(string: elevenLabsBaseURL.trimmingCharacters(in: .whitespacesAndNewlines)) ?? ElevenLabsTTSClient.Constants.defaultBaseURL
-            let client = ElevenLabsTTSClient(apiKey: trimmedAPIKey, baseURL: base)
-            let voices = try await client.listVoices()
+            voices = try await client.listVoices()
                 .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
-            await MainActor.run {
-                elevenLabsVoices = voices
-                if elevenLabsVoiceID.isEmpty {
-                    elevenLabsVoiceID = voices.first?.voiceId ?? ""
-                } else if !voices.contains(where: { $0.voiceId == elevenLabsVoiceID }) {
-                    elevenLabsVoiceID = voices.first?.voiceId ?? ""
-                }
-                isLoadingVoices = false
-            }
         } catch {
             await MainActor.run {
                 elevenLabsVoices = []
+                elevenLabsModels = []
                 isLoadingVoices = false
                 statusMessage = error.localizedDescription
                 statusIsError = true
             }
+            return
+        }
+
+        // Model fetch is best-effort; failure leaves the manual text field visible.
+        do {
+            models = try await client.listModels()
+                .filter { $0.canDoTextToSpeech }
+                .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+        } catch {
+            // Silently fall back to empty models list (manual input).
+        }
+
+        await MainActor.run {
+            elevenLabsVoices = voices
+            elevenLabsModels = models
+
+            if elevenLabsVoiceID.isEmpty {
+                elevenLabsVoiceID = voices.first?.voiceId ?? ""
+            } else if !voices.contains(where: { $0.voiceId == elevenLabsVoiceID }) {
+                elevenLabsVoiceID = voices.first?.voiceId ?? ""
+            }
+
+            if !models.isEmpty {
+                let currentModel = elevenLabsModelID.trimmingCharacters(in: .whitespacesAndNewlines)
+                if currentModel.isEmpty || !models.contains(where: { $0.modelId == currentModel }) {
+                    elevenLabsModelID = models.first?.modelId ?? ""
+                }
+            }
+
+            isLoadingVoices = false
         }
     }
 
