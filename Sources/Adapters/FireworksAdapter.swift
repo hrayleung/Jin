@@ -52,25 +52,8 @@ actor FireworksAdapter: LLMProviderAdapter {
     }
 
     func fetchAvailableModels() async throws -> [ModelInfo] {
-        do {
-            let ids = try await fetchServerlessCatalogModelIDs()
-            if !ids.isEmpty {
-                return ids.map { makeModelInfo(id: $0) }
-            }
-        } catch {
-            // Fall back to the OpenAI-compatible `/models` endpoint for proxies or older deployments.
-        }
-
-        let request = makeGETRequest(
-            url: try validatedURL("\(baseURL)/models"),
-            apiKey: apiKey,
-            accept: nil,
-            includeUserAgent: false
-        )
-
-        let (data, _) = try await networkManager.sendRequest(request)
-        let response = try JSONDecoder().decode(OpenAIModelsResponse.self, from: data)
-        return response.data.map { makeModelInfo(id: $0.id) }
+        let ids = try await fetchServerlessCatalogModelIDs()
+        return ids.map { makeModelInfo(id: $0) }
     }
 
     // MARK: - Private

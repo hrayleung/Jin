@@ -362,7 +362,7 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         XCTAssertEqual(other.contextWindow, 128_000)
     }
 
-    func testFireworksAdapterFetchModelsFallsBackToOpenAICompatibleModelsEndpoint() async throws {
+    func testFireworksAdapterFetchModelsDoesNotFallBackToOpenAICompatibleModelsEndpoint() async throws {
         let (configuration, protocolType) = makeMockedSessionConfiguration()
         let networkManager = NetworkManager(configuration: configuration)
 
@@ -393,27 +393,26 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
                 )
             }
 
-            XCTAssertEqual(url, "https://example.com/inference/v1/models")
-            let response: [String: Any] = [
-                "data": [
-                    ["id": "fireworks/kimi-k2p6"]
-                ]
-            ]
-            let data = try JSONSerialization.data(withJSONObject: response)
-            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+            return (
+                HTTPURLResponse(url: request.url!, statusCode: 404, httpVersion: nil, headerFields: nil)!,
+                Data()
+            )
         }
 
         let adapter = FireworksAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
-        let models = try await adapter.fetchAvailableModels()
+        do {
+            _ = try await adapter.fetchAvailableModels()
+            XCTFail("Expected fetchAvailableModels to fail when the Fireworks catalog response is invalid.")
+        } catch is DecodingError {
+            // Expected: Fireworks model discovery should fail rather than silently falling back.
+        } catch {
+            XCTFail("Expected DecodingError, got \(error).")
+        }
 
         XCTAssertEqual(
             requestedURLs,
-            [
-                "https://example.com/v1/accounts/fireworks/models?filter=supports_serverless%3Dtrue&pageSize=200",
-                "https://example.com/inference/v1/models"
-            ]
+            ["https://example.com/v1/accounts/fireworks/models?filter=supports_serverless%3Dtrue&pageSize=200"]
         )
-        XCTAssertEqual(models.map(\.id), ["fireworks/kimi-k2p6"])
     }
 
     func testSambaNovaAdapterMapsReasoningOffToLowEffortForGptOss() async throws {
