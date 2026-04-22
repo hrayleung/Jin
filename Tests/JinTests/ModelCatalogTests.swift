@@ -557,6 +557,18 @@ final class ModelCatalogTests: XCTestCase {
         XCTAssertNil(unknown.reasoningConfig)
     }
 
+    func testFireworksSeededModelsPreferExactKimiK26Default() {
+        let seeded = ModelCatalog.seededModels(for: .fireworks).map(\.id)
+
+        XCTAssertEqual(seeded.first, "fireworks/kimi-k2p6")
+        XCTAssertTrue(seeded.contains("fireworks/qwen3p6-plus"))
+        XCTAssertTrue(seeded.contains("fireworks/deepseek-v3p2"))
+        XCTAssertTrue(seeded.contains("fireworks/kimi-k2-instruct-0905"))
+        XCTAssertTrue(seeded.contains("fireworks/glm-5"))
+        XCTAssertTrue(seeded.contains("fireworks/minimax-m2p5"))
+        XCTAssertFalse(seeded.contains("accounts/fireworks/models/kimi-k2p6"))
+    }
+
     func testFireworksCatalogMetadataUsesExactIDsAndConservativeFallback() {
         let qwen36 = ModelCatalog.modelInfo(
             for: "fireworks/qwen3p6-plus",
