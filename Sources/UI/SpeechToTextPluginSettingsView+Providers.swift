@@ -129,6 +129,60 @@ extension SpeechToTextPluginSettingsView {
                     language: $whisperKitLanguage,
                     translateToEnglish: $whisperKitTranslateToEnglish
                 )
+
+            case .elevenlabs:
+                Section("ElevenLabs") {
+                    TextField("API Base URL", text: $elevenLabsBaseURL)
+                        .font(.system(.body, design: .monospaced))
+                        .textFieldStyle(.roundedBorder)
+
+                    Picker("Model", selection: $elevenLabsModel) {
+                        Text("Scribe v2").tag("scribe_v2")
+                        Text("Scribe v1").tag("scribe_v1")
+                    }
+                    .pickerStyle(.menu)
+
+                    TextField("Language Code (optional)", text: $elevenLabsLanguageCode)
+                        .font(.system(.body, design: .monospaced))
+                        .help("ISO-639-1 or ISO-639-3 code. Leave empty for auto-detection.")
+
+                    Toggle("Tag audio events", isOn: $elevenLabsTagAudioEvents)
+                        .help("Tag events like (laughter), (footsteps) in the transcription.")
+
+                    Toggle("No verbatim", isOn: $elevenLabsNoVerbatim)
+                        .help("Remove filler words, false starts and non-speech sounds. Scribe v2 only.")
+                        .disabled(elevenLabsModel != "scribe_v2")
+
+                    Toggle("Diarize", isOn: $elevenLabsDiarize)
+                        .help("Annotate which speaker is talking.")
+
+                    if elevenLabsDiarize {
+                        Stepper("Max speakers: \(elevenLabsNumSpeakers)", value: $elevenLabsNumSpeakers, in: 1...32)
+                    }
+
+                    Picker("Timestamps", selection: $elevenLabsTimestampsGranularity) {
+                        Text("None").tag("none")
+                        Text("Word").tag("word")
+                        Text("Character").tag("character")
+                    }
+                    .pickerStyle(.menu)
+
+                    Picker("File Format", selection: $elevenLabsFileFormat) {
+                        Text("Auto-detect").tag("other")
+                        Text("PCM 16-bit 16kHz").tag("pcm_s16le_16")
+                    }
+                    .pickerStyle(.menu)
+                    .help("Use PCM for lower latency when recording is already 16-bit 16kHz mono.")
+
+                    HStack {
+                        Text("Temperature")
+                        Slider(value: $elevenLabsTemperature, in: 0.0...2.0, step: 0.05)
+                        Text(elevenLabsTemperature.formatted(.number.precision(.fractionLength(2))))
+                            .font(.system(.body, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                            .frame(width: 52, alignment: .trailing)
+                    }
+                }
             }
         } else {
             Section("Provider Error") {
@@ -167,7 +221,7 @@ extension SpeechToTextPluginSettingsView {
             return groqTimestampGranularitiesJSON
         case .mistral:
             return mistralTimestampGranularitiesJSON
-        case .whisperKit:
+        case .elevenlabs, .whisperKit:
             return "[]"
         }
     }
@@ -180,7 +234,7 @@ extension SpeechToTextPluginSettingsView {
             groqTimestampGranularitiesJSON = value
         case .mistral:
             mistralTimestampGranularitiesJSON = value
-        case .whisperKit:
+        case .elevenlabs, .whisperKit:
             break
         }
     }

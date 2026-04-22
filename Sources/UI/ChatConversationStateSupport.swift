@@ -169,6 +169,8 @@ enum ChatConversationStateSupport {
                 key = AppPreferenceKeys.sttGroqAPIKey
             case .mistral:
                 key = AppPreferenceKeys.sttMistralAPIKey
+            case .elevenlabs:
+                key = AppPreferenceKeys.sttElevenLabsAPIKey
             case .whisperKit:
                 return true
             }

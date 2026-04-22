@@ -44,6 +44,7 @@ struct TextToSpeechPluginSettingsView: View {
     @State var autoSaveTask: Task<Void, Never>?
 
     @State var elevenLabsVoices: [ElevenLabsTTSClient.Voice] = []
+    @State var elevenLabsModels: [ElevenLabsTTSClient.Model] = []
     @State var isLoadingVoices = false
     @State var voicePreviewPlayer: AVAudioPlayer?
     @State var isPlayingVoicePreview = false

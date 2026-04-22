@@ -18,6 +18,23 @@ actor ElevenLabsTTSClient {
         let voices: [Voice]
     }
 
+    struct ModelLanguage: Decodable, Hashable {
+        let languageId: String
+        let name: String
+    }
+
+    struct Model: Decodable, Identifiable, Hashable {
+        let modelId: String
+        let name: String
+        let canDoTextToSpeech: Bool
+        let canUseStyle: Bool
+        let canUseSpeakerBoost: Bool
+        let description: String?
+        let languages: [ModelLanguage]?
+
+        var id: String { modelId }
+    }
+
     struct VoiceSettings: Encodable, Hashable {
         let stability: Double?
         let similarityBoost: Double?
@@ -100,6 +117,25 @@ actor ElevenLabsTTSClient {
             decoder.keyDecodingStrategy = .convertFromSnakeCase
             let decoded = try decoder.decode(VoicesResponse.self, from: data)
             return decoded.voices
+        } catch {
+            let message = String(data: data, encoding: .utf8) ?? error.localizedDescription
+            throw LLMError.decodingError(message: message)
+        }
+    }
+
+    func listModels(timeoutSeconds: TimeInterval = 30) async throws -> [Model] {
+        let request = NetworkRequestFactory.makeRequest(
+            url: baseURL.appendingPathComponent("models"),
+            method: .get,
+            timeoutSeconds: timeoutSeconds,
+            headers: [HTTPHeader(name: "xi-api-key", value: apiKey)]
+        )
+
+        let (data, _) = try await networkManager.sendRequest(request)
+        do {
+            let decoder = JSONDecoder()
+            decoder.keyDecodingStrategy = .convertFromSnakeCase
+            return try decoder.decode([Model].self, from: data)
         } catch {
             let message = String(data: data, encoding: .utf8) ?? error.localizedDescription
             throw LLMError.decodingError(message: message)

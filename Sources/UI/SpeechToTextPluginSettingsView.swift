@@ -34,6 +34,17 @@ struct SpeechToTextPluginSettingsView: View {
     @AppStorage(AppPreferenceKeys.sttWhisperKitLanguage) var whisperKitLanguage = ""
     @AppStorage(AppPreferenceKeys.sttWhisperKitTranslateToEnglish) var whisperKitTranslateToEnglish = false
 
+    @AppStorage(AppPreferenceKeys.sttElevenLabsBaseURL) var elevenLabsBaseURL = ElevenLabsSTTClient.Constants.defaultBaseURL.absoluteString
+    @AppStorage(AppPreferenceKeys.sttElevenLabsModel) var elevenLabsModel = "scribe_v2"
+    @AppStorage(AppPreferenceKeys.sttElevenLabsLanguageCode) var elevenLabsLanguageCode = ""
+    @AppStorage(AppPreferenceKeys.sttElevenLabsTagAudioEvents) var elevenLabsTagAudioEvents = true
+    @AppStorage(AppPreferenceKeys.sttElevenLabsNoVerbatim) var elevenLabsNoVerbatim = false
+    @AppStorage(AppPreferenceKeys.sttElevenLabsDiarize) var elevenLabsDiarize = false
+    @AppStorage(AppPreferenceKeys.sttElevenLabsNumSpeakers) var elevenLabsNumSpeakers = 2
+    @AppStorage(AppPreferenceKeys.sttElevenLabsTimestampsGranularity) var elevenLabsTimestampsGranularity = "word"
+    @AppStorage(AppPreferenceKeys.sttElevenLabsFileFormat) var elevenLabsFileFormat = "other"
+    @AppStorage(AppPreferenceKeys.sttElevenLabsTemperature) var elevenLabsTemperature = 0.0
+
     @State var apiKey = ""
     @State var isKeyVisible = false
     @State var isTesting = false
@@ -56,6 +67,8 @@ struct SpeechToTextPluginSettingsView: View {
             return AppPreferenceKeys.sttGroqAPIKey
         case .mistral:
             return AppPreferenceKeys.sttMistralAPIKey
+        case .elevenlabs:
+            return AppPreferenceKeys.sttElevenLabsAPIKey
         case .whisperKit:
             return nil
         }

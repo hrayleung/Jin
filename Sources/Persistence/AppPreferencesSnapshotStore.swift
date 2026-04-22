@@ -160,6 +160,7 @@ enum AppPreferencesSnapshotStore {
         AppPreferenceKeys.pluginDeepSeekOCRAPIKey,
         AppPreferenceKeys.ttsGroqAPIKey,
         AppPreferenceKeys.sttGroqAPIKey,
+        AppPreferenceKeys.sttElevenLabsAPIKey,
         AppPreferenceKeys.cloudflareR2AccountID,
         AppPreferenceKeys.pluginWebSearchTavilyAPIKey,
         AppPreferenceKeys.ttsProvider,

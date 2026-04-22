@@ -119,6 +119,8 @@ extension SpeechToTextPluginSettingsView {
             return AppPreferenceKeys.sttGroqAPIKey
         case .mistral:
             return AppPreferenceKeys.sttMistralAPIKey
+        case .elevenlabs:
+            return AppPreferenceKeys.sttElevenLabsAPIKey
         case .whisperKit:
             return nil
         }
@@ -159,6 +161,10 @@ extension SpeechToTextPluginSettingsView {
                     let defaultBase = URL(string: ProviderType.mistral.defaultBaseURL ?? "https://api.mistral.ai/v1")!
                     let base = URL(string: mistralBaseURL.trimmingCharacters(in: .whitespacesAndNewlines)) ?? defaultBase
                     let client = OpenAIAudioClient(apiKey: trimmedAPIKey, baseURL: base)
+                    try await client.validateAPIKey()
+                case .elevenlabs:
+                    let base = URL(string: elevenLabsBaseURL.trimmingCharacters(in: .whitespacesAndNewlines)) ?? ElevenLabsSTTClient.Constants.defaultBaseURL
+                    let client = ElevenLabsSTTClient(apiKey: trimmedAPIKey, baseURL: base)
                     try await client.validateAPIKey()
                 case .whisperKit:
                     return

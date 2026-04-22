@@ -29,6 +29,7 @@ enum SpeechToTextProvider: String, CaseIterable, Identifiable {
     case groq
     case openai
     case mistral
+    case elevenlabs
     case whisperKit
 
     var id: String { rawValue }
@@ -38,13 +39,14 @@ enum SpeechToTextProvider: String, CaseIterable, Identifiable {
         case .groq: return "Groq"
         case .openai: return "OpenAI"
         case .mistral: return "Mistral"
+        case .elevenlabs: return "ElevenLabs"
         case .whisperKit: return "WhisperKit (On-Device)"
         }
     }
 
     var requiresAPIKey: Bool {
         switch self {
-        case .groq, .openai, .mistral: return true
+        case .groq, .openai, .mistral, .elevenlabs: return true
         case .whisperKit: return false
         }
     }
