@@ -129,6 +129,86 @@ struct JinFormFieldRow<Control: View>: View {
     }
 }
 
+struct JinSettingsControlRow<Control: View>: View {
+    let title: String
+    let supportingText: String?
+    let labelWidth: CGFloat
+    let controlAlignment: Alignment
+    private let control: () -> Control
+
+    init(
+        _ title: String,
+        supportingText: String? = nil,
+        labelWidth: CGFloat = 168,
+        controlAlignment: Alignment = .leading,
+        @ViewBuilder control: @escaping () -> Control
+    ) {
+        self.title = title
+        self.supportingText = supportingText
+        self.labelWidth = labelWidth
+        self.controlAlignment = controlAlignment
+        self.control = control
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: JinSpacing.xSmall) {
+            HStack(alignment: .top, spacing: JinSpacing.large) {
+                Text(title)
+                    .font(.subheadline.weight(.semibold))
+                    .frame(width: labelWidth, alignment: .leading)
+                    .padding(.top, 6)
+
+                control()
+                    .frame(maxWidth: .infinity, alignment: controlAlignment)
+            }
+
+            if let supportingText, !supportingText.isEmpty {
+                Text(supportingText)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.leading, labelWidth + JinSpacing.large)
+            }
+        }
+    }
+}
+
+struct JinSettingsBlockRow<Control: View>: View {
+    let title: String
+    let supportingText: String?
+    let controlAlignment: Alignment
+    private let control: () -> Control
+
+    init(
+        _ title: String,
+        supportingText: String? = nil,
+        controlAlignment: Alignment = .leading,
+        @ViewBuilder control: @escaping () -> Control
+    ) {
+        self.title = title
+        self.supportingText = supportingText
+        self.controlAlignment = controlAlignment
+        self.control = control
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: JinSpacing.xSmall) {
+            Text(title)
+                .font(.subheadline.weight(.semibold))
+
+            if let supportingText, !supportingText.isEmpty {
+                Text(supportingText)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            control()
+                .frame(maxWidth: .infinity, alignment: controlAlignment)
+        }
+    }
+}
+
 struct JinDetailsDisclosure<Content: View>: View {
     let title: String
     let systemImage: String
@@ -216,6 +296,145 @@ struct JinDetailsDisclosure<Content: View>: View {
 
     private var isExpanded: Bool {
         isExpandedBinding.wrappedValue
+    }
+}
+
+struct JinSettingsPage<Content: View>: View {
+    var maxWidth: CGFloat = 680
+    var horizontalPadding: CGFloat = 28
+    var verticalPadding: CGFloat = 24
+    private let content: () -> Content
+
+    init(
+        maxWidth: CGFloat = 680,
+        horizontalPadding: CGFloat = 28,
+        verticalPadding: CGFloat = 24,
+        @ViewBuilder content: @escaping () -> Content
+    ) {
+        self.maxWidth = maxWidth
+        self.horizontalPadding = horizontalPadding
+        self.verticalPadding = verticalPadding
+        self.content = content
+    }
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: JinSpacing.xLarge) {
+                content()
+            }
+            .frame(maxWidth: maxWidth, alignment: .leading)
+            .padding(.horizontal, horizontalPadding)
+            .padding(.vertical, verticalPadding)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .background(JinSemanticColor.detailSurface)
+    }
+}
+
+struct JinSettingsSection<Content: View>: View {
+    enum Style {
+        case card
+        case plain
+    }
+
+    let title: String
+    let detail: String?
+    let style: Style
+    let contentSpacing: CGFloat
+    private let content: () -> Content
+
+    init(
+        _ title: String,
+        detail: String? = nil,
+        style: Style = .card,
+        contentSpacing: CGFloat = JinSpacing.medium,
+        @ViewBuilder content: @escaping () -> Content
+    ) {
+        self.title = title
+        self.detail = detail
+        self.style = style
+        self.contentSpacing = contentSpacing
+        self.content = content
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: JinSpacing.medium) {
+            VStack(alignment: .leading, spacing: JinSpacing.xSmall) {
+                Text(title)
+                    .font(.headline)
+
+                if let detail, !detail.isEmpty {
+                    Text(detail)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+
+            switch style {
+            case .card:
+                VStack(alignment: .leading, spacing: contentSpacing) {
+                    content()
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(JinSpacing.large)
+                .jinSurface(.outlined, cornerRadius: JinRadius.large)
+
+            case .plain:
+                VStack(alignment: .leading, spacing: contentSpacing) {
+                    content()
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+    }
+}
+
+struct JinRevealableSecureField: View {
+    let title: String
+    @Binding var text: String
+    @Binding var isRevealed: Bool
+    var usesMonospacedFont: Bool = false
+    var revealHelp: String = "Show value"
+    var concealHelp: String = "Hide value"
+
+    var body: some View {
+        HStack(spacing: JinSpacing.small) {
+            Group {
+                if isRevealed {
+                    TextField(title, text: $text)
+                        .textContentType(.password)
+                } else {
+                    SecureField(title, text: $text)
+                        .textContentType(.password)
+                }
+            }
+            .font(usesMonospacedFont ? .system(.body, design: .monospaced) : .body)
+            .textFieldStyle(.roundedBorder)
+
+            Button {
+                isRevealed.toggle()
+            } label: {
+                Image(systemName: isRevealed ? "eye.slash" : "eye")
+                    .font(.system(size: JinControlMetrics.iconButtonGlyphSize, weight: .semibold))
+                    .foregroundStyle(.secondary)
+            }
+            .buttonStyle(JinIconButtonStyle(showBackground: true))
+            .help(isRevealed ? concealHelp : revealHelp)
+            .disabled(text.isEmpty)
+        }
+    }
+}
+
+struct JinSettingsStatusText: View {
+    let text: String
+    var isError: Bool = false
+
+    var body: some View {
+        Text(text)
+            .font(.caption)
+            .foregroundStyle(isError ? Color.red : Color.secondary)
+            .fixedSize(horizontal: false, vertical: true)
     }
 }
 

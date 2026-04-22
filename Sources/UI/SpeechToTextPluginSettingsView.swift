@@ -84,14 +84,18 @@ struct SpeechToTextPluginSettingsView: View {
     }
 
     var body: some View {
-        Form {
-            Section("Provider") {
-                Picker("Provider", selection: $providerRaw) {
-                    ForEach(SpeechToTextProvider.allCases) { provider in
-                        Text(provider.displayName).tag(provider.rawValue)
+        JinSettingsPage {
+            JinSettingsSection("Provider") {
+                JinSettingsControlRow("Provider") {
+                    Picker("Provider", selection: $providerRaw) {
+                        ForEach(SpeechToTextProvider.allCases) { provider in
+                            Text(provider.displayName).tag(provider.rawValue)
+                        }
                     }
+                    .labelsHidden()
+                    .pickerStyle(.menu)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                .pickerStyle(.menu)
                 .onChange(of: providerRaw) { oldProviderRaw, _ in
                     autoSaveTask?.cancel()
                     if SpeechToTextProvider(rawValue: oldProviderRaw)?.requiresAPIKey == true {
@@ -103,32 +107,21 @@ struct SpeechToTextPluginSettingsView: View {
 
                 Toggle("Add recording as file", isOn: $addRecordingAsFile)
                     .help("Attach microphone recordings as audio files for models that support audio input instead of transcribing.")
-
             }
 
             if provider?.requiresAPIKey != false {
-                Section("API Key") {
-                    HStack(spacing: 8) {
-                        Group {
-                            if isKeyVisible {
-                                TextField("API Key", text: $apiKey)
-                                    .textContentType(.password)
-                            } else {
-                                SecureField("API Key", text: $apiKey)
-                                    .textContentType(.password)
-                            }
-                        }
-
-                        Button {
-                            isKeyVisible.toggle()
-                        } label: {
-                            Image(systemName: isKeyVisible ? "eye.slash" : "eye")
-                                .foregroundStyle(.secondary)
-                                .frame(width: 22, height: 22)
-                        }
-                        .buttonStyle(.plain)
-                        .help(isKeyVisible ? "Hide API key" : "Show API key")
-                        .disabled(apiKey.isEmpty)
+                JinSettingsSection(
+                    "API Key",
+                    detail: "Stored locally on this Mac. Changes save automatically."
+                ) {
+                    JinSettingsControlRow("API Key") {
+                        JinRevealableSecureField(
+                            title: "API Key",
+                            text: $apiKey,
+                            isRevealed: $isKeyVisible,
+                            revealHelp: "Show API key",
+                            concealHelp: "Hide API key"
+                        )
                     }
 
                     HStack(spacing: 12) {
@@ -147,18 +140,13 @@ struct SpeechToTextPluginSettingsView: View {
                     }
 
                     if let statusMessage {
-                        Text(statusMessage)
-                            .font(.caption)
-                            .foregroundStyle(statusIsError ? Color.red : Color.secondary)
+                        JinSettingsStatusText(text: statusMessage, isError: statusIsError)
                     }
                 }
             }
 
             providerSpecificSettings
         }
-        .formStyle(.grouped)
-        .scrollContentBackground(.hidden)
-        .background(JinSemanticColor.detailSurface)
         .navigationTitle("Speech to Text")
         .task {
             await loadExistingKeyAndMaybeModels()

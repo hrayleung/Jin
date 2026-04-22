@@ -65,7 +65,7 @@ struct WhisperKitSpeechToTextSettingsSection: View {
     // MARK: - Model
 
     private var modelSection: some View {
-        Section {
+        JinSettingsSection("WhisperKit (On-Device)") {
             Text("On-device speech recognition powered by Core ML.")
                 .jinInfoCallout()
 
@@ -98,15 +98,13 @@ struct WhisperKitSpeechToTextSettingsSection: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
-        } header: {
-            Text("WhisperKit (On-Device)")
         }
     }
 
     // MARK: - Options
 
     private var optionsSection: some View {
-        Section("Options") {
+        JinSettingsSection("Options") {
             Toggle("Translate to English", isOn: $translateToEnglish)
                 .help("Translate non-English speech to English instead of transcribing in the original language.")
 
@@ -121,7 +119,7 @@ struct WhisperKitSpeechToTextSettingsSection: View {
     // MARK: - Downloaded Models
 
     private var downloadedModelsSection: some View {
-        Section("Downloaded Models") {
+        JinSettingsSection("Downloaded Models") {
             ForEach(library.localModels) { localModel in
                 VStack(alignment: .leading, spacing: 8) {
                     HStack(spacing: 8) {
@@ -164,7 +162,11 @@ struct WhisperKitSpeechToTextSettingsSection: View {
     // MARK: - Storage (progressive disclosure)
 
     private var storageSection: some View {
-        Section {
+        JinSettingsSection(
+            "Storage",
+            detail: "Manage downloaded models or import them manually.",
+            style: .plain
+        ) {
             DisclosureGroup("Storage & Manual Import") {
                 Text(library.repositoryRootURL.path)
                     .font(.system(.caption, design: .monospaced))

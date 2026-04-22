@@ -39,8 +39,11 @@ struct CloudflareR2UploadPluginSettingsView: View {
     }
 
     var body: some View {
-        Form {
-            Section("Credentials") {
+        JinSettingsPage {
+            JinSettingsSection(
+                "Credentials",
+                detail: "These keys are used for temporary public uploads before OCR or remote processing."
+            ) {
                 TextField("Account ID", text: $accountID)
                     .font(.system(.body, design: .monospaced))
                     .textFieldStyle(.roundedBorder)
@@ -49,32 +52,17 @@ struct CloudflareR2UploadPluginSettingsView: View {
                     .font(.system(.body, design: .monospaced))
                     .textFieldStyle(.roundedBorder)
 
-                HStack(spacing: 8) {
-                    Group {
-                        if isSecretVisible {
-                            TextField("Secret Access Key", text: $secretAccessKey)
-                                .textContentType(.password)
-                        } else {
-                            SecureField("Secret Access Key", text: $secretAccessKey)
-                                .textContentType(.password)
-                        }
-                    }
-
-                    Button {
-                        isSecretVisible.toggle()
-                    } label: {
-                        Image(systemName: isSecretVisible ? "eye.slash" : "eye")
-                            .foregroundStyle(.secondary)
-                            .frame(width: 22, height: 22)
-                    }
-                    .buttonStyle(.plain)
-                    .help(isSecretVisible ? "Hide secret key" : "Show secret key")
-                    .disabled(secretAccessKey.isEmpty)
-                }
-
+                JinRevealableSecureField(
+                    title: "Secret Access Key",
+                    text: $secretAccessKey,
+                    isRevealed: $isSecretVisible,
+                    usesMonospacedFont: true,
+                    revealHelp: "Show secret key",
+                    concealHelp: "Hide secret key"
+                )
             }
 
-            Section("Storage") {
+            JinSettingsSection("Storage") {
                 TextField("Bucket", text: $bucket)
                     .font(.system(.body, design: .monospaced))
                     .textFieldStyle(.roundedBorder)
@@ -88,7 +76,7 @@ struct CloudflareR2UploadPluginSettingsView: View {
                     .textFieldStyle(.roundedBorder)
             }
 
-            Section("Actions") {
+            JinSettingsSection("Actions") {
                 HStack(spacing: 12) {
                     Button("Test Connection") {
                         testConnection()
@@ -109,15 +97,10 @@ struct CloudflareR2UploadPluginSettingsView: View {
                 }
 
                 if let statusMessage {
-                    Text(statusMessage)
-                        .font(.caption)
-                        .foregroundStyle(statusIsError ? Color.red : Color.secondary)
+                    JinSettingsStatusText(text: statusMessage, isError: statusIsError)
                 }
             }
         }
-        .formStyle(.grouped)
-        .scrollContentBackground(.hidden)
-        .background(JinSemanticColor.detailSurface)
         .navigationTitle("Cloudflare R2 Upload")
         .task {
             await loadExistingSettings()

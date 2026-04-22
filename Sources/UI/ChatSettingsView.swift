@@ -9,16 +9,14 @@ struct ChatSettingsView: View {
     @AppStorage(AppPreferenceKeys.chatDiagnosticLoggingEnabled) private var chatDiagnosticLoggingEnabled = false
 
     var body: some View {
-        Form {
-            Section("Send Behavior") {
+        JinSettingsPage {
+            JinSettingsSection("Send Behavior") {
                 Toggle("Use \u{2318}Return to send", isOn: $sendWithCommandEnter)
             }
 
-            Section {
+            JinSettingsSection("Network Trace") {
                 Toggle("Enable Network Trace", isOn: $networkDebugLoggingEnabled)
-                Text("JSON logs in time folders.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                JinSettingsStatusText(text: "JSON logs in time folders.")
 
                 HStack(spacing: JinSpacing.small) {
                     Button("Open Trace Folder") {
@@ -34,15 +32,11 @@ struct ChatSettingsView: View {
                         }
                     }
                 }
-            } header: {
-                Text("Network Trace")
             }
 
-            Section {
+            JinSettingsSection("Chat Diagnostics") {
                 Toggle("Enable Chat Diagnostics", isOn: $chatDiagnosticLoggingEnabled)
-                Text("Lightweight NDJSON timing logs for the chat send/stream pipeline.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                JinSettingsStatusText(text: "Lightweight NDJSON timing logs for the chat send/stream pipeline.")
 
                 HStack(spacing: JinSpacing.small) {
                     Button("Open Diagnostic Folder") {
@@ -58,11 +52,9 @@ struct ChatSettingsView: View {
                         }
                     }
                 }
-            } header: {
-                Text("Chat Diagnostics")
             }
 
-            Section("Notifications") {
+            JinSettingsSection("Notifications") {
                 Toggle("Notify when replies finish in background", isOn: $notifyOnBackgroundResponseCompletion)
                     .onChange(of: notifyOnBackgroundResponseCompletion) { _, enabled in
                         guard enabled else { return }
@@ -77,15 +69,11 @@ struct ChatSettingsView: View {
                     }
 
                 if responseCompletionNotifier.authorizationStatus == .denied {
-                    Text("Notifications are disabled for Jin in System Settings > Notifications.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    JinSettingsStatusText(text: "Notifications are disabled for Jin in System Settings > Notifications.")
                 }
             }
         }
-        .formStyle(.grouped)
-        .scrollContentBackground(.hidden)
-        .background(JinSemanticColor.detailSurface)
+        .navigationTitle("Chat")
         .task {
             await responseCompletionNotifier.refreshAuthorizationStatus()
             guard notifyOnBackgroundResponseCompletion,
@@ -98,5 +86,4 @@ struct ChatSettingsView: View {
             }
         }
     }
-
 }

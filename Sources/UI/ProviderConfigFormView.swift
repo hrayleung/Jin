@@ -225,8 +225,8 @@ struct ProviderConfigFormView: View {
     }
 
     var body: some View {
-        Form {
-            Section("Configuration") {
+        JinSettingsPage(maxWidth: 760) {
+            JinSettingsSection("Configuration") {
                 Toggle(isOn: Binding(
                     get: { provider.isEnabled },
                     set: { newValue in
@@ -237,30 +237,40 @@ struct ProviderConfigFormView: View {
                     Text("Enabled")
                 }
 
-                TextField("Name", text: $provider.name)
-                    .onChange(of: provider.name) { _, _ in try? modelContext.save() }
+                JinSettingsControlRow("Name") {
+                    TextField("Provider name", text: $provider.name)
+                        .textFieldStyle(.roundedBorder)
+                        .onChange(of: provider.name) { _, _ in try? modelContext.save() }
+                }
 
-                ProviderIconPickerField(
-                    selectedIconID: Binding(
-                        get: { provider.iconID },
-                        set: { newValue in
-                            let trimmed = newValue?.trimmingCharacters(in: .whitespacesAndNewlines)
-                            provider.iconID = trimmed?.isEmpty == false ? trimmed : nil
-                            try? modelContext.save()
-                        }
-                    ),
-                    defaultIconID: providerType.map { LobeProviderIconCatalog.defaultIconID(for: $0) }
-                )
+                JinSettingsControlRow("Icon") {
+                    ProviderIconPickerField(
+                        selectedIconID: Binding(
+                            get: { provider.iconID },
+                            set: { newValue in
+                                let trimmed = newValue?.trimmingCharacters(in: .whitespacesAndNewlines)
+                                provider.iconID = trimmed?.isEmpty == false ? trimmed : nil
+                                try? modelContext.save()
+                            }
+                        ),
+                        defaultIconID: providerType.map { LobeProviderIconCatalog.defaultIconID(for: $0) }
+                    )
+                }
 
                 if let providerType, let defaultBaseURL = providerType.defaultBaseURL {
-                    HStack {
-                        TextField("API Base URL", text: baseURLBinding(defaultBaseURL: defaultBaseURL))
-                        Button("Reset") {
-                            provider.baseURL = defaultBaseURL
+                    JinSettingsControlRow("API Base URL", supportingText: "Use the provider default unless you need a custom endpoint.") {
+                        HStack(alignment: .center, spacing: JinSpacing.small) {
+                            TextField("API Base URL", text: baseURLBinding(defaultBaseURL: defaultBaseURL))
+                                .textFieldStyle(.roundedBorder)
+                                .font(.system(.body, design: .monospaced))
+
+                            Button("Reset") {
+                                provider.baseURL = defaultBaseURL
+                            }
+                            .disabled((provider.baseURL ?? defaultBaseURL) == defaultBaseURL)
+                            .buttonStyle(.borderless)
+                            .font(.caption)
                         }
-                        .disabled((provider.baseURL ?? defaultBaseURL) == defaultBaseURL)
-                        .buttonStyle(.borderless)
-                        .font(.caption)
                     }
 
                     if providerType == .cerebras {
@@ -305,20 +315,18 @@ struct ProviderConfigFormView: View {
             }
 
             if providerType == .claudeManagedAgents {
-                Section("Managed Defaults") {
+                JinSettingsSection("Managed Defaults") {
                     claudeManagedDefaultsSection
                 }
             } else {
-                Section("Models") {
+                JinSettingsSection("Models", style: .plain) {
                     modelsSection
                 }
                 .animation(.easeInOut(duration: 0.18), value: filteredModels.count)
                 .animation(.easeInOut(duration: 0.18), value: modelSearchText)
             }
         }
-        .formStyle(.grouped)
-        .scrollContentBackground(.hidden)
-        .background(JinSemanticColor.detailSurface)
+        .navigationTitle(provider.name)
         .task {
             await loadCredentials()
             await MainActor.run {

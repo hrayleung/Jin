@@ -25,16 +25,17 @@ struct DataSettingsView: View {
     }
 
     var body: some View {
-        Form {
-            Section {
+        JinSettingsPage {
+            JinSettingsSection("Storage") {
                 Text("Storage used by Jin on this Mac.")
                     .jinInfoCallout()
 
-                totalStorageRow
-            } header: {
                 HStack {
-                    Text("Storage")
+                    Text("Total")
+                        .font(.subheadline.weight(.semibold))
+
                     Spacer()
+
                     if isCalculating {
                         ProgressView()
                             .controlSize(.small)
@@ -51,20 +52,25 @@ struct DataSettingsView: View {
                         .help("Recalculate storage sizes")
                     }
                 }
+
+                totalStorageRow
             }
 
-            Section("Breakdown") {
+            JinSettingsSection("Breakdown") {
                 if snapshots.isEmpty && !isCalculating {
                     Text("Calculating...")
                         .foregroundStyle(.tertiary)
                 } else {
                     ForEach(snapshots) { snapshot in
                         storageCategoryRow(snapshot)
+                        if snapshot.id != snapshots.last?.id {
+                            Divider()
+                        }
                     }
                 }
             }
 
-            Section("Chats") {
+            JinSettingsSection("Chats") {
                 LabeledContent("Total Chats") {
                     Text("\(conversations.count)")
                         .font(.system(.body, design: .monospaced))
@@ -78,7 +84,7 @@ struct DataSettingsView: View {
                 }
             }
 
-            Section {
+            JinSettingsSection("Recovery") {
                 Button {
                     exportRecoveryPack()
                 } label: {
@@ -102,13 +108,9 @@ struct DataSettingsView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
-            } header: {
-                Text("Recovery")
             }
         }
-        .formStyle(.grouped)
-        .scrollContentBackground(.hidden)
-        .background(JinSemanticColor.detailSurface)
+        .navigationTitle("Data")
         .task {
             if snapshots.isEmpty {
                 recalculate()

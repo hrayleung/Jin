@@ -45,30 +45,18 @@ struct MinerUOCRPluginSettingsView: View {
     }
 
     var body: some View {
-        Form {
-            Section("API Token") {
-                HStack(spacing: 8) {
-                    Group {
-                        if isTokenVisible {
-                            TextField("MinerU API Token", text: $apiToken)
-                                .textContentType(.password)
-                        } else {
-                            SecureField("MinerU API Token", text: $apiToken)
-                                .textContentType(.password)
-                        }
-                    }
-
-                    Button {
-                        isTokenVisible.toggle()
-                    } label: {
-                        Image(systemName: isTokenVisible ? "eye.slash" : "eye")
-                            .foregroundStyle(.secondary)
-                            .frame(width: 22, height: 22)
-                    }
-                    .buttonStyle(.plain)
-                    .help(isTokenVisible ? "Hide API token" : "Show API token")
-                    .disabled(apiToken.isEmpty)
-                }
+        JinSettingsPage {
+            JinSettingsSection(
+                "API Token",
+                detail: "MinerU uses a token plus an optional user header. Changes save automatically."
+            ) {
+                JinRevealableSecureField(
+                    title: "MinerU API Token",
+                    text: $apiToken,
+                    isRevealed: $isTokenVisible,
+                    revealHelp: "Show API token",
+                    concealHelp: "Hide API token"
+                )
 
                 TextField("Optional user header", text: $userIdentifier)
 
@@ -88,13 +76,11 @@ struct MinerUOCRPluginSettingsView: View {
                 }
 
                 if let statusMessage {
-                    Text(statusMessage)
-                        .font(.caption)
-                        .foregroundStyle(statusIsError ? Color.red : Color.secondary)
+                    JinSettingsStatusText(text: statusMessage, isError: statusIsError)
                 }
             }
 
-            Section("OCR") {
+            JinSettingsSection("OCR") {
                 Picker("Language", selection: $selectedLanguage) {
                     ForEach(Self.languageOptions) { option in
                         Text(option.label).tag(option.code)
@@ -103,9 +89,6 @@ struct MinerUOCRPluginSettingsView: View {
                 .pickerStyle(.menu)
             }
         }
-        .formStyle(.grouped)
-        .scrollContentBackground(.hidden)
-        .background(JinSemanticColor.detailSurface)
         .navigationTitle("MinerU OCR")
         .task {
             await loadExistingSettings()

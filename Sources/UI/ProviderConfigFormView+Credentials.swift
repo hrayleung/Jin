@@ -7,24 +7,14 @@ extension ProviderConfigFormView {
     // MARK: - API Key Section
 
     var apiKeyField: some View {
-        HStack(spacing: 8) {
-            Group {
-                if showingAPIKey {
-                    TextField(apiKeyFieldTitle, text: $apiKey)
-                } else {
-                    SecureField(apiKeyFieldTitle, text: $apiKey)
-                }
-            }
-            Button {
-                showingAPIKey.toggle()
-            } label: {
-                Image(systemName: showingAPIKey ? "eye.slash" : "eye")
-                    .foregroundStyle(.secondary)
-                    .frame(width: 22, height: 22)
-            }
-            .buttonStyle(.plain)
-            .help(showingAPIKey ? "Hide API key" : "Show API key")
-            .disabled(apiKey.isEmpty)
+        JinSettingsControlRow(apiKeyFieldTitle) {
+            JinRevealableSecureField(
+                title: apiKeyFieldTitle,
+                text: $apiKey,
+                isRevealed: $showingAPIKey,
+                revealHelp: "Show API key",
+                concealHelp: "Hide API key"
+            )
         }
     }
 
@@ -35,14 +25,13 @@ extension ProviderConfigFormView {
     // MARK: - Vertex AI Section
 
     var vertexAISection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Service Account JSON")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-
+        JinSettingsBlockRow(
+            "Service Account JSON",
+            supportingText: "Paste the full JSON document for this service account."
+        ) {
             TextEditor(text: $serviceAccountJSON)
                 .font(.system(.body, design: .monospaced))
-                .frame(minHeight: 120)
+                .frame(minHeight: 260)
                 .jinTextEditorField(cornerRadius: JinRadius.small)
                 .overlay(alignment: .topLeading) {
                     if serviceAccountJSON.isEmpty {
