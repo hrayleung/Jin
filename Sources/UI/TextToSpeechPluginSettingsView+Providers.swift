@@ -14,7 +14,7 @@ extension TextToSpeechPluginSettingsView {
                         .font(.system(.body, design: .monospaced))
                         .textFieldStyle(.roundedBorder)
 
-                    if !displayedOpenAIModels.isEmpty {
+                    if !openAIModels.isEmpty {
                         Picker("Model", selection: $openAIModel) {
                             ForEach(displayedOpenAIModels) { model in
                                 Text(model.name).tag(model.id)
@@ -59,7 +59,7 @@ extension TextToSpeechPluginSettingsView {
                         .font(.system(.body, design: .monospaced))
                         .textFieldStyle(.roundedBorder)
 
-                    if !displayedGroqModels.isEmpty {
+                    if !groqModels.isEmpty {
                         Picker("Model", selection: $groqModel) {
                             ForEach(displayedGroqModels) { model in
                                 Text(model.name).tag(model.id)
@@ -103,7 +103,7 @@ extension TextToSpeechPluginSettingsView {
                         .font(.system(.body, design: .monospaced))
                         .textFieldStyle(.roundedBorder)
 
-                    if !displayedElevenLabsModels.isEmpty {
+                    if !elevenLabsModels.isEmpty {
                         Picker("Model", selection: $elevenLabsModelID) {
                             ForEach(displayedElevenLabsModels) { model in
                                 Text(model.name).tag(model.modelId)

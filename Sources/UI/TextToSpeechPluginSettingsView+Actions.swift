@@ -6,25 +6,45 @@ import AVFoundation
 extension TextToSpeechPluginSettingsView {
 
     func loadExistingKeyAndMaybeProviderResources() async {
+        let requestedProviderRaw = await MainActor.run { providerRaw }
         await loadExistingKey()
 
-        guard let provider, !trimmedAPIKey.isEmpty else {
+        guard let load = await MainActor.run(body: {
+            textToSpeechLoadSnapshot(matchingProviderRaw: requestedProviderRaw)
+        }) else { return }
+
+        guard !load.apiKey.isEmpty else {
             await MainActor.run {
+                guard isCurrentTextToSpeechLoad(
+                    provider: load.provider,
+                    providerRaw: load.providerRaw,
+                    apiKey: load.apiKey
+                ) else { return }
                 clearFetchedTextToSpeechModels()
             }
             return
         }
 
-        switch provider {
+        switch load.provider {
         case .openai, .groq:
             await loadRemoteTextToSpeechModels()
             await MainActor.run {
+                guard isCurrentTextToSpeechLoad(
+                    provider: load.provider,
+                    providerRaw: load.providerRaw,
+                    apiKey: load.apiKey
+                ) else { return }
                 clearFetchedTextToSpeechModels(for: .elevenlabs)
             }
         case .elevenlabs:
             await loadElevenLabsVoicesAndModels()
         case .whisperKit:
             await MainActor.run {
+                guard isCurrentTextToSpeechLoad(
+                    provider: load.provider,
+                    providerRaw: load.providerRaw,
+                    apiKey: load.apiKey
+                ) else { return }
                 clearFetchedTextToSpeechModels()
             }
         }
@@ -245,45 +265,59 @@ extension TextToSpeechPluginSettingsView {
     }
 
     func loadRemoteTextToSpeechModels(updateStatus: Bool = true) async {
-        guard let provider else { return }
-        guard !trimmedAPIKey.isEmpty else { return }
-        guard provider == .openai || provider == .groq else { return }
+        guard let load = await MainActor.run(body: { textToSpeechLoadSnapshot() }) else { return }
+        guard !load.apiKey.isEmpty else { return }
+        guard load.provider == .openai || load.provider == .groq else { return }
 
         await MainActor.run {
+            guard isCurrentTextToSpeechLoad(
+                provider: load.provider,
+                providerRaw: load.providerRaw,
+                apiKey: load.apiKey
+            ) else { return }
             isLoadingModels = true
         }
 
         do {
             let availableModels: [SpeechProviderModelChoice]
-            switch provider {
+            switch load.provider {
             case .openai:
                 let base = URL(string: openAIBaseURL.trimmingCharacters(in: .whitespacesAndNewlines))
                     ?? OpenAIAudioClient.Constants.defaultBaseURL
-                let client = OpenAIAudioClient(apiKey: trimmedAPIKey, baseURL: base)
+                let client = OpenAIAudioClient(apiKey: load.apiKey, baseURL: base)
                 availableModels = try await client.listModels()
             case .groq:
                 let base = URL(string: groqBaseURL.trimmingCharacters(in: .whitespacesAndNewlines))
                     ?? GroqAudioClient.Constants.defaultBaseURL
-                let client = GroqAudioClient(apiKey: trimmedAPIKey, baseURL: base)
+                let client = GroqAudioClient(apiKey: load.apiKey, baseURL: base)
                 availableModels = try await client.listModels()
             case .elevenlabs, .whisperKit:
                 return
             }
 
             let filteredModels = SpeechProviderModelCatalog.textToSpeechChoices(
-                for: provider,
+                for: load.provider,
                 availableModels: availableModels
             )
 
             await MainActor.run {
-                setFetchedTextToSpeechModels(filteredModels, for: provider)
-                normalizeTextToSpeechModelSelectionIfNeeded(for: provider, using: filteredModels)
+                guard isCurrentTextToSpeechLoad(
+                    provider: load.provider,
+                    providerRaw: load.providerRaw,
+                    apiKey: load.apiKey
+                ) else { return }
+                setFetchedTextToSpeechModels(filteredModels, for: load.provider)
+                normalizeTextToSpeechModelSelectionIfNeeded(for: load.provider, using: filteredModels)
                 isLoadingModels = false
             }
         } catch {
             await MainActor.run {
-                clearFetchedTextToSpeechModels(for: provider)
-                isLoadingModels = false
+                guard isCurrentTextToSpeechLoad(
+                    provider: load.provider,
+                    providerRaw: load.providerRaw,
+                    apiKey: load.apiKey
+                ) else { return }
+                clearFetchedTextToSpeechModels(for: load.provider)
                 if updateStatus {
                     statusMessage = error.localizedDescription
                     statusIsError = true
@@ -293,15 +327,21 @@ extension TextToSpeechPluginSettingsView {
     }
 
     func loadElevenLabsVoicesAndModels(updateStatus: Bool = true) async {
-        guard provider == .elevenlabs else { return }
-        guard !trimmedAPIKey.isEmpty else { return }
+        guard let load = await MainActor.run(body: { textToSpeechLoadSnapshot() }) else { return }
+        guard load.provider == .elevenlabs else { return }
+        guard !load.apiKey.isEmpty else { return }
 
         await MainActor.run {
+            guard isCurrentTextToSpeechLoad(
+                provider: load.provider,
+                providerRaw: load.providerRaw,
+                apiKey: load.apiKey
+            ) else { return }
             isLoadingVoices = true
         }
 
         let base = URL(string: elevenLabsBaseURL.trimmingCharacters(in: .whitespacesAndNewlines)) ?? ElevenLabsTTSClient.Constants.defaultBaseURL
-        let client = ElevenLabsTTSClient(apiKey: trimmedAPIKey, baseURL: base)
+        let client = ElevenLabsTTSClient(apiKey: load.apiKey, baseURL: base)
 
         // Fetch voices (required) and models (optional) independently so a
         // scoped key without models_read permission still loads voices.
@@ -313,6 +353,11 @@ extension TextToSpeechPluginSettingsView {
                 .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
         } catch {
             await MainActor.run {
+                guard isCurrentTextToSpeechLoad(
+                    provider: load.provider,
+                    providerRaw: load.providerRaw,
+                    apiKey: load.apiKey
+                ) else { return }
                 isLoadingVoices = false
                 if updateStatus {
                     elevenLabsVoices = []
@@ -334,6 +379,11 @@ extension TextToSpeechPluginSettingsView {
         }
 
         await MainActor.run {
+            guard isCurrentTextToSpeechLoad(
+                provider: load.provider,
+                providerRaw: load.providerRaw,
+                apiKey: load.apiKey
+            ) else { return }
             elevenLabsVoices = voices
             elevenLabsModels = models
 
@@ -345,7 +395,7 @@ extension TextToSpeechPluginSettingsView {
 
             if !models.isEmpty {
                 let currentModel = elevenLabsModelID.trimmingCharacters(in: .whitespacesAndNewlines)
-                if currentModel.isEmpty || !models.contains(where: { $0.modelId == currentModel }) {
+                if currentModel.isEmpty {
                     elevenLabsModelID = models.first?.modelId ?? ""
                 }
             }
@@ -355,7 +405,32 @@ extension TextToSpeechPluginSettingsView {
     }
 
     @MainActor
+    func textToSpeechLoadSnapshot(
+        matchingProviderRaw expectedProviderRaw: String? = nil
+    ) -> (provider: TextToSpeechProvider, providerRaw: String, apiKey: String)? {
+        guard !Task.isCancelled else { return nil }
+        guard expectedProviderRaw == nil || providerRaw == expectedProviderRaw else { return nil }
+        guard let provider else { return nil }
+        return (provider, providerRaw, trimmedAPIKey)
+    }
+
+    @MainActor
+    func isCurrentTextToSpeechLoad(
+        provider: TextToSpeechProvider,
+        providerRaw: String,
+        apiKey: String
+    ) -> Bool {
+        !Task.isCancelled
+            && self.provider == provider
+            && self.providerRaw == providerRaw
+            && trimmedAPIKey == apiKey
+    }
+
+    @MainActor
     func clearFetchedTextToSpeechModels(for provider: TextToSpeechProvider? = nil) {
+        isLoadingModels = false
+        isLoadingVoices = false
+
         switch provider {
         case .openai:
             openAIModels = []
@@ -400,15 +475,18 @@ extension TextToSpeechPluginSettingsView {
         switch provider {
         case .openai:
             let currentModel = openAIModel.trimmingCharacters(in: .whitespacesAndNewlines)
-            if currentModel.isEmpty || !models.contains(where: { $0.id == currentModel }) {
+            if currentModel.isEmpty {
                 openAIModel = models.first?.id ?? openAIModel
             }
         case .groq:
             let currentModel = groqModel.trimmingCharacters(in: .whitespacesAndNewlines)
-            if currentModel.isEmpty || !models.contains(where: { $0.id == currentModel }) {
-                groqModel = models.first?.id ?? groqModel
+            if currentModel.isEmpty {
+                let nextModel = models.first?.id ?? groqModel
+                if nextModel != groqModel {
+                    groqModel = nextModel
+                    normalizeGroqVoiceIfNeeded()
+                }
             }
-            normalizeGroqVoiceIfNeeded()
         case .elevenlabs, .whisperKit:
             break
         }

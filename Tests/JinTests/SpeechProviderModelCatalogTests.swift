@@ -34,12 +34,13 @@ final class SpeechProviderModelCatalogTests: XCTestCase {
         let groqModels = SpeechProviderModelCatalog.speechToTextChoices(
             for: .groq,
             availableModels: [
+                SpeechProviderModelChoice(id: "whisper-large-v3"),
                 SpeechProviderModelChoice(id: "whisper-large-v3-turbo"),
                 SpeechProviderModelChoice(id: "distil-whisper-large-v3-en"),
                 SpeechProviderModelChoice(id: "llama-3.3-70b-versatile")
             ]
         )
-        XCTAssertEqual(groqModels.map(\.id), ["distil-whisper-large-v3-en", "whisper-large-v3-turbo"])
+        XCTAssertEqual(groqModels.map(\.id), ["whisper-large-v3", "whisper-large-v3-turbo"])
 
         let elevenLabsModels = SpeechProviderModelCatalog.speechToTextChoices(
             for: .elevenlabs,
@@ -50,6 +51,23 @@ final class SpeechProviderModelCatalogTests: XCTestCase {
             ]
         )
         XCTAssertEqual(elevenLabsModels.map(\.id), ["scribe_v1", "scribe_v2"])
+    }
+
+    func testGroqTextToSpeechChoicesUseExactSupportedModelIDs() {
+        let models = SpeechProviderModelCatalog.textToSpeechChoices(
+            for: .groq,
+            availableModels: [
+                SpeechProviderModelChoice(id: "canopylabs/orpheus-v1-english", name: "Orpheus English"),
+                SpeechProviderModelChoice(id: "canopylabs/orpheus-arabic-saudi", name: "Orpheus Arabic"),
+                SpeechProviderModelChoice(id: "canopylabs/orpheus-preview", name: "Preview"),
+                SpeechProviderModelChoice(id: "gpt-4o-mini-tts", name: "GPT-4o mini TTS")
+            ]
+        )
+
+        XCTAssertEqual(
+            models.map(\.id),
+            ["canopylabs/orpheus-arabic-saudi", "canopylabs/orpheus-v1-english"]
+        )
     }
 
     func testMistralSpeechToTextChoicesStayConservative() {

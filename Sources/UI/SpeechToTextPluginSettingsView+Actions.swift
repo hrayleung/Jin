@@ -5,20 +5,35 @@ import SwiftUI
 extension SpeechToTextPluginSettingsView {
 
     func loadExistingKeyAndMaybeModels() async {
+        let requestedProviderRaw = await MainActor.run { providerRaw }
         await loadExistingKey()
 
-        guard let provider, !trimmedAPIKey.isEmpty else {
+        guard let load = await MainActor.run(body: {
+            speechToTextLoadSnapshot(matchingProviderRaw: requestedProviderRaw)
+        }) else { return }
+
+        guard !load.apiKey.isEmpty else {
             await MainActor.run {
+                guard isCurrentSpeechToTextLoad(
+                    provider: load.provider,
+                    providerRaw: load.providerRaw,
+                    apiKey: load.apiKey
+                ) else { return }
                 clearFetchedSpeechToTextModels()
             }
             return
         }
 
-        switch provider {
+        switch load.provider {
         case .openai, .groq, .mistral, .elevenlabs:
             await loadRemoteSpeechToTextModels()
         case .whisperKit:
             await MainActor.run {
+                guard isCurrentSpeechToTextLoad(
+                    provider: load.provider,
+                    providerRaw: load.providerRaw,
+                    apiKey: load.apiKey
+                ) else { return }
                 clearFetchedSpeechToTextModels()
             }
         }
@@ -214,56 +229,70 @@ extension SpeechToTextPluginSettingsView {
     }
 
     func loadRemoteSpeechToTextModels(updateStatus: Bool = true) async {
-        guard let provider else { return }
-        guard !trimmedAPIKey.isEmpty else { return }
-        guard provider != .whisperKit else { return }
+        guard let load = await MainActor.run(body: { speechToTextLoadSnapshot() }) else { return }
+        guard !load.apiKey.isEmpty else { return }
+        guard load.provider != .whisperKit else { return }
 
         await MainActor.run {
+            guard isCurrentSpeechToTextLoad(
+                provider: load.provider,
+                providerRaw: load.providerRaw,
+                apiKey: load.apiKey
+            ) else { return }
             isLoadingModels = true
         }
 
         do {
             let availableModels: [SpeechProviderModelChoice]
-            switch provider {
+            switch load.provider {
             case .openai:
                 let base = URL(string: openAIBaseURL.trimmingCharacters(in: .whitespacesAndNewlines))
                     ?? OpenAIAudioClient.Constants.defaultBaseURL
-                let client = OpenAIAudioClient(apiKey: trimmedAPIKey, baseURL: base)
+                let client = OpenAIAudioClient(apiKey: load.apiKey, baseURL: base)
                 availableModels = try await client.listModels()
             case .groq:
                 let base = URL(string: groqBaseURL.trimmingCharacters(in: .whitespacesAndNewlines))
                     ?? GroqAudioClient.Constants.defaultBaseURL
-                let client = GroqAudioClient(apiKey: trimmedAPIKey, baseURL: base)
+                let client = GroqAudioClient(apiKey: load.apiKey, baseURL: base)
                 availableModels = try await client.listModels()
             case .mistral:
                 let defaultBase = URL(string: ProviderType.mistral.defaultBaseURL ?? "https://api.mistral.ai/v1")!
                 let base = URL(string: mistralBaseURL.trimmingCharacters(in: .whitespacesAndNewlines))
                     ?? defaultBase
-                let client = OpenAIAudioClient(apiKey: trimmedAPIKey, baseURL: base)
+                let client = OpenAIAudioClient(apiKey: load.apiKey, baseURL: base)
                 availableModels = try await client.listModels()
             case .elevenlabs:
                 let base = URL(string: elevenLabsBaseURL.trimmingCharacters(in: .whitespacesAndNewlines))
                     ?? ElevenLabsSTTClient.Constants.defaultBaseURL
-                let client = ElevenLabsSTTClient(apiKey: trimmedAPIKey, baseURL: base)
+                let client = ElevenLabsSTTClient(apiKey: load.apiKey, baseURL: base)
                 availableModels = try await client.listModels()
             case .whisperKit:
                 return
             }
 
             let filteredModels = SpeechProviderModelCatalog.speechToTextChoices(
-                for: provider,
+                for: load.provider,
                 availableModels: availableModels
             )
 
             await MainActor.run {
-                setFetchedSpeechToTextModels(filteredModels, for: provider)
-                normalizeSpeechToTextModelSelectionIfNeeded(for: provider, using: filteredModels)
+                guard isCurrentSpeechToTextLoad(
+                    provider: load.provider,
+                    providerRaw: load.providerRaw,
+                    apiKey: load.apiKey
+                ) else { return }
+                setFetchedSpeechToTextModels(filteredModels, for: load.provider)
+                normalizeSpeechToTextModelSelectionIfNeeded(for: load.provider, using: filteredModels)
                 isLoadingModels = false
             }
         } catch {
             await MainActor.run {
-                clearFetchedSpeechToTextModels(for: provider)
-                isLoadingModels = false
+                guard isCurrentSpeechToTextLoad(
+                    provider: load.provider,
+                    providerRaw: load.providerRaw,
+                    apiKey: load.apiKey
+                ) else { return }
+                clearFetchedSpeechToTextModels(for: load.provider)
                 if updateStatus {
                     statusMessage = error.localizedDescription
                     statusIsError = true
@@ -273,7 +302,31 @@ extension SpeechToTextPluginSettingsView {
     }
 
     @MainActor
+    func speechToTextLoadSnapshot(
+        matchingProviderRaw expectedProviderRaw: String? = nil
+    ) -> (provider: SpeechToTextProvider, providerRaw: String, apiKey: String)? {
+        guard !Task.isCancelled else { return nil }
+        guard expectedProviderRaw == nil || providerRaw == expectedProviderRaw else { return nil }
+        guard let provider else { return nil }
+        return (provider, providerRaw, trimmedAPIKey)
+    }
+
+    @MainActor
+    func isCurrentSpeechToTextLoad(
+        provider: SpeechToTextProvider,
+        providerRaw: String,
+        apiKey: String
+    ) -> Bool {
+        !Task.isCancelled
+            && self.provider == provider
+            && self.providerRaw == providerRaw
+            && trimmedAPIKey == apiKey
+    }
+
+    @MainActor
     func clearFetchedSpeechToTextModels(for provider: SpeechToTextProvider? = nil) {
+        isLoadingModels = false
+
         switch provider {
         case .openai:
             openAIModels = []
@@ -317,22 +370,22 @@ extension SpeechToTextPluginSettingsView {
         switch provider {
         case .openai:
             let currentModel = openAIModel.trimmingCharacters(in: .whitespacesAndNewlines)
-            if currentModel.isEmpty || !models.contains(where: { $0.id == currentModel }) {
+            if currentModel.isEmpty {
                 openAIModel = models.first?.id ?? openAIModel
             }
         case .groq:
             let currentModel = groqModel.trimmingCharacters(in: .whitespacesAndNewlines)
-            if currentModel.isEmpty || !models.contains(where: { $0.id == currentModel }) {
+            if currentModel.isEmpty {
                 groqModel = models.first?.id ?? groqModel
             }
         case .mistral:
             let currentModel = mistralModel.trimmingCharacters(in: .whitespacesAndNewlines)
-            if currentModel.isEmpty || !models.contains(where: { $0.id == currentModel }) {
+            if currentModel.isEmpty {
                 mistralModel = models.first?.id ?? mistralModel
             }
         case .elevenlabs:
             let currentModel = elevenLabsModel.trimmingCharacters(in: .whitespacesAndNewlines)
-            if currentModel.isEmpty || !models.contains(where: { $0.id == currentModel }) {
+            if currentModel.isEmpty {
                 elevenLabsModel = models.first?.id ?? elevenLabsModel
             }
         case .whisperKit:

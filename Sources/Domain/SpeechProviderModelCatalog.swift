@@ -14,6 +14,16 @@ struct SpeechProviderModelChoice: Identifiable, Hashable, Sendable {
 }
 
 enum SpeechProviderModelCatalog {
+    private static let groqTextToSpeechModelIDs: Set<String> = [
+        "canopylabs/orpheus-v1-english",
+        "canopylabs/orpheus-arabic-saudi"
+    ]
+
+    private static let groqSpeechToTextModelIDs: Set<String> = [
+        "whisper-large-v3",
+        "whisper-large-v3-turbo"
+    ]
+
     static func textToSpeechChoices(
         for provider: TextToSpeechProvider,
         availableModels: [SpeechProviderModelChoice]
@@ -91,11 +101,11 @@ enum SpeechProviderModelCatalog {
     }
 
     private static func matchesGroqTextToSpeechModelID(_ modelID: String) -> Bool {
-        modelID.contains("orpheus")
+        groqTextToSpeechModelIDs.contains(modelID)
     }
 
     private static func matchesGroqSpeechToTextModelID(_ modelID: String) -> Bool {
-        modelID.contains("whisper")
+        groqSpeechToTextModelIDs.contains(modelID)
     }
 
     private static func matchesMistralSpeechToTextModelID(_ modelID: String) -> Bool {
