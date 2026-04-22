@@ -383,6 +383,11 @@ pre code {
     object-fit: contain;
     flex: 0 0 auto;
 }
+@media (prefers-color-scheme: dark) {
+    .code-header .lang-label .lang-logo {
+        filter: brightness(1.6);
+    }
+}
 .code-header .lang-label .lang-logo-fallback {
     display: inline-flex;
     align-items: center;
