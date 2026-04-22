@@ -14,9 +14,12 @@ extension TextToSpeechPluginSettingsView {
                         .font(.system(.body, design: .monospaced))
                         .textFieldStyle(.roundedBorder)
 
-                    TextField("Model", text: $openAIModel)
-                        .font(.system(.body, design: .monospaced))
-                        .textFieldStyle(.roundedBorder)
+                    Picker("Model", selection: $openAIModel) {
+                        ForEach(displayedOpenAIModels) { model in
+                            Text(model.name).tag(model.id)
+                        }
+                    }
+                    .pickerStyle(.menu)
 
                     Picker("Voice", selection: $openAIVoice) {
                         ForEach(Self.openAIVoices, id: \.self) { voice in
@@ -50,13 +53,16 @@ extension TextToSpeechPluginSettingsView {
                         .font(.system(.body, design: .monospaced))
                         .textFieldStyle(.roundedBorder)
 
-                    TextField("Model", text: $groqModel)
-                        .font(.system(.body, design: .monospaced))
-                        .textFieldStyle(.roundedBorder)
-                        .help("Orpheus models: canopylabs/orpheus-v1-english, canopylabs/orpheus-arabic-saudi")
-                        .onChange(of: groqModel) { _, _ in
-                            normalizeGroqVoiceIfNeeded()
+                    Picker("Model", selection: $groqModel) {
+                        ForEach(displayedGroqModels) { model in
+                            Text(model.name).tag(model.id)
                         }
+                    }
+                    .pickerStyle(.menu)
+                    .help("Orpheus models: canopylabs/orpheus-v1-english, canopylabs/orpheus-arabic-saudi")
+                    .onChange(of: groqModel) { _, _ in
+                        normalizeGroqVoiceIfNeeded()
+                    }
 
                     Picker("Voice", selection: $groqVoice) {
                         ForEach(groqVoiceChoices, id: \.self) { voice in
@@ -81,18 +87,12 @@ extension TextToSpeechPluginSettingsView {
                         .font(.system(.body, design: .monospaced))
                         .textFieldStyle(.roundedBorder)
 
-                    if !elevenLabsModels.isEmpty {
-                        Picker("Model", selection: $elevenLabsModelID) {
-                            ForEach(elevenLabsModels) { model in
-                                Text(model.name).tag(model.modelId)
-                            }
+                    Picker("Model", selection: $elevenLabsModelID) {
+                        ForEach(displayedElevenLabsModels) { model in
+                            Text(model.name).tag(model.id)
                         }
-                        .pickerStyle(.menu)
-                    } else {
-                        TextField("Model ID", text: $elevenLabsModelID)
-                            .font(.system(.body, design: .monospaced))
-                            .textFieldStyle(.roundedBorder)
                     }
+                    .pickerStyle(.menu)
 
                     if !elevenLabsVoices.isEmpty {
                         HStack {
@@ -179,6 +179,42 @@ extension TextToSpeechPluginSettingsView {
         guard let voice = elevenLabsVoices.first(where: { $0.voiceId == elevenLabsVoiceID }) else { return nil }
         guard let str = voice.previewUrl, let url = URL(string: str) else { return nil }
         return url
+    }
+
+    var availableOpenAIModels: [SpeechProviderModelChoice] {
+        openAIModels.isEmpty
+            ? SpeechProviderModelCatalog.defaultTextToSpeechChoices(for: .openai)
+            : openAIModels
+    }
+
+    var displayedOpenAIModels: [SpeechProviderModelChoice] {
+        SpeechProviderModelCatalog.presentingChoices(availableOpenAIModels, selectedModelID: openAIModel)
+    }
+
+    var availableGroqModels: [SpeechProviderModelChoice] {
+        groqModels.isEmpty
+            ? SpeechProviderModelCatalog.defaultTextToSpeechChoices(for: .groq)
+            : groqModels
+    }
+
+    var displayedGroqModels: [SpeechProviderModelChoice] {
+        SpeechProviderModelCatalog.presentingChoices(availableGroqModels, selectedModelID: groqModel)
+    }
+
+    var availableElevenLabsModels: [SpeechProviderModelChoice] {
+        if !elevenLabsModels.isEmpty {
+            return elevenLabsModels.map { model in
+                SpeechProviderModelChoice(id: model.modelId, name: model.name)
+            }
+        }
+        return SpeechProviderModelCatalog.defaultTextToSpeechChoices(for: .elevenlabs)
+    }
+
+    var displayedElevenLabsModels: [SpeechProviderModelChoice] {
+        SpeechProviderModelCatalog.presentingChoices(
+            availableElevenLabsModels,
+            selectedModelID: elevenLabsModelID
+        )
     }
 
     // MARK: - Groq Voice Helpers

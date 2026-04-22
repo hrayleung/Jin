@@ -151,6 +151,121 @@ final class AudioNetworkingClientTests: XCTestCase {
 
         XCTAssertEqual(text, "WEBVTT\n\n00:00.000 --> 00:01.000\nHello\n")
     }
+
+    func testOpenAIAudioClientListModelsDecodesAvailableModels() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://example.com/v1/models")
+            XCTAssertEqual(request.httpMethod, "GET")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer test-key")
+
+            return (
+                HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                Data("""
+                {
+                  "data": [
+                    { "id": "gpt-4o-mini-tts", "name": "GPT-4o mini TTS" },
+                    { "id": "tts-1" }
+                  ]
+                }
+                """.utf8)
+            )
+        }
+
+        let client = OpenAIAudioClient(
+            apiKey: "test-key",
+            baseURL: URL(string: "https://example.com/v1")!,
+            networkManager: networkManager
+        )
+
+        let models = try await client.listModels()
+
+        XCTAssertEqual(
+            models,
+            [
+                SpeechProviderModelChoice(id: "gpt-4o-mini-tts", name: "GPT-4o mini TTS"),
+                SpeechProviderModelChoice(id: "tts-1")
+            ]
+        )
+    }
+
+    func testGroqAudioClientListModelsDecodesAvailableModels() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://example.com/openai/v1/models")
+            XCTAssertEqual(request.httpMethod, "GET")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer test-key")
+
+            return (
+                HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                Data("""
+                {
+                  "data": [
+                    { "id": "canopylabs/orpheus-v1-english", "name": "Orpheus English" },
+                    { "id": "llama-3.3-70b-versatile", "name": "Llama" }
+                  ]
+                }
+                """.utf8)
+            )
+        }
+
+        let client = GroqAudioClient(
+            apiKey: "test-key",
+            baseURL: URL(string: "https://example.com/openai/v1")!,
+            networkManager: networkManager
+        )
+
+        let models = try await client.listModels()
+
+        XCTAssertEqual(
+            models,
+            [
+                SpeechProviderModelChoice(id: "canopylabs/orpheus-v1-english", name: "Orpheus English"),
+                SpeechProviderModelChoice(id: "llama-3.3-70b-versatile", name: "Llama")
+            ]
+        )
+    }
+
+    func testElevenLabsSTTClientListModelsDecodesAvailableModels() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://example.com/v1/models")
+            XCTAssertEqual(request.httpMethod, "GET")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "xi-api-key"), "test-key")
+
+            return (
+                HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                Data("""
+                [
+                  { "model_id": "scribe_v2", "name": "Scribe v2" },
+                  { "model_id": "scribe_realtime_v1", "name": "Scribe Realtime" }
+                ]
+                """.utf8)
+            )
+        }
+
+        let client = ElevenLabsSTTClient(
+            apiKey: "test-key",
+            baseURL: URL(string: "https://example.com/v1")!,
+            networkManager: networkManager
+        )
+
+        let models = try await client.listModels()
+
+        XCTAssertEqual(
+            models,
+            [
+                SpeechProviderModelChoice(id: "scribe_v2", name: "Scribe v2"),
+                SpeechProviderModelChoice(id: "scribe_realtime_v1", name: "Scribe Realtime")
+            ]
+        )
+    }
 }
 
 private final class MockURLProtocol: URLProtocol {

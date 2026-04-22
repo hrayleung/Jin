@@ -6,6 +6,11 @@ actor ElevenLabsSTTClient {
         static let defaultBaseURL = URL(string: "https://api.elevenlabs.io/v1")!
     }
 
+    private struct AvailableModel: Decodable {
+        let modelId: String
+        let name: String
+    }
+
     private struct TranscriptionResponse: Decodable {
         let text: String?
         let languageCode: String?
@@ -40,6 +45,27 @@ actor ElevenLabsSTTClient {
             formData.append(Data("scribe_v2".utf8), withName: "model_id")
         }
         _ = try await networkManager.sendRequest(request)
+    }
+
+    func listModels(timeoutSeconds: TimeInterval = 30) async throws -> [SpeechProviderModelChoice] {
+        let request = NetworkRequestFactory.makeRequest(
+            url: baseURL.appendingPathComponent("models"),
+            method: .get,
+            timeoutSeconds: timeoutSeconds,
+            headers: [HTTPHeader(name: "xi-api-key", value: apiKey)]
+        )
+
+        let (data, _) = try await networkManager.sendRequest(request)
+        do {
+            let decoder = JSONDecoder()
+            decoder.keyDecodingStrategy = .convertFromSnakeCase
+            return try decoder.decode([AvailableModel].self, from: data).map { model in
+                SpeechProviderModelChoice(id: model.modelId, name: model.name)
+            }
+        } catch {
+            let message = String(data: data, encoding: .utf8) ?? error.localizedDescription
+            throw LLMError.decodingError(message: message)
+        }
     }
 
     /// 100ms silent 16-bit PCM WAV at 16kHz (meets ElevenLabs minimum).

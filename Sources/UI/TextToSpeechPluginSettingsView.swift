@@ -43,8 +43,11 @@ struct TextToSpeechPluginSettingsView: View {
     @State var lastPersistedAPIKey = ""
     @State var autoSaveTask: Task<Void, Never>?
 
+    @State var openAIModels: [SpeechProviderModelChoice] = []
+    @State var groqModels: [SpeechProviderModelChoice] = []
     @State var elevenLabsVoices: [ElevenLabsTTSClient.Voice] = []
     @State var elevenLabsModels: [ElevenLabsTTSClient.Model] = []
+    @State var isLoadingModels = false
     @State var isLoadingVoices = false
     @State var voicePreviewPlayer: AVAudioPlayer?
     @State var isPlayingVoicePreview = false
@@ -90,7 +93,7 @@ struct TextToSpeechPluginSettingsView: View {
                     if TextToSpeechProvider(rawValue: oldProviderRaw)?.requiresAPIKey == true {
                         persistAPIKeyIfNeeded(forProviderRaw: oldProviderRaw, showSavedStatus: false)
                     }
-                    Task { await loadExistingKeyAndMaybeVoices() }
+                    Task { await loadExistingKeyAndMaybeProviderResources() }
                     NotificationCenter.default.post(name: .pluginCredentialsDidChange, object: nil)
                 }
             }
@@ -129,7 +132,7 @@ struct TextToSpeechPluginSettingsView: View {
 
                     Spacer()
 
-                    if isTesting || isLoadingVoices {
+                    if isTesting || isLoadingModels || isLoadingVoices {
                         ProgressView()
                             .controlSize(.small)
                     }
@@ -150,7 +153,7 @@ struct TextToSpeechPluginSettingsView: View {
         .background(JinSemanticColor.detailSurface)
         .navigationTitle("Text to Speech")
         .task {
-            await loadExistingKeyAndMaybeVoices()
+            await loadExistingKeyAndMaybeProviderResources()
             hasLoadedKey = true
         }
         .onChange(of: apiKey) { _, _ in

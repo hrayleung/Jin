@@ -53,6 +53,11 @@ struct SpeechToTextPluginSettingsView: View {
     @State var hasLoadedKey = false
     @State var lastPersistedAPIKey = ""
     @State var autoSaveTask: Task<Void, Never>?
+    @State var openAIModels: [SpeechProviderModelChoice] = []
+    @State var groqModels: [SpeechProviderModelChoice] = []
+    @State var mistralModels: [SpeechProviderModelChoice] = []
+    @State var elevenLabsModels: [SpeechProviderModelChoice] = []
+    @State var isLoadingModels = false
 
     var provider: SpeechToTextProvider? {
         SpeechToTextProvider(rawValue: providerRaw)
@@ -92,7 +97,7 @@ struct SpeechToTextPluginSettingsView: View {
                     if SpeechToTextProvider(rawValue: oldProviderRaw)?.requiresAPIKey == true {
                         persistAPIKeyIfNeeded(forProviderRaw: oldProviderRaw, showSavedStatus: false)
                     }
-                    Task { await loadExistingKey() }
+                    Task { await loadExistingKeyAndMaybeModels() }
                     NotificationCenter.default.post(name: .pluginCredentialsDidChange, object: nil)
                 }
 
@@ -135,7 +140,7 @@ struct SpeechToTextPluginSettingsView: View {
 
                         Spacer()
 
-                        if isTesting {
+                        if isTesting || isLoadingModels {
                             ProgressView()
                                 .controlSize(.small)
                         }
@@ -156,7 +161,7 @@ struct SpeechToTextPluginSettingsView: View {
         .background(JinSemanticColor.detailSurface)
         .navigationTitle("Speech to Text")
         .task {
-            await loadExistingKey()
+            await loadExistingKeyAndMaybeModels()
             hasLoadedKey = true
         }
         .onChange(of: apiKey) { _, _ in

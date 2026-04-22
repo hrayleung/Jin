@@ -14,9 +14,12 @@ extension SpeechToTextPluginSettingsView {
                         .font(.system(.body, design: .monospaced))
                         .textFieldStyle(.roundedBorder)
 
-                    TextField("Model", text: $openAIModel)
-                        .font(.system(.body, design: .monospaced))
-                        .textFieldStyle(.roundedBorder)
+                    Picker("Model", selection: $openAIModel) {
+                        ForEach(displayedOpenAIModels) { model in
+                            Text(model.name).tag(model.id)
+                        }
+                    }
+                    .pickerStyle(.menu)
 
                     Toggle("Translate to English", isOn: $openAITranslateToEnglish)
 
@@ -53,9 +56,12 @@ extension SpeechToTextPluginSettingsView {
                         .font(.system(.body, design: .monospaced))
                         .textFieldStyle(.roundedBorder)
 
-                    TextField("Model", text: $groqModel)
-                        .font(.system(.body, design: .monospaced))
-                        .textFieldStyle(.roundedBorder)
+                    Picker("Model", selection: $groqModel) {
+                        ForEach(displayedGroqModels) { model in
+                            Text(model.name).tag(model.id)
+                        }
+                    }
+                    .pickerStyle(.menu)
 
                     Toggle("Translate to English", isOn: $groqTranslateToEnglish)
 
@@ -92,9 +98,12 @@ extension SpeechToTextPluginSettingsView {
                         .font(.system(.body, design: .monospaced))
                         .textFieldStyle(.roundedBorder)
 
-                    TextField("Model", text: $mistralModel)
-                        .font(.system(.body, design: .monospaced))
-                        .textFieldStyle(.roundedBorder)
+                    Picker("Model", selection: $mistralModel) {
+                        ForEach(displayedMistralModels) { model in
+                            Text(model.name).tag(model.id)
+                        }
+                    }
+                    .pickerStyle(.menu)
 
                     TextField("Language (optional)", text: $mistralLanguage)
                         .font(.system(.body, design: .monospaced))
@@ -137,8 +146,9 @@ extension SpeechToTextPluginSettingsView {
                         .textFieldStyle(.roundedBorder)
 
                     Picker("Model", selection: $elevenLabsModel) {
-                        Text("Scribe v2").tag("scribe_v2")
-                        Text("Scribe v1").tag("scribe_v1")
+                        ForEach(displayedElevenLabsModels) { model in
+                            Text(model.name).tag(model.id)
+                        }
                     }
                     .pickerStyle(.menu)
 
@@ -237,6 +247,46 @@ extension SpeechToTextPluginSettingsView {
         case .elevenlabs, .whisperKit:
             break
         }
+    }
+
+    var availableOpenAIModels: [SpeechProviderModelChoice] {
+        openAIModels.isEmpty
+            ? SpeechProviderModelCatalog.defaultSpeechToTextChoices(for: .openai)
+            : openAIModels
+    }
+
+    var displayedOpenAIModels: [SpeechProviderModelChoice] {
+        SpeechProviderModelCatalog.presentingChoices(availableOpenAIModels, selectedModelID: openAIModel)
+    }
+
+    var availableGroqModels: [SpeechProviderModelChoice] {
+        groqModels.isEmpty
+            ? SpeechProviderModelCatalog.defaultSpeechToTextChoices(for: .groq)
+            : groqModels
+    }
+
+    var displayedGroqModels: [SpeechProviderModelChoice] {
+        SpeechProviderModelCatalog.presentingChoices(availableGroqModels, selectedModelID: groqModel)
+    }
+
+    var availableMistralModels: [SpeechProviderModelChoice] {
+        mistralModels.isEmpty
+            ? SpeechProviderModelCatalog.defaultSpeechToTextChoices(for: .mistral)
+            : mistralModels
+    }
+
+    var displayedMistralModels: [SpeechProviderModelChoice] {
+        SpeechProviderModelCatalog.presentingChoices(availableMistralModels, selectedModelID: mistralModel)
+    }
+
+    var availableElevenLabsModels: [SpeechProviderModelChoice] {
+        elevenLabsModels.isEmpty
+            ? SpeechProviderModelCatalog.defaultSpeechToTextChoices(for: .elevenlabs)
+            : elevenLabsModels
+    }
+
+    var displayedElevenLabsModels: [SpeechProviderModelChoice] {
+        SpeechProviderModelCatalog.presentingChoices(availableElevenLabsModels, selectedModelID: elevenLabsModel)
     }
 
     // MARK: - Static Constants
