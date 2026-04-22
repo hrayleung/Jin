@@ -215,6 +215,8 @@ enum ChatStreamingOrchestrator {
                     var streamedCharacterCount = 0
                     var didLogFirstStreamEvent = false
                     var didLogFirstUIFlush = false
+                    var didLogFirstContentDelta = false
+                    var didLogFirstThinkingDelta = false
 
                     func uiFlushInterval() -> TimeInterval {
                         switch streamedCharacterCount {
@@ -256,9 +258,37 @@ enum ChatStreamingOrchestrator {
                             // #endregion
                         }
 
+                        // #region agent log
+                        ChatDiagnosticLogger.log(
+                            runId: "initial",
+                            hypothesisId: "H8",
+                            message: "chat_ui_flush_mainactor_start",
+                            data: [
+                                "conversationID": ctx.conversationID.uuidString,
+                                "threadID": ctx.threadID.uuidString,
+                                "textDeltaCount": String(textDelta.count),
+                                "thinkingDeltaCount": String(thinkingDelta.count)
+                            ]
+                        )
+                        // #endregion
+
                         await MainActor.run {
                             streamingState.appendDeltas(textDelta: textDelta, thinkingDelta: thinkingDelta)
                         }
+
+                        // #region agent log
+                        ChatDiagnosticLogger.log(
+                            runId: "initial",
+                            hypothesisId: "H8",
+                            message: "chat_ui_flush_mainactor_end",
+                            data: [
+                                "conversationID": ctx.conversationID.uuidString,
+                                "threadID": ctx.threadID.uuidString,
+                                "textDeltaCount": String(textDelta.count),
+                                "thinkingDeltaCount": String(thinkingDelta.count)
+                            ]
+                        )
+                        // #endregion
                     }
 
                     for try await event in stream {
@@ -321,6 +351,21 @@ enum ChatStreamingOrchestrator {
                             break
                         case .contentDelta(let part):
                             if case .text(let delta) = part {
+                                if !didLogFirstContentDelta {
+                                    didLogFirstContentDelta = true
+                                    // #region agent log
+                                    ChatDiagnosticLogger.log(
+                                        runId: "initial",
+                                        hypothesisId: "H7",
+                                        message: "chat_first_content_delta",
+                                        data: [
+                                            "conversationID": ctx.conversationID.uuidString,
+                                            "threadID": ctx.threadID.uuidString,
+                                            "textDeltaCount": String(delta.count)
+                                        ]
+                                    )
+                                    // #endregion
+                                }
                                 accumulator.appendTextDelta(delta)
                                 pendingTextDelta.append(delta)
                                 streamedCharacterCount += delta.count
@@ -334,6 +379,21 @@ enum ChatStreamingOrchestrator {
                             switch delta {
                             case .thinking(let textDelta, _):
                                 if !textDelta.isEmpty {
+                                    if !didLogFirstThinkingDelta {
+                                        didLogFirstThinkingDelta = true
+                                        // #region agent log
+                                        ChatDiagnosticLogger.log(
+                                            runId: "initial",
+                                            hypothesisId: "H7",
+                                            message: "chat_first_thinking_delta",
+                                            data: [
+                                                "conversationID": ctx.conversationID.uuidString,
+                                                "threadID": ctx.threadID.uuidString,
+                                                "thinkingDeltaCount": String(textDelta.count)
+                                            ]
+                                        )
+                                        // #endregion
+                                    }
                                     pendingThinkingDelta.append(textDelta)
                                     streamedCharacterCount += textDelta.count
                                 }

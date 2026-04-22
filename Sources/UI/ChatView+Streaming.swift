@@ -480,6 +480,10 @@ extension ChatView {
             threadID: threadID,
             modelLabel: modelNameSnapshot
         )
+        streamingState.debugContext = StreamingDebugContext(
+            conversationID: conversationID,
+            threadID: threadID
+        )
         streamingState.reset()
 
         let providerConfig: ProviderConfig?

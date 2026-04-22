@@ -250,6 +250,7 @@ private struct StreamingArtifactIndicator: View {
 final class StreamingMessageState: ObservableObject {
     private static let maxChunkSize = 2048
 
+    var debugContext: StreamingDebugContext?
     @Published private(set) var thinkingChunks: [String] = []
     @Published private(set) var searchActivities: [SearchActivity] = []
     @Published private(set) var codeExecutionActivities: [CodeExecutionActivity] = []
@@ -269,6 +270,7 @@ final class StreamingMessageState: ObservableObject {
     private var codeExecutionActivitiesByID: OrderedDictionary<String, CodeExecutionActivity> = [:]
     private var codexToolActivitiesByID: OrderedDictionary<String, CodexToolActivity> = [:]
     private var agentToolActivitiesByID: OrderedDictionary<String, CodexToolActivity> = [:]
+    private var hasLoggedFirstDeltaApply = false
 
     var textContent: String { textStorage }
     var thinkingContent: String { thinkingStorage }
@@ -287,6 +289,7 @@ final class StreamingMessageState: ObservableObject {
         codeExecutionActivitiesByID = [:]
         codexToolActivitiesByID = [:]
         agentToolActivitiesByID = [:]
+        hasLoggedFirstDeltaApply = false
         visibleText = ""
         artifacts = []
         hasVisibleText = false
@@ -295,8 +298,10 @@ final class StreamingMessageState: ObservableObject {
     }
 
     func appendDeltas(textDelta: String, thinkingDelta: String) {
+        let appendStartedAt = ProcessInfo.processInfo.systemUptime
         var didMutate = false
         var didChangeText = false
+        var parseDurationMs = 0
 
         if !textDelta.isEmpty {
             textStorage.append(textDelta)
@@ -314,11 +319,34 @@ final class StreamingMessageState: ObservableObject {
         }
 
         if didChangeText {
+            let parseStartedAt = ProcessInfo.processInfo.systemUptime
             updateParsedStreamingContent()
+            parseDurationMs = Int((ProcessInfo.processInfo.systemUptime - parseStartedAt) * 1000)
         }
 
         if didMutate {
             renderTick &+= 1
+        }
+
+        if !hasLoggedFirstDeltaApply, didMutate {
+            hasLoggedFirstDeltaApply = true
+            let totalDurationMs = Int((ProcessInfo.processInfo.systemUptime - appendStartedAt) * 1000)
+            // #region agent log
+            ChatDiagnosticLogger.log(
+                runId: "initial",
+                hypothesisId: "H7",
+                message: "chat_first_delta_apply_complete",
+                data: [
+                    "conversationID": debugContext?.conversationID.uuidString ?? "",
+                    "threadID": debugContext?.threadID.uuidString ?? "",
+                    "textDeltaCount": String(textDelta.count),
+                    "thinkingDeltaCount": String(thinkingDelta.count),
+                    "parseDurationMs": String(parseDurationMs),
+                    "totalDurationMs": String(totalDurationMs),
+                    "visibleTextCount": String(visibleText.count)
+                ]
+            )
+            // #endregion
         }
     }
 
@@ -418,6 +446,11 @@ final class StreamingMessageState: ObservableObject {
             }
         }
     }
+}
+
+struct StreamingDebugContext {
+    let conversationID: UUID
+    let threadID: UUID
 }
 
 // MARK: - Preference Keys
