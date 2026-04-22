@@ -6,13 +6,7 @@ import Foundation
 /// feature-specific capabilities that aren't yet surfaced through ModelInfo.
 extension ChatView {
 
-    static let openAIImageGenerationModelIDs: Set<String> = [
-        "gpt-image-1",
-        "gpt-image-1.5",
-        "gpt-image-1-mini",
-        "dall-e-2",
-        "dall-e-3",
-    ]
+    static let openAIImageGenerationModelIDs: Set<String> = OpenAIImageModelSupport.imageGenerationModelIDs
 
     static let xAIImageGenerationModelIDs: Set<String> = [
         "grok-imagine-image",

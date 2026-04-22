@@ -37,11 +37,17 @@ extension ChatView {
                 }
             )
         } else if providerType == .openai || providerType == .openaiWebSocket {
+            let openAIImageProfile = OpenAIImageModelSupport.profile(for: lowerModelID)
             OpenAIImageGenerationMenuView(
                 isConfigured: isImageGenerationConfigured,
-                isGPTImageModel: lowerModelID.hasPrefix("gpt-image"),
-                isDallE3: lowerModelID.hasPrefix("dall-e-3"),
-                showsInputFidelity: lowerModelID == "gpt-image-1",
+                availableSizes: openAIImageProfile?.presetSizes ?? [],
+                supportsCustomSizeEditor: openAIImageProfile?.supportsCustomSize == true,
+                availableQualities: openAIImageProfile?.qualityOptions ?? [],
+                showsStyle: openAIImageProfile?.supportsStyle == true,
+                availableBackgrounds: openAIImageProfile?.backgroundOptions ?? [],
+                showsOutputFormat: openAIImageProfile?.supportsOutputFormat == true,
+                showsModeration: openAIImageProfile?.supportsModeration == true,
+                showsInputFidelity: openAIImageProfile?.supportsInputFidelity == true,
                 currentCount: controls.openaiImageGeneration?.count,
                 currentSize: controls.openaiImageGeneration?.size,
                 currentQuality: controls.openaiImageGeneration?.quality,
@@ -59,6 +65,9 @@ extension ChatView {
                 },
                 onSetSize: { value in
                     updateOpenAIImageGeneration { $0.size = value }
+                },
+                onShowCustomSizeEditor: {
+                    presentOpenAIImageCustomSizeSheet()
                 },
                 onSetQuality: { value in
                     updateOpenAIImageGeneration { $0.quality = value }
@@ -104,24 +113,37 @@ extension ChatView {
     func updateOpenAIImageGeneration(_ mutate: (inout OpenAIImageGenerationControls) -> Void) {
         var draft = controls.openaiImageGeneration ?? OpenAIImageGenerationControls()
         mutate(&draft)
-
-        // If background is transparent, ensure output format supports transparency
-        if draft.background == .transparent {
-            if let format = draft.outputFormat, format == .jpeg {
-                draft.outputFormat = .png
-            }
-        }
-
-        // Clear compression if format doesn't support it
-        if let format = draft.outputFormat, format == .png {
-            draft.outputCompression = nil
-        }
-        if draft.outputFormat == nil {
-            draft.outputCompression = nil
-        }
+        normalizeOpenAIImageControls(&draft)
 
         controls.openaiImageGeneration = draft.isEmpty ? nil : draft
         persistControlsToConversation()
+    }
+
+    func presentOpenAIImageCustomSizeSheet() {
+        openAIImageCustomSizeTargetThreadID = activeModelThread?.id
+        openAIImageCustomSizeTargetModelID = lowerModelID
+        showingOpenAIImageCustomSizeSheet = true
+    }
+
+    func dismissOpenAIImageCustomSizeSheet() {
+        showingOpenAIImageCustomSizeSheet = false
+        openAIImageCustomSizeTargetThreadID = nil
+        openAIImageCustomSizeTargetModelID = ""
+    }
+
+    func handleOpenAIImageCustomSizeSave(_ size: OpenAIImageSize) {
+        let targetThreadID = openAIImageCustomSizeTargetThreadID
+        let targetModelID = openAIImageCustomSizeTargetModelID
+        dismissOpenAIImageCustomSizeSheet()
+
+        guard targetThreadID == activeModelThread?.id,
+              targetModelID == lowerModelID else {
+            errorMessage = "The selected OpenAI image model changed while the custom size sheet was open. Reopen the sheet and try again."
+            showingError = true
+            return
+        }
+
+        updateOpenAIImageGeneration { $0.size = size }
     }
 
     func updateXAIImageGeneration(_ mutate: (inout XAIImageGenerationControls) -> Void) {

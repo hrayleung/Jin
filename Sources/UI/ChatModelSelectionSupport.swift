@@ -3,10 +3,10 @@ import SwiftData
 
 enum ChatModelSelectionSupport {
     static let preferredFireworksModelOrder: [String] = [
+        "kimi-k2p6",
         "qwen3p6-plus",
         "deepseek-v3p2",
         "kimi-k2-instruct-0905",
-        "kimi-k2p6",
         "glm-5",
         "minimax-m2p5",
         "kimi-k2p5",

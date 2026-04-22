@@ -191,6 +191,12 @@ struct ChatView: View {
     @State var googleMapsDraftError: String?
 
     @State var showingImageGenerationSheet = false
+    // Accessed from ChatView extensions in separate files.
+    // swiftlint:disable private_swiftui_state
+    @State var showingOpenAIImageCustomSizeSheet = false
+    @State var openAIImageCustomSizeTargetThreadID: UUID?
+    @State var openAIImageCustomSizeTargetModelID = ""
+    // swiftlint:enable private_swiftui_state
     @State var imageGenerationDraft = ImageGenerationControls()
     @State var imageGenerationSeedDraft = ""
     @State var imageGenerationCompressionQualityDraft = ""
@@ -443,6 +449,16 @@ struct ChatView: View {
                 isValid: isImageGenerationDraftValid,
                 onCancel: { showingImageGenerationSheet = false },
                 onSave: { applyImageGenerationDraft() }
+            )
+        }
+        .sheet(isPresented: $showingOpenAIImageCustomSizeSheet) {
+            OpenAIImageCustomSizeSheetView(
+                modelID: openAIImageCustomSizeTargetModelID.isEmpty ? lowerModelID : openAIImageCustomSizeTargetModelID,
+                currentSize: controls.openaiImageGeneration?.size,
+                onCancel: { dismissOpenAIImageCustomSizeSheet() },
+                onSave: { size in
+                    handleOpenAIImageCustomSizeSave(size)
+                }
             )
         }
         .sheet(isPresented: $showingCodexSessionSettingsSheet) {

@@ -424,7 +424,7 @@ extension ContentView {
             case "deepinfra":
                 return "zai-org/GLM-5"
             case "fireworks":
-                return "fireworks/qwen3p6-plus"
+                return "fireworks/kimi-k2p6"
             case "together":
                 return "moonshotai/Kimi-K2.5"
             case "cerebras":

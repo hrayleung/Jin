@@ -5,6 +5,7 @@ import Foundation
 /// Docs:
 /// - Base URL: https://api.fireworks.ai/inference/v1
 /// - Endpoint: POST /chat/completions
+/// - Model listing: GET /v1/accounts/fireworks/models?filter=supports_serverless=true
 /// - Models: `fireworks/qwen3p6-plus`, `fireworks/deepseek-v3p2`, `fireworks/kimi-k2-instruct-0905`, ...
 actor FireworksAdapter: LLMProviderAdapter {
     let providerConfig: ProviderConfig
@@ -51,16 +52,8 @@ actor FireworksAdapter: LLMProviderAdapter {
     }
 
     func fetchAvailableModels() async throws -> [ModelInfo] {
-        let request = makeGETRequest(
-            url: try validatedURL("\(baseURL)/models"),
-            apiKey: apiKey,
-            accept: nil,
-            includeUserAgent: false
-        )
-
-        let (data, _) = try await networkManager.sendRequest(request)
-        let response = try JSONDecoder().decode(OpenAIModelsResponse.self, from: data)
-        return response.data.map { makeModelInfo(id: $0.id) }
+        let ids = try await fetchServerlessCatalogModelIDs()
+        return ids.map { makeModelInfo(id: $0) }
     }
 
     // MARK: - Private
@@ -69,6 +62,87 @@ actor FireworksAdapter: LLMProviderAdapter {
         let raw = (providerConfig.baseURL ?? "https://api.fireworks.ai/inference/v1")
             .trimmingCharacters(in: .whitespacesAndNewlines)
         return raw.hasSuffix("/") ? String(raw.dropLast()) : raw
+    }
+
+    private var modelsBaseURLRoot: String {
+        let strippedInferencePath = baseURL.replacingOccurrences(
+            of: "/inference/v1",
+            with: "",
+            options: [.caseInsensitive, .anchored, .backwards]
+        )
+        return stripTrailingV1(strippedInferencePath)
+    }
+
+    private func fetchServerlessCatalogModelIDs() async throws -> [String] {
+        var pageToken: String?
+        var ids: [String] = []
+        var seenIDs = Set<String>()
+
+        while true {
+            let request = makeGETRequest(
+                url: try serverlessModelsURL(pageToken: pageToken),
+                apiKey: apiKey,
+                accept: nil,
+                includeUserAgent: false
+            )
+
+            let (data, _) = try await networkManager.sendRequest(request)
+            let response = try JSONDecoder().decode(FireworksModelsListResponse.self, from: data)
+
+            for model in response.models {
+                let id = normalizedServerlessCatalogModelID(model.name)
+                if seenIDs.insert(id).inserted {
+                    ids.append(id)
+                }
+            }
+
+            guard let nextPageToken = normalizedPageToken(response.nextPageToken),
+                  nextPageToken != pageToken else {
+                break
+            }
+            pageToken = nextPageToken
+        }
+
+        return ids
+    }
+
+    private func serverlessModelsURL(pageToken: String?) throws -> URL {
+        guard var components = URLComponents(
+            string: "\(modelsBaseURLRoot)/v1/accounts/fireworks/models"
+        ) else {
+            throw LLMError.invalidRequest(message: "Invalid Fireworks models URL.")
+        }
+
+        var queryItems = [
+            URLQueryItem(name: "filter", value: "supports_serverless=true"),
+            URLQueryItem(name: "pageSize", value: "200")
+        ]
+        if let pageToken = normalizedPageToken(pageToken) {
+            queryItems.append(URLQueryItem(name: "pageToken", value: pageToken))
+        }
+        components.queryItems = queryItems
+
+        guard let url = components.url else {
+            throw LLMError.invalidRequest(message: "Invalid Fireworks models URL.")
+        }
+        return url
+    }
+
+    private func normalizedServerlessCatalogModelID(_ rawID: String) -> String {
+        let trimmed = rawID.trimmingCharacters(in: .whitespacesAndNewlines)
+        let lower = trimmed.lowercased()
+        let prefix = "accounts/fireworks/models/"
+
+        if lower.hasPrefix(prefix) {
+            return "fireworks/\(trimmed.dropFirst(prefix.count))"
+        }
+
+        return trimmed
+    }
+
+    private func normalizedPageToken(_ pageToken: String?) -> String? {
+        let trimmed = pageToken?.trimmingCharacters(in: .whitespacesAndNewlines)
+        return (trimmed?.isEmpty == false) ? trimmed : nil
     }
 
     private func buildRequest(
@@ -368,4 +442,13 @@ actor FireworksAdapter: LLMProviderAdapter {
     private func isFireworksModelID(_ modelID: String, canonicalID: String) -> Bool {
         fireworksCanonicalModelID(modelID) == canonicalID
     }
+}
+
+private struct FireworksModelsListResponse: Decodable {
+    let models: [FireworksCatalogModel]
+    let nextPageToken: String?
+}
+
+private struct FireworksCatalogModel: Decodable {
+    let name: String
 }
