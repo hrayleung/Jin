@@ -3,6 +3,7 @@ import SwiftUI
 struct PluginAPIKeySettingsView: View {
     let title: String
     let preferenceKey: String
+    let apiKeyHint: String?
     let testConnection: (String) async throws -> Void
 
     @State private var apiKey = ""
@@ -16,6 +17,18 @@ struct PluginAPIKeySettingsView: View {
 
     private var trimmedAPIKey: String {
         apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    init(
+        title: String,
+        preferenceKey: String,
+        apiKeyHint: String? = nil,
+        testConnection: @escaping (String) async throws -> Void
+    ) {
+        self.title = title
+        self.preferenceKey = preferenceKey
+        self.apiKeyHint = apiKeyHint
+        self.testConnection = testConnection
     }
 
     var body: some View {
@@ -62,6 +75,12 @@ struct PluginAPIKeySettingsView: View {
                     Text(statusMessage)
                         .font(.caption)
                         .foregroundStyle(statusIsError ? Color.red : Color.secondary)
+                }
+
+                if let apiKeyHint, !apiKeyHint.isEmpty {
+                    Text(apiKeyHint)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
             }
         }
