@@ -191,6 +191,7 @@ struct ChatView: View {
     @State var googleMapsDraftError: String?
 
     @State var showingImageGenerationSheet = false
+    @State var showingOpenAIImageCustomSizeSheet = false
     @State var imageGenerationDraft = ImageGenerationControls()
     @State var imageGenerationSeedDraft = ""
     @State var imageGenerationCompressionQualityDraft = ""
@@ -443,6 +444,17 @@ struct ChatView: View {
                 isValid: isImageGenerationDraftValid,
                 onCancel: { showingImageGenerationSheet = false },
                 onSave: { applyImageGenerationDraft() }
+            )
+        }
+        .sheet(isPresented: $showingOpenAIImageCustomSizeSheet) {
+            OpenAIImageCustomSizeSheetView(
+                modelID: lowerModelID,
+                currentSize: controls.openaiImageGeneration?.size,
+                onCancel: { showingOpenAIImageCustomSizeSheet = false },
+                onSave: { size in
+                    updateOpenAIImageGeneration { $0.size = size }
+                    showingOpenAIImageCustomSizeSheet = false
+                }
             )
         }
         .sheet(isPresented: $showingCodexSessionSettingsSheet) {

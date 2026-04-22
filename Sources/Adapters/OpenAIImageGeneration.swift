@@ -1,26 +1,21 @@
+import Alamofire
 import Foundation
+
+private struct PreparedOpenAIUploadImage {
+    let data: Data
+    let mimeType: String
+    let filename: String
+}
 
 // MARK: - OpenAI Image Generation
 
 extension OpenAIAdapter {
 
-    /// Known GPT Image model IDs.
-    static let imageGenerationModelIDs: Set<String> = [
-        "gpt-image-1",
-        "gpt-image-1.5",
-        "gpt-image-1-mini",
-        "dall-e-2",
-        "dall-e-3",
-    ]
+    /// Known OpenAI image-generation model IDs.
+    static let imageGenerationModelIDs: Set<String> = OpenAIImageModelSupport.imageGenerationModelIDs
 
     /// Models that support the `/images/edits` endpoint.
-    /// Note: `dall-e-3` does NOT support image editing.
-    private static let imageEditSupportedModelIDs: Set<String> = [
-        "gpt-image-1",
-        "gpt-image-1.5",
-        "gpt-image-1-mini",
-        "dall-e-2",
-    ]
+    static let imageEditSupportedModelIDs: Set<String> = OpenAIImageModelSupport.imageEditSupportedModelIDs
 
     func isImageGenerationModel(_ modelID: String) -> Bool {
         if providerConfig.models.first(where: { $0.id == modelID })?.capabilities.contains(.imageGeneration) == true {
@@ -38,7 +33,7 @@ extension OpenAIAdapter {
         modelID: String,
         controls: GenerationControls
     ) throws -> AsyncThrowingStream<StreamEvent, Error> {
-        let imageURL = imageURLForImageGeneration(from: messages)
+        let inputImages = inputImagesForImageGeneration(from: messages)
         let prompt = extractImagePrompt(from: messages)
 
         guard !prompt.isEmpty else {
@@ -48,10 +43,10 @@ extension OpenAIAdapter {
         return AsyncThrowingStream { continuation in
             let task = Task {
                 do {
-                    let request = try buildImageGenerationRequest(
+                    let request = try await buildImageGenerationRequest(
                         modelID: modelID,
                         prompt: prompt,
-                        imageURL: imageURL,
+                        inputImages: inputImages,
                         controls: controls
                     )
                     let (data, _) = try await networkManager.sendRequest(request)
@@ -97,90 +92,92 @@ extension OpenAIAdapter {
     private func buildImageGenerationRequest(
         modelID: String,
         prompt: String,
-        imageURL: String?,
+        inputImages: [ImageContent],
         controls: GenerationControls
-    ) throws -> URLRequest {
-        let lowerModel = modelID.lowercased()
-        let modelSupportsEdit = Self.imageEditSupportedModelIDs.contains(lowerModel)
-        let isImageEdit = modelSupportsEdit && (imageURL?.isEmpty == false)
-        let endpoint = isImageEdit ? "images/edits" : "images/generations"
+    ) async throws -> URLRequest {
+        guard let profile = OpenAIImageModelSupport.profile(for: modelID) else {
+            throw LLMError.invalidRequest(message: "Unsupported OpenAI image model: \(modelID)")
+        }
 
+        let isImageEdit = profile.supportsEdits && !inputImages.isEmpty
+
+        if isImageEdit, profile.usesMultipartEdits {
+            return try await buildMultipartImageEditRequest(
+                modelID: modelID,
+                prompt: prompt,
+                inputImages: inputImages,
+                controls: controls
+            )
+        }
+
+        let endpoint = isImageEdit ? "images/edits" : "images/generations"
         let imageControls = controls.openaiImageGeneration
-        let isGPTImageModel = lowerModel.hasPrefix("gpt-image")
-        let isDallE3 = lowerModel.hasPrefix("dall-e-3")
 
         var body: [String: Any] = [
             "model": modelID,
             "prompt": prompt,
         ]
 
-        // n (number of images)
         if let count = imageControls?.count, count > 0 {
             body["n"] = min(max(count, 1), 10)
         }
 
-        // Image input for edits — JSON schema expects `images` array of objects
-        if isImageEdit, let imageURL, !imageURL.isEmpty {
-            body["images"] = [["image_url": imageURL]]
-        }
-
-        // Size
-        if let size = imageControls?.size {
+        if let size = imageControls?.size,
+           OpenAIImageModelSupport.validate(size: size, for: modelID) == nil {
             body["size"] = size.rawValue
         }
 
-        // Quality
-        if let quality = imageControls?.quality {
+        if let quality = imageControls?.quality,
+           profile.qualityOptions.contains(quality) {
             body["quality"] = quality.rawValue
         }
 
-        // Style (DALL-E 3 only)
-        if isDallE3, let style = imageControls?.style {
+        if profile.supportsStyle, let style = imageControls?.style {
             body["style"] = style.rawValue
         }
 
-        // GPT Image model-specific parameters
-        if isGPTImageModel {
-            // Background
-            if let background = imageControls?.background {
-                body["background"] = background.rawValue
-            }
-
-            // Output format
-            if let outputFormat = imageControls?.outputFormat {
-                body["output_format"] = outputFormat.rawValue
-            }
-
-            // Output compression (0-100, only for jpeg/webp)
-            if let compression = imageControls?.outputCompression,
-               let format = imageControls?.outputFormat,
-               format == .jpeg || format == .webp {
-                body["output_compression"] = min(max(compression, 0), 100)
-            }
-
-            // Moderation
-            if let moderation = imageControls?.moderation {
-                body["moderation"] = moderation.rawValue
-            }
-
-            // Input fidelity (gpt-image-1 only, applies to edits)
-            if isImageEdit, lowerModel == "gpt-image-1",
-               let fidelity = imageControls?.inputFidelity {
-                body["input_fidelity"] = fidelity.rawValue
-            }
+        if !profile.backgroundOptions.isEmpty,
+           let background = imageControls?.background,
+           profile.backgroundOptions.contains(background) {
+            body["background"] = background.rawValue
         }
 
-        // response_format: use b64_json for GPT image models; DALL-E models support url or b64_json
-        if !isGPTImageModel {
+        if profile.supportsOutputFormat, let outputFormat = imageControls?.outputFormat {
+            body["output_format"] = outputFormat.rawValue
+        }
+
+        if profile.supportsOutputCompression,
+           let compression = imageControls?.outputCompression,
+           let format = imageControls?.outputFormat,
+           format == .jpeg || format == .webp {
+            body["output_compression"] = min(max(compression, 0), 100)
+        }
+
+        if profile.supportsModeration, let moderation = imageControls?.moderation {
+            body["moderation"] = moderation.rawValue
+        }
+
+        if isImageEdit,
+           profile.supportsInputFidelity,
+           let fidelity = imageControls?.inputFidelity {
+            body["input_fidelity"] = fidelity.rawValue
+        }
+
+        if isImageEdit,
+           let firstImage = inputImages.first,
+           let imageURL = imageURLString(firstImage),
+           !imageURL.isEmpty {
+            body["images"] = [["image_url": imageURL]]
+        }
+
+        if !profile.isGPTImageModel {
             body["response_format"] = "b64_json"
         }
 
-        // User
         if let user = imageControls?.user?.trimmingCharacters(in: .whitespacesAndNewlines), !user.isEmpty {
             body["user"] = user
         }
 
-        // Provider-specific overrides
         for (key, value) in controls.providerSpecific {
             body[key] = value.value
         }
@@ -192,6 +189,113 @@ extension OpenAIAdapter {
             accept: nil,
             includeUserAgent: false
         )
+    }
+
+    private func buildMultipartImageEditRequest(
+        modelID: String,
+        prompt: String,
+        inputImages: [ImageContent],
+        controls: GenerationControls
+    ) async throws -> URLRequest {
+        let imageControls = controls.openaiImageGeneration
+        let preparedImages = try await preparedUploadImages(from: inputImages)
+
+        guard !preparedImages.isEmpty else {
+            throw LLMError.invalidRequest(message: "OpenAI image editing requires at least one readable input image.")
+        }
+
+        let url = try validatedURL("\(baseURL)/images/edits")
+        let headers = NetworkRequestFactory.bearerHeaders(apiKey: apiKey)
+
+        return try NetworkRequestFactory.makeMultipartRequest(
+            url: url,
+            headers: headers
+        ) { formData in
+            appendMultipartField("model", value: modelID, formData: formData)
+            appendMultipartField("prompt", value: prompt, formData: formData)
+
+            if let count = imageControls?.count, count > 0 {
+                appendMultipartField("n", value: min(max(count, 1), 10), formData: formData)
+            }
+
+            if let size = imageControls?.size,
+               OpenAIImageModelSupport.validate(size: size, for: modelID) == nil {
+                appendMultipartField("size", value: size.rawValue, formData: formData)
+            }
+
+            if let quality = imageControls?.quality,
+               OpenAIImageModelSupport.profile(for: modelID)?.qualityOptions.contains(quality) == true {
+                appendMultipartField("quality", value: quality.rawValue, formData: formData)
+            }
+
+            if let background = imageControls?.background,
+               OpenAIImageModelSupport.profile(for: modelID)?.backgroundOptions.contains(background) == true {
+                appendMultipartField("background", value: background.rawValue, formData: formData)
+            }
+
+            if let outputFormat = imageControls?.outputFormat {
+                appendMultipartField("output_format", value: outputFormat.rawValue, formData: formData)
+            }
+
+            if let compression = imageControls?.outputCompression,
+               let format = imageControls?.outputFormat,
+               format == .jpeg || format == .webp {
+                appendMultipartField("output_compression", value: min(max(compression, 0), 100), formData: formData)
+            }
+
+            if let moderation = imageControls?.moderation {
+                appendMultipartField("moderation", value: moderation.rawValue, formData: formData)
+            }
+
+            if let user = imageControls?.user?.trimmingCharacters(in: .whitespacesAndNewlines), !user.isEmpty {
+                appendMultipartField("user", value: user, formData: formData)
+            }
+
+            for image in preparedImages {
+                formData.append(
+                    image.data,
+                    withName: "image[]",
+                    fileName: image.filename,
+                    mimeType: image.mimeType
+                )
+            }
+
+            for (key, value) in controls.providerSpecific {
+                appendMultipartField(key, value: value.value, formData: formData)
+            }
+        }
+    }
+
+    private func appendMultipartField(_ name: String, value: Any, formData: MultipartFormData) {
+        guard let stringValue = multipartFieldString(for: value) else { return }
+        formData.append(Data(stringValue.utf8), withName: name)
+    }
+
+    private func multipartFieldString(for value: Any) -> String? {
+        switch value {
+        case let string as String:
+            return string
+        case let bool as Bool:
+            return bool ? "true" : "false"
+        case let int as Int:
+            return String(int)
+        case let double as Double:
+            return String(double)
+        case let float as Float:
+            return String(float)
+        case let number as NSNumber:
+            if CFGetTypeID(number) == CFBooleanGetTypeID() {
+                return number.boolValue ? "true" : "false"
+            }
+            return number.stringValue
+        default:
+            guard JSONSerialization.isValidJSONObject(value),
+                  let data = try? JSONSerialization.data(withJSONObject: value),
+                  let jsonString = String(data: data, encoding: .utf8) else {
+                return nil
+            }
+            return jsonString
+        }
     }
 
     // MARK: - Prompt Extraction
@@ -211,42 +315,50 @@ extension OpenAIAdapter {
         return userPrompts.last ?? ""
     }
 
-    // MARK: - Image URL Extraction
+    // MARK: - Image Input Extraction
 
-    private func imageURLForImageGeneration(from messages: [Message]) -> String? {
-        // Check the latest user message for an image first
-        if let latestUserMessage = messages.reversed().first(where: { $0.role == .user }),
-           let urlString = firstImageURLString(in: latestUserMessage) {
-            return urlString
+    private func inputImagesForImageGeneration(from messages: [Message]) -> [ImageContent] {
+        if let latestUserImages = latestImages(in: messages, roles: [.user], requireLatestMessageOnly: true) {
+            return latestUserImages
         }
 
-        // Then check assistant messages (e.g., for iterative edits)
-        if let urlString = firstImageURLString(from: messages, roles: [.assistant]) {
-            return urlString
+        if let assistantImages = latestImages(in: messages, roles: [.assistant], requireLatestMessageOnly: false) {
+            return assistantImages
         }
 
-        // Finally check all user messages
-        return firstImageURLString(from: messages, roles: [.user])
+        return latestImages(in: messages, roles: [.user], requireLatestMessageOnly: false) ?? []
     }
 
-    private func firstImageURLString(in message: Message) -> String? {
-        for part in message.content {
-            if case .image(let image) = part,
-               let urlString = imageURLString(image) {
-                return urlString
-            }
-        }
-        return nil
-    }
-
-    private func firstImageURLString(from messages: [Message], roles: [MessageRole]) -> String? {
+    private func latestImages(
+        in messages: [Message],
+        roles: [MessageRole],
+        requireLatestMessageOnly: Bool
+    ) -> [ImageContent]? {
         let roleSet = Set(roles)
+
+        if requireLatestMessageOnly {
+            guard let latestMessage = messages.last(where: { roleSet.contains($0.role) }) else {
+                return nil
+            }
+            let images = images(in: latestMessage)
+            return images.isEmpty ? nil : images
+        }
+
         for message in messages.reversed() where roleSet.contains(message.role) {
-            if let urlString = firstImageURLString(in: message) {
-                return urlString
+            let images = images(in: message)
+            if !images.isEmpty {
+                return images
             }
         }
+
         return nil
+    }
+
+    private func images(in message: Message) -> [ImageContent] {
+        message.content.compactMap { part in
+            guard case .image(let image) = part else { return nil }
+            return image
+        }
     }
 
     private func imageURLString(_ image: ImageContent) -> String? {
@@ -261,6 +373,68 @@ extension OpenAIAdapter {
             return url.absoluteString
         }
         return nil
+    }
+
+    private func preparedUploadImages(from images: [ImageContent]) async throws -> [PreparedOpenAIUploadImage] {
+        var prepared: [PreparedOpenAIUploadImage] = []
+
+        for (index, image) in images.enumerated() {
+            let data = try await resolvedImageData(forUpload: image)
+            let filename = preferredImageFilename(for: image, index: index + 1)
+            prepared.append(
+                PreparedOpenAIUploadImage(
+                    data: data,
+                    mimeType: image.mimeType,
+                    filename: filename
+                )
+            )
+        }
+
+        return prepared
+    }
+
+    private func resolvedImageData(forUpload image: ImageContent) async throws -> Data {
+        if let data = image.data {
+            return data
+        }
+
+        if let url = image.url {
+            if url.isFileURL {
+                return try resolveFileData(from: url)
+            }
+            let request = NetworkRequestFactory.makeRequest(url: url, method: "GET")
+            let (data, _) = try await networkManager.sendRequest(request)
+            return data
+        }
+
+        throw LLMError.invalidRequest(message: "OpenAI image editing requires a readable input image.")
+    }
+
+    private func preferredImageFilename(for image: ImageContent, index: Int) -> String {
+        if let url = image.url {
+            let lastPath = url.lastPathComponent.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !lastPath.isEmpty, url.pathExtension.isEmpty == false {
+                return lastPath
+            }
+        }
+
+        let ext = fileExtension(for: image.mimeType) ?? "png"
+        return "reference-\(index).\(ext)"
+    }
+
+    private func fileExtension(for mimeType: String) -> String? {
+        switch normalizedMIMEType(mimeType) {
+        case "image/png":
+            return "png"
+        case "image/jpeg", "image/jpg":
+            return "jpg"
+        case "image/webp":
+            return "webp"
+        case "image/gif":
+            return "gif"
+        default:
+            return nil
+        }
     }
 
     // MARK: - Response Parsing

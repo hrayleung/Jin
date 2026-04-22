@@ -934,6 +934,38 @@ final class ModelSettingsResolverTests: XCTestCase {
         )
     }
 
+    func testResolverInfersContextWindowForKnownLegacyOpenAIImage2Models() {
+        let legacyAlias = ModelInfo(
+            id: "gpt-image-2",
+            name: "GPT Image 2",
+            capabilities: [.streaming, .vision, .reasoning],
+            contextWindow: 128_000,
+            reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+            isEnabled: true
+        )
+
+        let resolvedAlias = ModelSettingsResolver.resolve(model: legacyAlias, providerType: .openai)
+        XCTAssertEqual(resolvedAlias.modelType, .image)
+        XCTAssertEqual(resolvedAlias.contextWindow, 32_000)
+        XCTAssertEqual(resolvedAlias.capabilities, [.imageGeneration])
+        XCTAssertNil(resolvedAlias.reasoningConfig)
+
+        let legacySnapshot = ModelInfo(
+            id: "gpt-image-2-2026-04-21",
+            name: "GPT Image 2 (2026-04-21)",
+            capabilities: [.streaming, .toolCalling],
+            contextWindow: 128_000,
+            reasoningConfig: nil,
+            isEnabled: true
+        )
+
+        let resolvedSnapshot = ModelSettingsResolver.resolve(model: legacySnapshot, providerType: .openai)
+        XCTAssertEqual(resolvedSnapshot.modelType, .image)
+        XCTAssertEqual(resolvedSnapshot.contextWindow, 32_000)
+        XCTAssertEqual(resolvedSnapshot.capabilities, [.imageGeneration])
+        XCTAssertNil(resolvedSnapshot.reasoningConfig)
+    }
+
     func testResolverInfersContextWindowAndReasoningForKnownLegacyTogetherModels() {
         let kimiLegacy = ModelInfo(
             id: "moonshotai/Kimi-K2.5",

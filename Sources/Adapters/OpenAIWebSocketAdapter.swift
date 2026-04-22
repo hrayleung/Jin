@@ -592,7 +592,7 @@ actor OpenAIWebSocketAdapter: LLMProviderAdapter {
         if providerConfig.models.first(where: { $0.id == modelID })?.capabilities.contains(.imageGeneration) == true {
             return true
         }
-        return OpenAIAdapter.imageGenerationModelIDs.contains(modelID.lowercased())
+        return OpenAIImageModelSupport.isImageGenerationModel(modelID)
     }
 
     private func supportsNativePDF(_ modelID: String) -> Bool {

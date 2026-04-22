@@ -186,4 +186,30 @@ final class ChatContextUsageEstimatorTests: XCTestCase {
             ContextUsageIndicatorView(estimate: differentEstimate, modelName: "GPT-5.2")
         )
     }
+
+    func testContextUsageIndicatorHiddenForDedicatedMediaModels() {
+        XCTAssertFalse(ModelContextUsageSupport.shouldShowIndicator(for: .image))
+        XCTAssertFalse(ModelContextUsageSupport.shouldShowIndicator(for: .video))
+        XCTAssertTrue(ModelContextUsageSupport.shouldShowIndicator(for: .chat))
+        XCTAssertTrue(ModelContextUsageSupport.shouldShowIndicator(for: nil))
+    }
+
+    func testReservedOutputTokensIgnoreRequestedMaxTokensForDedicatedMediaModels() {
+        XCTAssertEqual(
+            ModelContextUsageSupport.reservedOutputTokens(for: .image, requestedMaxTokens: 128_000),
+            0
+        )
+        XCTAssertEqual(
+            ModelContextUsageSupport.reservedOutputTokens(for: .video, requestedMaxTokens: 8_192),
+            0
+        )
+        XCTAssertEqual(
+            ModelContextUsageSupport.reservedOutputTokens(for: .chat, requestedMaxTokens: 8_192),
+            8_192
+        )
+        XCTAssertEqual(
+            ModelContextUsageSupport.reservedOutputTokens(for: nil, requestedMaxTokens: nil),
+            2_048
+        )
+    }
 }

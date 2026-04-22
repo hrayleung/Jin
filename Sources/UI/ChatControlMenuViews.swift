@@ -688,8 +688,13 @@ struct XAIImageGenerationMenuView<MenuItemLabel: View>: View {
 
 struct OpenAIImageGenerationMenuView<MenuItemLabel: View>: View {
     let isConfigured: Bool
-    let isGPTImageModel: Bool
-    let isDallE3: Bool
+    let availableSizes: [OpenAIImageSize]
+    let supportsCustomSizeEditor: Bool
+    let availableQualities: [OpenAIImageQuality]
+    let showsStyle: Bool
+    let availableBackgrounds: [OpenAIImageBackground]
+    let showsOutputFormat: Bool
+    let showsModeration: Bool
     let showsInputFidelity: Bool
     let currentCount: Int?
     let currentSize: OpenAIImageSize?
@@ -703,6 +708,7 @@ struct OpenAIImageGenerationMenuView<MenuItemLabel: View>: View {
     let menuItemLabel: (String, Bool) -> MenuItemLabel
     let onSetCount: (Int?) -> Void
     let onSetSize: (OpenAIImageSize?) -> Void
+    let onShowCustomSizeEditor: () -> Void
     let onSetQuality: (OpenAIImageQuality?) -> Void
     let onSetStyle: (OpenAIImageStyle?) -> Void
     let onSetBackground: (OpenAIImageBackground?) -> Void
@@ -712,16 +718,9 @@ struct OpenAIImageGenerationMenuView<MenuItemLabel: View>: View {
     let onSetInputFidelity: (OpenAIImageInputFidelity?) -> Void
     let onReset: () -> Void
 
-    private var sizes: [OpenAIImageSize] {
-        if isGPTImageModel { return OpenAIImageSize.gptImageSizes }
-        if isDallE3 { return OpenAIImageSize.dallE3Sizes }
-        return OpenAIImageSize.dallE2Sizes
-    }
-
-    private var qualities: [OpenAIImageQuality] {
-        if isGPTImageModel { return OpenAIImageQuality.gptImageQualities }
-        if isDallE3 { return OpenAIImageQuality.dallE3Qualities }
-        return []
+    private var currentSizeIsCustom: Bool {
+        guard let currentSize else { return false }
+        return currentSize.isAuto == false && !availableSizes.contains(currentSize)
     }
 
     var body: some View {
@@ -752,23 +751,33 @@ struct OpenAIImageGenerationMenuView<MenuItemLabel: View>: View {
             } label: {
                 menuItemLabel("Default", currentSize == nil)
             }
-            ForEach(sizes, id: \.self) { size in
+            ForEach(availableSizes, id: \.self) { size in
                 Button {
                     onSetSize(size)
                 } label: {
                     menuItemLabel(size.displayName, currentSize == size)
                 }
             }
+
+            if supportsCustomSizeEditor {
+                Divider()
+                Button {
+                    onShowCustomSizeEditor()
+                } label: {
+                    let title = currentSizeIsCustom ? "Custom (\(currentSize?.displayName ?? ""))…" : "Custom…"
+                    menuItemLabel(title, currentSizeIsCustom)
+                }
+            }
         }
 
-        if !qualities.isEmpty {
+        if !availableQualities.isEmpty {
             Menu("Quality") {
                 Button {
                     onSetQuality(nil)
                 } label: {
                     menuItemLabel("Default", currentQuality == nil)
                 }
-                ForEach(qualities, id: \.self) { quality in
+                ForEach(availableQualities, id: \.self) { quality in
                     Button {
                         onSetQuality(quality)
                     } label: {
@@ -778,7 +787,7 @@ struct OpenAIImageGenerationMenuView<MenuItemLabel: View>: View {
             }
         }
 
-        if isDallE3 {
+        if showsStyle {
             Menu("Style") {
                 Button {
                     onSetStyle(nil)
@@ -795,14 +804,14 @@ struct OpenAIImageGenerationMenuView<MenuItemLabel: View>: View {
             }
         }
 
-        if isGPTImageModel {
+        if !availableBackgrounds.isEmpty {
             Menu("Background") {
                 Button {
                     onSetBackground(nil)
                 } label: {
                     menuItemLabel("Default (Auto)", currentBackground == nil)
                 }
-                ForEach(OpenAIImageBackground.allCases, id: \.self) { background in
+                ForEach(availableBackgrounds, id: \.self) { background in
                     Button {
                         onSetBackground(background)
                     } label: {
@@ -810,7 +819,9 @@ struct OpenAIImageGenerationMenuView<MenuItemLabel: View>: View {
                     }
                 }
             }
+        }
 
+        if showsOutputFormat {
             Menu("Output Format") {
                 Button {
                     onSetOutputFormat(nil)
@@ -825,24 +836,26 @@ struct OpenAIImageGenerationMenuView<MenuItemLabel: View>: View {
                     }
                 }
             }
+        }
 
-            if currentOutputFormat == .jpeg || currentOutputFormat == .webp {
-                Menu("Compression") {
+        if showsOutputFormat, (currentOutputFormat == .jpeg || currentOutputFormat == .webp) {
+            Menu("Compression") {
+                Button {
+                    onSetOutputCompression(nil)
+                } label: {
+                    menuItemLabel("Default (100)", currentOutputCompression == nil)
+                }
+                ForEach([25, 50, 75, 100], id: \.self) { level in
                     Button {
-                        onSetOutputCompression(nil)
+                        onSetOutputCompression(level)
                     } label: {
-                        menuItemLabel("Default (100)", currentOutputCompression == nil)
-                    }
-                    ForEach([25, 50, 75, 100], id: \.self) { level in
-                        Button {
-                            onSetOutputCompression(level)
-                        } label: {
-                            menuItemLabel("\(level)%", currentOutputCompression == level)
-                        }
+                        menuItemLabel("\(level)%", currentOutputCompression == level)
                     }
                 }
             }
+        }
 
+        if showsModeration {
             Menu("Moderation") {
                 Button {
                     onSetModeration(nil)
@@ -857,20 +870,20 @@ struct OpenAIImageGenerationMenuView<MenuItemLabel: View>: View {
                     }
                 }
             }
+        }
 
-            if showsInputFidelity {
-                Menu("Input Fidelity") {
+        if showsInputFidelity {
+            Menu("Input Fidelity") {
+                Button {
+                    onSetInputFidelity(nil)
+                } label: {
+                    menuItemLabel("Default (Low)", currentInputFidelity == nil)
+                }
+                ForEach(OpenAIImageInputFidelity.allCases, id: \.self) { fidelity in
                     Button {
-                        onSetInputFidelity(nil)
+                        onSetInputFidelity(fidelity)
                     } label: {
-                        menuItemLabel("Default (Low)", currentInputFidelity == nil)
-                    }
-                    ForEach(OpenAIImageInputFidelity.allCases, id: \.self) { fidelity in
-                        Button {
-                            onSetInputFidelity(fidelity)
-                        } label: {
-                            menuItemLabel(fidelity.displayName, currentInputFidelity == fidelity)
-                        }
+                        menuItemLabel(fidelity.displayName, currentInputFidelity == fidelity)
                     }
                 }
             }
