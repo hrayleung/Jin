@@ -206,12 +206,14 @@ struct ChatView: View {
     @State var mistralOCRConfigured = false
     @State var mineruOCRConfigured = false
     @State var deepSeekOCRConfigured = false
+    @State var openRouterOCRConfigured = false
     @State var firecrawlOCRConfigured = false
     @State var textToSpeechConfigured = false
     @State var speechToTextConfigured = false
     @State var mistralOCRPluginEnabled = true
     @State var mineruOCRPluginEnabled = true
     @State var deepSeekOCRPluginEnabled = true
+    @State var openRouterOCRPluginEnabled = true
     @State var firecrawlOCRPluginEnabled = true
     @State var textToSpeechPluginEnabled = true
     @State var speechToTextPluginEnabled = true

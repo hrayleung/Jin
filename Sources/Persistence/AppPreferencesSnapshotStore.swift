@@ -158,6 +158,8 @@ enum AppPreferencesSnapshotStore {
         AppPreferenceKeys.pluginWebSearchExaAPIKey,
         AppPreferenceKeys.pluginMistralOCRAPIKey,
         AppPreferenceKeys.pluginDeepSeekOCRAPIKey,
+        AppPreferenceKeys.pluginOpenRouterOCRAPIKey,
+        AppPreferenceKeys.pluginOpenRouterOCRModelID,
         AppPreferenceKeys.ttsGroqAPIKey,
         AppPreferenceKeys.sttGroqAPIKey,
         AppPreferenceKeys.sttElevenLabsAPIKey,

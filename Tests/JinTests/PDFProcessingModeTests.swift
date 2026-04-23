@@ -1,4 +1,6 @@
+import AppKit
 import Foundation
+import PDFKit
 import XCTest
 @testable import Jin
 
@@ -12,6 +14,8 @@ final class PDFProcessingModeTests: XCTestCase {
                 mineruOCRConfigured: true,
                 deepSeekOCRPluginEnabled: true,
                 deepSeekOCRConfigured: true,
+                openRouterOCRPluginEnabled: true,
+                openRouterOCRConfigured: true,
                 firecrawlOCRPluginEnabled: true,
                 firecrawlOCRConfigured: true
             ),
@@ -28,10 +32,30 @@ final class PDFProcessingModeTests: XCTestCase {
                 mineruOCRConfigured: true,
                 deepSeekOCRPluginEnabled: true,
                 deepSeekOCRConfigured: true,
+                openRouterOCRPluginEnabled: true,
+                openRouterOCRConfigured: true,
                 firecrawlOCRPluginEnabled: true,
                 firecrawlOCRConfigured: true
             ),
             .mineruOCR
+        )
+    }
+
+    func testDefaultPDFProcessingFallbackModeUsesOpenRouterBeforeFirecrawl() {
+        XCTAssertEqual(
+            ChatModelCapabilitySupport.defaultPDFProcessingFallbackMode(
+                mistralOCRPluginEnabled: false,
+                mistralOCRConfigured: false,
+                mineruOCRPluginEnabled: false,
+                mineruOCRConfigured: false,
+                deepSeekOCRPluginEnabled: false,
+                deepSeekOCRConfigured: false,
+                openRouterOCRPluginEnabled: true,
+                openRouterOCRConfigured: true,
+                firecrawlOCRPluginEnabled: true,
+                firecrawlOCRConfigured: true
+            ),
+            .openRouterOCR
         )
     }
 
@@ -44,6 +68,8 @@ final class PDFProcessingModeTests: XCTestCase {
                 mineruOCRConfigured: false,
                 deepSeekOCRPluginEnabled: false,
                 deepSeekOCRConfigured: false,
+                openRouterOCRPluginEnabled: false,
+                openRouterOCRConfigured: false,
                 firecrawlOCRPluginEnabled: true,
                 firecrawlOCRConfigured: true
             ),
@@ -60,9 +86,26 @@ final class PDFProcessingModeTests: XCTestCase {
                 mistralOCRPluginEnabled: false,
                 mineruOCRPluginEnabled: true,
                 deepSeekOCRPluginEnabled: false,
+                openRouterOCRPluginEnabled: false,
                 firecrawlOCRPluginEnabled: false
             ),
             .mineruOCR
+        )
+    }
+
+    func testResolvedPDFProcessingModeAcceptsOpenRouterWhenEnabled() {
+        XCTAssertEqual(
+            ChatModelCapabilitySupport.resolvedPDFProcessingMode(
+                controls: GenerationControls(pdfProcessingMode: .openRouterOCR),
+                supportsNativePDF: false,
+                defaultPDFProcessingFallbackMode: .macOSExtract,
+                mistralOCRPluginEnabled: false,
+                mineruOCRPluginEnabled: false,
+                deepSeekOCRPluginEnabled: false,
+                openRouterOCRPluginEnabled: true,
+                firecrawlOCRPluginEnabled: false
+            ),
+            .openRouterOCR
         )
     }
 
@@ -75,6 +118,7 @@ final class PDFProcessingModeTests: XCTestCase {
                 mistralOCRPluginEnabled: false,
                 mineruOCRPluginEnabled: false,
                 deepSeekOCRPluginEnabled: false,
+                openRouterOCRPluginEnabled: false,
                 firecrawlOCRPluginEnabled: true
             ),
             .firecrawlOCR
@@ -92,6 +136,21 @@ final class PDFProcessingModeTests: XCTestCase {
 
         XCTAssertEqual(decoded.pdfProcessingMode, .firecrawlOCR)
         XCTAssertEqual(decoded.firecrawlPDFParserMode, .fast)
+    }
+
+    func testResolveExtensionCredentialStatusIncludesOpenRouterOCRKey() {
+        let suiteName = "PDFProcessingModeTests.openrouter.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        AppPreferences.setPluginEnabled(true, for: "openrouter_ocr", defaults: defaults)
+        var status = ChatConversationStateSupport.resolveExtensionCredentialStatus(defaults: defaults)
+        XCTAssertFalse(status.openRouterOCRConfigured)
+        XCTAssertTrue(status.openRouterOCRPluginEnabled)
+
+        defaults.set("test-key", forKey: AppPreferenceKeys.pluginOpenRouterOCRAPIKey)
+        status = ChatConversationStateSupport.resolveExtensionCredentialStatus(defaults: defaults)
+        XCTAssertTrue(status.openRouterOCRConfigured)
     }
 
     func testOpenAIAdapterSendsNativePDFWhenModeNative() async throws {
@@ -1038,6 +1097,264 @@ final class PDFProcessingModeTests: XCTestCase {
 
         try await client.validateAPIKey(timeoutSeconds: 5)
     }
+
+    func testOpenRouterOCRClientBuildsChatCompletionsRequest() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://example.com/v1/chat/completions")
+            XCTAssertEqual(request.httpMethod, "POST")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer test-key")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Accept"), "application/json")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "HTTP-Referer"), "https://jin.app")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "X-Title"), "Jin")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Content-Type"), "application/json")
+
+            let body = try XCTUnwrap(requestBodyData(request))
+            let json = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: Any])
+
+            XCTAssertEqual(json["model"] as? String, "baidu/qianfan-ocr-fast:free")
+            XCTAssertEqual((json["max_tokens"] as? NSNumber)?.intValue, 64)
+            XCTAssertEqual((json["temperature"] as? NSNumber)?.doubleValue, 0)
+
+            let messages = try XCTUnwrap(json["messages"] as? [[String: Any]])
+            XCTAssertEqual(messages.count, 1)
+            let message = try XCTUnwrap(messages.first)
+            XCTAssertEqual(message["role"] as? String, "user")
+
+            let content = try XCTUnwrap(message["content"] as? [[String: Any]])
+            XCTAssertEqual(content.count, 2)
+
+            XCTAssertEqual(content[0]["type"] as? String, "text")
+            XCTAssertEqual(content[0]["text"] as? String, "Hello OCR")
+
+            XCTAssertEqual(content[1]["type"] as? String, "image_url")
+            let imageURL = try XCTUnwrap(content[1]["image_url"] as? [String: Any])
+            let url = try XCTUnwrap(imageURL["url"] as? String)
+            XCTAssertTrue(url.hasPrefix("data:image/jpeg;base64,"))
+            XCTAssertTrue(url.contains("SU1H"))
+
+            let response: [String: Any] = [
+                "choices": [
+                    [
+                        "message": [
+                            "content": "OK"
+                        ]
+                    ]
+                ]
+            ]
+            return (
+                HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                try JSONSerialization.data(withJSONObject: response)
+            )
+        }
+
+        let client = OpenRouterOCRClient(
+            apiKey: "test-key",
+            modelID: "baidu/qianfan-ocr-fast:free",
+            baseURL: URL(string: "https://example.com/v1")!,
+            networkManager: networkManager
+        )
+
+        let text = try await client.ocrImage(
+            Data("IMG".utf8),
+            mimeType: "image/jpeg",
+            prompt: "Hello OCR",
+            maxTokens: 64
+        )
+        XCTAssertEqual(text, "OK")
+    }
+
+    func testOpenRouterOCRClientValidateAPIKeyUsesJPEGImage() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://example.com/v1/chat/completions")
+            XCTAssertEqual(request.httpMethod, "POST")
+
+            let body = try XCTUnwrap(requestBodyData(request))
+            let json = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: Any])
+            XCTAssertEqual((json["max_tokens"] as? NSNumber)?.intValue, 16)
+            let messages = try XCTUnwrap(json["messages"] as? [[String: Any]])
+            let message = try XCTUnwrap(messages.first)
+            let content = try XCTUnwrap(message["content"] as? [[String: Any]])
+            XCTAssertEqual(content.count, 2)
+
+            XCTAssertEqual(content[0]["type"] as? String, "text")
+            XCTAssertEqual(content[0]["text"] as? String, "Reply with exactly: OK")
+
+            let imageURL = try XCTUnwrap(content[1]["image_url"] as? [String: Any])
+            let url = try XCTUnwrap(imageURL["url"] as? String)
+            XCTAssertTrue(url.hasPrefix("data:image/jpeg;base64,"))
+            XCTAssertTrue(url.contains("/9j/"))
+
+            let response: [String: Any] = [
+                "choices": [
+                    [
+                        "message": [
+                            "content": "OK"
+                        ]
+                    ]
+                ]
+            ]
+            return (
+                HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                try JSONSerialization.data(withJSONObject: response)
+            )
+        }
+
+        let client = OpenRouterOCRClient(
+            apiKey: "test-key",
+            modelID: "baidu/qianfan-ocr-fast:free",
+            baseURL: URL(string: "https://example.com/v1")!,
+            networkManager: networkManager
+        )
+
+        try await client.validateAPIKey(timeoutSeconds: 5)
+    }
+
+    func testOpenRouterOCRClientSurfacesChoiceLevelErrors() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        protocolType.requestHandler = { request in
+            let response: [String: Any] = [
+                "choices": [
+                    [
+                        "finish_reason": "error",
+                        "error": [
+                            "code": 429,
+                            "message": "Provider quota exceeded"
+                        ]
+                    ]
+                ]
+            ]
+            return (
+                HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                try JSONSerialization.data(withJSONObject: response)
+            )
+        }
+
+        let client = OpenRouterOCRClient(
+            apiKey: "test-key",
+            modelID: "baidu/qianfan-ocr-fast:free",
+            baseURL: URL(string: "https://example.com/v1")!,
+            networkManager: networkManager
+        )
+
+        do {
+            _ = try await client.ocrImage(
+                Data("IMG".utf8),
+                mimeType: "image/jpeg",
+                prompt: "Hello OCR",
+                maxTokens: 64
+            )
+            XCTFail("Expected OpenRouter OCR choice-level error to be surfaced")
+        } catch {
+            XCTAssertTrue(error.localizedDescription.contains("Provider quota exceeded"))
+            XCTAssertTrue(error.localizedDescription.contains("429"))
+        }
+    }
+
+    func testPreparedContentForPDFOpenRouterRequiresAPIKey() async throws {
+        let attachment = try makeValidPDFDraftAttachment(pageCount: 1)
+        defer { try? FileManager.default.removeItem(at: attachment.fileURL) }
+
+        do {
+            _ = try await ChatMessagePreparationSupport.preparedContentForPDF(
+                attachment,
+                profile: makeOpenRouterProfile(supportsVision: false),
+                requestedMode: .openRouterOCR,
+                totalPDFCount: 1,
+                pdfOrdinal: 1,
+                mistralClient: nil,
+                mineruClient: nil,
+                deepSeekClient: nil,
+                openRouterClient: nil,
+                firecrawlClient: nil,
+                r2Uploader: nil,
+                onStatusUpdate: { _ in }
+            )
+            XCTFail("Expected OpenRouter OCR to require an API key")
+        } catch let error as PDFProcessingError {
+            XCTAssertEqual(error.localizedDescription, PDFProcessingError.openRouterOCRAPIKeyMissing.localizedDescription)
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+    }
+
+    func testPreparedContentForPDFOpenRouterBuildsMarkdownOutputAndAttachesPageImagesForVision() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+        let attachment = try makeValidPDFDraftAttachment(pageCount: 2)
+        defer { try? FileManager.default.removeItem(at: attachment.fileURL) }
+
+        var requestCount = 0
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://example.com/v1/chat/completions")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "HTTP-Referer"), "https://jin.app")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "X-Title"), "Jin")
+
+            let body = try XCTUnwrap(requestBodyData(request))
+            let json = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: Any])
+            XCTAssertEqual(json["model"] as? String, "baidu/qianfan-ocr-fast:free")
+
+            requestCount += 1
+            let content: String
+            switch requestCount {
+            case 1:
+                content = "```markdown\n# Page One\n```"
+            case 2:
+                content = "## Page Two"
+            default:
+                XCTFail("Unexpected extra OCR request")
+                content = ""
+            }
+
+            let response: [String: Any] = [
+                "choices": [
+                    [
+                        "message": [
+                            "content": content
+                        ]
+                    ]
+                ]
+            ]
+            return (
+                HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                try JSONSerialization.data(withJSONObject: response)
+            )
+        }
+
+        let client = OpenRouterOCRClient(
+            apiKey: "test-key",
+            modelID: "baidu/qianfan-ocr-fast:free",
+            baseURL: URL(string: "https://example.com/v1")!,
+            networkManager: networkManager
+        )
+
+        let prepared = try await ChatMessagePreparationSupport.preparedContentForPDF(
+            attachment,
+            profile: makeOpenRouterProfile(supportsVision: true),
+            requestedMode: .openRouterOCR,
+            totalPDFCount: 1,
+            pdfOrdinal: 1,
+            mistralClient: nil,
+            mineruClient: nil,
+            deepSeekClient: nil,
+            openRouterClient: client,
+            firecrawlClient: nil,
+            r2Uploader: nil,
+            onStatusUpdate: { _ in }
+        )
+
+        XCTAssertEqual(requestCount, 2)
+        XCTAssertTrue(prepared.extractedText?.hasPrefix("OpenRouter OCR (Qianfan OCR Fast (free) Markdown): scan.pdf") == true)
+        XCTAssertTrue(prepared.extractedText?.contains("# Page One\n\n## Page Two") == true)
+        XCTAssertEqual(prepared.additionalParts.count, 2)
+    }
 }
 
 // MARK: - URLProtocol stubbing
@@ -1104,6 +1421,53 @@ private func requestBodyData(_ request: URLRequest) -> Data? {
     }
 
     return data
+}
+
+private func makeOpenRouterProfile(supportsVision: Bool) -> ChatMessagePreparationSupport.MessagePreparationProfile {
+    ChatMessagePreparationSupport.MessagePreparationProfile(
+        threadID: UUID(),
+        modelName: "Test Model",
+        supportsVideoGenerationControl: false,
+        supportsMediaGenerationControl: false,
+        supportsNativePDF: false,
+        supportsVision: supportsVision,
+        pdfProcessingMode: .openRouterOCR,
+        firecrawlPDFParserMode: .ocr
+    )
+}
+
+private func makeValidPDFDraftAttachment(pageCount: Int) throws -> DraftAttachment {
+    let url = FileManager.default.temporaryDirectory
+        .appendingPathComponent("jin-openrouter-ocr-\(UUID().uuidString).pdf")
+    let document = PDFDocument()
+
+    for index in 0..<pageCount {
+        let image = NSImage(size: NSSize(width: 360, height: 240))
+        image.lockFocus()
+        NSColor.white.setFill()
+        NSBezierPath(rect: NSRect(x: 0, y: 0, width: 360, height: 240)).fill()
+        let text = "Page \(index + 1)"
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: NSFont.systemFont(ofSize: 28, weight: .medium),
+            .foregroundColor: NSColor.black
+        ]
+        text.draw(at: NSPoint(x: 24, y: 96), withAttributes: attributes)
+        image.unlockFocus()
+
+        let page = try XCTUnwrap(PDFPage(image: image))
+        document.insert(page, at: index)
+    }
+
+    let data = try XCTUnwrap(document.dataRepresentation())
+    try data.write(to: url, options: .atomic)
+
+    return DraftAttachment(
+        id: UUID(),
+        filename: "scan.pdf",
+        mimeType: "application/pdf",
+        fileURL: url,
+        extractedText: nil
+    )
 }
 
 private func makeZipArchive(entries: [String: String]) throws -> Data {

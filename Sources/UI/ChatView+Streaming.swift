@@ -315,6 +315,7 @@ extension ChatView {
             mistralOCRPluginEnabled: mistralOCRPluginEnabled,
             mineruOCRPluginEnabled: mineruOCRPluginEnabled,
             deepSeekOCRPluginEnabled: deepSeekOCRPluginEnabled,
+            openRouterOCRPluginEnabled: openRouterOCRPluginEnabled,
             firecrawlOCRPluginEnabled: firecrawlOCRPluginEnabled,
             defaultPDFProcessingFallbackMode: defaultPDFProcessingFallbackMode
         )
@@ -337,7 +338,7 @@ extension ChatView {
             attachments: attachments,
             remoteVideoURL: remoteVideoURL,
             profile: profile,
-            preparedContentForPDF: { attachment, profile, mode, total, ordinal, mistral, mineru, deepseek, firecrawl, r2Uploader in
+            preparedContentForPDF: { attachment, profile, mode, total, ordinal, mistral, mineru, deepseek, openRouter, firecrawl, r2Uploader in
                 try await ChatMessagePreparationSupport.preparedContentForPDF(
                     attachment,
                     profile: profile,
@@ -347,6 +348,7 @@ extension ChatView {
                     mistralClient: mistral,
                     mineruClient: mineru,
                     deepSeekClient: deepseek,
+                    openRouterClient: openRouter,
                     firecrawlClient: firecrawl,
                     r2Uploader: r2Uploader,
                     onStatusUpdate: { [self] status in
