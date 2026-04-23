@@ -139,7 +139,7 @@ struct JinSettingsControlRow<Control: View>: View {
     init(
         _ title: String,
         supportingText: String? = nil,
-        labelWidth: CGFloat = 168,
+        labelWidth: CGFloat = 156,
         controlAlignment: Alignment = .leading,
         @ViewBuilder control: @escaping () -> Control
     ) {
@@ -152,7 +152,7 @@ struct JinSettingsControlRow<Control: View>: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: JinSpacing.xSmall) {
-            HStack(alignment: .top, spacing: JinSpacing.large) {
+            HStack(alignment: .top, spacing: JinSpacing.medium + 2) {
                 Text(title)
                     .font(.subheadline.weight(.semibold))
                     .frame(width: labelWidth, alignment: .leading)
@@ -377,8 +377,12 @@ struct JinSettingsSection<Content: View>: View {
                     content()
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(JinSpacing.large)
-                .jinSurface(.outlined, cornerRadius: JinRadius.large)
+                .padding(.top, JinSpacing.medium)
+                .overlay(alignment: .top) {
+                    Rectangle()
+                        .fill(JinSemanticColor.separator.opacity(0.6))
+                        .frame(height: JinStrokeWidth.hairline)
+                }
 
             case .plain:
                 VStack(alignment: .leading, spacing: contentSpacing) {
@@ -419,7 +423,7 @@ struct JinRevealableSecureField: View {
                     .font(.system(size: JinControlMetrics.iconButtonGlyphSize, weight: .semibold))
                     .foregroundStyle(.secondary)
             }
-            .buttonStyle(JinIconButtonStyle(showBackground: true))
+            .buttonStyle(JinIconButtonStyle(showBackground: false))
             .accessibilityLabel(Text(isRevealed ? concealHelp : revealHelp))
             .accessibilityValue(Text(isRevealed ? "Visible" : "Hidden"))
             .help(isRevealed ? concealHelp : revealHelp)

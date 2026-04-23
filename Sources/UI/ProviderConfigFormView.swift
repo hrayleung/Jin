@@ -225,16 +225,21 @@ struct ProviderConfigFormView: View {
     }
 
     var body: some View {
-        JinSettingsPage(maxWidth: 760) {
+        JinSettingsPage(maxWidth: providerType == .vertexai ? 820 : 760) {
             JinSettingsSection("Configuration") {
-                Toggle(isOn: Binding(
-                    get: { provider.isEnabled },
-                    set: { newValue in
-                        provider.isEnabled = newValue
-                        try? modelContext.save()
-                    }
-                )) {
-                    Text("Enabled")
+                JinSettingsControlRow("Enabled") {
+                    Toggle(
+                        "Enabled",
+                        isOn: Binding(
+                            get: { provider.isEnabled },
+                            set: { newValue in
+                                provider.isEnabled = newValue
+                                try? modelContext.save()
+                            }
+                        )
+                    )
+                    .labelsHidden()
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
 
                 JinSettingsControlRow("Name") {

@@ -31,7 +31,7 @@ extension ProviderConfigFormView {
         ) {
             TextEditor(text: $serviceAccountJSON)
                 .font(.system(.body, design: .monospaced))
-                .frame(minHeight: 260)
+                .frame(minHeight: 320)
                 .jinTextEditorField(cornerRadius: JinRadius.small)
                 .overlay(alignment: .topLeading) {
                     if serviceAccountJSON.isEmpty {

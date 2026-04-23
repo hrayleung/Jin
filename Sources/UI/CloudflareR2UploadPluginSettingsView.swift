@@ -44,36 +44,51 @@ struct CloudflareR2UploadPluginSettingsView: View {
                 "Credentials",
                 detail: "These keys are used for temporary public uploads before OCR or remote processing."
             ) {
-                TextField("Account ID", text: $accountID)
-                    .font(.system(.body, design: .monospaced))
-                    .textFieldStyle(.roundedBorder)
+                JinSettingsControlRow("Account ID") {
+                    TextField("Account ID", text: $accountID)
+                        .font(.system(.body, design: .monospaced))
+                        .textFieldStyle(.roundedBorder)
+                }
 
-                TextField("Access Key ID", text: $accessKeyID)
-                    .font(.system(.body, design: .monospaced))
-                    .textFieldStyle(.roundedBorder)
+                JinSettingsControlRow("Access Key ID") {
+                    TextField("Access Key ID", text: $accessKeyID)
+                        .font(.system(.body, design: .monospaced))
+                        .textFieldStyle(.roundedBorder)
+                }
 
-                JinRevealableSecureField(
-                    title: "Secret Access Key",
-                    text: $secretAccessKey,
-                    isRevealed: $isSecretVisible,
-                    usesMonospacedFont: true,
-                    revealHelp: "Show secret key",
-                    concealHelp: "Hide secret key"
-                )
+                JinSettingsControlRow("Secret Access Key") {
+                    JinRevealableSecureField(
+                        title: "Secret Access Key",
+                        text: $secretAccessKey,
+                        isRevealed: $isSecretVisible,
+                        usesMonospacedFont: true,
+                        revealHelp: "Show secret key",
+                        concealHelp: "Hide secret key"
+                    )
+                }
             }
 
             JinSettingsSection("Storage") {
-                TextField("Bucket", text: $bucket)
-                    .font(.system(.body, design: .monospaced))
-                    .textFieldStyle(.roundedBorder)
+                JinSettingsControlRow("Bucket") {
+                    TextField("Bucket", text: $bucket)
+                        .font(.system(.body, design: .monospaced))
+                        .textFieldStyle(.roundedBorder)
+                }
 
-                TextField("Public Base URL (e.g. https://pub-xxx.r2.dev)", text: $publicBaseURL)
-                    .font(.system(.body, design: .monospaced))
-                    .textFieldStyle(.roundedBorder)
+                JinSettingsControlRow(
+                    "Public Base URL",
+                    supportingText: "Optional public URL, for example https://pub-xxx.r2.dev."
+                ) {
+                    TextField("Public Base URL", text: $publicBaseURL)
+                        .font(.system(.body, design: .monospaced))
+                        .textFieldStyle(.roundedBorder)
+                }
 
-                TextField("Key Prefix (optional)", text: $keyPrefix)
-                    .font(.system(.body, design: .monospaced))
-                    .textFieldStyle(.roundedBorder)
+                JinSettingsControlRow("Key Prefix", supportingText: "Optional.") {
+                    TextField("Key Prefix (optional)", text: $keyPrefix)
+                        .font(.system(.body, design: .monospaced))
+                        .textFieldStyle(.roundedBorder)
+                }
             }
 
             JinSettingsSection("Actions") {

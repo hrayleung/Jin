@@ -24,13 +24,18 @@ struct PluginAPIKeySettingsView: View {
                 "API Key",
                 detail: "Stored locally on this Mac and saved automatically as you type."
             ) {
-                JinRevealableSecureField(
-                    title: "API Key",
-                    text: $apiKey,
-                    isRevealed: $isKeyVisible,
-                    revealHelp: "Show API key",
-                    concealHelp: "Hide API key"
-                )
+                JinSettingsControlRow(
+                    "API Key",
+                    supportingText: "Stored locally on this Mac. Changes save automatically."
+                ) {
+                    JinRevealableSecureField(
+                        title: "API Key",
+                        text: $apiKey,
+                        isRevealed: $isKeyVisible,
+                        revealHelp: "Show API key",
+                        concealHelp: "Hide API key"
+                    )
+                }
 
                 HStack(spacing: JinSpacing.medium) {
                     Button("Test Connection") { runTestConnection() }

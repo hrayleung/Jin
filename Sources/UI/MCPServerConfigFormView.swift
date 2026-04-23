@@ -130,10 +130,19 @@ struct MCPServerConfigFormView: View {
                     .onChange(of: server.id) { _, _ in try? modelContext.save() }
             }
 
-            Toggle("Enabled", isOn: $server.isEnabled)
-                .onChange(of: server.isEnabled) { _, _ in try? modelContext.save() }
-            Toggle("Run tools automatically", isOn: $server.runToolsAutomatically)
-                .onChange(of: server.runToolsAutomatically) { _, _ in try? modelContext.save() }
+            JinSettingsControlRow("Enabled") {
+                Toggle("Enabled", isOn: $server.isEnabled)
+                    .labelsHidden()
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .onChange(of: server.isEnabled) { _, _ in try? modelContext.save() }
+            }
+
+            JinSettingsControlRow("Auto-run Tools") {
+                Toggle("Run tools automatically", isOn: $server.runToolsAutomatically)
+                    .labelsHidden()
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .onChange(of: server.runToolsAutomatically) { _, _ in try? modelContext.save() }
+            }
         }
     }
 

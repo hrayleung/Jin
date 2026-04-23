@@ -26,7 +26,7 @@ struct AddProviderView: View {
     var body: some View {
         NavigationStack {
             JinSettingsPage(
-                maxWidth: prefersExpandedCredentialEditor ? 700 : 560,
+                maxWidth: prefersExpandedCredentialEditor ? 760 : 560,
                 horizontalPadding: 20,
                 verticalPadding: 20
             ) {
@@ -134,7 +134,7 @@ struct AddProviderView: View {
                             supportingText: "Paste the full service account JSON document."
                         ) {
                             TextEditor(text: $serviceAccountJSON)
-                                .frame(minHeight: 260)
+                                .frame(minHeight: 320)
                                 .font(.system(.body, design: .monospaced))
                                 .jinTextEditorField(cornerRadius: JinRadius.small)
                                 .overlay(alignment: .topLeading) {
@@ -166,8 +166,8 @@ struct AddProviderView: View {
                 }
             }
             .frame(
-                width: prefersExpandedCredentialEditor ? 680 : 500,
-                height: prefersExpandedCredentialEditor ? 620 : 400
+                width: prefersExpandedCredentialEditor ? 740 : 500,
+                height: prefersExpandedCredentialEditor ? 660 : 400
             )
         }
         #if os(macOS)

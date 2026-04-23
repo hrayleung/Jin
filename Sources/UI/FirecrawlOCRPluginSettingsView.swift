@@ -22,7 +22,26 @@ struct FirecrawlOCRPluginSettingsView: View {
                 "Shared Firecrawl API Key",
                 detail: "This key is used by Firecrawl OCR and the Web Search plugin."
             ) {
-                credentialSection
+                JinSettingsControlRow(
+                    "API Key",
+                    supportingText: "Changes save automatically."
+                ) {
+                    apiKeyField
+                }
+
+                HStack(spacing: JinSpacing.medium) {
+                    Button("Clear", role: .destructive) {
+                        clearKey()
+                    }
+                    .disabled(!hasConfiguredKey)
+
+                    Spacer()
+                }
+
+                Text(statusMessage ?? "Shared with Web Search.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             JinSettingsSection(
@@ -44,37 +63,6 @@ struct FirecrawlOCRPluginSettingsView: View {
         }
         .onDisappear {
             autoSaveTask?.cancel()
-        }
-    }
-
-    private var credentialSection: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            JinFormFieldRow(
-                "API Key",
-                supportingText: "Changes save automatically."
-            ) {
-                apiKeyField
-            }
-            .padding(JinSpacing.large)
-
-            Divider()
-
-            HStack(alignment: .firstTextBaseline, spacing: JinSpacing.medium) {
-                Button("Clear", role: .destructive) {
-                    clearKey()
-                }
-                .disabled(!hasConfiguredKey)
-
-                Spacer(minLength: JinSpacing.large)
-
-                Text(statusMessage ?? "Shared with Web Search.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.trailing)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            .padding(.horizontal, JinSpacing.large)
-            .padding(.vertical, JinSpacing.medium)
         }
     }
 

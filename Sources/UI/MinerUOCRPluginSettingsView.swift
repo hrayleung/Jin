@@ -50,15 +50,26 @@ struct MinerUOCRPluginSettingsView: View {
                 "API Token",
                 detail: "MinerU uses a token plus an optional user header. Changes save automatically."
             ) {
-                JinRevealableSecureField(
-                    title: "MinerU API Token",
-                    text: $apiToken,
-                    isRevealed: $isTokenVisible,
-                    revealHelp: "Show API token",
-                    concealHelp: "Hide API token"
-                )
+                JinSettingsControlRow(
+                    "API Token",
+                    supportingText: "Stored locally on this Mac. Changes save automatically."
+                ) {
+                    JinRevealableSecureField(
+                        title: "MinerU API Token",
+                        text: $apiToken,
+                        isRevealed: $isTokenVisible,
+                        revealHelp: "Show API token",
+                        concealHelp: "Hide API token"
+                    )
+                }
 
-                TextField("Optional user header", text: $userIdentifier)
+                JinSettingsControlRow(
+                    "User Header",
+                    supportingText: "Optional. Sends an extra user identifier with requests."
+                ) {
+                    TextField("Optional user header", text: $userIdentifier)
+                        .textFieldStyle(.roundedBorder)
+                }
 
                 HStack(spacing: 12) {
                     Button("Check Token") { runTestConnection() }
@@ -81,12 +92,16 @@ struct MinerUOCRPluginSettingsView: View {
             }
 
             JinSettingsSection("OCR") {
-                Picker("Language", selection: $selectedLanguage) {
-                    ForEach(Self.languageOptions) { option in
-                        Text(option.label).tag(option.code)
+                JinSettingsControlRow("Language") {
+                    Picker("Language", selection: $selectedLanguage) {
+                        ForEach(Self.languageOptions) { option in
+                            Text(option.label).tag(option.code)
+                        }
                     }
+                    .labelsHidden()
+                    .pickerStyle(.menu)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                .pickerStyle(.menu)
             }
         }
         .navigationTitle("MinerU OCR")
