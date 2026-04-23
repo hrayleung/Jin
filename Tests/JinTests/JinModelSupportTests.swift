@@ -195,6 +195,13 @@ final class JinModelSupportTests: XCTestCase {
         XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .cloudflareAIGateway, modelID: "@cf/moonshotai/kimi-k2.6-custom"))
     }
 
+    func testOpenCodeGoMiMoV25ModelsUseExactFullySupportedIDs() {
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .opencodeGo, modelID: "mimo-v2.5-pro"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .opencodeGo, modelID: "mimo-v2.5"))
+        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .opencodeGo, modelID: "mimo-v2.5-pro-preview"))
+        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .opencodeGo, modelID: "mimo-v2.5-experimental"))
+    }
+
     func testGeminiProvider3Point1PreviewIsMarkedAsFullySupported() {
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .gemini, modelID: "gemini-3.1-pro-preview"))
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .gemini, modelID: "gemini-3.1-flash-image-preview"))

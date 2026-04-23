@@ -208,6 +208,32 @@ final class ModelCatalogTests: XCTestCase {
         XCTAssertTrue(cloudflare.capabilities.contains(.promptCaching))
     }
 
+    func testOpenCodeGoMiMoV25CatalogUsesExactProviderIDs() {
+        let mimoV25Pro = ModelCatalog.modelInfo(
+            for: "mimo-v2.5-pro",
+            provider: .opencodeGo
+        )
+        XCTAssertEqual(mimoV25Pro.contextWindow, 1_048_576)
+        XCTAssertEqual(mimoV25Pro.maxOutputTokens, 131_072)
+        XCTAssertFalse(mimoV25Pro.capabilities.contains(.vision))
+        XCTAssertFalse(mimoV25Pro.capabilities.contains(.audio))
+        XCTAssertTrue(mimoV25Pro.capabilities.contains(.toolCalling))
+        XCTAssertTrue(mimoV25Pro.capabilities.contains(.reasoning))
+        XCTAssertEqual(mimoV25Pro.reasoningConfig?.defaultEffort, .medium)
+
+        let mimoV25 = ModelCatalog.modelInfo(
+            for: "mimo-v2.5",
+            provider: .opencodeGo
+        )
+        XCTAssertEqual(mimoV25.contextWindow, 1_048_576)
+        XCTAssertEqual(mimoV25.maxOutputTokens, 131_072)
+        XCTAssertTrue(mimoV25.capabilities.contains(.vision))
+        XCTAssertTrue(mimoV25.capabilities.contains(.audio))
+        XCTAssertTrue(mimoV25.capabilities.contains(.toolCalling))
+        XCTAssertTrue(mimoV25.capabilities.contains(.reasoning))
+        XCTAssertEqual(mimoV25.reasoningConfig?.defaultEffort, .medium)
+    }
+
     func testVerifiedKimiK26CatalogRequiresExactIDs() {
         let opencode = ModelCatalog.modelInfo(
             for: "kimi-k2.6-custom",
@@ -243,6 +269,22 @@ final class ModelCatalogTests: XCTestCase {
         )
         XCTAssertEqual(cloudflare.capabilities, [.streaming, .toolCalling])
         XCTAssertEqual(cloudflare.contextWindow, 128_000)
+    }
+
+    func testOpenCodeGoMiMoV25CatalogRequiresExactIDs() {
+        let mimoV25Pro = ModelCatalog.modelInfo(
+            for: "mimo-v2.5-pro-preview",
+            provider: .opencodeGo
+        )
+        XCTAssertEqual(mimoV25Pro.capabilities, [.streaming, .toolCalling])
+        XCTAssertEqual(mimoV25Pro.contextWindow, 128_000)
+
+        let mimoV25 = ModelCatalog.modelInfo(
+            for: "mimo-v2.5-experimental",
+            provider: .opencodeGo
+        )
+        XCTAssertEqual(mimoV25.capabilities, [.streaming, .toolCalling])
+        XCTAssertEqual(mimoV25.contextWindow, 128_000)
     }
 
     func testGeminiGemma431CatalogUsesExactMetadata() {
