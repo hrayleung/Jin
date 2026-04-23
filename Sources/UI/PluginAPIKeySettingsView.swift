@@ -72,7 +72,7 @@ struct PluginAPIKeySettingsView: View {
     }
 
     private func loadExistingKey() async {
-        let existing = PreferenceSecretStore.loadSecret(forKey: preferenceKey)
+        let existing = UserDefaults.standard.string(forKey: preferenceKey) ?? ""
         await MainActor.run {
             apiKey = existing
             lastPersistedAPIKey = existing.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -84,17 +84,12 @@ struct PluginAPIKeySettingsView: View {
         statusMessage = nil
         statusIsError = false
 
+        lastPersistedAPIKey = ""
         apiKey = ""
-        do {
-            try PreferenceSecretStore.deleteSecret(forKey: preferenceKey)
-            lastPersistedAPIKey = ""
-            statusMessage = "Cleared."
-            statusIsError = false
-            NotificationCenter.default.post(name: .pluginCredentialsDidChange, object: nil)
-        } catch {
-            statusMessage = error.localizedDescription
-            statusIsError = true
-        }
+        UserDefaults.standard.removeObject(forKey: preferenceKey)
+        statusMessage = "Cleared."
+        statusIsError = false
+        NotificationCenter.default.post(name: .pluginCredentialsDidChange, object: nil)
     }
 
     private func scheduleAutoSave() {
@@ -114,16 +109,15 @@ struct PluginAPIKeySettingsView: View {
     private func persistAPIKey(_ key: String) {
         guard key != lastPersistedAPIKey else { return }
 
-        do {
-            try PreferenceSecretStore.saveSecret(key, forKey: preferenceKey)
-            lastPersistedAPIKey = key
-            statusMessage = key.isEmpty ? "Cleared." : "Saved automatically."
-            statusIsError = false
-            NotificationCenter.default.post(name: .pluginCredentialsDidChange, object: nil)
-        } catch {
-            statusMessage = error.localizedDescription
-            statusIsError = true
+        if key.isEmpty {
+            UserDefaults.standard.removeObject(forKey: preferenceKey)
+        } else {
+            UserDefaults.standard.set(key, forKey: preferenceKey)
         }
+        lastPersistedAPIKey = key
+        statusMessage = key.isEmpty ? "Cleared." : "Saved automatically."
+        statusIsError = false
+        NotificationCenter.default.post(name: .pluginCredentialsDidChange, object: nil)
     }
 
     private func runTestConnection() {

@@ -155,7 +155,6 @@ struct CloudflareR2UploadPluginSettingsView: View {
             keyPrefix: ""
         )
         persistConfiguration(empty, showSavedStatus: false)
-        guard !statusIsError else { return }
         hasLoadedSettings = false
         applyConfigurationToState(empty)
         hasLoadedSettings = true
@@ -228,17 +227,7 @@ struct CloudflareR2UploadPluginSettingsView: View {
         let defaults = UserDefaults.standard
         persist(configuration.accountID, for: AppPreferenceKeys.cloudflareR2AccountID, defaults: defaults)
         persist(configuration.accessKeyID, for: AppPreferenceKeys.cloudflareR2AccessKeyID, defaults: defaults)
-        do {
-            try PreferenceSecretStore.saveSecret(
-                configuration.secretAccessKey,
-                forKey: AppPreferenceKeys.cloudflareR2SecretAccessKey,
-                defaults: defaults
-            )
-        } catch {
-            statusMessage = error.localizedDescription
-            statusIsError = true
-            return
-        }
+        persist(configuration.secretAccessKey, for: AppPreferenceKeys.cloudflareR2SecretAccessKey, defaults: defaults)
         persist(configuration.bucket, for: AppPreferenceKeys.cloudflareR2Bucket, defaults: defaults)
         persist(configuration.publicBaseURL, for: AppPreferenceKeys.cloudflareR2PublicBaseURL, defaults: defaults)
         persist(configuration.keyPrefix, for: AppPreferenceKeys.cloudflareR2KeyPrefix, defaults: defaults)

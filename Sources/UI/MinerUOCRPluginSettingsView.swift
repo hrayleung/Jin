@@ -121,10 +121,7 @@ struct MinerUOCRPluginSettingsView: View {
 
     private func loadExistingSettings() async {
         let defaults = UserDefaults.standard
-        let existingToken = PreferenceSecretStore.loadSecret(
-            forKey: AppPreferenceKeys.pluginMineruOCRAPIToken,
-            defaults: defaults
-        )
+        let existingToken = defaults.string(forKey: AppPreferenceKeys.pluginMineruOCRAPIToken) ?? ""
         let existingUserIdentifier = defaults.string(forKey: AppPreferenceKeys.pluginMineruOCRUserIdentifier) ?? ""
         let existingLanguage = defaults.string(forKey: AppPreferenceKeys.pluginMineruOCRLanguage)
             ?? MinerUOCRClient.Constants.defaultLanguage
@@ -168,16 +165,10 @@ struct MinerUOCRPluginSettingsView: View {
 
     private func persistSettings(token: String, userIdentifier: String, language: String) {
         let defaults = UserDefaults.standard
-        do {
-            try PreferenceSecretStore.saveSecret(
-                token,
-                forKey: AppPreferenceKeys.pluginMineruOCRAPIToken,
-                defaults: defaults
-            )
-        } catch {
-            statusMessage = error.localizedDescription
-            statusIsError = true
-            return
+        if token.isEmpty {
+            defaults.removeObject(forKey: AppPreferenceKeys.pluginMineruOCRAPIToken)
+        } else {
+            defaults.set(token, forKey: AppPreferenceKeys.pluginMineruOCRAPIToken)
         }
 
         if userIdentifier.isEmpty {
