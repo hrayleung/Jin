@@ -134,6 +134,7 @@ final class FirecrawlPDFOCRClientTests: XCTestCase {
                 mistralClient: nil,
                 mineruClient: nil,
                 deepSeekClient: nil,
+                openRouterClient: nil,
                 firecrawlClient: nil,
                 r2Uploader: nil,
                 onStatusUpdate: { _ in }
@@ -164,6 +165,7 @@ final class FirecrawlPDFOCRClientTests: XCTestCase {
                 mistralClient: nil,
                 mineruClient: nil,
                 deepSeekClient: nil,
+                openRouterClient: nil,
                 firecrawlClient: firecrawlClient,
                 r2Uploader: uploader,
                 onStatusUpdate: { _ in }
@@ -269,6 +271,7 @@ final class FirecrawlPDFOCRClientTests: XCTestCase {
             mistralClient: nil,
             mineruClient: nil,
             deepSeekClient: nil,
+            openRouterClient: nil,
             firecrawlClient: firecrawlClient,
             r2Uploader: uploader,
             onStatusUpdate: { _ in }

@@ -498,6 +498,8 @@ enum ChatModelCapabilitySupport {
         mineruOCRConfigured: Bool,
         deepSeekOCRPluginEnabled: Bool,
         deepSeekOCRConfigured: Bool,
+        openRouterOCRPluginEnabled: Bool,
+        openRouterOCRConfigured: Bool,
         firecrawlOCRPluginEnabled: Bool,
         firecrawlOCRConfigured: Bool
     ) -> PDFProcessingMode {
@@ -509,6 +511,9 @@ enum ChatModelCapabilitySupport {
         }
         if deepSeekOCRPluginEnabled, deepSeekOCRConfigured {
             return .deepSeekOCR
+        }
+        if openRouterOCRPluginEnabled, openRouterOCRConfigured {
+            return .openRouterOCR
         }
         if firecrawlOCRPluginEnabled, firecrawlOCRConfigured {
             return .firecrawlOCR
@@ -522,6 +527,7 @@ enum ChatModelCapabilitySupport {
         mistralOCRPluginEnabled: Bool,
         mineruOCRPluginEnabled: Bool,
         deepSeekOCRPluginEnabled: Bool,
+        openRouterOCRPluginEnabled: Bool,
         firecrawlOCRPluginEnabled: Bool
     ) -> Bool {
         switch mode {
@@ -535,6 +541,8 @@ enum ChatModelCapabilitySupport {
             return mineruOCRPluginEnabled
         case .deepSeekOCR:
             return deepSeekOCRPluginEnabled
+        case .openRouterOCR:
+            return openRouterOCRPluginEnabled
         case .firecrawlOCR:
             return firecrawlOCRPluginEnabled
         }
@@ -547,6 +555,7 @@ enum ChatModelCapabilitySupport {
         mistralOCRPluginEnabled: Bool,
         mineruOCRPluginEnabled: Bool,
         deepSeekOCRPluginEnabled: Bool,
+        openRouterOCRPluginEnabled: Bool,
         firecrawlOCRPluginEnabled: Bool
     ) -> PDFProcessingMode {
         let requested = controls.pdfProcessingMode ?? .native
@@ -556,6 +565,7 @@ enum ChatModelCapabilitySupport {
             mistralOCRPluginEnabled: mistralOCRPluginEnabled,
             mineruOCRPluginEnabled: mineruOCRPluginEnabled,
             deepSeekOCRPluginEnabled: deepSeekOCRPluginEnabled,
+            openRouterOCRPluginEnabled: openRouterOCRPluginEnabled,
             firecrawlOCRPluginEnabled: firecrawlOCRPluginEnabled
         ) {
             return requested

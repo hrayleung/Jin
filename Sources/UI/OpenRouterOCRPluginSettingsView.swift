@@ -1,46 +1,25 @@
 import SwiftUI
 
-struct PluginAPIKeySettingsView: View {
-    let title: String
-    let preferenceKey: String
-    let apiKeyHint: String?
-    let testConnection: (String) async throws -> Void
-
+struct OpenRouterOCRPluginSettingsView: View {
     @State private var apiKey = ""
     @State private var isKeyVisible = false
     @State private var isTesting = false
     @State private var statusMessage: String?
     @State private var statusIsError = false
-    @State private var hasLoadedKey = false
+    @State private var hasLoadedSettings = false
     @State private var lastPersistedAPIKey = ""
+    @State private var lastPersistedModelID = OpenRouterOCRModelCatalog.defaultModelID
+    @State private var selectedModelID = OpenRouterOCRModelCatalog.defaultModelID
     @State private var autoSaveTask: Task<Void, Never>?
 
     private var trimmedAPIKey: String {
         apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    init(
-        title: String,
-        preferenceKey: String,
-        apiKeyHint: String? = nil,
-        testConnection: @escaping (String) async throws -> Void
-    ) {
-        self.title = title
-        self.preferenceKey = preferenceKey
-        self.apiKeyHint = apiKeyHint
-        self.testConnection = testConnection
-    }
-
     var body: some View {
-        JinSettingsPage {
-            JinSettingsSection(
-                "API Key",
-                detail: "Stored locally on this Mac and saved automatically as you type."
-            ) {
-                JinSettingsControlRow(
-                    "API Key",
-                    supportingText: "Stored locally on this Mac. Changes save automatically."
-                ) {
+        JinSettingsPage(maxWidth: 620) {
+            JinSettingsSection("Connection") {
+                JinSettingsControlRow("API Key") {
                     JinRevealableSecureField(
                         title: "API Key",
                         text: $apiKey,
@@ -72,33 +51,54 @@ struct PluginAPIKeySettingsView: View {
                         isSuccess: isConnectionVerifiedStatus(statusMessage)
                     )
                 }
+            }
 
-                if let apiKeyHint, !apiKeyHint.isEmpty {
-                    Text(apiKeyHint)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+            JinSettingsSection("OCR Model") {
+                JinSettingsControlRow("Model") {
+                    Picker("Model", selection: $selectedModelID) {
+                        ForEach(OpenRouterOCRModelCatalog.entries) { model in
+                            Text(model.name).tag(model.id)
+                        }
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.menu)
                 }
             }
         }
-        .navigationTitle(title)
+        .navigationTitle("OpenRouter OCR")
         .task {
-            await loadExistingKey()
-            hasLoadedKey = true
+            await loadExistingSettings()
+            hasLoadedSettings = true
         }
         .onChange(of: apiKey) { _, _ in
-            guard hasLoadedKey else { return }
+            guard hasLoadedSettings else { return }
             scheduleAutoSave()
+        }
+        .onChange(of: selectedModelID) { _, newValue in
+            guard hasLoadedSettings else { return }
+            persistModelID(newValue)
         }
         .onDisappear {
             autoSaveTask?.cancel()
         }
     }
 
-    private func loadExistingKey() async {
-        let existing = UserDefaults.standard.string(forKey: preferenceKey) ?? ""
+    private func loadExistingSettings() async {
+        let defaults = UserDefaults.standard
+        let existingKey = defaults.string(forKey: AppPreferenceKeys.pluginOpenRouterOCRAPIKey) ?? ""
+        let storedModelID = defaults.string(forKey: AppPreferenceKeys.pluginOpenRouterOCRModelID)
+        let existingModelID = OpenRouterOCRModelCatalog.normalizedModelID(storedModelID)
+
         await MainActor.run {
-            apiKey = existing
-            lastPersistedAPIKey = existing.trimmingCharacters(in: .whitespacesAndNewlines)
+            apiKey = existingKey
+            selectedModelID = existingModelID
+            lastPersistedAPIKey = existingKey.trimmingCharacters(in: .whitespacesAndNewlines)
+            lastPersistedModelID = existingModelID
+        }
+
+        if storedModelID != existingModelID {
+            defaults.set(existingModelID, forKey: AppPreferenceKeys.pluginOpenRouterOCRModelID)
+            NotificationCenter.default.post(name: .pluginCredentialsDidChange, object: nil)
         }
     }
 
@@ -106,12 +106,10 @@ struct PluginAPIKeySettingsView: View {
         autoSaveTask?.cancel()
         statusMessage = nil
         statusIsError = false
-
         lastPersistedAPIKey = ""
         apiKey = ""
-        UserDefaults.standard.removeObject(forKey: preferenceKey)
-        statusMessage = "Cleared."
-        statusIsError = false
+        UserDefaults.standard.removeObject(forKey: AppPreferenceKeys.pluginOpenRouterOCRAPIKey)
+        statusMessage = "Cleared"
         NotificationCenter.default.post(name: .pluginCredentialsDidChange, object: nil)
     }
 
@@ -133,13 +131,30 @@ struct PluginAPIKeySettingsView: View {
         guard key != lastPersistedAPIKey else { return }
 
         if key.isEmpty {
-            UserDefaults.standard.removeObject(forKey: preferenceKey)
+            UserDefaults.standard.removeObject(forKey: AppPreferenceKeys.pluginOpenRouterOCRAPIKey)
         } else {
-            UserDefaults.standard.set(key, forKey: preferenceKey)
+            UserDefaults.standard.set(key, forKey: AppPreferenceKeys.pluginOpenRouterOCRAPIKey)
         }
         lastPersistedAPIKey = key
-        statusMessage = key.isEmpty ? "Cleared." : "Saved automatically."
+        statusMessage = key.isEmpty ? "Cleared" : nil
         statusIsError = false
+        NotificationCenter.default.post(name: .pluginCredentialsDidChange, object: nil)
+    }
+
+    private func persistModelID(_ modelID: String) {
+        let normalized = OpenRouterOCRModelCatalog.normalizedModelID(modelID)
+        guard normalized != lastPersistedModelID else {
+            if selectedModelID != normalized {
+                selectedModelID = normalized
+            }
+            return
+        }
+
+        if selectedModelID != normalized {
+            selectedModelID = normalized
+        }
+        UserDefaults.standard.set(normalized, forKey: AppPreferenceKeys.pluginOpenRouterOCRModelID)
+        lastPersistedModelID = normalized
         NotificationCenter.default.post(name: .pluginCredentialsDidChange, object: nil)
     }
 
@@ -150,9 +165,12 @@ struct PluginAPIKeySettingsView: View {
         statusIsError = false
         isTesting = true
 
+        let apiKey = trimmedAPIKey
+        let modelID = OpenRouterOCRModelCatalog.normalizedModelID(selectedModelID)
         Task {
             do {
-                try await testConnection(trimmedAPIKey)
+                let client = OpenRouterOCRClient(apiKey: apiKey, modelID: modelID)
+                try await client.validateAPIKey()
                 await MainActor.run {
                     isTesting = false
                     statusMessage = "Connection verified."

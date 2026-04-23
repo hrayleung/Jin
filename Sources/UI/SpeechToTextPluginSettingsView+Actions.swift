@@ -208,7 +208,7 @@ extension SpeechToTextPluginSettingsView {
 
                 await MainActor.run {
                     isTesting = false
-                    statusMessage = "Connection OK."
+                    statusMessage = "Connection verified."
                     statusIsError = false
                 }
 
@@ -226,6 +226,10 @@ extension SpeechToTextPluginSettingsView {
                 }
             }
         }
+    }
+
+    func isConnectionVerifiedStatus(_ message: String) -> Bool {
+        !statusIsError && message == "Connection verified."
     }
 
     func loadRemoteSpeechToTextModels(updateStatus: Bool = true) async {

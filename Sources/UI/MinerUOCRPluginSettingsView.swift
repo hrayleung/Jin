@@ -72,7 +72,7 @@ struct MinerUOCRPluginSettingsView: View {
                 }
 
                 HStack(spacing: 12) {
-                    Button("Check Token") { runTestConnection() }
+                    Button("Test Connection") { runTestConnection() }
                         .disabled(trimmedToken.isEmpty || isTesting)
 
                     Button("Clear", role: .destructive) { clearSettings() }
@@ -87,7 +87,11 @@ struct MinerUOCRPluginSettingsView: View {
                 }
 
                 if let statusMessage {
-                    JinSettingsStatusText(text: statusMessage, isError: statusIsError)
+                    JinSettingsStatusText(
+                        text: statusMessage,
+                        isError: statusIsError,
+                        isSuccess: isConnectionVerifiedStatus(statusMessage)
+                    )
                 }
             }
 
@@ -217,7 +221,7 @@ struct MinerUOCRPluginSettingsView: View {
                 guard !Task.isCancelled else { return }
                 await MainActor.run {
                     isTesting = false
-                    statusMessage = "Token verified."
+                    statusMessage = "Connection verified."
                     statusIsError = false
                     validationTask = nil
                 }
@@ -231,5 +235,9 @@ struct MinerUOCRPluginSettingsView: View {
                 }
             }
         }
+    }
+
+    private func isConnectionVerifiedStatus(_ message: String) -> Bool {
+        !statusIsError && message == "Connection verified."
     }
 }

@@ -133,7 +133,11 @@ struct TextToSpeechPluginSettingsView: View {
                     }
 
                     if let statusMessage {
-                        JinSettingsStatusText(text: statusMessage, isError: statusIsError)
+                        JinSettingsStatusText(
+                            text: statusMessage,
+                            isError: statusIsError,
+                            isSuccess: isConnectionVerifiedStatus(statusMessage)
+                        )
                     }
                 }
             }
