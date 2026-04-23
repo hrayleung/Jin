@@ -1,4 +1,3 @@
-import AppKit
 import SwiftData
 import SwiftUI
 
@@ -277,17 +276,14 @@ struct AssistantSettingsEditorView: View {
                 Image(systemName: "sparkles")
                     .font(.system(size: JinControlMetrics.assistantLargeGlyphSize, weight: .semibold))
                     .foregroundStyle(Color.accentColor)
-            } else if trimmed.count <= 2 {
-                Text(trimmed)
-                    .font(.system(size: JinControlMetrics.assistantLargeGlyphSize))
-            } else if NSImage(systemSymbolName: trimmed, accessibilityDescription: nil) != nil {
+            } else if AssistantGlyphRendering.isSFSymbolName(trimmed) {
                 Image(systemName: trimmed)
                     .font(.system(size: JinControlMetrics.assistantLargeGlyphSize, weight: .semibold))
                     .foregroundStyle(Color.accentColor)
             } else {
-                Image(systemName: "questionmark.circle")
-                    .font(.system(size: JinControlMetrics.assistantLargeGlyphSize, weight: .semibold))
-                    .foregroundStyle(.tertiary)
+                Text(trimmed)
+                    .font(.system(size: JinControlMetrics.assistantLargeGlyphSize))
+                    .foregroundStyle(.primary)
             }
         }
         .frame(width: 56, height: 56)

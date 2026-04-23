@@ -1,4 +1,3 @@
-import AppKit
 import SwiftData
 import SwiftUI
 
@@ -172,18 +171,7 @@ struct AssistantRowView: View {
 
     private var assistantIconView: some View {
         let trimmed = (assistant.icon ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-        return Group {
-            if trimmed.isEmpty {
-                Image(systemName: "person.crop.circle")
-            } else if trimmed.count <= 2 {
-                Text(trimmed)
-            } else if NSImage(systemSymbolName: trimmed, accessibilityDescription: nil) != nil {
-                Image(systemName: trimmed)
-            } else {
-                Image(systemName: "questionmark.circle")
-            }
-        }
-        .font(.system(size: 16, weight: .semibold))
+        return AssistantGlyphRendering.coreGlyph(trimmed: trimmed, pointSize: 16, weight: .semibold)
     }
 }
 
@@ -233,21 +221,12 @@ struct AssistantTileView: View {
         .onHover { isHovered = $0 }
     }
 
-    @ViewBuilder
     private var assistantIcon: some View {
         let trimmed = (assistant.icon ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-        if trimmed.isEmpty {
-            Image(systemName: "person.crop.circle")
-                .font(.system(size: JinControlMetrics.assistantGlyphSize, weight: .semibold))
-        } else if trimmed.count <= 2 {
-            Text(trimmed)
-                .font(.system(size: JinControlMetrics.assistantGlyphSize, weight: .semibold))
-        } else if NSImage(systemSymbolName: trimmed, accessibilityDescription: nil) != nil {
-            Image(systemName: trimmed)
-                .font(.system(size: JinControlMetrics.assistantGlyphSize, weight: .semibold))
-        } else {
-            Image(systemName: "questionmark.circle")
-                .font(.system(size: JinControlMetrics.assistantGlyphSize, weight: .semibold))
-        }
+        return AssistantGlyphRendering.coreGlyph(
+            trimmed: trimmed,
+            pointSize: JinControlMetrics.assistantGlyphSize,
+            weight: .semibold
+        )
     }
 }
