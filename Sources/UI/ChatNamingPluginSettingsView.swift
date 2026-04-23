@@ -9,8 +9,8 @@ struct ChatNamingPluginSettingsView: View {
     @AppStorage(AppPreferenceKeys.chatNamingModelID) private var chatNamingModelID = ""
 
     var body: some View {
-        Form {
-            Section("Behavior") {
+        JinSettingsPage {
+            JinSettingsSection("Behavior") {
                 Picker("Rename Mode", selection: $chatNamingMode) {
                     ForEach(ChatNamingMode.allCases) { mode in
                         Text(mode.label).tag(mode)
@@ -18,7 +18,10 @@ struct ChatNamingPluginSettingsView: View {
                 }
             }
 
-            Section("Naming Model") {
+            JinSettingsSection(
+                "Naming Model",
+                detail: "Choose the provider and model used when Jin suggests chat titles."
+            ) {
                 if allProviderModelPairs.isEmpty {
                     Text("No providers with models found. Add models under Settings → Providers.")
                         .jinInfoCallout()
@@ -46,9 +49,6 @@ struct ChatNamingPluginSettingsView: View {
                 }
             }
         }
-        .formStyle(.grouped)
-        .scrollContentBackground(.hidden)
-        .background(JinSemanticColor.detailSurface)
         .navigationTitle("Chat Naming")
         .onAppear {
             ensureValidSelection()

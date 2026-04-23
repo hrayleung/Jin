@@ -45,32 +45,31 @@ struct MinerUOCRPluginSettingsView: View {
     }
 
     var body: some View {
-        Form {
-            Section("API Token") {
-                HStack(spacing: 8) {
-                    Group {
-                        if isTokenVisible {
-                            TextField("MinerU API Token", text: $apiToken)
-                                .textContentType(.password)
-                        } else {
-                            SecureField("MinerU API Token", text: $apiToken)
-                                .textContentType(.password)
-                        }
-                    }
-
-                    Button {
-                        isTokenVisible.toggle()
-                    } label: {
-                        Image(systemName: isTokenVisible ? "eye.slash" : "eye")
-                            .foregroundStyle(.secondary)
-                            .frame(width: 22, height: 22)
-                    }
-                    .buttonStyle(.plain)
-                    .help(isTokenVisible ? "Hide API token" : "Show API token")
-                    .disabled(apiToken.isEmpty)
+        JinSettingsPage {
+            JinSettingsSection(
+                "API Token",
+                detail: "MinerU uses a token plus an optional user header. Changes save automatically."
+            ) {
+                JinSettingsControlRow(
+                    "API Token",
+                    supportingText: "Stored locally on this Mac. Changes save automatically."
+                ) {
+                    JinRevealableSecureField(
+                        title: "MinerU API Token",
+                        text: $apiToken,
+                        isRevealed: $isTokenVisible,
+                        revealHelp: "Show API token",
+                        concealHelp: "Hide API token"
+                    )
                 }
 
-                TextField("Optional user header", text: $userIdentifier)
+                JinSettingsControlRow(
+                    "User Header",
+                    supportingText: "Optional. Sends an extra user identifier with requests."
+                ) {
+                    TextField("Optional user header", text: $userIdentifier)
+                        .textFieldStyle(.roundedBorder)
+                }
 
                 HStack(spacing: 12) {
                     Button("Check Token") { runTestConnection() }
@@ -88,24 +87,23 @@ struct MinerUOCRPluginSettingsView: View {
                 }
 
                 if let statusMessage {
-                    Text(statusMessage)
-                        .font(.caption)
-                        .foregroundStyle(statusIsError ? Color.red : Color.secondary)
+                    JinSettingsStatusText(text: statusMessage, isError: statusIsError)
                 }
             }
 
-            Section("OCR") {
-                Picker("Language", selection: $selectedLanguage) {
-                    ForEach(Self.languageOptions) { option in
-                        Text(option.label).tag(option.code)
+            JinSettingsSection("OCR") {
+                JinSettingsControlRow("Language") {
+                    Picker("Language", selection: $selectedLanguage) {
+                        ForEach(Self.languageOptions) { option in
+                            Text(option.label).tag(option.code)
+                        }
                     }
+                    .labelsHidden()
+                    .pickerStyle(.menu)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                .pickerStyle(.menu)
             }
         }
-        .formStyle(.grouped)
-        .scrollContentBackground(.hidden)
-        .background(JinSemanticColor.detailSurface)
         .navigationTitle("MinerU OCR")
         .task {
             await loadExistingSettings()

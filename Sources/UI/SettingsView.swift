@@ -174,7 +174,7 @@ struct SettingsView: View {
         .navigationTitle("")
         .toolbar(removing: .sidebarToggle)
         .hideWindowToolbarCompat()
-        .frame(minWidth: 900, minHeight: 620)
+        .frame(minWidth: 1_060, idealWidth: 1_140, minHeight: 620, idealHeight: 700)
         .sheet(isPresented: $showingAddProvider) {
             AddProviderView()
         }
@@ -260,7 +260,7 @@ struct SettingsView: View {
                 .fill(JinSemanticColor.separator.opacity(0.4))
                 .frame(width: JinStrokeWidth.hairline)
         }
-        .navigationSplitViewColumnWidth(min: 220, ideal: 240, max: 240)
+        .navigationSplitViewColumnWidth(min: 220, ideal: 230, max: 230)
     }
 
     private var detailColumn: some View {
@@ -282,7 +282,7 @@ struct SettingsView: View {
             JinSemanticColor.detailSurface.ignoresSafeArea()
         }
         .toolbarBackground(JinSemanticColor.detailSurface, for: .windowToolbar)
-        .navigationSplitViewColumnWidth(min: 420, ideal: 520, max: 620)
+        .navigationSplitViewColumnWidth(min: 500, ideal: 620, max: 820)
     }
 
     // MARK: - Detail Sub-Views

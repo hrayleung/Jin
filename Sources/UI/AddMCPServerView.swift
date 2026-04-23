@@ -46,12 +46,17 @@ struct AddMCPServerView: View {
 
     var body: some View {
         NavigationStack {
-            Form {
-                Section("Quick setup") {
-                    Picker("Preset", selection: $preset) {
-                        ForEach(Preset.allCases) { preset in
-                            Text(preset.rawValue).tag(preset)
+            JinSettingsPage(maxWidth: 720, horizontalPadding: 20, verticalPadding: 20) {
+                JinSettingsSection("Quick Setup") {
+                    JinSettingsControlRow("Preset") {
+                        Picker("Preset", selection: $preset) {
+                            ForEach(Preset.allCases) { preset in
+                                Text(preset.rawValue).tag(preset)
+                            }
                         }
+                        .labelsHidden()
+                        .pickerStyle(.menu)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     }
                     .onChange(of: preset) { _, newValue in
                         applyPreset(newValue)
@@ -103,18 +108,34 @@ struct AddMCPServerView: View {
                     }
                 }
 
-                Section("MCP Server") {
-                    TextField("ID", text: $id)
-                        .help("Short identifier (e.g. 'git').")
-                    TextField("Name", text: $name)
-                    MCPIconPickerField(
-                        selectedIconID: $iconID,
-                        defaultIconID: MCPIconCatalog.defaultIconID
-                    )
+                JinSettingsSection("MCP Server") {
+                    JinSettingsControlRow("ID", supportingText: "Short identifier (e.g. `git`).") {
+                        TextField("exa", text: $id)
+                            .textFieldStyle(.roundedBorder)
+                            .font(.system(.body, design: .monospaced))
+                            .help("Short identifier (e.g. 'git').")
+                    }
 
-                    Picker("Transport", selection: $transportKind) {
-                        Text("Command-line (stdio)").tag(MCPTransportKind.stdio)
-                        Text("Remote HTTP").tag(MCPTransportKind.http)
+                    JinSettingsControlRow("Name") {
+                        TextField("Exa", text: $name)
+                            .textFieldStyle(.roundedBorder)
+                    }
+
+                    JinSettingsControlRow("Icon") {
+                        MCPIconPickerField(
+                            selectedIconID: $iconID,
+                            defaultIconID: MCPIconCatalog.defaultIconID
+                        )
+                    }
+
+                    JinSettingsControlRow("Transport") {
+                        Picker("Transport", selection: $transportKind) {
+                            Text("Command-line (stdio)").tag(MCPTransportKind.stdio)
+                            Text("Remote HTTP").tag(MCPTransportKind.http)
+                        }
+                        .labelsHidden()
+                        .pickerStyle(.menu)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     }
 
                     Toggle("Enabled", isOn: $isEnabled)
@@ -122,11 +143,18 @@ struct AddMCPServerView: View {
                 }
 
                 if transportKind == .stdio {
-                    Section("Stdio transport") {
-                        TextField("Command", text: $command)
-                            .font(.system(.body, design: .monospaced))
-                        TextField("Arguments", text: $args)
-                            .font(.system(.body, design: .monospaced))
+                    JinSettingsSection("Stdio Transport") {
+                        JinSettingsControlRow("Command") {
+                            TextField("npx", text: $command)
+                                .textFieldStyle(.roundedBorder)
+                                .font(.system(.body, design: .monospaced))
+                        }
+
+                        JinSettingsControlRow("Arguments") {
+                            TextField("-y exa-mcp-server", text: $args)
+                                .textFieldStyle(.roundedBorder)
+                                .font(.system(.body, design: .monospaced))
+                        }
 
                         if shouldShowNodeIsolationNote {
                             JinDetailsDisclosure(title: "Launcher Details") {
@@ -140,72 +168,61 @@ struct AddMCPServerView: View {
                         }
                     }
 
-                    Section("Environment variables") {
+                    JinSettingsSection("Environment Variables") {
                         EnvironmentVariablesEditor(pairs: $envPairs)
                     }
                 } else {
-                    Section("HTTP transport") {
-                        TextField("Endpoint URL", text: $endpoint)
-                            .font(.system(.body, design: .monospaced))
+                    JinSettingsSection("HTTP Transport") {
+                        JinSettingsControlRow("Endpoint URL") {
+                            TextField("https://mcp.exa.ai/mcp", text: $endpoint)
+                                .textFieldStyle(.roundedBorder)
+                                .font(.system(.body, design: .monospaced))
+                        }
 
                         Toggle("Enable streaming (SSE)", isOn: $httpStreaming)
                     }
 
-                    Section("Authentication") {
-                        Picker("Type", selection: $httpAuthKind) {
-                            Text("None").tag(MCPHTTPAuthentication.FormKind.none)
-                            Text("Bearer token").tag(MCPHTTPAuthentication.FormKind.bearerToken)
-                            Text("Custom header").tag(MCPHTTPAuthentication.FormKind.customHeader)
+                    JinSettingsSection("Authentication") {
+                        JinSettingsControlRow("Type") {
+                            Picker("Type", selection: $httpAuthKind) {
+                                Text("None").tag(MCPHTTPAuthentication.FormKind.none)
+                                Text("Bearer token").tag(MCPHTTPAuthentication.FormKind.bearerToken)
+                                Text("Custom header").tag(MCPHTTPAuthentication.FormKind.customHeader)
+                            }
+                            .labelsHidden()
+                            .pickerStyle(.menu)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                         }
 
                         switch httpAuthKind {
                         case .none:
                             EmptyView()
                         case .bearerToken:
-                            HStack(spacing: 8) {
-                                Group {
-                                    if isBearerTokenVisible {
-                                        TextField("Bearer token", text: $bearerToken)
-                                            .font(.system(.body, design: .monospaced))
-                                    } else {
-                                        SecureField("Bearer token", text: $bearerToken)
-                                            .font(.system(.body, design: .monospaced))
-                                    }
-                                }
-                                Button {
-                                    isBearerTokenVisible.toggle()
-                                } label: {
-                                    Image(systemName: isBearerTokenVisible ? "eye.slash" : "eye")
-                                        .foregroundStyle(.secondary)
-                                        .frame(width: 22, height: 22)
-                                }
-                                .buttonStyle(.plain)
-                                .help(isBearerTokenVisible ? "Hide token" : "Show token")
-                                .disabled(bearerToken.isEmpty)
+                            JinSettingsControlRow("Bearer token") {
+                                JinRevealableSecureField(
+                                    title: "Bearer token",
+                                    text: $bearerToken,
+                                    isRevealed: $isBearerTokenVisible,
+                                    usesMonospacedFont: true,
+                                    revealHelp: "Show token",
+                                    concealHelp: "Hide token"
+                                )
                             }
                         case .customHeader:
-                            TextField("Header name", text: $authHeaderName)
-                                .font(.system(.body, design: .monospaced))
-                            HStack(spacing: 8) {
-                                Group {
-                                    if isHeaderValueVisible {
-                                        TextField("Header value", text: $authHeaderValue)
-                                            .font(.system(.body, design: .monospaced))
-                                    } else {
-                                        SecureField("Header value", text: $authHeaderValue)
-                                            .font(.system(.body, design: .monospaced))
-                                    }
-                                }
-                                Button {
-                                    isHeaderValueVisible.toggle()
-                                } label: {
-                                    Image(systemName: isHeaderValueVisible ? "eye.slash" : "eye")
-                                        .foregroundStyle(.secondary)
-                                        .frame(width: 22, height: 22)
-                                }
-                                .buttonStyle(.plain)
-                                .help(isHeaderValueVisible ? "Hide value" : "Show value")
-                                .disabled(authHeaderValue.isEmpty)
+                            JinSettingsControlRow("Header name") {
+                                TextField("Authorization", text: $authHeaderName)
+                                    .textFieldStyle(.roundedBorder)
+                                    .font(.system(.body, design: .monospaced))
+                            }
+                            JinSettingsControlRow("Header value") {
+                                JinRevealableSecureField(
+                                    title: "Header value",
+                                    text: $authHeaderValue,
+                                    isRevealed: $isHeaderValueVisible,
+                                    usesMonospacedFont: true,
+                                    revealHelp: "Show value",
+                                    concealHelp: "Hide value"
+                                )
                             }
                         }
 
@@ -216,19 +233,13 @@ struct AddMCPServerView: View {
                         }
                     }
 
-                    Section("Additional headers") {
+                    JinSettingsSection("Additional Headers") {
                         EnvironmentVariablesEditor(pairs: $headerPairs)
                     }
                 }
             }
             .safeAreaInset(edge: .top, spacing: 0) {
                 addMCPServerActionBar
-            }
-            .formStyle(.grouped)
-            .scrollContentBackground(.hidden)
-            .background {
-                JinSemanticColor.detailSurface
-                    .ignoresSafeArea()
             }
             .navigationTitle("Add MCP Server")
             .onExitCommand { dismiss() }

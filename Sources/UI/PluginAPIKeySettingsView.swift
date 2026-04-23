@@ -32,31 +32,25 @@ struct PluginAPIKeySettingsView: View {
     }
 
     var body: some View {
-        Form {
-            Section("API Key") {
-                HStack(spacing: 8) {
-                    Group {
-                        if isKeyVisible {
-                            TextField("API Key", text: $apiKey)
-                                .textContentType(.password)
-                        } else {
-                            SecureField("API Key", text: $apiKey)
-                                .textContentType(.password)
-                        }
-                    }
-                    Button {
-                        isKeyVisible.toggle()
-                    } label: {
-                        Image(systemName: isKeyVisible ? "eye.slash" : "eye")
-                            .foregroundStyle(.secondary)
-                            .frame(width: 22, height: 22)
-                    }
-                    .buttonStyle(.plain)
-                    .help(isKeyVisible ? "Hide API key" : "Show API key")
-                    .disabled(apiKey.isEmpty)
+        JinSettingsPage {
+            JinSettingsSection(
+                "API Key",
+                detail: "Stored locally on this Mac and saved automatically as you type."
+            ) {
+                JinSettingsControlRow(
+                    "API Key",
+                    supportingText: "Stored locally on this Mac. Changes save automatically."
+                ) {
+                    JinRevealableSecureField(
+                        title: "API Key",
+                        text: $apiKey,
+                        isRevealed: $isKeyVisible,
+                        revealHelp: "Show API key",
+                        concealHelp: "Hide API key"
+                    )
                 }
 
-                HStack(spacing: 12) {
+                HStack(spacing: JinSpacing.medium) {
                     Button("Test Connection") { runTestConnection() }
                         .disabled(trimmedAPIKey.isEmpty || isTesting)
 
@@ -72,9 +66,7 @@ struct PluginAPIKeySettingsView: View {
                 }
 
                 if let statusMessage {
-                    Text(statusMessage)
-                        .font(.caption)
-                        .foregroundStyle(statusIsError ? Color.red : Color.secondary)
+                    JinSettingsStatusText(text: statusMessage, isError: statusIsError)
                 }
 
                 if let apiKeyHint, !apiKeyHint.isEmpty {
@@ -84,9 +76,6 @@ struct PluginAPIKeySettingsView: View {
                 }
             }
         }
-        .formStyle(.grouped)
-        .scrollContentBackground(.hidden)
-        .background(JinSemanticColor.detailSurface)
         .navigationTitle(title)
         .task {
             await loadExistingKey()

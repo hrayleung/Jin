@@ -9,39 +9,56 @@ extension SpeechToTextPluginSettingsView {
         if let provider {
             switch provider {
             case .openai:
-                Section("OpenAI") {
-                    TextField("API Base URL", text: $openAIBaseURL)
-                        .font(.system(.body, design: .monospaced))
-                        .textFieldStyle(.roundedBorder)
-
-                    Picker("Model", selection: $openAIModel) {
-                        ForEach(displayedOpenAIModels) { model in
-                            Text(model.name).tag(model.id)
-                        }
+                JinSettingsSection("OpenAI") {
+                    JinSettingsControlRow("API Base URL") {
+                        TextField("API Base URL", text: $openAIBaseURL)
+                            .font(.system(.body, design: .monospaced))
+                            .textFieldStyle(.roundedBorder)
                     }
-                    .pickerStyle(.menu)
+
+                    JinSettingsControlRow("Model") {
+                        Picker("Model", selection: $openAIModel) {
+                            ForEach(displayedOpenAIModels) { model in
+                                Text(model.name).tag(model.id)
+                            }
+                        }
+                        .labelsHidden()
+                        .pickerStyle(.menu)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
 
                     Toggle("Translate to English", isOn: $openAITranslateToEnglish)
 
-                    TextField("Language (optional)", text: $openAILanguage)
-                        .font(.system(.body, design: .monospaced))
-
-                    TextField("Prompt (optional)", text: $openAIPrompt)
-
-                    Picker("Response Format", selection: $openAIResponseFormat) {
-                        ForEach(Self.sttResponseFormats, id: \.self) { format in
-                            Text(format).tag(format)
-                        }
-                    }
-                    .pickerStyle(.menu)
-
-                    HStack {
-                        Text("Temperature")
-                        Slider(value: $openAITemperature, in: 0.0...1.0, step: 0.05)
-                        Text(openAITemperature.formatted(.number.precision(.fractionLength(2))))
+                    JinSettingsControlRow("Language", supportingText: "Optional. Leave empty for auto-detection.") {
+                        TextField("Language (optional)", text: $openAILanguage)
                             .font(.system(.body, design: .monospaced))
-                            .foregroundStyle(.secondary)
-                            .frame(width: 52, alignment: .trailing)
+                            .textFieldStyle(.roundedBorder)
+                    }
+
+                    JinSettingsControlRow("Prompt", supportingText: "Optional.") {
+                        TextField("Prompt (optional)", text: $openAIPrompt)
+                            .textFieldStyle(.roundedBorder)
+                    }
+
+                    JinSettingsControlRow("Response Format") {
+                        Picker("Response Format", selection: $openAIResponseFormat) {
+                            ForEach(Self.sttResponseFormats, id: \.self) { format in
+                                Text(format).tag(format)
+                            }
+                        }
+                        .labelsHidden()
+                        .pickerStyle(.menu)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+
+                    JinSettingsControlRow("Temperature") {
+                        HStack {
+                            Slider(value: $openAITemperature, in: 0.0...1.0, step: 0.05)
+                            Text(openAITemperature.formatted(.number.precision(.fractionLength(2))))
+                                .font(.system(.body, design: .monospaced))
+                                .foregroundStyle(.secondary)
+                                .frame(width: 52, alignment: .trailing)
+                        }
                     }
 
                     DisclosureGroup("Timestamps (verbose_json only)") {
@@ -51,39 +68,56 @@ extension SpeechToTextPluginSettingsView {
                 }
 
             case .groq:
-                Section("Groq") {
-                    TextField("API Base URL", text: $groqBaseURL)
-                        .font(.system(.body, design: .monospaced))
-                        .textFieldStyle(.roundedBorder)
-
-                    Picker("Model", selection: $groqModel) {
-                        ForEach(displayedGroqModels) { model in
-                            Text(model.name).tag(model.id)
-                        }
+                JinSettingsSection("Groq") {
+                    JinSettingsControlRow("API Base URL") {
+                        TextField("API Base URL", text: $groqBaseURL)
+                            .font(.system(.body, design: .monospaced))
+                            .textFieldStyle(.roundedBorder)
                     }
-                    .pickerStyle(.menu)
+
+                    JinSettingsControlRow("Model") {
+                        Picker("Model", selection: $groqModel) {
+                            ForEach(displayedGroqModels) { model in
+                                Text(model.name).tag(model.id)
+                            }
+                        }
+                        .labelsHidden()
+                        .pickerStyle(.menu)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
 
                     Toggle("Translate to English", isOn: $groqTranslateToEnglish)
 
-                    TextField("Language (optional)", text: $groqLanguage)
-                        .font(.system(.body, design: .monospaced))
-
-                    TextField("Prompt (optional)", text: $groqPrompt)
-
-                    Picker("Response Format", selection: $groqResponseFormat) {
-                        ForEach(Self.sttResponseFormats, id: \.self) { format in
-                            Text(format).tag(format)
-                        }
-                    }
-                    .pickerStyle(.menu)
-
-                    HStack {
-                        Text("Temperature")
-                        Slider(value: $groqTemperature, in: 0.0...1.0, step: 0.05)
-                        Text(groqTemperature.formatted(.number.precision(.fractionLength(2))))
+                    JinSettingsControlRow("Language", supportingText: "Optional. Leave empty for auto-detection.") {
+                        TextField("Language (optional)", text: $groqLanguage)
                             .font(.system(.body, design: .monospaced))
-                            .foregroundStyle(.secondary)
-                            .frame(width: 52, alignment: .trailing)
+                            .textFieldStyle(.roundedBorder)
+                    }
+
+                    JinSettingsControlRow("Prompt", supportingText: "Optional.") {
+                        TextField("Prompt (optional)", text: $groqPrompt)
+                            .textFieldStyle(.roundedBorder)
+                    }
+
+                    JinSettingsControlRow("Response Format") {
+                        Picker("Response Format", selection: $groqResponseFormat) {
+                            ForEach(Self.sttResponseFormats, id: \.self) { format in
+                                Text(format).tag(format)
+                            }
+                        }
+                        .labelsHidden()
+                        .pickerStyle(.menu)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+
+                    JinSettingsControlRow("Temperature") {
+                        HStack {
+                            Slider(value: $groqTemperature, in: 0.0...1.0, step: 0.05)
+                            Text(groqTemperature.formatted(.number.precision(.fractionLength(2))))
+                                .font(.system(.body, design: .monospaced))
+                                .foregroundStyle(.secondary)
+                                .frame(width: 52, alignment: .trailing)
+                        }
                     }
 
                     DisclosureGroup("Timestamps (verbose_json only)") {
@@ -93,37 +127,54 @@ extension SpeechToTextPluginSettingsView {
                 }
 
             case .mistral:
-                Section("Mistral") {
-                    TextField("API Base URL", text: $mistralBaseURL)
-                        .font(.system(.body, design: .monospaced))
-                        .textFieldStyle(.roundedBorder)
-
-                    Picker("Model", selection: $mistralModel) {
-                        ForEach(displayedMistralModels) { model in
-                            Text(model.name).tag(model.id)
-                        }
-                    }
-                    .pickerStyle(.menu)
-
-                    TextField("Language (optional)", text: $mistralLanguage)
-                        .font(.system(.body, design: .monospaced))
-
-                    TextField("Prompt (optional)", text: $mistralPrompt)
-
-                    Picker("Response Format", selection: $mistralResponseFormat) {
-                        ForEach(Self.sttResponseFormats, id: \.self) { format in
-                            Text(format).tag(format)
-                        }
-                    }
-                    .pickerStyle(.menu)
-
-                    HStack {
-                        Text("Temperature")
-                        Slider(value: $mistralTemperature, in: 0.0...1.0, step: 0.05)
-                        Text(mistralTemperature.formatted(.number.precision(.fractionLength(2))))
+                JinSettingsSection("Mistral") {
+                    JinSettingsControlRow("API Base URL") {
+                        TextField("API Base URL", text: $mistralBaseURL)
                             .font(.system(.body, design: .monospaced))
-                            .foregroundStyle(.secondary)
-                            .frame(width: 52, alignment: .trailing)
+                            .textFieldStyle(.roundedBorder)
+                    }
+
+                    JinSettingsControlRow("Model") {
+                        Picker("Model", selection: $mistralModel) {
+                            ForEach(displayedMistralModels) { model in
+                                Text(model.name).tag(model.id)
+                            }
+                        }
+                        .labelsHidden()
+                        .pickerStyle(.menu)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+
+                    JinSettingsControlRow("Language", supportingText: "Optional. Leave empty for auto-detection.") {
+                        TextField("Language (optional)", text: $mistralLanguage)
+                            .font(.system(.body, design: .monospaced))
+                            .textFieldStyle(.roundedBorder)
+                    }
+
+                    JinSettingsControlRow("Prompt", supportingText: "Optional.") {
+                        TextField("Prompt (optional)", text: $mistralPrompt)
+                            .textFieldStyle(.roundedBorder)
+                    }
+
+                    JinSettingsControlRow("Response Format") {
+                        Picker("Response Format", selection: $mistralResponseFormat) {
+                            ForEach(Self.sttResponseFormats, id: \.self) { format in
+                                Text(format).tag(format)
+                            }
+                        }
+                        .labelsHidden()
+                        .pickerStyle(.menu)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+
+                    JinSettingsControlRow("Temperature") {
+                        HStack {
+                            Slider(value: $mistralTemperature, in: 0.0...1.0, step: 0.05)
+                            Text(mistralTemperature.formatted(.number.precision(.fractionLength(2))))
+                                .font(.system(.body, design: .monospaced))
+                                .foregroundStyle(.secondary)
+                                .frame(width: 52, alignment: .trailing)
+                        }
                     }
 
                     DisclosureGroup("Timestamps (verbose_json only)") {
@@ -140,21 +191,30 @@ extension SpeechToTextPluginSettingsView {
                 )
 
             case .elevenlabs:
-                Section("ElevenLabs") {
-                    TextField("API Base URL", text: $elevenLabsBaseURL)
-                        .font(.system(.body, design: .monospaced))
-                        .textFieldStyle(.roundedBorder)
-
-                    Picker("Model", selection: $elevenLabsModel) {
-                        ForEach(displayedElevenLabsModels) { model in
-                            Text(model.name).tag(model.id)
-                        }
+                JinSettingsSection("ElevenLabs") {
+                    JinSettingsControlRow("API Base URL") {
+                        TextField("API Base URL", text: $elevenLabsBaseURL)
+                            .font(.system(.body, design: .monospaced))
+                            .textFieldStyle(.roundedBorder)
                     }
-                    .pickerStyle(.menu)
 
-                    TextField("Language Code (optional)", text: $elevenLabsLanguageCode)
-                        .font(.system(.body, design: .monospaced))
-                        .help("ISO-639-1 or ISO-639-3 code. Leave empty for auto-detection.")
+                    JinSettingsControlRow("Model") {
+                        Picker("Model", selection: $elevenLabsModel) {
+                            ForEach(displayedElevenLabsModels) { model in
+                                Text(model.name).tag(model.id)
+                            }
+                        }
+                        .labelsHidden()
+                        .pickerStyle(.menu)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+
+                    JinSettingsControlRow("Language Code", supportingText: "Optional. Leave empty for auto-detection.") {
+                        TextField("Language Code (optional)", text: $elevenLabsLanguageCode)
+                            .font(.system(.body, design: .monospaced))
+                            .textFieldStyle(.roundedBorder)
+                            .help("ISO-639-1 or ISO-639-3 code. Leave empty for auto-detection.")
+                    }
 
                     Toggle("Tag audio events", isOn: $elevenLabsTagAudioEvents)
                         .help("Tag events like (laughter), (footsteps) in the transcription.")
@@ -170,32 +230,40 @@ extension SpeechToTextPluginSettingsView {
                         Stepper("Max speakers: \(elevenLabsNumSpeakers)", value: $elevenLabsNumSpeakers, in: 1...32)
                     }
 
-                    Picker("Timestamps", selection: $elevenLabsTimestampsGranularity) {
-                        Text("None").tag("none")
-                        Text("Word").tag("word")
-                        Text("Character").tag("character")
+                    JinSettingsControlRow("Timestamps") {
+                        Picker("Timestamps", selection: $elevenLabsTimestampsGranularity) {
+                            Text("None").tag("none")
+                            Text("Word").tag("word")
+                            Text("Character").tag("character")
+                        }
+                        .labelsHidden()
+                        .pickerStyle(.menu)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     }
-                    .pickerStyle(.menu)
 
-                    Picker("File Format", selection: $elevenLabsFileFormat) {
-                        Text("Auto-detect").tag("other")
-                        Text("PCM 16-bit 16kHz").tag("pcm_s16le_16")
+                    JinSettingsControlRow("File Format", supportingText: "Use PCM for lower latency when recording is already 16-bit 16kHz mono.") {
+                        Picker("File Format", selection: $elevenLabsFileFormat) {
+                            Text("Auto-detect").tag("other")
+                            Text("PCM 16-bit 16kHz").tag("pcm_s16le_16")
+                        }
+                        .labelsHidden()
+                        .pickerStyle(.menu)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     }
-                    .pickerStyle(.menu)
-                    .help("Use PCM for lower latency when recording is already 16-bit 16kHz mono.")
 
-                    HStack {
-                        Text("Temperature")
-                        Slider(value: $elevenLabsTemperature, in: 0.0...2.0, step: 0.05)
-                        Text(elevenLabsTemperature.formatted(.number.precision(.fractionLength(2))))
-                            .font(.system(.body, design: .monospaced))
-                            .foregroundStyle(.secondary)
-                            .frame(width: 52, alignment: .trailing)
+                    JinSettingsControlRow("Temperature") {
+                        HStack {
+                            Slider(value: $elevenLabsTemperature, in: 0.0...2.0, step: 0.05)
+                            Text(elevenLabsTemperature.formatted(.number.precision(.fractionLength(2))))
+                                .font(.system(.body, design: .monospaced))
+                                .foregroundStyle(.secondary)
+                                .frame(width: 52, alignment: .trailing)
+                        }
                     }
                 }
             }
         } else {
-            Section("Provider Error") {
+            JinSettingsSection("Provider Error") {
                 Text(providerErrorMessage(for: providerRaw))
                     .font(.caption)
                     .foregroundStyle(.red)

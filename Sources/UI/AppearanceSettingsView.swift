@@ -53,8 +53,8 @@ struct AppearanceSettingsView: View {
     }
 
     var body: some View {
-        Form {
-            Section("Theme") {
+        JinSettingsPage {
+            JinSettingsSection("Theme") {
                 Picker("Mode", selection: $appAppearanceMode) {
                     ForEach(AppAppearanceMode.allCases) { mode in
                         Text(mode.label).tag(mode)
@@ -68,7 +68,7 @@ struct AppearanceSettingsView: View {
                     .foregroundStyle(.secondary)
             }
 
-            Section("Fonts") {
+            JinSettingsSection("Fonts") {
                 LabeledContent("App Font") {
                     Button(appFontDisplayName) {
                         showingAppFontPicker = true
@@ -84,7 +84,7 @@ struct AppearanceSettingsView: View {
                 }
             }
 
-            Section("Code Blocks") {
+            JinSettingsSection("Code Blocks") {
                 Picker("Long Blocks", selection: codeBlockDisplayMode) {
                     ForEach(CodeBlockDisplayMode.allCases) { mode in
                         Text(mode.label).tag(mode)
@@ -115,7 +115,7 @@ struct AppearanceSettingsView: View {
                     .foregroundStyle(.secondary)
             }
 
-            Section("Thinking Blocks") {
+            JinSettingsSection("Thinking Blocks") {
                 Picker("Display Mode", selection: thinkingDisplayMode) {
                     ForEach(ThinkingBlockDisplayMode.allCases) { mode in
                         Text(mode.label).tag(mode)
@@ -127,7 +127,7 @@ struct AppearanceSettingsView: View {
                     .foregroundStyle(.secondary)
             }
 
-            Section("Code Execution") {
+            JinSettingsSection("Code Execution") {
                 Picker("Display Mode", selection: codeExecutionDisplayMode) {
                     ForEach(CodeExecutionDisplayMode.allCases) { mode in
                         Text(mode.label).tag(mode)
@@ -139,7 +139,7 @@ struct AppearanceSettingsView: View {
                     .foregroundStyle(.secondary)
             }
 
-            Section("Codex Tool Activities") {
+            JinSettingsSection("Codex Tool Activities") {
                 Picker("Display Mode", selection: codexToolDisplayMode) {
                     ForEach(CodexToolDisplayMode.allCases) { mode in
                         Text(mode.label).tag(mode)
@@ -151,7 +151,7 @@ struct AppearanceSettingsView: View {
                     .foregroundStyle(.secondary)
             }
 
-            Section("Agent Tool Activities") {
+            JinSettingsSection("Agent Tool Activities") {
                 Picker("Display Mode", selection: agentToolDisplayMode) {
                     ForEach(AgentToolDisplayMode.allCases) { mode in
                         Text(mode.label).tag(mode)
@@ -163,9 +163,7 @@ struct AppearanceSettingsView: View {
                     .foregroundStyle(.secondary)
             }
         }
-        .formStyle(.grouped)
-        .scrollContentBackground(.hidden)
-        .background(JinSemanticColor.detailSurface)
+        .navigationTitle("Appearance")
         .sheet(isPresented: $showingAppFontPicker) {
             FontPickerSheet(
                 title: "App Font",

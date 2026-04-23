@@ -14,8 +14,11 @@ struct UpdateSettingsView: View {
     }
 
     var body: some View {
-        Form {
-            Section("Update Check") {
+        JinSettingsPage {
+            JinSettingsSection(
+                "Update Check",
+                detail: "Control automatic update checks and whether beta builds appear in the update channel."
+            ) {
                 LabeledContent("Current Version") {
                     Text(currentVersion)
                         .foregroundStyle(.secondary)
@@ -52,9 +55,7 @@ struct UpdateSettingsView: View {
                 .disabled(!updateManager.canCheckForUpdates)
             }
         }
-        .formStyle(.grouped)
-        .scrollContentBackground(.hidden)
-        .background(JinSemanticColor.detailSurface)
+        .navigationTitle("Updates")
         .onAppear {
             checkError = nil
             updateManager.refreshPublishedProperties()

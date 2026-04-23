@@ -19,133 +19,142 @@ struct AddProviderView: View {
     @State private var isSaving = false
     @State private var saveError: String?
 
+    private var prefersExpandedCredentialEditor: Bool {
+        providerType == .vertexai
+    }
+
     var body: some View {
         NavigationStack {
-            Form {
-                TextField("Name", text: $name, prompt: Text("e.g., \(providerType.displayName)"))
-                if name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    Text("Name is required.")
-                        .jinInlineErrorText()
-                }
+            JinSettingsPage(
+                maxWidth: prefersExpandedCredentialEditor ? 760 : 560,
+                horizontalPadding: 20,
+                verticalPadding: 20
+            ) {
+                JinSettingsSection("Provider") {
+                    JinSettingsControlRow("Name", supportingText: "Required.") {
+                        VStack(alignment: .leading, spacing: JinSpacing.xSmall) {
+                            TextField("Provider name", text: $name, prompt: Text("e.g., \(providerType.displayName)"))
+                                .textFieldStyle(.roundedBorder)
 
-                ProviderIconPickerField(
-                    selectedIconID: $iconID,
-                    defaultIconID: LobeProviderIconCatalog.defaultIconID(for: providerType)
-                )
-
-                Picker("Type", selection: $providerType) {
-                    ForEach(ProviderType.allCases, id: \.self) { type in
-                        Text(type.displayName).tag(type)
-                    }
-                }
-                .onChange(of: providerType) { oldValue, newValue in
-                    let trimmed = baseURL.trimmingCharacters(in: .whitespacesAndNewlines)
-                    if trimmed.isEmpty || trimmed == oldValue.defaultBaseURL {
-                        baseURL = newValue.defaultBaseURL ?? ""
-                    }
-
-                    let oldDefaultIconID = LobeProviderIconCatalog.defaultIconID(for: oldValue)
-                    let currentIconID = iconID?.trimmingCharacters(in: .whitespacesAndNewlines)
-                    if currentIconID == nil || currentIconID?.isEmpty == true || currentIconID == oldDefaultIconID {
-                        iconID = LobeProviderIconCatalog.defaultIconID(for: newValue)
-                    }
-
-                    let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
-                    if trimmedName.isEmpty || trimmedName == oldValue.displayName {
-                        name = newValue.displayName
-                    }
-                }
-
-                if providerType != .vertexai {
-                    TextField("API Base URL", text: $baseURL)
-                        .help("Default endpoint is pre-filled.")
-                }
-
-                if let providerSetupCallout {
-                    Text(providerSetupCallout)
-                        .jinInfoCallout()
-                }
-
-                if let providerDetailsText {
-                    JinDetailsDisclosure(title: "Provider Details") {
-                        Text(providerDetailsText)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-
-                switch providerType {
-                case .codexAppServer:
-                    VStack(alignment: .leading, spacing: 6) {
-                        HStack(spacing: 8) {
-                            Group {
-                                if isKeyVisible {
-                                    TextField("API Key (Optional)", text: $apiKey)
-                                } else {
-                                    SecureField("API Key (Optional)", text: $apiKey)
-                                }
-                            }
-                            Button {
-                                isKeyVisible.toggle()
-                            } label: {
-                                Image(systemName: isKeyVisible ? "eye.slash" : "eye")
-                                    .foregroundStyle(.secondary)
-                                    .frame(width: 22, height: 22)
-                            }
-                            .buttonStyle(.plain)
-                            .help(isKeyVisible ? "Hide API key" : "Show API key")
-                            .disabled(apiKey.isEmpty)
-                        }
-                        Text("Leave blank to use ChatGPT account login in provider settings.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                case .githubCopilot, .openai, .openaiWebSocket, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter,
-                     .anthropic, .claudeManagedAgents, .perplexity, .groq, .cohere, .mistral, .deepinfra, .together, .xai,
-                     .deepseek, .zhipuCodingPlan, .minimax, .minimaxCodingPlan, .fireworks, .cerebras, .sambanova, .morphllm, .opencodeGo, .gemini:
-                    HStack(spacing: 8) {
-                        Group {
-                            if isKeyVisible {
-                                TextField(providerType == .githubCopilot ? "GitHub Token" : "API Key", text: $apiKey)
-                            } else {
-                                SecureField(providerType == .githubCopilot ? "GitHub Token" : "API Key", text: $apiKey)
+                            if name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                                Text("Name is required.")
+                                    .jinInlineErrorText()
                             }
                         }
-                        Button {
-                            isKeyVisible.toggle()
-                        } label: {
-                            Image(systemName: isKeyVisible ? "eye.slash" : "eye")
+                    }
+
+                    JinSettingsControlRow("Icon") {
+                        ProviderIconPickerField(
+                            selectedIconID: $iconID,
+                            defaultIconID: LobeProviderIconCatalog.defaultIconID(for: providerType)
+                        )
+                    }
+
+                    JinSettingsControlRow("Type") {
+                        Picker("Type", selection: $providerType) {
+                            ForEach(ProviderType.allCases, id: \.self) { type in
+                                Text(type.displayName).tag(type)
+                            }
+                        }
+                        .labelsHidden()
+                        .pickerStyle(.menu)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .onChange(of: providerType) { oldValue, newValue in
+                        let trimmed = baseURL.trimmingCharacters(in: .whitespacesAndNewlines)
+                        if trimmed.isEmpty || trimmed == oldValue.defaultBaseURL {
+                            baseURL = newValue.defaultBaseURL ?? ""
+                        }
+
+                        let oldDefaultIconID = LobeProviderIconCatalog.defaultIconID(for: oldValue)
+                        let currentIconID = iconID?.trimmingCharacters(in: .whitespacesAndNewlines)
+                        if currentIconID == nil || currentIconID?.isEmpty == true || currentIconID == oldDefaultIconID {
+                            iconID = LobeProviderIconCatalog.defaultIconID(for: newValue)
+                        }
+
+                        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+                        if trimmedName.isEmpty || trimmedName == oldValue.displayName {
+                            name = newValue.displayName
+                        }
+                    }
+
+                    if providerType != .vertexai {
+                        JinSettingsControlRow("API Base URL", supportingText: "Default endpoint is pre-filled.") {
+                            TextField("API Base URL", text: $baseURL)
+                                .textFieldStyle(.roundedBorder)
+                                .font(.system(.body, design: .monospaced))
+                                .help("Default endpoint is pre-filled.")
+                        }
+                    }
+
+                    if let providerSetupCallout {
+                        Text(providerSetupCallout)
+                            .jinInfoCallout()
+                    }
+
+                    if let providerDetailsText {
+                        JinDetailsDisclosure(title: "Provider Details") {
+                            Text(providerDetailsText)
+                                .font(.caption)
                                 .foregroundStyle(.secondary)
-                                .frame(width: 22, height: 22)
                         }
-                        .buttonStyle(.plain)
-                        .help(isKeyVisible ? "Hide API key" : "Show API key")
-                        .disabled(apiKey.isEmpty)
                     }
-                case .vertexai:
-                    TextEditor(text: $serviceAccountJSON)
-                        .frame(minHeight: 100)
-                        .font(.system(.body, design: .monospaced))
-                        .jinTextEditorField(cornerRadius: JinRadius.small)
-                        .overlay(alignment: .topLeading) {
-                            if serviceAccountJSON.isEmpty {
-                                Text("Paste service account JSON here…")
-                                    .foregroundColor(.secondary)
-                                    .padding(.top, 8)
-                                    .padding(.leading, 4)
-                                    .allowsHitTesting(false)
-                            }
-                        }
                 }
 
-                if let saveError {
-                    Text(saveError)
-                        .jinInlineErrorText()
+                JinSettingsSection("Credentials") {
+                    switch providerType {
+                    case .codexAppServer:
+                        JinSettingsControlRow(
+                            "API Key",
+                            supportingText: "Optional. Leave blank to use ChatGPT account login in provider settings."
+                        ) {
+                            JinRevealableSecureField(
+                                title: "API Key (Optional)",
+                                text: $apiKey,
+                                isRevealed: $isKeyVisible,
+                                revealHelp: "Show API key",
+                                concealHelp: "Hide API key"
+                            )
+                        }
+                    case .githubCopilot, .openai, .openaiWebSocket, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter,
+                         .anthropic, .claudeManagedAgents, .perplexity, .groq, .cohere, .mistral, .deepinfra, .together, .xai,
+                         .deepseek, .zhipuCodingPlan, .minimax, .minimaxCodingPlan, .fireworks, .cerebras, .sambanova, .morphllm, .opencodeGo, .gemini:
+                        JinSettingsControlRow(providerType == .githubCopilot ? "GitHub Token" : "API Key") {
+                            JinRevealableSecureField(
+                                title: providerType == .githubCopilot ? "GitHub Token" : "API Key",
+                                text: $apiKey,
+                                isRevealed: $isKeyVisible,
+                                revealHelp: providerType == .githubCopilot ? "Show GitHub token" : "Show API key",
+                                concealHelp: providerType == .githubCopilot ? "Hide GitHub token" : "Hide API key"
+                            )
+                        }
+                    case .vertexai:
+                        JinSettingsBlockRow(
+                            "Service Account JSON",
+                            supportingText: "Paste the full service account JSON document."
+                        ) {
+                            TextEditor(text: $serviceAccountJSON)
+                                .frame(minHeight: 320)
+                                .font(.system(.body, design: .monospaced))
+                                .jinTextEditorField(cornerRadius: JinRadius.small)
+                                .overlay(alignment: .topLeading) {
+                                    if serviceAccountJSON.isEmpty {
+                                        Text("Paste service account JSON here…")
+                                            .foregroundColor(.secondary)
+                                            .padding(.top, 8)
+                                            .padding(.leading, 4)
+                                            .allowsHitTesting(false)
+                                    }
+                                }
+                        }
+                    }
+
+                    if let saveError {
+                        Text(saveError)
+                            .jinInlineErrorText()
+                    }
                 }
             }
-            .formStyle(.grouped)
-            .scrollContentBackground(.hidden)
-            .background(JinSemanticColor.detailSurface)
             .navigationTitle("Add Provider")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -156,7 +165,10 @@ struct AddProviderView: View {
                         .disabled(isAddDisabled)
                 }
             }
-            .frame(width: 500, height: 400)
+            .frame(
+                width: prefersExpandedCredentialEditor ? 740 : 500,
+                height: prefersExpandedCredentialEditor ? 660 : 400
+            )
         }
         #if os(macOS)
         .background(MovableWindowHelper())

@@ -12,60 +12,46 @@ struct FirecrawlOCRPluginSettingsView: View {
         apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    var body: some View {
-        Form {
-            Section("Shared Firecrawl API Key") {
-                HStack(spacing: 8) {
-                    Group {
-                        if isKeyVisible {
-                            TextField("API Key", text: $apiKey)
-                                .textContentType(.password)
-                        } else {
-                            SecureField("API Key", text: $apiKey)
-                                .textContentType(.password)
-                        }
-                    }
+    private var hasConfiguredKey: Bool {
+        !trimmedAPIKey.isEmpty || !lastPersistedAPIKey.isEmpty
+    }
 
-                    Button {
-                        isKeyVisible.toggle()
-                    } label: {
-                        Image(systemName: isKeyVisible ? "eye.slash" : "eye")
-                            .foregroundStyle(.secondary)
-                            .frame(width: 22, height: 22)
-                    }
-                    .buttonStyle(.plain)
-                    .help(isKeyVisible ? "Hide API key" : "Show API key")
-                    .disabled(apiKey.isEmpty)
+    var body: some View {
+        JinSettingsPage(maxWidth: 620) {
+            JinSettingsSection(
+                "Shared Firecrawl API Key",
+                detail: "This key is used by Firecrawl OCR and the Web Search plugin."
+            ) {
+                JinSettingsControlRow(
+                    "API Key",
+                    supportingText: "Changes save automatically."
+                ) {
+                    apiKeyField
                 }
 
-                HStack(spacing: 12) {
-                    Button("Clear", role: .destructive) { clearKey() }
+                HStack(spacing: JinSpacing.medium) {
+                    Button("Clear", role: .destructive) {
+                        clearKey()
+                    }
+                    .disabled(!hasConfiguredKey)
 
                     Spacer()
                 }
 
-                if let statusMessage {
-                    Text(statusMessage)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-
-                Text("This key is shared with the Web Search plugin.")
+                Text(statusMessage ?? "Shared with Web Search.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
-            Section("Requirements") {
-                Text("Firecrawl OCR uploads local PDFs to your configured Cloudflare R2 public bucket before calling Firecrawl.")
-                Text("Configure Cloudflare R2 in Settings → Plugins → Cloudflare R2 Upload.")
-                Text("Choose Firecrawl parser mode per chat from the PDF menu: Fast, Auto, or OCR.")
+            JinSettingsSection(
+                "Before You Use Firecrawl OCR",
+                detail: "Firecrawl OCR needs one shared API key and a configured Cloudflare R2 upload target.",
+                style: .plain
+            ) {
+                guidanceSection
             }
-            .font(.caption)
-            .foregroundStyle(.secondary)
         }
-        .formStyle(.grouped)
-        .scrollContentBackground(.hidden)
-        .background(JinSemanticColor.detailSurface)
         .navigationTitle("Firecrawl OCR")
         .task {
             await loadExistingKey()
@@ -77,6 +63,63 @@ struct FirecrawlOCRPluginSettingsView: View {
         }
         .onDisappear {
             autoSaveTask?.cancel()
+        }
+    }
+
+    private var apiKeyField: some View {
+        JinRevealableSecureField(
+            title: "API Key",
+            text: $apiKey,
+            isRevealed: $isKeyVisible,
+            usesMonospacedFont: true,
+            revealHelp: "Show API key",
+            concealHelp: "Hide API key"
+        )
+    }
+
+    private var guidanceSection: some View {
+        VStack(alignment: .leading, spacing: JinSpacing.medium) {
+            guidanceRow(
+                title: "Cloudflare R2 is required",
+                detail: "Firecrawl OCR uploads each local PDF to your configured public R2 bucket before calling Firecrawl.",
+                systemImage: "externaldrive.badge.icloud"
+            )
+
+            Divider()
+
+            guidanceRow(
+                title: "Configure the upload target first",
+                detail: "Open Settings → Plugins → Cloudflare R2 Upload and add your bucket details there.",
+                systemImage: "gearshape.2"
+            )
+
+            Divider()
+
+            guidanceRow(
+                title: "Choose a parser per chat",
+                detail: "Use the PDF menu to switch between Fast, Auto, and OCR for each conversation.",
+                systemImage: "doc.text.magnifyingglass"
+            )
+        }
+    }
+
+    private func guidanceRow(title: String, detail: String, systemImage: String) -> some View {
+        HStack(alignment: .top, spacing: JinSpacing.medium) {
+            Image(systemName: systemImage)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(.tertiary)
+                .frame(width: 16)
+                .padding(.top, 2)
+
+            VStack(alignment: .leading, spacing: JinSpacing.xSmall) {
+                Text(title)
+                    .font(.subheadline.weight(.semibold))
+
+                Text(detail)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
     }
 

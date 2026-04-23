@@ -8,25 +8,23 @@ struct KeyboardShortcutsSettingsView: View {
     @State private var editingAction: AppShortcutAction?
 
     var body: some View {
-        Form {
+        JinSettingsPage {
             ForEach(AppShortcutSection.allCases, id: \.rawValue) { section in
-                Section(section.title) {
+                JinSettingsSection(section.title) {
                     ForEach(actions(in: section)) { action in
                         shortcutRow(for: action)
                     }
                 }
             }
 
-            Section {
+            JinSettingsSection("Actions") {
                 Button("Restore All Defaults") {
                     shortcutsStore.resetAllToDefaults()
                 }
                 .disabled(!hasCustomizations)
             }
         }
-        .formStyle(.grouped)
-        .scrollContentBackground(.hidden)
-        .background(JinSemanticColor.detailSurface)
+        .navigationTitle("Keyboard Shortcuts")
         .sheet(item: $editingAction) { action in
             ShortcutEditorSheet(
                 action: action,

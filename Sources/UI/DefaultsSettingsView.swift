@@ -14,8 +14,8 @@ struct DefaultsSettingsView: View {
     @AppStorage(AppPreferenceKeys.newChatFixedMCPServerIDsJSON) private var newChatFixedMCPServerIDsJSON = "[]"
 
     var body: some View {
-        Form {
-            Section("New Chat Model") {
+        JinSettingsPage {
+            JinSettingsSection("New Chat Model") {
                 Picker("Model", selection: $newChatModelMode) {
                     ForEach(NewChatModelMode.allCases) { mode in
                         Text(mode.label).tag(mode)
@@ -49,7 +49,7 @@ struct DefaultsSettingsView: View {
                 }
             }
 
-            Section("New Chat MCP") {
+            JinSettingsSection("New Chat MCP") {
                 Picker("MCP Tools", selection: $newChatMCPMode) {
                     ForEach(NewChatMCPMode.allCases) { mode in
                         Text(mode.label).tag(mode)
@@ -91,9 +91,7 @@ struct DefaultsSettingsView: View {
                 }
             }
         }
-        .formStyle(.grouped)
-        .scrollContentBackground(.hidden)
-        .background(JinSemanticColor.detailSurface)
+        .navigationTitle("Defaults")
         .onAppear {
             ensureValidFixedModelSelection()
         }

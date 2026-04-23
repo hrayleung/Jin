@@ -51,36 +51,35 @@ struct ProviderIconPickerField: View {
     }
 
     var body: some View {
-        HStack(alignment: .center, spacing: JinSpacing.medium) {
-            Text("Icon")
+        Button {
+            isPickerPresented = true
+        } label: {
+            HStack(spacing: JinSpacing.small) {
+                ProviderIconView(iconID: activeIconID, size: 18)
+                    .frame(width: 22, height: 22)
+                    .jinSurface(.subtle, cornerRadius: JinRadius.small)
 
-            Spacer()
+                Text(iconLabel)
+                    .font(.body)
+                    .lineLimit(1)
 
-            Button {
-                isPickerPresented = true
-            } label: {
-                HStack(spacing: JinSpacing.small) {
-                    ProviderIconView(iconID: activeIconID, size: 18)
-                        .frame(width: 22, height: 22)
-                        .jinSurface(.subtle, cornerRadius: JinRadius.small)
-
-                    Text(iconLabel)
-                        .font(.body)
-                        .lineLimit(1)
-
-                    Image(systemName: "chevron.up.chevron.down")
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
-                }
-                .padding(.horizontal, JinSpacing.medium - 2)
-                .padding(.vertical, JinSpacing.xSmall + 2)
-                .jinSurface(.neutral, cornerRadius: JinRadius.small)
+                Image(systemName: "chevron.up.chevron.down")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
             }
-            .buttonStyle(.plain)
-            .help("Choose provider icon")
-            .sheet(isPresented: $isPickerPresented) {
-                ProviderIconPickerSheet(selectedIconID: $selectedIconID, defaultIconID: defaultIconID)
-            }
+            .padding(.horizontal, JinSpacing.medium - 2)
+            .padding(.vertical, JinSpacing.xSmall + 2)
+            .jinSurface(.neutral, cornerRadius: JinRadius.small)
+        }
+        .buttonStyle(.plain)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text("Provider icon"))
+        .accessibilityValue(Text(iconLabel))
+        .accessibilityHint(Text("Opens the provider icon picker"))
+        .help("Choose provider icon")
+        .sheet(isPresented: $isPickerPresented) {
+            ProviderIconPickerSheet(selectedIconID: $selectedIconID, defaultIconID: defaultIconID)
         }
     }
 

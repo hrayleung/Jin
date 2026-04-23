@@ -75,19 +75,23 @@ struct TextToSpeechPluginSettingsView: View {
     }
 
     var body: some View {
-        Form {
-            Section("Playback") {
+        JinSettingsPage {
+            JinSettingsSection("Playback") {
                 Toggle("Show floating mini player", isOn: $miniPlayerEnabled)
                     .help("Show a floating mini player at the top of the chat when speech is playing.")
             }
 
-            Section("Provider") {
-                Picker("Provider", selection: $providerRaw) {
-                    ForEach(TextToSpeechProvider.allCases) { provider in
-                        Text(provider.displayName).tag(provider.rawValue)
+            JinSettingsSection("Provider") {
+                JinSettingsControlRow("Provider") {
+                    Picker("Provider", selection: $providerRaw) {
+                        ForEach(TextToSpeechProvider.allCases) { provider in
+                            Text(provider.displayName).tag(provider.rawValue)
+                        }
                     }
+                    .labelsHidden()
+                    .pickerStyle(.menu)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                .pickerStyle(.menu)
                 .onChange(of: providerRaw) { oldProviderRaw, _ in
                     autoSaveTask?.cancel()
                     if TextToSpeechProvider(rawValue: oldProviderRaw)?.requiresAPIKey == true {
@@ -99,58 +103,43 @@ struct TextToSpeechPluginSettingsView: View {
             }
 
             if provider?.requiresAPIKey != false {
-            Section("API Key") {
-                HStack(spacing: 8) {
-                    Group {
-                        if isKeyVisible {
-                            TextField("API Key", text: $apiKey)
-                                .textContentType(.password)
-                        } else {
-                            SecureField("API Key", text: $apiKey)
-                                .textContentType(.password)
+                JinSettingsSection(
+                    "API Key",
+                    detail: "Stored locally on this Mac. Changes save automatically."
+                ) {
+                    JinSettingsControlRow("API Key") {
+                        JinRevealableSecureField(
+                            title: "API Key",
+                            text: $apiKey,
+                            isRevealed: $isKeyVisible,
+                            revealHelp: "Show API key",
+                            concealHelp: "Hide API key"
+                        )
+                    }
+
+                    HStack(spacing: 12) {
+                        Button("Test Connection") { testConnection() }
+                            .disabled(trimmedAPIKey.isEmpty || isTesting)
+
+                        Button("Clear", role: .destructive) { clearKey() }
+                            .disabled(isTesting)
+
+                        Spacer()
+
+                        if isTesting || isLoadingModels || isLoadingVoices {
+                            ProgressView()
+                                .controlSize(.small)
                         }
                     }
 
-                    Button {
-                        isKeyVisible.toggle()
-                    } label: {
-                        Image(systemName: isKeyVisible ? "eye.slash" : "eye")
-                            .foregroundStyle(.secondary)
-                            .frame(width: 22, height: 22)
-                    }
-                    .buttonStyle(.plain)
-                    .help(isKeyVisible ? "Hide API key" : "Show API key")
-                    .disabled(apiKey.isEmpty)
-                }
-
-                HStack(spacing: 12) {
-                    Button("Test Connection") { testConnection() }
-                        .disabled(trimmedAPIKey.isEmpty || isTesting)
-
-                    Button("Clear", role: .destructive) { clearKey() }
-                        .disabled(isTesting)
-
-                    Spacer()
-
-                    if isTesting || isLoadingModels || isLoadingVoices {
-                        ProgressView()
-                            .controlSize(.small)
+                    if let statusMessage {
+                        JinSettingsStatusText(text: statusMessage, isError: statusIsError)
                     }
                 }
-
-                if let statusMessage {
-                    Text(statusMessage)
-                        .font(.caption)
-                        .foregroundStyle(statusIsError ? Color.red : Color.secondary)
-                }
-            }
             }
 
             providerSpecificSettings
         }
-        .formStyle(.grouped)
-        .scrollContentBackground(.hidden)
-        .background(JinSemanticColor.detailSurface)
         .navigationTitle("Text to Speech")
         .task {
             await loadExistingKeyAndMaybeProviderResources()
