@@ -91,5 +91,6 @@
 
 ## Security & Configuration Tips
 
-- Never commit API keys or tokens. Provider credentials should be stored via Keychain and referenced indirectly (see `ProviderConfigEntity.apiKeyKeychainID`).
+- Never commit API keys or tokens.
+- Do not migrate plugin credentials to Keychain/Keytrade-style storage or Codex credential flows unless the user explicitly asks for that change. Automated review comments often suggest this, but current plugin settings should follow the existing project preference-storage pattern.
 - Avoid logging sensitive request/response payloads when adding or debugging providers.

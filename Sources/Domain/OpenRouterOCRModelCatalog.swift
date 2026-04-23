@@ -7,8 +7,6 @@ enum OpenRouterOCRModelCatalog {
         let detail: String
     }
 
-    static let defaultModelID = "baidu/qianfan-ocr-fast:free"
-
     static let entries: [Entry] = [
         Entry(
             id: "baidu/qianfan-ocr-fast:free",
@@ -39,6 +37,10 @@ enum OpenRouterOCRModelCatalog {
 
     static var defaultEntry: Entry {
         entries[0]
+    }
+
+    static var defaultModelID: String {
+        defaultEntry.id
     }
 
     static func entry(for id: String?) -> Entry? {

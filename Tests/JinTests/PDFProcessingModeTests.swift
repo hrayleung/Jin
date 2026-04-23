@@ -1125,14 +1125,15 @@ final class PDFProcessingModeTests: XCTestCase {
 
             let content = try XCTUnwrap(message["content"] as? [[String: Any]])
             XCTAssertEqual(content.count, 2)
-            XCTAssertEqual(content[0]["type"] as? String, "image_url")
-            let imageURL = try XCTUnwrap(content[0]["image_url"] as? [String: Any])
+
+            XCTAssertEqual(content[0]["type"] as? String, "text")
+            XCTAssertEqual(content[0]["text"] as? String, "Hello OCR")
+
+            XCTAssertEqual(content[1]["type"] as? String, "image_url")
+            let imageURL = try XCTUnwrap(content[1]["image_url"] as? [String: Any])
             let url = try XCTUnwrap(imageURL["url"] as? String)
             XCTAssertTrue(url.hasPrefix("data:image/jpeg;base64,"))
             XCTAssertTrue(url.contains("SU1H"))
-
-            XCTAssertEqual(content[1]["type"] as? String, "text")
-            XCTAssertEqual(content[1]["text"] as? String, "Hello OCR")
 
             let response: [String: Any] = [
                 "choices": [
@@ -1175,18 +1176,19 @@ final class PDFProcessingModeTests: XCTestCase {
 
             let body = try XCTUnwrap(requestBodyData(request))
             let json = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: Any])
+            XCTAssertEqual((json["max_tokens"] as? NSNumber)?.intValue, 16)
             let messages = try XCTUnwrap(json["messages"] as? [[String: Any]])
             let message = try XCTUnwrap(messages.first)
             let content = try XCTUnwrap(message["content"] as? [[String: Any]])
             XCTAssertEqual(content.count, 2)
 
-            let imageURL = try XCTUnwrap(content[0]["image_url"] as? [String: Any])
+            XCTAssertEqual(content[0]["type"] as? String, "text")
+            XCTAssertEqual(content[0]["text"] as? String, "Reply with exactly: OK")
+
+            let imageURL = try XCTUnwrap(content[1]["image_url"] as? [String: Any])
             let url = try XCTUnwrap(imageURL["url"] as? String)
             XCTAssertTrue(url.hasPrefix("data:image/jpeg;base64,"))
             XCTAssertTrue(url.contains("/9j/"))
-
-            XCTAssertEqual(content[1]["type"] as? String, "text")
-            XCTAssertEqual(content[1]["text"] as? String, "Reply with exactly: OK")
 
             let response: [String: Any] = [
                 "choices": [
@@ -1211,6 +1213,49 @@ final class PDFProcessingModeTests: XCTestCase {
         )
 
         try await client.validateAPIKey(timeoutSeconds: 5)
+    }
+
+    func testOpenRouterOCRClientSurfacesChoiceLevelErrors() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        protocolType.requestHandler = { request in
+            let response: [String: Any] = [
+                "choices": [
+                    [
+                        "finish_reason": "error",
+                        "error": [
+                            "code": 429,
+                            "message": "Provider quota exceeded"
+                        ]
+                    ]
+                ]
+            ]
+            return (
+                HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                try JSONSerialization.data(withJSONObject: response)
+            )
+        }
+
+        let client = OpenRouterOCRClient(
+            apiKey: "test-key",
+            modelID: "baidu/qianfan-ocr-fast:free",
+            baseURL: URL(string: "https://example.com/v1")!,
+            networkManager: networkManager
+        )
+
+        do {
+            _ = try await client.ocrImage(
+                Data("IMG".utf8),
+                mimeType: "image/jpeg",
+                prompt: "Hello OCR",
+                maxTokens: 64
+            )
+            XCTFail("Expected OpenRouter OCR choice-level error to be surfaced")
+        } catch {
+            XCTAssertTrue(error.localizedDescription.contains("Provider quota exceeded"))
+            XCTAssertTrue(error.localizedDescription.contains("429"))
+        }
     }
 
     func testPreparedContentForPDFOpenRouterRequiresAPIKey() async throws {

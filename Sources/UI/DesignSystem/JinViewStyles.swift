@@ -433,6 +433,12 @@ struct JinRevealableSecureField: View {
 }
 
 struct JinSettingsStatusText: View {
+    static let connectionVerifiedMessage = "Connection verified."
+
+    static func isConnectionVerifiedStatus(_ message: String, isError: Bool) -> Bool {
+        !isError && message == connectionVerifiedMessage
+    }
+
     let text: String
     var isError: Bool = false
     var isSuccess: Bool = false
@@ -442,6 +448,7 @@ struct JinSettingsStatusText: View {
             HStack(alignment: .firstTextBaseline, spacing: JinSpacing.xSmall) {
                 Image(systemName: isError ? "xmark.circle.fill" : "checkmark.circle.fill")
                     .font(.caption.weight(.semibold))
+                    .accessibilityHidden(true)
 
                 Text(text)
                     .fixedSize(horizontal: false, vertical: true)

@@ -238,7 +238,7 @@ extension TextToSpeechPluginSettingsView {
 
                 await MainActor.run {
                     isTesting = false
-                    statusMessage = "Connection verified."
+                    statusMessage = JinSettingsStatusText.connectionVerifiedMessage
                     statusIsError = false
                 }
 
@@ -263,11 +263,6 @@ extension TextToSpeechPluginSettingsView {
             }
         }
     }
-
-    func isConnectionVerifiedStatus(_ message: String) -> Bool {
-        !statusIsError && message == "Connection verified."
-    }
-
     func loadRemoteTextToSpeechModels(updateStatus: Bool = true) async {
         guard let load = await MainActor.run(body: { textToSpeechLoadSnapshot() }) else { return }
         guard !load.apiKey.isEmpty else { return }

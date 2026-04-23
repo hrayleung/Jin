@@ -48,7 +48,10 @@ struct OpenRouterOCRPluginSettingsView: View {
                     JinSettingsStatusText(
                         text: statusMessage,
                         isError: statusIsError,
-                        isSuccess: isConnectionVerifiedStatus(statusMessage)
+                        isSuccess: JinSettingsStatusText.isConnectionVerifiedStatus(
+                            statusMessage,
+                            isError: statusIsError
+                        )
                     )
                 }
             }
@@ -173,7 +176,7 @@ struct OpenRouterOCRPluginSettingsView: View {
                 try await client.validateAPIKey()
                 await MainActor.run {
                     isTesting = false
-                    statusMessage = "Connection verified."
+                    statusMessage = JinSettingsStatusText.connectionVerifiedMessage
                     statusIsError = false
                 }
             } catch {
@@ -184,9 +187,5 @@ struct OpenRouterOCRPluginSettingsView: View {
                 }
             }
         }
-    }
-
-    private func isConnectionVerifiedStatus(_ message: String) -> Bool {
-        !statusIsError && message == "Connection verified."
     }
 }

@@ -143,7 +143,10 @@ struct SpeechToTextPluginSettingsView: View {
                         JinSettingsStatusText(
                             text: statusMessage,
                             isError: statusIsError,
-                            isSuccess: isConnectionVerifiedStatus(statusMessage)
+                            isSuccess: JinSettingsStatusText.isConnectionVerifiedStatus(
+                                statusMessage,
+                                isError: statusIsError
+                            )
                         )
                     }
                 }

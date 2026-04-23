@@ -90,7 +90,10 @@ struct MinerUOCRPluginSettingsView: View {
                     JinSettingsStatusText(
                         text: statusMessage,
                         isError: statusIsError,
-                        isSuccess: isConnectionVerifiedStatus(statusMessage)
+                        isSuccess: JinSettingsStatusText.isConnectionVerifiedStatus(
+                            statusMessage,
+                            isError: statusIsError
+                        )
                     )
                 }
             }
@@ -221,7 +224,7 @@ struct MinerUOCRPluginSettingsView: View {
                 guard !Task.isCancelled else { return }
                 await MainActor.run {
                     isTesting = false
-                    statusMessage = "Connection verified."
+                    statusMessage = JinSettingsStatusText.connectionVerifiedMessage
                     statusIsError = false
                     validationTask = nil
                 }
@@ -235,9 +238,5 @@ struct MinerUOCRPluginSettingsView: View {
                 }
             }
         }
-    }
-
-    private func isConnectionVerifiedStatus(_ message: String) -> Bool {
-        !statusIsError && message == "Connection verified."
     }
 }

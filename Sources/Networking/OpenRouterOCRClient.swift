@@ -39,7 +39,7 @@ actor OpenRouterOCRClient {
             Constants.validationJPEGData,
             mimeType: "image/jpeg",
             prompt: Constants.validationPrompt,
-            maxTokens: 8,
+            maxTokens: 16,
             timeoutSeconds: timeoutSeconds
         )
     }
@@ -63,14 +63,14 @@ actor OpenRouterOCRClient {
                     "role": "user",
                     "content": [
                         [
+                            "type": "text",
+                            "text": prompt
+                        ],
+                        [
                             "type": "image_url",
                             "image_url": [
                                 "url": dataURL
                             ]
-                        ],
-                        [
-                            "type": "text",
-                            "text": prompt
                         ]
                     ]
                 ]
@@ -91,13 +91,19 @@ actor OpenRouterOCRClient {
             let decoder = JSONDecoder()
             decoder.keyDecodingStrategy = .convertFromSnakeCase
             let response = try decoder.decode(OpenRouterOCRChatCompletionResponse.self, from: data)
+            if let message = response.providerErrorMessage {
+                throw LLMError.decodingError(message: message)
+            }
+
             let text = response.choices
                 .compactMap { $0.message?.contentText }
                 .first?
                 .trimmingCharacters(in: .whitespacesAndNewlines)
 
             guard let text, !text.isEmpty else {
-                throw LLMError.decodingError(message: "Empty response content.")
+                let raw = String(data: data, encoding: .utf8)
+                let message = raw.map { "Empty response content. Raw response: \($0)" } ?? "Empty response content."
+                throw LLMError.decodingError(message: message)
             }
 
             return text
@@ -129,10 +135,72 @@ private struct OpenRouterOCRChatCompletionResponse: Decodable {
             }
         }
 
+        let finishReason: String?
+        let error: ProviderErrorResponse?
         let message: Message?
+
+        var providerErrorMessage: String? {
+            let reason = finishReason?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            guard reason == "error" || error != nil else { return nil }
+            return error?.displayMessage ?? "OpenRouter OCR failed."
+        }
     }
 
+    let error: ProviderErrorResponse?
     let choices: [Choice]
+
+    enum CodingKeys: String, CodingKey {
+        case error
+        case choices
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        error = try? container.decode(ProviderErrorResponse.self, forKey: .error)
+        choices = (try? container.decode([Choice].self, forKey: .choices)) ?? []
+    }
+
+    var providerErrorMessage: String? {
+        error?.displayMessage ?? choices.compactMap(\.providerErrorMessage).first
+    }
+}
+
+private struct ProviderErrorResponse: Decodable {
+    let code: String?
+    let message: String?
+
+    enum CodingKeys: String, CodingKey {
+        case code
+        case message
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        if let value = try? container.decode(String.self, forKey: .code) {
+            code = value
+        } else if let value = try? container.decode(Int.self, forKey: .code) {
+            code = String(value)
+        } else {
+            code = nil
+        }
+        message = try? container.decode(String.self, forKey: .message)
+    }
+
+    var displayMessage: String {
+        let trimmedMessage = message?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let trimmedCode = code?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+
+        switch (trimmedCode.isEmpty, trimmedMessage.isEmpty) {
+        case (false, false):
+            return "\(trimmedMessage) (code: \(trimmedCode))"
+        case (false, true):
+            return "OpenRouter OCR failed (code: \(trimmedCode))."
+        case (true, false):
+            return trimmedMessage
+        case (true, true):
+            return "OpenRouter OCR failed."
+        }
+    }
 }
 
 private enum OpenRouterOCRMessageContent: Decodable {

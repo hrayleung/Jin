@@ -69,7 +69,10 @@ struct PluginAPIKeySettingsView: View {
                     JinSettingsStatusText(
                         text: statusMessage,
                         isError: statusIsError,
-                        isSuccess: isConnectionVerifiedStatus(statusMessage)
+                        isSuccess: JinSettingsStatusText.isConnectionVerifiedStatus(
+                            statusMessage,
+                            isError: statusIsError
+                        )
                     )
                 }
 
@@ -155,7 +158,7 @@ struct PluginAPIKeySettingsView: View {
                 try await testConnection(trimmedAPIKey)
                 await MainActor.run {
                     isTesting = false
-                    statusMessage = "Connection verified."
+                    statusMessage = JinSettingsStatusText.connectionVerifiedMessage
                     statusIsError = false
                 }
             } catch {
@@ -166,9 +169,5 @@ struct PluginAPIKeySettingsView: View {
                 }
             }
         }
-    }
-
-    private func isConnectionVerifiedStatus(_ message: String) -> Bool {
-        !statusIsError && message == "Connection verified."
     }
 }
