@@ -1170,6 +1170,196 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         XCTAssertEqual(usage?.outputTokens, 5)
     }
 
+    func testOpenCodeGoAdapterBuildsMiMoV25RequestWithNativeWebSearchTool() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        let providerConfig = ProviderConfig(
+            id: "opencode",
+            name: "OpenCode Go",
+            type: .opencodeGo,
+            apiKey: "ignored"
+        )
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://opencode.ai/zen/go/v1/chat/completions")
+            XCTAssertEqual(request.httpMethod, "POST")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer test-key")
+
+            let body = try XCTUnwrap(requestBodyData(request))
+            let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+            let root = try XCTUnwrap(json)
+
+            XCTAssertEqual(root["model"] as? String, "mimo-v2.5")
+            XCTAssertEqual(root["stream"] as? Bool, false)
+            XCTAssertEqual(root["max_tokens"] as? Int, 2048)
+
+            let reasoning = try XCTUnwrap(root["reasoning"] as? [String: Any])
+            XCTAssertEqual(reasoning["effort"] as? String, "medium")
+
+            let toolObjects = try XCTUnwrap(root["tools"] as? [[String: Any]])
+            XCTAssertEqual(toolObjects.count, 2)
+
+            let webSearchTool = try XCTUnwrap(toolObjects.first { ($0["type"] as? String) == "web_search" })
+            XCTAssertEqual(webSearchTool["limit"] as? Int, 2)
+
+            let functionTool = try XCTUnwrap(toolObjects.first { ($0["type"] as? String) == "function" })
+            XCTAssertEqual(functionTool["type"] as? String, "function")
+            let function = try XCTUnwrap(functionTool["function"] as? [String: Any])
+            XCTAssertEqual(function["name"] as? String, "lookup_status")
+
+            let response: [String: Any] = [
+                "id": "cmpl_opencode_mimo",
+                "choices": [
+                    [
+                        "message": [
+                            "role": "assistant",
+                            "content": "OK",
+                            "reasoning_content": "R"
+                        ],
+                        "finish_reason": "stop"
+                    ]
+                ]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = OpenCodeGoAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("Search and summarize")])],
+            modelID: "mimo-v2.5",
+            controls: GenerationControls(
+                maxTokens: 2048,
+                reasoning: ReasoningControls(enabled: true, effort: .medium),
+                webSearch: WebSearchControls(enabled: true, maxUses: 2)
+            ),
+            tools: [
+                ToolDefinition(
+                    id: "tool_1",
+                    name: "lookup_status",
+                    description: "Lookup a project status by ID.",
+                    parameters: ParameterSchema(
+                        properties: [
+                            "id": PropertySchema(type: "string", description: "Project ID")
+                        ],
+                        required: ["id"]
+                    ),
+                    source: .builtin
+                )
+            ],
+            streaming: false
+        )
+
+        var events: [StreamEvent] = []
+        for try await event in stream {
+            events.append(event)
+        }
+
+        XCTAssertEqual(events.count, 4)
+        guard case .messageStart(let id) = events[0] else { return XCTFail("Expected messageStart") }
+        XCTAssertEqual(id, "cmpl_opencode_mimo")
+        guard case .thinkingDelta(.thinking(let reasoning, _)) = events[1] else { return XCTFail("Expected thinkingDelta") }
+        XCTAssertEqual(reasoning, "R")
+        guard case .contentDelta(.text(let content)) = events[2] else { return XCTFail("Expected contentDelta") }
+        XCTAssertEqual(content, "OK")
+        guard case .messageEnd = events[3] else { return XCTFail("Expected messageEnd") }
+    }
+
+    func testOpenCodeGoAdapterOmitsWebSearchForUnsupportedMiMoPreview() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        let providerConfig = ProviderConfig(
+            id: "opencode",
+            name: "OpenCode Go",
+            type: .opencodeGo,
+            apiKey: "ignored"
+        )
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://opencode.ai/zen/go/v1/chat/completions")
+            XCTAssertEqual(request.httpMethod, "POST")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer test-key")
+
+            let body = try XCTUnwrap(requestBodyData(request))
+            let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+            let root = try XCTUnwrap(json)
+
+            XCTAssertEqual(root["model"] as? String, "mimo-v2.5-preview")
+            XCTAssertEqual(root["stream"] as? Bool, false)
+            XCTAssertEqual(root["max_tokens"] as? Int, 2048)
+
+            let reasoning = try XCTUnwrap(root["reasoning"] as? [String: Any])
+            XCTAssertEqual(reasoning["effort"] as? String, "medium")
+
+            let toolObjects = try XCTUnwrap(root["tools"] as? [[String: Any]])
+            XCTAssertEqual(toolObjects.count, 1)
+            XCTAssertNil(toolObjects.first { ($0["type"] as? String) == "web_search" })
+
+            let functionTool = try XCTUnwrap(toolObjects.first { ($0["type"] as? String) == "function" })
+            XCTAssertEqual(functionTool["type"] as? String, "function")
+            let function = try XCTUnwrap(functionTool["function"] as? [String: Any])
+            XCTAssertEqual(function["name"] as? String, "lookup_status")
+
+            let response: [String: Any] = [
+                "id": "cmpl_opencode_mimo_preview",
+                "choices": [
+                    [
+                        "message": [
+                            "role": "assistant",
+                            "content": "OK",
+                            "reasoning_content": "R"
+                        ],
+                        "finish_reason": "stop"
+                    ]
+                ]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = OpenCodeGoAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("Search and summarize")])],
+            modelID: "mimo-v2.5-preview",
+            controls: GenerationControls(
+                maxTokens: 2048,
+                reasoning: ReasoningControls(enabled: true, effort: .medium),
+                webSearch: WebSearchControls(enabled: true, maxUses: 2)
+            ),
+            tools: [
+                ToolDefinition(
+                    id: "tool_1",
+                    name: "lookup_status",
+                    description: "Lookup a project status by ID.",
+                    parameters: ParameterSchema(
+                        properties: [
+                            "id": PropertySchema(type: "string", description: "Project ID")
+                        ],
+                        required: ["id"]
+                    ),
+                    source: .builtin
+                )
+            ],
+            streaming: false
+        )
+
+        var events: [StreamEvent] = []
+        for try await event in stream {
+            events.append(event)
+        }
+
+        XCTAssertEqual(events.count, 4)
+        guard case .messageStart(let id) = events[0] else { return XCTFail("Expected messageStart") }
+        XCTAssertEqual(id, "cmpl_opencode_mimo_preview")
+        guard case .thinkingDelta(.thinking(let reasoning, _)) = events[1] else { return XCTFail("Expected thinkingDelta") }
+        XCTAssertEqual(reasoning, "R")
+        guard case .contentDelta(.text(let content)) = events[2] else { return XCTFail("Expected contentDelta") }
+        XCTAssertEqual(content, "OK")
+        guard case .messageEnd = events[3] else { return XCTFail("Expected messageEnd") }
+    }
+
     func testOpenRouterAdapterOmitsWebPluginWhenModelWebSearchOverrideIsDisabled() async throws {
         let (configuration, protocolType) = makeMockedSessionConfiguration()
         let networkManager = NetworkManager(configuration: configuration)

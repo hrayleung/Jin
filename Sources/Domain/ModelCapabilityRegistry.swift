@@ -134,6 +134,15 @@ enum ModelCapabilityRegistry {
     private static let proxiedGoogleSearchSupportedModelIDs: Set<String> =
         geminiGoogleSearchSupportedModelIDs.union(vertexGoogleSearchSupportedModelIDs)
 
+    /// Exact Xiaomi MiMo model IDs documented as supporting the native web_search tool.
+    private static let opencodeGoWebSearchSupportedModelIDs: Set<String> = [
+        "mimo-v2.5-pro",
+        "mimo-v2.5",
+        "mimo-v2-pro",
+        "mimo-v2-omni",
+        "mimo-v2-flash",
+    ]
+
     /// Models documented by Google as supporting grounding with Google Maps in Gemini API.
     /// Supported: Gemini 2.5 Pro, 2.5 Flash, 2.5 Flash-Lite, 2.0 Flash.
     /// Not supported: Gemini 3 family, Gemini 2.0 Flash Lite.
@@ -419,9 +428,11 @@ enum ModelCapabilityRegistry {
             return supportsGoogleSearch(lowerModelID: lowerModelID, providerType: .gemini)
         case .vertexai:
             return supportsGoogleSearch(lowerModelID: lowerModelID, providerType: .vertexai)
+        case .opencodeGo:
+            return opencodeGoWebSearchSupportedModelIDs.contains(lowerModelID)
         case .codexAppServer, .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .groq,
              .cohere, .mistral, .deepinfra, .together, .deepseek, .zhipuCodingPlan, .minimax, .minimaxCodingPlan,
-             .fireworks, .cerebras, .sambanova, .morphllm, .opencodeGo, .none:
+             .fireworks, .cerebras, .sambanova, .morphllm, .none:
             return false
         }
     }

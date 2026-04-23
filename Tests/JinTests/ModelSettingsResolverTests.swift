@@ -827,6 +827,42 @@ final class ModelSettingsResolverTests: XCTestCase {
         XCTAssertEqual(resolvedVercel.reasoningConfig?.defaultEffort, .medium)
     }
 
+    func testResolverInfersOpenCodeGoMiMoV25MetadataForLegacyPersistedModels() {
+        let mimoV25ProLegacy = ModelInfo(
+            id: "mimo-v2.5-pro",
+            name: "MiMo V2.5 Pro",
+            capabilities: [.streaming, .toolCalling],
+            contextWindow: 8_192,
+            reasoningConfig: nil,
+            isEnabled: true
+        )
+        let resolvedMimoV25Pro = ModelSettingsResolver.resolve(model: mimoV25ProLegacy, providerType: .opencodeGo)
+        XCTAssertEqual(resolvedMimoV25Pro.contextWindow, 1_048_576)
+        XCTAssertEqual(resolvedMimoV25Pro.maxOutputTokens, 131_072)
+        XCTAssertFalse(resolvedMimoV25Pro.capabilities.contains(.vision))
+        XCTAssertFalse(resolvedMimoV25Pro.capabilities.contains(.audio))
+        XCTAssertTrue(resolvedMimoV25Pro.capabilities.contains(.reasoning))
+        XCTAssertTrue(resolvedMimoV25Pro.supportsWebSearch)
+        XCTAssertEqual(resolvedMimoV25Pro.reasoningConfig?.defaultEffort, .medium)
+
+        let mimoV25Legacy = ModelInfo(
+            id: "mimo-v2.5",
+            name: "MiMo V2.5",
+            capabilities: [.streaming, .toolCalling],
+            contextWindow: 8_192,
+            reasoningConfig: nil,
+            isEnabled: true
+        )
+        let resolvedMimoV25 = ModelSettingsResolver.resolve(model: mimoV25Legacy, providerType: .opencodeGo)
+        XCTAssertEqual(resolvedMimoV25.contextWindow, 1_048_576)
+        XCTAssertEqual(resolvedMimoV25.maxOutputTokens, 131_072)
+        XCTAssertTrue(resolvedMimoV25.capabilities.contains(.vision))
+        XCTAssertTrue(resolvedMimoV25.capabilities.contains(.audio))
+        XCTAssertTrue(resolvedMimoV25.capabilities.contains(.reasoning))
+        XCTAssertTrue(resolvedMimoV25.supportsWebSearch)
+        XCTAssertEqual(resolvedMimoV25.reasoningConfig?.defaultEffort, .medium)
+    }
+
     func testSambaNovaAlwaysOnReasoningModelsCannotDisableByDefault() {
         let gptOSS = ModelInfo(
             id: "gpt-oss-120b",
