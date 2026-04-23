@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 struct AssistantIconPickerButton: View {
@@ -42,19 +43,24 @@ struct AssistantIconPickerButton: View {
             } else if trimmed.count <= 2 {
                 Text(trimmed)
                     .font(.system(size: JinControlMetrics.assistantGlyphSize))
-            } else {
+            } else if NSImage(systemSymbolName: trimmed, accessibilityDescription: nil) != nil {
                 Image(systemName: trimmed)
                     .font(.system(size: JinControlMetrics.assistantGlyphSize, weight: .semibold))
                     .foregroundStyle(Color.accentColor)
+            } else {
+                Image(systemName: "questionmark.circle")
+                    .font(.system(size: JinControlMetrics.assistantGlyphSize, weight: .semibold))
+                    .foregroundStyle(.tertiary)
             }
         }
     }
 }
 
 struct AssistantIconCategory: Identifiable {
-    let id = UUID()
     let name: String
     let icons: [String]
+
+    var id: String { name }
 }
 
 struct AssistantIconPickerSheet: View {
@@ -86,7 +92,7 @@ struct AssistantIconPickerSheet: View {
         ),
         AssistantIconCategory(
             name: "Science",
-            icons: ["graduationcap.fill", "atom", "flask.fill", "testtube.2", "leaf.fill", "globe", "pawprint.fill", "dna", "fossil.shell.fill", "mountain.2.fill"]
+            icons: ["graduationcap.fill", "atom", "flask.fill", "testtube.2", "leaf.fill", "globe", "pawprint.fill", "microbe.fill", "fossil.shell.fill", "mountain.2.fill"]
         ),
         AssistantIconCategory(
             name: "Emoji & Custom",
@@ -139,19 +145,32 @@ struct AssistantIconPickerSheet: View {
                     }
 
                     ForEach(filteredCategories) { category in
-                        VStack(alignment: .leading, spacing: 12) {
+                        VStack(alignment: .leading, spacing: JinSpacing.medium) {
                             Text(category.name)
                                 .font(.headline)
                                 .foregroundStyle(.secondary)
                                 .padding(.horizontal, 4)
 
-                            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: 6), spacing: 12) {
-                                ForEach(category.icons, id: \.self) { icon in
-                                    AssistantIconButton(
-                                        icon: icon,
-                                        isSelected: draftIcon == icon
-                                    ) {
-                                        draftIcon = icon
+                            Grid(horizontalSpacing: JinSpacing.medium, verticalSpacing: JinSpacing.medium) {
+                                ForEach(Array(category.icons.chunked(into: 6).enumerated()), id: \.offset) { _, row in
+                                    GridRow(alignment: .center) {
+                                        ForEach(0..<6, id: \.self) { column in
+                                            Group {
+                                                if column < row.count {
+                                                    AssistantIconButton(
+                                                        icon: row[column],
+                                                        isSelected: draftIcon == row[column]
+                                                    ) {
+                                                        draftIcon = row[column]
+                                                    }
+                                                } else {
+                                                    Color.clear
+                                                        .frame(maxWidth: .infinity)
+                                                        .accessibilityHidden(true)
+                                                }
+                                            }
+                                            .frame(maxWidth: .infinity)
+                                        }
                                     }
                                 }
                             }
@@ -188,15 +207,21 @@ struct AssistantIconPickerSheet: View {
 }
 
 struct AssistantIconButton: View {
+    private static let tileSide: CGFloat = 44
+    private static let symbolPointSize: CGFloat = 19
+
     let icon: String
     let isSelected: Bool
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
-            iconView
-                .frame(width: 44, height: 44)
-                .jinSurface(isSelected ? .selected : .neutral, cornerRadius: JinRadius.medium)
+            ZStack {
+                iconView
+            }
+            .frame(width: Self.tileSide, height: Self.tileSide)
+            .jinSurface(isSelected ? .selected : .neutral, cornerRadius: JinRadius.medium)
+            .frame(maxWidth: .infinity)
         }
         .buttonStyle(.plain)
     }
@@ -205,11 +230,30 @@ struct AssistantIconButton: View {
     private var iconView: some View {
         if icon.count <= 2 {
             Text(icon)
-                .font(.system(size: 24))
-        } else {
+                .font(.system(size: 22))
+                .minimumScaleFactor(0.85)
+                .lineLimit(1)
+        } else if NSImage(systemSymbolName: icon, accessibilityDescription: nil) != nil {
             Image(systemName: icon)
-                .font(.system(size: 20, weight: .semibold))
+                .font(.system(size: Self.symbolPointSize, weight: .medium))
+                .imageScale(.medium)
+                .symbolRenderingMode(.monochrome)
                 .foregroundStyle(isSelected ? Color.accentColor : .primary)
+        } else {
+            Image(systemName: "questionmark.circle")
+                .font(.system(size: Self.symbolPointSize, weight: .medium))
+                .imageScale(.medium)
+                .symbolRenderingMode(.monochrome)
+                .foregroundStyle(.tertiary)
+        }
+    }
+}
+
+private extension Array {
+    func chunked(into size: Int) -> [[Element]] {
+        guard size > 0 else { return [] }
+        return stride(from: 0, to: count, by: size).map {
+            Array(self[$0..<Swift.min($0 + size, count)])
         }
     }
 }

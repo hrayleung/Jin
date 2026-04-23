@@ -1,5 +1,6 @@
-import SwiftUI
+import AppKit
 import SwiftData
+import SwiftUI
 
 struct AssistantSettingsEditorView: View {
     @Bindable var assistant: AssistantEntity
@@ -279,10 +280,14 @@ struct AssistantSettingsEditorView: View {
             } else if trimmed.count <= 2 {
                 Text(trimmed)
                     .font(.system(size: JinControlMetrics.assistantLargeGlyphSize))
-            } else {
+            } else if NSImage(systemSymbolName: trimmed, accessibilityDescription: nil) != nil {
                 Image(systemName: trimmed)
                     .font(.system(size: JinControlMetrics.assistantLargeGlyphSize, weight: .semibold))
                     .foregroundStyle(Color.accentColor)
+            } else {
+                Image(systemName: "questionmark.circle")
+                    .font(.system(size: JinControlMetrics.assistantLargeGlyphSize, weight: .semibold))
+                    .foregroundStyle(.tertiary)
             }
         }
         .frame(width: 56, height: 56)

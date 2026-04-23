@@ -1,5 +1,6 @@
-import SwiftUI
+import AppKit
 import SwiftData
+import SwiftUI
 
 /// Isolates the `streamingStore` read to a per-row boundary so that
 /// `ConversationStreamingStore.objectWillChange` only causes the affected
@@ -176,8 +177,10 @@ struct AssistantRowView: View {
                 Image(systemName: "person.crop.circle")
             } else if trimmed.count <= 2 {
                 Text(trimmed)
-            } else {
+            } else if NSImage(systemSymbolName: trimmed, accessibilityDescription: nil) != nil {
                 Image(systemName: trimmed)
+            } else {
+                Image(systemName: "questionmark.circle")
             }
         }
         .font(.system(size: 16, weight: .semibold))
@@ -239,8 +242,11 @@ struct AssistantTileView: View {
         } else if trimmed.count <= 2 {
             Text(trimmed)
                 .font(.system(size: JinControlMetrics.assistantGlyphSize, weight: .semibold))
-        } else {
+        } else if NSImage(systemSymbolName: trimmed, accessibilityDescription: nil) != nil {
             Image(systemName: trimmed)
+                .font(.system(size: JinControlMetrics.assistantGlyphSize, weight: .semibold))
+        } else {
+            Image(systemName: "questionmark.circle")
                 .font(.system(size: JinControlMetrics.assistantGlyphSize, weight: .semibold))
         }
     }
