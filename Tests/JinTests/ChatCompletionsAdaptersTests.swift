@@ -236,7 +236,7 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         for try await _ in stream {}
     }
 
-    func testFireworksAdapterFetchModelsMapsKnownMetadata() async throws {
+    func testFireworksAdapterFetchModelsPrefersServerlessCatalogListing() async throws {
         let (configuration, protocolType) = makeMockedSessionConfiguration()
         let networkManager = NetworkManager(configuration: configuration)
 
@@ -248,24 +248,51 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
             baseURL: "https://example.com"
         )
 
+        var requestedURLs: [String] = []
         protocolType.requestHandler = { request in
-            XCTAssertEqual(request.url?.absoluteString, "https://example.com/models")
+            let url = try XCTUnwrap(request.url?.absoluteString)
+            requestedURLs.append(url)
             XCTAssertEqual(request.httpMethod, "GET")
             XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer test-key")
 
-            let response: [String: Any] = [
-                "data": [
-                    ["id": "fireworks/qwen3p6-plus"],
-                    ["id": "fireworks/deepseek-v3p2"],
-                    ["id": "fireworks/kimi-k2-instruct-0905"],
-                    ["id": "fireworks/kimi-k2p6"],
-                    ["id": "fireworks/glm-5"],
-                    ["id": "accounts/fireworks/models/minimax-m2p1"],
-                    ["id": "accounts/fireworks/models/qwen3-235b-a22b"],
-                    ["id": "accounts/fireworks/models/glm-preview"],
-                    ["id": "accounts/fireworks/models/other"]
+            let response: [String: Any]
+            let components = try XCTUnwrap(URLComponents(url: request.url!, resolvingAgainstBaseURL: false))
+            let queryItems = Dictionary(
+                uniqueKeysWithValues: (components.queryItems ?? []).map { ($0.name, $0.value ?? "") }
+            )
+
+            switch (components.path, queryItems["pageToken"]) {
+            case ("/v1/accounts/fireworks/models", nil):
+                XCTAssertEqual(queryItems["filter"], "supports_serverless=true")
+                XCTAssertEqual(queryItems["pageSize"], "200")
+                response = [
+                    "models": [
+                        ["name": "accounts/fireworks/models/qwen3p6-plus"],
+                        ["name": "accounts/fireworks/models/deepseek-v3p2"],
+                        ["name": "accounts/fireworks/models/kimi-k2-instruct-0905"],
+                        ["name": "accounts/fireworks/models/kimi-k2p6"],
+                        ["name": "accounts/fireworks/models/glm-5"]
+                    ],
+                    "nextPageToken": "page-2"
                 ]
-            ]
+            case ("/v1/accounts/fireworks/models", "page-2"):
+                XCTAssertEqual(queryItems["filter"], "supports_serverless=true")
+                XCTAssertEqual(queryItems["pageSize"], "200")
+                response = [
+                    "models": [
+                        ["name": "accounts/fireworks/models/minimax-m2p1"],
+                        ["name": "accounts/fireworks/models/qwen3-235b-a22b"],
+                        ["name": "accounts/fireworks/models/glm-preview"],
+                        ["name": "accounts/fireworks/models/other"]
+                    ]
+                ]
+            default:
+                return (
+                    HTTPURLResponse(url: request.url!, statusCode: 404, httpVersion: nil, headerFields: nil)!,
+                    Data()
+                )
+            }
+
             let data = try JSONSerialization.data(withJSONObject: response)
             return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
         }
@@ -273,6 +300,14 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         let adapter = FireworksAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
         let models = try await adapter.fetchAvailableModels()
         let byID = Dictionary(uniqueKeysWithValues: models.map { ($0.id, $0) })
+
+        XCTAssertEqual(
+            requestedURLs,
+            [
+                "https://example.com/v1/accounts/fireworks/models?filter=supports_serverless%3Dtrue&pageSize=200",
+                "https://example.com/v1/accounts/fireworks/models?filter=supports_serverless%3Dtrue&pageSize=200&pageToken=page-2"
+            ]
+        )
 
         let qwen36 = try XCTUnwrap(byID["fireworks/qwen3p6-plus"])
         XCTAssertEqual(qwen36.name, "Qwen3.6 Plus")
@@ -305,26 +340,79 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         XCTAssertTrue(glm5.capabilities.contains(.reasoning))
         XCTAssertFalse(glm5.capabilities.contains(.vision))
 
-        let minimaxM2p1 = try XCTUnwrap(byID["accounts/fireworks/models/minimax-m2p1"])
+        let minimaxM2p1 = try XCTUnwrap(byID["fireworks/minimax-m2p1"])
         XCTAssertEqual(minimaxM2p1.name, "MiniMax M2.1")
         XCTAssertEqual(minimaxM2p1.contextWindow, 204_800)
         XCTAssertTrue(minimaxM2p1.capabilities.contains(.reasoning))
         XCTAssertFalse(minimaxM2p1.capabilities.contains(.vision))
 
-        let qwen235 = try XCTUnwrap(byID["accounts/fireworks/models/qwen3-235b-a22b"])
+        let qwen235 = try XCTUnwrap(byID["fireworks/qwen3-235b-a22b"])
         XCTAssertEqual(qwen235.name, "Qwen3 235B A22B")
         XCTAssertEqual(qwen235.contextWindow, 131_100)
         XCTAssertFalse(qwen235.capabilities.contains(.vision))
         XCTAssertFalse(qwen235.capabilities.contains(.reasoning))
 
-        let glmPreview = try XCTUnwrap(byID["accounts/fireworks/models/glm-preview"])
+        let glmPreview = try XCTUnwrap(byID["fireworks/glm-preview"])
         XCTAssertFalse(glmPreview.capabilities.contains(.reasoning))
         XCTAssertNil(glmPreview.reasoningConfig)
         XCTAssertEqual(glmPreview.contextWindow, 128_000)
 
-        let other = try XCTUnwrap(byID["accounts/fireworks/models/other"])
-        XCTAssertEqual(other.name, "accounts/fireworks/models/other")
+        let other = try XCTUnwrap(byID["fireworks/other"])
+        XCTAssertEqual(other.name, "fireworks/other")
         XCTAssertEqual(other.contextWindow, 128_000)
+    }
+
+    func testFireworksAdapterFetchModelsDoesNotFallBackToOpenAICompatibleModelsEndpoint() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        let providerConfig = ProviderConfig(
+            id: "fw",
+            name: "Fireworks",
+            type: .fireworks,
+            apiKey: "ignored",
+            baseURL: "https://example.com/inference/v1"
+        )
+
+        var requestedURLs: [String] = []
+        protocolType.requestHandler = { request in
+            let url = try XCTUnwrap(request.url?.absoluteString)
+            requestedURLs.append(url)
+
+            if let components = URLComponents(url: request.url!, resolvingAgainstBaseURL: false),
+               components.path == "/v1/accounts/fireworks/models" {
+                let queryItems = Dictionary(
+                    uniqueKeysWithValues: (components.queryItems ?? []).map { ($0.name, $0.value ?? "") }
+                )
+                XCTAssertEqual(queryItems["filter"], "supports_serverless=true")
+                XCTAssertEqual(queryItems["pageSize"], "200")
+                let invalidJSON = Data("{".utf8)
+                return (
+                    HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                    invalidJSON
+                )
+            }
+
+            return (
+                HTTPURLResponse(url: request.url!, statusCode: 404, httpVersion: nil, headerFields: nil)!,
+                Data()
+            )
+        }
+
+        let adapter = FireworksAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        do {
+            _ = try await adapter.fetchAvailableModels()
+            XCTFail("Expected fetchAvailableModels to fail when the Fireworks catalog response is invalid.")
+        } catch is DecodingError {
+            // Expected: Fireworks model discovery should fail rather than silently falling back.
+        } catch {
+            XCTFail("Expected DecodingError, got \(error).")
+        }
+
+        XCTAssertEqual(
+            requestedURLs,
+            ["https://example.com/v1/accounts/fireworks/models?filter=supports_serverless%3Dtrue&pageSize=200"]
+        )
     }
 
     func testSambaNovaAdapterMapsReasoningOffToLowEffortForGptOss() async throws {
@@ -1082,6 +1170,196 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         XCTAssertEqual(usage?.outputTokens, 5)
     }
 
+    func testOpenCodeGoAdapterBuildsMiMoV25RequestWithNativeWebSearchTool() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        let providerConfig = ProviderConfig(
+            id: "opencode",
+            name: "OpenCode Go",
+            type: .opencodeGo,
+            apiKey: "ignored"
+        )
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://opencode.ai/zen/go/v1/chat/completions")
+            XCTAssertEqual(request.httpMethod, "POST")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer test-key")
+
+            let body = try XCTUnwrap(requestBodyData(request))
+            let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+            let root = try XCTUnwrap(json)
+
+            XCTAssertEqual(root["model"] as? String, "mimo-v2.5")
+            XCTAssertEqual(root["stream"] as? Bool, false)
+            XCTAssertEqual(root["max_tokens"] as? Int, 2048)
+
+            let reasoning = try XCTUnwrap(root["reasoning"] as? [String: Any])
+            XCTAssertEqual(reasoning["effort"] as? String, "medium")
+
+            let toolObjects = try XCTUnwrap(root["tools"] as? [[String: Any]])
+            XCTAssertEqual(toolObjects.count, 2)
+
+            let webSearchTool = try XCTUnwrap(toolObjects.first { ($0["type"] as? String) == "web_search" })
+            XCTAssertEqual(webSearchTool["limit"] as? Int, 2)
+
+            let functionTool = try XCTUnwrap(toolObjects.first { ($0["type"] as? String) == "function" })
+            XCTAssertEqual(functionTool["type"] as? String, "function")
+            let function = try XCTUnwrap(functionTool["function"] as? [String: Any])
+            XCTAssertEqual(function["name"] as? String, "lookup_status")
+
+            let response: [String: Any] = [
+                "id": "cmpl_opencode_mimo",
+                "choices": [
+                    [
+                        "message": [
+                            "role": "assistant",
+                            "content": "OK",
+                            "reasoning_content": "R"
+                        ],
+                        "finish_reason": "stop"
+                    ]
+                ]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = OpenCodeGoAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("Search and summarize")])],
+            modelID: "mimo-v2.5",
+            controls: GenerationControls(
+                maxTokens: 2048,
+                reasoning: ReasoningControls(enabled: true, effort: .medium),
+                webSearch: WebSearchControls(enabled: true, maxUses: 2)
+            ),
+            tools: [
+                ToolDefinition(
+                    id: "tool_1",
+                    name: "lookup_status",
+                    description: "Lookup a project status by ID.",
+                    parameters: ParameterSchema(
+                        properties: [
+                            "id": PropertySchema(type: "string", description: "Project ID")
+                        ],
+                        required: ["id"]
+                    ),
+                    source: .builtin
+                )
+            ],
+            streaming: false
+        )
+
+        var events: [StreamEvent] = []
+        for try await event in stream {
+            events.append(event)
+        }
+
+        XCTAssertEqual(events.count, 4)
+        guard case .messageStart(let id) = events[0] else { return XCTFail("Expected messageStart") }
+        XCTAssertEqual(id, "cmpl_opencode_mimo")
+        guard case .thinkingDelta(.thinking(let reasoning, _)) = events[1] else { return XCTFail("Expected thinkingDelta") }
+        XCTAssertEqual(reasoning, "R")
+        guard case .contentDelta(.text(let content)) = events[2] else { return XCTFail("Expected contentDelta") }
+        XCTAssertEqual(content, "OK")
+        guard case .messageEnd = events[3] else { return XCTFail("Expected messageEnd") }
+    }
+
+    func testOpenCodeGoAdapterOmitsWebSearchForUnsupportedMiMoPreview() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        let providerConfig = ProviderConfig(
+            id: "opencode",
+            name: "OpenCode Go",
+            type: .opencodeGo,
+            apiKey: "ignored"
+        )
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://opencode.ai/zen/go/v1/chat/completions")
+            XCTAssertEqual(request.httpMethod, "POST")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer test-key")
+
+            let body = try XCTUnwrap(requestBodyData(request))
+            let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+            let root = try XCTUnwrap(json)
+
+            XCTAssertEqual(root["model"] as? String, "mimo-v2.5-preview")
+            XCTAssertEqual(root["stream"] as? Bool, false)
+            XCTAssertEqual(root["max_tokens"] as? Int, 2048)
+
+            let reasoning = try XCTUnwrap(root["reasoning"] as? [String: Any])
+            XCTAssertEqual(reasoning["effort"] as? String, "medium")
+
+            let toolObjects = try XCTUnwrap(root["tools"] as? [[String: Any]])
+            XCTAssertEqual(toolObjects.count, 1)
+            XCTAssertNil(toolObjects.first { ($0["type"] as? String) == "web_search" })
+
+            let functionTool = try XCTUnwrap(toolObjects.first { ($0["type"] as? String) == "function" })
+            XCTAssertEqual(functionTool["type"] as? String, "function")
+            let function = try XCTUnwrap(functionTool["function"] as? [String: Any])
+            XCTAssertEqual(function["name"] as? String, "lookup_status")
+
+            let response: [String: Any] = [
+                "id": "cmpl_opencode_mimo_preview",
+                "choices": [
+                    [
+                        "message": [
+                            "role": "assistant",
+                            "content": "OK",
+                            "reasoning_content": "R"
+                        ],
+                        "finish_reason": "stop"
+                    ]
+                ]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = OpenCodeGoAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("Search and summarize")])],
+            modelID: "mimo-v2.5-preview",
+            controls: GenerationControls(
+                maxTokens: 2048,
+                reasoning: ReasoningControls(enabled: true, effort: .medium),
+                webSearch: WebSearchControls(enabled: true, maxUses: 2)
+            ),
+            tools: [
+                ToolDefinition(
+                    id: "tool_1",
+                    name: "lookup_status",
+                    description: "Lookup a project status by ID.",
+                    parameters: ParameterSchema(
+                        properties: [
+                            "id": PropertySchema(type: "string", description: "Project ID")
+                        ],
+                        required: ["id"]
+                    ),
+                    source: .builtin
+                )
+            ],
+            streaming: false
+        )
+
+        var events: [StreamEvent] = []
+        for try await event in stream {
+            events.append(event)
+        }
+
+        XCTAssertEqual(events.count, 4)
+        guard case .messageStart(let id) = events[0] else { return XCTFail("Expected messageStart") }
+        XCTAssertEqual(id, "cmpl_opencode_mimo_preview")
+        guard case .thinkingDelta(.thinking(let reasoning, _)) = events[1] else { return XCTFail("Expected thinkingDelta") }
+        XCTAssertEqual(reasoning, "R")
+        guard case .contentDelta(.text(let content)) = events[2] else { return XCTFail("Expected contentDelta") }
+        XCTAssertEqual(content, "OK")
+        guard case .messageEnd = events[3] else { return XCTFail("Expected messageEnd") }
+    }
+
     func testOpenRouterAdapterOmitsWebPluginWhenModelWebSearchOverrideIsDisabled() async throws {
         let (configuration, protocolType) = makeMockedSessionConfiguration()
         let networkManager = NetworkManager(configuration: configuration)
@@ -1295,6 +1573,305 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
             return XCTFail("Expected thinkingDelta")
         }
         XCTAssertEqual(reasoning, "R")
+    }
+
+    func testOpenRouterImageGenerationModelBuildsModalitiesSeedAndParsesImages() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        let providerConfig = ProviderConfig(
+            id: "or",
+            name: "OpenRouter",
+            type: .openrouter,
+            apiKey: "ignored",
+            baseURL: "https://openrouter.ai/api/v1"
+        )
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://openrouter.ai/api/v1/chat/completions")
+            XCTAssertEqual(request.httpMethod, "POST")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer test-key")
+
+            let body = try XCTUnwrap(requestBodyData(request))
+            let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+            let root = try XCTUnwrap(json)
+
+            XCTAssertEqual(root["model"] as? String, "openai/gpt-5.4-image-2")
+            XCTAssertEqual(root["stream"] as? Bool, false)
+            XCTAssertEqual(root["seed"] as? Int, 42)
+            XCTAssertNil(root["temperature"])
+            XCTAssertNil(root["top_p"])
+            XCTAssertNil(root["top_k"])
+            XCTAssertNil(root["min_p"])
+            XCTAssertNil(root["repetition_penalty"])
+            XCTAssertNil(root["tools"])
+            XCTAssertNil(root["plugins"])
+
+            let modalities = try XCTUnwrap(root["modalities"] as? [String])
+            XCTAssertEqual(modalities, ["image"])
+
+            let response: [String: Any] = [
+                "id": "cmpl_or_img_1",
+                "choices": [
+                    [
+                        "message": [
+                            "role": "assistant",
+                            "images": [
+                                [
+                                    "type": "image_url",
+                                    "image_url": "data:image/png;base64,AQID"
+                                ]
+                            ]
+                        ],
+                        "finish_reason": "stop"
+                    ]
+                ],
+                "usage": [
+                    "prompt_tokens": 4,
+                    "completion_tokens": 6,
+                    "total_tokens": 10
+                ]
+            ]
+
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = OpenRouterAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("draw a lantern")])],
+            modelID: "openai/gpt-5.4-image-2",
+            controls: GenerationControls(
+                temperature: 0.7,
+                topP: 0.9,
+                imageGeneration: ImageGenerationControls(
+                    responseMode: .imageOnly,
+                    aspectRatio: .ratio16x9,
+                    seed: 42
+                ),
+                providerSpecific: [
+                    "temperature": AnyCodable(0.3),
+                    "top_p": AnyCodable(0.4),
+                    "top_k": AnyCodable(50),
+                    "min_p": AnyCodable(0.2),
+                    "repetition_penalty": AnyCodable(1.1)
+                ]
+            ),
+            tools: [],
+            streaming: false
+        )
+
+        var events: [StreamEvent] = []
+        for try await event in stream {
+            events.append(event)
+        }
+
+        guard events.count == 3 else {
+            return XCTFail("Expected 3 events, got \(events.count)")
+        }
+        guard case .messageStart(let id) = events[0] else { return XCTFail("Expected messageStart") }
+        XCTAssertEqual(id, "cmpl_or_img_1")
+
+        guard case .contentDelta(.image(let image)) = events[1] else { return XCTFail("Expected image delta") }
+        XCTAssertEqual(image.mimeType, "image/png")
+        XCTAssertEqual(image.data, Data([0x01, 0x02, 0x03]))
+
+        guard case .messageEnd(let usage) = events[2] else { return XCTFail("Expected messageEnd") }
+        XCTAssertEqual(usage?.inputTokens, 4)
+        XCTAssertEqual(usage?.outputTokens, 6)
+    }
+
+    func testOpenRouterImageGenerationModelStreamingParsesDeltaImages() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        let providerConfig = ProviderConfig(
+            id: "or",
+            name: "OpenRouter",
+            type: .openrouter,
+            apiKey: "ignored",
+            baseURL: "https://openrouter.ai/api/v1"
+        )
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://openrouter.ai/api/v1/chat/completions")
+
+            let body = try XCTUnwrap(requestBodyData(request))
+            let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+            let root = try XCTUnwrap(json)
+            let modalities = try XCTUnwrap(root["modalities"] as? [String])
+            XCTAssertEqual(modalities, ["text", "image"])
+
+            let sse = """
+            data: {"id":"cmpl_or_img_stream","choices":[{"index":0,"delta":{"content":"Rendered","images":[{"type":"image_url","image_url":"data:image/png;base64,BAUG"}]}}]}
+
+            data: [DONE]
+            """
+
+            return (
+                HTTPURLResponse(
+                    url: request.url!,
+                    statusCode: 200,
+                    httpVersion: nil,
+                    headerFields: ["Content-Type": "text/event-stream"]
+                )!,
+                Data(sse.utf8)
+            )
+        }
+
+        let adapter = OpenRouterAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("draw a lantern")])],
+            modelID: "openai/gpt-5.4-image-2",
+            controls: GenerationControls(),
+            tools: [],
+            streaming: true
+        )
+
+        var events: [StreamEvent] = []
+        for try await event in stream {
+            events.append(event)
+        }
+
+        guard events.count == 4 else {
+            return XCTFail("Expected 4 events, got \(events.count)")
+        }
+        guard case .messageStart(let id) = events[0] else { return XCTFail("Expected messageStart") }
+        XCTAssertEqual(id, "cmpl_or_img_stream")
+
+        guard case .contentDelta(.text(let text)) = events[1] else { return XCTFail("Expected text delta") }
+        XCTAssertEqual(text, "Rendered")
+
+        guard case .contentDelta(.image(let image)) = events[2] else { return XCTFail("Expected image delta") }
+        XCTAssertEqual(image.mimeType, "image/png")
+        XCTAssertEqual(image.data, Data([0x04, 0x05, 0x06]))
+
+        guard case .messageEnd = events[3] else { return XCTFail("Expected messageEnd") }
+    }
+
+    func testOpenRouterImageGenerationModelRejectsNonHTTPRemoteImageURLSchemes() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        let providerConfig = ProviderConfig(
+            id: "or",
+            name: "OpenRouter",
+            type: .openrouter,
+            apiKey: "ignored",
+            baseURL: "https://openrouter.ai/api/v1"
+        )
+
+        protocolType.requestHandler = { request in
+            let response: [String: Any] = [
+                "id": "cmpl_or_img_scheme",
+                "choices": [
+                    [
+                        "message": [
+                            "role": "assistant",
+                            "images": [
+                                [
+                                    "type": "image_url",
+                                    "image_url": "file:///etc/passwd"
+                                ]
+                            ]
+                        ],
+                        "finish_reason": "stop"
+                    ]
+                ]
+            ]
+
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = OpenRouterAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("draw a lantern")])],
+            modelID: "openai/gpt-5.4-image-2",
+            controls: GenerationControls(),
+            tools: [],
+            streaming: false
+        )
+
+        var events: [StreamEvent] = []
+        for try await event in stream {
+            events.append(event)
+        }
+
+        guard events.count == 2 else {
+            return XCTFail("Expected 2 events, got \(events.count)")
+        }
+        guard case .messageStart = events[0] else { return XCTFail("Expected messageStart") }
+        guard case .messageEnd = events[1] else { return XCTFail("Expected messageEnd") }
+    }
+
+    func testOpenRouterImageGenerationModelParsesDataURLsWithoutExplicitMediaType() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        let providerConfig = ProviderConfig(
+            id: "or",
+            name: "OpenRouter",
+            type: .openrouter,
+            apiKey: "ignored",
+            baseURL: "https://openrouter.ai/api/v1"
+        )
+
+        protocolType.requestHandler = { request in
+            let response: [String: Any] = [
+                "id": "cmpl_or_img_data_url",
+                "choices": [
+                    [
+                        "message": [
+                            "role": "assistant",
+                            "images": [
+                                [
+                                    "type": "image_url",
+                                    "image_url": "data:;base64,AQID"
+                                ],
+                                [
+                                    "type": "image_url",
+                                    "image_url": "data:,hello%20world"
+                                ]
+                            ]
+                        ],
+                        "finish_reason": "stop"
+                    ]
+                ]
+            ]
+
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = OpenRouterAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("draw a lantern")])],
+            modelID: "openai/gpt-5.4-image-2",
+            controls: GenerationControls(),
+            tools: [],
+            streaming: false
+        )
+
+        var events: [StreamEvent] = []
+        for try await event in stream {
+            events.append(event)
+        }
+
+        guard events.count == 4 else {
+            return XCTFail("Expected 4 events, got \(events.count)")
+        }
+        guard case .contentDelta(.image(let firstImage)) = events[1] else {
+            return XCTFail("Expected first image delta")
+        }
+        XCTAssertEqual(firstImage.mimeType, "image/png")
+        XCTAssertEqual(firstImage.data, Data([0x01, 0x02, 0x03]))
+
+        guard case .contentDelta(.image(let secondImage)) = events[2] else {
+            return XCTFail("Expected second image delta")
+        }
+        XCTAssertEqual(secondImage.mimeType, "image/png")
+        XCTAssertEqual(secondImage.data, Data("hello world".utf8))
     }
 
 

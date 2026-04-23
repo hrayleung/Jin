@@ -9,103 +9,153 @@ extension TextToSpeechPluginSettingsView {
         if let provider {
             switch provider {
             case .openai:
-                Section("OpenAI") {
-                    TextField("API Base URL", text: $openAIBaseURL)
-                        .font(.system(.body, design: .monospaced))
-                        .textFieldStyle(.roundedBorder)
-
-                    TextField("Model", text: $openAIModel)
-                        .font(.system(.body, design: .monospaced))
-                        .textFieldStyle(.roundedBorder)
-
-                    Picker("Voice", selection: $openAIVoice) {
-                        ForEach(Self.openAIVoices, id: \.self) { voice in
-                            Text(voice).tag(voice)
-                        }
-                    }
-                    .pickerStyle(.menu)
-
-                    Picker("Format", selection: $openAIResponseFormat) {
-                        ForEach(Self.openAIResponseFormats, id: \.self) { format in
-                            Text(format).tag(format)
-                        }
-                    }
-                    .pickerStyle(.menu)
-
-                    HStack {
-                        Text("Speed")
-                        Slider(value: $openAISpeed, in: 0.25...4.0, step: 0.05)
-                        Text(openAISpeed.formatted(.number.precision(.fractionLength(2))))
+                JinSettingsSection("OpenAI") {
+                    JinSettingsControlRow("API Base URL") {
+                        TextField("API Base URL", text: $openAIBaseURL)
                             .font(.system(.body, design: .monospaced))
-                            .foregroundStyle(.secondary)
-                            .frame(width: 64, alignment: .trailing)
+                            .textFieldStyle(.roundedBorder)
                     }
 
-                    TextField("Instructions (optional)", text: $openAIInstructions)
+                    JinSettingsControlRow("Model") {
+                        Picker("Model", selection: $openAIModel) {
+                            ForEach(displayedOpenAIModels) { model in
+                                Text(model.name).tag(model.id)
+                            }
+                        }
+                        .labelsHidden()
+                        .pickerStyle(.menu)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+
+                    JinSettingsControlRow("Voice") {
+                        Picker("Voice", selection: $openAIVoice) {
+                            ForEach(Self.openAIVoices, id: \.self) { voice in
+                                Text(voice).tag(voice)
+                            }
+                        }
+                        .labelsHidden()
+                        .pickerStyle(.menu)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+
+                    JinSettingsControlRow("Format") {
+                        Picker("Format", selection: $openAIResponseFormat) {
+                            ForEach(Self.openAIResponseFormats, id: \.self) { format in
+                                Text(format).tag(format)
+                            }
+                        }
+                        .labelsHidden()
+                        .pickerStyle(.menu)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+
+                    JinSettingsControlRow("Speed") {
+                        HStack {
+                            Slider(value: $openAISpeed, in: 0.25...4.0, step: 0.05)
+                            Text(openAISpeed.formatted(.number.precision(.fractionLength(2))))
+                                .font(.system(.body, design: .monospaced))
+                                .foregroundStyle(.secondary)
+                                .frame(width: 64, alignment: .trailing)
+                        }
+                    }
+
+                    JinSettingsControlRow("Instructions", supportingText: "Optional.") {
+                        TextField("Instructions (optional)", text: $openAIInstructions)
+                            .textFieldStyle(.roundedBorder)
+                    }
                 }
 
             case .groq:
-                Section("Groq") {
-                    TextField("API Base URL", text: $groqBaseURL)
-                        .font(.system(.body, design: .monospaced))
-                        .textFieldStyle(.roundedBorder)
-
-                    TextField("Model", text: $groqModel)
-                        .font(.system(.body, design: .monospaced))
-                        .textFieldStyle(.roundedBorder)
-                        .help("Orpheus models: canopylabs/orpheus-v1-english, canopylabs/orpheus-arabic-saudi")
-                        .onChange(of: groqModel) { _, _ in
-                            normalizeGroqVoiceIfNeeded()
-                        }
-
-                    Picker("Voice", selection: $groqVoice) {
-                        ForEach(groqVoiceChoices, id: \.self) { voice in
-                            Text(voice).tag(voice)
-                        }
+                JinSettingsSection("Groq") {
+                    JinSettingsControlRow("API Base URL") {
+                        TextField("API Base URL", text: $groqBaseURL)
+                            .font(.system(.body, design: .monospaced))
+                            .textFieldStyle(.roundedBorder)
                     }
-                    .pickerStyle(.menu)
+
+                    JinSettingsControlRow("Model") {
+                        Picker("Model", selection: $groqModel) {
+                            ForEach(displayedGroqModels) { model in
+                                Text(model.name).tag(model.id)
+                            }
+                        }
+                        .labelsHidden()
+                        .pickerStyle(.menu)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .help("Orpheus models: canopylabs/orpheus-v1-english, canopylabs/orpheus-arabic-saudi")
+                    .onChange(of: groqModel) { _, _ in
+                        normalizeGroqVoiceIfNeeded()
+                    }
+
+                    JinSettingsControlRow("Voice") {
+                        Picker("Voice", selection: $groqVoice) {
+                            ForEach(groqVoiceChoices, id: \.self) { voice in
+                                Text(voice).tag(voice)
+                            }
+                        }
+                        .labelsHidden()
+                        .pickerStyle(.menu)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
                     .onAppear {
                         normalizeGroqVoiceIfNeeded()
                     }
 
-                    Picker("Format", selection: $groqResponseFormat) {
-                        Text("wav").tag("wav")
+                    JinSettingsControlRow("Format") {
+                        Picker("Format", selection: $groqResponseFormat) {
+                            Text("wav").tag("wav")
+                        }
+                        .labelsHidden()
+                        .pickerStyle(.menu)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     }
-                    .pickerStyle(.menu)
-
                 }
 
             case .elevenlabs:
-                Section("ElevenLabs") {
-                    TextField("API Base URL", text: $elevenLabsBaseURL)
-                        .font(.system(.body, design: .monospaced))
-                        .textFieldStyle(.roundedBorder)
+                JinSettingsSection("ElevenLabs") {
+                    JinSettingsControlRow("API Base URL") {
+                        TextField("API Base URL", text: $elevenLabsBaseURL)
+                            .font(.system(.body, design: .monospaced))
+                            .textFieldStyle(.roundedBorder)
+                    }
 
-                    TextField("Model", text: $elevenLabsModelID)
-                        .font(.system(.body, design: .monospaced))
-                        .textFieldStyle(.roundedBorder)
+                    JinSettingsControlRow("Model") {
+                        Picker("Model", selection: $elevenLabsModelID) {
+                            ForEach(displayedElevenLabsModels) { model in
+                                Text(model.name).tag(model.id)
+                            }
+                        }
+                        .labelsHidden()
+                        .pickerStyle(.menu)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
 
                     if !elevenLabsVoices.isEmpty {
-                        HStack {
-                            Picker("Voice", selection: $elevenLabsVoiceID) {
-                                ForEach(elevenLabsVoices) { voice in
-                                    Text(voice.name).tag(voice.voiceId)
+                        JinSettingsControlRow("Voice") {
+                            HStack {
+                                Picker("Voice", selection: $elevenLabsVoiceID) {
+                                    ForEach(elevenLabsVoices) { voice in
+                                        Text(voice.name).tag(voice.voiceId)
+                                    }
                                 }
-                            }
-                            .pickerStyle(.menu)
-                            .onChange(of: elevenLabsVoiceID) { _, _ in
-                                NotificationCenter.default.post(name: .pluginCredentialsDidChange, object: nil)
-                            }
+                                .labelsHidden()
+                                .pickerStyle(.menu)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .onChange(of: elevenLabsVoiceID) { _, _ in
+                                    NotificationCenter.default.post(name: .pluginCredentialsDidChange, object: nil)
+                                }
 
-                            Button {
-                                Task { await playSelectedVoicePreview() }
-                            } label: {
-                                Image(systemName: isPlayingVoicePreview ? "stop.circle" : "play.circle")
-                                    .font(.system(size: 14, weight: .semibold))
+                                Button {
+                                    Task { await playSelectedVoicePreview() }
+                                } label: {
+                                    Image(systemName: isPlayingVoicePreview ? "stop.circle" : "play.circle")
+                                        .font(.system(size: 14, weight: .semibold))
+                                }
+                                .buttonStyle(.plain)
+                                .help("Play voice preview")
+                                .disabled(selectedElevenLabsVoicePreviewURL == nil)
                             }
-                            .buttonStyle(.plain)
-                            .help("Play voice preview")
-                            .disabled(selectedElevenLabsVoicePreviewURL == nil)
                         }
                     } else {
                         Text("No voices loaded. Enter your API key and click \u{201C}Test Connection\u{201D} to fetch voices.")
@@ -113,12 +163,16 @@ extension TextToSpeechPluginSettingsView {
                             .foregroundStyle(.secondary)
                     }
 
-                    Picker("Output Format", selection: $elevenLabsOutputFormat) {
-                        ForEach(Self.elevenLabsOutputFormats, id: \.self) { format in
-                            Text(format).tag(format)
+                    JinSettingsControlRow("Output Format") {
+                        Picker("Output Format", selection: $elevenLabsOutputFormat) {
+                            ForEach(Self.elevenLabsOutputFormats, id: \.self) { format in
+                                Text(format).tag(format)
+                            }
                         }
+                        .labelsHidden()
+                        .pickerStyle(.menu)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     }
-                    .pickerStyle(.menu)
 
                     Stepper("Optimize latency: \(elevenLabsOptimizeStreamingLatency)", value: $elevenLabsOptimizeStreamingLatency, in: 0...4)
 
@@ -145,7 +199,7 @@ extension TextToSpeechPluginSettingsView {
                 )
             }
         } else {
-            Section("Provider Error") {
+            JinSettingsSection("Provider Error") {
                 Text(providerErrorMessage(for: providerRaw))
                     .font(.caption)
                     .foregroundStyle(.red)
@@ -170,6 +224,42 @@ extension TextToSpeechPluginSettingsView {
         guard let voice = elevenLabsVoices.first(where: { $0.voiceId == elevenLabsVoiceID }) else { return nil }
         guard let str = voice.previewUrl, let url = URL(string: str) else { return nil }
         return url
+    }
+
+    var availableOpenAIModels: [SpeechProviderModelChoice] {
+        openAIModels.isEmpty
+            ? SpeechProviderModelCatalog.defaultTextToSpeechChoices(for: .openai)
+            : openAIModels
+    }
+
+    var displayedOpenAIModels: [SpeechProviderModelChoice] {
+        SpeechProviderModelCatalog.presentingChoices(availableOpenAIModels, selectedModelID: openAIModel)
+    }
+
+    var availableGroqModels: [SpeechProviderModelChoice] {
+        groqModels.isEmpty
+            ? SpeechProviderModelCatalog.defaultTextToSpeechChoices(for: .groq)
+            : groqModels
+    }
+
+    var displayedGroqModels: [SpeechProviderModelChoice] {
+        SpeechProviderModelCatalog.presentingChoices(availableGroqModels, selectedModelID: groqModel)
+    }
+
+    var availableElevenLabsModels: [SpeechProviderModelChoice] {
+        if !elevenLabsModels.isEmpty {
+            return elevenLabsModels.map { model in
+                SpeechProviderModelChoice(id: model.modelId, name: model.name)
+            }
+        }
+        return SpeechProviderModelCatalog.defaultTextToSpeechChoices(for: .elevenlabs)
+    }
+
+    var displayedElevenLabsModels: [SpeechProviderModelChoice] {
+        SpeechProviderModelCatalog.presentingChoices(
+            availableElevenLabsModels,
+            selectedModelID: elevenLabsModelID
+        )
     }
 
     // MARK: - Groq Voice Helpers

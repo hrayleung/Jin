@@ -34,6 +34,17 @@ struct SpeechToTextPluginSettingsView: View {
     @AppStorage(AppPreferenceKeys.sttWhisperKitLanguage) var whisperKitLanguage = ""
     @AppStorage(AppPreferenceKeys.sttWhisperKitTranslateToEnglish) var whisperKitTranslateToEnglish = false
 
+    @AppStorage(AppPreferenceKeys.sttElevenLabsBaseURL) var elevenLabsBaseURL = ElevenLabsSTTClient.Constants.defaultBaseURL.absoluteString
+    @AppStorage(AppPreferenceKeys.sttElevenLabsModel) var elevenLabsModel = "scribe_v2"
+    @AppStorage(AppPreferenceKeys.sttElevenLabsLanguageCode) var elevenLabsLanguageCode = ""
+    @AppStorage(AppPreferenceKeys.sttElevenLabsTagAudioEvents) var elevenLabsTagAudioEvents = true
+    @AppStorage(AppPreferenceKeys.sttElevenLabsNoVerbatim) var elevenLabsNoVerbatim = false
+    @AppStorage(AppPreferenceKeys.sttElevenLabsDiarize) var elevenLabsDiarize = false
+    @AppStorage(AppPreferenceKeys.sttElevenLabsNumSpeakers) var elevenLabsNumSpeakers = 2
+    @AppStorage(AppPreferenceKeys.sttElevenLabsTimestampsGranularity) var elevenLabsTimestampsGranularity = "word"
+    @AppStorage(AppPreferenceKeys.sttElevenLabsFileFormat) var elevenLabsFileFormat = "other"
+    @AppStorage(AppPreferenceKeys.sttElevenLabsTemperature) var elevenLabsTemperature = 0.0
+
     @State var apiKey = ""
     @State var isKeyVisible = false
     @State var isTesting = false
@@ -42,6 +53,11 @@ struct SpeechToTextPluginSettingsView: View {
     @State var hasLoadedKey = false
     @State var lastPersistedAPIKey = ""
     @State var autoSaveTask: Task<Void, Never>?
+    @State var openAIModels: [SpeechProviderModelChoice] = []
+    @State var groqModels: [SpeechProviderModelChoice] = []
+    @State var mistralModels: [SpeechProviderModelChoice] = []
+    @State var elevenLabsModels: [SpeechProviderModelChoice] = []
+    @State var isLoadingModels = false
 
     var provider: SpeechToTextProvider? {
         SpeechToTextProvider(rawValue: providerRaw)
@@ -56,6 +72,8 @@ struct SpeechToTextPluginSettingsView: View {
             return AppPreferenceKeys.sttGroqAPIKey
         case .mistral:
             return AppPreferenceKeys.sttMistralAPIKey
+        case .elevenlabs:
+            return AppPreferenceKeys.sttElevenLabsAPIKey
         case .whisperKit:
             return nil
         }
@@ -66,51 +84,44 @@ struct SpeechToTextPluginSettingsView: View {
     }
 
     var body: some View {
-        Form {
-            Section("Provider") {
-                Picker("Provider", selection: $providerRaw) {
-                    ForEach(SpeechToTextProvider.allCases) { provider in
-                        Text(provider.displayName).tag(provider.rawValue)
+        JinSettingsPage {
+            JinSettingsSection("Provider") {
+                JinSettingsControlRow("Provider") {
+                    Picker("Provider", selection: $providerRaw) {
+                        ForEach(SpeechToTextProvider.allCases) { provider in
+                            Text(provider.displayName).tag(provider.rawValue)
+                        }
                     }
+                    .labelsHidden()
+                    .pickerStyle(.menu)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                .pickerStyle(.menu)
                 .onChange(of: providerRaw) { oldProviderRaw, _ in
                     autoSaveTask?.cancel()
                     if SpeechToTextProvider(rawValue: oldProviderRaw)?.requiresAPIKey == true {
                         persistAPIKeyIfNeeded(forProviderRaw: oldProviderRaw, showSavedStatus: false)
                     }
-                    Task { await loadExistingKey() }
+                    Task { await loadExistingKeyAndMaybeModels() }
                     NotificationCenter.default.post(name: .pluginCredentialsDidChange, object: nil)
                 }
 
                 Toggle("Add recording as file", isOn: $addRecordingAsFile)
                     .help("Attach microphone recordings as audio files for models that support audio input instead of transcribing.")
-
             }
 
             if provider?.requiresAPIKey != false {
-                Section("API Key") {
-                    HStack(spacing: 8) {
-                        Group {
-                            if isKeyVisible {
-                                TextField("API Key", text: $apiKey)
-                                    .textContentType(.password)
-                            } else {
-                                SecureField("API Key", text: $apiKey)
-                                    .textContentType(.password)
-                            }
-                        }
-
-                        Button {
-                            isKeyVisible.toggle()
-                        } label: {
-                            Image(systemName: isKeyVisible ? "eye.slash" : "eye")
-                                .foregroundStyle(.secondary)
-                                .frame(width: 22, height: 22)
-                        }
-                        .buttonStyle(.plain)
-                        .help(isKeyVisible ? "Hide API key" : "Show API key")
-                        .disabled(apiKey.isEmpty)
+                JinSettingsSection(
+                    "API Key",
+                    detail: "Stored locally on this Mac. Changes save automatically."
+                ) {
+                    JinSettingsControlRow("API Key") {
+                        JinRevealableSecureField(
+                            title: "API Key",
+                            text: $apiKey,
+                            isRevealed: $isKeyVisible,
+                            revealHelp: "Show API key",
+                            concealHelp: "Hide API key"
+                        )
                     }
 
                     HStack(spacing: 12) {
@@ -122,28 +133,23 @@ struct SpeechToTextPluginSettingsView: View {
 
                         Spacer()
 
-                        if isTesting {
+                        if isTesting || isLoadingModels {
                             ProgressView()
                                 .controlSize(.small)
                         }
                     }
 
                     if let statusMessage {
-                        Text(statusMessage)
-                            .font(.caption)
-                            .foregroundStyle(statusIsError ? Color.red : Color.secondary)
+                        JinSettingsStatusText(text: statusMessage, isError: statusIsError)
                     }
                 }
             }
 
             providerSpecificSettings
         }
-        .formStyle(.grouped)
-        .scrollContentBackground(.hidden)
-        .background(JinSemanticColor.detailSurface)
         .navigationTitle("Speech to Text")
         .task {
-            await loadExistingKey()
+            await loadExistingKeyAndMaybeModels()
             hasLoadedKey = true
         }
         .onChange(of: apiKey) { _, _ in

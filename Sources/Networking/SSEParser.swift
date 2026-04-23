@@ -31,6 +31,11 @@ struct SSEParser: StreamParser {
         events.popFirst()
     }
 
+    mutating func finish() {
+        guard !buffer.isEmpty else { return }
+        parseEvent()
+    }
+
     private mutating func parseEvent() {
         defer { buffer.removeAll() }
 
@@ -90,6 +95,11 @@ struct JSONLineParser: StreamParser {
 
     mutating func nextEvent() -> String? {
         events.popFirst()
+    }
+
+    mutating func finish() {
+        guard !buffer.isEmpty else { return }
+        parseLine()
     }
 
     private mutating func parseLine() {

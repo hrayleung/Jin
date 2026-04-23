@@ -172,6 +172,18 @@ enum AppPreferenceKeys {
     static let sttMistralTemperature = "sttMistralTemperature"
     static let sttMistralTimestampGranularitiesJSON = "sttMistralTimestampGranularitiesJSON"
 
+    static let sttElevenLabsAPIKey = "sttElevenLabsAPIKey"
+    static let sttElevenLabsBaseURL = "sttElevenLabsBaseURL"
+    static let sttElevenLabsModel = "sttElevenLabsModel"
+    static let sttElevenLabsLanguageCode = "sttElevenLabsLanguageCode"
+    static let sttElevenLabsTagAudioEvents = "sttElevenLabsTagAudioEvents"
+    static let sttElevenLabsNoVerbatim = "sttElevenLabsNoVerbatim"
+    static let sttElevenLabsDiarize = "sttElevenLabsDiarize"
+    static let sttElevenLabsNumSpeakers = "sttElevenLabsNumSpeakers"
+    static let sttElevenLabsTimestampsGranularity = "sttElevenLabsTimestampsGranularity"
+    static let sttElevenLabsFileFormat = "sttElevenLabsFileFormat"
+    static let sttElevenLabsTemperature = "sttElevenLabsTemperature"
+
     // WhisperKit STT (On-Device)
     static let sttWhisperKitModel = "sttWhisperKitModel"
     static let sttWhisperKitLanguage = "sttWhisperKitLanguage"

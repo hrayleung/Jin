@@ -7,8 +7,17 @@ enum OpenAICompatibleAudioClientSupport {
         let value: String
     }
 
+    struct AvailableModel: Decodable {
+        let id: String
+        let name: String?
+    }
+
     private struct TranscriptionJSONResponse: Decodable {
         let text: String?
+    }
+
+    private struct AvailableModelsResponse: Decodable {
+        let data: [AvailableModel]
     }
 
     static func transcriptionFields(
@@ -57,6 +66,21 @@ enum OpenAICompatibleAudioClientSupport {
         do {
             let decoded = try JSONDecoder().decode(TranscriptionJSONResponse.self, from: data)
             return decoded.text ?? ""
+        } catch {
+            let message = String(data: data, encoding: .utf8) ?? error.localizedDescription
+            throw LLMError.decodingError(message: message)
+        }
+    }
+
+    static func decodeAvailableModels(_ data: Data) throws -> [SpeechProviderModelChoice] {
+        do {
+            let decoded = try JSONDecoder().decode(AvailableModelsResponse.self, from: data)
+            return decoded.data.map { model in
+                SpeechProviderModelChoice(
+                    id: model.id,
+                    name: normalizedTrimmedString(model.name)
+                )
+            }
         } catch {
             let message = String(data: data, encoding: .utf8) ?? error.localizedDescription
             throw LLMError.decodingError(message: message)

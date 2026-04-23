@@ -3,13 +3,13 @@ import Foundation
 /// OpenCode Go provider adapter.
 ///
 /// Routes requests to the correct endpoint format based on model ID:
-/// - GLM-5, Kimi K2.5 → OpenAI-compatible `/chat/completions`
+/// - GLM-5, Kimi K2.5/K2.6, MiMo V2.5/V2.5 Pro → OpenAI-compatible `/chat/completions`
 /// - MiniMax M2.7, M2.5 → Anthropic-compatible `/messages`
 ///
 /// Docs: https://opencode.ai/docs/go/
 actor OpenCodeGoAdapter: LLMProviderAdapter {
     let providerConfig: ProviderConfig
-    let capabilities: ModelCapability = [.streaming, .toolCalling, .vision, .reasoning]
+    let capabilities: ModelCapability = [.streaming, .toolCalling, .vision, .audio, .reasoning]
 
     private let apiKey: String
     private let networkManager: NetworkManager
@@ -148,8 +148,19 @@ actor OpenCodeGoAdapter: LLMProviderAdapter {
             }
         }
 
+        var toolObjects: [[String: Any]] = []
+
+        if controls.webSearch?.enabled == true,
+           ModelCapabilityRegistry.supportsWebSearch(for: providerConfig.type, modelID: modelID) {
+            toolObjects.append(buildWebSearchTool(from: controls.webSearch))
+        }
+
         if !tools.isEmpty, let functionTools = translateTools(tools) as? [[String: Any]] {
-            body["tools"] = functionTools
+            toolObjects.append(contentsOf: functionTools)
+        }
+
+        if !toolObjects.isEmpty {
+            body["tools"] = toolObjects
         }
 
         for (key, value) in controls.providerSpecific {
@@ -217,5 +228,44 @@ actor OpenCodeGoAdapter: LLMProviderAdapter {
         case .high, .xhigh, .max:
             return "high"
         }
+    }
+
+    private func buildWebSearchTool(from controls: WebSearchControls?) -> [String: Any] {
+        var tool: [String: Any] = ["type": "web_search"]
+
+        if let limit = controls?.maxUses, limit > 0 {
+            tool["limit"] = limit
+        }
+
+        if let location = controls?.userLocation,
+           let userLocation = buildUserLocation(location) {
+            tool["user_location"] = userLocation
+        }
+
+        return tool
+    }
+
+    private func buildUserLocation(_ location: WebSearchUserLocation) -> [String: Any]? {
+        var userLocation: [String: Any] = ["type": "approximate"]
+
+        if let country = normalizedWebSearchLocationField(location.country) {
+            userLocation["country"] = country
+        }
+        if let region = normalizedWebSearchLocationField(location.region) {
+            userLocation["region"] = region
+        }
+        if let city = normalizedWebSearchLocationField(location.city) {
+            userLocation["city"] = city
+        }
+
+        return userLocation.count > 1 ? userLocation : nil
+    }
+
+    private func normalizedWebSearchLocationField(_ value: String?) -> String? {
+        guard let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !trimmed.isEmpty else {
+            return nil
+        }
+        return trimmed
     }
 }

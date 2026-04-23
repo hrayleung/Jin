@@ -164,6 +164,12 @@ final class JinModelSupportTests: XCTestCase {
         XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .openrouter, modelID: "minimax/minimax-m2.7-custom"))
     }
 
+    func testOpenRouterGPT54Image2UsesExactFullySupportedID() {
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .openrouter, modelID: "openai/gpt-5.4-image-2"))
+        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .openrouter, modelID: "openai/gpt-5.4-image-2-custom"))
+        XCTAssertFalse(JinModelSupport.supportsNativePDF(providerType: .openrouter, modelID: "openai/gpt-5.4-image-2"))
+    }
+
     func testOpenRouterSeedanceModelsUseExactFullySupportedIDs() {
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .openrouter, modelID: "bytedance/seedance-1-5-pro"))
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .openrouter, modelID: "bytedance/seedance-2.0"))
@@ -187,6 +193,13 @@ final class JinModelSupportTests: XCTestCase {
 
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .cloudflareAIGateway, modelID: "@cf/moonshotai/kimi-k2.6"))
         XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .cloudflareAIGateway, modelID: "@cf/moonshotai/kimi-k2.6-custom"))
+    }
+
+    func testOpenCodeGoMiMoV25ModelsUseExactFullySupportedIDs() {
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .opencodeGo, modelID: "mimo-v2.5-pro"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .opencodeGo, modelID: "mimo-v2.5"))
+        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .opencodeGo, modelID: "mimo-v2.5-pro-preview"))
+        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .opencodeGo, modelID: "mimo-v2.5-experimental"))
     }
 
     func testGeminiProvider3Point1PreviewIsMarkedAsFullySupported() {

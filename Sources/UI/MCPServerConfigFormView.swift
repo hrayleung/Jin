@@ -35,9 +35,9 @@ struct MCPServerConfigFormView: View {
     @State private var loading = false
 
     var body: some View {
-        Form {
+        JinSettingsPage(maxWidth: 760) {
             if let configError {
-                Section {
+                JinSettingsSection("Configuration Error", style: .plain) {
                     HStack {
                         Text(configError)
                             .font(.system(.caption, design: .monospaced))
@@ -65,9 +65,7 @@ struct MCPServerConfigFormView: View {
 
             toolsSection
         }
-        .formStyle(.grouped)
-        .scrollContentBackground(.hidden)
-        .background(JinSemanticColor.detailSurface)
+        .navigationTitle(server.name)
         .task {
             loadFromServer()
         }
@@ -88,51 +86,81 @@ struct MCPServerConfigFormView: View {
     }
 
     private var serverSection: some View {
-        Section("MCP Server") {
-            Picker("Transport", selection: $transportKind) {
-                Text("Command-line (stdio)").tag(MCPTransportKind.stdio)
-                Text("Remote HTTP").tag(MCPTransportKind.http)
+        JinSettingsSection("MCP Server") {
+            JinSettingsControlRow("Transport") {
+                Picker("Transport", selection: $transportKind) {
+                    Text("Command-line (stdio)").tag(MCPTransportKind.stdio)
+                    Text("Remote HTTP").tag(MCPTransportKind.http)
+                }
+                .labelsHidden()
+                .pickerStyle(.menu)
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
 
-            TextField("Name", text: $server.name)
-                .onChange(of: server.name) { _, _ in try? modelContext.save() }
-            MCPIconPickerField(
-                selectedIconID: Binding(
-                    get: { server.iconID },
-                    set: { newValue in
-                        let trimmed = newValue?.trimmingCharacters(in: .whitespacesAndNewlines)
-                        if let trimmed, !trimmed.isEmpty,
-                           trimmed.caseInsensitiveCompare(MCPIconCatalog.defaultIconID) != .orderedSame {
-                            server.iconID = trimmed
-                        } else {
-                            server.iconID = nil
-                        }
-                        try? modelContext.save()
-                    }
-                ),
-                defaultIconID: MCPIconCatalog.defaultIconID
-            )
-            TextField("ID", text: $server.id)
-                .font(.system(.body, design: .monospaced))
-                .textSelection(.enabled)
-                .onChange(of: server.id) { _, _ in try? modelContext.save() }
+            JinSettingsControlRow("Name") {
+                TextField("Server name", text: $server.name)
+                    .textFieldStyle(.roundedBorder)
+                    .onChange(of: server.name) { _, _ in try? modelContext.save() }
+            }
 
-            Toggle("Enabled", isOn: $server.isEnabled)
-                .onChange(of: server.isEnabled) { _, _ in try? modelContext.save() }
-            Toggle("Run tools automatically", isOn: $server.runToolsAutomatically)
-                .onChange(of: server.runToolsAutomatically) { _, _ in try? modelContext.save() }
+            JinSettingsControlRow("Icon") {
+                MCPIconPickerField(
+                    selectedIconID: Binding(
+                        get: { server.iconID },
+                        set: { newValue in
+                            let trimmed = newValue?.trimmingCharacters(in: .whitespacesAndNewlines)
+                            if let trimmed, !trimmed.isEmpty,
+                               trimmed.caseInsensitiveCompare(MCPIconCatalog.defaultIconID) != .orderedSame {
+                                server.iconID = trimmed
+                            } else {
+                                server.iconID = nil
+                            }
+                            try? modelContext.save()
+                        }
+                    ),
+                    defaultIconID: MCPIconCatalog.defaultIconID
+                )
+            }
+
+            JinSettingsControlRow("ID", supportingText: "Short identifier used inside Jin.") {
+                TextField("exa", text: $server.id)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(.body, design: .monospaced))
+                    .textSelection(.enabled)
+                    .onChange(of: server.id) { _, _ in try? modelContext.save() }
+            }
+
+            JinSettingsControlRow("Enabled") {
+                Toggle("Enabled", isOn: $server.isEnabled)
+                    .labelsHidden()
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .onChange(of: server.isEnabled) { _, _ in try? modelContext.save() }
+            }
+
+            JinSettingsControlRow("Auto-run Tools") {
+                Toggle("Run tools automatically", isOn: $server.runToolsAutomatically)
+                    .labelsHidden()
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .onChange(of: server.runToolsAutomatically) { _, _ in try? modelContext.save() }
+            }
         }
     }
 
     private var stdioSections: some View {
         Group {
-            Section("Stdio transport") {
-                TextField("Command", text: $command)
-                    .font(.system(.body, design: .monospaced))
-                    .textSelection(.enabled)
+            JinSettingsSection("Stdio Transport") {
+                JinSettingsControlRow("Command") {
+                    TextField("npx", text: $command)
+                        .textFieldStyle(.roundedBorder)
+                        .font(.system(.body, design: .monospaced))
+                        .textSelection(.enabled)
+                }
 
-                TextField("Arguments", text: $argsText)
-                    .font(.system(.body, design: .monospaced))
+                JinSettingsControlRow("Arguments") {
+                    TextField("-y exa-mcp-server", text: $argsText)
+                        .textFieldStyle(.roundedBorder)
+                        .font(.system(.body, design: .monospaced))
+                }
 
                 if isFirecrawlMCP && !hasFirecrawlAPIKey {
                     Text("Firecrawl MCP requires `FIRECRAWL_API_KEY` in Environment variables, otherwise initialize may never return.")
@@ -146,7 +174,7 @@ struct MCPServerConfigFormView: View {
                 }
             }
 
-            Section("Environment variables") {
+            JinSettingsSection("Environment Variables") {
                 EnvironmentVariablesEditor(pairs: $envPairs)
             }
         }
@@ -154,10 +182,13 @@ struct MCPServerConfigFormView: View {
 
     private var httpSections: some View {
         Group {
-            Section("HTTP transport") {
-                TextField("Endpoint URL", text: $endpoint)
-                    .font(.system(.body, design: .monospaced))
-                    .textSelection(.enabled)
+            JinSettingsSection("HTTP Transport") {
+                JinSettingsControlRow("Endpoint URL") {
+                    TextField("https://mcp.exa.ai/mcp", text: $endpoint)
+                        .textFieldStyle(.roundedBorder)
+                        .font(.system(.body, design: .monospaced))
+                        .textSelection(.enabled)
+                }
 
                 Toggle("Enable streaming (SSE)", isOn: $httpStreaming)
 
@@ -168,61 +199,47 @@ struct MCPServerConfigFormView: View {
                 }
             }
 
-            Section("Authentication") {
-                Picker("Type", selection: $httpAuthKind) {
-                    Text("None").tag(MCPHTTPAuthentication.FormKind.none)
-                    Text("Bearer token").tag(MCPHTTPAuthentication.FormKind.bearerToken)
-                    Text("Custom header").tag(MCPHTTPAuthentication.FormKind.customHeader)
+            JinSettingsSection("Authentication") {
+                JinSettingsControlRow("Type") {
+                    Picker("Type", selection: $httpAuthKind) {
+                        Text("None").tag(MCPHTTPAuthentication.FormKind.none)
+                        Text("Bearer token").tag(MCPHTTPAuthentication.FormKind.bearerToken)
+                        Text("Custom header").tag(MCPHTTPAuthentication.FormKind.customHeader)
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.menu)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
 
                 switch httpAuthKind {
                 case .none:
                     EmptyView()
                 case .bearerToken:
-                    HStack(spacing: 8) {
-                        Group {
-                            if isBearerTokenVisible {
-                                TextField("Bearer token", text: $bearerToken)
-                                    .font(.system(.body, design: .monospaced))
-                            } else {
-                                SecureField("Bearer token", text: $bearerToken)
-                                    .font(.system(.body, design: .monospaced))
-                            }
-                        }
-                        Button {
-                            isBearerTokenVisible.toggle()
-                        } label: {
-                            Image(systemName: isBearerTokenVisible ? "eye.slash" : "eye")
-                                .foregroundStyle(.secondary)
-                                .frame(width: 22, height: 22)
-                        }
-                        .buttonStyle(.plain)
-                        .help(isBearerTokenVisible ? "Hide token" : "Show token")
-                        .disabled(bearerToken.isEmpty)
+                    JinSettingsControlRow("Bearer token") {
+                        JinRevealableSecureField(
+                            title: "Bearer token",
+                            text: $bearerToken,
+                            isRevealed: $isBearerTokenVisible,
+                            usesMonospacedFont: true,
+                            revealHelp: "Show token",
+                            concealHelp: "Hide token"
+                        )
                     }
                 case .customHeader:
-                    TextField("Header name", text: $authHeaderName)
-                        .font(.system(.body, design: .monospaced))
-                    HStack(spacing: 8) {
-                        Group {
-                            if isHeaderValueVisible {
-                                TextField("Header value", text: $authHeaderValue)
-                                    .font(.system(.body, design: .monospaced))
-                            } else {
-                                SecureField("Header value", text: $authHeaderValue)
-                                    .font(.system(.body, design: .monospaced))
-                            }
-                        }
-                        Button {
-                            isHeaderValueVisible.toggle()
-                        } label: {
-                            Image(systemName: isHeaderValueVisible ? "eye.slash" : "eye")
-                                .foregroundStyle(.secondary)
-                                .frame(width: 22, height: 22)
-                        }
-                        .buttonStyle(.plain)
-                        .help(isHeaderValueVisible ? "Hide value" : "Show value")
-                        .disabled(authHeaderValue.isEmpty)
+                    JinSettingsControlRow("Header name") {
+                        TextField("Authorization", text: $authHeaderName)
+                            .textFieldStyle(.roundedBorder)
+                            .font(.system(.body, design: .monospaced))
+                    }
+                    JinSettingsControlRow("Header value") {
+                        JinRevealableSecureField(
+                            title: "Header value",
+                            text: $authHeaderValue,
+                            isRevealed: $isHeaderValueVisible,
+                            usesMonospacedFont: true,
+                            revealHelp: "Show value",
+                            concealHelp: "Hide value"
+                        )
                     }
                 }
 
@@ -233,14 +250,18 @@ struct MCPServerConfigFormView: View {
                 }
             }
 
-            Section("Additional headers") {
+            JinSettingsSection("Additional Headers") {
                 EnvironmentVariablesEditor(pairs: $headerPairs)
             }
         }
     }
 
     private var toolsSection: some View {
-        Section("Tools") {
+        JinSettingsSection(
+            "Tools",
+            detail: "Verify the server to inspect and selectively disable tools.",
+            style: .plain
+        ) {
             VStack(alignment: .leading, spacing: 8) {
                 HStack {
                     Button {

@@ -77,7 +77,7 @@ struct TTSKitTextToSpeechSettingsSection: View {
     // MARK: - Model
 
     private var modelSection: some View {
-        Section {
+        JinSettingsSection("TTSKit (On-Device)") {
             Text("On-device speech synthesis powered by Core ML.")
                 .jinInfoCallout()
 
@@ -110,15 +110,13 @@ struct TTSKitTextToSpeechSettingsSection: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
-        } header: {
-            Text("TTSKit (On-Device)")
         }
     }
 
     // MARK: - Playback
 
     private var playbackSection: some View {
-        Section("Playback") {
+        JinSettingsSection("Playback") {
             Picker("Playback Mode", selection: $playbackModeRaw) {
                 ForEach(TTSKitPlaybackMode.allCases) { mode in
                     Text(mode.title)
@@ -136,7 +134,7 @@ struct TTSKitTextToSpeechSettingsSection: View {
     // MARK: - Options
 
     private var optionsSection: some View {
-        Section("Options") {
+        JinSettingsSection("Options") {
             Picker("Voice", selection: $voiceSelection) {
                 Text("Default (Ryan)")
                     .tag("")
@@ -179,7 +177,7 @@ struct TTSKitTextToSpeechSettingsSection: View {
     // MARK: - Downloaded Models
 
     private var downloadedModelsSection: some View {
-        Section("Downloaded Models") {
+        JinSettingsSection("Downloaded Models") {
             ForEach(library.localModels) { localModel in
                 VStack(alignment: .leading, spacing: 8) {
                     HStack(spacing: 8) {
@@ -222,7 +220,11 @@ struct TTSKitTextToSpeechSettingsSection: View {
     // MARK: - Storage (progressive disclosure)
 
     private var storageSection: some View {
-        Section {
+        JinSettingsSection(
+            "Storage",
+            detail: "Manage downloaded models or import them manually.",
+            style: .plain
+        ) {
             DisclosureGroup("Storage & Manual Import") {
                 Text(library.repositoryRootURL.path)
                     .font(.system(.caption, design: .monospaced))

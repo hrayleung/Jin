@@ -2,6 +2,36 @@ import XCTest
 @testable import Jin
 
 final class ChatModelCapabilitySupportTests: XCTestCase {
+    func testOpenAIImageGenerationModelIDsUseExactSupportTable() {
+        XCTAssertTrue(
+            ChatModelCapabilitySupport.isImageGenerationModelID(
+                providerType: .openai,
+                lowerModelID: "gpt-image-2",
+                openAIImageGenerationModelIDs: ChatView.openAIImageGenerationModelIDs,
+                xAIImageGenerationModelIDs: ChatView.xAIImageGenerationModelIDs,
+                geminiImageGenerationModelIDs: ChatView.geminiImageGenerationModelIDs
+            )
+        )
+        XCTAssertTrue(
+            ChatModelCapabilitySupport.isImageGenerationModelID(
+                providerType: .openaiWebSocket,
+                lowerModelID: "gpt-image-2-2026-04-21",
+                openAIImageGenerationModelIDs: ChatView.openAIImageGenerationModelIDs,
+                xAIImageGenerationModelIDs: ChatView.xAIImageGenerationModelIDs,
+                geminiImageGenerationModelIDs: ChatView.geminiImageGenerationModelIDs
+            )
+        )
+        XCTAssertFalse(
+            ChatModelCapabilitySupport.isImageGenerationModelID(
+                providerType: .openai,
+                lowerModelID: "gpt-image-2-custom",
+                openAIImageGenerationModelIDs: ChatView.openAIImageGenerationModelIDs,
+                xAIImageGenerationModelIDs: ChatView.xAIImageGenerationModelIDs,
+                geminiImageGenerationModelIDs: ChatView.geminiImageGenerationModelIDs
+            )
+        )
+    }
+
     func testResolvedClaudeManagedAgentModelInfoUsesRuntimeSessionModelMetadata() throws {
         let provider = ProviderConfigEntity(
             id: "claude-managed",

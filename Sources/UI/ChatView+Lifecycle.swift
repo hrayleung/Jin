@@ -57,6 +57,9 @@ extension ChatView {
         showingContextCacheSheet = false
         showingAnthropicWebSearchSheet = false
         showingImageGenerationSheet = false
+        showingOpenAIImageCustomSizeSheet = false
+        openAIImageCustomSizeTargetThreadID = nil
+        openAIImageCustomSizeTargetModelID = ""
         showingCodexSessionSettingsSheet = false
         showingGoogleMapsSheet = false
         googleMapsDraft = GoogleMapsControls()

@@ -77,4 +77,26 @@ final class SSEParserTests: XCTestCase {
             XCTFail("Expected .event, got .done")
         }
     }
+
+    func testFinishFlushesDoneEventWithoutTrailingBoundary() {
+        var parser = SSEParser()
+        let input = "data: [DONE]"
+
+        for byte in input.utf8 {
+            parser.append(byte)
+        }
+        parser.finish()
+
+        guard let event = parser.nextEvent() else {
+            XCTFail("Expected SSE event")
+            return
+        }
+
+        switch event {
+        case .done:
+            XCTAssertTrue(true)
+        case .event:
+            XCTFail("Expected .done, got .event")
+        }
+    }
 }

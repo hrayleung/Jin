@@ -224,6 +224,60 @@ final class ModelSettingsResolverTests: XCTestCase {
         XCTAssertTrue(resolvedGeminiGemma426.supportsWebSearch)
     }
 
+    func testOpenRouterGPT54Image2CarriesExactMetadataAndGPT54ReasoningDefaults() {
+        let model = ModelCatalog.modelInfo(for: "openai/gpt-5.4-image-2", provider: .openrouter)
+        let resolved = ModelSettingsResolver.resolve(model: model, providerType: .openrouter)
+
+        XCTAssertEqual(resolved.modelType, .image)
+        XCTAssertEqual(resolved.contextWindow, 272_000)
+        XCTAssertEqual(resolved.maxOutputTokens, 128_000)
+        XCTAssertTrue(resolved.capabilities.contains(.streaming))
+        XCTAssertTrue(resolved.capabilities.contains(.vision))
+        XCTAssertTrue(resolved.capabilities.contains(.reasoning))
+        XCTAssertTrue(resolved.capabilities.contains(.promptCaching))
+        XCTAssertTrue(resolved.capabilities.contains(.imageGeneration))
+        XCTAssertFalse(resolved.capabilities.contains(.toolCalling))
+        XCTAssertFalse(resolved.supportsWebSearch)
+        XCTAssertEqual(resolved.reasoningConfig?.type, .effort)
+        XCTAssertEqual(resolved.reasoningConfig?.defaultEffort, ReasoningEffort.none)
+        XCTAssertTrue(resolved.supportsOpenAIStyleExtremeEffort)
+        XCTAssertEqual(
+            ModelCapabilityRegistry.normalizedReasoningEffort(.xhigh, for: .openrouter, modelID: "openai/gpt-5.4-image-2"),
+            .xhigh
+        )
+    }
+
+    func testResolverAppliesCatalogMetadataForLegacyOpenRouterGPT54Image2Model() {
+        let legacyModel = ModelInfo(
+            id: "openai/gpt-5.4-image-2",
+            name: "GPT-5.4 Image 2",
+            capabilities: [.streaming, .toolCalling],
+            contextWindow: 128_000,
+            maxOutputTokens: 4_096,
+            reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+            isEnabled: true
+        )
+
+        let resolved = ModelSettingsResolver.resolve(model: legacyModel, providerType: .openrouter)
+        XCTAssertEqual(resolved.modelType, .image)
+        XCTAssertEqual(resolved.contextWindow, 272_000)
+        XCTAssertEqual(resolved.maxOutputTokens, 128_000)
+        XCTAssertTrue(resolved.capabilities.contains(.streaming))
+        XCTAssertTrue(resolved.capabilities.contains(.vision))
+        XCTAssertTrue(resolved.capabilities.contains(.reasoning))
+        XCTAssertTrue(resolved.capabilities.contains(.promptCaching))
+        XCTAssertTrue(resolved.capabilities.contains(.imageGeneration))
+        XCTAssertFalse(resolved.capabilities.contains(.toolCalling))
+        XCTAssertFalse(resolved.supportsWebSearch)
+        XCTAssertEqual(resolved.reasoningConfig?.type, .effort)
+        XCTAssertEqual(resolved.reasoningConfig?.defaultEffort, ReasoningEffort.none)
+        XCTAssertTrue(resolved.supportsOpenAIStyleExtremeEffort)
+        XCTAssertEqual(
+            ModelCapabilityRegistry.normalizedReasoningEffort(.xhigh, for: .openrouter, modelID: "openai/gpt-5.4-image-2"),
+            .xhigh
+        )
+    }
+
     func testOpenRouterUsesUnifiedRequestShapeAcrossModelFamilies() {
         let claudeModel = ModelInfo(
             id: "anthropic/claude-sonnet-4.6",
@@ -773,6 +827,42 @@ final class ModelSettingsResolverTests: XCTestCase {
         XCTAssertEqual(resolvedVercel.reasoningConfig?.defaultEffort, .medium)
     }
 
+    func testResolverInfersOpenCodeGoMiMoV25MetadataForLegacyPersistedModels() {
+        let mimoV25ProLegacy = ModelInfo(
+            id: "mimo-v2.5-pro",
+            name: "MiMo V2.5 Pro",
+            capabilities: [.streaming, .toolCalling],
+            contextWindow: 8_192,
+            reasoningConfig: nil,
+            isEnabled: true
+        )
+        let resolvedMimoV25Pro = ModelSettingsResolver.resolve(model: mimoV25ProLegacy, providerType: .opencodeGo)
+        XCTAssertEqual(resolvedMimoV25Pro.contextWindow, 1_048_576)
+        XCTAssertEqual(resolvedMimoV25Pro.maxOutputTokens, 131_072)
+        XCTAssertFalse(resolvedMimoV25Pro.capabilities.contains(.vision))
+        XCTAssertFalse(resolvedMimoV25Pro.capabilities.contains(.audio))
+        XCTAssertTrue(resolvedMimoV25Pro.capabilities.contains(.reasoning))
+        XCTAssertTrue(resolvedMimoV25Pro.supportsWebSearch)
+        XCTAssertEqual(resolvedMimoV25Pro.reasoningConfig?.defaultEffort, .medium)
+
+        let mimoV25Legacy = ModelInfo(
+            id: "mimo-v2.5",
+            name: "MiMo V2.5",
+            capabilities: [.streaming, .toolCalling],
+            contextWindow: 8_192,
+            reasoningConfig: nil,
+            isEnabled: true
+        )
+        let resolvedMimoV25 = ModelSettingsResolver.resolve(model: mimoV25Legacy, providerType: .opencodeGo)
+        XCTAssertEqual(resolvedMimoV25.contextWindow, 1_048_576)
+        XCTAssertEqual(resolvedMimoV25.maxOutputTokens, 131_072)
+        XCTAssertTrue(resolvedMimoV25.capabilities.contains(.vision))
+        XCTAssertTrue(resolvedMimoV25.capabilities.contains(.audio))
+        XCTAssertTrue(resolvedMimoV25.capabilities.contains(.reasoning))
+        XCTAssertTrue(resolvedMimoV25.supportsWebSearch)
+        XCTAssertEqual(resolvedMimoV25.reasoningConfig?.defaultEffort, .medium)
+    }
+
     func testSambaNovaAlwaysOnReasoningModelsCannotDisableByDefault() {
         let gptOSS = ModelInfo(
             id: "gpt-oss-120b",
@@ -932,6 +1022,38 @@ final class ModelSettingsResolverTests: XCTestCase {
             ModelSettingsResolver.resolve(model: xaiProLegacy, providerType: .xai).contextWindow,
             32_768
         )
+    }
+
+    func testResolverInfersContextWindowForKnownLegacyOpenAIImage2Models() {
+        let legacyAlias = ModelInfo(
+            id: "gpt-image-2",
+            name: "GPT Image 2",
+            capabilities: [.streaming, .vision, .reasoning],
+            contextWindow: 128_000,
+            reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+            isEnabled: true
+        )
+
+        let resolvedAlias = ModelSettingsResolver.resolve(model: legacyAlias, providerType: .openai)
+        XCTAssertEqual(resolvedAlias.modelType, .image)
+        XCTAssertEqual(resolvedAlias.contextWindow, 32_000)
+        XCTAssertEqual(resolvedAlias.capabilities, [.imageGeneration])
+        XCTAssertNil(resolvedAlias.reasoningConfig)
+
+        let legacySnapshot = ModelInfo(
+            id: "gpt-image-2-2026-04-21",
+            name: "GPT Image 2 (2026-04-21)",
+            capabilities: [.streaming, .toolCalling],
+            contextWindow: 128_000,
+            reasoningConfig: nil,
+            isEnabled: true
+        )
+
+        let resolvedSnapshot = ModelSettingsResolver.resolve(model: legacySnapshot, providerType: .openai)
+        XCTAssertEqual(resolvedSnapshot.modelType, .image)
+        XCTAssertEqual(resolvedSnapshot.contextWindow, 32_000)
+        XCTAssertEqual(resolvedSnapshot.capabilities, [.imageGeneration])
+        XCTAssertNil(resolvedSnapshot.reasoningConfig)
     }
 
     func testResolverInfersContextWindowAndReasoningForKnownLegacyTogetherModels() {

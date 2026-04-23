@@ -119,4 +119,34 @@ final class SpeechPluginConfigFactoryTests: XCTestCase {
         XCTAssertEqual(ttsKit.styleInstruction, "warm audiobook")
         XCTAssertEqual(ttsKit.playbackMode, .auto)
     }
+
+    func testSpeechToTextConfigDisablesElevenLabsNoVerbatimForScribeV1() throws {
+        defaults.set(SpeechToTextProvider.elevenlabs.rawValue, forKey: AppPreferenceKeys.sttProvider)
+        defaults.set("test-key", forKey: AppPreferenceKeys.sttElevenLabsAPIKey)
+        defaults.set("scribe_v1", forKey: AppPreferenceKeys.sttElevenLabsModel)
+        defaults.set(true, forKey: AppPreferenceKeys.sttElevenLabsNoVerbatim)
+
+        let config = try SpeechPluginConfigFactory.speechToTextConfig(defaults: defaults)
+        guard case .elevenlabs(let elevenLabs) = config else {
+            return XCTFail("Expected ElevenLabs config, got \(config)")
+        }
+
+        XCTAssertEqual(elevenLabs.modelId, "scribe_v1")
+        XCTAssertNil(elevenLabs.noVerbatim)
+    }
+
+    func testSpeechToTextConfigPreservesElevenLabsNoVerbatimForScribeV2() throws {
+        defaults.set(SpeechToTextProvider.elevenlabs.rawValue, forKey: AppPreferenceKeys.sttProvider)
+        defaults.set("test-key", forKey: AppPreferenceKeys.sttElevenLabsAPIKey)
+        defaults.set("scribe_v2", forKey: AppPreferenceKeys.sttElevenLabsModel)
+        defaults.set(true, forKey: AppPreferenceKeys.sttElevenLabsNoVerbatim)
+
+        let config = try SpeechPluginConfigFactory.speechToTextConfig(defaults: defaults)
+        guard case .elevenlabs(let elevenLabs) = config else {
+            return XCTFail("Expected ElevenLabs config, got \(config)")
+        }
+
+        XCTAssertEqual(elevenLabs.modelId, "scribe_v2")
+        XCTAssertEqual(elevenLabs.noVerbatim, true)
+    }
 }

@@ -39,11 +39,9 @@ struct AgentModeSettingsView: View {
     }
 
     var body: some View {
-        Form {
-            Section {
+        JinSettingsPage {
+            JinSettingsSection("Agent Mode") {
                 Toggle("Enable Agent Mode", isOn: $agentModeEnabled)
-            } header: {
-                Text("Agent Mode")
             }
 
             if agentModeEnabled {
@@ -62,9 +60,6 @@ struct AgentModeSettingsView: View {
                 detailsSection
             }
         }
-        .formStyle(.grouped)
-        .scrollContentBackground(.hidden)
-        .background(JinSemanticColor.detailSurface)
         .navigationTitle("Agent Mode")
         .onAppear {
             syncWorkingDirectoryDraft()
@@ -81,39 +76,45 @@ struct AgentModeSettingsView: View {
     // MARK: - Working Directory
 
     private var workingDirectorySection: some View {
-        Section {
-            HStack(spacing: JinSpacing.small) {
-                TextField(
-                    text: $workingDirectoryDraft,
-                    prompt: Text("e.g., /Users/you/Projects/my-app")
-                ) {
-                    EmptyView()
-                }
-                .textFieldStyle(.roundedBorder)
-                .onChange(of: workingDirectoryDraft) { _, newValue in
-                    applyWorkingDirectory(newValue)
-                }
+        JinSettingsSection(
+            "Working Directory",
+            detail: "Choose the folder Agent Mode can read, search, and edit."
+        ) {
+            JinSettingsControlRow("Path") {
+                VStack(alignment: .leading, spacing: JinSpacing.xSmall) {
+                    HStack(spacing: JinSpacing.small) {
+                        TextField(
+                            "Working Directory",
+                            text: $workingDirectoryDraft,
+                            prompt: Text("e.g., /Users/you/Projects/my-app")
+                        )
+                        .textFieldStyle(.roundedBorder)
+                        .font(.system(.body, design: .monospaced))
+                        .onChange(of: workingDirectoryDraft) { _, newValue in
+                            applyWorkingDirectory(newValue)
+                        }
 
-                Button("Browse") {
-                    selectDirectory()
+                        Button("Browse") {
+                            selectDirectory()
+                        }
+                        .buttonStyle(.bordered)
+                        .help("Choose a working directory for Agent Mode.")
+                    }
+
+                    Text(workingDirectoryValidation.message)
+                        .font(.caption)
+                        .foregroundStyle(workingDirectoryValidation.isError ? Color.orange : .secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .textSelection(.enabled)
                 }
-                .buttonStyle(.bordered)
             }
-
-            Text(workingDirectoryValidation.message)
-                .font(.caption)
-                .foregroundStyle(workingDirectoryValidation.isError ? Color.orange : .secondary)
-                .lineLimit(2)
-                .textSelection(.enabled)
-        } header: {
-            Text("Working Directory")
         }
     }
 
     // MARK: - Tool Toggles
 
     private var toolTogglesSection: some View {
-        Section {
+        JinSettingsSection("Enabled Tools") {
             Toggle(isOn: $enableShell) {
                 Label("Shell Execute", systemImage: "terminal")
             }
@@ -132,58 +133,64 @@ struct AgentModeSettingsView: View {
             Toggle(isOn: $enableGrep) {
                 Label("Grep Search", systemImage: "magnifyingglass")
             }
-        } header: {
-            Text("Enabled Tools")
         }
     }
 
     // MARK: - RTK Status
 
     private var rtkSection: some View {
-        Section {
+        JinSettingsSection(
+            "Bundled RTK",
+            detail: "RTK handles shell, grep, and glob execution for Agent Mode."
+        ) {
             if let status = rtkStatus {
-                LabeledContent("Version") {
+                JinSettingsControlRow("Version", controlAlignment: .trailing) {
                     Text(status.helperVersion ?? "Unavailable")
                         .font(.system(.caption, design: .monospaced))
+                        .frame(maxWidth: .infinity, alignment: .trailing)
                 }
 
-                LabeledContent("Helper Path") {
+                JinSettingsControlRow("Helper Path", controlAlignment: .trailing) {
                     Text(status.helperURL?.path ?? "Missing")
                         .font(.system(.caption, design: .monospaced))
                         .multilineTextAlignment(.trailing)
                         .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .trailing)
                 }
 
-                LabeledContent("RTK Config") {
+                JinSettingsControlRow("RTK Config", controlAlignment: .trailing) {
                     if let configURL = status.configURL {
                         Text(configURL.path)
                             .font(.system(.caption, design: .monospaced))
                             .multilineTextAlignment(.trailing)
                             .textSelection(.enabled)
+                            .frame(maxWidth: .infinity, alignment: .trailing)
                     } else {
                         Text("Unavailable")
                             .font(.caption)
                             .foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity, alignment: .trailing)
                     }
                 }
 
-                LabeledContent("Tee Directory") {
+                JinSettingsControlRow("Tee Directory", controlAlignment: .trailing) {
                     if let teeDirectoryURL = status.teeDirectoryURL {
                         Text(teeDirectoryURL.path)
                             .font(.system(.caption, design: .monospaced))
                             .multilineTextAlignment(.trailing)
                             .textSelection(.enabled)
+                            .frame(maxWidth: .infinity, alignment: .trailing)
                     } else {
                         Text("Unavailable")
                             .font(.caption)
                             .foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity, alignment: .trailing)
                     }
                 }
 
                 if let errorDescription = status.errorDescription {
                     Text(errorDescription)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .jinInlineErrorText()
                 }
             } else if isRefreshingRTKStatus {
                 HStack(spacing: JinSpacing.small) {
@@ -204,6 +211,7 @@ struct AgentModeSettingsView: View {
                     Task { await refreshRTKStatus() }
                 }
                 .buttonStyle(.bordered)
+                .help("Refresh the bundled RTK status.")
 
                 if let configURL = rtkStatus?.configURL,
                    FileManager.default.fileExists(atPath: configURL.path) {
@@ -211,6 +219,7 @@ struct AgentModeSettingsView: View {
                         NSWorkspace.shared.open(configURL)
                     }
                     .buttonStyle(.bordered)
+                    .help("Open the RTK config file in Finder.")
                 }
 
                 if let teeDirectoryURL = rtkStatus?.teeDirectoryURL {
@@ -218,17 +227,19 @@ struct AgentModeSettingsView: View {
                         NSWorkspace.shared.activateFileViewerSelecting([teeDirectoryURL])
                     }
                     .buttonStyle(.bordered)
+                    .help("Reveal the RTK tee output directory in Finder.")
                 }
             }
-        } header: {
-            Text("Bundled RTK")
         }
     }
 
     // MARK: - Safe Command Prefixes
 
     private var safePrefixesSection: some View {
-        Section {
+        JinSettingsSection(
+            "Safe Commands",
+            detail: "Commands starting with these prefixes are auto-approved when RTK can rewrite them."
+        ) {
             DisclosureGroup("Safe commands (\(safePrefixes.count))") {
                 FlowLayout(spacing: 4) {
                     ForEach(safePrefixes, id: \.self) { prefix in
@@ -252,23 +263,28 @@ struct AgentModeSettingsView: View {
                 }
                 .padding(.top, JinSpacing.xSmall)
 
-                HStack(spacing: JinSpacing.small) {
-                    TextField(
-                        text: $newSafePrefix,
-                        prompt: Text("e.g., python3")
-                    ) {
-                        EmptyView()
-                    }
-                    .textFieldStyle(.roundedBorder)
-                    .onSubmit {
-                        addSafePrefix()
-                    }
+                JinSettingsControlRow(
+                    "Add safe prefix",
+                    supportingText: "Matches the beginning of a command, for example python3."
+                ) {
+                    HStack(spacing: JinSpacing.small) {
+                        TextField(
+                            "Add safe prefix",
+                            text: $newSafePrefix,
+                            prompt: Text("e.g., python3")
+                        )
+                        .textFieldStyle(.roundedBorder)
+                        .font(.system(.body, design: .monospaced))
+                        .onSubmit {
+                            addSafePrefix()
+                        }
 
-                    Button("Add") {
-                        addSafePrefix()
+                        Button("Add") {
+                            addSafePrefix()
+                        }
+                        .buttonStyle(.bordered)
+                        .disabled(newSafePrefix.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                     }
-                    .buttonStyle(.bordered)
-                    .disabled(newSafePrefix.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
                 .padding(.top, JinSpacing.xSmall)
 
@@ -282,15 +298,16 @@ struct AgentModeSettingsView: View {
             }
             .font(.caption)
             .foregroundStyle(.secondary)
-        } header: {
-            Text("Safe Commands")
         }
     }
 
     // MARK: - Custom Allowed Command Prefixes
 
     private var allowedPrefixesSection: some View {
-        Section {
+        JinSettingsSection(
+            "Additional Allowed Prefixes",
+            detail: "Extend the auto-approved list with prefixes that make sense for your workflow."
+        ) {
             if allowedPrefixes.isEmpty {
                 Text("No custom prefixes added.")
                     .font(.caption)
@@ -318,36 +335,49 @@ struct AgentModeSettingsView: View {
                 }
             }
 
-            HStack(spacing: JinSpacing.small) {
-                TextField(
-                    text: $newPrefix,
-                    prompt: Text("e.g., npm run")
-                ) {
-                    EmptyView()
-                }
-                .textFieldStyle(.roundedBorder)
-                .onSubmit {
-                    addPrefix()
-                }
+            JinSettingsControlRow(
+                "Add prefix",
+                supportingText: "Use the full prefix you want auto-approved, for example npm run."
+            ) {
+                HStack(spacing: JinSpacing.small) {
+                    TextField(
+                        "Add prefix",
+                        text: $newPrefix,
+                        prompt: Text("e.g., npm run")
+                    )
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(.body, design: .monospaced))
+                    .onSubmit {
+                        addPrefix()
+                    }
 
-                Button("Add") {
-                    addPrefix()
+                    Button("Add") {
+                        addPrefix()
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(newPrefix.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
-                .buttonStyle(.bordered)
-                .disabled(newPrefix.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
-        } header: {
-            Text("Additional Allowed Prefixes")
         }
     }
 
     // MARK: - Safety Settings
 
     private var safetySection: some View {
-        Section("Safety") {
-            Toggle("Auto-approve file reads", isOn: $autoApproveFileReads)
+        JinSettingsSection("Safety") {
+            JinSettingsControlRow(
+                "Auto-approve file reads",
+                supportingText: "Skips approval prompts for read-only file access."
+            ) {
+                Toggle("Auto-approve file reads", isOn: $autoApproveFileReads)
+                    .labelsHidden()
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
 
-            LabeledContent("Command Timeout") {
+            JinSettingsControlRow(
+                "Command Timeout",
+                supportingText: "Maximum shell runtime before Jin terminates the command."
+            ) {
                 HStack(spacing: JinSpacing.small) {
                     Slider(
                         value: Binding(
@@ -366,7 +396,7 @@ struct AgentModeSettingsView: View {
     }
 
     private var detailsSection: some View {
-        Section("Details") {
+        JinSettingsSection("Details") {
             JinDetailsDisclosure(title: "How Agent Mode Works") {
                 Text("Agent Mode can run shell commands, search codebases, and edit local files.")
                     .font(.caption)

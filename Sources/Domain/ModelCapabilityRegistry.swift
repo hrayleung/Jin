@@ -24,6 +24,7 @@ enum ModelCapabilityRegistry {
         "gpt-5.2-2025-12-11",
         "gpt-5.4",
         "gpt-5.4-2026-03-05",
+        "gpt-5.4-image-2",
         "gpt-5.4-mini",
         "gpt-5.4-mini-2026-03-17",
         "gpt-5.4-nano",
@@ -38,6 +39,7 @@ enum ModelCapabilityRegistry {
     private static let openAIStyleExtremeEffortModelIDs: Set<String> = [
         "gpt-5.4",
         "gpt-5.4-2026-03-05",
+        "gpt-5.4-image-2",
         "gpt-5.4-pro",
         "gpt-5.4-pro-2026-03-05",
         "gpt-5.4-mini",
@@ -131,6 +133,15 @@ enum ModelCapabilityRegistry {
     /// Fallback used by proxy providers other than explicit provider-specific allowlists.
     private static let proxiedGoogleSearchSupportedModelIDs: Set<String> =
         geminiGoogleSearchSupportedModelIDs.union(vertexGoogleSearchSupportedModelIDs)
+
+    /// Exact Xiaomi MiMo model IDs documented as supporting the native web_search tool.
+    private static let opencodeGoWebSearchSupportedModelIDs: Set<String> = [
+        "mimo-v2.5-pro",
+        "mimo-v2.5",
+        "mimo-v2-pro",
+        "mimo-v2-omni",
+        "mimo-v2-flash",
+    ]
 
     /// Models documented by Google as supporting grounding with Google Maps in Gemini API.
     /// Supported: Gemini 2.5 Pro, 2.5 Flash, 2.5 Flash-Lite, 2.0 Flash.
@@ -417,9 +428,11 @@ enum ModelCapabilityRegistry {
             return supportsGoogleSearch(lowerModelID: lowerModelID, providerType: .gemini)
         case .vertexai:
             return supportsGoogleSearch(lowerModelID: lowerModelID, providerType: .vertexai)
+        case .opencodeGo:
+            return opencodeGoWebSearchSupportedModelIDs.contains(lowerModelID)
         case .codexAppServer, .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .groq,
              .cohere, .mistral, .deepinfra, .together, .deepseek, .zhipuCodingPlan, .minimax, .minimaxCodingPlan,
-             .fireworks, .cerebras, .sambanova, .morphllm, .opencodeGo, .none:
+             .fireworks, .cerebras, .sambanova, .morphllm, .none:
             return false
         }
     }

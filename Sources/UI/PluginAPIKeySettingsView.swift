@@ -3,6 +3,7 @@ import SwiftUI
 struct PluginAPIKeySettingsView: View {
     let title: String
     let preferenceKey: String
+    let apiKeyHint: String?
     let testConnection: (String) async throws -> Void
 
     @State private var apiKey = ""
@@ -18,32 +19,38 @@ struct PluginAPIKeySettingsView: View {
         apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
+    init(
+        title: String,
+        preferenceKey: String,
+        apiKeyHint: String? = nil,
+        testConnection: @escaping (String) async throws -> Void
+    ) {
+        self.title = title
+        self.preferenceKey = preferenceKey
+        self.apiKeyHint = apiKeyHint
+        self.testConnection = testConnection
+    }
+
     var body: some View {
-        Form {
-            Section("API Key") {
-                HStack(spacing: 8) {
-                    Group {
-                        if isKeyVisible {
-                            TextField("API Key", text: $apiKey)
-                                .textContentType(.password)
-                        } else {
-                            SecureField("API Key", text: $apiKey)
-                                .textContentType(.password)
-                        }
-                    }
-                    Button {
-                        isKeyVisible.toggle()
-                    } label: {
-                        Image(systemName: isKeyVisible ? "eye.slash" : "eye")
-                            .foregroundStyle(.secondary)
-                            .frame(width: 22, height: 22)
-                    }
-                    .buttonStyle(.plain)
-                    .help(isKeyVisible ? "Hide API key" : "Show API key")
-                    .disabled(apiKey.isEmpty)
+        JinSettingsPage {
+            JinSettingsSection(
+                "API Key",
+                detail: "Stored locally on this Mac and saved automatically as you type."
+            ) {
+                JinSettingsControlRow(
+                    "API Key",
+                    supportingText: "Stored locally on this Mac. Changes save automatically."
+                ) {
+                    JinRevealableSecureField(
+                        title: "API Key",
+                        text: $apiKey,
+                        isRevealed: $isKeyVisible,
+                        revealHelp: "Show API key",
+                        concealHelp: "Hide API key"
+                    )
                 }
 
-                HStack(spacing: 12) {
+                HStack(spacing: JinSpacing.medium) {
                     Button("Test Connection") { runTestConnection() }
                         .disabled(trimmedAPIKey.isEmpty || isTesting)
 
@@ -59,15 +66,16 @@ struct PluginAPIKeySettingsView: View {
                 }
 
                 if let statusMessage {
-                    Text(statusMessage)
+                    JinSettingsStatusText(text: statusMessage, isError: statusIsError)
+                }
+
+                if let apiKeyHint, !apiKeyHint.isEmpty {
+                    Text(apiKeyHint)
                         .font(.caption)
-                        .foregroundStyle(statusIsError ? Color.red : Color.secondary)
+                        .foregroundStyle(.secondary)
                 }
             }
         }
-        .formStyle(.grouped)
-        .scrollContentBackground(.hidden)
-        .background(JinSemanticColor.detailSurface)
         .navigationTitle(title)
         .task {
             await loadExistingKey()

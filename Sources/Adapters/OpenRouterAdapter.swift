@@ -154,6 +154,17 @@ actor OpenRouterAdapter: LLMProviderAdapter {
         tools: [ToolDefinition],
         streaming: Bool
     ) throws -> URLRequest {
+        let imageGenerationModel = isImageGenerationModel(modelID)
+        let lowerModelID = modelID.lowercased()
+        let omitsSamplingParameters = lowerModelID == "openai/gpt-5.4-image-2"
+        let unsupportedSamplingParameterKeys: Set<String> = [
+            "temperature",
+            "top_p",
+            "top_k",
+            "min_p",
+            "repetition_penalty"
+        ]
+
         var body: [String: Any] = [
             "model": modelID,
             "messages": try translateMessages(messages),
@@ -168,7 +179,7 @@ actor OpenRouterAdapter: LLMProviderAdapter {
             requestShape: requestShape
         )
 
-        if !shouldOmitSamplingControls {
+        if !shouldOmitSamplingControls && !omitsSamplingParameters {
             if let temperature = controls.temperature {
                 body["temperature"] = temperature
             }
@@ -181,17 +192,27 @@ actor OpenRouterAdapter: LLMProviderAdapter {
             body["max_tokens"] = maxTokens
         }
 
+        if imageGenerationModel {
+            applyImageGeneration(to: &body, controls: controls)
+        }
+
         if controls.webSearch?.enabled == true, modelSupportsWebSearch(for: modelID) {
             var plugins = body["plugins"] as? [[String: Any]] ?? []
             plugins.append(["id": "web"])
             body["plugins"] = plugins
         }
 
-        if !tools.isEmpty, let functionTools = translateTools(tools) as? [[String: Any]] {
+        if !imageGenerationModel,
+           !tools.isEmpty,
+           let functionTools = translateTools(tools) as? [[String: Any]] {
             body["tools"] = functionTools
         }
 
         for (key, value) in controls.providerSpecific {
+            if omitsSamplingParameters,
+               unsupportedSamplingParameterKeys.contains(key.lowercased()) {
+                continue
+            }
             body[key] = value.value
         }
 
@@ -247,6 +268,29 @@ actor OpenRouterAdapter: LLMProviderAdapter {
         }
 
         return dict
+    }
+
+    // MARK: - Image Generation
+
+    private func applyImageGeneration(
+        to body: inout [String: Any],
+        controls: GenerationControls
+    ) {
+        let responseMode = controls.imageGeneration?.responseMode ?? .textAndImage
+        body["modalities"] = openRouterModalities(for: responseMode)
+
+        if let seed = controls.imageGeneration?.seed {
+            body["seed"] = seed
+        }
+    }
+
+    private func openRouterModalities(for responseMode: ImageResponseMode) -> [String] {
+        switch responseMode {
+        case .textAndImage:
+            return ["text", "image"]
+        case .imageOnly:
+            return ["image"]
+        }
     }
 
     // MARK: - Reasoning
@@ -406,6 +450,17 @@ actor OpenRouterAdapter: LLMProviderAdapter {
     private func positiveInt(_ value: Int?) -> Int? {
         guard let value, value > 0 else { return nil }
         return value
+    }
+
+    private func isImageGenerationModel(_ modelID: String) -> Bool {
+        if let model = findConfiguredModel(in: providerConfig, for: modelID) {
+            let resolved = ModelSettingsResolver.resolve(model: model, providerType: providerConfig.type)
+            if resolved.capabilities.contains(.imageGeneration) {
+                return true
+            }
+        }
+
+        return ModelCatalog.entry(for: modelID, provider: .openrouter)?.capabilities.contains(.imageGeneration) == true
     }
 
     private func isVideoGenerationModel(_ modelID: String) -> Bool {

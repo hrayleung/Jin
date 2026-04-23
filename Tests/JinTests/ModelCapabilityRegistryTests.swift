@@ -118,6 +118,17 @@ final class ModelCapabilityRegistryTests: XCTestCase {
         XCTAssertFalse(ModelCapabilityRegistry.supportsWebSearch(for: .vertexai, modelID: "veo-2"))
     }
 
+    func testOpenCodeGoWebSearchUsesExactSupportedModelIDs() {
+        XCTAssertTrue(ModelCapabilityRegistry.supportsWebSearch(for: .opencodeGo, modelID: "mimo-v2.5-pro"))
+        XCTAssertTrue(ModelCapabilityRegistry.supportsWebSearch(for: .opencodeGo, modelID: "mimo-v2.5"))
+        XCTAssertTrue(ModelCapabilityRegistry.supportsWebSearch(for: .opencodeGo, modelID: "mimo-v2-pro"))
+        XCTAssertTrue(ModelCapabilityRegistry.supportsWebSearch(for: .opencodeGo, modelID: "mimo-v2-omni"))
+        XCTAssertTrue(ModelCapabilityRegistry.supportsWebSearch(for: .opencodeGo, modelID: "mimo-v2-flash"))
+
+        XCTAssertFalse(ModelCapabilityRegistry.supportsWebSearch(for: .opencodeGo, modelID: "kimi-k2.6"))
+        XCTAssertFalse(ModelCapabilityRegistry.supportsWebSearch(for: .opencodeGo, modelID: "mimo-v2.5-preview"))
+    }
+
     func testGoogleMapsSupportUsesExactDocumentedModelIDs() {
         XCTAssertTrue(ModelCapabilityRegistry.supportsGoogleMaps(for: .gemini, modelID: "gemini-2.5-pro"))
         XCTAssertTrue(ModelCapabilityRegistry.supportsGoogleMaps(for: .gemini, modelID: "gemini-2.5-flash"))
