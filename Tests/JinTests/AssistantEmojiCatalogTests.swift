@@ -16,6 +16,11 @@ final class AssistantEmojiCatalogTests: XCTestCase {
         XCTAssertTrue(AssistantEmojiCatalog.matchesSearchQuery("smile", emoji: "😀"))
     }
 
+    func testEmojiSearchIsCaseInsensitiveForCatalogTerms() {
+        XCTAssertTrue(AssistantEmojiCatalog.matchesSearchQuery("EMOTION", emoji: "😀"))
+        XCTAssertTrue(AssistantEmojiCatalog.matchesSearchQuery("GRINNING", emoji: "😀"))
+    }
+
     func testEmojiSearchRejectsUnrelatedTerms() {
         XCTAssertFalse(AssistantEmojiCatalog.matchesSearchQuery("banana", emoji: "😀"))
     }

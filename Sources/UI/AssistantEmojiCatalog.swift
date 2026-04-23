@@ -3,6 +3,8 @@ import Foundation
 /// Loads the Unicode RGI emoji set from bundled `emoji-test.txt` (UTS #51), matching the ordering
 /// used by Apple’s emoji keyboard on macOS.
 enum AssistantEmojiCatalog {
+    private static let searchLocale = Locale(identifier: "en_US_POSIX")
+
     struct Section: Identifiable, Hashable {
         var id: String { title }
         let title: String
@@ -136,8 +138,8 @@ enum AssistantEmojiCatalog {
 
     private static func normalizeSearchText(_ text: String) -> String {
         text
-            .folding(options: [.caseInsensitive, .diacriticInsensitive, .widthInsensitive], locale: .current)
-            .lowercased()
+            .folding(options: [.caseInsensitive, .diacriticInsensitive, .widthInsensitive], locale: searchLocale)
+            .lowercased(with: searchLocale)
             .replacingOccurrences(of: "&", with: " and ")
             .replacingOccurrences(of: "-", with: " ")
             .replacingOccurrences(of: "_", with: " ")
