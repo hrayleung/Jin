@@ -266,6 +266,7 @@ struct ProviderConfigFormView: View {
 
                             Button("Reset") {
                                 provider.baseURL = defaultBaseURL
+                                try? modelContext.save()
                             }
                             .disabled((provider.baseURL ?? defaultBaseURL) == defaultBaseURL)
                             .buttonStyle(.borderless)

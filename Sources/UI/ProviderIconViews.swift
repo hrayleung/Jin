@@ -73,6 +73,10 @@ struct ProviderIconPickerField: View {
         }
         .buttonStyle(.plain)
         .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text("Provider icon"))
+        .accessibilityValue(Text(iconLabel))
+        .accessibilityHint(Text("Opens the provider icon picker"))
         .help("Choose provider icon")
         .sheet(isPresented: $isPickerPresented) {
             ProviderIconPickerSheet(selectedIconID: $selectedIconID, defaultIconID: defaultIconID)

@@ -420,8 +420,10 @@ struct JinRevealableSecureField: View {
                     .foregroundStyle(.secondary)
             }
             .buttonStyle(JinIconButtonStyle(showBackground: true))
+            .accessibilityLabel(Text(isRevealed ? concealHelp : revealHelp))
+            .accessibilityValue(Text(isRevealed ? "Visible" : "Hidden"))
             .help(isRevealed ? concealHelp : revealHelp)
-            .disabled(text.isEmpty)
+            .disabled(!isRevealed && text.isEmpty)
         }
     }
 }

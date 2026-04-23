@@ -30,7 +30,10 @@ struct CloudflareR2Configuration: Equatable {
         CloudflareR2Configuration(
             accountID: defaults.string(forKey: AppPreferenceKeys.cloudflareR2AccountID) ?? "",
             accessKeyID: defaults.string(forKey: AppPreferenceKeys.cloudflareR2AccessKeyID) ?? "",
-            secretAccessKey: defaults.string(forKey: AppPreferenceKeys.cloudflareR2SecretAccessKey) ?? "",
+            secretAccessKey: PreferenceSecretStore.loadSecret(
+                forKey: AppPreferenceKeys.cloudflareR2SecretAccessKey,
+                defaults: defaults
+            ),
             bucket: defaults.string(forKey: AppPreferenceKeys.cloudflareR2Bucket) ?? "",
             publicBaseURL: defaults.string(forKey: AppPreferenceKeys.cloudflareR2PublicBaseURL) ?? "",
             keyPrefix: defaults.string(forKey: AppPreferenceKeys.cloudflareR2KeyPrefix) ?? ""

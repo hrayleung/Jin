@@ -250,7 +250,6 @@ extension SpeechToTextPluginSettingsView {
                         .pickerStyle(.menu)
                         .frame(maxWidth: .infinity, alignment: .leading)
                     }
-                    .help("Use PCM for lower latency when recording is already 16-bit 16kHz mono.")
 
                     JinSettingsControlRow("Temperature") {
                         HStack {

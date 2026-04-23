@@ -277,8 +277,7 @@ enum ChatMessagePreparationSupport {
 
         let mistralClient: MistralOCRClient?
         if pdfCount > 0, requestedMode == .mistralOCR {
-            let key = UserDefaults.standard.string(forKey: AppPreferenceKeys.pluginMistralOCRAPIKey)
-            let trimmed = (key ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            let trimmed = PreferenceSecretStore.loadSecret(forKey: AppPreferenceKeys.pluginMistralOCRAPIKey)
 
             if trimmed.isEmpty {
                 throw PDFProcessingError.mistralAPIKeyMissing
@@ -291,8 +290,7 @@ enum ChatMessagePreparationSupport {
 
         let deepSeekClient: DeepInfraDeepSeekOCRClient?
         if pdfCount > 0, requestedMode == .deepSeekOCR {
-            let key = UserDefaults.standard.string(forKey: AppPreferenceKeys.pluginDeepSeekOCRAPIKey)
-            let trimmed = (key ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            let trimmed = PreferenceSecretStore.loadSecret(forKey: AppPreferenceKeys.pluginDeepSeekOCRAPIKey)
 
             if trimmed.isEmpty {
                 throw PDFProcessingError.deepInfraAPIKeyMissing
@@ -322,8 +320,7 @@ enum ChatMessagePreparationSupport {
 
         let mineruClient: MinerUOCRClient?
         if pdfCount > 0, requestedMode == .mineruOCR {
-            let token = UserDefaults.standard.string(forKey: AppPreferenceKeys.pluginMineruOCRAPIToken)
-            let trimmed = (token ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            let trimmed = PreferenceSecretStore.loadSecret(forKey: AppPreferenceKeys.pluginMineruOCRAPIToken)
 
             if trimmed.isEmpty {
                 throw PDFProcessingError.mineruAPITokenMissing

@@ -234,6 +234,10 @@ struct MCPIconPickerField: View {
         }
         .buttonStyle(.plain)
         .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text("MCP server icon"))
+        .accessibilityValue(Text(iconLabel))
+        .accessibilityHint(Text("Opens the MCP server icon picker"))
         .help("Choose MCP server icon")
         .sheet(isPresented: $isPickerPresented) {
             MCPIconPickerSheet(

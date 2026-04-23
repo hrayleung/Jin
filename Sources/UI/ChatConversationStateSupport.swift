@@ -128,8 +128,15 @@ enum ChatConversationStateSupport {
         defaults: UserDefaults = .standard
     ) -> ChatExtensionCredentialStatus {
         func hasStoredKey(_ key: String) -> Bool {
-            let trimmed = (defaults.string(forKey: key) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-            return !trimmed.isEmpty
+            switch key {
+            case AppPreferenceKeys.pluginMistralOCRAPIKey,
+                 AppPreferenceKeys.pluginMineruOCRAPIToken,
+                 AppPreferenceKeys.pluginDeepSeekOCRAPIKey:
+                return PreferenceSecretStore.hasSecret(forKey: key, defaults: defaults)
+            default:
+                let trimmed = (defaults.string(forKey: key) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+                return !trimmed.isEmpty
+            }
         }
 
         let mistralConfigured = hasStoredKey(AppPreferenceKeys.pluginMistralOCRAPIKey)

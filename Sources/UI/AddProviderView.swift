@@ -33,7 +33,7 @@ struct AddProviderView: View {
                 JinSettingsSection("Provider") {
                     JinSettingsControlRow("Name", supportingText: "Required.") {
                         VStack(alignment: .leading, spacing: JinSpacing.xSmall) {
-                            TextField("", text: $name, prompt: Text("e.g., \(providerType.displayName)"))
+                            TextField("Provider name", text: $name, prompt: Text("e.g., \(providerType.displayName)"))
                                 .textFieldStyle(.roundedBorder)
 
                             if name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -124,8 +124,8 @@ struct AddProviderView: View {
                                 title: providerType == .githubCopilot ? "GitHub Token" : "API Key",
                                 text: $apiKey,
                                 isRevealed: $isKeyVisible,
-                                revealHelp: "Show API key",
-                                concealHelp: "Hide API key"
+                                revealHelp: providerType == .githubCopilot ? "Show GitHub token" : "Show API key",
+                                concealHelp: providerType == .githubCopilot ? "Hide GitHub token" : "Hide API key"
                             )
                         }
                     case .vertexai:
