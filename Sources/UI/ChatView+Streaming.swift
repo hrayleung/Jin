@@ -483,7 +483,8 @@ extension ChatView {
         let streamingState = streamingStore.beginSession(
             conversationID: conversationID,
             threadID: threadID,
-            modelLabel: modelNameSnapshot
+            modelLabel: modelNameSnapshot,
+            modelID: modelID
         )
         streamingState.debugContext = StreamingDebugContext(
             conversationID: conversationID,

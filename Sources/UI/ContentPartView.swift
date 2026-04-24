@@ -364,6 +364,7 @@ struct ContentPartView: View {
     var deferCodeHighlightUpgrade: Bool = false
     var forceNativeText: Bool = false
     var payloadResolver: RenderedMessagePayloadResolver = .noop
+    var normalizeMarkdownForModelID: String? = nil
     var selectionMessageID: UUID? = nil
     var selectionContextThreadID: UUID? = nil
     var selectionAnchorID: String? = nil
@@ -381,7 +382,8 @@ struct ContentPartView: View {
                 selectionContextThreadID: selectionContextThreadID,
                 selectionAnchorID: selectionAnchorID,
                 persistedHighlights: persistedHighlights,
-                selectionActions: selectionActions
+                selectionActions: selectionActions,
+                normalizeMarkdownForModelID: normalizeMarkdownForModelID
             )
 
         case .quote(let quote):

@@ -52,6 +52,8 @@ enum ModelCapabilityRegistry {
         "gpt-5.2-pro",
         "gpt-5.3-codex",
         "gpt-5.3-codex-spark",
+        "deepseek-v4-flash",
+        "deepseek-v4-pro",
     ]
 
     /// Gemini 3 Flash supports MINIMAL/LOW/MEDIUM/HIGH.
@@ -268,6 +270,10 @@ enum ModelCapabilityRegistry {
 
     private static let defaultReasoningEfforts: [ReasoningEffort] = [.low, .medium, .high]
     private static let defaultGeminiReasoningEfforts: [ReasoningEffort] = [.minimal, .low, .medium, .high]
+    private static let deepSeekV4ReasoningEffortModelIDs: Set<String> = [
+        "deepseek-v4-flash",
+        "deepseek-v4-pro",
+    ]
     private static let googleModelPrefixes = [
         "google/",
         "google-ai-studio/",
@@ -324,6 +330,8 @@ enum ModelCapabilityRegistry {
             return defaultGeminiReasoningEfforts
         case .anthropic, .claudeManagedAgents:
             return supportedAnthropicEfforts(lowerModelID: lowerModelID)
+        case .deepseek where deepSeekV4ReasoningEffortModelIDs.contains(lowerModelID):
+            return [.high, .max]
         default:
             break
         }
@@ -480,6 +488,9 @@ enum ModelCapabilityRegistry {
     }
 
     private static func defaultOpenAIFamilyReasoningConfig(lowerModelID: String) -> ModelReasoningConfig {
+        if deepSeekV4ReasoningEffortModelIDs.contains(lowerModelID) {
+            return ModelReasoningConfig(type: .effort, defaultEffort: .high)
+        }
         if isGeminiReasoningModelID(lowerModelID) {
             return defaultGeminiReasoningConfig(lowerModelID: lowerModelID)
         }

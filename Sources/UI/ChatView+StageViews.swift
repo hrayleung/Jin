@@ -96,6 +96,7 @@ extension ChatView {
             isStreaming: isStreaming,
             streamingMessage: streamingMessage,
             streamingModelLabel: streamingModelLabel,
+            streamingModelID: activeThreadID.flatMap { streamingModelID(for: $0) },
             messageRenderPageSize: Self.messageRenderPageSize,
             eagerCodeHighlightTailCount: Self.eagerCodeHighlightTailCount,
             nonLazyMessageStackThreshold: Self.nonLazyMessageStackThreshold,
@@ -145,6 +146,9 @@ extension ChatView {
             },
             streamingModelLabelForThread: { threadID in
                 streamingModelLabel(for: threadID)
+            },
+            streamingModelIDForThread: { threadID in
+                streamingModelID(for: threadID)
             },
             onActivateThread: { threadID in
                 activateThread(by: threadID)

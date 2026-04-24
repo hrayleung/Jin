@@ -85,6 +85,7 @@ struct ChatMessageTimelineView: View {
     let interaction: ChatMessageInteractionContext
     let streamingMessage: StreamingMessageState?
     let streamingModelLabel: String?
+    let streamingModelID: String?
     let bottomSpacerHeight: CGFloat
     let bottomID: String
     let onActivateThreadForMessage: (UUID?) -> Void
@@ -181,6 +182,7 @@ struct ChatMessageTimelineView: View {
                 maxBubbleWidth: bubbleMaxWidth,
                 assistantDisplayName: assistantDisplayName,
                 modelLabel: streamingModelLabel,
+                modelID: streamingModelID,
                 providerType: providerType,
                 providerIconID: providerIconID,
                 onContentUpdate: { }
@@ -208,6 +210,7 @@ struct ChatSingleThreadMessagesView: View {
     let isStreaming: Bool
     let streamingMessage: StreamingMessageState?
     let streamingModelLabel: String?
+    let streamingModelID: String?
     let messageRenderPageSize: Int
     let eagerCodeHighlightTailCount: Int
     let nonLazyMessageStackThreshold: Int
@@ -361,6 +364,7 @@ struct ChatSingleThreadMessagesView: View {
             interaction: interaction,
             streamingMessage: streamingMessage,
             streamingModelLabel: streamingModelLabel,
+            streamingModelID: streamingModelID,
             bottomSpacerHeight: composerHeight + 24,
             bottomID: "bottom",
             onActivateThreadForMessage: { threadID in
@@ -516,6 +520,7 @@ struct ChatMultiModelStageView: View {
     let providerIconIDForProviderID: (String) -> String?
     let streamingMessageForThread: (UUID) -> StreamingMessageState?
     let streamingModelLabelForThread: (UUID) -> String?
+    let streamingModelIDForThread: (UUID) -> String?
     let onActivateThread: (UUID) -> Void
     let onOpenArtifact: (RenderedArtifactVersion, UUID?) -> Void
     let expandedCollapsedMessageIDs: Binding<Set<UUID>>
@@ -550,6 +555,7 @@ struct ChatMultiModelStageView: View {
                             interaction: interaction,
                             streamingMessage: streamingMessageForThread(thread.id),
                             streamingModelLabel: streamingModelLabelForThread(thread.id),
+                            streamingModelID: streamingModelIDForThread(thread.id),
                             onActivateThread: { onActivateThread(thread.id) },
                             onOpenArtifact: onOpenArtifact,
                             expandedCollapsedMessageIDs: expandedCollapsedMessageIDs
@@ -584,6 +590,7 @@ private struct ChatMultiModelThreadColumnView: View {
     let interaction: ChatMessageInteractionContext
     let streamingMessage: StreamingMessageState?
     let streamingModelLabel: String?
+    let streamingModelID: String?
     let onActivateThread: () -> Void
     let onOpenArtifact: (RenderedArtifactVersion, UUID?) -> Void
     let expandedCollapsedMessageIDs: Binding<Set<UUID>>
@@ -611,6 +618,7 @@ private struct ChatMultiModelThreadColumnView: View {
         interaction: ChatMessageInteractionContext,
         streamingMessage: StreamingMessageState?,
         streamingModelLabel: String?,
+        streamingModelID: String?,
         onActivateThread: @escaping () -> Void,
         onOpenArtifact: @escaping (RenderedArtifactVersion, UUID?) -> Void,
         expandedCollapsedMessageIDs: Binding<Set<UUID>>
@@ -634,6 +642,7 @@ private struct ChatMultiModelThreadColumnView: View {
         self.interaction = interaction
         self.streamingMessage = streamingMessage
         self.streamingModelLabel = streamingModelLabel
+        self.streamingModelID = streamingModelID
         self.onActivateThread = onActivateThread
         self.onOpenArtifact = onOpenArtifact
         self.expandedCollapsedMessageIDs = expandedCollapsedMessageIDs
@@ -772,6 +781,7 @@ private struct ChatMultiModelThreadColumnView: View {
             interaction: interaction,
             streamingMessage: streamingMessage,
             streamingModelLabel: streamingModelLabel,
+            streamingModelID: streamingModelID,
             bottomSpacerHeight: composerHeight + 24,
             bottomID: bottomID,
             onActivateThreadForMessage: { _ in onActivateThread() },

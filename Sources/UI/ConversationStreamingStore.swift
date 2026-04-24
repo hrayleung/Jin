@@ -17,6 +17,7 @@ final class ConversationStreamingStore: ObservableObject {
         let threadID: UUID
         let state: StreamingMessageState
         var modelLabel: String?
+        var modelID: String?
         var task: Task<Void, Never>?
         var startedAt: Date
     }
@@ -51,16 +52,25 @@ final class ConversationStreamingStore: ObservableObject {
         session(conversationID: conversationID, threadID: threadID)?.modelLabel
     }
 
+    func streamingModelID(conversationID: UUID, threadID: UUID) -> String? {
+        session(conversationID: conversationID, threadID: threadID)?.modelID
+    }
+
     // MARK: - Lifecycle (publishes objectWillChange)
 
     /// Creates (or returns) a streaming session for a conversation thread.
     @discardableResult
-    func beginSession(conversationID: UUID, threadID: UUID, modelLabel: String?) -> StreamingMessageState {
+    func beginSession(conversationID: UUID, threadID: UUID, modelLabel: String?, modelID: String? = nil) -> StreamingMessageState {
         if let existing = session(conversationID: conversationID, threadID: threadID) {
             // Update label if we have a better one — silent, no publish.
-            if existing.modelLabel == nil, modelLabel != nil {
+            if (existing.modelLabel == nil && modelLabel != nil) || (existing.modelID == nil && modelID != nil) {
                 updateSession(conversationID: conversationID, threadID: threadID) { session in
-                    session.modelLabel = modelLabel
+                    if session.modelLabel == nil {
+                        session.modelLabel = modelLabel
+                    }
+                    if session.modelID == nil {
+                        session.modelID = modelID
+                    }
                 }
             }
             return existing.state
@@ -71,6 +81,7 @@ final class ConversationStreamingStore: ObservableObject {
             threadID: threadID,
             state: StreamingMessageState(),
             modelLabel: modelLabel,
+            modelID: modelID,
             task: nil,
             startedAt: Date()
         )

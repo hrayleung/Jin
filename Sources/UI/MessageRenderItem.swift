@@ -12,6 +12,7 @@ struct MessageRenderItem: Identifiable, Sendable {
     let codexToolActivities: [CodexToolActivity]
     let agentToolActivities: [CodexToolActivity]
     let assistantModelLabel: String?
+    let assistantModelID: String?
     let assistantProviderIconID: String?
     let responseMetrics: ResponseMetrics?
     let highlights: [MessageHighlightSnapshot]
@@ -35,6 +36,7 @@ struct MessageRenderItem: Identifiable, Sendable {
         codexToolActivities: [CodexToolActivity],
         agentToolActivities: [CodexToolActivity],
         assistantModelLabel: String?,
+        assistantModelID: String? = nil,
         assistantProviderIconID: String?,
         responseMetrics: ResponseMetrics?,
         highlights: [MessageHighlightSnapshot] = [],
@@ -57,6 +59,7 @@ struct MessageRenderItem: Identifiable, Sendable {
         self.codexToolActivities = codexToolActivities
         self.agentToolActivities = agentToolActivities
         self.assistantModelLabel = assistantModelLabel
+        self.assistantModelID = assistantModelID
         self.assistantProviderIconID = assistantProviderIconID
         self.responseMetrics = responseMetrics
         self.highlights = highlights

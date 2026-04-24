@@ -778,4 +778,30 @@ final class ModelCatalogTests: XCTestCase {
         XCTAssertEqual(unknown.contextWindow, 128_000)
         XCTAssertNil(unknown.reasoningConfig)
     }
+
+    func testDeepSeekV4CatalogCarriesDocsVerifiedMetadataAndExactIDs() {
+        let flash = ModelCatalog.modelInfo(for: "deepseek-v4-flash", provider: .deepseek)
+        XCTAssertEqual(flash.name, "DeepSeek V4 Flash")
+        XCTAssertEqual(flash.contextWindow, 1_000_000)
+        XCTAssertEqual(flash.maxOutputTokens, 384_000)
+        XCTAssertTrue(flash.capabilities.contains(.streaming))
+        XCTAssertTrue(flash.capabilities.contains(.toolCalling))
+        XCTAssertTrue(flash.capabilities.contains(.reasoning))
+        XCTAssertTrue(flash.capabilities.contains(.promptCaching))
+        XCTAssertEqual(flash.reasoningConfig?.type, .effort)
+        XCTAssertEqual(flash.reasoningConfig?.defaultEffort, .high)
+
+        let pro = ModelCatalog.modelInfo(for: "deepseek-v4-pro", provider: .deepseek)
+        XCTAssertEqual(pro.name, "DeepSeek V4 Pro")
+        XCTAssertEqual(pro.contextWindow, 1_000_000)
+        XCTAssertEqual(pro.maxOutputTokens, 384_000)
+        XCTAssertEqual(pro.reasoningConfig?.type, .effort)
+        XCTAssertEqual(pro.reasoningConfig?.defaultEffort, .high)
+
+        let unknown = ModelCatalog.modelInfo(for: "deepseek-v4-pro-custom", provider: .deepseek)
+        XCTAssertEqual(unknown.capabilities, [.streaming, .toolCalling])
+        XCTAssertEqual(unknown.contextWindow, 128_000)
+        XCTAssertNil(unknown.maxOutputTokens)
+        XCTAssertNil(unknown.reasoningConfig)
+    }
 }
