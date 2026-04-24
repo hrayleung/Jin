@@ -85,6 +85,7 @@ struct ChatView: View {
     @State var currentContextUsageEstimate: ChatContextUsageEstimate?
     @State var contextUsageRefreshTask: Task<Void, Never>?
     @State var contextUsageRefreshGeneration: UInt = 0
+    // swiftlint:disable:next private_swiftui_state
     @State var draftContextUsageRefreshTask: Task<Void, Never>?
     @State var isFileImporterPresented = false
     @State var isComposerDropTargeted = false

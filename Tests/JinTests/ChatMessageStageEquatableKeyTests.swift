@@ -54,47 +54,34 @@ final class ChatMessageStageEquatableKeyTests: XCTestCase {
         let conversationID = UUID()
         let messageID = UUID()
 
-        let base = ChatMessageStageEquatableKeyBuilder.singleThreadKey(
-            conversationID: conversationID,
-            conversationMessageCount: 1,
-            renderRevision: 1,
-            viewportHeight: 600,
-            allMessageCount: 1,
-            lastMessageID: messageID,
-            toolResultCount: 0,
-            entityCount: 0,
-            assistantDisplayName: "Assistant",
-            providerType: nil,
-            providerIconID: nil,
-            composerHeight: 80,
-            isStreaming: false,
-            streamingObjectID: nil,
-            streamingModelLabel: nil,
-            streamingModelID: nil,
-            expandedCollapsedMessageIDs: []
-        )
+        func makeKey(containerSize: CGSize) -> ChatStageEquatableKey {
+            ChatMessageStageEquatableKeyBuilder.singleThreadKey(
+                conversationID: conversationID,
+                conversationMessageCount: 1,
+                renderRevision: 1,
+                viewportHeight: containerSize.height,
+                allMessageCount: 1,
+                lastMessageID: messageID,
+                toolResultCount: 0,
+                entityCount: 0,
+                assistantDisplayName: "Assistant",
+                providerType: nil,
+                providerIconID: nil,
+                composerHeight: 80,
+                isStreaming: false,
+                streamingObjectID: nil,
+                streamingModelLabel: nil,
+                streamingModelID: nil,
+                expandedCollapsedMessageIDs: []
+            )
+        }
 
-        let afterSidebarToggle = ChatMessageStageEquatableKeyBuilder.singleThreadKey(
-            conversationID: conversationID,
-            conversationMessageCount: 1,
-            renderRevision: 1,
-            viewportHeight: 600,
-            allMessageCount: 1,
-            lastMessageID: messageID,
-            toolResultCount: 0,
-            entityCount: 0,
-            assistantDisplayName: "Assistant",
-            providerType: nil,
-            providerIconID: nil,
-            composerHeight: 80,
-            isStreaming: false,
-            streamingObjectID: nil,
-            streamingModelLabel: nil,
-            streamingModelID: nil,
-            expandedCollapsedMessageIDs: []
-        )
+        let base = makeKey(containerSize: CGSize(width: 900, height: 600))
+        let afterSidebarToggle = makeKey(containerSize: CGSize(width: 1_200, height: 600))
+        let withViewportHeightChange = makeKey(containerSize: CGSize(width: 900, height: 580))
 
         XCTAssertEqual(base, afterSidebarToggle)
+        XCTAssertNotEqual(base, withViewportHeightChange)
     }
 
     func testSingleThreadKeyChangesForMessageAndComposerChanges() {
