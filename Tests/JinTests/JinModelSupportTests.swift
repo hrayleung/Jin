@@ -252,4 +252,13 @@ final class JinModelSupportTests: XCTestCase {
         XCTAssertTrue(JinModelSupport.supportsNativePDF(providerType: .gemini, modelID: "gemini-3.1-flash-image-preview"))
         XCTAssertTrue(JinModelSupport.supportsNativePDF(providerType: .vertexai, modelID: "gemini-3.1-flash-image-preview"))
     }
+
+    func testDeepSeekUsesExactMatchForFullySupportedTag() {
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .deepseek, modelID: "deepseek-chat"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .deepseek, modelID: "deepseek-reasoner"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .deepseek, modelID: "deepseek-v3.2-exp"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .deepseek, modelID: "deepseek-v4-flash"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .deepseek, modelID: "deepseek-v4-pro"))
+        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .deepseek, modelID: "deepseek-v4-pro-custom"))
+    }
 }

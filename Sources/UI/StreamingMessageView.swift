@@ -24,6 +24,7 @@ struct StreamingMessageView: View {
     let maxBubbleWidth: CGFloat
     let assistantDisplayName: String
     let modelLabel: String?
+    let modelID: String?
     let providerType: ProviderType?
     let providerIconID: String?
     let onContentUpdate: () -> Void
@@ -113,7 +114,11 @@ struct StreamingMessageView: View {
                         }
 
                         if !visibleText.isEmpty {
-                            MarkdownWebRenderer(markdownText: visibleText, isStreaming: true)
+                            MarkdownWebRenderer(
+                                markdownText: visibleText,
+                                isStreaming: true,
+                                normalizeMarkdownForModelID: modelID
+                            )
                         }
 
                         if !state.artifacts.isEmpty {

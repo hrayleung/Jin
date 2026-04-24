@@ -123,6 +123,7 @@ struct MarkdownWebRenderer: View {
     var selectionAnchorID: String? = nil
     var persistedHighlights: [MessageHighlightSnapshot] = []
     var selectionActions: MessageTextSelectionActions = .none
+    var normalizeMarkdownForModelID: String? = nil
 
     @AppStorage(AppPreferenceKeys.appFontFamily) private var appFontFamily = JinTypography.systemFontPreferenceValue
     @AppStorage(AppPreferenceKeys.codeFontFamily) private var codeFontFamily = JinTypography.systemFontPreferenceValue
@@ -141,7 +142,8 @@ struct MarkdownWebRenderer: View {
         selectionContextThreadID: UUID? = nil,
         selectionAnchorID: String? = nil,
         persistedHighlights: [MessageHighlightSnapshot] = [],
-        selectionActions: MessageTextSelectionActions = .none
+        selectionActions: MessageTextSelectionActions = .none,
+        normalizeMarkdownForModelID: String? = nil
     ) {
         self.markdownText = markdownText
         self.isStreaming = isStreaming
@@ -152,6 +154,7 @@ struct MarkdownWebRenderer: View {
         self.selectionAnchorID = selectionAnchorID
         self.persistedHighlights = persistedHighlights
         self.selectionActions = selectionActions
+        self.normalizeMarkdownForModelID = normalizeMarkdownForModelID
         let estimated = Self.estimatedHeight(for: markdownText)
         self._contentHeight = State(initialValue: estimated)
     }
@@ -172,7 +175,8 @@ struct MarkdownWebRenderer: View {
             selectionContextThreadID: selectionContextThreadID,
             selectionAnchorID: selectionAnchorID,
             persistedHighlights: persistedHighlights,
-            selectionActions: selectionActions
+            selectionActions: selectionActions,
+            normalizeMarkdownForModelID: normalizeMarkdownForModelID
         )
         .frame(height: contentHeight)
     }
@@ -237,6 +241,7 @@ private struct MarkdownWebRendererRepresentable: NSViewRepresentable {
     let selectionAnchorID: String?
     let persistedHighlights: [MessageHighlightSnapshot]
     let selectionActions: MessageTextSelectionActions
+    let normalizeMarkdownForModelID: String?
 
     func makeCoordinator() -> Coordinator { Coordinator() }
 
@@ -290,18 +295,21 @@ private struct MarkdownWebRendererRepresentable: NSViewRepresentable {
         // For non-streaming messages, embed the markdown directly in the HTML
         // so the browser renders content during the initial page load instead
         // of waiting for a Swift→JS round-trip after didFinish.
-        let shouldEmbed = !renderPlainText && !isStreaming && !markdownText.isEmpty && inlineTemplate != nil
+        let markdownForRender = renderPlainText
+            ? markdownText
+            : MarkdownRenderNormalizer.normalize(markdownText, modelID: normalizeMarkdownForModelID)
+        let shouldEmbed = !renderPlainText && !isStreaming && !markdownForRender.isEmpty && inlineTemplate != nil
         if shouldEmbed {
             context.coordinator.pendingMarkdown = nil
             context.coordinator.markContentEmbedded(
-                markdownText,
+                markdownForRender,
                 deferCodeHighlightUpgrade: deferCodeHighlightUpgrade
             )
         } else {
-            context.coordinator.pendingMarkdown = markdownText
+            context.coordinator.pendingMarkdown = markdownForRender
         }
 
-        loadTemplate(into: webView, embedMarkdown: shouldEmbed ? markdownText : nil)
+        loadTemplate(into: webView, embedMarkdown: shouldEmbed ? markdownForRender : nil)
         return webView
     }
 
@@ -316,6 +324,7 @@ private struct MarkdownWebRendererRepresentable: NSViewRepresentable {
         context.coordinator.codeBlockShowLineNumbers = codeBlockShowLineNumbers
         context.coordinator.codeBlockCollapseLineThreshold = codeBlockCollapseLineThreshold
         context.coordinator.renderPlainText = renderPlainText
+        context.coordinator.normalizeMarkdownForModelID = normalizeMarkdownForModelID
         context.coordinator.selectionMessageID = selectionMessageID
         context.coordinator.selectionContextThreadID = selectionContextThreadID
         context.coordinator.selectionAnchorID = selectionAnchorID
@@ -395,6 +404,7 @@ private struct MarkdownWebRendererRepresentable: NSViewRepresentable {
         var codeBlockShowLineNumbers: Bool = false
         var codeBlockCollapseLineThreshold: Int = 25
         var renderPlainText = false
+        var normalizeMarkdownForModelID: String?
         var selectionMessageID: UUID?
         var selectionContextThreadID: UUID?
         var selectionAnchorID: String?
@@ -586,20 +596,24 @@ private struct MarkdownWebRendererRepresentable: NSViewRepresentable {
             force: Bool = false,
             deferCodeHighlightUpgrade: Bool = false
         ) {
+            let normalizedMarkdown = renderPlainText
+                ? markdown
+                : MarkdownRenderNormalizer.normalize(markdown, modelID: normalizeMarkdownForModelID)
+
             guard force
-                    || markdown != lastRenderedMarkdown
+                    || normalizedMarkdown != lastRenderedMarkdown
                     || deferCodeHighlightUpgrade != lastRenderedDeferCodeHighlightUpgrade
                     || renderPlainText != lastRenderedPlainTextMode else {
                 return
             }
 
             logLargeMarkdownIfNeeded(markdown)
-            lastRenderedMarkdown = markdown
+            lastRenderedMarkdown = normalizedMarkdown
             lastRenderedDeferCodeHighlightUpgrade = deferCodeHighlightUpgrade
             lastRenderedPlainTextMode = renderPlainText
             MarkdownWebRenderer.sendMarkdown(
                 to: webView,
-                markdown: markdown,
+                markdown: normalizedMarkdown,
                 streaming: isStreaming,
                 deferCodeHighlightUpgrade: deferCodeHighlightUpgrade,
                 renderPlainText: renderPlainText

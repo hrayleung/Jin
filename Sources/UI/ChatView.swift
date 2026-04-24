@@ -263,6 +263,10 @@ struct ChatView: View {
         streamingStore.streamingModelLabel(conversationID: conversationEntity.id, threadID: threadID)
     }
 
+    func streamingModelID(for threadID: UUID) -> String? {
+        streamingStore.streamingModelID(conversationID: conversationEntity.id, threadID: threadID)
+    }
+
     var sortedModelThreads: [ConversationModelThreadEntity] {
         ChatThreadSupport.sortedThreads(in: conversationEntity.modelThreads)
     }

@@ -91,6 +91,30 @@ final class ModelSettingsResolverTests: XCTestCase {
         XCTAssertEqual(resolvedGPT4o.maxOutputTokens, 16_384)
     }
 
+    func testDeepSeekV4CatalogCarriesDocsVerifiedContextOutputAndReasoning() {
+        let flash = ModelCatalog.modelInfo(for: "deepseek-v4-flash", provider: .deepseek)
+        let resolvedFlash = ModelSettingsResolver.resolve(model: flash, providerType: .deepseek)
+        XCTAssertEqual(resolvedFlash.contextWindow, 1_000_000)
+        XCTAssertEqual(resolvedFlash.maxOutputTokens, 384_000)
+        XCTAssertEqual(resolvedFlash.reasoningConfig?.type, .effort)
+        XCTAssertEqual(resolvedFlash.reasoningConfig?.defaultEffort, .high)
+        XCTAssertTrue(resolvedFlash.reasoningCanDisable)
+        XCTAssertFalse(resolvedFlash.supportsOpenAIStyleExtremeEffort)
+
+        let pro = ModelCatalog.modelInfo(for: "deepseek-v4-pro", provider: .deepseek)
+        let resolvedPro = ModelSettingsResolver.resolve(model: pro, providerType: .deepseek)
+        XCTAssertEqual(resolvedPro.contextWindow, 1_000_000)
+        XCTAssertEqual(resolvedPro.maxOutputTokens, 384_000)
+        XCTAssertEqual(resolvedPro.reasoningConfig?.type, .effort)
+        XCTAssertEqual(resolvedPro.reasoningConfig?.defaultEffort, .high)
+        XCTAssertTrue(resolvedPro.reasoningCanDisable)
+        XCTAssertFalse(resolvedPro.supportsOpenAIStyleExtremeEffort)
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .deepseek, modelID: "deepseek-v4-pro"),
+            [.high, .max]
+        )
+    }
+
     func testAnthropicCatalogCarriesDocsVerifiedContextAndMaxOutput() {
         let opus47 = ModelCatalog.modelInfo(for: "claude-opus-4-7", provider: .anthropic)
         let resolvedOpus47 = ModelSettingsResolver.resolve(model: opus47, providerType: .anthropic)
@@ -1289,6 +1313,38 @@ final class ModelSettingsResolverTests: XCTestCase {
             XCTAssertNil(resolved.maxOutputTokens, modelID)
             XCTAssertNil(resolved.reasoningConfig, modelID)
         }
+    }
+
+    func testResolverInfersDeepSeekV4CatalogMetadataForLegacyPersistedModels() {
+        let legacyFlash = ModelInfo(
+            id: "deepseek-v4-flash",
+            name: "deepseek-v4-flash",
+            capabilities: [.streaming, .toolCalling],
+            contextWindow: 8_192,
+            reasoningConfig: nil,
+            isEnabled: true
+        )
+        let resolvedFlash = ModelSettingsResolver.resolve(model: legacyFlash, providerType: .deepseek)
+        XCTAssertEqual(resolvedFlash.contextWindow, 1_000_000)
+        XCTAssertEqual(resolvedFlash.maxOutputTokens, 384_000)
+        XCTAssertTrue(resolvedFlash.capabilities.contains(.promptCaching))
+        XCTAssertEqual(resolvedFlash.reasoningConfig?.type, .effort)
+        XCTAssertEqual(resolvedFlash.reasoningConfig?.defaultEffort, .high)
+
+        let legacyPro = ModelInfo(
+            id: "deepseek-v4-pro",
+            name: "deepseek-v4-pro",
+            capabilities: [.streaming, .toolCalling],
+            contextWindow: 8_192,
+            reasoningConfig: nil,
+            isEnabled: true
+        )
+        let resolvedPro = ModelSettingsResolver.resolve(model: legacyPro, providerType: .deepseek)
+        XCTAssertEqual(resolvedPro.contextWindow, 1_000_000)
+        XCTAssertEqual(resolvedPro.maxOutputTokens, 384_000)
+        XCTAssertTrue(resolvedPro.capabilities.contains(.promptCaching))
+        XCTAssertEqual(resolvedPro.reasoningConfig?.type, .effort)
+        XCTAssertEqual(resolvedPro.reasoningConfig?.defaultEffort, .high)
     }
 
 }

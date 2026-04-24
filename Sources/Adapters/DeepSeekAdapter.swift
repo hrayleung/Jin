@@ -5,7 +5,7 @@ import Foundation
 /// Docs:
 /// - Base URL: https://api.deepseek.com
 /// - Endpoint: POST /chat/completions
-/// - Models: `deepseek-chat`, `deepseek-reasoner`, `deepseek-v3.2-exp`, ...
+/// - Models: `deepseek-chat`, `deepseek-reasoner`, `deepseek-v3.2-exp`, `deepseek-v4-flash`, `deepseek-v4-pro`, ...
 actor DeepSeekAdapter: LLMProviderAdapter {
     let providerConfig: ProviderConfig
     let capabilities: ModelCapability = [.streaming, .toolCalling, .reasoning]
@@ -106,13 +106,7 @@ actor DeepSeekAdapter: LLMProviderAdapter {
             body["max_tokens"] = maxTokens
         }
 
-        if let reasoning = controls.reasoning {
-            if reasoning.enabled == false {
-                body["reasoning"] = false
-            } else if isReasoningModel {
-                body["reasoning"] = true
-            }
-        }
+        applyReasoningControls(to: &body, modelID: modelID, controls: controls)
 
         if !tools.isEmpty, let functionTools = translateTools(tools) as? [[String: Any]] {
             body["tools"] = functionTools
@@ -127,6 +121,40 @@ actor DeepSeekAdapter: LLMProviderAdapter {
             apiKey: apiKey,
             body: body
         )
+    }
+
+    private func applyReasoningControls(
+        to body: inout [String: Any],
+        modelID: String,
+        controls: GenerationControls
+    ) {
+        guard let reasoning = controls.reasoning else { return }
+
+        let lower = modelID.lowercased()
+        if lower == "deepseek-v4-flash" || lower == "deepseek-v4-pro" {
+            if reasoning.enabled == false || reasoning.effort == ReasoningEffort.none {
+                body["thinking"] = ["type": "disabled"]
+                return
+            }
+
+            body["thinking"] = ["type": "enabled"]
+            let effort = reasoning.effort ?? .high
+            body["reasoning_effort"] = mapDeepSeekReasoningEffort(effort)
+            return
+        }
+
+        if reasoning.enabled == false {
+            body["thinking"] = ["type": "disabled"]
+        }
+    }
+
+    private func mapDeepSeekReasoningEffort(_ effort: ReasoningEffort) -> String {
+        switch effort {
+        case .xhigh, .max:
+            return "max"
+        default:
+            return "high"
+        }
     }
 
     private func translateMessages(_ messages: [Message]) -> [[String: Any]] {
@@ -167,6 +195,10 @@ actor DeepSeekAdapter: LLMProviderAdapter {
     }
 
     private func makeModelInfo(id: String) -> ModelInfo {
+        if ModelCatalog.entry(for: id, provider: .deepseek) != nil {
+            return ModelCatalog.modelInfo(for: id, provider: .deepseek)
+        }
+
         let lower = id.lowercased()
 
         var caps: ModelCapability = [.streaming, .toolCalling]
