@@ -45,7 +45,14 @@ struct SidebarHeaderView: View {
             .keyboardShortcut(",", modifiers: [.command])
             .help("Settings")
         }
-        .padding(.leading, max(JinSpacing.medium, titlebarLeadingInset))
+        .padding(
+            .leading,
+            MainWindowChromeLayout(titlebarLeadingInset: titlebarLeadingInset)
+                .leadingPadding(
+                    baseline: JinSpacing.medium,
+                    avoidsTitlebarControls: true
+                )
+        )
         .padding(.trailing, JinSpacing.medium)
         .padding(.top, JinSpacing.large)
         .padding(.bottom, JinSpacing.small)

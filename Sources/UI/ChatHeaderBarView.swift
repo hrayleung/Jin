@@ -128,8 +128,11 @@ struct ChatHeaderBarView<ModelPickerContent: View, AddModelPickerContent: View>:
     }
 
     private var leadingPadding: CGFloat {
-        guard isSidebarHidden else { return JinSpacing.medium }
-        return max(JinSpacing.medium, titlebarLeadingInset)
+        MainWindowChromeLayout(titlebarLeadingInset: titlebarLeadingInset)
+            .leadingPadding(
+                baseline: JinSpacing.medium,
+                avoidsTitlebarControls: isSidebarHidden
+            )
     }
 
     @ViewBuilder

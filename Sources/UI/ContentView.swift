@@ -145,9 +145,8 @@ struct ContentView: View {
             )
     }
 
-    @ViewBuilder
     private var rootSplitView: some View {
-        let splitView = HSplitView {
+        HSplitView {
             sidebarPane
                 .frame(
                     minWidth: isSidebarVisible ? SidebarWidthPersistence.minimumWidth : 0,
@@ -161,12 +160,10 @@ struct ContentView: View {
             detailContent
                 .frame(minWidth: 0, maxWidth: .infinity, maxHeight: .infinity)
         }
-
-        if mainWindowChromeLayout.extendsContentIntoTitlebar {
-            splitView.ignoresSafeArea(.container, edges: .top)
-        } else {
-            splitView
-        }
+        .ignoresSafeArea(
+            .container,
+            edges: mainWindowChromeLayout.extendsContentIntoTitlebar ? .top : []
+        )
     }
 
     // MARK: - Sidebar
@@ -384,8 +381,10 @@ struct ContentView: View {
     }
 
     private var detailHeaderLeadingPadding: CGFloat {
-        guard !isSidebarVisible else { return JinSpacing.medium }
-        return max(JinSpacing.medium, mainWindowChromeLayout.titlebarLeadingInset)
+        mainWindowChromeLayout.leadingPadding(
+            baseline: JinSpacing.medium,
+            avoidsTitlebarControls: !isSidebarVisible
+        )
     }
 
     // MARK: - Navigation
