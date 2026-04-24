@@ -84,7 +84,7 @@ extension ChatView {
         }
         .onPreferenceChange(ComposerHeightPreferenceKey.self) { newValue in
             let normalizedHeight = ChatStageBottomFadeMetrics.normalizedComposerHeight(newValue)
-            if abs(composerHeight - normalizedHeight) > 0.5 {
+            if composerHeight != normalizedHeight {
                 composerHeight = normalizedHeight
             }
         }

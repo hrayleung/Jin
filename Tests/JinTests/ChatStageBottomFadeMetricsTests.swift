@@ -35,5 +35,7 @@ final class ChatStageBottomFadeMetricsTests: XCTestCase {
         XCTAssertEqual(ChatStageBottomFadeMetrics.normalizedComposerHeight(100.5), 101)
         XCTAssertEqual(ChatStageBottomFadeMetrics.normalizedComposerHeight(-8), 0)
         XCTAssertEqual(ChatStageBottomFadeMetrics.normalizedComposerHeight(.infinity), 0)
+        XCTAssertEqual(ChatStageBottomFadeMetrics.normalizedComposerHeight(-.infinity), 0)
+        XCTAssertEqual(ChatStageBottomFadeMetrics.normalizedComposerHeight(.nan), 0)
     }
 }
