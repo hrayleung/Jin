@@ -321,6 +321,7 @@ extension ChatView {
             isSidebarHidden: isSidebarHidden,
             onToggleSidebar: onToggleSidebar,
             onNewChat: onNewChat,
+            titlebarLeadingInset: titlebarLeadingInset,
             currentProviderIconID: currentProviderIconID,
             currentModelName: currentModelName,
             modelPickerHelpText: providerType == .claudeManagedAgents ? "Select managed agent or model" : "Select model",
