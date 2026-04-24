@@ -3,9 +3,7 @@ import Foundation
 /// Static utilities for PDF and OCR content processing.
 /// These methods do not depend on view state.
 enum PDFProcessingUtilities {
-
-    /// Unwrap a DeepSeek OCR response that may be wrapped in markdown fences.
-    static func normalizedDeepSeekOCRMarkdown(_ raw: String) -> String {
+    static func normalizedOCRMarkdown(_ raw: String) -> String {
         let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard trimmed.hasPrefix("```") else { return trimmed }
 
@@ -26,6 +24,15 @@ enum PDFProcessingUtilities {
 
         let content = trimmed[contentStart..<closingRange.lowerBound]
         return String(content).trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// Unwrap a DeepSeek OCR response that may be wrapped in markdown fences.
+    static func normalizedDeepSeekOCRMarkdown(_ raw: String) -> String {
+        normalizedOCRMarkdown(raw)
+    }
+
+    static func normalizedOpenRouterOCRMarkdown(_ raw: String) -> String {
+        normalizedOCRMarkdown(raw)
     }
 
     /// Decode a Mistral OCR inline image from base64 or data URI.

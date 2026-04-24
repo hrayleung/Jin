@@ -293,6 +293,7 @@ enum PDFProcessingMode: String, Codable, CaseIterable {
     case mistralOCR
     case mineruOCR
     case deepSeekOCR
+    case openRouterOCR
     case firecrawlOCR
     case macOSExtract
 
@@ -302,6 +303,7 @@ enum PDFProcessingMode: String, Codable, CaseIterable {
         case .mistralOCR: return "Mistral OCR"
         case .mineruOCR: return "MinerU OCR"
         case .deepSeekOCR: return "DeepSeek OCR (DeepInfra)"
+        case .openRouterOCR: return "OpenRouter OCR"
         case .firecrawlOCR: return "Firecrawl OCR"
         case .macOSExtract: return "macOS Extract"
         }

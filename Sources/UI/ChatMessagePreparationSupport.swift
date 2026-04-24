@@ -113,6 +113,7 @@ enum ChatMessagePreparationSupport {
         mistralOCRPluginEnabled: Bool,
         mineruOCRPluginEnabled: Bool,
         deepSeekOCRPluginEnabled: Bool,
+        openRouterOCRPluginEnabled: Bool,
         firecrawlOCRPluginEnabled: Bool,
         defaultPDFProcessingFallbackMode: PDFProcessingMode
     ) throws -> MessagePreparationProfile {
@@ -186,6 +187,7 @@ enum ChatMessagePreparationSupport {
             mistralOCRPluginEnabled: mistralOCRPluginEnabled,
             mineruOCRPluginEnabled: mineruOCRPluginEnabled,
             deepSeekOCRPluginEnabled: deepSeekOCRPluginEnabled,
+            openRouterOCRPluginEnabled: openRouterOCRPluginEnabled,
             firecrawlOCRPluginEnabled: firecrawlOCRPluginEnabled
         )
         let firecrawlPDFParserMode = resolvedManagedControls.firecrawlPDFParserMode ?? .ocr
@@ -241,7 +243,7 @@ enum ChatMessagePreparationSupport {
         attachments: [DraftAttachment],
         remoteVideoURL: URL?,
         profile: MessagePreparationProfile,
-        preparedContentForPDF: (DraftAttachment, MessagePreparationProfile, PDFProcessingMode, Int, Int, MistralOCRClient?, MinerUOCRClient?, DeepInfraDeepSeekOCRClient?, FirecrawlPDFOCRClient?, CloudflareR2Uploader?) async throws -> PreparedPDFContent
+        preparedContentForPDF: (DraftAttachment, MessagePreparationProfile, PDFProcessingMode, Int, Int, MistralOCRClient?, MinerUOCRClient?, DeepInfraDeepSeekOCRClient?, OpenRouterOCRClient?, FirecrawlPDFOCRClient?, CloudflareR2Uploader?) async throws -> PreparedPDFContent
     ) async throws -> [ContentPart] {
         var parts: [ContentPart] = []
         parts.reserveCapacity(quoteContents.count + attachments.count + (messageText.isEmpty ? 0 : 1) + (remoteVideoURL == nil ? 0 : 1))
@@ -320,6 +322,23 @@ enum ChatMessagePreparationSupport {
             r2Uploader = nil
         }
 
+        let openRouterClient: OpenRouterOCRClient?
+        if pdfCount > 0, requestedMode == .openRouterOCR {
+            let key = UserDefaults.standard.string(forKey: AppPreferenceKeys.pluginOpenRouterOCRAPIKey)
+            let trimmed = (key ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+
+            if trimmed.isEmpty {
+                throw PDFProcessingError.openRouterOCRAPIKeyMissing
+            }
+
+            let modelID = OpenRouterOCRModelCatalog.normalizedModelID(
+                UserDefaults.standard.string(forKey: AppPreferenceKeys.pluginOpenRouterOCRModelID)
+            )
+            openRouterClient = OpenRouterOCRClient(apiKey: trimmed, modelID: modelID)
+        } else {
+            openRouterClient = nil
+        }
+
         let mineruClient: MinerUOCRClient?
         if pdfCount > 0, requestedMode == .mineruOCR {
             let token = UserDefaults.standard.string(forKey: AppPreferenceKeys.pluginMineruOCRAPIToken)
@@ -366,6 +385,7 @@ enum ChatMessagePreparationSupport {
                     mistralClient,
                     mineruClient,
                     deepSeekClient,
+                    openRouterClient,
                     firecrawlClient,
                     r2Uploader
                 )
@@ -418,6 +438,7 @@ enum ChatMessagePreparationSupport {
         mistralClient: MistralOCRClient?,
         mineruClient: MinerUOCRClient?,
         deepSeekClient: DeepInfraDeepSeekOCRClient?,
+        openRouterClient: OpenRouterOCRClient?,
         firecrawlClient: FirecrawlPDFOCRClient?,
         r2Uploader: CloudflareR2Uploader?,
         onStatusUpdate: @MainActor @Sendable (String) -> Void
@@ -667,6 +688,76 @@ enum ChatMessagePreparationSupport {
 
             output = output.trimmingCharacters(in: .whitespacesAndNewlines)
             output = "DeepSeek OCR (Markdown): \(attachment.filename)\n\n\(output)"
+            output = output.trimmingCharacters(in: .whitespacesAndNewlines)
+            if output.count > AttachmentConstants.maxPDFExtractedCharacters {
+                let prefix = output.prefix(AttachmentConstants.maxPDFExtractedCharacters)
+                output = "\(prefix)\n\n[Truncated]"
+            }
+            return PreparedPDFContent(extractedText: output, additionalParts: imageParts)
+
+        case .openRouterOCR:
+            guard let openRouterClient else { throw PDFProcessingError.openRouterOCRAPIKeyMissing }
+
+            let selectedModel = await openRouterClient.selectedModel
+            let includePageImages = profile.supportsVision
+            let renderedPages = try PDFKitImageRenderer.renderAllPagesAsJPEG(from: attachment.fileURL)
+            let totalPages = max(1, renderedPages.count)
+
+            var pageMarkdown: [String] = []
+            pageMarkdown.reserveCapacity(renderedPages.count)
+
+            var imageParts: [ContentPart] = []
+            var totalAttachedBytes = 0
+
+            for rendered in renderedPages {
+                try Task.checkCancellation()
+
+                await onStatusUpdate(
+                    "OCR PDF \(pdfOrdinal)/\(max(1, totalPDFCount)) (OpenRouter \(selectedModel.name)): \(attachment.filename) — page \(rendered.pageIndex + 1)/\(totalPages)"
+                )
+
+                let raw = try await openRouterClient.ocrImage(
+                    rendered.data,
+                    mimeType: rendered.mimeType,
+                    prompt: OpenRouterOCRClient.Constants.defaultPrompt,
+                    timeoutSeconds: 120
+                )
+
+                let normalized = PDFProcessingUtilities.normalizedOpenRouterOCRMarkdown(raw)
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                if !normalized.isEmpty {
+                    pageMarkdown.append(normalized)
+                }
+
+                if includePageImages,
+                   imageParts.count < AttachmentConstants.maxMistralOCRImagesToAttach {
+                    let nextTotal = totalAttachedBytes + rendered.data.count
+                    if nextTotal <= AttachmentConstants.maxMistralOCRTotalImageBytes {
+                        totalAttachedBytes = nextTotal
+                        imageParts.append(.image(ImageContent(mimeType: rendered.mimeType, data: rendered.data, url: nil)))
+                    }
+                }
+            }
+
+            let combined = pageMarkdown
+                .joined(separator: "\n\n")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+
+            guard !combined.isEmpty else {
+                throw PDFProcessingError.noTextExtracted(filename: attachment.filename, method: "OpenRouter OCR")
+            }
+
+            var output = combined
+            if includePageImages, !imageParts.isEmpty {
+                let omitted = max(0, renderedPages.count - imageParts.count)
+                output += "\n\n[Note: Attached \(imageParts.count) page image(s) for vision context.]"
+                if omitted > 0 {
+                    output += "\n[Note: \(omitted) page image(s) omitted due to size limits.]"
+                }
+            }
+
+            output = output.trimmingCharacters(in: .whitespacesAndNewlines)
+            output = "OpenRouter OCR (\(selectedModel.name) Markdown): \(attachment.filename)\n\n\(output)"
             output = output.trimmingCharacters(in: .whitespacesAndNewlines)
             if output.count > AttachmentConstants.maxPDFExtractedCharacters {
                 let prefix = output.prefix(AttachmentConstants.maxPDFExtractedCharacters)

@@ -64,6 +64,7 @@ enum AppPreferenceKeys {
     static let pluginMistralOCREnabled = "pluginMistralOCREnabled"
     static let pluginMineruOCREnabled = "pluginMineruOCREnabled"
     static let pluginDeepSeekOCREnabled = "pluginDeepSeekOCREnabled"
+    static let pluginOpenRouterOCREnabled = "pluginOpenRouterOCREnabled"
     static let pluginFirecrawlOCREnabled = "pluginFirecrawlOCREnabled"
     static let pluginChatNamingEnabled = "pluginChatNamingEnabled"
     static let pluginCloudflareR2UploadEnabled = "pluginCloudflareR2UploadEnabled"
@@ -74,6 +75,8 @@ enum AppPreferenceKeys {
     static let pluginMineruOCRUserIdentifier = "pluginMineruOCRUserIdentifier"
     static let pluginMineruOCRLanguage = "pluginMineruOCRLanguage"
     static let pluginDeepSeekOCRAPIKey = "pluginDeepSeekOCRAPIKey"
+    static let pluginOpenRouterOCRAPIKey = "pluginOpenRouterOCRAPIKey"
+    static let pluginOpenRouterOCRModelID = "pluginOpenRouterOCRModelID"
     static let pluginWebSearchDefaultProvider = "pluginWebSearchDefaultProvider"
     static let pluginWebSearchDefaultMaxResults = "pluginWebSearchDefaultMaxResults"
     static let pluginWebSearchDefaultRecencyDays = "pluginWebSearchDefaultRecencyDays"
@@ -384,6 +387,8 @@ enum AppPreferences {
             return AppPreferenceKeys.pluginMineruOCREnabled
         case "deepseek_ocr":
             return AppPreferenceKeys.pluginDeepSeekOCREnabled
+        case "openrouter_ocr":
+            return AppPreferenceKeys.pluginOpenRouterOCREnabled
         case "firecrawl_ocr":
             return AppPreferenceKeys.pluginFirecrawlOCREnabled
         case "chat_naming":
