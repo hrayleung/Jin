@@ -29,6 +29,7 @@ final class MarkdownTemplateExportsTests: XCTestCase {
         XCTAssertTrue(html.contains("messageHandlers.selectionChanged"), "Expected WKScriptMessage bridge for selection changes")
         XCTAssertTrue(html.contains("mark[data-jin-highlight-id]"), "Expected persisted highlight styling in markdown template")
         XCTAssertTrue(html.contains("resolveHighlightOffsets"), "Expected persisted highlights to remap offsets against rendered text")
+        XCTAssertTrue(html.contains("function selectableTextContent"), "Expected highlights and selection snapshots to share selectable-text coordinates")
         XCTAssertTrue(html.contains("preferHardBreaks"), "Expected markdown renderer options to carry hard-break preference")
     }
 

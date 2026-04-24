@@ -122,4 +122,18 @@ final class MarkdownRenderNormalizerTests: XCTestCase {
         XCTAssertTrue(result.text.contains("## 7. ☁️ Cloud & AI Infrastructure"))
         XCTAssertTrue(result.text.contains("Strategic hybrid cloud\n- cloud for elasticity"))
     }
+
+    func testHeadingBodySplitKeepsIndentationWhenTrailingWhitespaceExists() {
+        let input = "  ## Cloud & Edge ComputingInvestment remains strong.   "
+
+        let result = MarkdownRenderNormalizer.normalizeForRender(
+            input,
+            modelID: "deepseek-v4-flash",
+            isStreaming: false
+        )
+
+        XCTAssertTrue(result.didChange)
+        XCTAssertTrue(result.text.contains("  ## Cloud & Edge Computing\nInvestment remains strong."))
+        XCTAssertFalse(result.text.contains("## ##"))
+    }
 }

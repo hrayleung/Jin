@@ -306,14 +306,7 @@ private struct MarkdownWebRendererRepresentable: NSViewRepresentable {
         // so the browser renders content during the initial page load instead
         // of waiting for a Swift→JS round-trip after didFinish.
         let normalizedResult = renderPlainText
-            ? NormalizedMarkdownResult(
-                text: markdownText,
-                didChange: false,
-                repairMode: .none,
-                anomalyScoreBefore: 0,
-                anomalyScoreAfter: 0,
-                preferHardBreaks: false
-            )
+            ? .passthrough(markdownText)
             : MarkdownRenderNormalizer.normalizeForRender(
                 markdownText,
                 modelID: normalizeMarkdownForModelID,
@@ -635,14 +628,7 @@ private struct MarkdownWebRendererRepresentable: NSViewRepresentable {
             deferCodeHighlightUpgrade: Bool = false
         ) {
             let normalizedResult = renderPlainText
-                ? NormalizedMarkdownResult(
-                    text: markdown,
-                    didChange: false,
-                    repairMode: .none,
-                    anomalyScoreBefore: 0,
-                    anomalyScoreAfter: 0,
-                    preferHardBreaks: false
-                )
+                ? .passthrough(markdown)
                 : MarkdownRenderNormalizer.normalizeForRender(
                     markdown,
                     modelID: normalizeMarkdownForModelID,

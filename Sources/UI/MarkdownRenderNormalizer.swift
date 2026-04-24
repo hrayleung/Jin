@@ -15,6 +15,19 @@ struct NormalizedMarkdownResult: Equatable, Sendable {
     let preferHardBreaks: Bool
 }
 
+extension NormalizedMarkdownResult {
+    static func passthrough(_ text: String) -> Self {
+        Self(
+            text: text,
+            didChange: false,
+            repairMode: .none,
+            anomalyScoreBefore: 0,
+            anomalyScoreAfter: 0,
+            preferHardBreaks: false
+        )
+    }
+}
+
 enum MarkdownRenderNormalizer {
     private struct RepairProfile: Sendable {
         let allowHeadingBodySplit: Bool
@@ -249,7 +262,7 @@ enum MarkdownRenderNormalizer {
             if matches(#"^( {0,3}#{1,6})(?=\S)"#, in: protectedLine) {
                 score += 3
             }
-            if matches(#"(?<!^)(?<!\n)\s+(#{1,6})(?=[#\dA-Za-z\p{Han}])"#, in: protectedLine) {
+            if matches(#"(?<=\S)\s+(#{1,6})(?=[#\dA-Za-z\p{Han}])"#, in: protectedLine) {
                 score += 2
             }
             if matches(#"(?<=\S)(?:-\s+|\*\s+|\+\s+)(?=[\p{L}\p{N}])"#, in: protectedLine) {
@@ -306,7 +319,7 @@ enum MarkdownRenderNormalizer {
 
     private static func insertBreaksBeforeEmbeddedHeadings(_ line: String) -> String {
         replacing(
-            pattern: #"(?<!^)(?<!\n)\s+(#{1,6})(?=[#\dA-Za-z\p{Han}])"#,
+            pattern: #"(?<=\S)\s+(#{1,6})(?=[#\dA-Za-z\p{Han}])"#,
             in: line,
             with: "\n$1"
         )
@@ -357,7 +370,8 @@ enum MarkdownRenderNormalizer {
     }
 
     private static func insertBreakBetweenHeadingAndBody(_ line: String) -> String {
-        let trimmedLeading = line.trimmingCharacters(in: .whitespaces)
+        let leadingWhitespace = String(line.prefix { $0.isWhitespace })
+        let trimmedLeading = String(line.dropFirst(leadingWhitespace.count)).trimmingCharacters(in: .whitespaces)
         guard matches(#"^#{1,6}\s+"#, in: trimmedLeading),
               let splitIndex = headingBodySplitIndex(in: trimmedLeading) else {
             return line
@@ -367,8 +381,6 @@ enum MarkdownRenderNormalizer {
         let after = trimmedLeading[splitIndex...].trimmingCharacters(in: .whitespaces)
         guard !before.isEmpty, !after.isEmpty else { return line }
 
-        let leadingWhitespaceCount = line.count - trimmedLeading.count
-        let leadingWhitespace = String(line.prefix(leadingWhitespaceCount))
         return leadingWhitespace + before + "\n" + after
     }
 
