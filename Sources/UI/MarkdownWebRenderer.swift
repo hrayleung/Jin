@@ -19,6 +19,7 @@ private func embedMarkdownBootstrap(
     markdown: String,
     streaming: Bool,
     deferCodeHighlightUpgrade: Bool,
+    preferHardBreaks: Bool,
     codeBlockDisplayMode: String = CodeBlockDisplayMode.expanded.rawValue,
     codeBlockShowLineNumbers: Bool = false,
     codeBlockCollapseLineThreshold: Int = 25
@@ -26,7 +27,14 @@ private func embedMarkdownBootstrap(
     guard let data = markdown.data(using: .utf8) else { return html }
     let base64 = data.base64EncodedString()
     let fn = streaming ? "updateStreamingContent" : "updateContent"
-    let options = deferCodeHighlightUpgrade ? "{deferCodeHighlightUpgrade:true}" : "{}"
+    var optionFragments: [String] = []
+    if deferCodeHighlightUpgrade {
+        optionFragments.append("deferCodeHighlightUpgrade:true")
+    }
+    if preferHardBreaks {
+        optionFragments.append("preferHardBreaks:true")
+    }
+    let options = "{\(optionFragments.joined(separator: ","))}"
     let modeEscaped = codeBlockDisplayMode.replacingOccurrences(of: "'", with: "\\'")
     let codeBlockSettings = codeBlockSettingsJavaScript(
         showLineNumbers: codeBlockShowLineNumbers,
@@ -194,12 +202,14 @@ struct MarkdownWebRenderer: View {
         markdown: String,
         streaming: Bool = false,
         deferCodeHighlightUpgrade: Bool = false,
-        renderPlainText: Bool = false
+        renderPlainText: Bool = false,
+        preferHardBreaks: Bool = false
     ) {
         let fn = streaming ? "updateStreamingWithText" : "updateWithText"
         let options: [String: Any] = [
             "deferCodeHighlightUpgrade": deferCodeHighlightUpgrade,
-            "renderPlainText": renderPlainText
+            "renderPlainText": renderPlainText,
+            "preferHardBreaks": preferHardBreaks
         ]
 
         if #available(macOS 11.0, *) {
@@ -218,7 +228,7 @@ struct MarkdownWebRenderer: View {
             guard let data = markdown.data(using: .utf8) else { return }
             let b64 = data.base64EncodedString()
             let legacyFn = streaming ? "updateStreamingWithBase64" : "updateWithBase64"
-            let optionsLiteral = "{deferCodeHighlightUpgrade:\(deferCodeHighlightUpgrade ? "true" : "false"),renderPlainText:\(renderPlainText ? "true" : "false")}"
+            let optionsLiteral = "{deferCodeHighlightUpgrade:\(deferCodeHighlightUpgrade ? "true" : "false"),renderPlainText:\(renderPlainText ? "true" : "false"),preferHardBreaks:\(preferHardBreaks ? "true" : "false")}"
             webView.evaluateJavaScript("window.\(legacyFn)('\(b64)', \(optionsLiteral))", completionHandler: nil)
         }
     }
@@ -295,21 +305,38 @@ private struct MarkdownWebRendererRepresentable: NSViewRepresentable {
         // For non-streaming messages, embed the markdown directly in the HTML
         // so the browser renders content during the initial page load instead
         // of waiting for a Swift→JS round-trip after didFinish.
-        let markdownForRender = renderPlainText
-            ? markdownText
-            : MarkdownRenderNormalizer.normalize(markdownText, modelID: normalizeMarkdownForModelID)
+        let normalizedResult = renderPlainText
+            ? NormalizedMarkdownResult(
+                text: markdownText,
+                didChange: false,
+                repairMode: .none,
+                anomalyScoreBefore: 0,
+                anomalyScoreAfter: 0,
+                preferHardBreaks: false
+            )
+            : MarkdownRenderNormalizer.normalizeForRender(
+                markdownText,
+                modelID: normalizeMarkdownForModelID,
+                isStreaming: isStreaming
+            )
+        let markdownForRender = normalizedResult.text
         let shouldEmbed = !renderPlainText && !isStreaming && !markdownForRender.isEmpty && inlineTemplate != nil
         if shouldEmbed {
             context.coordinator.pendingMarkdown = nil
             context.coordinator.markContentEmbedded(
                 markdownForRender,
-                deferCodeHighlightUpgrade: deferCodeHighlightUpgrade
+                deferCodeHighlightUpgrade: deferCodeHighlightUpgrade,
+                preferHardBreaks: normalizedResult.preferHardBreaks
             )
         } else {
             context.coordinator.pendingMarkdown = markdownForRender
         }
 
-        loadTemplate(into: webView, embedMarkdown: shouldEmbed ? markdownForRender : nil)
+        loadTemplate(
+            into: webView,
+            embedMarkdown: shouldEmbed ? markdownForRender : nil,
+            preferHardBreaks: normalizedResult.preferHardBreaks
+        )
         return webView
     }
 
@@ -363,7 +390,11 @@ private struct MarkdownWebRendererRepresentable: NSViewRepresentable {
         }
     }
 
-    private func loadTemplate(into webView: WKWebView, embedMarkdown: String? = nil) {
+    private func loadTemplate(
+        into webView: WKWebView,
+        embedMarkdown: String? = nil,
+        preferHardBreaks: Bool = false
+    ) {
         if let cached = inlineTemplate {
             var html = cached.html
             if let markdown = embedMarkdown {
@@ -372,6 +403,7 @@ private struct MarkdownWebRendererRepresentable: NSViewRepresentable {
                     markdown: markdown,
                     streaming: isStreaming,
                     deferCodeHighlightUpgrade: deferCodeHighlightUpgrade,
+                    preferHardBreaks: preferHardBreaks,
                     codeBlockDisplayMode: codeBlockDisplayMode,
                     codeBlockShowLineNumbers: codeBlockShowLineNumbers,
                     codeBlockCollapseLineThreshold: codeBlockCollapseLineThreshold
@@ -397,6 +429,7 @@ private struct MarkdownWebRendererRepresentable: NSViewRepresentable {
         private(set) var lastRenderedMarkdown: String?
         private(set) var lastRenderedDeferCodeHighlightUpgrade: Bool?
         private(set) var lastRenderedPlainTextMode: Bool?
+        private(set) var lastRenderedPreferHardBreaks: Bool?
         var appFontFamily: String = JinTypography.systemFontPreferenceValue
         var codeFontFamily: String = JinTypography.systemFontPreferenceValue
         var codeBlockDisplayMode: String = CodeBlockDisplayMode.expanded.rawValue
@@ -423,10 +456,15 @@ private struct MarkdownWebRendererRepresentable: NSViewRepresentable {
 
         /// Records that markdown was embedded in the HTML template so that
         /// subsequent `renderMarkdownIfNeeded` calls skip duplicate work.
-        func markContentEmbedded(_ markdown: String, deferCodeHighlightUpgrade: Bool) {
+        func markContentEmbedded(
+            _ markdown: String,
+            deferCodeHighlightUpgrade: Bool,
+            preferHardBreaks: Bool
+        ) {
             lastRenderedMarkdown = markdown
             lastRenderedDeferCodeHighlightUpgrade = deferCodeHighlightUpgrade
             lastRenderedPlainTextMode = false
+            lastRenderedPreferHardBreaks = preferHardBreaks
         }
 
         private func logLargeMarkdownIfNeeded(_ markdown: String) {
@@ -596,13 +634,26 @@ private struct MarkdownWebRendererRepresentable: NSViewRepresentable {
             force: Bool = false,
             deferCodeHighlightUpgrade: Bool = false
         ) {
-            let normalizedMarkdown = renderPlainText
-                ? markdown
-                : MarkdownRenderNormalizer.normalize(markdown, modelID: normalizeMarkdownForModelID)
+            let normalizedResult = renderPlainText
+                ? NormalizedMarkdownResult(
+                    text: markdown,
+                    didChange: false,
+                    repairMode: .none,
+                    anomalyScoreBefore: 0,
+                    anomalyScoreAfter: 0,
+                    preferHardBreaks: false
+                )
+                : MarkdownRenderNormalizer.normalizeForRender(
+                    markdown,
+                    modelID: normalizeMarkdownForModelID,
+                    isStreaming: isStreaming
+                )
+            let normalizedMarkdown = normalizedResult.text
 
             guard force
                     || normalizedMarkdown != lastRenderedMarkdown
                     || deferCodeHighlightUpgrade != lastRenderedDeferCodeHighlightUpgrade
+                    || normalizedResult.preferHardBreaks != lastRenderedPreferHardBreaks
                     || renderPlainText != lastRenderedPlainTextMode else {
                 return
             }
@@ -611,12 +662,14 @@ private struct MarkdownWebRendererRepresentable: NSViewRepresentable {
             lastRenderedMarkdown = normalizedMarkdown
             lastRenderedDeferCodeHighlightUpgrade = deferCodeHighlightUpgrade
             lastRenderedPlainTextMode = renderPlainText
+            lastRenderedPreferHardBreaks = normalizedResult.preferHardBreaks
             MarkdownWebRenderer.sendMarkdown(
                 to: webView,
                 markdown: normalizedMarkdown,
                 streaming: isStreaming,
                 deferCodeHighlightUpgrade: deferCodeHighlightUpgrade,
-                renderPlainText: renderPlainText
+                renderPlainText: renderPlainText,
+                preferHardBreaks: normalizedResult.preferHardBreaks
             )
         }
 

@@ -28,6 +28,8 @@ final class MarkdownTemplateExportsTests: XCTestCase {
         XCTAssertTrue(html.contains("window.setPersistedHighlights"), "Expected persisted highlight export in markdown template")
         XCTAssertTrue(html.contains("messageHandlers.selectionChanged"), "Expected WKScriptMessage bridge for selection changes")
         XCTAssertTrue(html.contains("mark[data-jin-highlight-id]"), "Expected persisted highlight styling in markdown template")
+        XCTAssertTrue(html.contains("resolveHighlightOffsets"), "Expected persisted highlights to remap offsets against rendered text")
+        XCTAssertTrue(html.contains("preferHardBreaks"), "Expected markdown renderer options to carry hard-break preference")
     }
 
     func testTemplateIncludesReversibleCodeBlockHeightFolding() throws {
