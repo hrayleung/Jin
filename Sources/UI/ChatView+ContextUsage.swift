@@ -54,7 +54,7 @@ extension ChatView {
         draftContextUsageRefreshTask = Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(450))
             guard !Task.isCancelled else { return }
-            refreshContextUsageEstimate()
+            refreshContextUsageEstimate(debounced: false)
             draftContextUsageRefreshTask = nil
         }
     }

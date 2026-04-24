@@ -199,6 +199,7 @@ struct ChatMessageTimelineView: View {
 struct ChatSingleThreadMessagesView: View {
     let conversationID: UUID
     let conversationMessageCount: Int
+    let renderRevision: Int
     let containerSize: CGSize
     let allMessages: [MessageRenderItem]
     let toolResultsByCallID: [String: ToolResult]
@@ -237,10 +238,12 @@ struct ChatSingleThreadMessagesView: View {
         ChatMessageStageEquatableKeyBuilder.singleThreadKey(
             conversationID: conversationID,
             conversationMessageCount: conversationMessageCount,
+            renderRevision: renderRevision,
             containerSize: containerSize,
-            messageIDs: allMessages.map(\.id),
-            toolResultIDs: Array(toolResultsByCallID.keys),
-            entityIDs: Array(messageEntitiesByID.keys),
+            allMessageCount: allMessages.count,
+            lastMessageID: allMessages.last?.id,
+            toolResultCount: toolResultsByCallID.count,
+            entityCount: messageEntitiesByID.count,
             assistantDisplayName: assistantDisplayName,
             providerType: providerType,
             providerIconID: providerIconID,
@@ -914,10 +917,12 @@ enum ChatMessageStageEquatableKeyBuilder {
     static func singleThreadKey(
         conversationID: UUID,
         conversationMessageCount: Int,
+        renderRevision: Int,
         containerSize: CGSize,
-        messageIDs: [UUID],
-        toolResultIDs: [String],
-        entityIDs: [UUID],
+        allMessageCount: Int,
+        lastMessageID: UUID?,
+        toolResultCount: Int,
+        entityCount: Int,
         assistantDisplayName: String,
         providerType: ProviderType?,
         providerIconID: String?,
@@ -931,10 +936,12 @@ enum ChatMessageStageEquatableKeyBuilder {
         ChatStageEquatableKey(
             conversationID: conversationID,
             conversationMessageCount: conversationMessageCount,
+            renderRevision: renderRevision,
             containerSize: containerSize,
-            messageIDs: messageIDs,
-            toolResultIDs: toolResultIDs.sorted(),
-            entityIDs: entityIDs.sorted { $0.uuidString < $1.uuidString },
+            allMessageCount: allMessageCount,
+            lastMessageID: lastMessageID,
+            toolResultCount: toolResultCount,
+            entityCount: entityCount,
             assistantDisplayName: assistantDisplayName,
             providerType: providerType,
             providerIconID: providerIconID,
@@ -954,10 +961,12 @@ enum ChatMessageStageEquatableKeyBuilder {
 struct ChatStageEquatableKey: Equatable {
     let conversationID: UUID?
     let conversationMessageCount: Int
+    let renderRevision: Int
     let containerSize: CGSize
-    let messageIDs: [UUID]
-    let toolResultIDs: [String]
-    let entityIDs: [UUID]
+    let allMessageCount: Int
+    let lastMessageID: UUID?
+    let toolResultCount: Int
+    let entityCount: Int
     let assistantDisplayName: String
     let providerType: ProviderType?
     let providerIconID: String?

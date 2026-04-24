@@ -212,7 +212,6 @@ extension ChatView {
             return false
         }
         messageText = result
-        scheduleDraftContextUsageRefresh()
         return true
     }
 
@@ -257,7 +256,6 @@ extension ChatView {
 
                     if !newAttachments.isEmpty {
                         draftAttachments.append(contentsOf: newAttachments)
-                        refreshContextUsageEstimate(debounced: false)
                     }
                 }
 
@@ -284,7 +282,6 @@ extension ChatView {
         await MainActor.run {
             if !newAttachments.isEmpty {
                 draftAttachments.append(contentsOf: newAttachments)
-                refreshContextUsageEstimate(debounced: false)
             }
             if !errors.isEmpty {
                 errorMessage = errors.joined(separator: "\n")
@@ -311,7 +308,6 @@ extension ChatView {
     func removeDraftAttachment(_ attachment: DraftAttachment) {
         draftAttachments.removeAll { $0.id == attachment.id }
         try? FileManager.default.removeItem(at: attachment.fileURL)
-        refreshContextUsageEstimate(debounced: false)
     }
 
     func toggleArtifactsEnabled() {

@@ -85,6 +85,7 @@ extension ChatView {
         ChatSingleThreadMessagesView(
             conversationID: conversationEntity.id,
             conversationMessageCount: conversationEntity.messages.count,
+            renderRevision: cachedMessagesVersion,
             containerSize: geometry.size,
             allMessages: singleThreadRenderContext.visibleMessages,
             toolResultsByCallID: singleThreadRenderContext.toolResultsByCallID,
