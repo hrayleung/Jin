@@ -85,6 +85,7 @@ struct ChatView: View {
     @State var currentContextUsageEstimate: ChatContextUsageEstimate?
     @State var contextUsageRefreshTask: Task<Void, Never>?
     @State var contextUsageRefreshGeneration: UInt = 0
+    @State var draftContextUsageRefreshTask: Task<Void, Never>?
     @State var isFileImporterPresented = false
     @State var isComposerDropTargeted = false
     @State var isFullPageDropTargeted = false
@@ -321,6 +322,8 @@ struct ChatView: View {
             updatedAtDebounceTask = nil
             contextUsageRefreshTask?.cancel()
             contextUsageRefreshTask = nil
+            draftContextUsageRefreshTask?.cancel()
+            draftContextUsageRefreshTask = nil
             cancelRenderContextBuild()
         }
         .onChange(of: conversationEntity.id) { _, _ in

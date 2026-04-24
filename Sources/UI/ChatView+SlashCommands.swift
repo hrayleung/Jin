@@ -66,6 +66,7 @@ extension ChatView {
         switch slashCommandTarget {
         case .composer:
             messageText = SlashCommandDetection.removeSlashToken(from: messageText)
+            scheduleDraftContextUsageRefresh()
         case .editMessage:
             editingUserMessageText = SlashCommandDetection.removeSlashToken(from: editingUserMessageText)
         }
@@ -82,6 +83,7 @@ extension ChatView {
         switch slashCommandTarget {
         case .composer:
             messageText = SlashCommandDetection.removeSlashToken(from: messageText)
+            scheduleDraftContextUsageRefresh()
         case .editMessage:
             editingUserMessageText = SlashCommandDetection.removeSlashToken(from: editingUserMessageText)
         }

@@ -51,6 +51,7 @@ extension ChatView {
         }
         .onChange(of: messageText) { _, newValue in
             updateSlashCommandState(for: newValue, target: .composer)
+            scheduleDraftContextUsageRefresh()
         }
     }
 
@@ -415,6 +416,7 @@ extension ChatView {
 
     func removeDraftQuote(_ quote: DraftQuote) {
         draftQuotes.removeAll { $0.id == quote.id }
+        refreshContextUsageEstimate(debounced: false)
     }
 
     var fullPageDropOverlay: some View {
