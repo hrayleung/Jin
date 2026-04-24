@@ -619,6 +619,15 @@ function totalTextLength(root) {
     return total;
 }
 
+function selectableTextContent(root) {
+    var nodes = collectTextNodes(root);
+    var parts = [];
+    for (var i = 0; i < nodes.length; i += 1) {
+        parts.push(nodes[i].nodeValue);
+    }
+    return parts.join('');
+}
+
 function normalizeBoundaryPosition(root, container, offset, isStart) {
     if (!container) return null;
     if (container.nodeType === Node.TEXT_NODE) {
@@ -695,10 +704,96 @@ function unwrapHighlightMarks(root) {
     });
 }
 
-function applyHighlightRange(root, highlight) {
-    if (!root || !highlight) return;
+function commonPrefixLength(lhs, rhs) {
+    var max = Math.min(lhs.length, rhs.length);
+    var count = 0;
+    while (count < max && lhs.charAt(count) === rhs.charAt(count)) {
+        count += 1;
+    }
+    return count;
+}
+
+function commonSuffixLength(lhs, rhs) {
+    var lhsLength = lhs.length;
+    var rhsLength = rhs.length;
+    var count = 0;
+    while (
+        count < lhsLength &&
+        count < rhsLength &&
+        lhs.charAt(lhsLength - count - 1) === rhs.charAt(rhsLength - count - 1)
+    ) {
+        count += 1;
+    }
+    return count;
+}
+
+function resolveHighlightOffsets(rootText, highlight) {
     var start = Math.max(0, parseInt(highlight.startOffset, 10) || 0);
     var end = Math.max(start, parseInt(highlight.endOffset, 10) || start);
+    var selectedText = String(highlight.selectedText || '');
+    if (!selectedText) {
+        return { start: start, end: end };
+    }
+
+    if (rootText.slice(start, end) === selectedText) {
+        return { start: start, end: end };
+    }
+
+    var prefixContext = String(highlight.prefixContext || '');
+    var suffixContext = String(highlight.suffixContext || '');
+    var searchIndex = 0;
+    var bestMatch = null;
+    var matchCount = 0;
+
+    while (searchIndex <= rootText.length) {
+        var foundIndex = rootText.indexOf(selectedText, searchIndex);
+        if (foundIndex < 0) break;
+
+        matchCount += 1;
+        var candidateStart = foundIndex;
+        var candidateEnd = foundIndex + selectedText.length;
+        var score = 0;
+
+        if (prefixContext) {
+            var actualPrefix = rootText.slice(Math.max(0, candidateStart - prefixContext.length), candidateStart);
+            score += commonSuffixLength(actualPrefix, prefixContext) * 2;
+            if (actualPrefix === prefixContext) score += 48;
+        }
+
+        if (suffixContext) {
+            var actualSuffix = rootText.slice(candidateEnd, Math.min(rootText.length, candidateEnd + suffixContext.length));
+            score += commonPrefixLength(actualSuffix, suffixContext) * 2;
+            if (actualSuffix === suffixContext) score += 48;
+        }
+
+        var distanceFromStored = Math.abs(candidateStart - start);
+        score -= Math.min(distanceFromStored, 24);
+
+        if (!bestMatch || score > bestMatch.score || (score === bestMatch.score && distanceFromStored < bestMatch.distance)) {
+            bestMatch = {
+                start: candidateStart,
+                end: candidateEnd,
+                score: score,
+                distance: distanceFromStored
+            };
+        }
+
+        searchIndex = foundIndex + Math.max(1, selectedText.length);
+    }
+
+    if (bestMatch && (bestMatch.score > 0 || matchCount === 1)) {
+        return { start: bestMatch.start, end: bestMatch.end };
+    }
+
+    return { start: start, end: end };
+}
+
+function applyHighlightRange(root, highlight) {
+    if (!root || !highlight) return;
+    var rootText = selectableTextContent(root);
+    var resolvedOffsets = resolveHighlightOffsets(rootText, highlight);
+    var start = resolvedOffsets.start;
+    var end = Math.max(start, resolvedOffsets.end);
     if (end <= start) return;
 
     var startPos = locateTextPosition(root, start);
@@ -790,7 +885,7 @@ function buildSelectionSnapshot() {
     var selectedText = String(selection.toString() || '');
     if (!selectedText.trim()) return null;
 
-    var rootText = root.textContent || '';
+    var rootText = selectableTextContent(root);
     var matchingHighlightIDs = (_persistedHighlights || [])
         .filter(function(highlight) {
             return (parseInt(highlight.startOffset, 10) || 0) === start
@@ -1905,7 +2000,8 @@ function createMarkdownParserState() {
     installCodeBlockRenderer(instance);
     return {
         instance: instance,
-        mathInstalled: false
+        mathInstalled: false,
+        preferHardBreaks: false
     };
 }
 
@@ -1945,6 +2041,11 @@ function shouldDeferCodeHighlightUpgrade(options) {
     return options.deferCodeHighlightUpgrade === true;
 }
 
+function shouldPreferHardBreaks(options) {
+    if (!options || typeof options !== 'object') return false;
+    return options.preferHardBreaks === true;
+}
+
 function deferredHighlightDelayMs(markdownText) {
     var text = String(markdownText || '');
     if (!text) return 1200;
@@ -1960,6 +2061,7 @@ function renderMarkdownContent(parserState, text) {
     _codeBlockId = 0;
     _codeBlockSrc = {};
     _codeBlockState = {};
+    parserState.instance.options.breaks = !!(parserState && parserState.preferHardBreaks);
     document.getElementById('content').innerHTML = parserState.instance.render(text);
     applyPersistedHighlights();
     scheduleSelectionSnapshotPost();
@@ -1996,6 +2098,7 @@ async function updateContent(base64, options) {
     var needsCodeHighlight = containsLikelyCodeBlocks(text);
     var needsMath = containsLikelyMath(text);
     var deferCodeHighlightUpgrade = shouldDeferCodeHighlightUpgrade(options);
+    mdState.preferHardBreaks = shouldPreferHardBreaks(options);
 
     if (needsMath && _mathReady) {
         installMathPluginIfPossible(mdState);
@@ -2054,6 +2157,7 @@ async function updateContentText(text, options) {
     var needsCodeHighlight = containsLikelyCodeBlocks(renderedText);
     var needsMath = containsLikelyMath(renderedText);
     var deferCodeHighlightUpgrade = shouldDeferCodeHighlightUpgrade(options);
+    mdState.preferHardBreaks = shouldPreferHardBreaks(options);
 
     if (needsMath && _mathReady) {
         installMathPluginIfPossible(mdState);
@@ -2186,6 +2290,7 @@ async function updateStreamingContent(base64, options) {
     var needsCodeHighlight = containsLikelyCodeBlocks(text);
     var needsMath = containsLikelyMath(text);
     var deferCodeHighlightUpgrade = shouldDeferCodeHighlightUpgrade(options);
+    streamMdState.preferHardBreaks = shouldPreferHardBreaks(options);
 
     if (needsMath && _mathReady) {
         installMathPluginIfPossible(streamMdState);
@@ -2242,6 +2347,7 @@ async function updateStreamingContentText(text, options) {
     var needsCodeHighlight = containsLikelyCodeBlocks(renderedText);
     var needsMath = containsLikelyMath(renderedText);
     var deferCodeHighlightUpgrade = shouldDeferCodeHighlightUpgrade(options);
+    streamMdState.preferHardBreaks = shouldPreferHardBreaks(options);
 
     if (needsMath && _mathReady) {
         installMathPluginIfPossible(streamMdState);
