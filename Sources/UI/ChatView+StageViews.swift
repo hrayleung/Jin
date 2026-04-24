@@ -3,6 +3,69 @@ import SwiftData
 
 // MARK: - Stage Views, Render Contexts & Header Bar
 
+enum ChatStageBottomFadeMetrics {
+    static let hiddenComposerHeight: CGFloat = 64
+    static let minimumVisibleComposerHeight: CGFloat = 88
+    static let visibleComposerExtraHeight: CGFloat = 20
+    static let maximumFadeHeight: CGFloat = 180
+
+    static func normalizedComposerHeight(_ height: CGFloat) -> CGFloat {
+        guard height.isFinite else { return 0 }
+        return max(0, height.rounded(.toNearestOrAwayFromZero))
+    }
+
+    static func fadeHeight(composerHeight: CGFloat, isComposerHidden: Bool) -> CGFloat {
+        let baseHeight = isComposerHidden
+            ? hiddenComposerHeight
+            : max(minimumVisibleComposerHeight, composerHeight + visibleComposerExtraHeight)
+
+        return min(maximumFadeHeight, baseHeight)
+    }
+}
+
+private struct ChatStageBottomFadeView: View {
+    let surfaceColor: Color
+    let composerHeight: CGFloat
+    let isComposerHidden: Bool
+    let isExpandedComposerPresented: Bool
+
+    private var fadeHeight: CGFloat {
+        ChatStageBottomFadeMetrics.fadeHeight(
+            composerHeight: composerHeight,
+            isComposerHidden: isComposerHidden
+        )
+    }
+
+    var body: some View {
+        Canvas(opaque: false, rendersAsynchronously: true) { context, size in
+            guard size.width > 0, size.height > 0 else { return }
+
+            let rect = CGRect(origin: .zero, size: size)
+            let gradient = Gradient(stops: [
+                .init(color: surfaceColor.opacity(0), location: 0),
+                .init(color: surfaceColor.opacity(0.10), location: 0.24),
+                .init(color: surfaceColor.opacity(0.34), location: 0.58),
+                .init(color: surfaceColor.opacity(0.72), location: 0.84),
+                .init(color: surfaceColor, location: 1)
+            ])
+
+            context.fill(
+                Path(rect),
+                with: .linearGradient(
+                    gradient,
+                    startPoint: CGPoint(x: rect.midX, y: rect.minY),
+                    endPoint: CGPoint(x: rect.midX, y: rect.maxY)
+                )
+            )
+        }
+        .frame(height: fadeHeight)
+        .frame(maxWidth: .infinity)
+        .opacity(isExpandedComposerPresented ? 0 : 1)
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+}
+
 extension ChatView {
 
     var conversationStage: some View {
@@ -20,8 +83,9 @@ extension ChatView {
             syncArtifactSelectionForActiveThread()
         }
         .onPreferenceChange(ComposerHeightPreferenceKey.self) { newValue in
-            if abs(composerHeight - newValue) > 0.5 {
-                composerHeight = newValue
+            let normalizedHeight = ChatStageBottomFadeMetrics.normalizedComposerHeight(newValue)
+            if abs(composerHeight - normalizedHeight) > 0.5 {
+                composerHeight = normalizedHeight
             }
         }
         .background(JinSemanticColor.detailSurface)
@@ -31,32 +95,19 @@ extension ChatView {
     var messageStageContainer: some View {
         ZStack(alignment: .bottom) {
             messageStage
-                .overlay(alignment: .bottom) {
-                    messageStageBottomFade
-                }
+            messageStageBottomFade
             floatingComposer
         }
     }
 
     @ViewBuilder
     var messageStageBottomFade: some View {
-        let baseHeight = isComposerHidden ? 64.0 : max(88.0, composerHeight + 20)
-        let fadeHeight = min(180.0, baseHeight)
-
-        LinearGradient(
-            stops: [
-                .init(color: JinSemanticColor.detailSurface.opacity(0), location: 0),
-                .init(color: JinSemanticColor.detailSurface.opacity(0.10), location: 0.24),
-                .init(color: JinSemanticColor.detailSurface.opacity(0.34), location: 0.58),
-                .init(color: JinSemanticColor.detailSurface.opacity(0.72), location: 0.84),
-                .init(color: JinSemanticColor.detailSurface, location: 1)
-            ],
-            startPoint: .top,
-            endPoint: .bottom
+        ChatStageBottomFadeView(
+            surfaceColor: JinSemanticColor.detailSurface,
+            composerHeight: composerHeight,
+            isComposerHidden: isComposerHidden,
+            isExpandedComposerPresented: isExpandedComposerPresented
         )
-        .frame(height: fadeHeight)
-        .opacity(isExpandedComposerPresented ? 0 : 1)
-        .allowsHitTesting(false)
     }
 
     var artifactPane: some View {
