@@ -239,7 +239,7 @@ struct ChatSingleThreadMessagesView: View {
             conversationID: conversationID,
             conversationMessageCount: conversationMessageCount,
             renderRevision: renderRevision,
-            containerSize: containerSize,
+            viewportHeight: containerSize.height,
             allMessageCount: allMessages.count,
             lastMessageID: allMessages.last?.id,
             toolResultCount: toolResultsByCallID.count,
@@ -918,7 +918,7 @@ enum ChatMessageStageEquatableKeyBuilder {
         conversationID: UUID,
         conversationMessageCount: Int,
         renderRevision: Int,
-        containerSize: CGSize,
+        viewportHeight: CGFloat,
         allMessageCount: Int,
         lastMessageID: UUID?,
         toolResultCount: Int,
@@ -937,7 +937,7 @@ enum ChatMessageStageEquatableKeyBuilder {
             conversationID: conversationID,
             conversationMessageCount: conversationMessageCount,
             renderRevision: renderRevision,
-            containerSize: containerSize,
+            viewportHeight: viewportHeight,
             allMessageCount: allMessageCount,
             lastMessageID: lastMessageID,
             toolResultCount: toolResultCount,
@@ -962,7 +962,7 @@ struct ChatStageEquatableKey: Equatable {
     let conversationID: UUID?
     let conversationMessageCount: Int
     let renderRevision: Int
-    let containerSize: CGSize
+    let viewportHeight: CGFloat
     let allMessageCount: Int
     let lastMessageID: UUID?
     let toolResultCount: Int
