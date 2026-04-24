@@ -11,7 +11,7 @@ final class ChatMessageStageEquatableKeyTests: XCTestCase {
             conversationID: conversationID,
             conversationMessageCount: 1,
             renderRevision: 4,
-            containerSize: CGSize(width: 800, height: 600),
+            viewportHeight: 600,
             allMessageCount: 1,
             lastMessageID: messageID,
             toolResultCount: 1,
@@ -31,7 +31,7 @@ final class ChatMessageStageEquatableKeyTests: XCTestCase {
             conversationID: conversationID,
             conversationMessageCount: 1,
             renderRevision: 4,
-            containerSize: CGSize(width: 800, height: 600),
+            viewportHeight: 600,
             allMessageCount: 1,
             lastMessageID: messageID,
             toolResultCount: 1,
@@ -50,7 +50,7 @@ final class ChatMessageStageEquatableKeyTests: XCTestCase {
         XCTAssertEqual(first, second)
     }
 
-    func testSingleThreadKeyChangesForMessageAndLayoutChanges() {
+    func testSingleThreadKeyIgnoresWidthOnlyContainerSizeChanges() {
         let conversationID = UUID()
         let messageID = UUID()
 
@@ -58,7 +58,54 @@ final class ChatMessageStageEquatableKeyTests: XCTestCase {
             conversationID: conversationID,
             conversationMessageCount: 1,
             renderRevision: 1,
-            containerSize: CGSize(width: 800, height: 600),
+            viewportHeight: 600,
+            allMessageCount: 1,
+            lastMessageID: messageID,
+            toolResultCount: 0,
+            entityCount: 0,
+            assistantDisplayName: "Assistant",
+            providerType: nil,
+            providerIconID: nil,
+            composerHeight: 80,
+            isStreaming: false,
+            streamingObjectID: nil,
+            streamingModelLabel: nil,
+            streamingModelID: nil,
+            expandedCollapsedMessageIDs: []
+        )
+
+        let afterSidebarToggle = ChatMessageStageEquatableKeyBuilder.singleThreadKey(
+            conversationID: conversationID,
+            conversationMessageCount: 1,
+            renderRevision: 1,
+            viewportHeight: 600,
+            allMessageCount: 1,
+            lastMessageID: messageID,
+            toolResultCount: 0,
+            entityCount: 0,
+            assistantDisplayName: "Assistant",
+            providerType: nil,
+            providerIconID: nil,
+            composerHeight: 80,
+            isStreaming: false,
+            streamingObjectID: nil,
+            streamingModelLabel: nil,
+            streamingModelID: nil,
+            expandedCollapsedMessageIDs: []
+        )
+
+        XCTAssertEqual(base, afterSidebarToggle)
+    }
+
+    func testSingleThreadKeyChangesForMessageAndComposerChanges() {
+        let conversationID = UUID()
+        let messageID = UUID()
+
+        let base = ChatMessageStageEquatableKeyBuilder.singleThreadKey(
+            conversationID: conversationID,
+            conversationMessageCount: 1,
+            renderRevision: 1,
+            viewportHeight: 600,
             allMessageCount: 1,
             lastMessageID: messageID,
             toolResultCount: 0,
@@ -78,7 +125,7 @@ final class ChatMessageStageEquatableKeyTests: XCTestCase {
             conversationID: conversationID,
             conversationMessageCount: 2,
             renderRevision: 2,
-            containerSize: CGSize(width: 800, height: 600),
+            viewportHeight: 600,
             allMessageCount: 2,
             lastMessageID: UUID(),
             toolResultCount: 0,
@@ -98,7 +145,7 @@ final class ChatMessageStageEquatableKeyTests: XCTestCase {
             conversationID: conversationID,
             conversationMessageCount: 1,
             renderRevision: 1,
-            containerSize: CGSize(width: 800, height: 600),
+            viewportHeight: 600,
             allMessageCount: 1,
             lastMessageID: messageID,
             toolResultCount: 0,
