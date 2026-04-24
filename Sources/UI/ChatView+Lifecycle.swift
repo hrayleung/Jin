@@ -91,6 +91,8 @@ extension ChatView {
         // Cancel any pending debounced rebuild from the previous conversation.
         updatedAtDebounceTask?.cancel()
         updatedAtDebounceTask = nil
+        draftContextUsageRefreshTask?.cancel()
+        draftContextUsageRefreshTask = nil
         cancelRenderContextBuild()
 
         // Clear caches synchronously so stale content is never shown, then
@@ -290,11 +292,15 @@ extension ChatView {
 
     func handleComposerSubmit() {
         guard canSendDraft, !isBusy else { return }
+        draftContextUsageRefreshTask?.cancel()
+        draftContextUsageRefreshTask = nil
         sendMessage()
     }
 
     func handleComposerCancel() -> Bool {
         guard isBusy else { return false }
+        draftContextUsageRefreshTask?.cancel()
+        draftContextUsageRefreshTask = nil
         sendMessage()
         return true
     }

@@ -199,6 +199,7 @@ struct ChatMessageTimelineView: View {
 struct ChatSingleThreadMessagesView: View {
     let conversationID: UUID
     let conversationMessageCount: Int
+    let renderRevision: Int
     let containerSize: CGSize
     let allMessages: [MessageRenderItem]
     let toolResultsByCallID: [String: ToolResult]
@@ -233,13 +234,115 @@ struct ChatSingleThreadMessagesView: View {
         Array(allMessages.suffix(messageRenderLimit))
     }
 
+    private var equatableKey: ChatStageEquatableKey {
+        ChatMessageStageEquatableKeyBuilder.singleThreadKey(
+            conversationID: conversationID,
+            conversationMessageCount: conversationMessageCount,
+            renderRevision: renderRevision,
+            containerSize: containerSize,
+            allMessageCount: allMessages.count,
+            lastMessageID: allMessages.last?.id,
+            toolResultCount: toolResultsByCallID.count,
+            entityCount: messageEntitiesByID.count,
+            assistantDisplayName: assistantDisplayName,
+            providerType: providerType,
+            providerIconID: providerIconID,
+            composerHeight: composerHeight,
+            isStreaming: isStreaming,
+            streamingObjectID: streamingMessage.map(ObjectIdentifier.init),
+            streamingModelLabel: streamingModelLabel,
+            streamingModelID: streamingModelID,
+            expandedCollapsedMessageIDs: expandedCollapsedMessageIDs.wrappedValue
+        )
+    }
+
+    var body: some View {
+        EquatableView(content: ChatSingleThreadMessagesContentView(
+            key: equatableKey,
+            conversationID: conversationID,
+            visibleMessagesForWindow: visibleMessagesForWindow,
+            allMessageCount: allMessages.count,
+            messageRenderPageSize: messageRenderPageSize,
+            eagerCodeHighlightTailCount: eagerCodeHighlightTailCount,
+            nonLazyMessageStackThreshold: nonLazyMessageStackThreshold,
+            containerSize: containerSize,
+            composerHeight: composerHeight,
+            isStreaming: isStreaming,
+            streamingMessage: streamingMessage,
+            streamingModelLabel: streamingModelLabel,
+            streamingModelID: streamingModelID,
+            assistantDisplayName: assistantDisplayName,
+            providerType: providerType,
+            providerIconID: providerIconID,
+            toolResultsByCallID: toolResultsByCallID,
+            messageEntitiesByID: messageEntitiesByID,
+            pinnedBottomRefreshDelays: pinnedBottomRefreshDelays,
+            interaction: interaction,
+            onStreamingFinished: onStreamingFinished,
+            onActivateMessageThread: onActivateMessageThread,
+            onOpenArtifact: onOpenArtifact,
+            expandedCollapsedMessageIDs: expandedCollapsedMessageIDs,
+            messageRenderLimit: $messageRenderLimit,
+            pendingRestoreScrollMessageID: $pendingRestoreScrollMessageID,
+            isPinnedToBottom: $isPinnedToBottom,
+            pinnedBottomRefreshGeneration: $pinnedBottomRefreshGeneration,
+            lastMeasuredContentHeight: $lastMeasuredContentHeight,
+            pendingPinnedBottomRefreshTask: $pendingPinnedBottomRefreshTask,
+            shouldMaintainPinnedBottomAnchor: $shouldMaintainPinnedBottomAnchor,
+            isUserScrollInProgress: $isUserScrollInProgress
+        ))
+    }
+}
+
+private struct ChatSingleThreadMessagesContentView: View, Equatable {
+    let key: ChatStageEquatableKey
+    let conversationID: UUID
+    let visibleMessagesForWindow: [MessageRenderItem]
+    let allMessageCount: Int
+    let messageRenderPageSize: Int
+    let eagerCodeHighlightTailCount: Int
+    let nonLazyMessageStackThreshold: Int
+    let containerSize: CGSize
+    let composerHeight: CGFloat
+    let isStreaming: Bool
+    let streamingMessage: StreamingMessageState?
+    let streamingModelLabel: String?
+    let streamingModelID: String?
+    let assistantDisplayName: String
+    let providerType: ProviderType?
+    let providerIconID: String?
+    let toolResultsByCallID: [String: ToolResult]
+    let messageEntitiesByID: [UUID: MessageEntity]
+    let pinnedBottomRefreshDelays: [TimeInterval]
+    let interaction: ChatMessageInteractionContext
+    let onStreamingFinished: () -> Void
+    let onActivateMessageThread: (UUID) -> Void
+    let onOpenArtifact: (RenderedArtifactVersion, UUID?) -> Void
+    let expandedCollapsedMessageIDs: Binding<Set<UUID>>
+    @Binding var messageRenderLimit: Int
+    @Binding var pendingRestoreScrollMessageID: UUID?
+    @Binding var isPinnedToBottom: Bool
+    @Binding var pinnedBottomRefreshGeneration: Int
+    @Binding var lastMeasuredContentHeight: CGFloat
+    @Binding var pendingPinnedBottomRefreshTask: Task<Void, Never>?
+    @Binding var shouldMaintainPinnedBottomAnchor: Bool
+    @Binding var isUserScrollInProgress: Bool
+
+    static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.key == rhs.key
+    }
+
+    private var visibleMessages: [MessageRenderItem] {
+        visibleMessagesForWindow
+    }
+
     var body: some View {
         ScrollViewReader { proxy in
             ScrollView {
                 let usableWidth = max(0, containerSize.width - 32)
                 let bubbleMaxWidth = max(260, usableWidth * 0.78)
                 let visibleMessages = visibleMessagesForWindow
-                let hiddenCount = allMessages.count - visibleMessages.count
+                let hiddenCount = allMessageCount - visibleMessages.count
                 let eagerCodeHighlightStartIndex = max(0, visibleMessages.count - eagerCodeHighlightTailCount)
                 let useLazyMessageStack = visibleMessages.count > nonLazyMessageStackThreshold
 
@@ -316,7 +419,7 @@ struct ChatSingleThreadMessagesView: View {
                     pendingRestoreScrollMessageID = nil
                 }
             }
-            .onChange(of: conversationMessageCount) { _, _ in
+            .onChange(of: allMessageCount) { _, _ in
                 refreshPinnedBottomIfNeeded(proxy: proxy)
             }
             .onChange(of: isStreaming) { wasStreaming, nowStreaming in
@@ -352,7 +455,7 @@ struct ChatSingleThreadMessagesView: View {
             onLoadEarlier: {
                 guard let firstVisible = visibleMessages.first else { return }
                 pendingRestoreScrollMessageID = firstVisible.id
-                messageRenderLimit = min(allMessages.count, messageRenderLimit + messageRenderPageSize)
+                messageRenderLimit = min(allMessageCount, messageRenderLimit + messageRenderPageSize)
             },
             bubbleMaxWidth: bubbleMaxWidth,
             assistantDisplayName: assistantDisplayName,
@@ -487,8 +590,8 @@ struct ChatSingleThreadMessagesView: View {
         ChatLongConversationRenderPolicy.effectiveRenderMode(
             index: index,
             message: message,
-            totalMessageCount: allMessages.count,
-            visibleMessageCount: visibleMessagesForWindow.count,
+            totalMessageCount: allMessageCount,
+            visibleMessageCount: visibleMessages.count,
             expandedIDs: expandedCollapsedMessageIDs.wrappedValue
         )
     }
@@ -806,6 +909,94 @@ private struct ChatMultiModelThreadColumnView: View {
         expandedCollapsedMessageIDs.wrappedValue = ChatLongConversationRenderPolicy.expandedMessageIDs(
             byExpanding: messageID,
             from: expandedCollapsedMessageIDs.wrappedValue
+        )
+    }
+}
+
+enum ChatMessageStageEquatableKeyBuilder {
+    static func singleThreadKey(
+        conversationID: UUID,
+        conversationMessageCount: Int,
+        renderRevision: Int,
+        containerSize: CGSize,
+        allMessageCount: Int,
+        lastMessageID: UUID?,
+        toolResultCount: Int,
+        entityCount: Int,
+        assistantDisplayName: String,
+        providerType: ProviderType?,
+        providerIconID: String?,
+        composerHeight: CGFloat,
+        isStreaming: Bool,
+        streamingObjectID: ObjectIdentifier?,
+        streamingModelLabel: String?,
+        streamingModelID: String?,
+        expandedCollapsedMessageIDs: Set<UUID>
+    ) -> ChatStageEquatableKey {
+        ChatStageEquatableKey(
+            conversationID: conversationID,
+            conversationMessageCount: conversationMessageCount,
+            renderRevision: renderRevision,
+            containerSize: containerSize,
+            allMessageCount: allMessageCount,
+            lastMessageID: lastMessageID,
+            toolResultCount: toolResultCount,
+            entityCount: entityCount,
+            assistantDisplayName: assistantDisplayName,
+            providerType: providerType,
+            providerIconID: providerIconID,
+            composerHeight: composerHeight,
+            isStreaming: isStreaming,
+            streamingObjectID: streamingObjectID,
+            streamingModelLabel: streamingModelLabel,
+            streamingModelID: streamingModelID,
+            activeThreadID: nil,
+            threadIDs: [],
+            contextKeysByThreadID: [:],
+            expandedCollapsedMessageIDs: expandedCollapsedMessageIDs
+        )
+    }
+}
+
+struct ChatStageEquatableKey: Equatable {
+    let conversationID: UUID?
+    let conversationMessageCount: Int
+    let renderRevision: Int
+    let containerSize: CGSize
+    let allMessageCount: Int
+    let lastMessageID: UUID?
+    let toolResultCount: Int
+    let entityCount: Int
+    let assistantDisplayName: String
+    let providerType: ProviderType?
+    let providerIconID: String?
+    let composerHeight: CGFloat
+    let isStreaming: Bool
+    let streamingObjectID: ObjectIdentifier?
+    let streamingModelLabel: String?
+    let streamingModelID: String?
+    let activeThreadID: UUID?
+    let threadIDs: [UUID]
+    let contextKeysByThreadID: [UUID: ChatThreadContextEquatableKey]
+    let expandedCollapsedMessageIDs: Set<UUID>
+}
+
+struct ChatThreadContextEquatableKey: Equatable {
+    let messageIDs: [UUID]
+    let toolResultIDs: [String]
+    let entityIDs: [UUID]
+    let artifactLatestID: String?
+    let artifactLatestVersion: Int?
+}
+
+extension ChatThreadRenderContext {
+    var equatableKey: ChatThreadContextEquatableKey {
+        ChatThreadContextEquatableKey(
+            messageIDs: visibleMessages.map(\.id),
+            toolResultIDs: toolResultsByCallID.keys.sorted(),
+            entityIDs: messageEntitiesByID.keys.sorted { $0.uuidString < $1.uuidString },
+            artifactLatestID: artifactCatalog.latestVersion?.artifactID,
+            artifactLatestVersion: artifactCatalog.latestVersion?.version
         )
     }
 }

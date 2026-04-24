@@ -51,6 +51,7 @@ extension ChatView {
         }
         .onChange(of: messageText) { _, newValue in
             updateSlashCommandState(for: newValue, target: .composer)
+            scheduleDraftContextUsageRefresh()
         }
     }
 
