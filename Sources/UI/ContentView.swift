@@ -55,6 +55,7 @@ struct ContentView: View {
     @State var titleRegenerationErrorMessage = ""
     @State var showingTitleRegenerationError = false
     @State var regeneratingConversationID: UUID?
+    @State private var mainWindowChromeLayout = MainWindowChromeLayout.zero
     @AppStorage("assistantSidebarLayout") var assistantSidebarLayoutRaw = AssistantSidebarLayout.grid.rawValue
     @AppStorage("assistantSidebarSort") var assistantSidebarSortRaw = AssistantSidebarSort.custom.rawValue
     @AppStorage("assistantSidebarShowName") var assistantSidebarShowName = true
@@ -81,7 +82,72 @@ struct ContentView: View {
     }
 
     var body: some View {
-        HSplitView {
+        rootSplitView
+            .mainWindowToolbarChromeCompat(chromeLayout: $mainWindowChromeLayout)
+            .task {
+                bootstrapDefaultProvidersIfNeeded()
+                bootstrapDefaultAssistantsIfNeeded()
+                await updateManager.checkForUpdatesOnLaunchIfNeeded()
+            }
+            .sheet(isPresented: $isAssistantInspectorPresented) {
+                if let selectedAssistant {
+                    AssistantInspectorView(assistant: selectedAssistant)
+                }
+            }
+            .confirmationDialog(
+                "Delete assistant?",
+                isPresented: $showingDeleteAssistantConfirmation,
+                presenting: assistantPendingDeletion
+            ) { assistant in
+                Button("Delete", role: .destructive) { deleteAssistant(assistant) }
+            } message: { assistant in
+                Text("This will permanently delete \u{201C}\(assistant.displayName)\u{201D} and all of its chats.")
+            }
+            .confirmationDialog(
+                "Delete chat?",
+                isPresented: $showingDeleteConversationConfirmation,
+                presenting: conversationPendingDeletion
+            ) { conversation in
+                Button("Delete", role: .destructive) { deleteConversation(conversation) }
+            } message: { conversation in
+                Text("This will permanently delete \u{201C}\(conversation.title)\u{201D}.")
+            }
+            .alert("Rename Chat", isPresented: $showingRenameConversationAlert, presenting: conversationPendingRename) { _ in
+                TextField("Chat title", text: $renameConversationDraftTitle)
+                Button("Cancel", role: .cancel) { conversationPendingRename = nil }
+                Button("Save") { applyManualConversationRename() }
+                    .disabled(renameConversationDraftTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            } message: { _ in
+                Text("Enter a new title for this chat.")
+            }
+            .alert("Title Regeneration Failed", isPresented: $showingTitleRegenerationError) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(titleRegenerationErrorMessage)
+            }
+            .focusedSceneValue(
+                \.workspaceActions,
+                WorkspaceFocusedActions(
+                    isSidebarVisible: isSidebarVisible,
+                    canRenameSelectedChat: selectedConversation != nil,
+                    canToggleSelectedChatStar: selectedConversation != nil,
+                    canDeleteSelectedChat: selectedConversation != nil,
+                    selectedChatIsStarred: selectedConversation?.isStarred == true,
+                    toggleSidebar: toggleSidebarVisibility,
+                    focusChatSearch: focusChatSearch,
+                    createNewChat: createNewConversation,
+                    createAssistant: createAssistant,
+                    openAssistantSettings: openAssistantSettings,
+                    renameSelectedChat: requestRenameSelectedConversation,
+                    toggleSelectedChatStar: toggleSelectedConversationStar,
+                    deleteSelectedChat: requestDeleteSelectedConversation
+                )
+            )
+    }
+
+    @ViewBuilder
+    private var rootSplitView: some View {
+        let splitView = HSplitView {
             sidebarPane
                 .frame(
                     minWidth: isSidebarVisible ? SidebarWidthPersistence.minimumWidth : 0,
@@ -95,66 +161,12 @@ struct ContentView: View {
             detailContent
                 .frame(minWidth: 0, maxWidth: .infinity, maxHeight: .infinity)
         }
-        .mainWindowToolbarChromeCompat()
-        .task {
-            bootstrapDefaultProvidersIfNeeded()
-            bootstrapDefaultAssistantsIfNeeded()
-            await updateManager.checkForUpdatesOnLaunchIfNeeded()
+
+        if mainWindowChromeLayout.extendsContentIntoTitlebar {
+            splitView.ignoresSafeArea(.container, edges: .top)
+        } else {
+            splitView
         }
-        .sheet(isPresented: $isAssistantInspectorPresented) {
-            if let selectedAssistant {
-                AssistantInspectorView(assistant: selectedAssistant)
-            }
-        }
-        .confirmationDialog(
-            "Delete assistant?",
-            isPresented: $showingDeleteAssistantConfirmation,
-            presenting: assistantPendingDeletion
-        ) { assistant in
-            Button("Delete", role: .destructive) { deleteAssistant(assistant) }
-        } message: { assistant in
-            Text("This will permanently delete \u{201C}\(assistant.displayName)\u{201D} and all of its chats.")
-        }
-        .confirmationDialog(
-            "Delete chat?",
-            isPresented: $showingDeleteConversationConfirmation,
-            presenting: conversationPendingDeletion
-        ) { conversation in
-            Button("Delete", role: .destructive) { deleteConversation(conversation) }
-        } message: { conversation in
-            Text("This will permanently delete \u{201C}\(conversation.title)\u{201D}.")
-        }
-        .alert("Rename Chat", isPresented: $showingRenameConversationAlert, presenting: conversationPendingRename) { _ in
-            TextField("Chat title", text: $renameConversationDraftTitle)
-            Button("Cancel", role: .cancel) { conversationPendingRename = nil }
-            Button("Save") { applyManualConversationRename() }
-                .disabled(renameConversationDraftTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-        } message: { _ in
-            Text("Enter a new title for this chat.")
-        }
-        .alert("Title Regeneration Failed", isPresented: $showingTitleRegenerationError) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text(titleRegenerationErrorMessage)
-        }
-        .focusedSceneValue(
-            \.workspaceActions,
-            WorkspaceFocusedActions(
-                isSidebarVisible: isSidebarVisible,
-                canRenameSelectedChat: selectedConversation != nil,
-                canToggleSelectedChatStar: selectedConversation != nil,
-                canDeleteSelectedChat: selectedConversation != nil,
-                selectedChatIsStarred: selectedConversation?.isStarred == true,
-                toggleSidebar: toggleSidebarVisibility,
-                focusChatSearch: focusChatSearch,
-                createNewChat: createNewConversation,
-                createAssistant: createAssistant,
-                openAssistantSettings: openAssistantSettings,
-                renameSelectedChat: requestRenameSelectedConversation,
-                toggleSelectedChatStar: toggleSelectedConversationStar,
-                deleteSelectedChat: requestDeleteSelectedConversation
-            )
-        )
     }
 
     // MARK: - Sidebar
@@ -199,7 +211,8 @@ struct ContentView: View {
                 assistantDisplayName: selectedAssistant?.displayName ?? "Default",
                 onNewChat: createNewConversation,
                 onHideSidebar: toggleSidebarVisibility,
-                shortcutsStore: shortcutsStore
+                shortcutsStore: shortcutsStore,
+                titlebarLeadingInset: mainWindowChromeLayout.titlebarLeadingInset
             )
 
             sidebarSearchField
@@ -269,7 +282,8 @@ struct ContentView: View {
                     onPersistConversationIfNeeded: { persistConversationIfNeeded(conversation) },
                     isSidebarHidden: !isSidebarVisible,
                     onToggleSidebar: toggleSidebarVisibility,
-                    onNewChat: createNewConversation
+                    onNewChat: createNewConversation,
+                    titlebarLeadingInset: mainWindowChromeLayout.titlebarLeadingInset
                 )
                 .id(conversation.id)
                 .background(JinSemanticColor.detailSurface)
@@ -282,7 +296,6 @@ struct ContentView: View {
                     .background(JinSemanticColor.detailSurface)
             }
         }
-        .ignoresSafeArea(.container, edges: .top)
         .background { JinSemanticColor.detailSurface.ignoresSafeArea() }
         .overlay(alignment: .leading) {
             LinearGradient(
@@ -357,8 +370,10 @@ struct ContentView: View {
             .help("Assistant Settings")
             .keyboardShortcut(shortcutsStore.keyboardShortcut(for: .openAssistantSettings))
         }
-        .padding(.horizontal, JinSpacing.medium)
-        .padding(.vertical, JinSpacing.small)
+        .padding(.leading, detailHeaderLeadingPadding)
+        .padding(.trailing, JinSpacing.medium)
+        .padding(.top, JinSpacing.small)
+        .padding(.bottom, JinSpacing.small)
         .frame(minHeight: 38)
         .background(JinSemanticColor.detailSurface)
         .overlay(alignment: .bottom) {
@@ -366,6 +381,11 @@ struct ContentView: View {
                 .fill(JinSemanticColor.separator.opacity(0.45))
                 .frame(height: JinStrokeWidth.hairline)
         }
+    }
+
+    private var detailHeaderLeadingPadding: CGFloat {
+        guard !isSidebarVisible else { return JinSpacing.medium }
+        return max(JinSpacing.medium, mainWindowChromeLayout.titlebarLeadingInset)
     }
 
     // MARK: - Navigation

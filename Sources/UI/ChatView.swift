@@ -67,6 +67,7 @@ struct ChatView: View {
     var isSidebarHidden: Bool = false
     var onToggleSidebar: (() -> Void)? = nil
     var onNewChat: (() -> Void)? = nil
+    var titlebarLeadingInset: CGFloat = 0
     @Query var providers: [ProviderConfigEntity]
     @Query var mcpServers: [MCPServerConfigEntity]
 
