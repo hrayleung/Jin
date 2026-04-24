@@ -795,6 +795,7 @@ final class ModelCatalogTests: XCTestCase {
         XCTAssertEqual(pro.name, "DeepSeek V4 Pro")
         XCTAssertEqual(pro.contextWindow, 1_000_000)
         XCTAssertEqual(pro.maxOutputTokens, 384_000)
+        XCTAssertEqual(pro.capabilities, [.streaming, .toolCalling, .reasoning, .promptCaching])
         XCTAssertEqual(pro.reasoningConfig?.type, .effort)
         XCTAssertEqual(pro.reasoningConfig?.defaultEffort, .high)
 

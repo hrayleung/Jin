@@ -99,7 +99,7 @@ final class ModelSettingsResolverTests: XCTestCase {
         XCTAssertEqual(resolvedFlash.reasoningConfig?.type, .effort)
         XCTAssertEqual(resolvedFlash.reasoningConfig?.defaultEffort, .high)
         XCTAssertTrue(resolvedFlash.reasoningCanDisable)
-        XCTAssertTrue(resolvedFlash.supportsOpenAIStyleExtremeEffort)
+        XCTAssertFalse(resolvedFlash.supportsOpenAIStyleExtremeEffort)
 
         let pro = ModelCatalog.modelInfo(for: "deepseek-v4-pro", provider: .deepseek)
         let resolvedPro = ModelSettingsResolver.resolve(model: pro, providerType: .deepseek)
@@ -107,6 +107,8 @@ final class ModelSettingsResolverTests: XCTestCase {
         XCTAssertEqual(resolvedPro.maxOutputTokens, 384_000)
         XCTAssertEqual(resolvedPro.reasoningConfig?.type, .effort)
         XCTAssertEqual(resolvedPro.reasoningConfig?.defaultEffort, .high)
+        XCTAssertTrue(resolvedPro.reasoningCanDisable)
+        XCTAssertFalse(resolvedPro.supportsOpenAIStyleExtremeEffort)
         XCTAssertEqual(
             ModelCapabilityRegistry.supportedReasoningEfforts(for: .deepseek, modelID: "deepseek-v4-pro"),
             [.high, .max]
@@ -1340,7 +1342,9 @@ final class ModelSettingsResolverTests: XCTestCase {
         let resolvedPro = ModelSettingsResolver.resolve(model: legacyPro, providerType: .deepseek)
         XCTAssertEqual(resolvedPro.contextWindow, 1_000_000)
         XCTAssertEqual(resolvedPro.maxOutputTokens, 384_000)
+        XCTAssertTrue(resolvedPro.capabilities.contains(.promptCaching))
         XCTAssertEqual(resolvedPro.reasoningConfig?.type, .effort)
+        XCTAssertEqual(resolvedPro.reasoningConfig?.defaultEffort, .high)
     }
 
 }

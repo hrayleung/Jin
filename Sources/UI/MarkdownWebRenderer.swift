@@ -596,18 +596,19 @@ private struct MarkdownWebRendererRepresentable: NSViewRepresentable {
             force: Bool = false,
             deferCodeHighlightUpgrade: Bool = false
         ) {
+            let normalizedMarkdown = renderPlainText
+                ? markdown
+                : MarkdownRenderNormalizer.normalize(markdown, modelID: normalizeMarkdownForModelID)
+
             guard force
-                    || markdown != lastRenderedMarkdown
+                    || normalizedMarkdown != lastRenderedMarkdown
                     || deferCodeHighlightUpgrade != lastRenderedDeferCodeHighlightUpgrade
                     || renderPlainText != lastRenderedPlainTextMode else {
                 return
             }
 
             logLargeMarkdownIfNeeded(markdown)
-            let normalizedMarkdown = renderPlainText
-                ? markdown
-                : MarkdownRenderNormalizer.normalize(markdown, modelID: normalizeMarkdownForModelID)
-            lastRenderedMarkdown = markdown
+            lastRenderedMarkdown = normalizedMarkdown
             lastRenderedDeferCodeHighlightUpgrade = deferCodeHighlightUpgrade
             lastRenderedPlainTextMode = renderPlainText
             MarkdownWebRenderer.sendMarkdown(

@@ -52,8 +52,6 @@ enum ModelCapabilityRegistry {
         "gpt-5.2-pro",
         "gpt-5.3-codex",
         "gpt-5.3-codex-spark",
-        "deepseek-v4-flash",
-        "deepseek-v4-pro",
     ]
 
     /// Gemini 3 Flash supports MINIMAL/LOW/MEDIUM/HIGH.

@@ -48,4 +48,19 @@ final class MarkdownRenderNormalizerTests: XCTestCase {
         XCTAssertTrue(normalized.contains("|------|-------------|"))
         XCTAssertTrue(normalized.contains("## 6. Fix this"))
     }
+
+    func testMixedFenceDelimiterInsideCodeBlockDoesNotEndProtection() {
+        let input = """
+        ```markdown
+        ~~~
+        ##5. Keep literal- Not a list---
+        ```
+        ##6. Fix this
+        """
+
+        let normalized = MarkdownRenderNormalizer.normalize(input, modelID: "deepseek-v4-flash")
+
+        XCTAssertTrue(normalized.contains("##5. Keep literal- Not a list---"))
+        XCTAssertTrue(normalized.contains("## 6. Fix this"))
+    }
 }

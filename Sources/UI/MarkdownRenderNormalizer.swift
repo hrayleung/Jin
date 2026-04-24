@@ -20,20 +20,25 @@ enum MarkdownRenderNormalizer {
 
         var output = ""
         output.reserveCapacity(markdown.count + 64)
-        var outsideFence = true
+        var activeFenceDelimiter: String?
 
         for rawLine in markdown.split(separator: "\n", omittingEmptySubsequences: false) {
             let line = String(rawLine)
             let trimmedLeading = line.trimmingCharacters(in: .whitespaces)
+            let fenceDelimiter = fenceDelimiter(in: trimmedLeading)
 
-            if isFenceBoundary(trimmedLeading) {
-                outsideFence.toggle()
+            if let fenceDelimiter {
+                if activeFenceDelimiter == nil {
+                    activeFenceDelimiter = fenceDelimiter
+                } else if activeFenceDelimiter == fenceDelimiter {
+                    activeFenceDelimiter = nil
+                }
                 output.append(line)
                 output.append("\n")
                 continue
             }
 
-            let normalizedLine = outsideFence ? normalizeOutsideFence(line) : line
+            let normalizedLine = activeFenceDelimiter == nil ? normalizeOutsideFence(line) : line
             output.append(normalizedLine)
             output.append("\n")
         }
@@ -103,8 +108,10 @@ enum MarkdownRenderNormalizer {
         )
     }
 
-    private static func isFenceBoundary(_ trimmedLeading: String) -> Bool {
-        trimmedLeading.hasPrefix("```") || trimmedLeading.hasPrefix("~~~")
+    private static func fenceDelimiter(in trimmedLeading: String) -> String? {
+        if trimmedLeading.hasPrefix("```") { return "```" }
+        if trimmedLeading.hasPrefix("~~~") { return "~~~" }
+        return nil
     }
 
     private static func replacing(pattern: String, in string: String, with template: String) -> String {

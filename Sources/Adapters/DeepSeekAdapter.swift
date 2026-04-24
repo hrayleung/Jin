@@ -145,19 +145,15 @@ actor DeepSeekAdapter: LLMProviderAdapter {
 
         if reasoning.enabled == false {
             body["thinking"] = ["type": "disabled"]
-        } else if lower.contains("reasoner") {
-            body["thinking"] = ["type": "enabled"]
         }
     }
 
     private func mapDeepSeekReasoningEffort(_ effort: ReasoningEffort) -> String {
         switch effort {
-        case .none:
-            return "high"
-        case .minimal, .low, .medium, .high:
-            return "high"
         case .xhigh, .max:
             return "max"
+        default:
+            return "high"
         }
     }
 
