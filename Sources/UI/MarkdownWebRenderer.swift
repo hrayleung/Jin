@@ -6,10 +6,11 @@ private let markdownRendererLogger = Logger(subsystem: "com.jin.app", category: 
 
 private let markdownTemplateURL = JinResourceBundle.url(forResource: "markdown-template", withExtension: "html")
 private let inlineCoreRuntimePlaceholder = "<!-- INLINE_CORE_RUNTIME -->\n<script src=\"markdown-core-runtime.js\"></script>"
+private let inlineRenderRuntimePlaceholder = "<script src=\"markdown-render-runtime.js\"></script>"
 
-/// Pre-cached HTML template with `markdown-core-runtime.js` inlined so that
+/// Pre-cached HTML template with the markdown runtimes inlined so that
 /// each WKWebView can load from an in-memory string instead of triggering
-/// per-instance file I/O for both the template and its subresource.
+/// per-instance file I/O for the template's core renderer scripts.
 /// The `baseURL` points to the resources directory so that lazily-loaded
 /// scripts (Prism, KaTeX, Mermaid) still resolve via relative URLs.
 /// Embeds a base64-encoded markdown payload into the cached HTML so that the
@@ -19,7 +20,6 @@ private func embedMarkdownBootstrap(
     markdown: String,
     streaming: Bool,
     deferCodeHighlightUpgrade: Bool,
-    preferHardBreaks: Bool,
     codeBlockDisplayMode: String = CodeBlockDisplayMode.expanded.rawValue,
     codeBlockShowLineNumbers: Bool = false,
     codeBlockCollapseLineThreshold: Int = 25
@@ -30,9 +30,6 @@ private func embedMarkdownBootstrap(
     var optionFragments: [String] = []
     if deferCodeHighlightUpgrade {
         optionFragments.append("deferCodeHighlightUpgrade:true")
-    }
-    if preferHardBreaks {
-        optionFragments.append("preferHardBreaks:true")
     }
     let options = "{\(optionFragments.joined(separator: ","))}"
     let modeEscaped = codeBlockDisplayMode.replacingOccurrences(of: "'", with: "\\'")
@@ -47,19 +44,27 @@ private func embedMarkdownBootstrap(
 private let inlineTemplate: (html: String, baseURL: URL)? = {
     guard let templateURL = markdownTemplateURL,
           let coreRuntimeURL = JinResourceBundle.url(forResource: "markdown-core-runtime", withExtension: "js"),
+          let renderRuntimeURL = JinResourceBundle.url(forResource: "markdown-render-runtime", withExtension: "js"),
           let templateHTML = try? String(contentsOf: templateURL, encoding: .utf8),
-          let coreRuntimeJS = try? String(contentsOf: coreRuntimeURL, encoding: .utf8) else {
+          let coreRuntimeJS = try? String(contentsOf: coreRuntimeURL, encoding: .utf8),
+          let renderRuntimeJS = try? String(contentsOf: renderRuntimeURL, encoding: .utf8) else {
         return nil
     }
 
-    let replacement = "<script>\n\(coreRuntimeJS)\n</script>"
-    let inlined: String
+    let coreReplacement = "<script>\n\(coreRuntimeJS)\n</script>"
+    let renderReplacement = "<script>\n\(renderRuntimeJS)\n</script>"
+    var inlined = templateHTML
 
-    if let range = templateHTML.range(of: inlineCoreRuntimePlaceholder) {
-        inlined = templateHTML.replacingCharacters(in: range, with: replacement)
+    if let range = inlined.range(of: inlineCoreRuntimePlaceholder) {
+        inlined.replaceSubrange(range, with: coreReplacement)
     } else {
         markdownRendererLogger.warning("Failed to inline markdown core runtime because template marker was not found.")
-        inlined = templateHTML
+    }
+
+    if let range = inlined.range(of: inlineRenderRuntimePlaceholder) {
+        inlined.replaceSubrange(range, with: renderReplacement)
+    } else {
+        markdownRendererLogger.warning("Failed to inline markdown render runtime because template marker was not found.")
     }
 
     return (html: inlined, baseURL: templateURL.deletingLastPathComponent())
@@ -131,7 +136,6 @@ struct MarkdownWebRenderer: View {
     var selectionAnchorID: String? = nil
     var persistedHighlights: [MessageHighlightSnapshot] = []
     var selectionActions: MessageTextSelectionActions = .none
-    var normalizeMarkdownForModelID: String? = nil
 
     @AppStorage(AppPreferenceKeys.appFontFamily) private var appFontFamily = JinTypography.systemFontPreferenceValue
     @AppStorage(AppPreferenceKeys.codeFontFamily) private var codeFontFamily = JinTypography.systemFontPreferenceValue
@@ -150,8 +154,7 @@ struct MarkdownWebRenderer: View {
         selectionContextThreadID: UUID? = nil,
         selectionAnchorID: String? = nil,
         persistedHighlights: [MessageHighlightSnapshot] = [],
-        selectionActions: MessageTextSelectionActions = .none,
-        normalizeMarkdownForModelID: String? = nil
+        selectionActions: MessageTextSelectionActions = .none
     ) {
         self.markdownText = markdownText
         self.isStreaming = isStreaming
@@ -162,7 +165,6 @@ struct MarkdownWebRenderer: View {
         self.selectionAnchorID = selectionAnchorID
         self.persistedHighlights = persistedHighlights
         self.selectionActions = selectionActions
-        self.normalizeMarkdownForModelID = normalizeMarkdownForModelID
         let estimated = Self.estimatedHeight(for: markdownText)
         self._contentHeight = State(initialValue: estimated)
     }
@@ -183,8 +185,7 @@ struct MarkdownWebRenderer: View {
             selectionContextThreadID: selectionContextThreadID,
             selectionAnchorID: selectionAnchorID,
             persistedHighlights: persistedHighlights,
-            selectionActions: selectionActions,
-            normalizeMarkdownForModelID: normalizeMarkdownForModelID
+            selectionActions: selectionActions
         )
         .frame(height: contentHeight)
     }
@@ -202,14 +203,12 @@ struct MarkdownWebRenderer: View {
         markdown: String,
         streaming: Bool = false,
         deferCodeHighlightUpgrade: Bool = false,
-        renderPlainText: Bool = false,
-        preferHardBreaks: Bool = false
+        renderPlainText: Bool = false
     ) {
         let fn = streaming ? "updateStreamingWithText" : "updateWithText"
         let options: [String: Any] = [
             "deferCodeHighlightUpgrade": deferCodeHighlightUpgrade,
-            "renderPlainText": renderPlainText,
-            "preferHardBreaks": preferHardBreaks
+            "renderPlainText": renderPlainText
         ]
 
         if #available(macOS 11.0, *) {
@@ -228,7 +227,7 @@ struct MarkdownWebRenderer: View {
             guard let data = markdown.data(using: .utf8) else { return }
             let b64 = data.base64EncodedString()
             let legacyFn = streaming ? "updateStreamingWithBase64" : "updateWithBase64"
-            let optionsLiteral = "{deferCodeHighlightUpgrade:\(deferCodeHighlightUpgrade ? "true" : "false"),renderPlainText:\(renderPlainText ? "true" : "false"),preferHardBreaks:\(preferHardBreaks ? "true" : "false")}"
+            let optionsLiteral = "{deferCodeHighlightUpgrade:\(deferCodeHighlightUpgrade ? "true" : "false"),renderPlainText:\(renderPlainText ? "true" : "false")}"
             webView.evaluateJavaScript("window.\(legacyFn)('\(b64)', \(optionsLiteral))", completionHandler: nil)
         }
     }
@@ -251,7 +250,6 @@ private struct MarkdownWebRendererRepresentable: NSViewRepresentable {
     let selectionAnchorID: String?
     let persistedHighlights: [MessageHighlightSnapshot]
     let selectionActions: MessageTextSelectionActions
-    let normalizeMarkdownForModelID: String?
 
     func makeCoordinator() -> Coordinator { Coordinator() }
 
@@ -305,21 +303,19 @@ private struct MarkdownWebRendererRepresentable: NSViewRepresentable {
         // For non-streaming messages, embed the markdown directly in the HTML
         // so the browser renders content during the initial page load instead
         // of waiting for a Swift→JS round-trip after didFinish.
-        let normalizedResult = renderPlainText
+        let preparedResult = renderPlainText
             ? .passthrough(markdownText)
-            : MarkdownRenderNormalizer.normalizeForRender(
+            : MarkdownRenderPreparation.prepareForRender(
                 markdownText,
-                modelID: normalizeMarkdownForModelID,
                 isStreaming: isStreaming
             )
-        let markdownForRender = normalizedResult.text
+        let markdownForRender = preparedResult.text
         let shouldEmbed = !renderPlainText && !isStreaming && !markdownForRender.isEmpty && inlineTemplate != nil
         if shouldEmbed {
             context.coordinator.pendingMarkdown = nil
             context.coordinator.markContentEmbedded(
                 markdownForRender,
-                deferCodeHighlightUpgrade: deferCodeHighlightUpgrade,
-                preferHardBreaks: normalizedResult.preferHardBreaks
+                deferCodeHighlightUpgrade: deferCodeHighlightUpgrade
             )
         } else {
             context.coordinator.pendingMarkdown = markdownForRender
@@ -327,8 +323,7 @@ private struct MarkdownWebRendererRepresentable: NSViewRepresentable {
 
         loadTemplate(
             into: webView,
-            embedMarkdown: shouldEmbed ? markdownForRender : nil,
-            preferHardBreaks: normalizedResult.preferHardBreaks
+            embedMarkdown: shouldEmbed ? markdownForRender : nil
         )
         return webView
     }
@@ -344,7 +339,6 @@ private struct MarkdownWebRendererRepresentable: NSViewRepresentable {
         context.coordinator.codeBlockShowLineNumbers = codeBlockShowLineNumbers
         context.coordinator.codeBlockCollapseLineThreshold = codeBlockCollapseLineThreshold
         context.coordinator.renderPlainText = renderPlainText
-        context.coordinator.normalizeMarkdownForModelID = normalizeMarkdownForModelID
         context.coordinator.selectionMessageID = selectionMessageID
         context.coordinator.selectionContextThreadID = selectionContextThreadID
         context.coordinator.selectionAnchorID = selectionAnchorID
@@ -385,8 +379,7 @@ private struct MarkdownWebRendererRepresentable: NSViewRepresentable {
 
     private func loadTemplate(
         into webView: WKWebView,
-        embedMarkdown: String? = nil,
-        preferHardBreaks: Bool = false
+        embedMarkdown: String? = nil
     ) {
         if let cached = inlineTemplate {
             var html = cached.html
@@ -396,7 +389,6 @@ private struct MarkdownWebRendererRepresentable: NSViewRepresentable {
                     markdown: markdown,
                     streaming: isStreaming,
                     deferCodeHighlightUpgrade: deferCodeHighlightUpgrade,
-                    preferHardBreaks: preferHardBreaks,
                     codeBlockDisplayMode: codeBlockDisplayMode,
                     codeBlockShowLineNumbers: codeBlockShowLineNumbers,
                     codeBlockCollapseLineThreshold: codeBlockCollapseLineThreshold
@@ -422,7 +414,6 @@ private struct MarkdownWebRendererRepresentable: NSViewRepresentable {
         private(set) var lastRenderedMarkdown: String?
         private(set) var lastRenderedDeferCodeHighlightUpgrade: Bool?
         private(set) var lastRenderedPlainTextMode: Bool?
-        private(set) var lastRenderedPreferHardBreaks: Bool?
         var appFontFamily: String = JinTypography.systemFontPreferenceValue
         var codeFontFamily: String = JinTypography.systemFontPreferenceValue
         var codeBlockDisplayMode: String = CodeBlockDisplayMode.expanded.rawValue
@@ -430,7 +421,6 @@ private struct MarkdownWebRendererRepresentable: NSViewRepresentable {
         var codeBlockShowLineNumbers: Bool = false
         var codeBlockCollapseLineThreshold: Int = 25
         var renderPlainText = false
-        var normalizeMarkdownForModelID: String?
         var selectionMessageID: UUID?
         var selectionContextThreadID: UUID?
         var selectionAnchorID: String?
@@ -451,13 +441,11 @@ private struct MarkdownWebRendererRepresentable: NSViewRepresentable {
         /// subsequent `renderMarkdownIfNeeded` calls skip duplicate work.
         func markContentEmbedded(
             _ markdown: String,
-            deferCodeHighlightUpgrade: Bool,
-            preferHardBreaks: Bool
+            deferCodeHighlightUpgrade: Bool
         ) {
             lastRenderedMarkdown = markdown
             lastRenderedDeferCodeHighlightUpgrade = deferCodeHighlightUpgrade
             lastRenderedPlainTextMode = false
-            lastRenderedPreferHardBreaks = preferHardBreaks
         }
 
         private func logLargeMarkdownIfNeeded(_ markdown: String) {
@@ -627,35 +615,31 @@ private struct MarkdownWebRendererRepresentable: NSViewRepresentable {
             force: Bool = false,
             deferCodeHighlightUpgrade: Bool = false
         ) {
-            let normalizedResult = renderPlainText
+            let preparedResult = renderPlainText
                 ? .passthrough(markdown)
-                : MarkdownRenderNormalizer.normalizeForRender(
+                : MarkdownRenderPreparation.prepareForRender(
                     markdown,
-                    modelID: normalizeMarkdownForModelID,
                     isStreaming: isStreaming
                 )
-            let normalizedMarkdown = normalizedResult.text
+            let preparedMarkdown = preparedResult.text
 
             guard force
-                    || normalizedMarkdown != lastRenderedMarkdown
+                    || preparedMarkdown != lastRenderedMarkdown
                     || deferCodeHighlightUpgrade != lastRenderedDeferCodeHighlightUpgrade
-                    || normalizedResult.preferHardBreaks != lastRenderedPreferHardBreaks
                     || renderPlainText != lastRenderedPlainTextMode else {
                 return
             }
 
             logLargeMarkdownIfNeeded(markdown)
-            lastRenderedMarkdown = normalizedMarkdown
+            lastRenderedMarkdown = preparedMarkdown
             lastRenderedDeferCodeHighlightUpgrade = deferCodeHighlightUpgrade
             lastRenderedPlainTextMode = renderPlainText
-            lastRenderedPreferHardBreaks = normalizedResult.preferHardBreaks
             MarkdownWebRenderer.sendMarkdown(
                 to: webView,
-                markdown: normalizedMarkdown,
+                markdown: preparedMarkdown,
                 streaming: isStreaming,
                 deferCodeHighlightUpgrade: deferCodeHighlightUpgrade,
-                renderPlainText: renderPlainText,
-                preferHardBreaks: normalizedResult.preferHardBreaks
+                renderPlainText: renderPlainText
             )
         }
 

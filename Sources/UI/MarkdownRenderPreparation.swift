@@ -2,184 +2,88 @@ import Foundation
 
 enum MarkdownRepairMode: String, Equatable, Sendable {
     case none
-    case safe
-    case full
+    case repaired
 }
 
-struct NormalizedMarkdownResult: Equatable, Sendable {
-    let text: String
-    let didChange: Bool
+struct MarkdownPreparationDiagnostics: Equatable, Sendable {
     let repairMode: MarkdownRepairMode
     let anomalyScoreBefore: Int
     let anomalyScoreAfter: Int
-    let preferHardBreaks: Bool
 }
 
-extension NormalizedMarkdownResult {
+struct PreparedMarkdownResult: Equatable, Sendable {
+    let text: String
+    let didChange: Bool
+    let diagnostics: MarkdownPreparationDiagnostics
+}
+
+extension PreparedMarkdownResult {
     static func passthrough(_ text: String) -> Self {
         Self(
             text: text,
             didChange: false,
-            repairMode: .none,
-            anomalyScoreBefore: 0,
-            anomalyScoreAfter: 0,
-            preferHardBreaks: false
+            diagnostics: MarkdownPreparationDiagnostics(
+                repairMode: .none,
+                anomalyScoreBefore: 0,
+                anomalyScoreAfter: 0
+            )
         )
     }
 }
 
-enum MarkdownRenderNormalizer {
-    private struct RepairProfile: Sendable {
-        let allowHeadingBodySplit: Bool
-        let preferHardBreaksWhenStreaming: Bool
-
-        static let detected = RepairProfile(
-            allowHeadingBodySplit: true,
-            preferHardBreaksWhenStreaming: false
-        )
-
-        static let preferredModel = RepairProfile(
-            allowHeadingBodySplit: true,
-            preferHardBreaksWhenStreaming: true
-        )
+enum MarkdownRenderPreparation {
+    private struct FenceDelimiter {
+        let marker: Character
+        let length: Int
     }
 
-    private static let preferredRepairModelIDs: Set<String> = [
-        "deepseek-v4-flash",
-        "deepseek-v4-pro",
-        "kimi-k2.6",
-        "moonshotai/kimi-k2.6",
-        "@cf/moonshotai/kimi-k2.6",
-        "fireworks/kimi-k2p6",
-        "accounts/fireworks/models/kimi-k2p6",
-        "fireworks/kimi-k2-instruct-0905",
-        "accounts/fireworks/models/kimi-k2-instruct-0905",
-        "moonshotai/kimi-k2-instruct-0905"
-    ]
-
-    static func shouldNormalize(modelID: String?) -> Bool {
-        guard let canonicalID = canonicalModelID(modelID) else { return false }
-        return preferredRepairModelIDs.contains(canonicalID)
-    }
-
-    static func normalize(_ markdown: String, modelID: String?) -> String {
-        normalizeForRender(markdown, modelID: modelID, isStreaming: false).text
-    }
-
-    static func normalizeForRender(
-        _ markdown: String,
-        modelID: String?,
-        isStreaming: Bool
-    ) -> NormalizedMarkdownResult {
+    static func prepareForRender(_ markdown: String, isStreaming: Bool) -> PreparedMarkdownResult {
         guard !markdown.isEmpty else {
-            return NormalizedMarkdownResult(
+            return .passthrough(markdown)
+        }
+
+        let scoreBefore = anomalyScore(in: markdown)
+        guard scoreBefore > 0 else {
+            return PreparedMarkdownResult(
                 text: markdown,
                 didChange: false,
-                repairMode: .none,
-                anomalyScoreBefore: 0,
-                anomalyScoreAfter: 0,
-                preferHardBreaks: false
+                diagnostics: MarkdownPreparationDiagnostics(
+                    repairMode: .none,
+                    anomalyScoreBefore: scoreBefore,
+                    anomalyScoreAfter: scoreBefore
+                )
             )
         }
 
-        let anomalyScoreBefore = anomalyScore(in: markdown)
-        let preferredProfile = preferredRepairProfile(for: modelID)
-        let profile = preferredProfile ?? (anomalyScoreBefore > 0 ? .detected : nil)
+        let repaired = repairMarkdown(markdown, isStreaming: isStreaming)
+        let scoreAfter = anomalyScore(in: repaired)
+        let shouldUseRepair = repaired != markdown && scoreAfter <= scoreBefore
+        let output = shouldUseRepair ? repaired : markdown
 
-        guard let profile else {
-            return NormalizedMarkdownResult(
-                text: markdown,
-                didChange: false,
-                repairMode: .none,
-                anomalyScoreBefore: anomalyScoreBefore,
-                anomalyScoreAfter: anomalyScoreBefore,
-                preferHardBreaks: false
+        return PreparedMarkdownResult(
+            text: output,
+            didChange: output != markdown,
+            diagnostics: MarkdownPreparationDiagnostics(
+                repairMode: output == markdown ? .none : .repaired,
+                anomalyScoreBefore: scoreBefore,
+                anomalyScoreAfter: output == markdown ? scoreBefore : scoreAfter
             )
-        }
-
-        let safeText = repairMarkdown(markdown, mode: .safe, profile: profile)
-        let safeScore = anomalyScore(in: safeText)
-
-        var bestText = markdown
-        var bestScore = anomalyScoreBefore
-        var bestMode: MarkdownRepairMode = .none
-
-        if safeText != markdown, safeScore <= anomalyScoreBefore || preferredProfile != nil {
-            bestText = safeText
-            bestScore = safeScore
-            bestMode = .safe
-        }
-
-        if !isStreaming {
-            let fullText = repairMarkdown(bestMode == .none ? markdown : safeText, mode: .full, profile: profile)
-            let fullScore = anomalyScore(in: fullText)
-            let fullCandidateChanged = fullText != markdown
-            let shouldPreferFull = fullCandidateChanged && (
-                fullScore < bestScore
-                    || (preferredProfile != nil && fullScore <= bestScore)
-            )
-
-            if shouldPreferFull {
-                bestText = fullText
-                bestScore = fullScore
-                bestMode = .full
-            } else if bestMode == .safe, fullText == bestText {
-                bestMode = .full
-            }
-        }
-
-        if preferredProfile == nil, bestMode != .none, bestScore > anomalyScoreBefore {
-            bestText = markdown
-            bestScore = anomalyScoreBefore
-            bestMode = .none
-        }
-
-        let preferHardBreaks = isStreaming && (
-            bestScore > 0
-                || (preferredProfile?.preferHardBreaksWhenStreaming == true && bestMode != .none)
-        )
-
-        return NormalizedMarkdownResult(
-            text: bestText,
-            didChange: bestText != markdown,
-            repairMode: bestMode,
-            anomalyScoreBefore: anomalyScoreBefore,
-            anomalyScoreAfter: bestScore,
-            preferHardBreaks: preferHardBreaks
         )
     }
 
-    private static func preferredRepairProfile(for modelID: String?) -> RepairProfile? {
-        guard let canonicalID = canonicalModelID(modelID) else { return nil }
-        guard preferredRepairModelIDs.contains(canonicalID) else { return nil }
-        return .preferredModel
+    static func prepare(_ markdown: String) -> String {
+        prepareForRender(markdown, isStreaming: false).text
     }
 
-    private static func canonicalModelID(_ modelID: String?) -> String? {
-        modelID?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .lowercased()
-    }
-
-    private static func repairMarkdown(
-        _ markdown: String,
-        mode: MarkdownRepairMode,
-        profile: RepairProfile
-    ) -> String {
-        let repaired = transformOutsideProtectedBlocks(in: markdown) { line in
-            normalizeOutsideProtectedLine(line, mode: mode, profile: profile)
+    private static func repairMarkdown(_ markdown: String, isStreaming: Bool) -> String {
+        let repairedLines = transformOutsideProtectedBlocks(in: markdown) { line in
+            repairLine(line)
         }
 
-        guard mode == .full else { return repaired }
-
-        return normalizeBlockSpacing(in: repaired)
+        return isStreaming ? repairedLines : normalizeBlockSpacing(in: repairedLines)
     }
 
-    private static func normalizeOutsideProtectedLine(
-        _ line: String,
-        mode: MarkdownRepairMode,
-        profile: RepairProfile
-    ) -> String {
+    private static func repairLine(_ line: String) -> String {
         preserveInlineCode(in: line) { candidate in
             var normalized = candidate
             normalized = normalizeHeadingSpacing(normalized)
@@ -189,11 +93,7 @@ enum MarkdownRenderNormalizer {
             normalized = insertBreaksBeforeEmbeddedOrderedListMarkers(normalized)
             normalized = unescapeEscapedLeadingEmphasis(normalized)
             normalized = normalizeInlineTable(normalized)
-
-            if profile.allowHeadingBodySplit || mode == .full {
-                normalized = insertBreakBetweenHeadingAndBody(normalized)
-            }
-
+            normalized = insertBreakBetweenHeadingAndBody(normalized)
             return normalized
         }
     }
@@ -205,7 +105,7 @@ enum MarkdownRenderNormalizer {
         var output = ""
         output.reserveCapacity(markdown.count + 64)
 
-        var activeFenceDelimiter: String?
+        var activeFenceDelimiter: FenceDelimiter?
         var insideDisplayMathBlock = false
 
         for rawLine in markdown.split(separator: "\n", omittingEmptySubsequences: false) {
@@ -216,7 +116,7 @@ enum MarkdownRenderNormalizer {
             if let fenceDelimiter = fenceDelimiter(in: trimmedLeading) {
                 if activeFenceDelimiter == nil {
                     activeFenceDelimiter = fenceDelimiter
-                } else if activeFenceDelimiter == fenceDelimiter {
+                } else if isClosingFenceLine(trimmedLeading, for: activeFenceDelimiter!) {
                     activeFenceDelimiter = nil
                 }
                 output.append(line)
@@ -266,7 +166,7 @@ enum MarkdownRenderNormalizer {
             if matches(#"(?<=\S)\s+(#{1,6})(?=[#\dA-Za-z\p{Han}])"#, in: protectedLine) {
                 score += 2
             }
-            if matches(#"(?<=\S)(?<![*+-])(?:-\s+|\*\s+|\+\s+)(?=[\p{L}\p{N}])"#, in: protectedLine) {
+            if matches(#"(?<=\S)(?<![*+-])(?:-\s+(?=(?:\*\*)?[\p{L}\p{N}])|\*\s+(?=[\p{L}\p{N}])|\+\s+(?=[\p{L}\p{N}]))"#, in: protectedLine) {
                 score += 2
             }
             if matches(#"(?<=[\.:：;；\)])\s*(\d{1,2}[.)])\s+(?=[\p{L}\p{N}])"#, in: protectedLine) {
@@ -331,7 +231,7 @@ enum MarkdownRenderNormalizer {
 
     private static func insertBreaksBeforeEmbeddedBullets(_ line: String) -> String {
         replacing(
-            pattern: #"(?<=\S)(?<![*+-])([-*+])\s+(?=[\p{L}\p{N}])"#,
+            pattern: #"(?<=\S)(?<![*+-])([-*+])\s+(?=(?:\*\*)?[\p{L}\p{N}])"#,
             in: line,
             with: "\n$1 "
         )
@@ -384,19 +284,19 @@ enum MarkdownRenderNormalizer {
         if let firstPipeIndex = normalized.firstIndex(of: "|") {
             let prefix = normalized[..<firstPipeIndex].trimmingCharacters(in: .whitespaces)
             let suffix = String(normalized[firstPipeIndex...])
-            if !prefix.isEmpty, looksLikeTableRow(suffix) {
+            if !prefix.isEmpty, looksLikeTableRow(suffix), !looksLikeParagraphWithPipes(prefix) {
                 normalized = String(prefix) + "\n" + suffix
             }
         }
 
         normalized = replacing(
-            pattern: #"(\|\s*[^|\n]+\s*(?:\|\s*[^|\n]+\s*)+\|)\s*(\|\s*[:\-]{3,})"#,
+            pattern: #"(\|\s*[^|\n]+?\s*(?:\|\s*[^|\n]+?\s*)+\|)\s*(\|\s*:?-{3,}:?\s*(?:\|\s*:?-{3,}:?\s*)+\|)"#,
             in: normalized,
             with: "$1\n$2"
         )
 
         normalized = replacing(
-            pattern: #"(\|\s*[:\-]{3,}\s*(?:\|\s*[:\-]{3,}\s*)+\|)\s*(\|)"#,
+            pattern: #"(\|\s*:?-{3,}:?\s*(?:\|\s*:?-{3,}:?\s*)+\|)\s*(\|\s*[^|\n]+?\s*(?:\|\s*[^|\n]+?\s*)+\|)"#,
             in: normalized,
             with: "$1\n$2"
         )
@@ -442,12 +342,21 @@ enum MarkdownRenderNormalizer {
 
     private static func shouldInsertBlankLine(before current: String, previous: String) -> Bool {
         guard !current.isEmpty, !previous.isEmpty else { return false }
+
         if isHeadingLine(current) || isThematicBreakLine(current) {
             return !isHeadingLine(previous) && !isThematicBreakLine(previous)
         }
+
+        if isListMarkerLine(current) {
+            return !isListMarkerLine(previous)
+                && !isHeadingLine(previous)
+                && !isThematicBreakLine(previous)
+        }
+
         if looksLikeTableRow(current), !looksLikeTableRow(previous) {
             return !isListMarkerLine(previous)
         }
+
         return false
     }
 
@@ -568,10 +477,25 @@ enum MarkdownRenderNormalizer {
         trimmed == "$$" || trimmed == "\\[" || trimmed == "\\]"
     }
 
-    private static func fenceDelimiter(in trimmedLeading: String) -> String? {
-        if trimmedLeading.hasPrefix("```") { return "```" }
-        if trimmedLeading.hasPrefix("~~~") { return "~~~" }
-        return nil
+    private static func fenceDelimiter(in trimmedLeading: String) -> FenceDelimiter? {
+        guard let marker = trimmedLeading.first, marker == "`" || marker == "~" else {
+            return nil
+        }
+
+        let length = trimmedLeading.prefix(while: { $0 == marker }).count
+        guard length >= 3 else { return nil }
+        return FenceDelimiter(marker: marker, length: length)
+    }
+
+    private static func isClosingFenceLine(_ trimmedLeading: String, for opening: FenceDelimiter) -> Bool {
+        guard let closing = fenceDelimiter(in: trimmedLeading),
+              closing.marker == opening.marker,
+              closing.length >= opening.length else {
+            return false
+        }
+
+        let rest = trimmedLeading.dropFirst(closing.length)
+        return rest.allSatisfy { $0 == " " || $0 == "\t" }
     }
 
     private static func looksLikeTableRow(_ line: String) -> Bool {
@@ -591,16 +515,16 @@ enum MarkdownRenderNormalizer {
         if let firstPipeIndex = line.firstIndex(of: "|") {
             let prefix = line[..<firstPipeIndex].trimmingCharacters(in: .whitespaces)
             let suffix = String(line[firstPipeIndex...])
-            if !prefix.isEmpty, looksLikeTableRow(suffix) {
+            if !prefix.isEmpty, looksLikeTableRow(suffix), !looksLikeParagraphWithPipes(prefix) {
                 return true
             }
         }
 
-        if matches(#"(\|\s*[^|\n]+\s*(?:\|\s*[^|\n]+\s*)+\|)\s*(\|\s*[:\-]{3,})"#, in: line) {
+        if matches(#"(\|\s*[^|\n]+?\s*(?:\|\s*[^|\n]+?\s*)+\|)\s*(\|\s*:?-{3,}:?\s*(?:\|\s*:?-{3,}:?\s*)+\|)"#, in: line) {
             return true
         }
 
-        return matches(#"(\|\s*[:\-]{3,}\s*(?:\|\s*[:\-]{3,}\s*)+\|)\s*(\|)"#, in: line)
+        return matches(#"(\|\s*:?-{3,}:?\s*(?:\|\s*:?-{3,}:?\s*)+\|)\s*(\|\s*[^|\n]+?\s*(?:\|\s*[^|\n]+?\s*)+\|)"#, in: line)
     }
 
     private static func tableCells(in line: String) -> [String] {
@@ -611,16 +535,8 @@ enum MarkdownRenderNormalizer {
             .map { String($0) }
     }
 
-    private static func isLikelySeparatorRow(_ line: String) -> Bool {
-        guard looksLikeTableRow(line) else { return false }
-        return tableCells(in: line).allSatisfy { cell in
-            let trimmed = cell.trimmingCharacters(in: .whitespaces)
-            let scalars = trimmed.unicodeScalars
-            guard !scalars.isEmpty else { return false }
-            guard scalars.allSatisfy({ $0 == ":" || $0 == "-" || $0 == " " }) else { return false }
-            let dashCount = scalars.filter { $0 == "-" }.count
-            return dashCount >= 3
-        }
+    private static func looksLikeParagraphWithPipes(_ prefix: String) -> Bool {
+        prefix.contains(".") || prefix.contains(":") || prefix.contains("：") || prefix.split(separator: " ").count > 5
     }
 
     private static func isHeadingLine(_ line: String) -> Bool {
