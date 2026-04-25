@@ -1619,6 +1619,49 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         guard case .messageEnd = events[2] else { return XCTFail("Expected messageEnd") }
     }
 
+    func testOpenCodeGoValidateAPIKeyUsesMessagesEndpointForAnthropicRoutedModel() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        let providerConfig = ProviderConfig(
+            id: "opencode",
+            name: "OpenCode Go",
+            type: .opencodeGo,
+            apiKey: "ignored",
+            models: [
+                ModelInfo(
+                    id: "deepseek-v4-flash",
+                    name: "DeepSeek V4 Flash",
+                    capabilities: [.streaming, .toolCalling, .reasoning],
+                    contextWindow: 1_000_000
+                )
+            ]
+        )
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://opencode.ai/zen/go/v1/messages")
+            XCTAssertEqual(request.httpMethod, "POST")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "x-api-key"), "test-key")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "anthropic-version"), "2023-06-01")
+            XCTAssertNil(request.value(forHTTPHeaderField: "Authorization"))
+
+            let body = try XCTUnwrap(requestBodyData(request))
+            let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+            let root = try XCTUnwrap(json)
+            XCTAssertEqual(root["model"] as? String, "deepseek-v4-flash")
+            XCTAssertEqual(root["max_tokens"] as? Int, 1)
+            XCTAssertEqual(root["stream"] as? Bool, false)
+
+            let response = ["id": "msg_validation"]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = OpenCodeGoAdapter(providerConfig: providerConfig, apiKey: "ignored", networkManager: networkManager)
+        let isValid = try await adapter.validateAPIKey("test-key")
+        XCTAssertTrue(isValid)
+    }
+
     func testOpenRouterAdapterOmitsWebPluginWhenModelWebSearchOverrideIsDisabled() async throws {
         let (configuration, protocolType) = makeMockedSessionConfiguration()
         let networkManager = NetworkManager(configuration: configuration)

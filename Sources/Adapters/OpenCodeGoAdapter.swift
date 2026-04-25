@@ -88,11 +88,23 @@ actor OpenCodeGoAdapter: LLMProviderAdapter {
         ]
 
         do {
-            let request = try makeAuthorizedJSONRequest(
-                url: validatedURL("\(Self.hardcodedBaseURL)/chat/completions"),
-                apiKey: key,
-                body: body
-            )
+            let request: URLRequest
+            if Self.isAnthropicModel(modelID) {
+                request = try NetworkRequestFactory.makeJSONRequest(
+                    url: validatedURL("\(Self.hardcodedBaseURL)/messages"),
+                    headers: [
+                        "x-api-key": key,
+                        "anthropic-version": "2023-06-01"
+                    ],
+                    body: body
+                )
+            } else {
+                request = try makeAuthorizedJSONRequest(
+                    url: validatedURL("\(Self.hardcodedBaseURL)/chat/completions"),
+                    apiKey: key,
+                    body: body
+                )
+            }
             _ = try await networkManager.sendRequest(request)
             return true
         } catch {

@@ -242,11 +242,13 @@ final class ModelCatalogTests: XCTestCase {
         XCTAssertEqual(pro.name, "DeepSeek V4 Pro")
         XCTAssertEqual(pro.contextWindow, 1_000_000)
         XCTAssertEqual(pro.maxOutputTokens, 384_000)
-        XCTAssertTrue(pro.capabilities.contains(.toolCalling))
-        XCTAssertTrue(pro.capabilities.contains(.reasoning))
-        XCTAssertTrue(pro.capabilities.contains(.promptCaching))
+        XCTAssertEqual(pro.capabilities, [.streaming, .toolCalling, .reasoning, .promptCaching])
         XCTAssertEqual(pro.reasoningConfig?.type, .effort)
         XCTAssertEqual(pro.reasoningConfig?.defaultEffort, .high)
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .opencodeGo, modelID: "deepseek-v4-pro"),
+            [.high, .max]
+        )
 
         let flash = ModelCatalog.modelInfo(
             for: "deepseek-v4-flash",
@@ -255,13 +257,11 @@ final class ModelCatalogTests: XCTestCase {
         XCTAssertEqual(flash.name, "DeepSeek V4 Flash")
         XCTAssertEqual(flash.contextWindow, 1_000_000)
         XCTAssertEqual(flash.maxOutputTokens, 384_000)
-        XCTAssertTrue(flash.capabilities.contains(.toolCalling))
-        XCTAssertTrue(flash.capabilities.contains(.reasoning))
-        XCTAssertTrue(flash.capabilities.contains(.promptCaching))
+        XCTAssertEqual(flash.capabilities, [.streaming, .toolCalling, .reasoning, .promptCaching])
         XCTAssertEqual(flash.reasoningConfig?.type, .effort)
         XCTAssertEqual(flash.reasoningConfig?.defaultEffort, .high)
         XCTAssertEqual(
-            ModelCapabilityRegistry.supportedReasoningEfforts(for: .opencodeGo, modelID: "deepseek-v4-pro"),
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .opencodeGo, modelID: "deepseek-v4-flash"),
             [.high, .max]
         )
     }
