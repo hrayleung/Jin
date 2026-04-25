@@ -9,11 +9,7 @@ extension SearchSourcePreviewResolver {
         let parts = url.path.split(separator: "/", omittingEmptySubsequences: true).map(String.init)
         let statusPath: String
 
-        if parts.count >= 3,
-           isStatusPathToken(parts[1]),
-           isDecimalString(parts[2]) {
-            statusPath = "/\(parts[0])/status/\(parts[2])"
-        } else if parts.count >= 4,
+        if parts.count >= 4,
                   parts[0].caseInsensitiveCompare("i") == .orderedSame,
                   parts[1].caseInsensitiveCompare("web") == .orderedSame,
                   isStatusPathToken(parts[2]),
@@ -24,6 +20,10 @@ extension SearchSourcePreviewResolver {
                   isStatusPathToken(parts[1]),
                   isDecimalString(parts[2]) {
             statusPath = "/i/web/status/\(parts[2])"
+        } else if parts.count >= 3,
+                  isStatusPathToken(parts[1]),
+                  isDecimalString(parts[2]) {
+            statusPath = "/\(parts[0])/status/\(parts[2])"
         } else {
             return nil
         }

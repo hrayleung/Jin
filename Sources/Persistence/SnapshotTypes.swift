@@ -82,6 +82,33 @@ enum SnapshotError: LocalizedError {
     }
 }
 
+private final class LockedRuntimeFlag: @unchecked Sendable {
+    private let lock = NSLock()
+    private var value: Bool
+
+    init(_ value: Bool) {
+        self.value = value
+    }
+
+    var current: Bool {
+        get {
+            lock.lock()
+            defer { lock.unlock() }
+            return value
+        }
+        set {
+            lock.lock()
+            value = newValue
+            lock.unlock()
+        }
+    }
+}
+
 enum AppRuntimeProtection {
-    static var automaticSnapshotsSuspended = false
+    private static let automaticSnapshotsSuspendedFlag = LockedRuntimeFlag(false)
+
+    static var automaticSnapshotsSuspended: Bool {
+        get { automaticSnapshotsSuspendedFlag.current }
+        set { automaticSnapshotsSuspendedFlag.current = newValue }
+    }
 }

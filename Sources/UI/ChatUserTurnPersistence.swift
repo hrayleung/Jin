@@ -24,13 +24,19 @@ struct ChatSendDraftSnapshot: Sendable {
         askedAt: Date = Date(),
         turnID: UUID = UUID()
     ) {
-        let selectedIDs = selectedPerMessageMCPServers.map(\.id).sorted()
+        let selectedServers = selectedPerMessageMCPServers.sorted {
+            if $0.id == $1.id {
+                return $0.name < $1.name
+            }
+            return $0.id < $1.id
+        }
+        let selectedIDs = selectedServers.map(\.id)
         self.messageText = messageText
         self.remoteVideoURLText = remoteVideoURLText
         self.attachments = attachments
         self.quotes = quotes
         self.perMessageMCPServerIDs = Set(selectedIDs)
-        self.perMessageMCPServerNames = selectedPerMessageMCPServers.map(\.name).sorted()
+        self.perMessageMCPServerNames = selectedServers.map(\.name)
         self.perMessageMCPServerIDsData = selectedIDs.isEmpty ? nil : try? JSONEncoder().encode(selectedIDs)
         self.askedAt = askedAt
         self.turnID = turnID
@@ -62,7 +68,19 @@ enum ChatUserTurnPersistence {
                     ? draft.perMessageMCPServerNames
                     : nil
             )
-            guard let messageEntity = try? MessageEntity.fromDomain(message) else { continue }
+            let messageEntity: MessageEntity
+            do {
+                messageEntity = try MessageEntity.fromDomain(message)
+            } catch {
+                NSLog(
+                    "Jin user turn persistence warning: failed to persist prepared user message. conversationID=%@ threadID=%@ turnID=%@ error=%@",
+                    conversationEntity.id.uuidString,
+                    prepared.threadID.uuidString,
+                    draft.turnID.uuidString,
+                    error.localizedDescription
+                )
+                continue
+            }
             if toolCapableThreadIDs.contains(prepared.threadID) {
                 messageEntity.perMessageMCPServerIDsData = draft.perMessageMCPServerIDsData
             }

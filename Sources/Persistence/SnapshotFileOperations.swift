@@ -43,7 +43,12 @@ enum SnapshotFileOperations {
         let temporaryDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent("jin-import-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: temporaryDirectory, withIntermediateDirectories: true)
-        try runDitto(arguments: ["-x", "-k", archiveURL.path, temporaryDirectory.path])
+        do {
+            try runDitto(arguments: ["-x", "-k", archiveURL.path, temporaryDirectory.path])
+        } catch {
+            try? FileManager.default.removeItem(at: temporaryDirectory)
+            throw error
+        }
         return temporaryDirectory
     }
 

@@ -2,6 +2,7 @@ import Collections
 import Combine
 import Foundation
 
+@MainActor
 final class StreamingMessageState: ObservableObject {
     private static let maxChunkSize = 2048
 

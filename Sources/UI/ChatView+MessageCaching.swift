@@ -102,7 +102,10 @@ extension ChatView {
             selectedThreads: selectedModelThreads,
             updatedAt: conversationEntity.updatedAt,
             fallbackModelLabel: currentModelName,
-            providerIconsByID: Dictionary(uniqueKeysWithValues: providers.map { ($0.id, $0.resolvedProviderIconID) })
+            providerIconsByID: Dictionary(
+                providers.map { ($0.id, $0.resolvedProviderIconID) },
+                uniquingKeysWith: { first, _ in first }
+            )
         )
     }
 

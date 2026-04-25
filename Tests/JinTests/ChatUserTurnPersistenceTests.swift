@@ -28,7 +28,10 @@ final class ChatUserTurnPersistenceTests: XCTestCase {
             remoteVideoURLText: "",
             attachments: [],
             quotes: [],
-            selectedPerMessageMCPServers: [(id: "server-1", name: "Filesystem")],
+            selectedPerMessageMCPServers: [
+                (id: "server-b", name: "Alpha"),
+                (id: "server-a", name: "Zulu")
+            ],
             askedAt: askedAt,
             turnID: turnID
         )
@@ -66,8 +69,8 @@ final class ChatUserTurnPersistenceTests: XCTestCase {
         let decoder = JSONDecoder()
         let toolServerIDs = try XCTUnwrap(conversation.messages[0].perMessageMCPServerIDsData)
         let toolServerNames = try XCTUnwrap(conversation.messages[0].perMessageMCPServerNamesData)
-        XCTAssertEqual(try decoder.decode([String].self, from: toolServerIDs), ["server-1"])
-        XCTAssertEqual(try decoder.decode([String].self, from: toolServerNames), ["Filesystem"])
+        XCTAssertEqual(try decoder.decode([String].self, from: toolServerIDs), ["server-a", "server-b"])
+        XCTAssertEqual(try decoder.decode([String].self, from: toolServerNames), ["Zulu", "Alpha"])
         XCTAssertNil(conversation.messages[1].perMessageMCPServerIDsData)
         XCTAssertNil(conversation.messages[1].perMessageMCPServerNamesData)
     }

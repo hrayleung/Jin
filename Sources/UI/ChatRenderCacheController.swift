@@ -206,7 +206,6 @@ final class ChatRenderCacheController: ObservableObject {
         renderContextDecodeTask = nil
         historyDecodeTask?.cancel()
         historyDecodeTask = nil
-        isHistoryReady = true
     }
 
     func clearForConversationSwitch() {
