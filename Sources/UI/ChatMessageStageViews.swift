@@ -64,6 +64,8 @@ struct ChatSingleThreadMessagesView: View {
             streamingObjectID: streamingMessage.map(ObjectIdentifier.init),
             streamingModelLabel: streamingModelLabel,
             streamingModelID: streamingModelID,
+            editingUserMessageID: interaction.editingUserMessageID,
+            editSlashCommandKey: ChatEditSlashCommandEquatableKey(context: interaction.editSlashCommand),
             expandedCollapsedMessageIDs: expandedCollapsedMessageIDs.wrappedValue
         )
     }
