@@ -41,7 +41,7 @@ extension ChatView {
         return ContextUsageRefreshToken(
             conversationID: conversationEntity.id,
             activeThreadID: activeThreadID,
-            cachedMessagesVersion: cachedMessagesVersion,
+            cachedMessagesVersion: renderCache.version,
             trimmedRemoteVideoURLText: trimmedRemoteVideoInputURLText,
             attachmentIDs: draftAttachments.map(\.id),
             quoteIDs: draftQuotes.map(\.id),
@@ -159,10 +159,10 @@ extension ChatView {
     }
 
     private func makeContextUsageComputationInput() -> ContextUsageComputationInput? {
-        guard let settings = contextUsageSettingsSnapshot, isHistoryCacheReady else { return nil }
+        guard let settings = contextUsageSettingsSnapshot, renderCache.isHistoryReady else { return nil }
 
         return ContextUsageComputationInput(
-            history: cachedActiveThreadHistory,
+            history: renderCache.activeThreadHistory,
             draftMessageParts: contextUsageDraftMessageParts(settings: settings),
             systemPrompt: settings.systemPrompt,
             maxHistoryMessages: settings.maxHistoryMessages,

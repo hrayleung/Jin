@@ -26,7 +26,36 @@ extension ChatView {
         // displayed messages immediately so the switch feels instant, then
         // rebuild caches on the next run-loop tick.
 
-        // Editing / composer
+        resetComposerAndEditingStateForConversationSwitch()
+        resetPrepareToSendStateForConversationSwitch()
+        resetPresentationStateForConversationSwitch()
+        resetPendingInteractionStateForConversationSwitch()
+        resetScrollStateForConversationSwitch()
+        resetArtifactStateForConversationSwitch()
+
+        // Cancel any pending debounced rebuild from the previous conversation.
+        draftContextUsageRefreshTask?.cancel()
+        draftContextUsageRefreshTask = nil
+        // Clear caches synchronously so stale content is never shown, then
+        // load controls (lightweight) so the header reflects the new chat.
+        renderCache.clearForConversationSwitch()
+
+        // loadControlsFromConversation internally calls ensureModelThreadsInitializedIfNeeded
+        // and syncActiveThreadSelection, so calling them separately is redundant.
+        loadControlsFromConversation()
+
+        // Defer the heavy rebuild so SwiftUI can commit the state reset above
+        // (clears the view) before we block the main actor with JSON decoding.
+        let targetConversationID = conversationEntity.id
+        Task { @MainActor in
+            guard conversationEntity.id == targetConversationID else { return }
+            rebuildMessageCaches()
+            syncArtifactSelectionForActiveThread()
+            refreshContextUsageEstimate(debounced: false)
+        }
+    }
+
+    private func resetComposerAndEditingStateForConversationSwitch() {
         cancelEditingUserMessage()
         speechToTextManager.cancelAndCleanup()
         messageText = ""
@@ -41,15 +70,17 @@ extension ChatView {
         slashMCPFilterText = ""
         slashMCPHighlightedIndex = 0
         perMessageMCPServerIDs = []
+    }
 
-        // Prepare-to-send
+    private func resetPrepareToSendStateForConversationSwitch() {
         prepareToSendCancellationReason = .conversationSwitch
         prepareToSendTask?.cancel()
         isPreparingToSend = false
         prepareToSendStatus = nil
         prepareToSendTask = nil
+    }
 
-        // Popovers / sheets / alerts
+    private func resetPresentationStateForConversationSwitch() {
         isModelPickerPresented = false
         isAddModelPickerPresented = false
         showingThinkingBudgetSheet = false
@@ -69,57 +100,25 @@ extension ChatView {
         googleMapsDraftError = nil
         showingError = false
         errorMessage = nil
+    }
 
-        // Codex
+    private func resetPendingInteractionStateForConversationSwitch() {
         pendingCodexInteractions = []
-
-        // Agent
         pendingAgentApprovals = []
+    }
 
-        // Scroll / pagination
+    private func resetScrollStateForConversationSwitch() {
         messageRenderLimit = Self.initialMessageRenderLimit
         pendingRestoreScrollMessageID = nil
         isPinnedToBottom = true
         pinnedBottomRefreshGeneration = 0
         expandedCollapsedMessageIDs = []
+    }
 
-        // Artifacts
+    private func resetArtifactStateForConversationSwitch() {
         isArtifactPaneVisible = false
         selectedArtifactIDByThreadID = [:]
         selectedArtifactVersionByThreadID = [:]
-
-        // Cancel any pending debounced rebuild from the previous conversation.
-        updatedAtDebounceTask?.cancel()
-        updatedAtDebounceTask = nil
-        draftContextUsageRefreshTask?.cancel()
-        draftContextUsageRefreshTask = nil
-        cancelRenderContextBuild()
-
-        // Clear caches synchronously so stale content is never shown, then
-        // load controls (lightweight) so the header reflects the new chat.
-        cachedVisibleMessages = []
-        cachedMessageEntitiesByID = [:]
-        cachedActiveThreadHistory = []
-        cachedToolResultsByCallID = [:]
-        cachedArtifactCatalog = .empty
-        cachedThreadRenderContextsByThreadID = [:]
-        cachedMessagesVersion &+= 1
-        lastCacheRebuildMessageCount = 0
-        lastCacheRebuildUpdatedAt = .distantPast
-
-        // loadControlsFromConversation internally calls ensureModelThreadsInitializedIfNeeded
-        // and syncActiveThreadSelection, so calling them separately is redundant.
-        loadControlsFromConversation()
-
-        // Defer the heavy rebuild so SwiftUI can commit the state reset above
-        // (clears the view) before we block the main actor with JSON decoding.
-        let targetConversationID = conversationEntity.id
-        Task { @MainActor in
-            guard conversationEntity.id == targetConversationID else { return }
-            rebuildMessageCaches()
-            syncArtifactSelectionForActiveThread()
-            refreshContextUsageEstimate(debounced: false)
-        }
     }
 
     func handleAttachmentImport(_ result: Result<[URL], Error>) {

@@ -1,75 +1,6 @@
 import Foundation
 import SwiftData
 
-enum SnapshotReason: String, Codable, Sendable {
-    case launchHealthy
-    case periodic
-    case termination
-    case manualExport
-    case beforeDestructiveAction
-    case importedArchive
-    case legacyImport
-}
-
-struct SnapshotCoreCounts: Codable, Equatable, Sendable {
-    let conversations: Int
-    let messages: Int
-    let providers: Int
-    let assistants: Int
-    let mcpServers: Int
-
-    var total: Int {
-        conversations + messages + providers + assistants + mcpServers
-    }
-
-    var isEmpty: Bool {
-        total == 0
-    }
-
-    var isSeedLike: Bool {
-        conversations == 0
-            && messages == 0
-            && assistants <= 1
-            && providers <= DefaultProviderSeeds.allProviders().count
-            && mcpServers <= 2
-    }
-}
-
-struct SnapshotManifest: Codable, Identifiable, Sendable {
-    let id: String
-    let createdAt: Date
-    let reason: SnapshotReason
-    let appVersion: String
-    let schemaVersion: Int
-    let includesSecrets: Bool
-    let isAutomatic: Bool
-    let isHealthy: Bool
-    let isLegacy: Bool
-    let integrityDetail: String
-    let counts: SnapshotCoreCounts
-    let hasAttachments: Bool
-    let hasPreferences: Bool
-    let note: String?
-}
-
-struct SnapshotSummary: Identifiable, Sendable {
-    let manifest: SnapshotManifest
-    let directoryURL: URL
-
-    var id: String { manifest.id }
-}
-
-struct StartupRecoveryState: Sendable {
-    let issueDescription: String
-    let snapshots: [SnapshotSummary]
-    let canContinueCurrentState: Bool
-}
-
-enum StartupStoreEvaluation {
-    case ready(ModelContainer)
-    case recovery(StartupRecoveryState, ModelContainer?)
-}
-
 enum AppSnapshotManager {
     private static let acceptedCurrentStateDefaultsKey = "recovery.acceptedCurrentState"
     private static let encoder: JSONEncoder = {
@@ -200,7 +131,7 @@ enum AppSnapshotManager {
         )
         let livePreferencesDirectory = try AppDataLocations.preferencesDirectoryURL()
         if FileManager.default.fileExists(atPath: livePreferencesDirectory.path) {
-            try copyDirectoryContents(from: livePreferencesDirectory, to: preferencesDirectory)
+            try SnapshotFileOperations.copyDirectoryContents(from: livePreferencesDirectory, to: preferencesDirectory)
         } else {
             try FileManager.default.createDirectory(at: preferencesDirectory, withIntermediateDirectories: true)
         }
@@ -211,7 +142,7 @@ enum AppSnapshotManager {
         let snapshotAttachmentsURL = bundleDirectory.appendingPathComponent("Attachments", isDirectory: true)
         let hasAttachments = FileManager.default.fileExists(atPath: liveAttachmentsURL.path)
         if hasAttachments {
-            try copyDirectoryContents(from: liveAttachmentsURL, to: snapshotAttachmentsURL)
+            try SnapshotFileOperations.copyDirectoryContents(from: liveAttachmentsURL, to: snapshotAttachmentsURL)
         }
 
         let integrity = SQLiteDatabaseSupport.quickCheck(at: destinationStoreURL)
@@ -322,21 +253,21 @@ enum AppSnapshotManager {
             try FileManager.default.removeItem(at: queuedDirectory)
         }
         try FileManager.default.createDirectory(at: queuedDirectory, withIntermediateDirectories: true)
-        try copyDirectoryContents(from: snapshot.directoryURL, to: queuedDirectory)
+        try SnapshotFileOperations.copyDirectoryContents(from: snapshot.directoryURL, to: queuedDirectory)
     }
 
     static func queueImportArchiveForRestore(from archiveURL: URL) throws {
-        let extractedDirectory = try extractArchiveToTemporaryDirectory(archiveURL)
+        let extractedDirectory = try SnapshotFileOperations.extractArchiveToTemporaryDirectory(archiveURL)
         defer { try? FileManager.default.removeItem(at: extractedDirectory) }
 
-        let packageDirectory = try locateSnapshotDirectory(in: extractedDirectory)
+        let packageDirectory = try SnapshotFileOperations.locateSnapshotDirectory(in: extractedDirectory)
         _ = try validateSnapshotDirectory(packageDirectory)
         let queuedDirectory = try AppDataLocations.queuedRestoreDirectoryURL()
         if FileManager.default.fileExists(atPath: queuedDirectory.path) {
             try FileManager.default.removeItem(at: queuedDirectory)
         }
         try FileManager.default.createDirectory(at: queuedDirectory, withIntermediateDirectories: true)
-        try copyDirectoryContents(from: packageDirectory, to: queuedDirectory)
+        try SnapshotFileOperations.copyDirectoryContents(from: packageDirectory, to: queuedDirectory)
     }
 
     static func exportRecoveryArchive(to destinationURL: URL) throws {
@@ -365,7 +296,7 @@ enum AppSnapshotManager {
             try FileManager.default.removeItem(at: destinationURL)
         }
 
-        try runDitto(arguments: ["-c", "-k", "--sequesterRsrc", "--keepParent", snapshot.directoryURL.path, destinationURL.path])
+        try SnapshotFileOperations.runDitto(arguments: ["-c", "-k", "--sequesterRsrc", "--keepParent", snapshot.directoryURL.path, destinationURL.path])
         try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: destinationURL.path)
     }
 
@@ -394,7 +325,7 @@ enum AppSnapshotManager {
             .appendingPathComponent("restore-\(UUID().uuidString)", isDirectory: true)
         let pendingDatabase = pendingRoot.appendingPathComponent("Database", isDirectory: true)
         try FileManager.default.createDirectory(at: pendingDatabase, withIntermediateDirectories: true)
-        try copySnapshotDatabaseArtifacts(from: snapshotDirectory, to: pendingDatabase)
+        try SnapshotFileOperations.copySnapshotDatabaseArtifacts(from: snapshotDirectory, to: pendingDatabase)
 
         let liveDatabase = try AppDataLocations.databaseDirectoryURL()
         let attachmentsDirectory = snapshotDirectory.appendingPathComponent("Attachments", isDirectory: true)
@@ -414,48 +345,48 @@ enum AppSnapshotManager {
         let rollbackPreferences = rollbackRoot.appendingPathComponent(AppDataLocations.snapshotPreferencesFileName, isDirectory: false)
 
         if FileManager.default.fileExists(atPath: liveDatabase.path) {
-            try copyDirectoryContents(from: liveDatabase, to: rollbackDatabase)
+            try SnapshotFileOperations.copyDirectoryContents(from: liveDatabase, to: rollbackDatabase)
         }
         if FileManager.default.fileExists(atPath: liveAttachments.path) {
-            try copyDirectoryContents(from: liveAttachments, to: rollbackAttachments)
+            try SnapshotFileOperations.copyDirectoryContents(from: liveAttachments, to: rollbackAttachments)
         }
         if FileManager.default.fileExists(atPath: livePreferences.path) {
-            try copyDirectoryContents(from: livePreferences, to: rollbackPreferencesDirectory)
+            try SnapshotFileOperations.copyDirectoryContents(from: livePreferences, to: rollbackPreferencesDirectory)
         }
         if let currentPreferencesData = try? AppPreferencesSnapshotStore.snapshotPreferenceData() {
             try currentPreferencesData.write(to: rollbackPreferences, options: .atomic)
         }
 
         do {
-            try replaceDirectory(at: liveDatabase, with: pendingDatabase)
+            try SnapshotFileOperations.replaceDirectory(at: liveDatabase, with: pendingDatabase)
 
             if manifest.hasAttachments {
-                try replaceDirectory(at: liveAttachments, with: attachmentsDirectory)
+                try SnapshotFileOperations.replaceDirectory(at: liveAttachments, with: attachmentsDirectory)
             } else if FileManager.default.fileExists(atPath: liveAttachments.path) {
                 try FileManager.default.removeItem(at: liveAttachments)
             }
 
             if FileManager.default.fileExists(atPath: preferencesDirectory.path) {
-                try replaceDirectory(at: livePreferences, with: preferencesDirectory)
+                try SnapshotFileOperations.replaceDirectory(at: livePreferences, with: preferencesDirectory)
             }
 
             if FileManager.default.fileExists(atPath: preferencesURL.path) {
                 AppPreferencesSnapshotStore.applyPreferenceFile(at: preferencesURL)
-                removeTransientPreferenceSnapshotFile(from: livePreferences)
+                SnapshotFileOperations.removeTransientPreferenceSnapshotFile(from: livePreferences)
             }
         } catch {
             if FileManager.default.fileExists(atPath: rollbackDatabase.path) {
-                try? replaceDirectory(at: liveDatabase, with: rollbackDatabase)
+                try? SnapshotFileOperations.replaceDirectory(at: liveDatabase, with: rollbackDatabase)
             }
             if FileManager.default.fileExists(atPath: rollbackAttachments.path) {
-                try? replaceDirectory(at: liveAttachments, with: rollbackAttachments)
+                try? SnapshotFileOperations.replaceDirectory(at: liveAttachments, with: rollbackAttachments)
             }
             if FileManager.default.fileExists(atPath: rollbackPreferencesDirectory.path) {
-                try? replaceDirectory(at: livePreferences, with: rollbackPreferencesDirectory)
+                try? SnapshotFileOperations.replaceDirectory(at: livePreferences, with: rollbackPreferencesDirectory)
             }
             if FileManager.default.fileExists(atPath: rollbackPreferences.path) {
                 AppPreferencesSnapshotStore.applyPreferenceFile(at: rollbackPreferences)
-                removeTransientPreferenceSnapshotFile(from: livePreferences)
+                SnapshotFileOperations.removeTransientPreferenceSnapshotFile(from: livePreferences)
             }
             try? FileManager.default.removeItem(at: pendingRoot)
             throw error
@@ -546,44 +477,6 @@ enum AppSnapshotManager {
         }
     }
 
-    private static func replaceDirectory(at liveURL: URL, with sourceURL: URL) throws {
-        let stagedReplacement = sourceURL.deletingLastPathComponent()
-            .appendingPathComponent("\(liveURL.lastPathComponent)-replacement-\(UUID().uuidString)", isDirectory: true)
-        if FileManager.default.fileExists(atPath: stagedReplacement.path) {
-            try FileManager.default.removeItem(at: stagedReplacement)
-        }
-        try FileManager.default.copyItem(at: sourceURL, to: stagedReplacement)
-
-        if FileManager.default.fileExists(atPath: liveURL.path) {
-            _ = try FileManager.default.replaceItemAt(
-                liveURL,
-                withItemAt: stagedReplacement,
-                backupItemName: nil,
-                options: [.usingNewMetadataOnly]
-            )
-        } else {
-            let parentDirectory = liveURL.deletingLastPathComponent()
-            if !FileManager.default.fileExists(atPath: parentDirectory.path) {
-                try FileManager.default.createDirectory(at: parentDirectory, withIntermediateDirectories: true)
-            }
-            try FileManager.default.moveItem(at: stagedReplacement, to: liveURL)
-        }
-    }
-
-    private static func copyDirectoryContents(from sourceURL: URL, to destinationURL: URL) throws {
-        if FileManager.default.fileExists(atPath: destinationURL.path) {
-            try FileManager.default.removeItem(at: destinationURL)
-        }
-        try FileManager.default.copyItem(at: sourceURL, to: destinationURL)
-    }
-
-    private static func removeTransientPreferenceSnapshotFile(from preferencesDirectory: URL) {
-        let snapshotPreferenceURL = preferencesDirectory
-            .appendingPathComponent(AppDataLocations.snapshotPreferencesFileName, isDirectory: false)
-        guard FileManager.default.fileExists(atPath: snapshotPreferenceURL.path) else { return }
-        try? FileManager.default.removeItem(at: snapshotPreferenceURL)
-    }
-
     private static func normalizedManifest(
         _ manifest: SnapshotManifest,
         snapshotDirectory: URL
@@ -594,7 +487,7 @@ enum AppSnapshotManager {
             isHealthy = false
         }
 
-        if snapshotPrimaryStoreURL(in: snapshotDirectory) == nil {
+        if SnapshotFileOperations.snapshotPrimaryStoreURL(in: snapshotDirectory) == nil {
             isHealthy = false
         }
 
@@ -616,38 +509,6 @@ enum AppSnapshotManager {
         )
     }
 
-    private static func extractArchiveToTemporaryDirectory(_ archiveURL: URL) throws -> URL {
-        let temporaryDirectory = FileManager.default.temporaryDirectory
-            .appendingPathComponent("jin-import-\(UUID().uuidString)", isDirectory: true)
-        try FileManager.default.createDirectory(at: temporaryDirectory, withIntermediateDirectories: true)
-        try runDitto(arguments: ["-x", "-k", archiveURL.path, temporaryDirectory.path])
-        return temporaryDirectory
-    }
-
-    private static func locateSnapshotDirectory(in extractedDirectory: URL) throws -> URL {
-        let contents = try FileManager.default.contentsOfDirectory(
-            at: extractedDirectory,
-            includingPropertiesForKeys: nil,
-            options: [.skipsHiddenFiles]
-        )
-
-        if let directMatch = contents.first(where: {
-            FileManager.default.fileExists(
-                atPath: $0.appendingPathComponent(AppDataLocations.snapshotManifestFileName, isDirectory: false).path
-            )
-        }) {
-            return directMatch
-        }
-
-        if FileManager.default.fileExists(
-            atPath: extractedDirectory.appendingPathComponent(AppDataLocations.snapshotManifestFileName, isDirectory: false).path
-        ) {
-            return extractedDirectory
-        }
-
-        throw SnapshotError.invalidSnapshot("Imported archive does not contain a valid Jin snapshot.")
-    }
-
     private static func validateSnapshotDirectory(_ snapshotDirectory: URL) throws -> SnapshotManifest {
         let manifestURL = snapshotDirectory.appendingPathComponent(AppDataLocations.snapshotManifestFileName, isDirectory: false)
         guard let manifestData = try? Data(contentsOf: manifestURL),
@@ -655,7 +516,7 @@ enum AppSnapshotManager {
             throw SnapshotError.invalidSnapshot("Snapshot manifest is missing or unreadable.")
         }
 
-        guard let storeURL = snapshotPrimaryStoreURL(in: snapshotDirectory) else {
+        guard let storeURL = SnapshotFileOperations.snapshotPrimaryStoreURL(in: snapshotDirectory) else {
             throw SnapshotError.invalidSnapshot("Snapshot database is missing.")
         }
 
@@ -675,72 +536,4 @@ enum AppSnapshotManager {
         return accepted == counts
     }
 
-    private static func snapshotPrimaryStoreURL(in snapshotDirectory: URL) -> URL? {
-        let nestedStoreURL = snapshotDirectory
-            .appendingPathComponent("Database", isDirectory: true)
-            .appendingPathComponent(AppDataLocations.storeFileName, isDirectory: false)
-        if FileManager.default.fileExists(atPath: nestedStoreURL.path) {
-            return nestedStoreURL
-        }
-
-        let legacyStoreURL = snapshotDirectory
-            .appendingPathComponent(AppDataLocations.storeFileName, isDirectory: false)
-        if FileManager.default.fileExists(atPath: legacyStoreURL.path) {
-            return legacyStoreURL
-        }
-
-        return nil
-    }
-
-    private static func copySnapshotDatabaseArtifacts(from snapshotDirectory: URL, to destinationDirectory: URL) throws {
-        guard let sourceStoreURL = snapshotPrimaryStoreURL(in: snapshotDirectory) else {
-            throw SnapshotError.invalidSnapshot("Snapshot database is missing.")
-        }
-
-        let sourceParentDirectory = sourceStoreURL.deletingLastPathComponent()
-        let fileNames = [
-            AppDataLocations.storeFileName,
-            "\(AppDataLocations.storeFileName)-shm",
-            "\(AppDataLocations.storeFileName)-wal"
-        ]
-
-        for fileName in fileNames {
-            let sourceURL = sourceParentDirectory.appendingPathComponent(fileName, isDirectory: false)
-            guard FileManager.default.fileExists(atPath: sourceURL.path) else { continue }
-            let destinationURL = destinationDirectory.appendingPathComponent(fileName, isDirectory: false)
-            try FileManager.default.copyItem(at: sourceURL, to: destinationURL)
-        }
-    }
-
-    private static func runDitto(arguments: [String]) throws {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/ditto")
-        process.arguments = arguments
-        let errorPipe = Pipe()
-        process.standardError = errorPipe
-        try process.run()
-        process.waitUntilExit()
-
-        guard process.terminationStatus == 0 else {
-            let errorData = errorPipe.fileHandleForReading.readDataToEndOfFile()
-            let message = String(data: errorData, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
-            throw SnapshotError.exportFailed(message?.isEmpty == false ? message! : "ditto failed.")
-        }
-    }
-}
-
-enum SnapshotError: LocalizedError {
-    case invalidSnapshot(String)
-    case exportFailed(String)
-
-    var errorDescription: String? {
-        switch self {
-        case .invalidSnapshot(let message), .exportFailed(let message):
-            return message
-        }
-    }
-}
-
-enum AppRuntimeProtection {
-    static var automaticSnapshotsSuspended = false
 }

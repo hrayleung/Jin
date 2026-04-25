@@ -7,6 +7,16 @@ actor AnthropicAdapter: LLMProviderAdapter {
     let networkManager: NetworkManager
     let apiKey: String
 
+    private struct RequestPreparation {
+        let normalizedMessages: [Message]
+        let supportsNativePDF: Bool
+        let codeExecutionEnabled: Bool
+        let cacheStrategy: ContextCacheStrategy
+        let blockCacheControl: [String: Any]?
+        let topLevelCacheControl: [String: Any]?
+        let betaHeader: String?
+    }
+
     init(providerConfig: ProviderConfig, apiKey: String, networkManager: NetworkManager = NetworkManager()) {
         self.providerConfig = providerConfig
         self.apiKey = apiKey
@@ -486,38 +496,18 @@ actor AnthropicAdapter: LLMProviderAdapter {
         tools: [ToolDefinition],
         streaming: Bool
     ) async throws -> URLRequest {
-        let normalizedMessages = AnthropicToolUseNormalizer.normalize(messages)
-        let allowNativePDF = (controls.pdfProcessingMode ?? .native) == .native
-        let supportsNativePDF = allowNativePDF && self.supportsNativePDF(modelID)
-        let codeExecutionEnabled = controls.codeExecution?.enabled == true && supportsCodeExecution(modelID)
-        let cacheStrategy = controls.contextCache?.strategy ?? .systemOnly
-        let blockCacheControl = anthropicBlockCacheControl(
-            from: controls.contextCache,
-            strategy: cacheStrategy
+        let preparation = makeRequestPreparation(
+            messages: messages,
+            modelID: modelID,
+            controls: controls
         )
-        let topLevelCacheControl = anthropicTopLevelCacheControl(
-            from: controls.contextCache,
-            strategy: cacheStrategy
+        let translatedMessages = try await translateMessages(
+            preparation.normalizedMessages,
+            supportsNativePDF: preparation.supportsNativePDF,
+            codeExecutionEnabled: preparation.codeExecutionEnabled,
+            cacheControl: preparation.blockCacheControl,
+            cacheStrategy: preparation.cacheStrategy
         )
-
-        let betaHeader = mergedAnthropicBetaHeader(
-            extractAnthropicBetaHeader(from: controls),
-            additions: requestUsesAnthropicFiles(normalizedMessages, codeExecutionEnabled: codeExecutionEnabled) ? [anthropicFilesAPIBetaHeader] : []
-        )
-
-        let nonSystemMessages = normalizedMessages.filter { $0.role != .system }
-        var translatedMessages: [[String: Any]] = []
-        translatedMessages.reserveCapacity(nonSystemMessages.count)
-        for message in nonSystemMessages {
-            let translated = try await translateMessage(
-                message,
-                supportsNativePDF: supportsNativePDF,
-                usesCodeExecutionTool: codeExecutionEnabled,
-                cacheControl: blockCacheControl,
-                cacheStrategy: cacheStrategy
-            )
-            translatedMessages.append(translated)
-        }
 
         try AnthropicRequestPreflight.validate(messages: translatedMessages)
 
@@ -534,8 +524,12 @@ actor AnthropicAdapter: LLMProviderAdapter {
             "stream": streaming
         ]
 
-        appendSystemPrompt(to: &body, from: normalizedMessages, cacheControl: blockCacheControl)
-        if let topLevelCacheControl {
+        appendSystemPrompt(
+            to: &body,
+            from: preparation.normalizedMessages,
+            cacheControl: preparation.blockCacheControl
+        )
+        if let topLevelCacheControl = preparation.topLevelCacheControl {
             body["cache_control"] = topLevelCacheControl
         }
         appendThinkingConfig(to: &body, controls: controls, modelID: modelID)
@@ -544,9 +538,9 @@ actor AnthropicAdapter: LLMProviderAdapter {
             controls: controls,
             tools: tools,
             modelID: modelID,
-            codeExecutionEnabled: codeExecutionEnabled
+            codeExecutionEnabled: preparation.codeExecutionEnabled
         )
-        if codeExecutionEnabled,
+        if preparation.codeExecutionEnabled,
            let containerID = controls.codeExecution?.anthropic?.normalizedContainerID {
             body["container"] = containerID
         }
@@ -554,9 +548,68 @@ actor AnthropicAdapter: LLMProviderAdapter {
 
         return try NetworkRequestFactory.makeJSONRequest(
             url: validatedURL("\(baseURL)/messages"),
-            headers: anthropicHeaders(apiKey: apiKey, betaHeader: betaHeader),
+            headers: anthropicHeaders(apiKey: apiKey, betaHeader: preparation.betaHeader),
             body: body
         )
+    }
+
+    private func makeRequestPreparation(
+        messages: [Message],
+        modelID: String,
+        controls: GenerationControls
+    ) -> RequestPreparation {
+        let normalizedMessages = AnthropicToolUseNormalizer.normalize(messages)
+        let allowNativePDF = (controls.pdfProcessingMode ?? .native) == .native
+        let supportsNativePDF = allowNativePDF && self.supportsNativePDF(modelID)
+        let codeExecutionEnabled = controls.codeExecution?.enabled == true && supportsCodeExecution(modelID)
+        let cacheStrategy = controls.contextCache?.strategy ?? .systemOnly
+        let blockCacheControl = anthropicBlockCacheControl(
+            from: controls.contextCache,
+            strategy: cacheStrategy
+        )
+        let topLevelCacheControl = anthropicTopLevelCacheControl(
+            from: controls.contextCache,
+            strategy: cacheStrategy
+        )
+        let betaHeader = mergedAnthropicBetaHeader(
+            extractAnthropicBetaHeader(from: controls),
+            additions: requestUsesAnthropicFiles(normalizedMessages, codeExecutionEnabled: codeExecutionEnabled) ? [anthropicFilesAPIBetaHeader] : []
+        )
+
+        return RequestPreparation(
+            normalizedMessages: normalizedMessages,
+            supportsNativePDF: supportsNativePDF,
+            codeExecutionEnabled: codeExecutionEnabled,
+            cacheStrategy: cacheStrategy,
+            blockCacheControl: blockCacheControl,
+            topLevelCacheControl: topLevelCacheControl,
+            betaHeader: betaHeader
+        )
+    }
+
+    private func translateMessages(
+        _ messages: [Message],
+        supportsNativePDF: Bool,
+        codeExecutionEnabled: Bool,
+        cacheControl: [String: Any]?,
+        cacheStrategy: ContextCacheStrategy
+    ) async throws -> [[String: Any]] {
+        let nonSystemMessages = messages.filter { $0.role != .system }
+        var translatedMessages: [[String: Any]] = []
+        translatedMessages.reserveCapacity(nonSystemMessages.count)
+
+        for message in nonSystemMessages {
+            let translated = try await translateMessage(
+                message,
+                supportsNativePDF: supportsNativePDF,
+                usesCodeExecutionTool: codeExecutionEnabled,
+                cacheControl: cacheControl,
+                cacheStrategy: cacheStrategy
+            )
+            translatedMessages.append(translated)
+        }
+
+        return translatedMessages
     }
 
     private func appendSystemPrompt(to body: inout [String: Any], from messages: [Message], cacheControl: [String: Any]?) {

@@ -90,6 +90,25 @@ enum ChatStreamingOrchestrator {
         let onSessionEnd: @MainActor (_ shouldNotify: Bool, _ preview: String?, _ threadID: UUID) -> Void
     }
 
+    private struct PreparedSession {
+        let providerConfig: ProviderConfig
+        let adapter: any LLMProviderAdapter
+        let history: [Message]
+        let requestControls: GenerationControls
+        let allTools: [ToolDefinition]
+        let mcpRoutes: ToolRouteSnapshot
+        let builtinRoutes: BuiltinToolRouteSnapshot
+        let agentRoutes: AgentToolRouteSnapshot
+        let maxToolIterations: Int
+    }
+
+    private struct AssistantPersistenceResult {
+        let message: Message?
+        let persistedMessageID: UUID?
+        let hasRenderableContent: Bool
+        let completionPreview: String?
+    }
+
     static func hasRenderableAssistantContent(
         assistantPartCount: Int,
         searchActivityCount: Int,
@@ -116,63 +135,18 @@ enum ChatStreamingOrchestrator {
             let approvalStore = AgentApprovalSessionStore()
 
             do {
-                guard let providerConfig = ctx.providerConfig else {
-                    throw LLMError.invalidRequest(message: "Provider not found. Configure it in Settings.")
-                }
-
-                let prepareHistoryStartedAt = ProcessInfo.processInfo.systemUptime
-                var history = prepareHistory(from: ctx)
-                let prepareHistoryDurationMs = Int((ProcessInfo.processInfo.systemUptime - prepareHistoryStartedAt) * 1000)
-
-                // #region agent log
-                ChatDiagnosticLogger.log(
-                    runId: ctx.diagnosticRunID,
-                    hypothesisId: "H3",
-                    message: "chat_prepare_history_complete",
-                    data: [
-                        "conversationID": ctx.conversationID.uuidString,
-                        "threadID": ctx.threadID.uuidString,
-                        "snapshotCount": String(ctx.messageSnapshots.count),
-                        "historyCount": String(history.count),
-                        "shouldTruncateMessages": String(ctx.shouldTruncateMessages),
-                        "maxHistoryMessages": ctx.maxHistoryMessages.map(String.init) ?? "nil",
-                        "durationMs": String(prepareHistoryDurationMs)
-                    ]
-                )
-                // #endregion
-
-                let providerManager = ProviderManager()
-                let adapter = try await providerManager.createAdapter(for: providerConfig)
-                let mcpDefinitionsAndRoutes = try await MCPHub.shared.toolDefinitions(for: ctx.mcpServerConfigs)
-                let (mcpTools, mcpRoutes) = mcpDefinitionsAndRoutes
-                let (builtinTools, builtinRoutes) = await BuiltinSearchToolHub.shared.toolDefinitions(
-                    for: ctx.controlsToUse,
-                    useBuiltinSearch: ctx.shouldOfferBuiltinSearch
-                )
-                let (agentTools, agentRoutes) = await AgentToolHub.shared.toolDefinitions(
-                    for: ctx.controlsToUse
-                )
-                let allTools = mcpTools + builtinTools + agentTools
-                let providerType = providerConfig.type
-
-                var requestControls = ctx.controlsToUse
-                let optimizedContextCache = await ContextCacheUtilities.applyAutomaticContextCacheOptimizations(
-                    adapter: adapter,
-                    providerType: providerType,
-                    modelID: ctx.modelID,
-                    messages: history,
-                    controls: requestControls,
-                    tools: allTools
-                )
-                history = optimizedContextCache.messages
-                requestControls = optimizedContextCache.controls
-                ChatControlNormalizationSupport.sanitizeProviderSpecificForProvider(providerType, controls: &requestControls)
-
+                let preparedSession = try await prepareSession(from: ctx)
+                let providerConfig = preparedSession.providerConfig
+                let adapter = preparedSession.adapter
+                let allTools = preparedSession.allTools
+                let mcpRoutes = preparedSession.mcpRoutes
+                let builtinRoutes = preparedSession.builtinRoutes
+                let agentRoutes = preparedSession.agentRoutes
+                var history = preparedSession.history
+                var requestControls = preparedSession.requestControls
                 var iteration = 0
-                let agentModeActive = ctx.controlsToUse.agentMode?.enabled == true
-                let maxToolIterations = agentModeActive ? 25 : 8
 
-                while iteration < maxToolIterations {
+                while iteration < preparedSession.maxToolIterations {
                     try Task.checkCancellation()
 
                     var accumulator = StreamingResponseAccumulator(providerType: providerConfig.type)
@@ -210,39 +184,16 @@ enum ChatStreamingOrchestrator {
                     )
                     // #endregion
 
-                    var lastUIFlushUptime: TimeInterval = 0
-                    var pendingTextDelta = ""
-                    var pendingThinkingDelta = ""
-                    var streamedCharacterCount = 0
+                    var uiFlushBuffer = StreamingUIFlushBuffer()
                     var didLogFirstStreamEvent = false
-                    var didLogFirstUIFlush = false
                     var didLogFirstContentDelta = false
                     var didLogFirstThinkingDelta = false
 
-                    func uiFlushInterval() -> TimeInterval {
-                        switch streamedCharacterCount {
-                        case 0..<4_000:
-                            return 0.08
-                        case 4_000..<12_000:
-                            return 0.10
-                        default:
-                            return 0.12
-                        }
-                    }
-
                     func flushStreamingUI(force: Bool = false) async {
                         let now = ProcessInfo.processInfo.systemUptime
-                        guard force || now - lastUIFlushUptime >= uiFlushInterval() else { return }
-                        guard force || !pendingTextDelta.isEmpty || !pendingThinkingDelta.isEmpty else { return }
+                        guard let flush = uiFlushBuffer.flushIfNeeded(force: force, now: now) else { return }
 
-                        lastUIFlushUptime = now
-                        let textDelta = pendingTextDelta
-                        let thinkingDelta = pendingThinkingDelta
-                        pendingTextDelta = ""
-                        pendingThinkingDelta = ""
-
-                        if !didLogFirstUIFlush {
-                            didLogFirstUIFlush = true
+                        if flush.isFirstFlush {
                             // #region agent log
                             ChatDiagnosticLogger.log(
                                 runId: ctx.diagnosticRunID,
@@ -251,9 +202,9 @@ enum ChatStreamingOrchestrator {
                                 data: [
                                     "conversationID": ctx.conversationID.uuidString,
                                     "threadID": ctx.threadID.uuidString,
-                                    "force": String(force),
-                                    "textDeltaCount": String(textDelta.count),
-                                    "thinkingDeltaCount": String(thinkingDelta.count)
+                                    "force": String(flush.force),
+                                    "textDeltaCount": String(flush.textDelta.count),
+                                    "thinkingDeltaCount": String(flush.thinkingDelta.count)
                                 ]
                             )
                             // #endregion
@@ -267,14 +218,17 @@ enum ChatStreamingOrchestrator {
                             data: [
                                 "conversationID": ctx.conversationID.uuidString,
                                 "threadID": ctx.threadID.uuidString,
-                                "textDeltaCount": String(textDelta.count),
-                                "thinkingDeltaCount": String(thinkingDelta.count)
+                                "textDeltaCount": String(flush.textDelta.count),
+                                "thinkingDeltaCount": String(flush.thinkingDelta.count)
                             ]
                         )
                         // #endregion
 
                         await MainActor.run {
-                            streamingState.appendDeltas(textDelta: textDelta, thinkingDelta: thinkingDelta)
+                            streamingState.appendDeltas(
+                                textDelta: flush.textDelta,
+                                thinkingDelta: flush.thinkingDelta
+                            )
                         }
 
                         // #region agent log
@@ -285,8 +239,8 @@ enum ChatStreamingOrchestrator {
                             data: [
                                 "conversationID": ctx.conversationID.uuidString,
                                 "threadID": ctx.threadID.uuidString,
-                                "textDeltaCount": String(textDelta.count),
-                                "thinkingDeltaCount": String(thinkingDelta.count)
+                                "textDeltaCount": String(flush.textDelta.count),
+                                "thinkingDeltaCount": String(flush.thinkingDelta.count)
                             ]
                         )
                         // #endregion
@@ -299,39 +253,6 @@ enum ChatStreamingOrchestrator {
 
                         if !didLogFirstStreamEvent {
                             didLogFirstStreamEvent = true
-                            let eventName: String
-                            switch event {
-                            case .messageStart:
-                                eventName = "messageStart"
-                            case .contentDelta:
-                                eventName = "contentDelta"
-                            case .thinkingDelta:
-                                eventName = "thinkingDelta"
-                            case .toolCallStart:
-                                eventName = "toolCallStart"
-                            case .toolCallDelta:
-                                eventName = "toolCallDelta"
-                            case .toolCallEnd:
-                                eventName = "toolCallEnd"
-                            case .searchActivity:
-                                eventName = "searchActivity"
-                            case .codeExecutionActivity:
-                                eventName = "codeExecutionActivity"
-                            case .codexToolActivity:
-                                eventName = "codexToolActivity"
-                            case .codexInteractionRequest:
-                                eventName = "codexInteractionRequest"
-                            case .codexThreadState:
-                                eventName = "codexThreadState"
-                            case .claudeManagedSessionState:
-                                eventName = "claudeManagedSessionState"
-                            case .claudeManagedCustomToolResults:
-                                eventName = "claudeManagedCustomToolResults"
-                            case .messageEnd:
-                                eventName = "messageEnd"
-                            case .error:
-                                eventName = "error"
-                            }
 
                             // #region agent log
                             ChatDiagnosticLogger.log(
@@ -341,7 +262,7 @@ enum ChatStreamingOrchestrator {
                                 data: [
                                     "conversationID": ctx.conversationID.uuidString,
                                     "threadID": ctx.threadID.uuidString,
-                                    "event": eventName
+                                    "event": event.diagnosticName
                                 ]
                             )
                             // #endregion
@@ -368,8 +289,7 @@ enum ChatStreamingOrchestrator {
                                     // #endregion
                                 }
                                 accumulator.appendTextDelta(delta)
-                                pendingTextDelta.append(delta)
-                                streamedCharacterCount += delta.count
+                                uiFlushBuffer.appendText(delta)
                             } else if case .image(let image) = part {
                                 accumulator.appendImage(image)
                             } else if case .video(let video) = part {
@@ -395,8 +315,7 @@ enum ChatStreamingOrchestrator {
                                         )
                                         // #endregion
                                     }
-                                    pendingThinkingDelta.append(textDelta)
-                                    streamedCharacterCount += textDelta.count
+                                    uiFlushBuffer.appendThinking(textDelta)
                                 }
                             case .redacted:
                                 break
@@ -476,59 +395,25 @@ enum ChatStreamingOrchestrator {
                     await flushStreamingUI(force: true)
                     metricsCollector.end(at: Date())
 
-                    let toolCalls = accumulator.buildToolCalls()
-                    let assistantParts = accumulator.buildAssistantParts()
-                    let searchActivities = accumulator.buildSearchActivities()
-                    let codeExecutionActivities = accumulator.buildCodeExecutionActivities()
-                    let codexToolActivities = accumulator.buildCodexToolActivities()
-                    let agentToolActivities = accumulator.buildAgentToolActivities()
+                    let responseSnapshot = accumulator.snapshot()
                     let responseMetrics = metricsCollector.metrics
-                    var persistedAssistantMessageID: UUID?
-                    let hasRenderableAssistantContent = hasRenderableAssistantContent(
-                        assistantPartCount: assistantParts.count,
-                        searchActivityCount: searchActivities.count,
-                        codeExecutionActivityCount: codeExecutionActivities.count,
-                        codexToolActivityCount: codexToolActivities.count,
-                        agentToolActivityCount: agentToolActivities.count
+                    let persistenceResult = await persistAssistantOutput(
+                        response: responseSnapshot,
+                        responseMetrics: responseMetrics,
+                        context: ctx,
+                        callbacks: callbacks
                     )
 
-                    if hasRenderableAssistantContent || !toolCalls.isEmpty {
-                        let persistedParts = await AttachmentImportPipeline.persistImagesToDisk(assistantParts)
-                        let assistantMessage = Message(
-                            role: .assistant,
-                            content: persistedParts,
-                            toolCalls: toolCalls.isEmpty ? nil : toolCalls,
-                            searchActivities: searchActivities.isEmpty ? nil : searchActivities,
-                            codeExecutionActivities: codeExecutionActivities.isEmpty ? nil : codeExecutionActivities,
-                            codexToolActivities: codexToolActivities.isEmpty ? nil : codexToolActivities,
-                            agentToolActivities: agentToolActivities.isEmpty ? nil : agentToolActivities
-                        )
-                        if let preview = AttachmentImportPipeline.completionNotificationPreview(from: persistedParts) {
-                            completionPreview = preview
-                        }
-
-                        persistedAssistantMessageID = await MainActor.run {
-                            callbacks.persistAssistantMessage(
-                                assistantMessage,
-                                ctx.providerID,
-                                ctx.modelID,
-                                ctx.modelNameSnapshot,
-                                ctx.threadID,
-                                ctx.turnID,
-                                responseMetrics
-                            )
-                        }
-
-                        if toolCalls.isEmpty {
-                            await MainActor.run {
-                                callbacks.endStreamingSession()
-                            }
-                        }
-
+                    if let preview = persistenceResult.completionPreview {
+                        completionPreview = preview
+                    }
+                    let persistedAssistantMessageID = persistenceResult.persistedMessageID
+                    let hasRenderableAssistantContent = persistenceResult.hasRenderableContent
+                    if let assistantMessage = persistenceResult.message {
                         history.append(assistantMessage)
 
                         if ctx.triggeredByUserSend,
-                           toolCalls.isEmpty,
+                           responseSnapshot.toolCalls.isEmpty,
                            let target = ctx.chatNamingTarget {
                             await callbacks.maybeAutoRename(
                                 target.provider,
@@ -539,7 +424,7 @@ enum ChatStreamingOrchestrator {
                         }
                     }
 
-                    let executableToolCalls = toolCalls.filter { !isGoogleProviderNativeToolName($0.name) }
+                    let executableToolCalls = responseSnapshot.toolCalls.filter { !isGoogleProviderNativeToolName($0.name) }
 
                     guard !executableToolCalls.isEmpty else {
                         shouldNotifyCompletion = hasRenderableAssistantContent
@@ -623,6 +508,129 @@ enum ChatStreamingOrchestrator {
                 callbacks.onSessionEnd(shouldNotifyNow, previewForNotification, ctx.threadID)
             }
         }
+    }
+
+    private static func prepareSession(from ctx: SessionContext) async throws -> PreparedSession {
+        guard let providerConfig = ctx.providerConfig else {
+            throw LLMError.invalidRequest(message: "Provider not found. Configure it in Settings.")
+        }
+
+        let prepareHistoryStartedAt = ProcessInfo.processInfo.systemUptime
+        var history = prepareHistory(from: ctx)
+        let prepareHistoryDurationMs = Int((ProcessInfo.processInfo.systemUptime - prepareHistoryStartedAt) * 1000)
+
+        // #region agent log
+        ChatDiagnosticLogger.log(
+            runId: ctx.diagnosticRunID,
+            hypothesisId: "H3",
+            message: "chat_prepare_history_complete",
+            data: [
+                "conversationID": ctx.conversationID.uuidString,
+                "threadID": ctx.threadID.uuidString,
+                "snapshotCount": String(ctx.messageSnapshots.count),
+                "historyCount": String(history.count),
+                "shouldTruncateMessages": String(ctx.shouldTruncateMessages),
+                "maxHistoryMessages": ctx.maxHistoryMessages.map(String.init) ?? "nil",
+                "durationMs": String(prepareHistoryDurationMs)
+            ]
+        )
+        // #endregion
+
+        let providerManager = ProviderManager()
+        let adapter = try await providerManager.createAdapter(for: providerConfig)
+        let (mcpTools, mcpRoutes) = try await MCPHub.shared.toolDefinitions(for: ctx.mcpServerConfigs)
+        let (builtinTools, builtinRoutes) = await BuiltinSearchToolHub.shared.toolDefinitions(
+            for: ctx.controlsToUse,
+            useBuiltinSearch: ctx.shouldOfferBuiltinSearch
+        )
+        let (agentTools, agentRoutes) = await AgentToolHub.shared.toolDefinitions(
+            for: ctx.controlsToUse
+        )
+        let allTools = mcpTools + builtinTools + agentTools
+
+        var requestControls = ctx.controlsToUse
+        let optimizedContextCache = await ContextCacheUtilities.applyAutomaticContextCacheOptimizations(
+            adapter: adapter,
+            providerType: providerConfig.type,
+            modelID: ctx.modelID,
+            messages: history,
+            controls: requestControls,
+            tools: allTools
+        )
+        history = optimizedContextCache.messages
+        requestControls = optimizedContextCache.controls
+        ChatControlNormalizationSupport.sanitizeProviderSpecificForProvider(
+            providerConfig.type,
+            controls: &requestControls
+        )
+
+        let agentModeActive = ctx.controlsToUse.agentMode?.enabled == true
+        return PreparedSession(
+            providerConfig: providerConfig,
+            adapter: adapter,
+            history: history,
+            requestControls: requestControls,
+            allTools: allTools,
+            mcpRoutes: mcpRoutes,
+            builtinRoutes: builtinRoutes,
+            agentRoutes: agentRoutes,
+            maxToolIterations: agentModeActive ? 25 : 8
+        )
+    }
+
+    private static func persistAssistantOutput(
+        response: StreamingResponseSnapshot,
+        responseMetrics: ResponseMetrics?,
+        context ctx: SessionContext,
+        callbacks: SessionCallbacks
+    ) async -> AssistantPersistenceResult {
+        let hasRenderableContent = response.hasRenderableAssistantContent
+
+        guard hasRenderableContent || !response.toolCalls.isEmpty else {
+            return AssistantPersistenceResult(
+                message: nil,
+                persistedMessageID: nil,
+                hasRenderableContent: false,
+                completionPreview: nil
+            )
+        }
+
+        let persistedParts = await AttachmentImportPipeline.persistImagesToDisk(response.assistantParts)
+        let assistantMessage = Message(
+            role: .assistant,
+            content: persistedParts,
+            toolCalls: response.toolCalls.isEmpty ? nil : response.toolCalls,
+            searchActivities: response.searchActivities.isEmpty ? nil : response.searchActivities,
+            codeExecutionActivities: response.codeExecutionActivities.isEmpty ? nil : response.codeExecutionActivities,
+            codexToolActivities: response.codexToolActivities.isEmpty ? nil : response.codexToolActivities,
+            agentToolActivities: response.agentToolActivities.isEmpty ? nil : response.agentToolActivities
+        )
+        let completionPreview = AttachmentImportPipeline.completionNotificationPreview(from: persistedParts)
+
+        let persistedAssistantMessageID = await MainActor.run {
+            callbacks.persistAssistantMessage(
+                assistantMessage,
+                ctx.providerID,
+                ctx.modelID,
+                ctx.modelNameSnapshot,
+                ctx.threadID,
+                ctx.turnID,
+                responseMetrics
+            )
+        }
+
+        if response.toolCalls.isEmpty {
+            await MainActor.run {
+                callbacks.endStreamingSession()
+            }
+        }
+
+        return AssistantPersistenceResult(
+            message: assistantMessage,
+            persistedMessageID: persistedAssistantMessageID,
+            hasRenderableContent: hasRenderableContent,
+            completionPreview: completionPreview
+        )
     }
 
     static func prepareHistory(from ctx: SessionContext) -> [Message] {
