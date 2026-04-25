@@ -199,7 +199,6 @@ struct MessageRow: View {
                                                     deferCodeHighlightUpgrade: deferCodeHighlightUpgrade,
                                                     forceNativeText: renderMode == .nativeText,
                                                     payloadResolver: payloadResolver,
-                                                    normalizeMarkdownForModelID: item.assistantModelID,
                                                     selectionMessageID: item.id,
                                                     selectionContextThreadID: item.contextThreadID,
                                                     selectionAnchorID: anchorID,
