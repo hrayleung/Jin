@@ -177,6 +177,25 @@ final class JinModelSupportTests: XCTestCase {
         XCTAssertFalse(JinModelSupport.supportsNativePDF(providerType: .openrouter, modelID: "openai/gpt-5.4-image-2"))
     }
 
+    func testDeepSeekV4SupportUsesOnlyVerifiedExactProviderIDs() {
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .openrouter, modelID: "deepseek/deepseek-v4-flash"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .openrouter, modelID: "deepseek/deepseek-v4-pro"))
+        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .openrouter, modelID: "deepseek/deepseek-v4-pro-custom"))
+
+        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .together, modelID: "deepseek-ai/DeepSeek-V4-Flash"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .together, modelID: "deepseek-ai/DeepSeek-V4-Pro"))
+        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .together, modelID: "deepseek-ai/DeepSeek-V4-Pro-custom"))
+
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .deepinfra, modelID: "deepseek-ai/DeepSeek-V4-Flash"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .deepinfra, modelID: "deepseek-ai/DeepSeek-V4-Pro"))
+        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .deepinfra, modelID: "deepseek-ai/DeepSeek-V4-Flash-custom"))
+
+        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .fireworks, modelID: "fireworks/deepseek-v4-flash"))
+        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .fireworks, modelID: "fireworks/deepseek-v4-pro"))
+        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .fireworks, modelID: "accounts/fireworks/models/deepseek-v4-flash"))
+        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .fireworks, modelID: "accounts/fireworks/models/deepseek-v4-pro"))
+    }
+
     func testOpenRouterSeedanceModelsUseExactFullySupportedIDs() {
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .openrouter, modelID: "bytedance/seedance-1-5-pro"))
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .openrouter, modelID: "bytedance/seedance-2.0"))

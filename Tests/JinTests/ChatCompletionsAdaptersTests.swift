@@ -1770,6 +1770,58 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         for try await _ in stream {}
     }
 
+    func testOpenRouterAdapterSendsNestedXHighEffortForDeepSeekV4Models() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        let providerConfig = ProviderConfig(
+            id: "or",
+            name: "OpenRouter",
+            type: .openrouter,
+            apiKey: "ignored",
+            baseURL: "https://openrouter.ai/api/v1"
+        )
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://openrouter.ai/api/v1/chat/completions")
+            let body = try XCTUnwrap(requestBodyData(request))
+            let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+            let root = try XCTUnwrap(json)
+            XCTAssertEqual(root["model"] as? String, "deepseek/deepseek-v4-pro")
+            XCTAssertNil(root["reasoning_effort"])
+            XCTAssertEqual(root["include_reasoning"] as? Bool, true)
+
+            let reasoning = try XCTUnwrap(root["reasoning"] as? [String: Any])
+            XCTAssertEqual(reasoning["effort"] as? String, "xhigh")
+
+            let response: [String: Any] = [
+                "id": "cmpl_or_deepseek_v4",
+                "choices": [
+                    [
+                        "message": [
+                            "role": "assistant",
+                            "content": "OK"
+                        ],
+                        "finish_reason": "stop"
+                    ]
+                ]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = OpenRouterAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hello")])],
+            modelID: "deepseek/deepseek-v4-pro",
+            controls: GenerationControls(reasoning: ReasoningControls(enabled: true, effort: .max)),
+            tools: [],
+            streaming: false
+        )
+
+        for try await _ in stream {}
+    }
+
     func testOpenRouterAdapterClampsUnsupportedXHighEffortToHigh() async throws {
         let (configuration, protocolType) = makeMockedSessionConfiguration()
         let networkManager = NetworkManager(configuration: configuration)
@@ -3000,6 +3052,8 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
                 "data": [
                     ["id": "zai-org/GLM-5"],
                     ["id": "Qwen/Qwen3.5-397B-A17B"],
+                    ["id": "deepseek-ai/DeepSeek-V4-Flash"],
+                    ["id": "deepseek-ai/DeepSeek-V4-Pro"],
                     ["id": "unknown-model"]
                 ]
             ]
@@ -3024,11 +3078,113 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         XCTAssertTrue(qwen397.capabilities.contains(.vision))
         XCTAssertFalse(qwen397.capabilities.contains(.reasoning))
 
+        let deepSeekV4Flash = try XCTUnwrap(byID["deepseek-ai/DeepSeek-V4-Flash"])
+        XCTAssertEqual(deepSeekV4Flash.name, "DeepSeek V4 Flash")
+        XCTAssertEqual(deepSeekV4Flash.contextWindow, 1_048_576)
+        XCTAssertNil(deepSeekV4Flash.maxOutputTokens)
+        XCTAssertEqual(deepSeekV4Flash.capabilities, [.streaming, .toolCalling, .reasoning, .promptCaching])
+        XCTAssertEqual(deepSeekV4Flash.reasoningConfig?.type, .effort)
+        XCTAssertEqual(deepSeekV4Flash.reasoningConfig?.defaultEffort, .high)
+
+        let deepSeekV4Pro = try XCTUnwrap(byID["deepseek-ai/DeepSeek-V4-Pro"])
+        XCTAssertEqual(deepSeekV4Pro.name, "DeepSeek V4 Pro")
+        XCTAssertEqual(deepSeekV4Pro.contextWindow, 65_536)
+        XCTAssertNil(deepSeekV4Pro.maxOutputTokens)
+        XCTAssertEqual(deepSeekV4Pro.capabilities, [.streaming, .toolCalling, .reasoning, .promptCaching])
+        XCTAssertEqual(deepSeekV4Pro.reasoningConfig?.type, .effort)
+        XCTAssertEqual(deepSeekV4Pro.reasoningConfig?.defaultEffort, .high)
+
         let unknown = try XCTUnwrap(byID["unknown-model"])
         XCTAssertEqual(unknown.name, "unknown-model")
         XCTAssertEqual(unknown.capabilities, [.streaming, .toolCalling])
         XCTAssertEqual(unknown.contextWindow, 128_000)
         XCTAssertNil(unknown.reasoningConfig)
+    }
+
+    func testOpenAICompatibleAdapterBuildsDeepInfraDeepSeekV4ReasoningRequest() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        let providerConfig = ProviderConfig(
+            id: "deepinfra",
+            name: "DeepInfra",
+            type: .deepinfra,
+            apiKey: "ignored",
+            baseURL: "https://api.deepinfra.com/v1/openai"
+        )
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://api.deepinfra.com/v1/openai/chat/completions")
+            XCTAssertEqual(request.httpMethod, "POST")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer test-key")
+
+            let body = try XCTUnwrap(requestBodyData(request))
+            let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+            let root = try XCTUnwrap(json)
+
+            XCTAssertEqual(root["model"] as? String, "deepseek-ai/DeepSeek-V4-Flash")
+            XCTAssertEqual(root["stream"] as? Bool, false)
+            XCTAssertNil(root["reasoning_effort"])
+
+            let reasoning = try XCTUnwrap(root["reasoning"] as? [String: Any])
+            XCTAssertEqual(reasoning["effort"] as? String, "high")
+
+            let toolObjects = try XCTUnwrap(root["tools"] as? [[String: Any]])
+            XCTAssertEqual(toolObjects.count, 1)
+            XCTAssertEqual(toolObjects[0]["type"] as? String, "function")
+
+            let response: [String: Any] = [
+                "id": "cmpl_deepinfra_deepseek_v4",
+                "choices": [
+                    [
+                        "message": [
+                            "role": "assistant",
+                            "content": "OK",
+                            "reasoning_content": "R"
+                        ],
+                        "finish_reason": "stop"
+                    ]
+                ]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = OpenAICompatibleAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hello")])],
+            modelID: "deepseek-ai/DeepSeek-V4-Flash",
+            controls: GenerationControls(reasoning: ReasoningControls(enabled: true, effort: .max)),
+            tools: [
+                ToolDefinition(
+                    id: "tool_1",
+                    name: "lookup_status",
+                    description: "Lookup a project status by ID.",
+                    parameters: ParameterSchema(
+                        properties: [
+                            "id": PropertySchema(type: "string", description: "Project ID")
+                        ],
+                        required: ["id"]
+                    ),
+                    source: .builtin
+                )
+            ],
+            streaming: false
+        )
+
+        var events: [StreamEvent] = []
+        for try await event in stream {
+            events.append(event)
+        }
+
+        XCTAssertEqual(events.count, 4)
+        guard case .messageStart(let id) = events[0] else { return XCTFail("Expected messageStart") }
+        XCTAssertEqual(id, "cmpl_deepinfra_deepseek_v4")
+        guard case .thinkingDelta(.thinking(let reasoning, _)) = events[1] else { return XCTFail("Expected thinkingDelta") }
+        XCTAssertEqual(reasoning, "R")
+        guard case .contentDelta(.text(let content)) = events[2] else { return XCTFail("Expected contentDelta") }
+        XCTAssertEqual(content, "OK")
+        guard case .messageEnd = events[3] else { return XCTFail("Expected messageEnd") }
     }
 
     func testOpenAICompatibleAdapterFetchModelsForVercelDerivesConservativeMetadataWhenUnknown() async throws {
@@ -3253,6 +3409,56 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
             messages: [Message(role: .user, content: [.text("hello")])],
             modelID: "openai/gpt-oss-20b",
             controls: GenerationControls(reasoning: ReasoningControls(enabled: true, effort: .xhigh)),
+            tools: [],
+            streaming: false
+        )
+
+        for try await _ in stream {}
+    }
+
+    func testTogetherAdapterNormalizesDeepSeekV4ProReasoningEffort() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        let providerConfig = ProviderConfig(
+            id: "together",
+            name: "Together AI",
+            type: .together,
+            apiKey: "ignored",
+            baseURL: "https://api.together.xyz/v1"
+        )
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://api.together.xyz/v1/chat/completions")
+
+            let body = try XCTUnwrap(requestBodyData(request))
+            let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+            let root = try XCTUnwrap(json)
+            XCTAssertEqual(root["model"] as? String, "deepseek-ai/DeepSeek-V4-Pro")
+            XCTAssertEqual(root["reasoning_effort"] as? String, "high")
+            XCTAssertNil(root["reasoning"])
+
+            let response: [String: Any] = [
+                "id": "cmpl_together_deepseek_v4",
+                "choices": [
+                    [
+                        "message": [
+                            "role": "assistant",
+                            "content": "OK",
+                        ],
+                        "finish_reason": "stop",
+                    ],
+                ],
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = TogetherAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hello")])],
+            modelID: "deepseek-ai/DeepSeek-V4-Pro",
+            controls: GenerationControls(reasoning: ReasoningControls(enabled: true, effort: .max)),
             tools: [],
             streaming: false
         )

@@ -282,6 +282,17 @@ enum ModelCapabilityRegistry {
         "deepseek-v4-flash",
         "deepseek-v4-pro",
     ]
+    private static let openRouterDeepSeekV4ReasoningEffortModelIDs: Set<String> = [
+        "deepseek/deepseek-v4-flash",
+        "deepseek/deepseek-v4-pro",
+    ]
+    private static let togetherDeepSeekV4ReasoningEffortModelIDs: Set<String> = [
+        "deepseek-ai/deepseek-v4-pro",
+    ]
+    private static let deepInfraDeepSeekV4ReasoningEffortModelIDs: Set<String> = [
+        "deepseek-ai/deepseek-v4-flash",
+        "deepseek-ai/deepseek-v4-pro",
+    ]
     private static let googleModelPrefixes = [
         "google/",
         "google-ai-studio/",
@@ -340,6 +351,12 @@ enum ModelCapabilityRegistry {
             return supportedAnthropicEfforts(lowerModelID: lowerModelID)
         case .deepseek where deepSeekV4ReasoningEffortModelIDs.contains(lowerModelID):
             return [.high, .max]
+        case .openrouter where openRouterDeepSeekV4ReasoningEffortModelIDs.contains(lowerModelID):
+            return [.high, .xhigh]
+        case .together where togetherDeepSeekV4ReasoningEffortModelIDs.contains(lowerModelID):
+            return [.high]
+        case .deepinfra where deepInfraDeepSeekV4ReasoningEffortModelIDs.contains(lowerModelID):
+            return [.high]
         case .opencodeGo where deepSeekV4ReasoningEffortModelIDs.contains(lowerModelID):
             return [.high, .max]
         default:
