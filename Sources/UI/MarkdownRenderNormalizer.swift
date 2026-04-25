@@ -187,6 +187,7 @@ enum MarkdownRenderNormalizer {
             normalized = insertBreaksBeforeEmbeddedHeadings(normalized)
             normalized = insertBreaksBeforeEmbeddedBullets(normalized)
             normalized = insertBreaksBeforeEmbeddedOrderedListMarkers(normalized)
+            normalized = unescapeEscapedLeadingEmphasis(normalized)
             normalized = normalizeInlineTable(normalized)
 
             if profile.allowHeadingBodySplit || mode == .full {
@@ -265,10 +266,13 @@ enum MarkdownRenderNormalizer {
             if matches(#"(?<=\S)\s+(#{1,6})(?=[#\dA-Za-z\p{Han}])"#, in: protectedLine) {
                 score += 2
             }
-            if matches(#"(?<=\S)(?:-\s+|\*\s+|\+\s+)(?=[\p{L}\p{N}])"#, in: protectedLine) {
+            if matches(#"(?<=\S)(?<![*+-])(?:-\s+|\*\s+|\+\s+)(?=[\p{L}\p{N}])"#, in: protectedLine) {
                 score += 2
             }
             if matches(#"(?<=[\.:：;；\)])\s*(\d{1,2}[.)])\s+(?=[\p{L}\p{N}])"#, in: protectedLine) {
+                score += 1
+            }
+            if hasEscapedLeadingEmphasis(in: protectedLine) {
                 score += 1
             }
             if matches(#"(?<!^)(?<!\n)(?<!-)(---+)(?=(?:#{1,6}\S| {0,3}[-*+]\s|$))"#, in: protectedLine) {
@@ -327,7 +331,7 @@ enum MarkdownRenderNormalizer {
 
     private static func insertBreaksBeforeEmbeddedBullets(_ line: String) -> String {
         replacing(
-            pattern: #"(?<=\S)([-*+])\s+(?=[\p{L}\p{N}])"#,
+            pattern: #"(?<=\S)(?<![*+-])([-*+])\s+(?=[\p{L}\p{N}])"#,
             in: line,
             with: "\n$1 "
         )
@@ -339,6 +343,37 @@ enum MarkdownRenderNormalizer {
             in: line,
             with: "\n$1 "
         )
+    }
+
+    private static func unescapeEscapedLeadingEmphasis(_ line: String) -> String {
+        var normalized = line
+        for marker in ["***", "**", "*"] {
+            normalized = replacing(
+                pattern: escapedLeadingEmphasisPattern(for: marker),
+                in: normalized,
+                with: "$1\(marker)$2\(marker)"
+            )
+        }
+        return normalized
+    }
+
+    private static func hasEscapedLeadingEmphasis(in line: String) -> Bool {
+        ["***", "**", "*"].contains { marker in
+            matches(escapedLeadingEmphasisPattern(for: marker), in: line)
+        }
+    }
+
+    private static func escapedLeadingEmphasisPattern(for marker: String) -> String {
+        let escapedMarker = escapedEmphasisMarkerSequence(for: marker)
+        return #"^(\s*(?:(?:[-*+•]|\d{1,2}[.)])\s+)?)"#
+            + escapedMarker
+            + #"(?=\S)([^\n]*?\S)"#
+            + escapedMarker
+            + #"(?=\s|$|[.,:;!?，。；：、）\)])"#
+    }
+
+    private static func escapedEmphasisMarkerSequence(for marker: String) -> String {
+        String(repeating: #"\\\*"#, count: marker.count)
     }
 
     private static func normalizeInlineTable(_ line: String) -> String {
