@@ -91,6 +91,27 @@ final class ModelSettingsResolverTests: XCTestCase {
         XCTAssertEqual(resolvedGPT4o.maxOutputTokens, 16_384)
     }
 
+    func testResolverAppliesOpenAIWebSocketCatalogMetadataForLegacyGPT55ProModel() {
+        let legacyModel = ModelInfo(
+            id: "gpt-5.5-pro",
+            name: "GPT-5.5 Pro",
+            capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+            contextWindow: 400_000,
+            reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+            isEnabled: true
+        )
+
+        let resolved = ModelSettingsResolver.resolve(model: legacyModel, providerType: .openaiWebSocket)
+        XCTAssertEqual(resolved.contextWindow, 1_050_000)
+        XCTAssertEqual(resolved.maxOutputTokens, 128_000)
+        XCTAssertFalse(resolved.capabilities.contains(.streaming))
+        XCTAssertTrue(resolved.capabilities.contains(.toolCalling))
+        XCTAssertTrue(resolved.capabilities.contains(.vision))
+        XCTAssertTrue(resolved.capabilities.contains(.reasoning))
+        XCTAssertFalse(resolved.capabilities.contains(.promptCaching))
+        XCTAssertEqual(resolved.reasoningConfig?.defaultEffort, .high)
+    }
+
     func testDeepSeekV4CatalogCarriesDocsVerifiedContextOutputAndReasoning() {
         let flash = ModelCatalog.modelInfo(for: "deepseek-v4-flash", provider: .deepseek)
         let resolvedFlash = ModelSettingsResolver.resolve(model: flash, providerType: .deepseek)
@@ -474,6 +495,14 @@ final class ModelSettingsResolverTests: XCTestCase {
     }
 
     func testOpenAICompatibleDefaultReasoningConfigUsesDocsVerifiedOpenAIDefaults() {
+        let gpt55 = ModelCapabilityRegistry.defaultReasoningConfig(
+            for: .openrouter,
+            modelID: "openai/gpt-5.5"
+        )
+        let gpt55Pro = ModelCapabilityRegistry.defaultReasoningConfig(
+            for: .openrouter,
+            modelID: "openai/gpt-5.5-pro"
+        )
         let gpt54Mini = ModelCapabilityRegistry.defaultReasoningConfig(
             for: .openrouter,
             modelID: "openai/gpt-5.4-mini"
@@ -491,6 +520,10 @@ final class ModelSettingsResolverTests: XCTestCase {
             modelID: "openai/gpt-5"
         )
 
+        XCTAssertEqual(gpt55?.type, .effort)
+        XCTAssertEqual(gpt55?.defaultEffort, ReasoningEffort.medium)
+        XCTAssertEqual(gpt55Pro?.type, .effort)
+        XCTAssertEqual(gpt55Pro?.defaultEffort, ReasoningEffort.high)
         XCTAssertEqual(gpt54Mini?.type, .effort)
         XCTAssertEqual(gpt54Mini?.defaultEffort, ReasoningEffort.none)
         XCTAssertEqual(gpt54?.defaultEffort, ReasoningEffort.none)
@@ -499,6 +532,22 @@ final class ModelSettingsResolverTests: XCTestCase {
     }
 
     func testOpenAIStyleExtremeEffortSupportUsesExactModelIDs() {
+        let gpt55 = ModelInfo(
+            id: "openai/gpt-5.5",
+            name: "GPT-5.5",
+            capabilities: [.streaming, .reasoning],
+            contextWindow: 1_050_000,
+            reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+            isEnabled: true
+        )
+        let gpt55pro = ModelInfo(
+            id: "openai/gpt-5.5-pro",
+            name: "GPT-5.5 Pro",
+            capabilities: [.reasoning],
+            contextWindow: 1_050_000,
+            reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
+            isEnabled: true
+        )
         let gpt52pro = ModelInfo(
             id: "openai/gpt-5.2-pro",
             name: "GPT-5.2 Pro",
@@ -548,6 +597,8 @@ final class ModelSettingsResolverTests: XCTestCase {
             isEnabled: true
         )
 
+        XCTAssertTrue(ModelSettingsResolver.resolve(model: gpt55, providerType: .openrouter).supportsOpenAIStyleExtremeEffort)
+        XCTAssertTrue(ModelSettingsResolver.resolve(model: gpt55pro, providerType: .openrouter).supportsOpenAIStyleExtremeEffort)
         XCTAssertTrue(ModelSettingsResolver.resolve(model: gpt52pro, providerType: .openrouter).supportsOpenAIStyleExtremeEffort)
         XCTAssertTrue(ModelSettingsResolver.resolve(model: gpt52codex, providerType: .openrouter).supportsOpenAIStyleExtremeEffort)
         XCTAssertTrue(ModelSettingsResolver.resolve(model: gpt53codex, providerType: .openrouter).supportsOpenAIStyleExtremeEffort)
@@ -560,6 +611,14 @@ final class ModelSettingsResolverTests: XCTestCase {
         XCTAssertEqual(
             ModelCapabilityRegistry.normalizedReasoningEffort(.xhigh, for: .openrouter, modelID: "openai/gpt-5"),
             .high
+        )
+        XCTAssertEqual(
+            ModelCapabilityRegistry.normalizedReasoningEffort(.xhigh, for: .openrouter, modelID: "openai/gpt-5.5"),
+            .xhigh
+        )
+        XCTAssertEqual(
+            ModelCapabilityRegistry.normalizedReasoningEffort(.xhigh, for: .openrouter, modelID: "openai/gpt-5.5-pro"),
+            .xhigh
         )
         XCTAssertEqual(
             ModelCapabilityRegistry.normalizedReasoningEffort(.xhigh, for: .openrouter, modelID: "openai/gpt-5.2-pro"),

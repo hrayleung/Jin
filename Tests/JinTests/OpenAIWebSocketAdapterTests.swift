@@ -65,6 +65,45 @@ final class OpenAIWebSocketAdapterTests: XCTestCase {
         XCTAssertFalse(gpt41mini.capabilities.contains(.nativePDF))
     }
 
+    func testOpenAIWebSocketAdapterFetchModelsFiltersKnownNonStreamingGPT55ProIDs() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        let providerConfig = ProviderConfig(
+            id: "openai-websocket",
+            name: "OpenAI (WebSocket)",
+            type: .openaiWebSocket,
+            apiKey: "ignored",
+            baseURL: "https://example.com/v1"
+        )
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://example.com/v1/models")
+
+            let payload: [String: Any] = [
+                "data": [
+                    ["id": "gpt-5.5"],
+                    ["id": "gpt-5.5-pro"],
+                    ["id": "gpt-5.5-pro-2026-04-23"],
+                    ["id": "gpt-image-2"],
+                    ["id": "custom-streaming-model"]
+                ]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: payload)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = OpenAIWebSocketAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let models = try await adapter.fetchAvailableModels()
+        let ids = Set(models.map(\.id))
+
+        XCTAssertTrue(ids.contains("gpt-5.5"))
+        XCTAssertTrue(ids.contains("gpt-image-2"))
+        XCTAssertTrue(ids.contains("custom-streaming-model"))
+        XCTAssertFalse(ids.contains("gpt-5.5-pro"))
+        XCTAssertFalse(ids.contains("gpt-5.5-pro-2026-04-23"))
+    }
+
     func testOpenAIWebSocketAdapterTreatsResponseIncompleteAsTerminalEvent() async {
         let adapter = OpenAIWebSocketAdapter(
             providerConfig: ProviderConfig(

@@ -260,37 +260,39 @@ actor OpenAIWebSocketAdapter: LLMProviderAdapter {
 
         let (data, _) = try await networkManager.sendRequest(request)
         let response = try JSONDecoder().decode(ModelsResponse.self, from: data)
-        return response.data.map { model in
-            var info = ModelCatalog.modelInfo(for: model.id, provider: .openaiWebSocket, name: model.id)
-            let contextWindow = model.contextWindow.flatMap { $0 > 0 ? $0 : nil }
-            let maxOutputTokens = model.maxTokens.flatMap { $0 > 0 ? $0 : nil }
-            if let contextWindow {
-                info = ModelInfo(
-                    id: info.id,
-                    name: info.name,
-                    capabilities: info.capabilities,
-                    contextWindow: contextWindow,
-                    maxOutputTokens: maxOutputTokens ?? info.maxOutputTokens,
-                    reasoningConfig: info.reasoningConfig,
-                    overrides: info.overrides,
-                    catalogMetadata: info.catalogMetadata,
-                    isEnabled: info.isEnabled
-                )
-            } else if let maxOutputTokens {
-                info = ModelInfo(
-                    id: info.id,
-                    name: info.name,
-                    capabilities: info.capabilities,
-                    contextWindow: info.contextWindow,
-                    maxOutputTokens: maxOutputTokens,
-                    reasoningConfig: info.reasoningConfig,
-                    overrides: info.overrides,
-                    catalogMetadata: info.catalogMetadata,
-                    isEnabled: info.isEnabled
-                )
+        return response.data
+            .filter { ModelCatalog.isOpenAIWebSocketAdapterCompatible(modelID: $0.id) }
+            .map { model in
+                var info = ModelCatalog.modelInfo(for: model.id, provider: .openaiWebSocket, name: model.id)
+                let contextWindow = model.contextWindow.flatMap { $0 > 0 ? $0 : nil }
+                let maxOutputTokens = model.maxTokens.flatMap { $0 > 0 ? $0 : nil }
+                if let contextWindow {
+                    info = ModelInfo(
+                        id: info.id,
+                        name: info.name,
+                        capabilities: info.capabilities,
+                        contextWindow: contextWindow,
+                        maxOutputTokens: maxOutputTokens ?? info.maxOutputTokens,
+                        reasoningConfig: info.reasoningConfig,
+                        overrides: info.overrides,
+                        catalogMetadata: info.catalogMetadata,
+                        isEnabled: info.isEnabled
+                    )
+                } else if let maxOutputTokens {
+                    info = ModelInfo(
+                        id: info.id,
+                        name: info.name,
+                        capabilities: info.capabilities,
+                        contextWindow: info.contextWindow,
+                        maxOutputTokens: maxOutputTokens,
+                        reasoningConfig: info.reasoningConfig,
+                        overrides: info.overrides,
+                        catalogMetadata: info.catalogMetadata,
+                        isEnabled: info.isEnabled
+                    )
+                }
+                return info
             }
-            return info
-        }
     }
 
     func translateTools(_ tools: [ToolDefinition]) -> Any {

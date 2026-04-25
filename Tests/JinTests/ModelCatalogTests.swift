@@ -363,7 +363,58 @@ final class ModelCatalogTests: XCTestCase {
         XCTAssertNil(cloudflareModel.reasoningConfig)
     }
 
-    func testOpenAIGPT52AndNewerCatalogDefaultsToNoReasoningEffort() {
+    func testOpenAIGPT55UsesExactCatalogMetadata() {
+        let gpt55 = ModelCatalog.modelInfo(for: "gpt-5.5", provider: .openai)
+        XCTAssertEqual(gpt55.contextWindow, 1_050_000)
+        XCTAssertEqual(gpt55.maxOutputTokens, 128_000)
+        XCTAssertTrue(gpt55.capabilities.contains(.streaming))
+        XCTAssertTrue(gpt55.capabilities.contains(.toolCalling))
+        XCTAssertTrue(gpt55.capabilities.contains(.vision))
+        XCTAssertTrue(gpt55.capabilities.contains(.reasoning))
+        XCTAssertTrue(gpt55.capabilities.contains(.promptCaching))
+        XCTAssertTrue(gpt55.capabilities.contains(.nativePDF))
+        XCTAssertTrue(gpt55.capabilities.contains(.codeExecution))
+        XCTAssertEqual(gpt55.reasoningConfig?.defaultEffort, .medium)
+
+        let gpt55Pro = ModelCatalog.modelInfo(for: "gpt-5.5-pro", provider: .openai)
+        XCTAssertEqual(gpt55Pro.contextWindow, 1_050_000)
+        XCTAssertEqual(gpt55Pro.maxOutputTokens, 128_000)
+        XCTAssertFalse(gpt55Pro.capabilities.contains(.streaming))
+        XCTAssertTrue(gpt55Pro.capabilities.contains(.toolCalling))
+        XCTAssertTrue(gpt55Pro.capabilities.contains(.vision))
+        XCTAssertTrue(gpt55Pro.capabilities.contains(.reasoning))
+        XCTAssertFalse(gpt55Pro.capabilities.contains(.promptCaching))
+        XCTAssertTrue(gpt55Pro.capabilities.contains(.nativePDF))
+        XCTAssertTrue(gpt55Pro.capabilities.contains(.codeExecution))
+        XCTAssertEqual(gpt55Pro.reasoningConfig?.defaultEffort, .high)
+    }
+
+    func testOpenAIWebSocketExcludesKnownNonStreamingGPT55ProFromSupportedSeeds() {
+        let pro = ModelCatalog.modelInfo(for: "gpt-5.5-pro", provider: .openaiWebSocket)
+        XCTAssertEqual(pro.contextWindow, 1_050_000)
+        XCTAssertEqual(pro.maxOutputTokens, 128_000)
+        XCTAssertFalse(pro.capabilities.contains(.streaming))
+        XCTAssertTrue(pro.capabilities.contains(.reasoning))
+
+        XCTAssertFalse(ModelCatalog.isFullySupported(modelID: "gpt-5.5-pro", provider: .openaiWebSocket))
+        XCTAssertFalse(ModelCatalog.isFullySupported(modelID: "gpt-5.5-pro-2026-04-23", provider: .openaiWebSocket))
+
+        let seeded = Set(ModelCatalog.seededModels(for: .openaiWebSocket).map(\.id))
+        XCTAssertTrue(seeded.contains("gpt-5.5"))
+        XCTAssertTrue(seeded.contains("gpt-image-2"))
+        XCTAssertFalse(seeded.contains("gpt-5.5-pro"))
+        XCTAssertFalse(seeded.contains("gpt-5.5-pro-2026-04-23"))
+    }
+
+    func testOpenAIGPT5FamilyCatalogUsesDocsVerifiedReasoningDefaults() {
+        let gpt55 = ModelCatalog.modelInfo(for: "gpt-5.5", provider: .openai)
+        XCTAssertEqual(gpt55.reasoningConfig?.type, .effort)
+        XCTAssertEqual(gpt55.reasoningConfig?.defaultEffort, .medium)
+
+        let gpt55Pro = ModelCatalog.modelInfo(for: "gpt-5.5-pro", provider: .openai)
+        XCTAssertEqual(gpt55Pro.reasoningConfig?.type, .effort)
+        XCTAssertEqual(gpt55Pro.reasoningConfig?.defaultEffort, .high)
+
         let gpt54 = ModelCatalog.modelInfo(for: "gpt-5.4", provider: .openai)
         XCTAssertEqual(gpt54.reasoningConfig?.type, .effort)
         XCTAssertEqual(gpt54.reasoningConfig?.defaultEffort, ReasoningEffort.none)

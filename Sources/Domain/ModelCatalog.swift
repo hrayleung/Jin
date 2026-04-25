@@ -72,9 +72,19 @@ enum ModelCatalog {
     /// Returns the catalog entry for a known (provider, modelID) pair, or nil for unknown models.
     static func entry(for modelID: String, provider: ProviderType) -> ModelCatalogEntry? {
         let lower = modelID.lowercased()
-        // openaiWebSocket shares the openai model set.
-        let lookupProvider: ProviderType = (provider == .openaiWebSocket) ? .openai : provider
-        return lookup[lookupProvider]?[lower]?.entry
+        if provider == .openaiWebSocket {
+            guard let record = lookup[.openai]?[lower] else { return nil }
+            let isFullySupported = record.isFullySupported && isOpenAIWebSocketAdapterCompatible(record)
+            return ModelCatalogEntry(
+                capabilities: record.capabilities,
+                contextWindow: record.contextWindow,
+                maxOutputTokens: record.maxOutputTokens,
+                reasoningConfig: record.reasoningConfig,
+                isFullySupported: isFullySupported,
+                displayName: record.displayName
+            )
+        }
+        return lookup[provider]?[lower]?.entry
     }
 
     /// Returns a ModelInfo for the given model ID. Uses catalog data for known models;
@@ -99,11 +109,13 @@ enum ModelCatalog {
     }
 
     /// Returns the ordered list of seed models for a provider (used on first launch).
-    /// openaiWebSocket mirrors openai's list.
+    /// openaiWebSocket mirrors OpenAI's list, excluding known models the adapter cannot route.
     static func seededModels(for provider: ProviderType) -> [ModelInfo] {
         let source: ProviderType = (provider == .openaiWebSocket) ? .openai : provider
         return (orderedRecords[source] ?? [])
-            .filter { $0.isSeeded }
+            .filter { record in
+                record.isSeeded && (provider != .openaiWebSocket || isOpenAIWebSocketAdapterCompatible(record))
+            }
             .map { r in
                 ModelInfo(
                     id: r.id,
@@ -114,6 +126,14 @@ enum ModelCatalog {
                     reasoningConfig: r.reasoningConfig
                 )
             }
+    }
+
+    /// Returns false only for exact OpenAI catalog records that are known not to work through
+    /// the OpenAI WebSocket provider's adapter routes.
+    static func isOpenAIWebSocketAdapterCompatible(modelID: String) -> Bool {
+        let lower = modelID.lowercased()
+        guard let record = lookup[.openai]?[lower] else { return true }
+        return isOpenAIWebSocketAdapterCompatible(record)
     }
 
     // MARK: - Cloudflare compound IDs
@@ -134,6 +154,10 @@ enum ModelCatalog {
             maxOutputTokens: nil,
             reasoningConfig: nil
         )
+    }
+
+    private static func isOpenAIWebSocketAdapterCompatible(_ record: Record) -> Bool {
+        record.capabilities.contains(.streaming) || record.capabilities.contains(.imageGeneration)
     }
 }
 
