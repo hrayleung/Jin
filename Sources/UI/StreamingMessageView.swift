@@ -116,8 +116,7 @@ struct StreamingMessageView: View {
                         if !visibleText.isEmpty {
                             MarkdownWebRenderer(
                                 markdownText: visibleText,
-                                isStreaming: true,
-                                normalizeMarkdownForModelID: modelID
+                                isStreaming: true
                             )
                         }
 

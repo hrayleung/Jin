@@ -357,6 +357,8 @@ enum ModelCapabilityRegistry {
             return [.high]
         case .deepinfra where deepInfraDeepSeekV4ReasoningEffortModelIDs.contains(lowerModelID):
             return [.high]
+        case .opencodeGo where deepSeekV4ReasoningEffortModelIDs.contains(lowerModelID):
+            return [.high, .max]
         default:
             break
         }

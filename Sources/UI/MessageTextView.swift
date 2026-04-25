@@ -14,7 +14,6 @@ struct MessageTextView: View {
     let selectionAnchorID: String?
     let persistedHighlights: [MessageHighlightSnapshot]
     let selectionActions: MessageTextSelectionActions
-    let normalizeMarkdownForModelID: String?
 
     init(
         text: String,
@@ -24,8 +23,7 @@ struct MessageTextView: View {
         selectionContextThreadID: UUID? = nil,
         selectionAnchorID: String? = nil,
         persistedHighlights: [MessageHighlightSnapshot] = [],
-        selectionActions: MessageTextSelectionActions = .none,
-        normalizeMarkdownForModelID: String? = nil
+        selectionActions: MessageTextSelectionActions = .none
     ) {
         self.text = text
         self.mode = mode
@@ -35,11 +33,10 @@ struct MessageTextView: View {
         self.selectionAnchorID = selectionAnchorID
         self.persistedHighlights = persistedHighlights
         self.selectionActions = selectionActions
-        self.normalizeMarkdownForModelID = normalizeMarkdownForModelID
     }
 
-    init(normalizedMarkdownText: String) {
-        self.text = normalizedMarkdownText
+    init(preparedMarkdownText: String) {
+        self.text = preparedMarkdownText
         self.mode = .markdown
         self.deferCodeHighlightUpgrade = false
         self.selectionMessageID = nil
@@ -47,7 +44,6 @@ struct MessageTextView: View {
         self.selectionAnchorID = nil
         self.persistedHighlights = []
         self.selectionActions = .none
-        self.normalizeMarkdownForModelID = nil
     }
 
     var body: some View {
@@ -60,8 +56,7 @@ struct MessageTextView: View {
                 selectionContextThreadID: selectionContextThreadID,
                 selectionAnchorID: selectionAnchorID,
                 persistedHighlights: persistedHighlights,
-                selectionActions: selectionActions,
-                normalizeMarkdownForModelID: normalizeMarkdownForModelID
+                selectionActions: selectionActions
             )
 
         case .plainText:
