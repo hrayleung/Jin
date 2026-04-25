@@ -136,7 +136,7 @@ extension ChatView {
         ChatSingleThreadMessagesView(
             conversationID: conversationEntity.id,
             conversationMessageCount: conversationEntity.messages.count,
-            renderRevision: cachedMessagesVersion,
+            renderRevision: renderCache.version,
             containerSize: geometry.size,
             allMessages: singleThreadRenderContext.visibleMessages,
             toolResultsByCallID: singleThreadRenderContext.toolResultsByCallID,
@@ -213,18 +213,7 @@ extension ChatView {
     // MARK: - Render Contexts
 
     var singleThreadRenderContext: ChatThreadRenderContext {
-        if let threadID = activeModelThread?.id,
-           let cached = cachedThreadRenderContextsByThreadID[threadID] {
-            return cached
-        }
-
-        return ChatThreadRenderContext(
-            visibleMessages: cachedVisibleMessages,
-            historyMessages: cachedActiveThreadHistory,
-            messageEntitiesByID: cachedMessageEntitiesByID,
-            toolResultsByCallID: cachedToolResultsByCallID,
-            artifactCatalog: cachedArtifactCatalog
-        )
+        renderCache.singleThreadContext(activeThreadID: activeModelThread?.id)
     }
 
     var selectedThreadRenderContexts: [UUID: ChatThreadRenderContext] {
@@ -237,7 +226,7 @@ extension ChatView {
         if let activeThreadID, activeModelThread != nil {
             return threadRenderContext(threadID: activeThreadID).artifactCatalog
         }
-        return cachedArtifactCatalog
+        return renderCache.artifactCatalog
     }
 
     var selectedArtifactIDBinding: Binding<String?> {
@@ -267,33 +256,18 @@ extension ChatView {
     }
 
     func threadRenderContext(threadID: UUID) -> ChatThreadRenderContext {
-        if let cached = cachedThreadRenderContextsByThreadID[threadID] {
-            return cached
-        }
-
-        let ordered = ChatMessageRenderPipeline.orderedMessages(
-            from: conversationEntity.messages,
-            threadID: threadID
-        )
-        let fallbackModelLabel = sortedModelThreads
-            .first(where: { $0.id == threadID })
-            .map { modelName(id: $0.modelID, providerID: $0.providerID) }
-            ?? currentModelName
-
-        let context = ChatMessageRenderPipeline.makeRenderContext(
-            from: ordered,
-            fallbackModelLabel: fallbackModelLabel,
+        renderCache.threadContext(
+            threadID: threadID,
+            allMessages: conversationEntity.messages,
+            sortedThreads: sortedModelThreads,
+            currentModelName: currentModelName,
+            modelNameForThread: { thread in
+                modelName(id: thread.modelID, providerID: thread.providerID)
+            },
             assistantProviderIconID: { providerID in
                 providerIconID(for: providerID)
             }
         )
-
-        DispatchQueue.main.async { [threadID, context] in
-            guard cachedThreadRenderContextsByThreadID[threadID] == nil else { return }
-            cachedThreadRenderContextsByThreadID[threadID] = context
-        }
-
-        return context
     }
 
     // MARK: - Message Interaction

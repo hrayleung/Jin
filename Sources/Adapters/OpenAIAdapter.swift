@@ -205,6 +205,12 @@ actor OpenAIAdapter: LLMProviderAdapter {
         let supportsNativeFileInput = supportsNativePDF(modelID)
         let allowNativePDF = (controls.pdfProcessingMode ?? .native) == .native
         let codeExecutionEnabled = controls.codeExecution?.enabled == true && supportsCodeExecution(modelID)
+        let reasoningEffort = (controls.reasoning?.enabled == true) ? controls.reasoning?.effort : nil
+        let reasoningEnabled = (reasoningEffort ?? .none) != .none
+        let supportsSamplingParameters = supportsOpenAIResponsesSamplingParameters(
+            modelID: modelID,
+            reasoningEnabled: reasoningEnabled
+        )
 
         var body: [String: Any] = [
             "model": modelID,
@@ -216,53 +222,104 @@ actor OpenAIAdapter: LLMProviderAdapter {
             "stream": streaming
         ]
 
-        if controls.contextCache?.mode != .off {
-            if let cacheKey = normalizedTrimmedString(controls.contextCache?.cacheKey) {
-                body["prompt_cache_key"] = cacheKey
-            }
-            if let retention = controls.contextCache?.ttl?.providerTTLString {
-                body["prompt_cache_retention"] = retention
-            }
-        }
-
-        let reasoningEffort = (controls.reasoning?.enabled == true) ? controls.reasoning?.effort : nil
-        let reasoningEnabled = (reasoningEffort ?? .none) != .none
-        let supportsSamplingParameters = supportsOpenAIResponsesSamplingParameters(
-            modelID: modelID,
-            reasoningEnabled: reasoningEnabled
+        appendContextCacheControls(to: &body, controls: controls)
+        appendSamplingControls(
+            to: &body,
+            controls: controls,
+            supportsSamplingParameters: supportsSamplingParameters
         )
-
-        // Responses API sampling controls are limited for GPT-5 family models.
-        if supportsSamplingParameters {
-            if let temperature = controls.temperature {
-                body["temperature"] = temperature
-            }
-            if let topP = controls.topP {
-                body["top_p"] = topP
-            }
-        }
-
         if let maxTokens = controls.maxTokens {
             body["max_output_tokens"] = maxTokens
         }
-
         if let serviceTier = resolvedOpenAIServiceTier(from: controls) {
             body["service_tier"] = serviceTier
         }
+        appendReasoningConfig(
+            to: &body,
+            controls: controls,
+            modelID: modelID,
+            reasoningEnabled: reasoningEnabled,
+            reasoningEffort: reasoningEffort
+        )
+        appendToolSpecs(
+            to: &body,
+            controls: controls,
+            tools: tools,
+            modelID: modelID,
+            codeExecutionEnabled: codeExecutionEnabled
+        )
+        applyProviderSpecificOverrides(
+            to: &body,
+            controls: controls,
+            supportsSamplingParameters: supportsSamplingParameters
+        )
+        appendRequiredIncludeFields(
+            to: &body,
+            controls: controls,
+            modelID: modelID,
+            codeExecutionEnabled: codeExecutionEnabled
+        )
 
-        if reasoningEnabled, let effort = reasoningEffort {
-            var reasoningDict: [String: Any] = [
-                "effort": mapReasoningEffort(effort, modelID: modelID)
-            ]
+        return try makeAuthorizedJSONRequest(
+            url: validatedURL("\(baseURL)/responses"),
+            apiKey: apiKey,
+            body: body,
+            accept: nil,
+            includeUserAgent: false
+        )
+    }
 
-            // Add summary control if specified
-            if let summary = controls.reasoning?.summary {
-                reasoningDict["summary"] = summary.rawValue
-            }
+    private func appendContextCacheControls(to body: inout [String: Any], controls: GenerationControls) {
+        guard controls.contextCache?.mode != .off else { return }
 
-            body["reasoning"] = reasoningDict
+        if let cacheKey = normalizedTrimmedString(controls.contextCache?.cacheKey) {
+            body["prompt_cache_key"] = cacheKey
         }
+        if let retention = controls.contextCache?.ttl?.providerTTLString {
+            body["prompt_cache_retention"] = retention
+        }
+    }
 
+    private func appendSamplingControls(
+        to body: inout [String: Any],
+        controls: GenerationControls,
+        supportsSamplingParameters: Bool
+    ) {
+        guard supportsSamplingParameters else { return }
+
+        if let temperature = controls.temperature {
+            body["temperature"] = temperature
+        }
+        if let topP = controls.topP {
+            body["top_p"] = topP
+        }
+    }
+
+    private func appendReasoningConfig(
+        to body: inout [String: Any],
+        controls: GenerationControls,
+        modelID: String,
+        reasoningEnabled: Bool,
+        reasoningEffort: ReasoningEffort?
+    ) {
+        guard reasoningEnabled, let reasoningEffort else { return }
+
+        var reasoningDict: [String: Any] = [
+            "effort": mapReasoningEffort(reasoningEffort, modelID: modelID)
+        ]
+        if let summary = controls.reasoning?.summary {
+            reasoningDict["summary"] = summary.rawValue
+        }
+        body["reasoning"] = reasoningDict
+    }
+
+    private func appendToolSpecs(
+        to body: inout [String: Any],
+        controls: GenerationControls,
+        tools: [ToolDefinition],
+        modelID: String,
+        codeExecutionEnabled: Bool
+    ) {
         var toolObjects: [[String: Any]] = []
 
         if controls.webSearch?.enabled == true, supportsWebSearch(modelID) {
@@ -284,7 +341,13 @@ actor OpenAIAdapter: LLMProviderAdapter {
         if !toolObjects.isEmpty {
             body["tools"] = toolObjects
         }
+    }
 
+    private func applyProviderSpecificOverrides(
+        to body: inout [String: Any],
+        controls: GenerationControls,
+        supportsSamplingParameters: Bool
+    ) {
         for (key, value) in controls.providerSpecific {
             guard key != "prompt_cache_min_tokens", key != "service_tier" else {
                 continue
@@ -294,7 +357,14 @@ actor OpenAIAdapter: LLMProviderAdapter {
             }
             body[key] = value.value
         }
+    }
 
+    private func appendRequiredIncludeFields(
+        to body: inout [String: Any],
+        controls: GenerationControls,
+        modelID: String,
+        codeExecutionEnabled: Bool
+    ) {
         // Ask Responses API to include source URLs/titles for web_search_call actions when possible.
         if controls.webSearch?.enabled == true, supportsWebSearch(modelID) {
             body["include"] = mergedIncludeFields(body["include"], adding: "web_search_call.action.sources")
@@ -304,14 +374,6 @@ actor OpenAIAdapter: LLMProviderAdapter {
         if codeExecutionEnabled {
             body["include"] = mergedIncludeFields(body["include"], adding: "code_interpreter_call.outputs")
         }
-
-        return try makeAuthorizedJSONRequest(
-            url: validatedURL("\(baseURL)/responses"),
-            apiKey: apiKey,
-            body: body,
-            accept: nil,
-            includeUserAgent: false
-        )
     }
 
     private func mergedIncludeFields(_ existing: Any?, adding field: String) -> [String] {

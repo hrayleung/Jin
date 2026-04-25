@@ -21,6 +21,15 @@ final class SearchSourcePreviewResolverTests: XCTestCase {
         )
     }
 
+    func testCanonicalXStatusURLIfNeededNormalizesIStatusURL() {
+        let url = URL(string: "https://twitter.com/i/status/463440424141459456?t=abc")!
+
+        XCTAssertEqual(
+            SearchSourcePreviewResolver.canonicalXStatusURLIfNeeded(for: url)?.absoluteString,
+            "https://x.com/i/web/status/463440424141459456"
+        )
+    }
+
     func testCanonicalXStatusURLIfNeededRejectsNonStatusPath() {
         let url = URL(string: "https://x.com/explore")!
         XCTAssertNil(SearchSourcePreviewResolver.canonicalXStatusURLIfNeeded(for: url))

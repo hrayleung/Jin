@@ -111,22 +111,7 @@ struct ChatView: View {
     @State var expandedCollapsedMessageIDs: Set<UUID> = []
 
     // Cache expensive derived data so typing/streaming doesn't repeatedly sort/decode the entire history.
-    @State var cachedVisibleMessages: [MessageRenderItem] = []
-    @State var cachedMessagesVersion: Int = 0
-    @State var cachedMessageEntitiesByID: [UUID: MessageEntity] = [:]
-    @State var cachedActiveThreadHistory: [Message] = []
-    @State var isHistoryCacheReady = true
-    @State var cachedToolResultsByCallID: [String: ToolResult] = [:]
-    @State var cachedArtifactCatalog: ArtifactCatalog = .empty
-    // swiftlint:disable:next private_swiftui_state
-    @State var cachedThreadRenderContextsByThreadID: [UUID: ChatThreadRenderContext] = [:]
-    @State var lastCacheRebuildMessageCount: Int = 0
-    @State var lastCacheRebuildUpdatedAt: Date = .distantPast
-    @State var updatedAtDebounceTask: Task<Void, Never>?
-    @State var renderContextBuildTask: Task<Void, Never>?
-    @State var renderContextDecodeTask: Task<ChatDecodedRenderContext, Never>?
-    @State var historyDecodeTask: Task<Void, Never>?
-    @State var activeRenderContextBuildToken = UUID()
+    @StateObject var renderCache = ChatRenderCacheController()
     @State var isArtifactPaneVisible = false
     @State var selectedArtifactIDByThreadID: [UUID: String] = [:]
     @State var selectedArtifactVersionByThreadID: [UUID: Int] = [:]
@@ -319,13 +304,11 @@ struct ChatView: View {
         }
         .onAppear(perform: handleChatAppear)
         .onDisappear {
-            updatedAtDebounceTask?.cancel()
-            updatedAtDebounceTask = nil
+            renderCache.cancelPendingWork()
             contextUsageRefreshTask?.cancel()
             contextUsageRefreshTask = nil
             draftContextUsageRefreshTask?.cancel()
             draftContextUsageRefreshTask = nil
-            cancelRenderContextBuild()
         }
         .onChange(of: conversationEntity.id) { _, _ in
             handleConversationSwitch()
@@ -340,10 +323,7 @@ struct ChatView: View {
             // Debounce updatedAt-driven cache rebuilds so that rapid
             // successive updates (e.g. tool-call loops persisting
             // messages back-to-back) are coalesced into a single rebuild.
-            updatedAtDebounceTask?.cancel()
-            updatedAtDebounceTask = Task { @MainActor in
-                try? await Task.sleep(for: .milliseconds(150))
-                guard !Task.isCancelled else { return }
+            renderCache.scheduleDebouncedRebuild(after: .milliseconds(150)) {
                 rebuildMessageCachesIfNeeded()
             }
         }

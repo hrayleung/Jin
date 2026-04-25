@@ -1,6 +1,7 @@
 import XCTest
 @testable import Jin
 
+@MainActor
 final class StreamingMessageStateTests: XCTestCase {
     func testAppendDeltasIncrementsRenderTickOnce() {
         let state = StreamingMessageState()

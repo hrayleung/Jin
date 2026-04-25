@@ -1,6 +1,37 @@
 import Collections
 import Foundation
 
+private enum StreamedAssistantPartRef {
+    case text(Int)
+    case image(Int)
+    case video(Int)
+    case thinking(Int)
+    case redacted(RedactedThinkingBlock)
+}
+
+private struct ThinkingBlockAccumulator {
+    var text: String
+    var signature: String?
+    var provider: String?
+}
+
+struct StreamingResponseSnapshot {
+    let assistantParts: [ContentPart]
+    let toolCalls: [ToolCall]
+    let searchActivities: [SearchActivity]
+    let codeExecutionActivities: [CodeExecutionActivity]
+    let codexToolActivities: [CodexToolActivity]
+    let agentToolActivities: [CodexToolActivity]
+
+    var hasRenderableAssistantContent: Bool {
+        !assistantParts.isEmpty
+            || !searchActivities.isEmpty
+            || !codeExecutionActivities.isEmpty
+            || !codexToolActivities.isEmpty
+            || !agentToolActivities.isEmpty
+    }
+}
+
 /// Accumulates streaming response parts (text, images, videos, thinking, tool calls, search activities)
 /// during a streaming response session.
 ///
@@ -181,5 +212,16 @@ struct StreamingResponseAccumulator {
 
     func buildToolCalls() -> [ToolCall] {
         Array(toolCallsByID.values)
+    }
+
+    func snapshot() -> StreamingResponseSnapshot {
+        StreamingResponseSnapshot(
+            assistantParts: buildAssistantParts(),
+            toolCalls: buildToolCalls(),
+            searchActivities: buildSearchActivities(),
+            codeExecutionActivities: buildCodeExecutionActivities(),
+            codexToolActivities: buildCodexToolActivities(),
+            agentToolActivities: buildAgentToolActivities()
+        )
     }
 }

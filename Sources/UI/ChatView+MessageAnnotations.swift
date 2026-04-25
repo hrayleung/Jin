@@ -44,7 +44,7 @@ extension ChatView {
     func persistHighlight(from snapshot: MessageSelectionSnapshot) {
         let trimmed = snapshot.selectedText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
-        guard let messageEntity = cachedMessageEntitiesByID[snapshot.messageID]
+        guard let messageEntity = renderCache.messageEntitiesByID[snapshot.messageID]
                 ?? conversationEntity.messages.first(where: { $0.id == snapshot.messageID }) else {
             return
         }
