@@ -104,6 +104,38 @@ final class OpenAIWebSocketAdapterTests: XCTestCase {
         XCTAssertFalse(ids.contains("gpt-5.5-pro-2026-04-23"))
     }
 
+    func testOpenAIWebSocketAdapterRejectsKnownIncompatibleSavedModelIDsBeforeRuntimeRouting() async {
+        let adapter = OpenAIWebSocketAdapter(
+            providerConfig: ProviderConfig(
+                id: "openai-websocket",
+                name: "OpenAI (WebSocket)",
+                type: .openaiWebSocket,
+                apiKey: "ignored",
+                baseURL: "https://example.com/v1"
+            ),
+            apiKey: "test-key"
+        )
+
+        do {
+            _ = try await adapter.sendMessage(
+                messages: [Message(role: .user, content: [.text("hi")])],
+                modelID: "gpt-5.5-pro",
+                controls: GenerationControls(),
+                tools: [],
+                streaming: true
+            )
+            XCTFail("Expected gpt-5.5-pro to be rejected before WebSocket routing.")
+        } catch let error as LLMError {
+            guard case .invalidRequest(let message) = error else {
+                return XCTFail("Expected invalidRequest, got \(error)")
+            }
+            XCTAssertTrue(message.contains("gpt-5.5-pro"))
+            XCTAssertTrue(message.contains("OpenAI provider"))
+        } catch {
+            XCTFail("Expected LLMError.invalidRequest, got \(error)")
+        }
+    }
+
     func testOpenAIWebSocketAdapterTreatsResponseIncompleteAsTerminalEvent() async {
         let adapter = OpenAIWebSocketAdapter(
             providerConfig: ProviderConfig(

@@ -59,6 +59,12 @@ actor OpenAIWebSocketAdapter: LLMProviderAdapter {
         tools: [ToolDefinition],
         streaming _: Bool
     ) async throws -> AsyncThrowingStream<StreamEvent, Error> {
+        guard ModelCatalog.isOpenAIWebSocketAdapterCompatible(modelID: modelID) else {
+            throw LLMError.invalidRequest(
+                message: "\(modelID) is not supported by the OpenAI WebSocket provider. Use the OpenAI provider instead."
+            )
+        }
+
         // Route image generation models through the OpenAI HTTP Images API.
         if isImageGenerationModel(modelID) {
             let httpAdapter = OpenAIAdapter(
