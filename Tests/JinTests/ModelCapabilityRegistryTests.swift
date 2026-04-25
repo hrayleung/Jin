@@ -5,6 +5,8 @@ final class ModelCapabilityRegistryTests: XCTestCase {
     func testOpenAICodeExecutionUsesExactDocumentedModelIDs() {
         XCTAssertTrue(ModelCapabilityRegistry.supportsCodeExecution(for: .openai, modelID: "gpt-4.1"))
         XCTAssertTrue(ModelCapabilityRegistry.supportsCodeExecution(for: .openai, modelID: "gpt-5"))
+        XCTAssertTrue(ModelCapabilityRegistry.supportsCodeExecution(for: .openai, modelID: "gpt-5.5"))
+        XCTAssertTrue(ModelCapabilityRegistry.supportsCodeExecution(for: .openai, modelID: "gpt-5.5-pro"))
         XCTAssertTrue(ModelCapabilityRegistry.supportsCodeExecution(for: .openai, modelID: "gpt-5.2"))
         XCTAssertTrue(ModelCapabilityRegistry.supportsCodeExecution(for: .openai, modelID: "gpt-5.4"))
         XCTAssertTrue(ModelCapabilityRegistry.supportsCodeExecution(for: .openai, modelID: "o3"))
