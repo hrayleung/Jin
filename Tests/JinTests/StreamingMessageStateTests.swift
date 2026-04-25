@@ -1,4 +1,5 @@
 import XCTest
+import Combine
 @testable import Jin
 
 @MainActor
@@ -13,6 +14,19 @@ final class StreamingMessageStateTests: XCTestCase {
         XCTAssertEqual(state.thinkingContent, "world")
         XCTAssertEqual(state.visibleText, "hello")
         XCTAssertTrue(state.artifacts.isEmpty)
+    }
+
+    func testAppendDeltasEmitsSingleObjectChange() {
+        let state = StreamingMessageState()
+        var changeCount = 0
+        let cancellable = state.objectWillChange.sink {
+            changeCount += 1
+        }
+
+        state.appendDeltas(textDelta: "hello", thinkingDelta: "world")
+
+        XCTAssertEqual(changeCount, 1)
+        withExtendedLifetime(cancellable) {}
     }
 
     func testAppendDeltasTracksVisibleText() {

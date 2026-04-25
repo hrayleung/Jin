@@ -7,18 +7,18 @@ final class StreamingMessageState: ObservableObject {
     private static let maxChunkSize = 2048
 
     var debugContext: StreamingDebugContext?
-    @Published private(set) var thinkingChunks: [String] = []
-    @Published private(set) var searchActivities: [SearchActivity] = []
-    @Published private(set) var codeExecutionActivities: [CodeExecutionActivity] = []
-    @Published private(set) var codexToolActivities: [CodexToolActivity] = []
-    @Published private(set) var agentToolActivities: [CodexToolActivity] = []
-    @Published private(set) var streamingToolCalls: [ToolCall] = []
-    @Published private(set) var toolResultsByCallID: [String: ToolResult] = [:]
-    @Published private(set) var renderTick: Int = 0
-    @Published private(set) var visibleText: String = ""
-    @Published private(set) var artifacts: [ParsedArtifact] = []
-    @Published private(set) var hasVisibleText: Bool = false
-    @Published private(set) var isThinkingComplete: Bool = false
+    private(set) var thinkingChunks: [String] = []
+    private(set) var searchActivities: [SearchActivity] = []
+    private(set) var codeExecutionActivities: [CodeExecutionActivity] = []
+    private(set) var codexToolActivities: [CodexToolActivity] = []
+    private(set) var agentToolActivities: [CodexToolActivity] = []
+    private(set) var streamingToolCalls: [ToolCall] = []
+    private(set) var toolResultsByCallID: [String: ToolResult] = [:]
+    private(set) var renderTick: Int = 0
+    private(set) var visibleText: String = ""
+    private(set) var artifacts: [ParsedArtifact] = []
+    private(set) var hasVisibleText: Bool = false
+    private(set) var isThinkingComplete: Bool = false
 
     private var textStorage = ""
     private var thinkingStorage = ""
@@ -32,6 +32,7 @@ final class StreamingMessageState: ObservableObject {
     var thinkingContent: String { thinkingStorage }
 
     func reset() {
+        objectWillChange.send()
         textStorage = ""
         thinkingStorage = ""
         thinkingChunks = []
@@ -58,31 +59,49 @@ final class StreamingMessageState: ObservableObject {
         var didMutate = false
         var didChangeText = false
         var parseDurationMs = 0
+        var nextTextStorage = textStorage
+        var nextThinkingStorage = thinkingStorage
+        var nextThinkingChunks = thinkingChunks
+        var nextVisibleText = visibleText
+        var nextArtifacts = artifacts
+        var nextHasVisibleText = hasVisibleText
+        var nextIsThinkingComplete = isThinkingComplete
 
         if !textDelta.isEmpty {
-            textStorage.append(textDelta)
-            if !isThinkingComplete, !thinkingChunks.isEmpty {
-                isThinkingComplete = true
+            nextTextStorage.append(textDelta)
+            if !nextIsThinkingComplete, !nextThinkingChunks.isEmpty {
+                nextIsThinkingComplete = true
             }
             didChangeText = true
             didMutate = true
         }
 
         if !thinkingDelta.isEmpty {
-            thinkingStorage.append(thinkingDelta)
-            appendDelta(thinkingDelta, to: &thinkingChunks, maxChunkSize: Self.maxChunkSize)
+            nextThinkingStorage.append(thinkingDelta)
+            appendDelta(thinkingDelta, to: &nextThinkingChunks, maxChunkSize: Self.maxChunkSize)
             didMutate = true
         }
 
         if didChangeText {
             let parseStartedAt = ProcessInfo.processInfo.systemUptime
-            updateParsedStreamingContent()
+            let parseResult = ArtifactMarkupParser.parse(nextTextStorage, hidesTrailingIncompleteArtifact: true)
+            nextVisibleText = parseResult.visibleText
+            nextArtifacts = parseResult.artifacts
+            nextHasVisibleText = !nextVisibleText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             parseDurationMs = Int((ProcessInfo.processInfo.systemUptime - parseStartedAt) * 1000)
         }
 
-        if didMutate {
-            renderTick &+= 1
-        }
+        guard didMutate else { return }
+
+        objectWillChange.send()
+        textStorage = nextTextStorage
+        thinkingStorage = nextThinkingStorage
+        thinkingChunks = nextThinkingChunks
+        visibleText = nextVisibleText
+        artifacts = nextArtifacts
+        hasVisibleText = nextHasVisibleText
+        isThinkingComplete = nextIsThinkingComplete
+        renderTick &+= 1
 
         if !hasLoggedFirstDeltaApply, didMutate {
             hasLoggedFirstDeltaApply = true
@@ -118,11 +137,13 @@ final class StreamingMessageState: ObservableObject {
 
     func markThinkingComplete() {
         guard !isThinkingComplete, !thinkingChunks.isEmpty else { return }
+        objectWillChange.send()
         isThinkingComplete = true
         renderTick &+= 1
     }
 
     func upsertSearchActivity(_ activity: SearchActivity) {
+        objectWillChange.send()
         if let existing = searchActivitiesByID[activity.id] {
             searchActivitiesByID[activity.id] = existing.merged(with: activity)
         } else {
@@ -133,6 +154,7 @@ final class StreamingMessageState: ObservableObject {
     }
 
     func upsertCodeExecutionActivity(_ activity: CodeExecutionActivity) {
+        objectWillChange.send()
         if let existing = codeExecutionActivitiesByID[activity.id] {
             codeExecutionActivitiesByID[activity.id] = existing.merged(with: activity)
         } else {
@@ -143,6 +165,7 @@ final class StreamingMessageState: ObservableObject {
     }
 
     func upsertCodexToolActivity(_ activity: CodexToolActivity) {
+        objectWillChange.send()
         if let existing = codexToolActivitiesByID[activity.id] {
             codexToolActivitiesByID[activity.id] = existing.merged(with: activity)
         } else {
@@ -153,6 +176,7 @@ final class StreamingMessageState: ObservableObject {
     }
 
     func upsertAgentToolActivity(_ activity: CodexToolActivity) {
+        objectWillChange.send()
         if let existing = agentToolActivitiesByID[activity.id] {
             agentToolActivitiesByID[activity.id] = existing.merged(with: activity)
         } else {
@@ -163,6 +187,7 @@ final class StreamingMessageState: ObservableObject {
     }
 
     func setToolCalls(_ toolCalls: [ToolCall]) {
+        objectWillChange.send()
         streamingToolCalls = toolCalls
         toolResultsByCallID = [:]
         renderTick &+= 1
@@ -170,15 +195,9 @@ final class StreamingMessageState: ObservableObject {
 
     func upsertToolResult(_ result: ToolResult) {
         guard streamingToolCalls.contains(where: { $0.id == result.toolCallID }) else { return }
+        objectWillChange.send()
         toolResultsByCallID[result.toolCallID] = result
         renderTick &+= 1
-    }
-
-    private func updateParsedStreamingContent() {
-        let parseResult = ArtifactMarkupParser.parse(textStorage, hidesTrailingIncompleteArtifact: true)
-        visibleText = parseResult.visibleText
-        artifacts = parseResult.artifacts
-        hasVisibleText = !visibleText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     private func appendDelta(_ delta: String, to chunks: inout [String], maxChunkSize: Int) {
