@@ -5,7 +5,6 @@ struct SidebarHeaderView: View {
     let onNewChat: () -> Void
     let onHideSidebar: () -> Void
     let shortcutsStore: AppShortcutsStore
-    let titlebarLeadingInset: CGFloat
 
     var body: some View {
         HStack(spacing: JinSpacing.small) {
@@ -13,14 +12,18 @@ struct SidebarHeaderView: View {
                 Text("Chats")
                     .font(.system(size: 17, weight: .semibold))
                     .foregroundStyle(.primary)
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
 
                 Text(assistantDisplayName)
                     .font(.system(size: 13, weight: .regular))
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
+                    .truncationMode(.tail)
             }
+            .layoutPriority(1)
 
-            Spacer()
+            Spacer(minLength: JinSpacing.small)
 
             Button(action: onHideSidebar) {
                 Image(systemName: "sidebar.leading")
@@ -45,15 +48,7 @@ struct SidebarHeaderView: View {
             .keyboardShortcut(",", modifiers: [.command])
             .help("Settings")
         }
-        .padding(
-            .leading,
-            MainWindowChromeLayout(titlebarLeadingInset: titlebarLeadingInset)
-                .leadingPadding(
-                    baseline: JinSpacing.medium,
-                    avoidsTitlebarControls: true
-                )
-        )
-        .padding(.trailing, JinSpacing.medium)
+        .padding(.horizontal, JinSpacing.medium)
         .padding(.top, JinSpacing.large)
         .padding(.bottom, JinSpacing.small)
         .frame(minHeight: 44)

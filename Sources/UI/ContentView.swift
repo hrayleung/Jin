@@ -208,8 +208,7 @@ struct ContentView: View {
                 assistantDisplayName: selectedAssistant?.displayName ?? "Default",
                 onNewChat: createNewConversation,
                 onHideSidebar: toggleSidebarVisibility,
-                shortcutsStore: shortcutsStore,
-                titlebarLeadingInset: mainWindowChromeLayout.titlebarLeadingInset
+                shortcutsStore: shortcutsStore
             )
 
             sidebarSearchField
