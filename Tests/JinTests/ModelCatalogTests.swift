@@ -234,6 +234,38 @@ final class ModelCatalogTests: XCTestCase {
         XCTAssertEqual(mimoV25.reasoningConfig?.defaultEffort, .medium)
     }
 
+    func testOpenCodeGoDeepSeekV4CatalogUsesExactProviderIDs() {
+        let pro = ModelCatalog.modelInfo(
+            for: "deepseek-v4-pro",
+            provider: .opencodeGo
+        )
+        XCTAssertEqual(pro.name, "DeepSeek V4 Pro")
+        XCTAssertEqual(pro.contextWindow, 1_000_000)
+        XCTAssertEqual(pro.maxOutputTokens, 384_000)
+        XCTAssertEqual(pro.capabilities, [.streaming, .toolCalling, .reasoning, .promptCaching])
+        XCTAssertEqual(pro.reasoningConfig?.type, .effort)
+        XCTAssertEqual(pro.reasoningConfig?.defaultEffort, .high)
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .opencodeGo, modelID: "deepseek-v4-pro"),
+            [.high, .max]
+        )
+
+        let flash = ModelCatalog.modelInfo(
+            for: "deepseek-v4-flash",
+            provider: .opencodeGo
+        )
+        XCTAssertEqual(flash.name, "DeepSeek V4 Flash")
+        XCTAssertEqual(flash.contextWindow, 1_000_000)
+        XCTAssertEqual(flash.maxOutputTokens, 384_000)
+        XCTAssertEqual(flash.capabilities, [.streaming, .toolCalling, .reasoning, .promptCaching])
+        XCTAssertEqual(flash.reasoningConfig?.type, .effort)
+        XCTAssertEqual(flash.reasoningConfig?.defaultEffort, .high)
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .opencodeGo, modelID: "deepseek-v4-flash"),
+            [.high, .max]
+        )
+    }
+
     func testVerifiedKimiK26CatalogRequiresExactIDs() {
         let opencode = ModelCatalog.modelInfo(
             for: "kimi-k2.6-custom",
@@ -285,6 +317,24 @@ final class ModelCatalogTests: XCTestCase {
         )
         XCTAssertEqual(mimoV25.capabilities, [.streaming, .toolCalling])
         XCTAssertEqual(mimoV25.contextWindow, 128_000)
+    }
+
+    func testOpenCodeGoDeepSeekV4CatalogRequiresExactIDs() {
+        let pro = ModelCatalog.modelInfo(
+            for: "deepseek-v4-pro-custom",
+            provider: .opencodeGo
+        )
+        XCTAssertEqual(pro.capabilities, [.streaming, .toolCalling])
+        XCTAssertEqual(pro.contextWindow, 128_000)
+        XCTAssertNil(pro.maxOutputTokens)
+
+        let flash = ModelCatalog.modelInfo(
+            for: "deepseek-v4-flash-preview",
+            provider: .opencodeGo
+        )
+        XCTAssertEqual(flash.capabilities, [.streaming, .toolCalling])
+        XCTAssertEqual(flash.contextWindow, 128_000)
+        XCTAssertNil(flash.maxOutputTokens)
     }
 
     func testGeminiGemma431CatalogUsesExactMetadata() {

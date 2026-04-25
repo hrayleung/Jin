@@ -286,6 +286,15 @@ actor AnthropicAdapter: LLMProviderAdapter {
     }
 
     private func mapAnthropicEffort(_ effort: ReasoningEffort, modelID: String) -> String {
+        if AnthropicModelLimits.supportsDeepSeekV4OutputConfigEffort(for: modelID) {
+            switch effort {
+            case .xhigh, .max:
+                return "max"
+            default:
+                return "high"
+            }
+        }
+
         let normalized = ModelCapabilityRegistry.normalizedReasoningEffort(
             effort,
             for: .anthropic,
@@ -572,6 +581,9 @@ actor AnthropicAdapter: LLMProviderAdapter {
         )
 
         if !thinkingEnabled {
+            if AnthropicModelLimits.supportsDeepSeekV4OutputConfigEffort(for: modelID) {
+                body["thinking"] = ["type": "disabled"]
+            }
             appendSamplingControls(to: &body, controls: controls, modelID: modelID)
             return
         }
@@ -583,6 +595,8 @@ actor AnthropicAdapter: LLMProviderAdapter {
                     reasoning: controls.reasoning,
                     modelID: modelID
                 )
+            } else if AnthropicModelLimits.supportsDeepSeekV4OutputConfigEffort(for: modelID) {
+                body["thinking"] = ["type": "enabled"]
             } else {
                 body["thinking"] = [
                     "type": "enabled",
