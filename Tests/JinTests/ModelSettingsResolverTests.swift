@@ -284,6 +284,38 @@ final class ModelSettingsResolverTests: XCTestCase {
             [.high]
         )
 
+        let deepInfraDeepSeekV4Flash = ModelCatalog.modelInfo(for: "deepseek-ai/DeepSeek-V4-Flash", provider: .deepinfra)
+        let resolvedDeepInfraDeepSeekV4Flash = ModelSettingsResolver.resolve(model: deepInfraDeepSeekV4Flash, providerType: .deepinfra)
+        XCTAssertEqual(resolvedDeepInfraDeepSeekV4Flash.contextWindow, 1_048_576)
+        XCTAssertNil(resolvedDeepInfraDeepSeekV4Flash.maxOutputTokens)
+        XCTAssertEqual(resolvedDeepInfraDeepSeekV4Flash.reasoningConfig?.type, .effort)
+        XCTAssertEqual(resolvedDeepInfraDeepSeekV4Flash.reasoningConfig?.defaultEffort, .high)
+        XCTAssertTrue(resolvedDeepInfraDeepSeekV4Flash.reasoningCanDisable)
+        XCTAssertFalse(resolvedDeepInfraDeepSeekV4Flash.supportsOpenAIStyleExtremeEffort)
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(
+                for: .deepinfra,
+                modelID: "deepseek-ai/DeepSeek-V4-Flash"
+            ),
+            [.high]
+        )
+
+        let deepInfraDeepSeekV4Pro = ModelCatalog.modelInfo(for: "deepseek-ai/DeepSeek-V4-Pro", provider: .deepinfra)
+        let resolvedDeepInfraDeepSeekV4Pro = ModelSettingsResolver.resolve(model: deepInfraDeepSeekV4Pro, providerType: .deepinfra)
+        XCTAssertEqual(resolvedDeepInfraDeepSeekV4Pro.contextWindow, 65_536)
+        XCTAssertNil(resolvedDeepInfraDeepSeekV4Pro.maxOutputTokens)
+        XCTAssertEqual(resolvedDeepInfraDeepSeekV4Pro.reasoningConfig?.type, .effort)
+        XCTAssertEqual(resolvedDeepInfraDeepSeekV4Pro.reasoningConfig?.defaultEffort, .high)
+        XCTAssertTrue(resolvedDeepInfraDeepSeekV4Pro.reasoningCanDisable)
+        XCTAssertFalse(resolvedDeepInfraDeepSeekV4Pro.supportsOpenAIStyleExtremeEffort)
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(
+                for: .deepinfra,
+                modelID: "deepseek-ai/DeepSeek-V4-Pro"
+            ),
+            [.high]
+        )
+
         let geminiGemma431 = ModelCatalog.modelInfo(for: "gemma-4-31b-it", provider: .gemini)
         let resolvedGeminiGemma431 = ModelSettingsResolver.resolve(model: geminiGemma431, providerType: .gemini)
         XCTAssertEqual(resolvedGeminiGemma431.contextWindow, 262_144)
@@ -678,6 +710,14 @@ final class ModelSettingsResolverTests: XCTestCase {
         )
         XCTAssertEqual(
             ModelCapabilityRegistry.normalizedReasoningEffort(.max, for: .together, modelID: "deepseek-ai/DeepSeek-V4-Pro"),
+            .high
+        )
+        XCTAssertEqual(
+            ModelCapabilityRegistry.normalizedReasoningEffort(.medium, for: .deepinfra, modelID: "deepseek-ai/DeepSeek-V4-Flash"),
+            .high
+        )
+        XCTAssertEqual(
+            ModelCapabilityRegistry.normalizedReasoningEffort(.max, for: .deepinfra, modelID: "deepseek-ai/DeepSeek-V4-Pro"),
             .high
         )
     }
@@ -1286,6 +1326,36 @@ final class ModelSettingsResolverTests: XCTestCase {
         XCTAssertTrue(resolved.capabilities.contains(.vision))
         XCTAssertFalse(resolved.capabilities.contains(.reasoning))
         XCTAssertNil(resolved.reasoningConfig)
+
+        let deepSeekV4FlashLegacy = ModelInfo(
+            id: "deepseek-ai/DeepSeek-V4-Flash",
+            name: "DeepSeek V4 Flash",
+            capabilities: [.streaming, .toolCalling],
+            contextWindow: 8_192,
+            reasoningConfig: nil,
+            isEnabled: true
+        )
+        let resolvedFlash = ModelSettingsResolver.resolve(model: deepSeekV4FlashLegacy, providerType: .deepinfra)
+        XCTAssertEqual(resolvedFlash.contextWindow, 1_048_576)
+        XCTAssertNil(resolvedFlash.maxOutputTokens)
+        XCTAssertEqual(resolvedFlash.capabilities, [.streaming, .toolCalling, .reasoning, .promptCaching])
+        XCTAssertEqual(resolvedFlash.reasoningConfig?.type, .effort)
+        XCTAssertEqual(resolvedFlash.reasoningConfig?.defaultEffort, .high)
+
+        let deepSeekV4ProLegacy = ModelInfo(
+            id: "deepseek-ai/DeepSeek-V4-Pro",
+            name: "DeepSeek V4 Pro",
+            capabilities: [.streaming, .toolCalling],
+            contextWindow: 8_192,
+            reasoningConfig: nil,
+            isEnabled: true
+        )
+        let resolvedPro = ModelSettingsResolver.resolve(model: deepSeekV4ProLegacy, providerType: .deepinfra)
+        XCTAssertEqual(resolvedPro.contextWindow, 65_536)
+        XCTAssertNil(resolvedPro.maxOutputTokens)
+        XCTAssertEqual(resolvedPro.capabilities, [.streaming, .toolCalling, .reasoning, .promptCaching])
+        XCTAssertEqual(resolvedPro.reasoningConfig?.type, .effort)
+        XCTAssertEqual(resolvedPro.reasoningConfig?.defaultEffort, .high)
     }
 
     func testResolverInfersRecentSambaNovaCatalogMetadataForLegacyPersistedModels() {
