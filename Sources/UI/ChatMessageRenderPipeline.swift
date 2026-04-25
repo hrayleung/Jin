@@ -81,6 +81,7 @@ enum ChatMessageRenderPipeline {
                 assistantModelLabel: entity.role == MessageRole.assistant.rawValue
                     ? (entity.generatedModelName ?? entity.generatedModelID ?? fallbackModelLabel)
                     : nil,
+                assistantModelID: entity.role == MessageRole.assistant.rawValue ? entity.generatedModelID : nil,
                 assistantProviderIconID: entity.role == MessageRole.assistant.rawValue
                     ? assistantProviderIconID(entity.generatedProviderID ?? "")
                     : nil,
@@ -145,6 +146,7 @@ enum ChatMessageRenderPipeline {
                 assistantModelLabel: snapshot.role == MessageRole.assistant.rawValue
                     ? (snapshot.generatedModelName ?? snapshot.generatedModelID ?? fallbackModelLabel)
                     : nil,
+                assistantModelID: snapshot.role == MessageRole.assistant.rawValue ? snapshot.generatedModelID : nil,
                 assistantProviderIconID: snapshot.role == MessageRole.assistant.rawValue
                     ? (assistantProviderIconsByID[snapshot.generatedProviderID ?? ""] ?? nil)
                     : nil,
@@ -209,6 +211,7 @@ enum ChatMessageRenderPipeline {
         codexToolActivities: [CodexToolActivity],
         agentToolActivities: [CodexToolActivity],
         assistantModelLabel: String?,
+        assistantModelID: String?,
         assistantProviderIconID: String?,
         responseMetrics: ResponseMetrics?,
         highlightSnapshots: [MessageHighlightSnapshot],
@@ -245,6 +248,7 @@ enum ChatMessageRenderPipeline {
             codexToolActivities: codexToolActivities,
             agentToolActivities: agentToolActivities,
             assistantModelLabel: assistantModelLabel,
+            assistantModelID: assistantModelID,
             assistantProviderIconID: assistantProviderIconID,
             responseMetrics: responseMetrics,
             highlights: highlightSnapshots,

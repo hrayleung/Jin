@@ -38,6 +38,7 @@ struct ChatHeaderBarView<ModelPickerContent: View, AddModelPickerContent: View>:
     let isSidebarHidden: Bool
     let onToggleSidebar: (() -> Void)?
     let onNewChat: (() -> Void)?
+    let titlebarLeadingInset: CGFloat
     let currentProviderIconID: String?
     let currentModelName: String
     let modelPickerHelpText: String
@@ -61,6 +62,7 @@ struct ChatHeaderBarView<ModelPickerContent: View, AddModelPickerContent: View>:
         isSidebarHidden: Bool,
         onToggleSidebar: (() -> Void)?,
         onNewChat: (() -> Void)? = nil,
+        titlebarLeadingInset: CGFloat = 0,
         currentProviderIconID: String?,
         currentModelName: String,
         modelPickerHelpText: String = "Select model",
@@ -83,6 +85,7 @@ struct ChatHeaderBarView<ModelPickerContent: View, AddModelPickerContent: View>:
         self.isSidebarHidden = isSidebarHidden
         self.onToggleSidebar = onToggleSidebar
         self.onNewChat = onNewChat
+        self.titlebarLeadingInset = titlebarLeadingInset
         self.currentProviderIconID = currentProviderIconID
         self.currentModelName = currentModelName
         self.modelPickerHelpText = modelPickerHelpText
@@ -111,8 +114,10 @@ struct ChatHeaderBarView<ModelPickerContent: View, AddModelPickerContent: View>:
             addModelButton
             headerActions
         }
-        .padding(.horizontal, JinSpacing.medium)
-        .padding(.vertical, JinSpacing.small)
+        .padding(.leading, leadingPadding)
+        .padding(.trailing, JinSpacing.medium)
+        .padding(.top, JinSpacing.small)
+        .padding(.bottom, JinSpacing.small)
         .frame(minHeight: 38)
         .background(JinSemanticColor.detailSurface)
         .overlay(alignment: .bottom) {
@@ -120,6 +125,14 @@ struct ChatHeaderBarView<ModelPickerContent: View, AddModelPickerContent: View>:
                 .fill(JinSemanticColor.separator.opacity(0.45))
                 .frame(height: JinStrokeWidth.hairline)
         }
+    }
+
+    private var leadingPadding: CGFloat {
+        MainWindowChromeLayout(titlebarLeadingInset: titlebarLeadingInset)
+            .leadingPadding(
+                baseline: JinSpacing.medium,
+                avoidsTitlebarControls: isSidebarHidden
+            )
     }
 
     @ViewBuilder

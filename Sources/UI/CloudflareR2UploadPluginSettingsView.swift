@@ -112,7 +112,14 @@ struct CloudflareR2UploadPluginSettingsView: View {
                 }
 
                 if let statusMessage {
-                    JinSettingsStatusText(text: statusMessage, isError: statusIsError)
+                    JinSettingsStatusText(
+                        text: statusMessage,
+                        isError: statusIsError,
+                        isSuccess: JinSettingsStatusText.isConnectionVerifiedStatus(
+                            statusMessage,
+                            isError: statusIsError
+                        )
+                    )
                 }
             }
         }
@@ -183,7 +190,7 @@ struct CloudflareR2UploadPluginSettingsView: View {
                 try await uploader.testConnection(configuration: configuration)
                 await MainActor.run {
                     isTesting = false
-                    statusMessage = "Connection OK."
+                    statusMessage = JinSettingsStatusText.connectionVerifiedMessage
                     statusIsError = false
                 }
             } catch {
@@ -204,7 +211,6 @@ struct CloudflareR2UploadPluginSettingsView: View {
             defaults.set(value, forKey: key)
         }
     }
-
     private func scheduleAutoSaveIfNeeded() {
         guard hasLoadedSettings else { return }
 

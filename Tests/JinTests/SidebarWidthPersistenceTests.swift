@@ -39,4 +39,21 @@ final class SidebarWidthPersistenceTests: XCTestCase {
             Double(SidebarWidthPersistence.maximumWidth)
         )
     }
+
+    func testDebouncedPersistorCoalescesResizeNotifications() {
+        var persistedWidths: [Double] = []
+        var scheduledActions: [() -> Void] = []
+        let persistor = SidebarWidthPersistence.DebouncedPersistor(
+            delay: 0,
+            schedule: { _, action in scheduledActions.append(action) },
+            persist: { persistedWidths.append($0) }
+        )
+
+        persistor.schedule(width: 280)
+        persistor.schedule(width: 300)
+        persistor.schedule(width: 320)
+        scheduledActions.forEach { $0() }
+
+        XCTAssertEqual(persistedWidths, [320])
+    }
 }

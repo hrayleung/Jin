@@ -32,11 +32,17 @@ enum ModelCapabilityRegistry {
     ]
 
     private static let openAIHighDefaultReasoningModelIDs: Set<String> = [
+        "gpt-5.5-pro",
+        "gpt-5.5-pro-2026-04-23",
         "gpt-5.4-pro",
         "gpt-5.4-pro-2026-03-05",
     ]
 
     private static let openAIStyleExtremeEffortModelIDs: Set<String> = [
+        "gpt-5.5",
+        "gpt-5.5-2026-04-23",
+        "gpt-5.5-pro",
+        "gpt-5.5-pro-2026-04-23",
         "gpt-5.4",
         "gpt-5.4-2026-03-05",
         "gpt-5.4-image-2",
@@ -225,6 +231,10 @@ enum ModelCapabilityRegistry {
         "gpt-4.1-2025-04-14",
         "gpt-5",
         "gpt-5-2025-08-07",
+        "gpt-5.5",
+        "gpt-5.5-2026-04-23",
+        "gpt-5.5-pro",
+        "gpt-5.5-pro-2026-04-23",
         "gpt-5.2",
         "gpt-5.2-2025-12-11",
         "gpt-5.4",
@@ -268,6 +278,21 @@ enum ModelCapabilityRegistry {
 
     private static let defaultReasoningEfforts: [ReasoningEffort] = [.low, .medium, .high]
     private static let defaultGeminiReasoningEfforts: [ReasoningEffort] = [.minimal, .low, .medium, .high]
+    private static let deepSeekV4ReasoningEffortModelIDs: Set<String> = [
+        "deepseek-v4-flash",
+        "deepseek-v4-pro",
+    ]
+    private static let openRouterDeepSeekV4ReasoningEffortModelIDs: Set<String> = [
+        "deepseek/deepseek-v4-flash",
+        "deepseek/deepseek-v4-pro",
+    ]
+    private static let togetherDeepSeekV4ReasoningEffortModelIDs: Set<String> = [
+        "deepseek-ai/deepseek-v4-pro",
+    ]
+    private static let deepInfraDeepSeekV4ReasoningEffortModelIDs: Set<String> = [
+        "deepseek-ai/deepseek-v4-flash",
+        "deepseek-ai/deepseek-v4-pro",
+    ]
     private static let googleModelPrefixes = [
         "google/",
         "google-ai-studio/",
@@ -324,6 +349,16 @@ enum ModelCapabilityRegistry {
             return defaultGeminiReasoningEfforts
         case .anthropic, .claudeManagedAgents:
             return supportedAnthropicEfforts(lowerModelID: lowerModelID)
+        case .deepseek where deepSeekV4ReasoningEffortModelIDs.contains(lowerModelID):
+            return [.high, .max]
+        case .openrouter where openRouterDeepSeekV4ReasoningEffortModelIDs.contains(lowerModelID):
+            return [.high, .xhigh]
+        case .together where togetherDeepSeekV4ReasoningEffortModelIDs.contains(lowerModelID):
+            return [.high]
+        case .deepinfra where deepInfraDeepSeekV4ReasoningEffortModelIDs.contains(lowerModelID):
+            return [.high]
+        case .opencodeGo where deepSeekV4ReasoningEffortModelIDs.contains(lowerModelID):
+            return [.high, .max]
         default:
             break
         }
@@ -480,6 +515,9 @@ enum ModelCapabilityRegistry {
     }
 
     private static func defaultOpenAIFamilyReasoningConfig(lowerModelID: String) -> ModelReasoningConfig {
+        if deepSeekV4ReasoningEffortModelIDs.contains(lowerModelID) {
+            return ModelReasoningConfig(type: .effort, defaultEffort: .high)
+        }
         if isGeminiReasoningModelID(lowerModelID) {
             return defaultGeminiReasoningConfig(lowerModelID: lowerModelID)
         }

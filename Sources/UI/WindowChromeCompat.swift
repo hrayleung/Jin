@@ -3,51 +3,100 @@ import SwiftUI
 import AppKit
 #endif
 
+struct MainWindowChromeLayout: Equatable {
+    var extendsContentIntoTitlebar = false
+    var titlebarLeadingInset: CGFloat = 0
+
+    static let zero = MainWindowChromeLayout()
+
+    func leadingPadding(baseline: CGFloat, avoidsTitlebarControls: Bool) -> CGFloat {
+        guard avoidsTitlebarControls else { return baseline }
+        return max(baseline, titlebarLeadingInset)
+    }
+}
+
 struct HideWindowToolbarCompatModifier: ViewModifier {
+    @Binding var chromeLayout: MainWindowChromeLayout
+
     @ViewBuilder
     func body(content: Content) -> some View {
         // Apply the AppKit toolbar hider on all supported macOS versions.
         // NavigationSplitView can recreate an empty toolbar, which introduces
         // a top inset and desynchronizes sidebar/detail heights.
-        content.modifier(WindowChromeObserverModifier())
+        content.modifier(WindowChromeObserverModifier(chromeLayout: $chromeLayout))
     }
 }
 
 extension View {
     func hideWindowToolbarCompat() -> some View {
-        modifier(HideWindowToolbarCompatModifier())
+        hideWindowToolbarCompat(chromeLayout: .constant(.zero))
+    }
+
+    func hideWindowToolbarCompat(chromeLayout: Binding<MainWindowChromeLayout>) -> some View {
+        modifier(HideWindowToolbarCompatModifier(chromeLayout: chromeLayout))
     }
 
     @ViewBuilder
     func mainWindowToolbarChromeCompat() -> some View {
+        mainWindowToolbarChromeCompat(chromeLayout: .constant(.zero))
+    }
+
+    @ViewBuilder
+    func mainWindowToolbarChromeCompat(chromeLayout: Binding<MainWindowChromeLayout>) -> some View {
         if #available(macOS 15.0, *) {
             self
                 .toolbar(removing: .title)
-                .hideWindowToolbarCompat()
+                .hideWindowToolbarCompat(chromeLayout: chromeLayout)
         } else {
-            self.hideWindowToolbarCompat()
+            self.hideWindowToolbarCompat(chromeLayout: chromeLayout)
         }
     }
 }
 
 private struct WindowChromeObserverModifier: ViewModifier {
+    @Binding var chromeLayout: MainWindowChromeLayout
+
     func body(content: Content) -> some View {
         content
-            .background(WindowChromeObserverView())
+            .background(WindowChromeObserverView(chromeLayout: $chromeLayout))
     }
 
     private struct WindowChromeObserverView: NSViewRepresentable {
+        @Binding var chromeLayout: MainWindowChromeLayout
+
         func makeNSView(context: Context) -> NSView {
-            ToolbarObservingView()
+            let view = ToolbarObservingView()
+            view.onChromeLayoutChange = { chromeLayout in
+                updateChromeLayout(chromeLayout)
+            }
+            return view
         }
 
-        func updateNSView(_ nsView: NSView, context: Context) {}
+        func updateNSView(_ nsView: NSView, context: Context) {
+            guard let nsView = nsView as? ToolbarObservingView else { return }
+            nsView.onChromeLayoutChange = { chromeLayout in
+                updateChromeLayout(chromeLayout)
+            }
+        }
+
+        private func updateChromeLayout(_ layout: MainWindowChromeLayout) {
+            guard chromeLayout != layout else { return }
+            DispatchQueue.main.async {
+                guard chromeLayout != layout else { return }
+                chromeLayout = layout
+            }
+        }
     }
 
     private final class ToolbarObservingView: NSView {
+        private static let fallbackTitlebarLeadingInset: CGFloat = 78
+        private static let titlebarLeadingPadding: CGFloat = 12
+
         private weak var observedWindow: NSWindow?
         private var toolbarObservation: NSKeyValueObservation?
         private var fullscreenObservers: [NSObjectProtocol] = []
+        private var lastChromeLayout = MainWindowChromeLayout.zero
+        var onChromeLayoutChange: (MainWindowChromeLayout) -> Void = { _ in }
 
         override init(frame frameRect: NSRect) {
             super.init(frame: frameRect)
@@ -139,9 +188,6 @@ private struct WindowChromeObserverModifier: ViewModifier {
             if window.titleVisibility != .hidden {
                 window.titleVisibility = .hidden
             }
-            if !window.title.isEmpty {
-                window.title = ""
-            }
             if !window.isMovableByWindowBackground {
                 window.isMovableByWindowBackground = true
             }
@@ -158,6 +204,7 @@ private struct WindowChromeObserverModifier: ViewModifier {
             if window.toolbar != nil {
                 window.toolbar = nil
             }
+            publishChromeLayout(for: window)
         }
 
         private func applyWindowStyle(for window: NSWindow) {
@@ -177,6 +224,55 @@ private struct WindowChromeObserverModifier: ViewModifier {
             if window.titlebarAppearsTransparent != shouldBeTransparent {
                 window.titlebarAppearsTransparent = shouldBeTransparent
             }
+        }
+
+        private func publishChromeLayout(for window: NSWindow) {
+            let layout = chromeLayout(for: window)
+            guard layout != lastChromeLayout else { return }
+            lastChromeLayout = layout
+            onChromeLayoutChange(layout)
+        }
+
+        private func chromeLayout(for window: NSWindow) -> MainWindowChromeLayout {
+            guard !window.styleMask.contains(.fullScreen) else {
+                return .zero
+            }
+
+            let titlebarButtons = [
+                window.standardWindowButton(.closeButton),
+                window.standardWindowButton(.miniaturizeButton),
+                window.standardWindowButton(.zoomButton)
+            ]
+            .compactMap { $0 }
+
+            guard !titlebarButtons.isEmpty else {
+                return MainWindowChromeLayout(
+                    extendsContentIntoTitlebar: true,
+                    titlebarLeadingInset: Self.fallbackTitlebarLeadingInset
+                )
+            }
+
+            let buttonUnion = titlebarButtons.reduce(into: NSRect.null) { partialResult, button in
+                let buttonFrame = button.convert(button.bounds, to: nil)
+                partialResult = partialResult.isNull ? buttonFrame : partialResult.union(buttonFrame)
+            }
+
+            guard !buttonUnion.isNull else {
+                return MainWindowChromeLayout(
+                    extendsContentIntoTitlebar: true,
+                    titlebarLeadingInset: Self.fallbackTitlebarLeadingInset
+                )
+            }
+
+            let leadingInset = max(
+                Self.fallbackTitlebarLeadingInset,
+                buttonUnion.maxX + Self.titlebarLeadingPadding
+            )
+
+            return MainWindowChromeLayout(
+                extendsContentIntoTitlebar: true,
+                titlebarLeadingInset: ceil(leadingInset)
+            )
         }
     }
 }

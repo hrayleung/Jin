@@ -5,6 +5,7 @@ struct ChatExtensionCredentialStatus {
     let mistralOCRConfigured: Bool
     let mineruOCRConfigured: Bool
     let deepSeekOCRConfigured: Bool
+    let openRouterOCRConfigured: Bool
     let firecrawlOCRConfigured: Bool
     let textToSpeechConfigured: Bool
     let speechToTextConfigured: Bool
@@ -12,6 +13,7 @@ struct ChatExtensionCredentialStatus {
     let mistralOCRPluginEnabled: Bool
     let mineruOCRPluginEnabled: Bool
     let deepSeekOCRPluginEnabled: Bool
+    let openRouterOCRPluginEnabled: Bool
     let firecrawlOCRPluginEnabled: Bool
     let textToSpeechPluginEnabled: Bool
     let speechToTextPluginEnabled: Bool
@@ -135,6 +137,7 @@ enum ChatConversationStateSupport {
         let mistralConfigured = hasStoredKey(AppPreferenceKeys.pluginMistralOCRAPIKey)
         let mineruConfigured = hasStoredKey(AppPreferenceKeys.pluginMineruOCRAPIToken)
         let deepSeekConfigured = hasStoredKey(AppPreferenceKeys.pluginDeepSeekOCRAPIKey)
+        let openRouterConfigured = hasStoredKey(AppPreferenceKeys.pluginOpenRouterOCRAPIKey)
         let firecrawlConfigured = hasStoredKey(AppPreferenceKeys.pluginWebSearchFirecrawlAPIKey)
             && ((try? CloudflareR2Configuration.load(from: defaults).validated()) != nil)
 
@@ -189,6 +192,7 @@ enum ChatConversationStateSupport {
         let mistralEnabled = AppPreferences.isPluginEnabled("mistral_ocr", defaults: defaults)
         let mineruEnabled = AppPreferences.isPluginEnabled("mineru_ocr", defaults: defaults)
         let deepSeekEnabled = AppPreferences.isPluginEnabled("deepseek_ocr", defaults: defaults)
+        let openRouterEnabled = AppPreferences.isPluginEnabled("openrouter_ocr", defaults: defaults)
         let firecrawlEnabled = AppPreferences.isPluginEnabled("firecrawl_ocr", defaults: defaults)
         let ttsEnabled = AppPreferences.isPluginEnabled("text_to_speech", defaults: defaults)
         let sttEnabled = AppPreferences.isPluginEnabled("speech_to_text", defaults: defaults)
@@ -202,6 +206,7 @@ enum ChatConversationStateSupport {
             mistralOCRConfigured: mistralConfigured,
             mineruOCRConfigured: mineruConfigured,
             deepSeekOCRConfigured: deepSeekConfigured,
+            openRouterOCRConfigured: openRouterConfigured,
             firecrawlOCRConfigured: firecrawlConfigured,
             textToSpeechConfigured: ttsConfigured,
             speechToTextConfigured: sttKeyConfigured,
@@ -209,6 +214,7 @@ enum ChatConversationStateSupport {
             mistralOCRPluginEnabled: mistralEnabled,
             mineruOCRPluginEnabled: mineruEnabled,
             deepSeekOCRPluginEnabled: deepSeekEnabled,
+            openRouterOCRPluginEnabled: openRouterEnabled,
             firecrawlOCRPluginEnabled: firecrawlEnabled,
             textToSpeechPluginEnabled: ttsEnabled,
             speechToTextPluginEnabled: sttEnabled,

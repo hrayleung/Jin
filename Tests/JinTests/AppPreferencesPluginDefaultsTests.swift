@@ -32,6 +32,7 @@ final class AppPreferencesPluginDefaultsTests: XCTestCase {
         XCTAssertTrue(AppPreferences.isPluginEnabled("mistral_ocr", defaults: defaults))
         XCTAssertTrue(AppPreferences.isPluginEnabled("mineru_ocr", defaults: defaults))
         XCTAssertTrue(AppPreferences.isPluginEnabled("deepseek_ocr", defaults: defaults))
+        XCTAssertTrue(AppPreferences.isPluginEnabled("openrouter_ocr", defaults: defaults))
         XCTAssertTrue(AppPreferences.isPluginEnabled("web_search_builtin", defaults: defaults))
     }
 

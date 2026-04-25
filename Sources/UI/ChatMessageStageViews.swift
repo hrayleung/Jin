@@ -1,20 +1,5 @@
 import SwiftUI
 
-struct ChatThreadRenderContext {
-    let visibleMessages: [MessageRenderItem]
-    let historyMessages: [Message]
-    let messageEntitiesByID: [UUID: MessageEntity]
-    let toolResultsByCallID: [String: ToolResult]
-    let artifactCatalog: ArtifactCatalog
-}
-
-struct ChatDecodedRenderContext: Sendable {
-    let visibleMessages: [MessageRenderItem]
-    let historyMessages: [Message]
-    let toolResultsByCallID: [String: ToolResult]
-    let artifactCatalog: ArtifactCatalog
-}
-
 private struct MessageTimelineContentHeightPreferenceKey: PreferenceKey {
     static let defaultValue: CGFloat = 0
 
@@ -23,180 +8,10 @@ private struct MessageTimelineContentHeightPreferenceKey: PreferenceKey {
     }
 }
 
-struct EditSlashCommandContext {
-    let servers: [SlashCommandMCPServerItem]
-    let isActive: Bool
-    let filterText: String
-    let highlightedIndex: Int
-    let perMessageChips: [SlashCommandMCPServerItem]
-    let onSelectServer: (String) -> Void
-    let onDismiss: () -> Void
-    let onRemovePerMessageServer: (String) -> Void
-    let onInterceptKeyDown: ((UInt16) -> Bool)?
-
-    static let inactive = EditSlashCommandContext(
-        servers: [],
-        isActive: false,
-        filterText: "",
-        highlightedIndex: 0,
-        perMessageChips: [],
-        onSelectServer: { _ in },
-        onDismiss: {},
-        onRemovePerMessageServer: { _ in },
-        onInterceptKeyDown: nil
-    )
-}
-
-struct ChatMessageInteractionContext {
-    let textToSpeechEnabled: Bool
-    let textToSpeechConfigured: Bool
-    let editingUserMessageID: UUID?
-    let editingUserMessageText: Binding<String>
-    let editingUserMessageFocused: Binding<Bool>
-    let textToSpeechIsGenerating: (UUID) -> Bool
-    let textToSpeechIsPlaying: (UUID) -> Bool
-    let textToSpeechIsPaused: (UUID) -> Bool
-    let onToggleSpeakAssistantMessage: (MessageEntity, String) -> Void
-    let onStopSpeakAssistantMessage: (MessageEntity) -> Void
-    let onRegenerate: (MessageEntity) -> Void
-    let onEditUserMessage: (MessageEntity) -> Void
-    let onSubmitUserEdit: (MessageEntity) -> Void
-    let onCancelUserEdit: () -> Void
-    let onDeleteMessage: (MessageEntity) -> Void
-    let onDeleteResponse: (MessageEntity) -> Void
-    let onQuoteSelection: (MessageSelectionSnapshot, String?) -> Void
-    let onCreateHighlight: (MessageSelectionSnapshot) -> Void
-    let onRemoveHighlights: ([UUID]) -> Void
-    let editSlashCommand: EditSlashCommandContext
-}
-
-struct ChatMessageTimelineView: View {
-    let visibleMessages: [MessageRenderItem]
-    let hiddenCount: Int
-    let messageRenderPageSize: Int?
-    let onLoadEarlier: (() -> Void)?
-    let bubbleMaxWidth: CGFloat
-    let assistantDisplayName: String
-    let providerType: ProviderType?
-    let providerIconID: String?
-    let eagerCodeHighlightStartIndex: Int
-    let toolResultsByCallID: [String: ToolResult]
-    let messageEntitiesByID: [UUID: MessageEntity]
-    let interaction: ChatMessageInteractionContext
-    let streamingMessage: StreamingMessageState?
-    let streamingModelLabel: String?
-    let bottomSpacerHeight: CGFloat
-    let bottomID: String
-    let onActivateThreadForMessage: (UUID?) -> Void
-    let onActivateTimeline: () -> Void
-    let onOpenArtifact: (RenderedArtifactVersion, UUID?) -> Void
-    let effectiveRenderMode: (Int, MessageRenderItem) -> MessageRenderMode
-    let onExpandCollapsedContent: (UUID) -> Void
-
-    private var payloadResolver: RenderedMessagePayloadResolver {
-        ChatTimelinePayloadResolverFactory.make(messageEntitiesByID: messageEntitiesByID)
-    }
-
-    @ViewBuilder
-    var body: some View {
-        if hiddenCount > 0,
-           let messageRenderPageSize,
-           let onLoadEarlier {
-            LoadEarlierMessagesRow(
-                hiddenCount: hiddenCount,
-                pageSize: messageRenderPageSize,
-                onLoad: onLoadEarlier
-            )
-            .id("loadEarlier")
-        }
-
-        ForEach(Array(visibleMessages.enumerated()), id: \.element.id) { index, message in
-            MessageRow(
-                item: message,
-                maxBubbleWidth: bubbleMaxWidth,
-                assistantDisplayName: assistantDisplayName,
-                providerType: providerType,
-                providerIconID: providerIconID,
-                deferCodeHighlightUpgrade: index < eagerCodeHighlightStartIndex,
-                payloadResolver: payloadResolver,
-                toolResultsByCallID: toolResultsByCallID,
-                textToSpeechEnabled: interaction.textToSpeechEnabled,
-                textToSpeechConfigured: interaction.textToSpeechConfigured,
-                textToSpeechIsGenerating: interaction.textToSpeechIsGenerating(message.id),
-                textToSpeechIsPlaying: interaction.textToSpeechIsPlaying(message.id),
-                textToSpeechIsPaused: interaction.textToSpeechIsPaused(message.id),
-                onToggleSpeakAssistantMessage: { messageID, text in
-                    guard let entity = messageEntitiesByID[messageID] else { return }
-                    interaction.onToggleSpeakAssistantMessage(entity, text)
-                },
-                onStopSpeakAssistantMessage: { messageID in
-                    guard let entity = messageEntitiesByID[messageID] else { return }
-                    interaction.onStopSpeakAssistantMessage(entity)
-                },
-                onRegenerate: { messageID in
-                    guard let entity = messageEntitiesByID[messageID] else { return }
-                    interaction.onRegenerate(entity)
-                },
-                onEditUserMessage: { messageID in
-                    guard let entity = messageEntitiesByID[messageID] else { return }
-                    interaction.onEditUserMessage(entity)
-                },
-                onDeleteMessage: { messageID in
-                    guard let entity = messageEntitiesByID[messageID] else { return }
-                    interaction.onDeleteMessage(entity)
-                },
-                onDeleteResponse: { messageID in
-                    guard let entity = messageEntitiesByID[messageID] else { return }
-                    interaction.onDeleteResponse(entity)
-                },
-                onQuoteSelection: interaction.onQuoteSelection,
-                onCreateHighlight: interaction.onCreateHighlight,
-                onRemoveHighlights: interaction.onRemoveHighlights,
-                editingUserMessageID: interaction.editingUserMessageID,
-                editingUserMessageText: interaction.editingUserMessageText,
-                editingUserMessageFocused: interaction.editingUserMessageFocused,
-                onSubmitUserEdit: { messageID in
-                    guard let entity = messageEntitiesByID[messageID] else { return }
-                    interaction.onSubmitUserEdit(entity)
-                },
-                onCancelUserEdit: interaction.onCancelUserEdit,
-                editSlashCommand: interaction.editSlashCommand,
-                onOpenArtifact: onOpenArtifact,
-                renderMode: effectiveRenderMode(index, message),
-                onExpandCollapsedContent: onExpandCollapsedContent,
-                onActivate: {
-                    if let threadID = message.contextThreadID {
-                        onActivateThreadForMessage(threadID)
-                    } else {
-                        onActivateTimeline()
-                    }
-                }
-            )
-            .id(message.id)
-        }
-
-        if let streamingMessage {
-            StreamingMessageView(
-                state: streamingMessage,
-                maxBubbleWidth: bubbleMaxWidth,
-                assistantDisplayName: assistantDisplayName,
-                modelLabel: streamingModelLabel,
-                providerType: providerType,
-                providerIconID: providerIconID,
-                onContentUpdate: { }
-            )
-            .id(bottomID == "bottom" ? "streaming" : "streaming-\(bottomID)")
-        }
-
-        Color.clear
-            .frame(height: bottomSpacerHeight)
-            .id(bottomID)
-    }
-}
-
 struct ChatSingleThreadMessagesView: View {
     let conversationID: UUID
     let conversationMessageCount: Int
+    let renderRevision: Int
     let containerSize: CGSize
     let allMessages: [MessageRenderItem]
     let toolResultsByCallID: [String: ToolResult]
@@ -208,6 +23,7 @@ struct ChatSingleThreadMessagesView: View {
     let isStreaming: Bool
     let streamingMessage: StreamingMessageState?
     let streamingModelLabel: String?
+    let streamingModelID: String?
     let messageRenderPageSize: Int
     let eagerCodeHighlightTailCount: Int
     let nonLazyMessageStackThreshold: Int
@@ -230,13 +46,117 @@ struct ChatSingleThreadMessagesView: View {
         Array(allMessages.suffix(messageRenderLimit))
     }
 
+    private var equatableKey: ChatStageEquatableKey {
+        ChatMessageStageEquatableKeyBuilder.singleThreadKey(
+            conversationID: conversationID,
+            conversationMessageCount: conversationMessageCount,
+            renderRevision: renderRevision,
+            viewportHeight: containerSize.height,
+            allMessageCount: allMessages.count,
+            lastMessageID: allMessages.last?.id,
+            toolResultCount: toolResultsByCallID.count,
+            entityCount: messageEntitiesByID.count,
+            assistantDisplayName: assistantDisplayName,
+            providerType: providerType,
+            providerIconID: providerIconID,
+            composerHeight: composerHeight,
+            isStreaming: isStreaming,
+            streamingObjectID: streamingMessage.map(ObjectIdentifier.init),
+            streamingModelLabel: streamingModelLabel,
+            streamingModelID: streamingModelID,
+            editingUserMessageID: interaction.editingUserMessageID,
+            editSlashCommandKey: ChatEditSlashCommandEquatableKey(context: interaction.editSlashCommand),
+            expandedCollapsedMessageIDs: expandedCollapsedMessageIDs.wrappedValue
+        )
+    }
+
+    var body: some View {
+        EquatableView(content: ChatSingleThreadMessagesContentView(
+            key: equatableKey,
+            conversationID: conversationID,
+            visibleMessagesForWindow: visibleMessagesForWindow,
+            allMessageCount: allMessages.count,
+            messageRenderPageSize: messageRenderPageSize,
+            eagerCodeHighlightTailCount: eagerCodeHighlightTailCount,
+            nonLazyMessageStackThreshold: nonLazyMessageStackThreshold,
+            containerSize: containerSize,
+            composerHeight: composerHeight,
+            isStreaming: isStreaming,
+            streamingMessage: streamingMessage,
+            streamingModelLabel: streamingModelLabel,
+            streamingModelID: streamingModelID,
+            assistantDisplayName: assistantDisplayName,
+            providerType: providerType,
+            providerIconID: providerIconID,
+            toolResultsByCallID: toolResultsByCallID,
+            messageEntitiesByID: messageEntitiesByID,
+            pinnedBottomRefreshDelays: pinnedBottomRefreshDelays,
+            interaction: interaction,
+            onStreamingFinished: onStreamingFinished,
+            onActivateMessageThread: onActivateMessageThread,
+            onOpenArtifact: onOpenArtifact,
+            expandedCollapsedMessageIDs: expandedCollapsedMessageIDs,
+            messageRenderLimit: $messageRenderLimit,
+            pendingRestoreScrollMessageID: $pendingRestoreScrollMessageID,
+            isPinnedToBottom: $isPinnedToBottom,
+            pinnedBottomRefreshGeneration: $pinnedBottomRefreshGeneration,
+            lastMeasuredContentHeight: $lastMeasuredContentHeight,
+            pendingPinnedBottomRefreshTask: $pendingPinnedBottomRefreshTask,
+            shouldMaintainPinnedBottomAnchor: $shouldMaintainPinnedBottomAnchor,
+            isUserScrollInProgress: $isUserScrollInProgress
+        ))
+    }
+}
+
+private struct ChatSingleThreadMessagesContentView: View, Equatable {
+    let key: ChatStageEquatableKey
+    let conversationID: UUID
+    let visibleMessagesForWindow: [MessageRenderItem]
+    let allMessageCount: Int
+    let messageRenderPageSize: Int
+    let eagerCodeHighlightTailCount: Int
+    let nonLazyMessageStackThreshold: Int
+    let containerSize: CGSize
+    let composerHeight: CGFloat
+    let isStreaming: Bool
+    let streamingMessage: StreamingMessageState?
+    let streamingModelLabel: String?
+    let streamingModelID: String?
+    let assistantDisplayName: String
+    let providerType: ProviderType?
+    let providerIconID: String?
+    let toolResultsByCallID: [String: ToolResult]
+    let messageEntitiesByID: [UUID: MessageEntity]
+    let pinnedBottomRefreshDelays: [TimeInterval]
+    let interaction: ChatMessageInteractionContext
+    let onStreamingFinished: () -> Void
+    let onActivateMessageThread: (UUID) -> Void
+    let onOpenArtifact: (RenderedArtifactVersion, UUID?) -> Void
+    let expandedCollapsedMessageIDs: Binding<Set<UUID>>
+    @Binding var messageRenderLimit: Int
+    @Binding var pendingRestoreScrollMessageID: UUID?
+    @Binding var isPinnedToBottom: Bool
+    @Binding var pinnedBottomRefreshGeneration: Int
+    @Binding var lastMeasuredContentHeight: CGFloat
+    @Binding var pendingPinnedBottomRefreshTask: Task<Void, Never>?
+    @Binding var shouldMaintainPinnedBottomAnchor: Bool
+    @Binding var isUserScrollInProgress: Bool
+
+    static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.key == rhs.key
+    }
+
+    private var visibleMessages: [MessageRenderItem] {
+        visibleMessagesForWindow
+    }
+
     var body: some View {
         ScrollViewReader { proxy in
             ScrollView {
                 let usableWidth = max(0, containerSize.width - 32)
                 let bubbleMaxWidth = max(260, usableWidth * 0.78)
                 let visibleMessages = visibleMessagesForWindow
-                let hiddenCount = allMessages.count - visibleMessages.count
+                let hiddenCount = allMessageCount - visibleMessages.count
                 let eagerCodeHighlightStartIndex = max(0, visibleMessages.count - eagerCodeHighlightTailCount)
                 let useLazyMessageStack = visibleMessages.count > nonLazyMessageStackThreshold
 
@@ -313,7 +233,7 @@ struct ChatSingleThreadMessagesView: View {
                     pendingRestoreScrollMessageID = nil
                 }
             }
-            .onChange(of: conversationMessageCount) { _, _ in
+            .onChange(of: allMessageCount) { _, _ in
                 refreshPinnedBottomIfNeeded(proxy: proxy)
             }
             .onChange(of: isStreaming) { wasStreaming, nowStreaming in
@@ -349,7 +269,7 @@ struct ChatSingleThreadMessagesView: View {
             onLoadEarlier: {
                 guard let firstVisible = visibleMessages.first else { return }
                 pendingRestoreScrollMessageID = firstVisible.id
-                messageRenderLimit = min(allMessages.count, messageRenderLimit + messageRenderPageSize)
+                messageRenderLimit = min(allMessageCount, messageRenderLimit + messageRenderPageSize)
             },
             bubbleMaxWidth: bubbleMaxWidth,
             assistantDisplayName: assistantDisplayName,
@@ -361,6 +281,7 @@ struct ChatSingleThreadMessagesView: View {
             interaction: interaction,
             streamingMessage: streamingMessage,
             streamingModelLabel: streamingModelLabel,
+            streamingModelID: streamingModelID,
             bottomSpacerHeight: composerHeight + 24,
             bottomID: "bottom",
             onActivateThreadForMessage: { threadID in
@@ -483,8 +404,8 @@ struct ChatSingleThreadMessagesView: View {
         ChatLongConversationRenderPolicy.effectiveRenderMode(
             index: index,
             message: message,
-            totalMessageCount: allMessages.count,
-            visibleMessageCount: visibleMessagesForWindow.count,
+            totalMessageCount: allMessageCount,
+            visibleMessageCount: visibleMessages.count,
             expandedIDs: expandedCollapsedMessageIDs.wrappedValue
         )
     }
@@ -516,6 +437,7 @@ struct ChatMultiModelStageView: View {
     let providerIconIDForProviderID: (String) -> String?
     let streamingMessageForThread: (UUID) -> StreamingMessageState?
     let streamingModelLabelForThread: (UUID) -> String?
+    let streamingModelIDForThread: (UUID) -> String?
     let onActivateThread: (UUID) -> Void
     let onOpenArtifact: (RenderedArtifactVersion, UUID?) -> Void
     let expandedCollapsedMessageIDs: Binding<Set<UUID>>
@@ -550,6 +472,7 @@ struct ChatMultiModelStageView: View {
                             interaction: interaction,
                             streamingMessage: streamingMessageForThread(thread.id),
                             streamingModelLabel: streamingModelLabelForThread(thread.id),
+                            streamingModelID: streamingModelIDForThread(thread.id),
                             onActivateThread: { onActivateThread(thread.id) },
                             onOpenArtifact: onOpenArtifact,
                             expandedCollapsedMessageIDs: expandedCollapsedMessageIDs
@@ -584,6 +507,7 @@ private struct ChatMultiModelThreadColumnView: View {
     let interaction: ChatMessageInteractionContext
     let streamingMessage: StreamingMessageState?
     let streamingModelLabel: String?
+    let streamingModelID: String?
     let onActivateThread: () -> Void
     let onOpenArtifact: (RenderedArtifactVersion, UUID?) -> Void
     let expandedCollapsedMessageIDs: Binding<Set<UUID>>
@@ -611,6 +535,7 @@ private struct ChatMultiModelThreadColumnView: View {
         interaction: ChatMessageInteractionContext,
         streamingMessage: StreamingMessageState?,
         streamingModelLabel: String?,
+        streamingModelID: String?,
         onActivateThread: @escaping () -> Void,
         onOpenArtifact: @escaping (RenderedArtifactVersion, UUID?) -> Void,
         expandedCollapsedMessageIDs: Binding<Set<UUID>>
@@ -634,6 +559,7 @@ private struct ChatMultiModelThreadColumnView: View {
         self.interaction = interaction
         self.streamingMessage = streamingMessage
         self.streamingModelLabel = streamingModelLabel
+        self.streamingModelID = streamingModelID
         self.onActivateThread = onActivateThread
         self.onOpenArtifact = onOpenArtifact
         self.expandedCollapsedMessageIDs = expandedCollapsedMessageIDs
@@ -772,6 +698,7 @@ private struct ChatMultiModelThreadColumnView: View {
             interaction: interaction,
             streamingMessage: streamingMessage,
             streamingModelLabel: streamingModelLabel,
+            streamingModelID: streamingModelID,
             bottomSpacerHeight: composerHeight + 24,
             bottomID: bottomID,
             onActivateThreadForMessage: { _ in onActivateThread() },

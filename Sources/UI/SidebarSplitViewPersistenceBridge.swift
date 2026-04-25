@@ -34,6 +34,15 @@ struct SidebarSplitViewPersistenceBridge: NSViewRepresentable {
         private var isSidebarVisible = true
         private var lastAppliedSidebarWidth: CGFloat?
         private var pendingRestore = true
+        private lazy var sidebarWidthPersistor = SidebarWidthPersistence.DebouncedPersistor(
+            delay: 0.15,
+            schedule: { delay, action in
+                DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: action)
+            },
+            persist: { [weak self] width in
+                self?.onSidebarWidthChange?(width)
+            }
+        )
 
         deinit {
             stopObservingSplitView()
@@ -81,7 +90,7 @@ struct SidebarSplitViewPersistenceBridge: NSViewRepresentable {
                 object: splitView,
                 queue: .main
             ) { [weak self] _ in
-                self?.persistCurrentSidebarWidthIfNeeded()
+                self?.scheduleCurrentSidebarWidthPersistenceIfNeeded()
             }
 
             DispatchQueue.main.async { [weak self] in
@@ -95,6 +104,7 @@ struct SidebarSplitViewPersistenceBridge: NSViewRepresentable {
                 NotificationCenter.default.removeObserver(resizeObserver)
                 self.resizeObserver = nil
             }
+            sidebarWidthPersistor.flush()
             observedSplitView = nil
         }
 
@@ -136,8 +146,17 @@ struct SidebarSplitViewPersistenceBridge: NSViewRepresentable {
             pendingRestore = false
 
             DispatchQueue.main.async { [weak self] in
-                self?.persistCurrentSidebarWidthIfNeeded()
+                self?.scheduleCurrentSidebarWidthPersistenceIfNeeded()
             }
+        }
+
+        private func scheduleCurrentSidebarWidthPersistenceIfNeeded() {
+            guard isSidebarVisible else { return }
+            guard let splitView = observedSplitView else { return }
+            guard let currentWidth = currentSidebarWidth(in: splitView) else { return }
+            guard let widthToPersist = SidebarWidthPersistence.persistedWidth(from: currentWidth) else { return }
+
+            sidebarWidthPersistor.schedule(width: widthToPersist)
         }
 
         private func persistCurrentSidebarWidthIfNeeded() {
@@ -147,6 +166,7 @@ struct SidebarSplitViewPersistenceBridge: NSViewRepresentable {
             guard let widthToPersist = SidebarWidthPersistence.persistedWidth(from: currentWidth) else { return }
 
             lastAppliedSidebarWidth = CGFloat(widthToPersist)
+            sidebarWidthPersistor.flush()
             onSidebarWidthChange?(widthToPersist)
         }
 

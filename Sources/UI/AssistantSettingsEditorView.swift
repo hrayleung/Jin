@@ -1,5 +1,5 @@
-import SwiftUI
 import SwiftData
+import SwiftUI
 
 struct AssistantSettingsEditorView: View {
     @Bindable var assistant: AssistantEntity
@@ -276,13 +276,14 @@ struct AssistantSettingsEditorView: View {
                 Image(systemName: "sparkles")
                     .font(.system(size: JinControlMetrics.assistantLargeGlyphSize, weight: .semibold))
                     .foregroundStyle(Color.accentColor)
-            } else if trimmed.count <= 2 {
-                Text(trimmed)
-                    .font(.system(size: JinControlMetrics.assistantLargeGlyphSize))
-            } else {
+            } else if AssistantGlyphRendering.isSFSymbolName(trimmed) {
                 Image(systemName: trimmed)
                     .font(.system(size: JinControlMetrics.assistantLargeGlyphSize, weight: .semibold))
                     .foregroundStyle(Color.accentColor)
+            } else {
+                Text(trimmed)
+                    .font(.system(size: JinControlMetrics.assistantLargeGlyphSize))
+                    .foregroundStyle(.primary)
             }
         }
         .frame(width: 56, height: 56)

@@ -3,6 +3,69 @@ import SwiftData
 
 // MARK: - Stage Views, Render Contexts & Header Bar
 
+enum ChatStageBottomFadeMetrics {
+    static let hiddenComposerHeight: CGFloat = 64
+    static let minimumVisibleComposerHeight: CGFloat = 88
+    static let visibleComposerExtraHeight: CGFloat = 20
+    static let maximumFadeHeight: CGFloat = 180
+
+    static func normalizedComposerHeight(_ height: CGFloat) -> CGFloat {
+        guard height.isFinite else { return 0 }
+        return max(0, height.rounded(.toNearestOrAwayFromZero))
+    }
+
+    static func fadeHeight(composerHeight: CGFloat, isComposerHidden: Bool) -> CGFloat {
+        let baseHeight = isComposerHidden
+            ? hiddenComposerHeight
+            : max(minimumVisibleComposerHeight, composerHeight + visibleComposerExtraHeight)
+
+        return min(maximumFadeHeight, baseHeight)
+    }
+}
+
+private struct ChatStageBottomFadeView: View {
+    let surfaceColor: Color
+    let composerHeight: CGFloat
+    let isComposerHidden: Bool
+    let isExpandedComposerPresented: Bool
+
+    private var fadeHeight: CGFloat {
+        ChatStageBottomFadeMetrics.fadeHeight(
+            composerHeight: composerHeight,
+            isComposerHidden: isComposerHidden
+        )
+    }
+
+    var body: some View {
+        Canvas(opaque: false, rendersAsynchronously: true) { context, size in
+            guard size.width > 0, size.height > 0 else { return }
+
+            let rect = CGRect(origin: .zero, size: size)
+            let gradient = Gradient(stops: [
+                .init(color: surfaceColor.opacity(0), location: 0),
+                .init(color: surfaceColor.opacity(0.10), location: 0.24),
+                .init(color: surfaceColor.opacity(0.34), location: 0.58),
+                .init(color: surfaceColor.opacity(0.72), location: 0.84),
+                .init(color: surfaceColor, location: 1)
+            ])
+
+            context.fill(
+                Path(rect),
+                with: .linearGradient(
+                    gradient,
+                    startPoint: CGPoint(x: rect.midX, y: rect.minY),
+                    endPoint: CGPoint(x: rect.midX, y: rect.maxY)
+                )
+            )
+        }
+        .frame(height: fadeHeight)
+        .frame(maxWidth: .infinity)
+        .opacity(isExpandedComposerPresented ? 0 : 1)
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+}
+
 extension ChatView {
 
     var conversationStage: some View {
@@ -20,8 +83,9 @@ extension ChatView {
             syncArtifactSelectionForActiveThread()
         }
         .onPreferenceChange(ComposerHeightPreferenceKey.self) { newValue in
-            if abs(composerHeight - newValue) > 0.5 {
-                composerHeight = newValue
+            let normalizedHeight = ChatStageBottomFadeMetrics.normalizedComposerHeight(newValue)
+            if composerHeight != normalizedHeight {
+                composerHeight = normalizedHeight
             }
         }
         .background(JinSemanticColor.detailSurface)
@@ -31,32 +95,19 @@ extension ChatView {
     var messageStageContainer: some View {
         ZStack(alignment: .bottom) {
             messageStage
-                .overlay(alignment: .bottom) {
-                    messageStageBottomFade
-                }
+            messageStageBottomFade
             floatingComposer
         }
     }
 
     @ViewBuilder
     var messageStageBottomFade: some View {
-        let baseHeight = isComposerHidden ? 64.0 : max(88.0, composerHeight + 20)
-        let fadeHeight = min(180.0, baseHeight)
-
-        LinearGradient(
-            stops: [
-                .init(color: JinSemanticColor.detailSurface.opacity(0), location: 0),
-                .init(color: JinSemanticColor.detailSurface.opacity(0.10), location: 0.24),
-                .init(color: JinSemanticColor.detailSurface.opacity(0.34), location: 0.58),
-                .init(color: JinSemanticColor.detailSurface.opacity(0.72), location: 0.84),
-                .init(color: JinSemanticColor.detailSurface, location: 1)
-            ],
-            startPoint: .top,
-            endPoint: .bottom
+        ChatStageBottomFadeView(
+            surfaceColor: JinSemanticColor.detailSurface,
+            composerHeight: composerHeight,
+            isComposerHidden: isComposerHidden,
+            isExpandedComposerPresented: isExpandedComposerPresented
         )
-        .frame(height: fadeHeight)
-        .opacity(isExpandedComposerPresented ? 0 : 1)
-        .allowsHitTesting(false)
     }
 
     var artifactPane: some View {
@@ -85,6 +136,7 @@ extension ChatView {
         ChatSingleThreadMessagesView(
             conversationID: conversationEntity.id,
             conversationMessageCount: conversationEntity.messages.count,
+            renderRevision: renderCache.version,
             containerSize: geometry.size,
             allMessages: singleThreadRenderContext.visibleMessages,
             toolResultsByCallID: singleThreadRenderContext.toolResultsByCallID,
@@ -96,6 +148,7 @@ extension ChatView {
             isStreaming: isStreaming,
             streamingMessage: streamingMessage,
             streamingModelLabel: streamingModelLabel,
+            streamingModelID: activeThreadID.flatMap { streamingModelID(for: $0) },
             messageRenderPageSize: Self.messageRenderPageSize,
             eagerCodeHighlightTailCount: Self.eagerCodeHighlightTailCount,
             nonLazyMessageStackThreshold: Self.nonLazyMessageStackThreshold,
@@ -146,6 +199,9 @@ extension ChatView {
             streamingModelLabelForThread: { threadID in
                 streamingModelLabel(for: threadID)
             },
+            streamingModelIDForThread: { threadID in
+                streamingModelID(for: threadID)
+            },
             onActivateThread: { threadID in
                 activateThread(by: threadID)
             },
@@ -157,18 +213,7 @@ extension ChatView {
     // MARK: - Render Contexts
 
     var singleThreadRenderContext: ChatThreadRenderContext {
-        if let threadID = activeModelThread?.id,
-           let cached = cachedThreadRenderContextsByThreadID[threadID] {
-            return cached
-        }
-
-        return ChatThreadRenderContext(
-            visibleMessages: cachedVisibleMessages,
-            historyMessages: cachedActiveThreadHistory,
-            messageEntitiesByID: cachedMessageEntitiesByID,
-            toolResultsByCallID: cachedToolResultsByCallID,
-            artifactCatalog: cachedArtifactCatalog
-        )
+        renderCache.singleThreadContext(activeThreadID: activeModelThread?.id)
     }
 
     var selectedThreadRenderContexts: [UUID: ChatThreadRenderContext] {
@@ -181,7 +226,7 @@ extension ChatView {
         if let activeThreadID, activeModelThread != nil {
             return threadRenderContext(threadID: activeThreadID).artifactCatalog
         }
-        return cachedArtifactCatalog
+        return renderCache.artifactCatalog
     }
 
     var selectedArtifactIDBinding: Binding<String?> {
@@ -211,33 +256,18 @@ extension ChatView {
     }
 
     func threadRenderContext(threadID: UUID) -> ChatThreadRenderContext {
-        if let cached = cachedThreadRenderContextsByThreadID[threadID] {
-            return cached
-        }
-
-        let ordered = ChatMessageRenderPipeline.orderedMessages(
-            from: conversationEntity.messages,
-            threadID: threadID
-        )
-        let fallbackModelLabel = sortedModelThreads
-            .first(where: { $0.id == threadID })
-            .map { modelName(id: $0.modelID, providerID: $0.providerID) }
-            ?? currentModelName
-
-        let context = ChatMessageRenderPipeline.makeRenderContext(
-            from: ordered,
-            fallbackModelLabel: fallbackModelLabel,
+        renderCache.threadContext(
+            threadID: threadID,
+            allMessages: conversationEntity.messages,
+            sortedThreads: sortedModelThreads,
+            currentModelName: currentModelName,
+            modelNameForThread: { thread in
+                modelName(id: thread.modelID, providerID: thread.providerID)
+            },
             assistantProviderIconID: { providerID in
                 providerIconID(for: providerID)
             }
         )
-
-        DispatchQueue.main.async { [threadID, context] in
-            guard cachedThreadRenderContextsByThreadID[threadID] == nil else { return }
-            cachedThreadRenderContextsByThreadID[threadID] = context
-        }
-
-        return context
     }
 
     // MARK: - Message Interaction
@@ -317,6 +347,7 @@ extension ChatView {
             isSidebarHidden: isSidebarHidden,
             onToggleSidebar: onToggleSidebar,
             onNewChat: onNewChat,
+            titlebarLeadingInset: titlebarLeadingInset,
             currentProviderIconID: currentProviderIconID,
             currentModelName: currentModelName,
             modelPickerHelpText: providerType == .claudeManagedAgents ? "Select managed agent or model" : "Select model",

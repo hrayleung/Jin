@@ -9,10 +9,16 @@ enum AnthropicModelLimits {
     static func supportsEffort(for modelID: String) -> Bool {
         // Effort works on Opus 4.7, Opus 4.6, Sonnet 4.6 (with adaptive thinking)
         // and Opus 4.5, Opus 4.1 (with budget_tokens thinking).
+        // DeepSeek V4 exposes effort through Anthropic-compatible output_config.
         let lower = modelID.lowercased()
         return supportsAdaptiveThinking(for: lower)
             || isModelFamily(lower, prefix: "claude-opus-4-5")
             || isModelFamily(lower, prefix: "claude-opus-4-1")
+            || isDeepSeekV4(lower)
+    }
+
+    static func supportsDeepSeekV4OutputConfigEffort(for modelID: String) -> Bool {
+        isDeepSeekV4(modelID.lowercased())
     }
 
     static func supportsXHighEffort(for modelID: String) -> Bool {
@@ -72,6 +78,10 @@ enum AnthropicModelLimits {
 
     private static func isSonnet46(_ lowercasedModelID: String) -> Bool {
         isModelFamily(lowercasedModelID, prefix: "claude-sonnet-4-6")
+    }
+
+    private static func isDeepSeekV4(_ lowercasedModelID: String) -> Bool {
+        lowercasedModelID == "deepseek-v4-flash" || lowercasedModelID == "deepseek-v4-pro"
     }
 
     private static func isModelFamily(_ lowercasedModelID: String, prefix: String) -> Bool {

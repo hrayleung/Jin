@@ -12,14 +12,18 @@ struct SidebarHeaderView: View {
                 Text("Chats")
                     .font(.system(size: 17, weight: .semibold))
                     .foregroundStyle(.primary)
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
 
                 Text(assistantDisplayName)
                     .font(.system(size: 13, weight: .regular))
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
+                    .truncationMode(.tail)
             }
+            .layoutPriority(1)
 
-            Spacer()
+            Spacer(minLength: JinSpacing.small)
 
             Button(action: onHideSidebar) {
                 Image(systemName: "sidebar.leading")

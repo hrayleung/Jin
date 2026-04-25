@@ -67,6 +67,7 @@ struct ChatView: View {
     var isSidebarHidden: Bool = false
     var onToggleSidebar: (() -> Void)? = nil
     var onNewChat: (() -> Void)? = nil
+    var titlebarLeadingInset: CGFloat = 0
     @Query var providers: [ProviderConfigEntity]
     @Query var mcpServers: [MCPServerConfigEntity]
 
@@ -84,6 +85,8 @@ struct ChatView: View {
     @State var currentContextUsageEstimate: ChatContextUsageEstimate?
     @State var contextUsageRefreshTask: Task<Void, Never>?
     @State var contextUsageRefreshGeneration: UInt = 0
+    // swiftlint:disable:next private_swiftui_state
+    @State var draftContextUsageRefreshTask: Task<Void, Never>?
     @State var isFileImporterPresented = false
     @State var isComposerDropTargeted = false
     @State var isFullPageDropTargeted = false
@@ -108,22 +111,7 @@ struct ChatView: View {
     @State var expandedCollapsedMessageIDs: Set<UUID> = []
 
     // Cache expensive derived data so typing/streaming doesn't repeatedly sort/decode the entire history.
-    @State var cachedVisibleMessages: [MessageRenderItem] = []
-    @State var cachedMessagesVersion: Int = 0
-    @State var cachedMessageEntitiesByID: [UUID: MessageEntity] = [:]
-    @State var cachedActiveThreadHistory: [Message] = []
-    @State var isHistoryCacheReady = true
-    @State var cachedToolResultsByCallID: [String: ToolResult] = [:]
-    @State var cachedArtifactCatalog: ArtifactCatalog = .empty
-    // swiftlint:disable:next private_swiftui_state
-    @State var cachedThreadRenderContextsByThreadID: [UUID: ChatThreadRenderContext] = [:]
-    @State var lastCacheRebuildMessageCount: Int = 0
-    @State var lastCacheRebuildUpdatedAt: Date = .distantPast
-    @State var updatedAtDebounceTask: Task<Void, Never>?
-    @State var renderContextBuildTask: Task<Void, Never>?
-    @State var renderContextDecodeTask: Task<ChatDecodedRenderContext, Never>?
-    @State var historyDecodeTask: Task<Void, Never>?
-    @State var activeRenderContextBuildToken = UUID()
+    @StateObject var renderCache = ChatRenderCacheController()
     @State var isArtifactPaneVisible = false
     @State var selectedArtifactIDByThreadID: [UUID: String] = [:]
     @State var selectedArtifactVersionByThreadID: [UUID: Int] = [:]
@@ -206,12 +194,14 @@ struct ChatView: View {
     @State var mistralOCRConfigured = false
     @State var mineruOCRConfigured = false
     @State var deepSeekOCRConfigured = false
+    @State var openRouterOCRConfigured = false
     @State var firecrawlOCRConfigured = false
     @State var textToSpeechConfigured = false
     @State var speechToTextConfigured = false
     @State var mistralOCRPluginEnabled = true
     @State var mineruOCRPluginEnabled = true
     @State var deepSeekOCRPluginEnabled = true
+    @State var openRouterOCRPluginEnabled = true
     @State var firecrawlOCRPluginEnabled = true
     @State var textToSpeechPluginEnabled = true
     @State var speechToTextPluginEnabled = true
@@ -259,6 +249,10 @@ struct ChatView: View {
 
     func streamingModelLabel(for threadID: UUID) -> String? {
         streamingStore.streamingModelLabel(conversationID: conversationEntity.id, threadID: threadID)
+    }
+
+    func streamingModelID(for threadID: UUID) -> String? {
+        streamingStore.streamingModelID(conversationID: conversationEntity.id, threadID: threadID)
     }
 
     var sortedModelThreads: [ConversationModelThreadEntity] {
@@ -310,11 +304,11 @@ struct ChatView: View {
         }
         .onAppear(perform: handleChatAppear)
         .onDisappear {
-            updatedAtDebounceTask?.cancel()
-            updatedAtDebounceTask = nil
+            renderCache.cancelPendingWork()
             contextUsageRefreshTask?.cancel()
             contextUsageRefreshTask = nil
-            cancelRenderContextBuild()
+            draftContextUsageRefreshTask?.cancel()
+            draftContextUsageRefreshTask = nil
         }
         .onChange(of: conversationEntity.id) { _, _ in
             handleConversationSwitch()
@@ -329,10 +323,7 @@ struct ChatView: View {
             // Debounce updatedAt-driven cache rebuilds so that rapid
             // successive updates (e.g. tool-call loops persisting
             // messages back-to-back) are coalesced into a single rebuild.
-            updatedAtDebounceTask?.cancel()
-            updatedAtDebounceTask = Task { @MainActor in
-                try? await Task.sleep(for: .milliseconds(150))
-                guard !Task.isCancelled else { return }
+            renderCache.scheduleDebouncedRebuild(after: .milliseconds(150)) {
                 rebuildMessageCachesIfNeeded()
             }
         }

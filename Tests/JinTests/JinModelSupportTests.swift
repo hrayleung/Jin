@@ -4,15 +4,22 @@ import XCTest
 final class JinModelSupportTests: XCTestCase {
     func testOpenAIUsesExactMatchForFullySupportedTag() {
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .openai, modelID: "gpt-5"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .openai, modelID: "gpt-5.5"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .openai, modelID: "gpt-5.5-pro"))
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .openai, modelID: "gpt-5.3-codex"))
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .openai, modelID: "gpt-5.3-chat-latest"))
+        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .openai, modelID: "gpt-5.5-custom"))
         XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .openai, modelID: "gpt-5.3-codex-spark"))
     }
 
     func testOpenAIWebSocketUsesExactMatchForFullySupportedTag() {
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .openaiWebSocket, modelID: "gpt-5"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .openaiWebSocket, modelID: "gpt-5.5"))
+        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .openaiWebSocket, modelID: "gpt-5.5-pro"))
+        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .openaiWebSocket, modelID: "gpt-5.5-pro-2026-04-23"))
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .openaiWebSocket, modelID: "gpt-5.3-codex"))
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .openaiWebSocket, modelID: "gpt-5.3-chat-latest"))
+        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .openaiWebSocket, modelID: "gpt-5.5-custom"))
         XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .openaiWebSocket, modelID: "gpt-5.3-codex-spark"))
     }
 
@@ -170,6 +177,25 @@ final class JinModelSupportTests: XCTestCase {
         XCTAssertFalse(JinModelSupport.supportsNativePDF(providerType: .openrouter, modelID: "openai/gpt-5.4-image-2"))
     }
 
+    func testDeepSeekV4SupportUsesOnlyVerifiedExactProviderIDs() {
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .openrouter, modelID: "deepseek/deepseek-v4-flash"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .openrouter, modelID: "deepseek/deepseek-v4-pro"))
+        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .openrouter, modelID: "deepseek/deepseek-v4-pro-custom"))
+
+        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .together, modelID: "deepseek-ai/DeepSeek-V4-Flash"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .together, modelID: "deepseek-ai/DeepSeek-V4-Pro"))
+        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .together, modelID: "deepseek-ai/DeepSeek-V4-Pro-custom"))
+
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .deepinfra, modelID: "deepseek-ai/DeepSeek-V4-Flash"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .deepinfra, modelID: "deepseek-ai/DeepSeek-V4-Pro"))
+        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .deepinfra, modelID: "deepseek-ai/DeepSeek-V4-Flash-custom"))
+
+        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .fireworks, modelID: "fireworks/deepseek-v4-flash"))
+        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .fireworks, modelID: "fireworks/deepseek-v4-pro"))
+        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .fireworks, modelID: "accounts/fireworks/models/deepseek-v4-flash"))
+        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .fireworks, modelID: "accounts/fireworks/models/deepseek-v4-pro"))
+    }
+
     func testOpenRouterSeedanceModelsUseExactFullySupportedIDs() {
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .openrouter, modelID: "bytedance/seedance-1-5-pro"))
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .openrouter, modelID: "bytedance/seedance-2.0"))
@@ -200,6 +226,13 @@ final class JinModelSupportTests: XCTestCase {
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .opencodeGo, modelID: "mimo-v2.5"))
         XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .opencodeGo, modelID: "mimo-v2.5-pro-preview"))
         XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .opencodeGo, modelID: "mimo-v2.5-experimental"))
+    }
+
+    func testOpenCodeGoDeepSeekV4ModelsUseExactFullySupportedIDs() {
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .opencodeGo, modelID: "deepseek-v4-pro"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .opencodeGo, modelID: "deepseek-v4-flash"))
+        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .opencodeGo, modelID: "deepseek-v4-pro-custom"))
+        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .opencodeGo, modelID: "deepseek-v4-flash-preview"))
     }
 
     func testGeminiProvider3Point1PreviewIsMarkedAsFullySupported() {
@@ -251,5 +284,14 @@ final class JinModelSupportTests: XCTestCase {
     func testNanoBanana2NativePDFSupportUsesExactMatch() {
         XCTAssertTrue(JinModelSupport.supportsNativePDF(providerType: .gemini, modelID: "gemini-3.1-flash-image-preview"))
         XCTAssertTrue(JinModelSupport.supportsNativePDF(providerType: .vertexai, modelID: "gemini-3.1-flash-image-preview"))
+    }
+
+    func testDeepSeekUsesExactMatchForFullySupportedTag() {
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .deepseek, modelID: "deepseek-chat"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .deepseek, modelID: "deepseek-reasoner"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .deepseek, modelID: "deepseek-v3.2-exp"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .deepseek, modelID: "deepseek-v4-flash"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .deepseek, modelID: "deepseek-v4-pro"))
+        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .deepseek, modelID: "deepseek-v4-pro-custom"))
     }
 }

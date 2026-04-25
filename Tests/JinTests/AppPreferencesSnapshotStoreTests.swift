@@ -109,6 +109,8 @@ final class AppPreferencesSnapshotStoreTests: PreferencesSandboxedTestCase {
             AppPreferenceKeys.pluginWebSearchTavilyAPIKey: "tavily-restored",
             AppPreferenceKeys.pluginMistralOCRAPIKey: "mistral-restored",
             AppPreferenceKeys.pluginDeepSeekOCRAPIKey: "deepseek-restored",
+            AppPreferenceKeys.pluginOpenRouterOCRAPIKey: "openrouter-restored",
+            AppPreferenceKeys.pluginOpenRouterOCRModelID: "qwen/qwen3-vl-8b-instruct",
             AppPreferenceKeys.ttsGroqAPIKey: "tts-restored",
             AppPreferenceKeys.sttGroqAPIKey: "stt-restored",
             AppPreferenceKeys.cloudflareR2AccountID: "account-restored",
@@ -144,6 +146,8 @@ final class AppPreferencesSnapshotStoreTests: PreferencesSandboxedTestCase {
 
         XCTAssertEqual(defaults.string(forKey: AppPreferenceKeys.pluginWebSearchExaAPIKey), "exa-restored")
         XCTAssertEqual(defaults.string(forKey: AppPreferenceKeys.pluginWebSearchTavilyAPIKey), "tavily-restored")
+        XCTAssertEqual(defaults.string(forKey: AppPreferenceKeys.pluginOpenRouterOCRAPIKey), "openrouter-restored")
+        XCTAssertEqual(defaults.string(forKey: AppPreferenceKeys.pluginOpenRouterOCRModelID), "qwen/qwen3-vl-8b-instruct")
         XCTAssertEqual(defaults.string(forKey: AppPreferenceKeys.ttsProvider), "groq")
         XCTAssertEqual(defaults.object(forKey: AppPreferenceKeys.codeBlockShowLineNumbers) as? Bool, true)
         XCTAssertEqual(defaults.string(forKey: AppPreferenceKeys.chatNamingProviderID), "deepseek")
@@ -153,6 +157,7 @@ final class AppPreferencesSnapshotStoreTests: PreferencesSandboxedTestCase {
             from: try AppDataLocations.sharedPreferencesFileURL()
         )
         XCTAssertEqual(sharedDictionary?[AppPreferenceKeys.pluginMistralOCRAPIKey] as? String, "mistral-restored")
+        XCTAssertEqual(sharedDictionary?[AppPreferenceKeys.pluginOpenRouterOCRAPIKey] as? String, "openrouter-restored")
         XCTAssertEqual(sharedDictionary?[AppPreferenceKeys.cloudflareR2AccountID] as? String, "account-restored")
     }
 

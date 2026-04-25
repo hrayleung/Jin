@@ -15,9 +15,9 @@ struct ContextUsageRefreshToken: Equatable {
     let conversationID: UUID
     let activeThreadID: UUID?
     let cachedMessagesVersion: Int
-    let trimmedMessageText: String
     let trimmedRemoteVideoURLText: String
     let attachmentIDs: [UUID]
+    let quoteIDs: [UUID]
     let settings: ContextUsageSettingsSnapshot
 }
 
@@ -41,12 +41,22 @@ extension ChatView {
         return ContextUsageRefreshToken(
             conversationID: conversationEntity.id,
             activeThreadID: activeThreadID,
-            cachedMessagesVersion: cachedMessagesVersion,
-            trimmedMessageText: trimmedMessageText,
+            cachedMessagesVersion: renderCache.version,
             trimmedRemoteVideoURLText: trimmedRemoteVideoInputURLText,
             attachmentIDs: draftAttachments.map(\.id),
+            quoteIDs: draftQuotes.map(\.id),
             settings: settings
         )
+    }
+
+    func scheduleDraftContextUsageRefresh() {
+        draftContextUsageRefreshTask?.cancel()
+        draftContextUsageRefreshTask = Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(450))
+            guard !Task.isCancelled else { return }
+            refreshContextUsageEstimate(debounced: false)
+            draftContextUsageRefreshTask = nil
+        }
     }
 
     func refreshContextUsageEstimate(debounced: Bool = true) {
@@ -93,6 +103,8 @@ extension ChatView {
     func clearContextUsageEstimate() {
         contextUsageRefreshTask?.cancel()
         contextUsageRefreshTask = nil
+        draftContextUsageRefreshTask?.cancel()
+        draftContextUsageRefreshTask = nil
         contextUsageRefreshGeneration &+= 1
         applyContextUsageEstimate(nil)
     }
@@ -147,10 +159,10 @@ extension ChatView {
     }
 
     private func makeContextUsageComputationInput() -> ContextUsageComputationInput? {
-        guard let settings = contextUsageSettingsSnapshot, isHistoryCacheReady else { return nil }
+        guard let settings = contextUsageSettingsSnapshot, renderCache.isHistoryReady else { return nil }
 
         return ContextUsageComputationInput(
-            history: cachedActiveThreadHistory,
+            history: renderCache.activeThreadHistory,
             draftMessageParts: contextUsageDraftMessageParts(settings: settings),
             systemPrompt: settings.systemPrompt,
             maxHistoryMessages: settings.maxHistoryMessages,

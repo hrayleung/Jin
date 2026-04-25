@@ -6,10 +6,11 @@ private let markdownRendererLogger = Logger(subsystem: "com.jin.app", category: 
 
 private let markdownTemplateURL = JinResourceBundle.url(forResource: "markdown-template", withExtension: "html")
 private let inlineCoreRuntimePlaceholder = "<!-- INLINE_CORE_RUNTIME -->\n<script src=\"markdown-core-runtime.js\"></script>"
+private let inlineRenderRuntimePlaceholder = "<script src=\"markdown-render-runtime.js\"></script>"
 
-/// Pre-cached HTML template with `markdown-core-runtime.js` inlined so that
+/// Pre-cached HTML template with the markdown runtimes inlined so that
 /// each WKWebView can load from an in-memory string instead of triggering
-/// per-instance file I/O for both the template and its subresource.
+/// per-instance file I/O for the template's core renderer scripts.
 /// The `baseURL` points to the resources directory so that lazily-loaded
 /// scripts (Prism, KaTeX, Mermaid) still resolve via relative URLs.
 /// Embeds a base64-encoded markdown payload into the cached HTML so that the
@@ -26,7 +27,11 @@ private func embedMarkdownBootstrap(
     guard let data = markdown.data(using: .utf8) else { return html }
     let base64 = data.base64EncodedString()
     let fn = streaming ? "updateStreamingContent" : "updateContent"
-    let options = deferCodeHighlightUpgrade ? "{deferCodeHighlightUpgrade:true}" : "{}"
+    var optionFragments: [String] = []
+    if deferCodeHighlightUpgrade {
+        optionFragments.append("deferCodeHighlightUpgrade:true")
+    }
+    let options = "{\(optionFragments.joined(separator: ","))}"
     let modeEscaped = codeBlockDisplayMode.replacingOccurrences(of: "'", with: "\\'")
     let codeBlockSettings = codeBlockSettingsJavaScript(
         showLineNumbers: codeBlockShowLineNumbers,
@@ -39,19 +44,27 @@ private func embedMarkdownBootstrap(
 private let inlineTemplate: (html: String, baseURL: URL)? = {
     guard let templateURL = markdownTemplateURL,
           let coreRuntimeURL = JinResourceBundle.url(forResource: "markdown-core-runtime", withExtension: "js"),
+          let renderRuntimeURL = JinResourceBundle.url(forResource: "markdown-render-runtime", withExtension: "js"),
           let templateHTML = try? String(contentsOf: templateURL, encoding: .utf8),
-          let coreRuntimeJS = try? String(contentsOf: coreRuntimeURL, encoding: .utf8) else {
+          let coreRuntimeJS = try? String(contentsOf: coreRuntimeURL, encoding: .utf8),
+          let renderRuntimeJS = try? String(contentsOf: renderRuntimeURL, encoding: .utf8) else {
         return nil
     }
 
-    let replacement = "<script>\n\(coreRuntimeJS)\n</script>"
-    let inlined: String
+    let coreReplacement = "<script>\n\(coreRuntimeJS)\n</script>"
+    let renderReplacement = "<script>\n\(renderRuntimeJS)\n</script>"
+    var inlined = templateHTML
 
-    if let range = templateHTML.range(of: inlineCoreRuntimePlaceholder) {
-        inlined = templateHTML.replacingCharacters(in: range, with: replacement)
+    if let range = inlined.range(of: inlineCoreRuntimePlaceholder) {
+        inlined.replaceSubrange(range, with: coreReplacement)
     } else {
         markdownRendererLogger.warning("Failed to inline markdown core runtime because template marker was not found.")
-        inlined = templateHTML
+    }
+
+    if let range = inlined.range(of: inlineRenderRuntimePlaceholder) {
+        inlined.replaceSubrange(range, with: renderReplacement)
+    } else {
+        markdownRendererLogger.warning("Failed to inline markdown render runtime because template marker was not found.")
     }
 
     return (html: inlined, baseURL: templateURL.deletingLastPathComponent())
@@ -290,18 +303,28 @@ private struct MarkdownWebRendererRepresentable: NSViewRepresentable {
         // For non-streaming messages, embed the markdown directly in the HTML
         // so the browser renders content during the initial page load instead
         // of waiting for a Swift→JS round-trip after didFinish.
-        let shouldEmbed = !renderPlainText && !isStreaming && !markdownText.isEmpty && inlineTemplate != nil
+        let preparedResult = renderPlainText
+            ? .passthrough(markdownText)
+            : MarkdownRenderPreparation.prepareForRender(
+                markdownText,
+                isStreaming: isStreaming
+            )
+        let markdownForRender = preparedResult.text
+        let shouldEmbed = !renderPlainText && !isStreaming && !markdownForRender.isEmpty && inlineTemplate != nil
         if shouldEmbed {
             context.coordinator.pendingMarkdown = nil
             context.coordinator.markContentEmbedded(
-                markdownText,
+                markdownForRender,
                 deferCodeHighlightUpgrade: deferCodeHighlightUpgrade
             )
         } else {
-            context.coordinator.pendingMarkdown = markdownText
+            context.coordinator.pendingMarkdown = markdownForRender
         }
 
-        loadTemplate(into: webView, embedMarkdown: shouldEmbed ? markdownText : nil)
+        loadTemplate(
+            into: webView,
+            embedMarkdown: shouldEmbed ? markdownForRender : nil
+        )
         return webView
     }
 
@@ -354,7 +377,10 @@ private struct MarkdownWebRendererRepresentable: NSViewRepresentable {
         }
     }
 
-    private func loadTemplate(into webView: WKWebView, embedMarkdown: String? = nil) {
+    private func loadTemplate(
+        into webView: WKWebView,
+        embedMarkdown: String? = nil
+    ) {
         if let cached = inlineTemplate {
             var html = cached.html
             if let markdown = embedMarkdown {
@@ -413,7 +439,10 @@ private struct MarkdownWebRendererRepresentable: NSViewRepresentable {
 
         /// Records that markdown was embedded in the HTML template so that
         /// subsequent `renderMarkdownIfNeeded` calls skip duplicate work.
-        func markContentEmbedded(_ markdown: String, deferCodeHighlightUpgrade: Bool) {
+        func markContentEmbedded(
+            _ markdown: String,
+            deferCodeHighlightUpgrade: Bool
+        ) {
             lastRenderedMarkdown = markdown
             lastRenderedDeferCodeHighlightUpgrade = deferCodeHighlightUpgrade
             lastRenderedPlainTextMode = false
@@ -586,20 +615,28 @@ private struct MarkdownWebRendererRepresentable: NSViewRepresentable {
             force: Bool = false,
             deferCodeHighlightUpgrade: Bool = false
         ) {
+            let preparedResult = renderPlainText
+                ? .passthrough(markdown)
+                : MarkdownRenderPreparation.prepareForRender(
+                    markdown,
+                    isStreaming: isStreaming
+                )
+            let preparedMarkdown = preparedResult.text
+
             guard force
-                    || markdown != lastRenderedMarkdown
+                    || preparedMarkdown != lastRenderedMarkdown
                     || deferCodeHighlightUpgrade != lastRenderedDeferCodeHighlightUpgrade
                     || renderPlainText != lastRenderedPlainTextMode else {
                 return
             }
 
             logLargeMarkdownIfNeeded(markdown)
-            lastRenderedMarkdown = markdown
+            lastRenderedMarkdown = preparedMarkdown
             lastRenderedDeferCodeHighlightUpgrade = deferCodeHighlightUpgrade
             lastRenderedPlainTextMode = renderPlainText
             MarkdownWebRenderer.sendMarkdown(
                 to: webView,
-                markdown: markdown,
+                markdown: preparedMarkdown,
                 streaming: isStreaming,
                 deferCodeHighlightUpgrade: deferCodeHighlightUpgrade,
                 renderPlainText: renderPlainText

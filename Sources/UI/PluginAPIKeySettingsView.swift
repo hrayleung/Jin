@@ -66,7 +66,14 @@ struct PluginAPIKeySettingsView: View {
                 }
 
                 if let statusMessage {
-                    JinSettingsStatusText(text: statusMessage, isError: statusIsError)
+                    JinSettingsStatusText(
+                        text: statusMessage,
+                        isError: statusIsError,
+                        isSuccess: JinSettingsStatusText.isConnectionVerifiedStatus(
+                            statusMessage,
+                            isError: statusIsError
+                        )
+                    )
                 }
 
                 if let apiKeyHint, !apiKeyHint.isEmpty {
@@ -151,7 +158,7 @@ struct PluginAPIKeySettingsView: View {
                 try await testConnection(trimmedAPIKey)
                 await MainActor.run {
                     isTesting = false
-                    statusMessage = "Connection OK."
+                    statusMessage = JinSettingsStatusText.connectionVerifiedMessage
                     statusIsError = false
                 }
             } catch {

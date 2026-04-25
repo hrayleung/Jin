@@ -35,8 +35,8 @@ struct MessageTextView: View {
         self.selectionActions = selectionActions
     }
 
-    init(normalizedMarkdownText: String) {
-        self.text = normalizedMarkdownText
+    init(preparedMarkdownText: String) {
+        self.text = preparedMarkdownText
         self.mode = .markdown
         self.deferCodeHighlightUpgrade = false
         self.selectionMessageID = nil

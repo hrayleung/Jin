@@ -77,21 +77,20 @@ extension ChatView {
         }
         let namingThreadID = targetThreadIDs.contains(activeThread.id) ? activeThread.id : targetThreadIDs.first
 
-        let messageTextSnapshot = trimmedMessageText
-        let remoteVideoURLTextSnapshot = trimmedRemoteVideoInputURLText
-        let attachmentsSnapshot = draftAttachments
-        let draftQuotesSnapshot = draftQuotes
-        let selectedPerMessageMCPServers = eligibleMCPServers.filter { perMessageMCPServerIDs.contains($0.id) }
-        let perMessageMCPIDsSnapshot = selectedPerMessageMCPServers.map(\.id).sorted()
-        let perMessageMCPNamesSnapshot = selectedPerMessageMCPServers.map(\.name).sorted()
-        let perMessageMCPIDsData: Data? = perMessageMCPIDsSnapshot.isEmpty ? nil : try? JSONEncoder().encode(perMessageMCPIDsSnapshot)
-        let perMessageMCPSnapshot = Set(perMessageMCPIDsSnapshot)
-        let askedAt = Date()
-        let turnID = UUID()
+        let selectedPerMessageMCPServers = eligibleMCPServers
+            .filter { perMessageMCPServerIDs.contains($0.id) }
+            .map { (id: $0.id, name: $0.name) }
+        let draftSnapshot = ChatSendDraftSnapshot(
+            messageText: trimmedMessageText,
+            remoteVideoURLText: trimmedRemoteVideoInputURLText,
+            attachments: draftAttachments,
+            quotes: draftQuotes,
+            selectedPerMessageMCPServers: selectedPerMessageMCPServers
+        )
 
         let remoteVideoURLSnapshot: URL?
         do {
-            remoteVideoURLSnapshot = try resolvedRemoteVideoInputURL(from: remoteVideoURLTextSnapshot)
+            remoteVideoURLSnapshot = try resolvedRemoteVideoInputURL(from: draftSnapshot.remoteVideoURLText)
         } catch {
             errorMessage = error.localizedDescription
             showingError = true
@@ -113,9 +112,9 @@ extension ChatView {
                 let prepareStartedAt = ProcessInfo.processInfo.systemUptime
                 let preparedMessages = try await buildUserMessagePartsForThreads(
                     threads: targetThreads,
-                    quoteContents: draftQuotesSnapshot.map(\.content),
-                    messageText: messageTextSnapshot,
-                    attachments: attachmentsSnapshot,
+                    quoteContents: draftSnapshot.quoteContents,
+                    messageText: draftSnapshot.messageText,
+                    attachments: draftSnapshot.attachments,
                     remoteVideoURL: remoteVideoURLSnapshot
                 )
                 let prepareDurationMs = Int((ProcessInfo.processInfo.systemUptime - prepareStartedAt) * 1000)
@@ -127,12 +126,12 @@ extension ChatView {
                     message: "chat_prepare_complete",
                     data: [
                         "conversationID": conversationEntity.id.uuidString,
-                        "turnID": turnID.uuidString,
+                        "turnID": draftSnapshot.turnID.uuidString,
                         "preparedThreadCount": String(preparedMessages.count),
                         "targetThreadCount": String(targetThreads.count),
-                        "attachmentCount": String(attachmentsSnapshot.count),
-                        "quoteCount": String(draftQuotesSnapshot.count),
-                        "textCount": String(messageTextSnapshot.count),
+                        "attachmentCount": String(draftSnapshot.attachments.count),
+                        "quoteCount": String(draftSnapshot.quotes.count),
+                        "textCount": String(draftSnapshot.messageText.count),
                         "durationMs": String(prepareDurationMs)
                     ]
                 )
@@ -148,47 +147,25 @@ extension ChatView {
                         message: "chat_persist_block_start",
                         data: [
                             "conversationID": conversationEntity.id.uuidString,
-                            "turnID": turnID.uuidString,
+                            "turnID": draftSnapshot.turnID.uuidString,
                             "messageCountBeforePersist": String(conversationEntity.messages.count),
                             "preparedMessageCount": String(preparedMessages.count)
                         ]
                     )
                     // #endregion
 
-                    if conversationEntity.messages.isEmpty {
-                        onPersistConversationIfNeeded()
-                    }
-
                     let toolCapableThreadIDs = Set(targetThreads.compactMap { threadSupportsMCPTools(for: $0) ? $0.id : nil })
-                    for prepared in preparedMessages {
-                        let message = Message(
-                            role: .user,
-                            content: prepared.parts,
-                            timestamp: askedAt,
-                            perMessageMCPServerNames: toolCapableThreadIDs.contains(prepared.threadID) ? perMessageMCPNamesSnapshot : nil
-                        )
-                        guard let messageEntity = try? MessageEntity.fromDomain(message) else { continue }
-                        if toolCapableThreadIDs.contains(prepared.threadID) {
-                            messageEntity.perMessageMCPServerIDsData = perMessageMCPIDsData
-                        }
-                        messageEntity.contextThreadID = prepared.threadID
-                        messageEntity.turnID = turnID
-                        messageEntity.conversation = conversationEntity
-                        conversationEntity.messages.append(messageEntity)
-                    }
-
-                    if conversationEntity.title == "New Chat", !isChatNamingPluginEnabled {
-                        if !messageTextSnapshot.isEmpty {
-                            conversationEntity.title = makeConversationTitle(from: messageTextSnapshot)
-                        } else if let firstQuote = draftQuotesSnapshot.first {
-                            conversationEntity.title = makeConversationTitle(from: firstQuote.content.quotedText)
-                        } else if let firstAttachment = attachmentsSnapshot.first {
-                            conversationEntity.title = makeConversationTitle(from: (firstAttachment.filename as NSString).deletingPathExtension)
-                        }
-                    }
-                    conversationEntity.updatedAt = askedAt
                     let rebuildStartedAt = ProcessInfo.processInfo.systemUptime
-                    rebuildMessageCaches()
+                    ChatUserTurnPersistence.appendPreparedUserMessages(
+                        preparedMessages,
+                        draft: draftSnapshot,
+                        toolCapableThreadIDs: toolCapableThreadIDs,
+                        conversationEntity: conversationEntity,
+                        isChatNamingPluginEnabled: isChatNamingPluginEnabled,
+                        persistConversationIfNeeded: onPersistConversationIfNeeded,
+                        makeConversationTitle: makeConversationTitle(from:),
+                        rebuildMessageCaches: rebuildMessageCaches
+                    )
                     let rebuildDurationMs = Int((ProcessInfo.processInfo.systemUptime - rebuildStartedAt) * 1000)
 
                     // #region agent log
@@ -198,11 +175,11 @@ extension ChatView {
                         message: "chat_persist_rebuild_complete",
                         data: [
                             "conversationID": conversationEntity.id.uuidString,
-                            "turnID": turnID.uuidString,
+                            "turnID": draftSnapshot.turnID.uuidString,
                             "messageCountAfterAppend": String(conversationEntity.messages.count),
-                            "cachedVisibleCount": String(cachedVisibleMessages.count),
-                            "cachedHistoryCount": String(cachedActiveThreadHistory.count),
-                            "historyCacheReady": String(isHistoryCacheReady),
+                            "cachedVisibleCount": String(renderCache.visibleMessages.count),
+                            "cachedHistoryCount": String(renderCache.activeThreadHistory.count),
+                            "historyCacheReady": String(renderCache.isHistoryReady),
                             "durationMs": String(rebuildDurationMs)
                         ]
                     )
@@ -220,7 +197,7 @@ extension ChatView {
                         message: "chat_persist_save_complete",
                         data: [
                             "conversationID": conversationEntity.id.uuidString,
-                            "turnID": turnID.uuidString,
+                            "turnID": draftSnapshot.turnID.uuidString,
                             "messageCountAfterSave": String(conversationEntity.messages.count),
                             "saveDurationMs": String(saveDurationMs),
                             "totalPersistDurationMs": String(totalPersistDurationMs)
@@ -239,9 +216,9 @@ extension ChatView {
                         startStreamingResponse(
                             for: threadID,
                             triggeredByUserSend: threadID == namingThreadID,
-                            turnID: turnID,
+                            turnID: draftSnapshot.turnID,
                             diagnosticRunID: diagnosticRunID,
-                            perMessageMCPServerIDs: perMessageMCPSnapshot
+                            perMessageMCPServerIDs: draftSnapshot.perMessageMCPServerIDs
                         )
                     }
                 }
@@ -253,10 +230,10 @@ extension ChatView {
                     prepareToSendTask = nil
                     prepareToSendCancellationReason = nil
                     if !(error is CancellationError) || cancellationReason == .userCancelled {
-                        messageText = messageTextSnapshot
-                        remoteVideoInputURLText = remoteVideoURLTextSnapshot
-                        draftAttachments = attachmentsSnapshot
-                        draftQuotes = draftQuotesSnapshot
+                        messageText = draftSnapshot.messageText
+                        remoteVideoInputURLText = draftSnapshot.remoteVideoURLText
+                        draftAttachments = draftSnapshot.attachments
+                        draftQuotes = draftSnapshot.quotes
                     }
                     if !(error is CancellationError) {
                         errorMessage = error.localizedDescription
@@ -315,6 +292,7 @@ extension ChatView {
             mistralOCRPluginEnabled: mistralOCRPluginEnabled,
             mineruOCRPluginEnabled: mineruOCRPluginEnabled,
             deepSeekOCRPluginEnabled: deepSeekOCRPluginEnabled,
+            openRouterOCRPluginEnabled: openRouterOCRPluginEnabled,
             firecrawlOCRPluginEnabled: firecrawlOCRPluginEnabled,
             defaultPDFProcessingFallbackMode: defaultPDFProcessingFallbackMode
         )
@@ -337,7 +315,7 @@ extension ChatView {
             attachments: attachments,
             remoteVideoURL: remoteVideoURL,
             profile: profile,
-            preparedContentForPDF: { attachment, profile, mode, total, ordinal, mistral, mineru, deepseek, firecrawl, r2Uploader in
+            preparedContentForPDF: { attachment, profile, mode, total, ordinal, mistral, mineru, deepseek, openRouter, firecrawl, r2Uploader in
                 try await ChatMessagePreparationSupport.preparedContentForPDF(
                     attachment,
                     profile: profile,
@@ -347,6 +325,7 @@ extension ChatView {
                     mistralClient: mistral,
                     mineruClient: mineru,
                     deepSeekClient: deepseek,
+                    openRouterClient: openRouter,
                     firecrawlClient: firecrawl,
                     r2Uploader: r2Uploader,
                     onStatusUpdate: { [self] status in
@@ -425,9 +404,6 @@ extension ChatView {
         guard !streamingStore.isStreaming(conversationID: conversationID, threadID: threadID) else { return }
 
         guard let thread = sortedModelThreads.first(where: { $0.id == threadID }) else { return }
-        let providerID = thread.providerID
-        let providerEntity = providers.first(where: { $0.id == providerID })
-        let providerTypeSnapshot = providerEntity.flatMap { ProviderType(rawValue: $0.typeRaw) } ?? ProviderType(rawValue: providerID)
         let threadControls: GenerationControls
         do {
             threadControls = try JSONDecoder().decode(GenerationControls.self, from: thread.modelConfigData)
@@ -437,51 +413,46 @@ extension ChatView {
             streamingStore.endSession(conversationID: conversationID, threadID: threadID)
             return
         }
-        let modelID: String
-        if providerTypeSnapshot == .claudeManagedAgents {
-            var mergedControls = threadControls
-            providerEntity?.applyClaudeManagedDefaults(into: &mergedControls)
-            let syntheticModelID = managedAgentSyntheticModelID(
-                providerID: providerID,
-                controls: mergedControls
+
+        let providerSnapshot: ChatStreamingProviderSnapshot
+        do {
+            providerSnapshot = try ChatStreamingSessionResolver.providerSnapshot(
+                for: thread,
+                providers: providers
             )
-            migrateThreadModelIDIfNeeded(thread, resolvedModelID: syntheticModelID)
-            modelID = ClaudeManagedAgentRuntime.resolvedRuntimeModelID(
-                threadModelID: syntheticModelID,
-                controls: mergedControls
-            )
-        } else {
-            modelID = effectiveModelID(
-                for: thread.modelID,
-                providerEntity: providerEntity,
-                providerType: providerTypeSnapshot
-            )
-            migrateThreadModelIDIfNeeded(thread, resolvedModelID: modelID)
+        } catch {
+            errorMessage = "Failed to load provider configuration: \(error.localizedDescription)"
+            showingError = true
+            streamingStore.endSession(conversationID: conversationID, threadID: threadID)
+            return
         }
-        let modelInfoSnapshot = resolvedModelInfo(
-            for: modelID,
-            providerEntity: providerEntity,
-            providerType: providerTypeSnapshot
+
+        let modelSnapshot = ChatStreamingSessionResolver.modelSnapshot(
+            for: thread,
+            threadControls: threadControls,
+            providerSnapshot: providerSnapshot,
+            managedAgentSyntheticModelID: { providerID, controls in
+                managedAgentSyntheticModelID(providerID: providerID, controls: controls)
+            },
+            effectiveModelID: { modelID, providerEntity, providerType in
+                effectiveModelID(for: modelID, providerEntity: providerEntity, providerType: providerType)
+            },
+            migrateThreadModelIDIfNeeded: { thread, resolvedModelID in
+                migrateThreadModelIDIfNeeded(thread, resolvedModelID: resolvedModelID)
+            },
+            resolvedModelInfo: { modelID, providerEntity, providerType in
+                resolvedModelInfo(for: modelID, providerEntity: providerEntity, providerType: providerType)
+            },
+            normalizedModelInfo: { modelInfo, providerType in
+                normalizedModelInfo(modelInfo, for: providerType)
+            }
         )
-        let normalizedModelInfoSnapshot = modelInfoSnapshot.map {
-            normalizedModelInfo($0, for: providerTypeSnapshot)
-        }
-        let resolvedModelSettingsSnapshot = normalizedModelInfoSnapshot.map {
-            ModelSettingsResolver.resolve(model: $0, providerType: providerTypeSnapshot)
-        }
-        let modelNameSnapshot: String
-        if providerTypeSnapshot == .claudeManagedAgents {
-            modelNameSnapshot = ClaudeManagedAgentRuntime.resolvedDisplayName(
-                threadModelID: thread.modelID,
-                controls: threadControls
-            )
-        } else {
-            modelNameSnapshot = normalizedModelInfoSnapshot?.name ?? modelID
-        }
+
         let streamingState = streamingStore.beginSession(
             conversationID: conversationID,
             threadID: threadID,
-            modelLabel: modelNameSnapshot
+            modelLabel: modelSnapshot.modelName,
+            modelID: modelSnapshot.modelID
         )
         streamingState.debugContext = StreamingDebugContext(
             conversationID: conversationID,
@@ -489,20 +460,6 @@ extension ChatView {
             diagnosticRunID: diagnosticRunID
         )
         streamingState.reset()
-
-        let providerConfig: ProviderConfig?
-        if let entity = providerEntity {
-            do {
-                providerConfig = try entity.toDomain()
-            } catch {
-                errorMessage = "Failed to load provider configuration: \(error.localizedDescription)"
-                showingError = true
-                streamingStore.endSession(conversationID: conversationID, threadID: threadID)
-                return
-            }
-        } else {
-            providerConfig = nil
-        }
         let snapshotBuildStartedAt = ProcessInfo.processInfo.systemUptime
         let messageSnapshots = orderedConversationMessages(threadID: threadID).map(PersistedMessageSnapshot.init)
         let snapshotBuildDurationMs = Int((ProcessInfo.processInfo.systemUptime - snapshotBuildStartedAt) * 1000)
@@ -527,33 +484,35 @@ extension ChatView {
             conversationSystemPrompt: conversationEntity.systemPrompt,
             assistant: assistant
         )
-        var controlsToUse = threadControls
-        controlsToUse = GenerationControlsResolver.resolvedForRequest(
-            base: controlsToUse,
-            assistantTemperature: assistant?.temperature,
-            assistantMaxOutputTokens: assistant?.maxOutputTokens,
-            modelMaxOutputTokens: resolvedModelSettingsSnapshot?.maxOutputTokens
+        let controlsToUse = ChatStreamingSessionResolver.requestControls(
+            threadControls: threadControls,
+            assistant: assistant,
+            modelSnapshot: modelSnapshot,
+            providerType: providerSnapshot.type,
+            isAgentModeActive: isAgentModeActive,
+            automaticContextCacheControls: { providerType, modelID, modelCapabilities in
+                automaticContextCacheControls(
+                    providerType: providerType,
+                    modelID: modelID,
+                    modelCapabilities: modelCapabilities
+                )
+            },
+            sanitizeProviderSpecific: Self.sanitizeProviderSpecificForProvider,
+            injectCodexThreadPersistence: { controls in
+                injectCodexThreadPersistence(into: &controls, from: thread)
+            },
+            injectClaudeManagedAgentSessionPersistence: { controls in
+                injectClaudeManagedAgentSessionPersistence(into: &controls, from: thread)
+            }
         )
-        controlsToUse.contextCache = automaticContextCacheControls(
-            providerType: providerTypeSnapshot,
-            modelID: modelID,
-            modelCapabilities: resolvedModelSettingsSnapshot?.capabilities
-        )
-        Self.sanitizeProviderSpecificForProvider(providerTypeSnapshot, controls: &controlsToUse)
-        injectCodexThreadPersistence(into: &controlsToUse, from: thread)
-        injectClaudeManagedAgentSessionPersistence(into: &controlsToUse, from: thread)
-        controlsToUse.agentMode = Self.resolvedAgentModeControls(active: isAgentModeActive)
-
-        let shouldTruncateMessages = assistant?.truncateMessages ?? false
-        let maxHistoryMessages = assistant?.maxHistoryMessages
-        let modelContextWindow = resolvedModelSettingsSnapshot?.contextWindow ?? 128000
-        let reservedOutputTokens = ModelContextUsageSupport.reservedOutputTokens(
-            for: resolvedModelSettingsSnapshot?.modelType,
-            requestedMaxTokens: controlsToUse.maxTokens
+        let historySettings = ChatStreamingSessionResolver.historySettings(
+            assistant: assistant,
+            modelSnapshot: modelSnapshot,
+            controls: controlsToUse
         )
         let threadSupportsPerMessageMCP = threadSupportsMCPTools(
-            providerType: providerTypeSnapshot,
-            resolvedModelSettings: resolvedModelSettingsSnapshot
+            providerType: providerSnapshot.type,
+            resolvedModelSettings: modelSnapshot.resolvedSettings
         )
         let mcpServerConfigs: [MCPServerConfig]
         do {
@@ -570,13 +529,14 @@ extension ChatView {
             return
         }
         let chatNamingTarget = resolvedChatNamingTarget()
-        let supportsBuiltinSearchPlugin = !ManagedAgentUIVisibilitySupport.hidesInternalUI(providerType: providerTypeSnapshot)
-            && (resolvedModelSettingsSnapshot?.capabilities.contains(.toolCalling) == true)
-            && webSearchPluginEnabled
-            && webSearchPluginConfigured
-        let supportsNativeSearch = ModelCapabilityRegistry.supportsWebSearch(for: providerTypeSnapshot, modelID: modelID)
-        let shouldOfferBuiltinSearch = supportsBuiltinSearchPlugin
-            && (!supportsNativeSearch || controlsToUse.searchPlugin?.preferJinSearch == true)
+        let shouldOfferBuiltinSearch = ChatStreamingSessionResolver.shouldOfferBuiltinSearch(
+            providerType: providerSnapshot.type,
+            modelID: modelSnapshot.modelID,
+            resolvedModelSettings: modelSnapshot.resolvedSettings,
+            controls: controlsToUse,
+            webSearchPluginEnabled: webSearchPluginEnabled,
+            webSearchPluginConfigured: webSearchPluginConfigured
+        )
         let networkLogContext = NetworkDebugLogContext(
             conversationID: conversationID.uuidString,
             threadID: threadID.uuidString,
@@ -590,19 +550,19 @@ extension ChatView {
             threadID: threadID,
             turnID: turnID,
             diagnosticRunID: diagnosticRunID,
-            providerID: providerID,
-            providerConfig: providerConfig,
-            providerType: providerTypeSnapshot,
-            modelID: modelID,
-            modelNameSnapshot: modelNameSnapshot,
-            resolvedModelSettings: resolvedModelSettingsSnapshot,
+            providerID: providerSnapshot.providerID,
+            providerConfig: providerSnapshot.config,
+            providerType: providerSnapshot.type,
+            modelID: modelSnapshot.modelID,
+            modelNameSnapshot: modelSnapshot.modelName,
+            resolvedModelSettings: modelSnapshot.resolvedSettings,
             messageSnapshots: messageSnapshots,
             systemPrompt: systemPrompt,
             controlsToUse: controlsToUse,
-            shouldTruncateMessages: shouldTruncateMessages,
-            maxHistoryMessages: maxHistoryMessages,
-            modelContextWindow: modelContextWindow,
-            reservedOutputTokens: reservedOutputTokens,
+            shouldTruncateMessages: historySettings.shouldTruncateMessages,
+            maxHistoryMessages: historySettings.maxHistoryMessages,
+            modelContextWindow: historySettings.modelContextWindow,
+            reservedOutputTokens: historySettings.reservedOutputTokens,
             mcpServerConfigs: mcpServerConfigs,
             chatNamingTarget: chatNamingTarget,
             shouldOfferBuiltinSearch: shouldOfferBuiltinSearch,
@@ -829,33 +789,10 @@ extension ChatView {
             return
         }
 
-        let decoder = JSONDecoder()
-        let encoder = JSONEncoder()
-
-        let existingActivities: [SearchActivity]
-        if let data = entity.searchActivitiesData,
-           let decoded = try? decoder.decode([SearchActivity].self, from: data) {
-            existingActivities = decoded
-        } else {
-            existingActivities = []
-        }
-
-        var byID: OrderedDictionary<String, SearchActivity> = [:]
-
-        for activity in existingActivities {
-            byID[activity.id] = activity
-        }
-
-        for activity in newActivities {
-            if let existing = byID[activity.id] {
-                byID[activity.id] = existing.merged(with: activity)
-            } else {
-                byID[activity.id] = activity
-            }
-        }
-
-        let mergedActivities = Array(byID.values)
-        entity.searchActivitiesData = mergedActivities.isEmpty ? nil : (try? encoder.encode(mergedActivities))
+        entity.searchActivitiesData = ChatMessageActivityMergeSupport.mergedSearchActivities(
+            existingData: entity.searchActivitiesData,
+            newActivities: newActivities
+        )
         conversationEntity.updatedAt = Date()
         rebuildMessageCaches()
         try? modelContext.save()
@@ -870,31 +807,10 @@ extension ChatView {
             return
         }
 
-        let decoder = JSONDecoder()
-        let encoder = JSONEncoder()
-
-        let existingActivities: [CodexToolActivity]
-        if let data = entity.agentToolActivitiesData,
-           let decoded = try? decoder.decode([CodexToolActivity].self, from: data) {
-            existingActivities = decoded
-        } else {
-            existingActivities = []
-        }
-
-        var byID: OrderedDictionary<String, CodexToolActivity> = [:]
-        for activity in existingActivities {
-            byID[activity.id] = activity
-        }
-        for activity in newActivities {
-            if let existing = byID[activity.id] {
-                byID[activity.id] = existing.merged(with: activity)
-            } else {
-                byID[activity.id] = activity
-            }
-        }
-
-        let mergedActivities = Array(byID.values)
-        entity.agentToolActivitiesData = mergedActivities.isEmpty ? nil : (try? encoder.encode(mergedActivities))
+        entity.agentToolActivitiesData = ChatMessageActivityMergeSupport.mergedAgentToolActivities(
+            existingData: entity.agentToolActivitiesData,
+            newActivities: newActivities
+        )
         conversationEntity.updatedAt = Date()
         rebuildMessageCaches()
         try? modelContext.save()

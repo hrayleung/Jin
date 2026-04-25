@@ -18,6 +18,8 @@ extension ChatView {
             mineruOCRConfigured: mineruOCRConfigured,
             deepSeekOCRPluginEnabled: deepSeekOCRPluginEnabled,
             deepSeekOCRConfigured: deepSeekOCRConfigured,
+            openRouterOCRPluginEnabled: openRouterOCRPluginEnabled,
+            openRouterOCRConfigured: openRouterOCRConfigured,
             firecrawlOCRPluginEnabled: firecrawlOCRPluginEnabled,
             firecrawlOCRConfigured: firecrawlOCRConfigured
         )
@@ -34,6 +36,7 @@ extension ChatView {
             mistralOCRPluginEnabled: mistralOCRPluginEnabled,
             mineruOCRPluginEnabled: mineruOCRPluginEnabled,
             deepSeekOCRPluginEnabled: deepSeekOCRPluginEnabled,
+            openRouterOCRPluginEnabled: openRouterOCRPluginEnabled,
             firecrawlOCRPluginEnabled: firecrawlOCRPluginEnabled
         )
     }
@@ -46,6 +49,7 @@ extension ChatView {
             mistralOCRPluginEnabled: mistralOCRPluginEnabled,
             mineruOCRPluginEnabled: mineruOCRPluginEnabled,
             deepSeekOCRPluginEnabled: deepSeekOCRPluginEnabled,
+            openRouterOCRPluginEnabled: openRouterOCRPluginEnabled,
             firecrawlOCRPluginEnabled: firecrawlOCRPluginEnabled
         )
     }
@@ -64,6 +68,8 @@ extension ChatView {
             return "MU"
         case .deepSeekOCR:
             return "DS"
+        case .openRouterOCR:
+            return "OR"
         case .firecrawlOCR:
             return "FC"
         case .macOSExtract:
@@ -81,6 +87,8 @@ extension ChatView {
             return mineruOCRConfigured ? "PDF handling: MinerU OCR" : "PDF handling: MinerU OCR (API token required)"
         case .deepSeekOCR:
             return deepSeekOCRConfigured ? "PDF handling: DeepSeek OCR (DeepInfra)" : "PDF handling: DeepSeek OCR (API key required)"
+        case .openRouterOCR:
+            return openRouterOCRConfigured ? "PDF handling: OpenRouter OCR" : "PDF handling: OpenRouter OCR (API key required)"
         case .firecrawlOCR:
             let mode = resolvedFirecrawlPDFParserMode.displayName
             if firecrawlOCRConfigured {
