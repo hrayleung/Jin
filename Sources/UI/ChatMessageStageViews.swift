@@ -47,6 +47,44 @@ struct EditSlashCommandContext {
     )
 }
 
+struct ChatEditSlashCommandEquatableKey: Equatable {
+    let isActive: Bool
+    let filterText: String
+    let highlightedIndex: Int
+    let servers: [SlashCommandMCPServerItem]
+    let perMessageChips: [SlashCommandMCPServerItem]
+
+    static let inactive = ChatEditSlashCommandEquatableKey(
+        isActive: false,
+        filterText: "",
+        highlightedIndex: 0,
+        servers: [],
+        perMessageChips: []
+    )
+
+    init(context: EditSlashCommandContext) {
+        isActive = context.isActive
+        filterText = context.isActive ? context.filterText : ""
+        highlightedIndex = context.isActive ? context.highlightedIndex : 0
+        servers = context.isActive ? context.servers : []
+        perMessageChips = context.perMessageChips
+    }
+
+    private init(
+        isActive: Bool,
+        filterText: String,
+        highlightedIndex: Int,
+        servers: [SlashCommandMCPServerItem],
+        perMessageChips: [SlashCommandMCPServerItem]
+    ) {
+        self.isActive = isActive
+        self.filterText = filterText
+        self.highlightedIndex = highlightedIndex
+        self.servers = servers
+        self.perMessageChips = perMessageChips
+    }
+}
+
 struct ChatMessageInteractionContext {
     let textToSpeechEnabled: Bool
     let textToSpeechConfigured: Bool
@@ -252,6 +290,8 @@ struct ChatSingleThreadMessagesView: View {
             streamingObjectID: streamingMessage.map(ObjectIdentifier.init),
             streamingModelLabel: streamingModelLabel,
             streamingModelID: streamingModelID,
+            editingUserMessageID: interaction.editingUserMessageID,
+            editSlashCommandKey: ChatEditSlashCommandEquatableKey(context: interaction.editSlashCommand),
             expandedCollapsedMessageIDs: expandedCollapsedMessageIDs.wrappedValue
         )
     }
@@ -931,6 +971,8 @@ enum ChatMessageStageEquatableKeyBuilder {
         streamingObjectID: ObjectIdentifier?,
         streamingModelLabel: String?,
         streamingModelID: String?,
+        editingUserMessageID: UUID? = nil,
+        editSlashCommandKey: ChatEditSlashCommandEquatableKey = .inactive,
         expandedCollapsedMessageIDs: Set<UUID>
     ) -> ChatStageEquatableKey {
         ChatStageEquatableKey(
@@ -950,6 +992,8 @@ enum ChatMessageStageEquatableKeyBuilder {
             streamingObjectID: streamingObjectID,
             streamingModelLabel: streamingModelLabel,
             streamingModelID: streamingModelID,
+            editingUserMessageID: editingUserMessageID,
+            editSlashCommandKey: editSlashCommandKey,
             activeThreadID: nil,
             threadIDs: [],
             contextKeysByThreadID: [:],
@@ -975,6 +1019,8 @@ struct ChatStageEquatableKey: Equatable {
     let streamingObjectID: ObjectIdentifier?
     let streamingModelLabel: String?
     let streamingModelID: String?
+    let editingUserMessageID: UUID?
+    let editSlashCommandKey: ChatEditSlashCommandEquatableKey
     let activeThreadID: UUID?
     let threadIDs: [UUID]
     let contextKeysByThreadID: [UUID: ChatThreadContextEquatableKey]
