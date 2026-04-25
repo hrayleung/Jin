@@ -152,7 +152,11 @@ actor TogetherAdapter: LLMProviderAdapter {
 
         case .effort:
             guard reasoning.enabled else { return }
-            let effort = reasoning.effort ?? .medium
+            let effort = ModelCapabilityRegistry.normalizedReasoningEffort(
+                reasoning.effort ?? .medium,
+                for: providerConfig.type,
+                modelID: modelID
+            )
             switch effort {
             case .none, .minimal, .low:
                 body["reasoning_effort"] = "low"

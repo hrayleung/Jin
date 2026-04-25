@@ -126,6 +126,61 @@ final class ModelCatalogTests: XCTestCase {
         XCTAssertEqual(model.reasoningConfig?.defaultEffort, ReasoningEffort.none)
     }
 
+    func testOpenRouterDeepSeekV4CatalogUsesExactProviderPrefixedIDs() {
+        let flash = ModelCatalog.modelInfo(
+            for: "deepseek/deepseek-v4-flash",
+            provider: .openrouter
+        )
+        XCTAssertEqual(flash.name, "DeepSeek V4 Flash")
+        XCTAssertEqual(flash.contextWindow, 1_048_576)
+        XCTAssertEqual(flash.maxOutputTokens, 384_000)
+        XCTAssertEqual(flash.capabilities, [.streaming, .toolCalling, .reasoning, .promptCaching])
+        XCTAssertEqual(flash.reasoningConfig?.type, .effort)
+        XCTAssertEqual(flash.reasoningConfig?.defaultEffort, .high)
+
+        let pro = ModelCatalog.modelInfo(
+            for: "deepseek/deepseek-v4-pro",
+            provider: .openrouter
+        )
+        XCTAssertEqual(pro.name, "DeepSeek V4 Pro")
+        XCTAssertEqual(pro.contextWindow, 1_048_576)
+        XCTAssertEqual(pro.maxOutputTokens, 384_000)
+        XCTAssertEqual(pro.capabilities, [.streaming, .toolCalling, .reasoning, .promptCaching])
+        XCTAssertEqual(pro.reasoningConfig?.type, .effort)
+        XCTAssertEqual(pro.reasoningConfig?.defaultEffort, .high)
+
+        let unknown = ModelCatalog.modelInfo(
+            for: "deepseek/deepseek-v4-pro-custom",
+            provider: .openrouter
+        )
+        XCTAssertEqual(unknown.capabilities, [.streaming, .toolCalling])
+        XCTAssertEqual(unknown.contextWindow, 128_000)
+        XCTAssertNil(unknown.maxOutputTokens)
+        XCTAssertNil(unknown.reasoningConfig)
+    }
+
+    func testTogetherDeepSeekV4ProCatalogUsesExactProviderID() {
+        let pro = ModelCatalog.modelInfo(
+            for: "deepseek-ai/DeepSeek-V4-Pro",
+            provider: .together
+        )
+        XCTAssertEqual(pro.name, "DeepSeek V4 Pro")
+        XCTAssertEqual(pro.contextWindow, 524_288)
+        XCTAssertNil(pro.maxOutputTokens)
+        XCTAssertEqual(pro.capabilities, [.streaming, .toolCalling, .reasoning])
+        XCTAssertEqual(pro.reasoningConfig?.type, .effort)
+        XCTAssertEqual(pro.reasoningConfig?.defaultEffort, .high)
+
+        let flash = ModelCatalog.modelInfo(
+            for: "deepseek-ai/DeepSeek-V4-Flash",
+            provider: .together
+        )
+        XCTAssertEqual(flash.capabilities, [.streaming, .toolCalling])
+        XCTAssertEqual(flash.contextWindow, 128_000)
+        XCTAssertNil(flash.maxOutputTokens)
+        XCTAssertNil(flash.reasoningConfig)
+    }
+
     func testOpenRouterSeedanceCatalogUsesExactVideoModelIDs() {
         let seedance20 = ModelCatalog.modelInfo(
             for: "bytedance/seedance-2.0",
