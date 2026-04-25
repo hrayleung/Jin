@@ -151,4 +151,72 @@ final class ChatMessageStageEquatableKeyTests: XCTestCase {
         XCTAssertNotEqual(base, withNewMessage)
         XCTAssertNotEqual(base, withComposerHeightChange)
     }
+
+    func testSingleThreadKeyChangesForUserMessageEditingState() {
+        let conversationID = UUID()
+        let messageID = UUID()
+        let editingMessageID = UUID()
+        let server = SlashCommandMCPServerItem(id: "server-1", name: "Server One", isSelected: false)
+        let chip = SlashCommandMCPServerItem(id: "server-1", name: "Server One", isSelected: true)
+
+        func makeKey(
+            editingUserMessageID: UUID? = nil,
+            editSlashCommandKey: ChatEditSlashCommandEquatableKey = .inactive
+        ) -> ChatStageEquatableKey {
+            ChatMessageStageEquatableKeyBuilder.singleThreadKey(
+                conversationID: conversationID,
+                conversationMessageCount: 1,
+                renderRevision: 1,
+                viewportHeight: 600,
+                allMessageCount: 1,
+                lastMessageID: messageID,
+                toolResultCount: 0,
+                entityCount: 1,
+                assistantDisplayName: "Assistant",
+                providerType: nil,
+                providerIconID: nil,
+                composerHeight: 80,
+                isStreaming: false,
+                streamingObjectID: nil,
+                streamingModelLabel: nil,
+                streamingModelID: nil,
+                editingUserMessageID: editingUserMessageID,
+                editSlashCommandKey: editSlashCommandKey,
+                expandedCollapsedMessageIDs: []
+            )
+        }
+
+        let inactive = makeKey()
+        let editing = makeKey(editingUserMessageID: editingMessageID)
+        let activeSlash = ChatEditSlashCommandEquatableKey(
+            context: EditSlashCommandContext(
+                servers: [server],
+                isActive: true,
+                filterText: "ser",
+                highlightedIndex: 0,
+                perMessageChips: [],
+                onSelectServer: { _ in },
+                onDismiss: {},
+                onRemovePerMessageServer: { _ in },
+                onInterceptKeyDown: nil
+            )
+        )
+        let withSelectedServer = ChatEditSlashCommandEquatableKey(
+            context: EditSlashCommandContext(
+                servers: [],
+                isActive: false,
+                filterText: "",
+                highlightedIndex: 0,
+                perMessageChips: [chip],
+                onSelectServer: { _ in },
+                onDismiss: {},
+                onRemovePerMessageServer: { _ in },
+                onInterceptKeyDown: nil
+            )
+        )
+
+        XCTAssertNotEqual(inactive, editing)
+        XCTAssertNotEqual(editing, makeKey(editingUserMessageID: editingMessageID, editSlashCommandKey: activeSlash))
+        XCTAssertNotEqual(editing, makeKey(editingUserMessageID: editingMessageID, editSlashCommandKey: withSelectedServer))
+    }
 }
