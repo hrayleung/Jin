@@ -73,6 +73,58 @@ final class MarkdownRenderNormalizerTests: XCTestCase {
         XCTAssertEqual(result.text, input)
     }
 
+    func testUnescapesLeadingEmphasisInUnicodeBulletLists() {
+        let input = """
+        • \\*Iran talks / Middle East:\\*
+        The White House says talks may happen.
+
+        • \\*\\*Markets:\\*\\*
+        Stocks hit records.
+        """
+
+        let result = MarkdownRenderNormalizer.normalizeForRender(
+            input,
+            modelID: "gpt-5",
+            isStreaming: false
+        )
+
+        XCTAssertTrue(result.didChange)
+        XCTAssertLessThan(result.anomalyScoreAfter, result.anomalyScoreBefore)
+        XCTAssertTrue(result.text.contains("• *Iran talks / Middle East:*"))
+        XCTAssertTrue(result.text.contains("• **Markets:**"))
+    }
+
+    func testLeavesValidBoldMarkdownListUnchanged() {
+        let input = """
+        Here’s a quick **news briefing for today — Saturday, April 25, 2026**:
+
+        - **Iran talks / Middle East:** The White House says talks may happen.
+        - **Markets:** Stocks hit records.
+        """
+
+        let result = MarkdownRenderNormalizer.normalizeForRender(
+            input,
+            modelID: "gpt-5",
+            isStreaming: false
+        )
+
+        XCTAssertFalse(result.didChange)
+        XCTAssertEqual(result.text, input)
+    }
+
+    func testDoesNotUnescapeEscapedEmphasisInsideInlineCode() {
+        let input = "Use `\\*literal\\*` when explaining escaped emphasis."
+
+        let result = MarkdownRenderNormalizer.normalizeForRender(
+            input,
+            modelID: "deepseek-v4-flash",
+            isStreaming: false
+        )
+
+        XCTAssertFalse(result.didChange)
+        XCTAssertEqual(result.text, input)
+    }
+
     func testDoesNotNormalizeInsideFencedCodeBlocks() {
         let input = """
         ```markdown
