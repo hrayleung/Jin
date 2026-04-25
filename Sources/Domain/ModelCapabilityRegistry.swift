@@ -340,6 +340,8 @@ enum ModelCapabilityRegistry {
             return supportedAnthropicEfforts(lowerModelID: lowerModelID)
         case .deepseek where deepSeekV4ReasoningEffortModelIDs.contains(lowerModelID):
             return [.high, .max]
+        case .opencodeGo where deepSeekV4ReasoningEffortModelIDs.contains(lowerModelID):
+            return [.high, .max]
         default:
             break
         }

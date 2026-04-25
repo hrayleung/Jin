@@ -946,6 +946,44 @@ final class ModelSettingsResolverTests: XCTestCase {
         XCTAssertEqual(resolvedMimoV25.reasoningConfig?.defaultEffort, .medium)
     }
 
+    func testResolverInfersOpenCodeGoDeepSeekV4MetadataForLegacyPersistedModels() {
+        let proLegacy = ModelInfo(
+            id: "deepseek-v4-pro",
+            name: "DeepSeek V4 Pro",
+            capabilities: [.streaming, .toolCalling],
+            contextWindow: 8_192,
+            reasoningConfig: nil,
+            isEnabled: true
+        )
+        let resolvedPro = ModelSettingsResolver.resolve(model: proLegacy, providerType: .opencodeGo)
+        XCTAssertEqual(resolvedPro.contextWindow, 1_000_000)
+        XCTAssertEqual(resolvedPro.maxOutputTokens, 384_000)
+        XCTAssertTrue(resolvedPro.capabilities.contains(.reasoning))
+        XCTAssertTrue(resolvedPro.capabilities.contains(.promptCaching))
+        XCTAssertEqual(resolvedPro.reasoningConfig?.type, .effort)
+        XCTAssertEqual(resolvedPro.reasoningConfig?.defaultEffort, .high)
+
+        let flashLegacy = ModelInfo(
+            id: "deepseek-v4-flash",
+            name: "DeepSeek V4 Flash",
+            capabilities: [.streaming, .toolCalling],
+            contextWindow: 8_192,
+            reasoningConfig: nil,
+            isEnabled: true
+        )
+        let resolvedFlash = ModelSettingsResolver.resolve(model: flashLegacy, providerType: .opencodeGo)
+        XCTAssertEqual(resolvedFlash.contextWindow, 1_000_000)
+        XCTAssertEqual(resolvedFlash.maxOutputTokens, 384_000)
+        XCTAssertTrue(resolvedFlash.capabilities.contains(.reasoning))
+        XCTAssertTrue(resolvedFlash.capabilities.contains(.promptCaching))
+        XCTAssertEqual(resolvedFlash.reasoningConfig?.type, .effort)
+        XCTAssertEqual(resolvedFlash.reasoningConfig?.defaultEffort, .high)
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .opencodeGo, modelID: "deepseek-v4-flash"),
+            [.high, .max]
+        )
+    }
+
     func testSambaNovaAlwaysOnReasoningModelsCannotDisableByDefault() {
         let gptOSS = ModelInfo(
             id: "gpt-oss-120b",

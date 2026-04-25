@@ -4,7 +4,7 @@ import Foundation
 ///
 /// Routes requests to the correct endpoint format based on model ID:
 /// - GLM-5, Kimi K2.5/K2.6, MiMo V2.5/V2.5 Pro → OpenAI-compatible `/chat/completions`
-/// - MiniMax M2.7, M2.5 → Anthropic-compatible `/messages`
+/// - DeepSeek V4 Pro/Flash, MiniMax M2.7/M2.5 → Anthropic-compatible `/messages`
 ///
 /// Docs: https://opencode.ai/docs/go/
 actor OpenCodeGoAdapter: LLMProviderAdapter {
@@ -16,7 +16,12 @@ actor OpenCodeGoAdapter: LLMProviderAdapter {
     private let anthropicDelegate: AnthropicAdapter
 
     private static let hardcodedBaseURL = "https://opencode.ai/zen/go/v1"
-    private static let anthropicModelIDs: Set<String> = ["minimax-m2.7", "minimax-m2.5"]
+    private static let anthropicModelIDs: Set<String> = [
+        "deepseek-v4-pro",
+        "deepseek-v4-flash",
+        "minimax-m2.7",
+        "minimax-m2.5",
+    ]
 
     init(providerConfig: ProviderConfig, apiKey: String, networkManager: NetworkManager = NetworkManager()) {
         self.providerConfig = providerConfig
