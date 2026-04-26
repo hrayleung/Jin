@@ -44,6 +44,8 @@ enum ChatMessageStageEquatableKeyBuilder {
         conversationMessageCount: Int,
         renderRevision: Int,
         viewportHeight: CGFloat,
+        layoutWidthBucket: Int,
+        layoutCenterOffsetBucket: Int,
         allMessageCount: Int,
         lastMessageID: UUID?,
         toolResultCount: Int,
@@ -65,6 +67,8 @@ enum ChatMessageStageEquatableKeyBuilder {
             conversationMessageCount: conversationMessageCount,
             renderRevision: renderRevision,
             viewportHeight: viewportHeight,
+            layoutWidthBucket: layoutWidthBucket,
+            layoutCenterOffsetBucket: layoutCenterOffsetBucket,
             allMessageCount: allMessageCount,
             lastMessageID: lastMessageID,
             toolResultCount: toolResultCount,
@@ -91,6 +95,8 @@ struct ChatStageEquatableKey: Equatable {
     let conversationMessageCount: Int
     let renderRevision: Int
     let viewportHeight: CGFloat
+    let layoutWidthBucket: Int
+    let layoutCenterOffsetBucket: Int
     let allMessageCount: Int
     let lastMessageID: UUID?
     let toolResultCount: Int

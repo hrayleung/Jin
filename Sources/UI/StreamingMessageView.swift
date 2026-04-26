@@ -133,7 +133,7 @@ struct StreamingMessageView: View {
                 }
                 .layoutValue(key: ConstrainedWidthContentVersionKey.self, value: .version(state.renderTick))
             }
-            .padding(.horizontal, JinSpacing.large)
+            .padding(.horizontal, JinSpacing.small)
 
             Spacer()
         }

@@ -38,12 +38,14 @@ struct ContentView: View {
 
     @State var selectedAssistant: AssistantEntity?
     @State var selectedConversation: ConversationEntity?
-    @State private var isSidebarPresented = true
+    @State private var isSidebarPresented = MainSidebarVisibility.defaultIsVisible
     @State var didBootstrapDefaults = false
     @State var didBootstrapAssistants = false
     @State var searchText = ""
     @State var searchCache = ConversationSearchCache()
     @State var isAssistantInspectorPresented = false
+    @State private var sidebarResizeStartWidth: CGFloat?
+    @State private var sidebarLiveResizeWidth: CGFloat?
     @State var assistantContextMenuTargetID: String?
     @State var assistantPendingDeletion: AssistantEntity?
     @State var showingDeleteAssistantConfirmation = false
@@ -78,7 +80,15 @@ struct ContentView: View {
     }
 
     private var resolvedSidebarWidth: CGFloat {
-        SidebarWidthPersistence.resolvedWidth(from: persistedSidebarWidth)
+        if let sidebarLiveResizeWidth {
+            return SidebarWidthPersistence.clamped(sidebarLiveResizeWidth)
+        }
+
+        return SidebarWidthPersistence.resolvedWidth(from: persistedSidebarWidth)
+    }
+
+    private var sidebarWidthForDetailLayout: CGFloat {
+        isSidebarVisible ? resolvedSidebarWidth : 0
     }
 
     var body: some View {
@@ -146,20 +156,14 @@ struct ContentView: View {
     }
 
     private var rootSplitView: some View {
-        HSplitView {
-            sidebarPane
-                .frame(
-                    minWidth: isSidebarVisible ? SidebarWidthPersistence.minimumWidth : 0,
-                    idealWidth: isSidebarVisible ? resolvedSidebarWidth : 0,
-                    maxWidth: isSidebarVisible ? SidebarWidthPersistence.maximumWidth : 0,
-                    maxHeight: .infinity
-                )
-                .opacity(isSidebarVisible ? 1 : 0)
-                .allowsHitTesting(isSidebarVisible)
-
+        ZStack(alignment: .leading) {
             detailContent
                 .frame(minWidth: 0, maxWidth: .infinity, maxHeight: .infinity)
+
+            sidebarOverlayPane
         }
+        .clipped()
+        .animation(.easeInOut(duration: 0.24), value: isSidebarVisible)
         .ignoresSafeArea(
             .container,
             edges: mainWindowChromeLayout.extendsContentIntoTitlebar ? .top : []
@@ -170,17 +174,57 @@ struct ContentView: View {
 
     private var sidebarPane: some View {
         sidebarContent
-            .background(sidebarSplitViewPersistenceBridge)
     }
 
-    private var sidebarSplitViewPersistenceBridge: some View {
-        SidebarSplitViewPersistenceBridge(
-            desiredSidebarWidth: resolvedSidebarWidth,
-            isSidebarVisible: isSidebarVisible
-        ) { width in
-            guard abs(width - persistedSidebarWidth) > 0.5 else { return }
-            persistedSidebarWidth = width
+    private var sidebarOverlayPane: some View {
+        ZStack(alignment: .trailing) {
+            sidebarPane
+                .frame(
+                    minWidth: resolvedSidebarWidth,
+                    idealWidth: resolvedSidebarWidth,
+                    maxWidth: resolvedSidebarWidth,
+                    maxHeight: .infinity
+                )
+                .clipped()
+                .shadow(color: .black.opacity(isSidebarVisible ? 0.12 : 0), radius: 14, x: 4, y: 0)
+
+            sidebarResizeHandle
+                .offset(x: 4)
+                .opacity(isSidebarVisible ? 1 : 0)
         }
+        .frame(
+            minWidth: resolvedSidebarWidth,
+            idealWidth: resolvedSidebarWidth,
+            maxWidth: resolvedSidebarWidth,
+            maxHeight: .infinity
+        )
+        .offset(x: isSidebarVisible ? 0 : -resolvedSidebarWidth)
+        .allowsHitTesting(isSidebarVisible)
+        .zIndex(2)
+    }
+
+    private var sidebarResizeHandle: some View {
+        Rectangle()
+            .fill(Color.clear)
+            .frame(width: 8)
+            .contentShape(Rectangle())
+            .gesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { value in
+                        let startWidth = sidebarResizeStartWidth ?? resolvedSidebarWidth
+                        sidebarResizeStartWidth = startWidth
+                        let nextWidth = SidebarWidthPersistence.clamped(startWidth + value.translation.width)
+                        guard abs(nextWidth - resolvedSidebarWidth) > 0.5 else { return }
+                        sidebarLiveResizeWidth = nextWidth
+                    }
+                    .onEnded { _ in
+                        if let sidebarLiveResizeWidth {
+                            persistedSidebarWidth = Double(sidebarLiveResizeWidth)
+                        }
+                        sidebarResizeStartWidth = nil
+                        sidebarLiveResizeWidth = nil
+                    }
+            )
     }
 
     private var sidebarContent: some View {
@@ -206,6 +250,9 @@ struct ContentView: View {
         VStack(spacing: 0) {
             SidebarHeaderView(
                 assistantDisplayName: selectedAssistant?.displayName ?? "Default",
+                extendsContentIntoTitlebar: mainWindowChromeLayout.extendsContentIntoTitlebar,
+                titlebarLeadingInset: mainWindowChromeLayout.titlebarLeadingInset,
+                titlebarTopInset: mainWindowChromeLayout.titlebarTopInset,
                 onNewChat: createNewConversation,
                 onHideSidebar: toggleSidebarVisibility,
                 shortcutsStore: shortcutsStore
@@ -277,9 +324,11 @@ struct ContentView: View {
                     isAssistantInspectorPresented: $isAssistantInspectorPresented,
                     onPersistConversationIfNeeded: { persistConversationIfNeeded(conversation) },
                     isSidebarHidden: !isSidebarVisible,
+                    mainSidebarWidth: sidebarWidthForDetailLayout,
                     onToggleSidebar: toggleSidebarVisibility,
                     onNewChat: createNewConversation,
-                    titlebarLeadingInset: mainWindowChromeLayout.titlebarLeadingInset
+                    titlebarLeadingInset: mainWindowChromeLayout.titlebarLeadingInset,
+                    mainWindowIsFullScreen: mainWindowChromeLayout.isFullScreen
                 )
                 .id(conversation.id)
                 .background(JinSemanticColor.detailSurface)
@@ -393,16 +442,18 @@ struct ContentView: View {
     }
 
     func toggleSidebarVisibility() {
-        withAnimation(.easeInOut(duration: 0.16)) {
-            isSidebarPresented.toggle()
-        }
+        isSidebarPresented = MainSidebarVisibility.toggled(isSidebarPresented)
     }
 
     func focusChatSearch() {
-        if !isSidebarVisible {
+        let shouldDelayFocus = !isSidebarVisible
+        if shouldDelayFocus {
             isSidebarPresented = true
         }
-        DispatchQueue.main.async {
+        Task { @MainActor in
+            if shouldDelayFocus {
+                try? await Task.sleep(nanoseconds: 180_000_000)
+            }
             isSidebarSearchFieldFocused = true
         }
     }
@@ -414,29 +465,50 @@ struct ContentView: View {
     // MARK: - Empty State
 
     private var noConversationSelectedView: some View {
-        VStack(spacing: JinSpacing.large) {
-            Image(systemName: "bubble.left.and.bubble.right")
-                .font(.system(size: 30, weight: .semibold))
-                .foregroundStyle(.tertiary)
+        GeometryReader { geometry in
+            let visibleWidth = ChatConversationLayoutMetrics.visibleContainerWidth(
+                containerWidth: geometry.size.width,
+                sidebarWidth: sidebarWidthForDetailLayout,
+                isSidebarHidden: !isSidebarVisible
+            )
+            let offset = ChatConversationLayoutMetrics.sidebarCompensationOffset(
+                sidebarWidth: sidebarWidthForDetailLayout,
+                isSidebarHidden: !isSidebarVisible,
+                compensationRatio: sidebarCompensationRatio
+            )
 
-            VStack(spacing: JinSpacing.xSmall + 2) {
-                Text("No Conversation Selected")
-                    .font(.title3)
-                    .fontWeight(.semibold)
+            VStack(spacing: JinSpacing.large) {
+                Image(systemName: "bubble.left.and.bubble.right")
+                    .font(.system(size: 30, weight: .semibold))
+                    .foregroundStyle(.tertiary)
 
-                Text("Pick a conversation from the sidebar, or start a new one.")
-                    .font(.body)
-                    .foregroundStyle(.secondary)
+                VStack(spacing: JinSpacing.xSmall + 2) {
+                    Text("No Conversation Selected")
+                        .font(.title3)
+                        .fontWeight(.semibold)
+
+                    Text("Pick a conversation from the sidebar, or start a new one.")
+                        .font(.body)
+                        .foregroundStyle(.secondary)
+                }
+                .multilineTextAlignment(.center)
+
+                Button("New Chat") {
+                    createNewConversation()
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
             }
-            .multilineTextAlignment(.center)
-
-            Button("New Chat") {
-                createNewConversation()
-            }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.large)
+            .padding(.horizontal, JinSpacing.xLarge)
+            .frame(width: visibleWidth, height: geometry.size.height)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .offset(x: offset)
         }
-        .padding(.horizontal, JinSpacing.xLarge)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private var sidebarCompensationRatio: CGFloat {
+        mainWindowChromeLayout.isFullScreen
+            ? ChatConversationLayoutMetrics.fullScreenSidebarCompensationRatio
+            : ChatConversationLayoutMetrics.standardSidebarCompensationRatio
     }
 }

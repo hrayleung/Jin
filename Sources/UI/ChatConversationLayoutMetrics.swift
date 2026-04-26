@@ -1,0 +1,79 @@
+import CoreGraphics
+
+enum ChatConversationLayoutMetrics {
+    static let messageColumnMaxWidth: CGFloat = 1_120
+    static let composerMaxWidth: CGFloat = 1_120
+    static let regularHorizontalInset: CGFloat = 24
+    static let compactHorizontalInset: CGFloat = 18
+    static let standardSidebarCompensationRatio: CGFloat = 0.5
+    static let fullScreenSidebarCompensationRatio: CGFloat = 0.42
+    static let minimumBubbleWidth: CGFloat = 260
+    static let userBubbleWidthRatio: CGFloat = 0.70
+
+    private static let compactWidthThreshold: CGFloat = 720
+
+    static func horizontalInset(for containerWidth: CGFloat) -> CGFloat {
+        guard containerWidth.isFinite else { return regularHorizontalInset }
+        return containerWidth < compactWidthThreshold ? compactHorizontalInset : regularHorizontalInset
+    }
+
+    static func messageColumnWidth(for containerWidth: CGFloat) -> CGFloat {
+        guard containerWidth.isFinite, containerWidth > 0 else { return 0 }
+
+        let availableWidth = max(0, containerWidth - horizontalInset(for: containerWidth) * 2)
+        return min(messageColumnMaxWidth, availableWidth)
+    }
+
+    static func visibleContainerWidth(
+        containerWidth: CGFloat,
+        sidebarWidth: CGFloat,
+        isSidebarHidden: Bool
+    ) -> CGFloat {
+        guard containerWidth.isFinite, containerWidth > 0 else { return 0 }
+        guard !isSidebarHidden, sidebarWidth.isFinite, sidebarWidth > 0 else { return containerWidth }
+
+        return max(0, containerWidth - sidebarWidth)
+    }
+
+    static func assistantBubbleMaxWidth(for columnWidth: CGFloat) -> CGFloat {
+        guard columnWidth.isFinite, columnWidth > 0 else { return 0 }
+        return columnWidth
+    }
+
+    static func userBubbleMaxWidth(for columnWidth: CGFloat) -> CGFloat {
+        guard columnWidth.isFinite, columnWidth > 0 else { return minimumBubbleWidth }
+
+        let preferredWidth = columnWidth * userBubbleWidthRatio
+        return min(columnWidth, max(minimumBubbleWidth, preferredWidth))
+    }
+
+    static func layoutWidthBucket(for containerWidth: CGFloat) -> Int {
+        let columnWidth = messageColumnWidth(for: containerWidth)
+        guard columnWidth < messageColumnMaxWidth else {
+            return Int(messageColumnMaxWidth.rounded())
+        }
+
+        return Int((columnWidth / 64).rounded(.toNearestOrAwayFromZero))
+    }
+
+    static func sidebarCompensationOffset(sidebarWidth: CGFloat, isSidebarHidden: Bool) -> CGFloat {
+        sidebarCompensationOffset(
+            sidebarWidth: sidebarWidth,
+            isSidebarHidden: isSidebarHidden,
+            compensationRatio: standardSidebarCompensationRatio
+        )
+    }
+
+    static func sidebarCompensationOffset(
+        sidebarWidth: CGFloat,
+        isSidebarHidden: Bool,
+        compensationRatio: CGFloat
+    ) -> CGFloat {
+        guard !isSidebarHidden else { return 0 }
+        guard sidebarWidth.isFinite, sidebarWidth > 0 else { return 0 }
+        guard compensationRatio.isFinite else { return 0 }
+
+        return sidebarWidth * compensationRatio
+    }
+
+}

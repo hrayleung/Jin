@@ -33,6 +33,9 @@ struct SidebarSplitViewPersistenceBridge: NSViewRepresentable {
         private var desiredSidebarWidth = SidebarWidthPersistence.defaultWidth
         private var isSidebarVisible = true
         private var lastAppliedSidebarWidth: CGFloat?
+        private var lastAppliedSidebarVisibility = true
+        private var sidebarVisibilityAnimationGeneration = 0
+        private var activeSidebarVisibilityAnimationGeneration: Int?
         private var pendingRestore = true
         private lazy var sidebarWidthPersistor = SidebarWidthPersistence.DebouncedPersistor(
             delay: 0.15,
@@ -61,18 +64,18 @@ struct SidebarSplitViewPersistenceBridge: NSViewRepresentable {
         override func layout() {
             super.layout()
             refreshAttachment()
-            applyDesiredSidebarWidthIfNeeded()
+            syncCurrentSidebarStateIfNeeded(animated: false)
         }
 
         func update(desiredSidebarWidth: CGFloat, isSidebarVisible: Bool) {
             self.desiredSidebarWidth = SidebarWidthPersistence.clamped(desiredSidebarWidth)
-            let becameVisible = !self.isSidebarVisible && isSidebarVisible
+            let visibilityChanged = lastAppliedSidebarVisibility != isSidebarVisible
             self.isSidebarVisible = isSidebarVisible
-            if becameVisible {
+            if visibilityChanged && isSidebarVisible {
                 pendingRestore = true
             }
             refreshAttachment()
-            applyDesiredSidebarWidthIfNeeded(force: becameVisible)
+            syncCurrentSidebarStateIfNeeded(animated: visibilityChanged)
         }
 
         private func refreshAttachment() {
@@ -85,6 +88,8 @@ struct SidebarSplitViewPersistenceBridge: NSViewRepresentable {
             stopObservingSplitView()
             observedSplitView = splitView
             pendingRestore = true
+            activeSidebarVisibilityAnimationGeneration = nil
+            lastAppliedSidebarVisibility = !isSidebarVisible
             resizeObserver = NotificationCenter.default.addObserver(
                 forName: NSSplitView.didResizeSubviewsNotification,
                 object: splitView,
@@ -94,7 +99,7 @@ struct SidebarSplitViewPersistenceBridge: NSViewRepresentable {
             }
 
             DispatchQueue.main.async { [weak self] in
-                self?.applyDesiredSidebarWidthIfNeeded(force: true)
+                self?.syncCurrentSidebarStateIfNeeded(animated: false, forceWidthRestore: true)
                 self?.persistCurrentSidebarWidthIfNeeded()
             }
         }
@@ -119,7 +124,16 @@ struct SidebarSplitViewPersistenceBridge: NSViewRepresentable {
             return nil
         }
 
+        private func syncCurrentSidebarStateIfNeeded(animated: Bool, forceWidthRestore: Bool = false) {
+            if lastAppliedSidebarVisibility != isSidebarVisible {
+                setSidebarVisibility(isSidebarVisible, animated: animated)
+            } else {
+                applyDesiredSidebarWidthIfNeeded(force: forceWidthRestore)
+            }
+        }
+
         private func applyDesiredSidebarWidthIfNeeded(force: Bool = false) {
+            guard activeSidebarVisibilityAnimationGeneration == nil else { return }
             guard isSidebarVisible else { return }
             guard let splitView = observedSplitView else { return }
             guard splitView.subviews.count > 1, splitView.bounds.width > 0 else { return }
@@ -150,7 +164,85 @@ struct SidebarSplitViewPersistenceBridge: NSViewRepresentable {
             }
         }
 
+        private func setSidebarVisibility(_ isVisible: Bool, animated: Bool) {
+            guard let splitView = observedSplitView else { return }
+            guard splitView.subviews.count > 1, splitView.bounds.width > 0 else { return }
+
+            let targetWidth = isVisible ? desiredSidebarWidth : 0
+            guard let currentWidth = currentSidebarWidth(in: splitView) else { return }
+
+            lastAppliedSidebarVisibility = isVisible
+            sidebarVisibilityAnimationGeneration += 1
+            let animationGeneration = sidebarVisibilityAnimationGeneration
+            activeSidebarVisibilityAnimationGeneration = animationGeneration
+
+            if abs(currentWidth - targetWidth) <= 0.5 {
+                finishSidebarVisibilityChange(
+                    isVisible: isVisible,
+                    targetWidth: targetWidth,
+                    animationGeneration: animationGeneration
+                )
+                return
+            }
+
+            let applyTargetWidth = {
+                splitView.setPosition(targetWidth, ofDividerAt: 0)
+                splitView.adjustSubviews()
+            }
+
+            guard animated, splitView.window != nil else {
+                applyTargetWidth()
+                finishSidebarVisibilityChange(
+                    isVisible: isVisible,
+                    targetWidth: targetWidth,
+                    animationGeneration: animationGeneration
+                )
+                return
+            }
+
+            NSAnimationContext.runAnimationGroup { context in
+                context.duration = 0.24
+                context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+                context.allowsImplicitAnimation = true
+                splitView.animator().setPosition(targetWidth, ofDividerAt: 0)
+            } completionHandler: { [weak self] in
+                self?.finishSidebarVisibilityChange(
+                    isVisible: isVisible,
+                    targetWidth: targetWidth,
+                    animationGeneration: animationGeneration
+                )
+            }
+        }
+
+        private func finishSidebarVisibilityChange(
+            isVisible: Bool,
+            targetWidth: CGFloat,
+            animationGeneration: Int
+        ) {
+            guard sidebarVisibilityAnimationGeneration == animationGeneration else { return }
+            defer {
+                if activeSidebarVisibilityAnimationGeneration == animationGeneration {
+                    activeSidebarVisibilityAnimationGeneration = nil
+                }
+            }
+            guard let splitView = observedSplitView else { return }
+
+            splitView.setPosition(targetWidth, ofDividerAt: 0)
+            splitView.adjustSubviews()
+
+            if isVisible {
+                lastAppliedSidebarWidth = targetWidth
+                pendingRestore = false
+                DispatchQueue.main.async { [weak self] in
+                    self?.scheduleCurrentSidebarWidthPersistenceIfNeeded()
+                }
+            } else {
+                lastAppliedSidebarWidth = nil
+            }
+        }
+
         private func scheduleCurrentSidebarWidthPersistenceIfNeeded() {
+            guard activeSidebarVisibilityAnimationGeneration == nil else { return }
             guard isSidebarVisible else { return }
             guard let splitView = observedSplitView else { return }
             guard let currentWidth = currentSidebarWidth(in: splitView) else { return }
@@ -160,6 +252,7 @@ struct SidebarSplitViewPersistenceBridge: NSViewRepresentable {
         }
 
         private func persistCurrentSidebarWidthIfNeeded() {
+            guard activeSidebarVisibilityAnimationGeneration == nil else { return }
             guard isSidebarVisible else { return }
             guard let splitView = observedSplitView else { return }
             guard let currentWidth = currentSidebarWidth(in: splitView) else { return }
@@ -171,10 +264,24 @@ struct SidebarSplitViewPersistenceBridge: NSViewRepresentable {
         }
 
         private func currentSidebarWidth(in splitView: NSSplitView) -> CGFloat? {
-            guard let sidebarView = splitView.subviews.first else { return nil }
+            guard let sidebarView = sidebarContainerView(in: splitView) else { return nil }
             let width = sidebarView.frame.width
             guard width.isFinite else { return nil }
             return width
+        }
+
+        private func sidebarContainerView(in splitView: NSSplitView) -> NSView? {
+            var currentView: NSView? = self
+            var candidate: NSView?
+            while let view = currentView {
+                if view === splitView {
+                    return candidate
+                }
+                candidate = view
+                currentView = view.superview
+            }
+
+            return splitView.subviews.first
         }
     }
 }

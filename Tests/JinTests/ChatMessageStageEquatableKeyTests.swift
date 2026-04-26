@@ -12,6 +12,8 @@ final class ChatMessageStageEquatableKeyTests: XCTestCase {
             conversationMessageCount: 1,
             renderRevision: 4,
             viewportHeight: 600,
+            layoutWidthBucket: ChatConversationLayoutMetrics.layoutWidthBucket(for: 1_200),
+            layoutCenterOffsetBucket: 0,
             allMessageCount: 1,
             lastMessageID: messageID,
             toolResultCount: 1,
@@ -32,6 +34,8 @@ final class ChatMessageStageEquatableKeyTests: XCTestCase {
             conversationMessageCount: 1,
             renderRevision: 4,
             viewportHeight: 600,
+            layoutWidthBucket: ChatConversationLayoutMetrics.layoutWidthBucket(for: 1_200),
+            layoutCenterOffsetBucket: 0,
             allMessageCount: 1,
             lastMessageID: messageID,
             toolResultCount: 1,
@@ -50,7 +54,7 @@ final class ChatMessageStageEquatableKeyTests: XCTestCase {
         XCTAssertEqual(first, second)
     }
 
-    func testSingleThreadKeyIgnoresWidthOnlyContainerSizeChanges() {
+    func testSingleThreadKeyIgnoresWidthOnlyChangesWithinCenteredColumnRange() {
         let conversationID = UUID()
         let messageID = UUID()
 
@@ -60,6 +64,8 @@ final class ChatMessageStageEquatableKeyTests: XCTestCase {
                 conversationMessageCount: 1,
                 renderRevision: 1,
                 viewportHeight: containerSize.height,
+                layoutWidthBucket: ChatConversationLayoutMetrics.layoutWidthBucket(for: containerSize.width),
+                layoutCenterOffsetBucket: 0,
                 allMessageCount: 1,
                 lastMessageID: messageID,
                 toolResultCount: 0,
@@ -76,12 +82,45 @@ final class ChatMessageStageEquatableKeyTests: XCTestCase {
             )
         }
 
-        let base = makeKey(containerSize: CGSize(width: 900, height: 600))
-        let afterSidebarToggle = makeKey(containerSize: CGSize(width: 1_200, height: 600))
-        let withViewportHeightChange = makeKey(containerSize: CGSize(width: 900, height: 580))
+        let base = makeKey(containerSize: CGSize(width: 1_200, height: 600))
+        let afterWideSidebarToggle = makeKey(containerSize: CGSize(width: 1_500, height: 600))
+        let withCompactColumn = makeKey(containerSize: CGSize(width: 900, height: 600))
+        let withViewportHeightChange = makeKey(containerSize: CGSize(width: 1_200, height: 580))
 
-        XCTAssertEqual(base, afterSidebarToggle)
+        XCTAssertEqual(base, afterWideSidebarToggle)
+        XCTAssertNotEqual(base, withCompactColumn)
         XCTAssertNotEqual(base, withViewportHeightChange)
+    }
+
+    func testSingleThreadKeyChangesForSidebarLayoutOffset() {
+        let conversationID = UUID()
+        let messageID = UUID()
+
+        func makeKey(layoutCenterOffsetBucket: Int) -> ChatStageEquatableKey {
+            ChatMessageStageEquatableKeyBuilder.singleThreadKey(
+                conversationID: conversationID,
+                conversationMessageCount: 1,
+                renderRevision: 1,
+                viewportHeight: 600,
+                layoutWidthBucket: ChatConversationLayoutMetrics.layoutWidthBucket(for: 1_400),
+                layoutCenterOffsetBucket: layoutCenterOffsetBucket,
+                allMessageCount: 1,
+                lastMessageID: messageID,
+                toolResultCount: 0,
+                entityCount: 0,
+                assistantDisplayName: "Assistant",
+                providerType: nil,
+                providerIconID: nil,
+                composerHeight: 80,
+                isStreaming: false,
+                streamingObjectID: nil,
+                streamingModelLabel: nil,
+                streamingModelID: nil,
+                expandedCollapsedMessageIDs: []
+            )
+        }
+
+        XCTAssertNotEqual(makeKey(layoutCenterOffsetBucket: 0), makeKey(layoutCenterOffsetBucket: -120))
     }
 
     func testSingleThreadKeyChangesForMessageAndComposerChanges() {
@@ -93,6 +132,8 @@ final class ChatMessageStageEquatableKeyTests: XCTestCase {
             conversationMessageCount: 1,
             renderRevision: 1,
             viewportHeight: 600,
+            layoutWidthBucket: ChatConversationLayoutMetrics.layoutWidthBucket(for: 1_200),
+            layoutCenterOffsetBucket: 0,
             allMessageCount: 1,
             lastMessageID: messageID,
             toolResultCount: 0,
@@ -113,6 +154,8 @@ final class ChatMessageStageEquatableKeyTests: XCTestCase {
             conversationMessageCount: 2,
             renderRevision: 2,
             viewportHeight: 600,
+            layoutWidthBucket: ChatConversationLayoutMetrics.layoutWidthBucket(for: 1_200),
+            layoutCenterOffsetBucket: 0,
             allMessageCount: 2,
             lastMessageID: UUID(),
             toolResultCount: 0,
@@ -133,6 +176,8 @@ final class ChatMessageStageEquatableKeyTests: XCTestCase {
             conversationMessageCount: 1,
             renderRevision: 1,
             viewportHeight: 600,
+            layoutWidthBucket: ChatConversationLayoutMetrics.layoutWidthBucket(for: 1_200),
+            layoutCenterOffsetBucket: 0,
             allMessageCount: 1,
             lastMessageID: messageID,
             toolResultCount: 0,
@@ -168,6 +213,8 @@ final class ChatMessageStageEquatableKeyTests: XCTestCase {
                 conversationMessageCount: 1,
                 renderRevision: 1,
                 viewportHeight: 600,
+                layoutWidthBucket: ChatConversationLayoutMetrics.layoutWidthBucket(for: 1_200),
+                layoutCenterOffsetBucket: 0,
                 allMessageCount: 1,
                 lastMessageID: messageID,
                 toolResultCount: 0,
