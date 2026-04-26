@@ -76,20 +76,4 @@ enum ChatConversationLayoutMetrics {
         return sidebarWidth * compensationRatio
     }
 
-    static func sidebarCompensationOffset(
-        containerWidth: CGFloat,
-        contentWidth: CGFloat,
-        sidebarWidth: CGFloat,
-        isSidebarHidden: Bool,
-        compensationRatio: CGFloat = standardSidebarCompensationRatio
-    ) -> CGFloat {
-        let targetOffset = sidebarCompensationOffset(
-            sidebarWidth: sidebarWidth,
-            isSidebarHidden: isSidebarHidden,
-            compensationRatio: compensationRatio
-        )
-        guard targetOffset > 0 else { return targetOffset }
-        guard containerWidth.isFinite, contentWidth.isFinite else { return 0 }
-        return targetOffset
-    }
 }

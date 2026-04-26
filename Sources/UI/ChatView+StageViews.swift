@@ -137,11 +137,8 @@ extension ChatView {
             sidebarWidth: mainSidebarWidth,
             isSidebarHidden: isSidebarHidden
         )
-        let columnWidth = ChatConversationLayoutMetrics.messageColumnWidth(for: visibleContainerWidth)
         let compensationRatio = sidebarCompensationRatio
         let layoutCenterOffset = ChatConversationLayoutMetrics.sidebarCompensationOffset(
-            containerWidth: geometry.size.width,
-            contentWidth: columnWidth,
             sidebarWidth: mainSidebarWidth,
             isSidebarHidden: isSidebarHidden,
             compensationRatio: compensationRatio

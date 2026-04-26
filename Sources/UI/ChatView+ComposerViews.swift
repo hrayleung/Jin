@@ -370,8 +370,6 @@ extension ChatView {
             max(0, visibleContainerWidth - ChatConversationLayoutMetrics.compactHorizontalInset * 2)
         )
         let offset = ChatConversationLayoutMetrics.sidebarCompensationOffset(
-            containerWidth: containerWidth,
-            contentWidth: contentWidth,
             sidebarWidth: mainSidebarWidth,
             isSidebarHidden: isSidebarHidden,
             compensationRatio: sidebarCompensationRatio

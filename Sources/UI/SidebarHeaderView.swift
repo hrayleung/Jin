@@ -59,13 +59,15 @@ struct SidebarHeaderView: View {
     }
 
     private var leadingPadding: CGFloat {
-        // If the titlebar inset measurement is temporarily unavailable, keep
-        // content to the right of the traffic lights instead of underneath them.
-        guard extendsContentIntoTitlebar, titlebarTopInset <= JinSpacing.xLarge else {
+        guard extendsContentIntoTitlebar, hasMeasuredTitlebarControls else {
             return JinSpacing.medium
         }
 
         return max(JinSpacing.medium, titlebarLeadingInset)
+    }
+
+    private var hasMeasuredTitlebarControls: Bool {
+        titlebarLeadingInset.isFinite && titlebarLeadingInset > JinSpacing.medium
     }
 
     private var topPadding: CGFloat {

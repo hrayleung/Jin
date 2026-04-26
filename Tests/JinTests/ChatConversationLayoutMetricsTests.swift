@@ -14,6 +14,17 @@ final class ChatConversationLayoutMetricsTests: XCTestCase {
             ChatConversationLayoutMetrics.messageColumnWidth(for: 680),
             680 - ChatConversationLayoutMetrics.compactHorizontalInset * 2
         )
+        XCTAssertEqual(
+            ChatConversationLayoutMetrics.messageColumnWidth(for: 720),
+            720 - ChatConversationLayoutMetrics.regularHorizontalInset * 2
+        )
+    }
+
+    func testMessageColumnWidthRejectsInvalidInputs() {
+        XCTAssertEqual(ChatConversationLayoutMetrics.messageColumnWidth(for: 0), 0)
+        XCTAssertEqual(ChatConversationLayoutMetrics.messageColumnWidth(for: -1), 0)
+        XCTAssertEqual(ChatConversationLayoutMetrics.messageColumnWidth(for: .nan), 0)
+        XCTAssertEqual(ChatConversationLayoutMetrics.messageColumnWidth(for: .infinity), 0)
     }
 
     func testUserBubbleWidthStaysInsideReadingColumn() {
@@ -27,6 +38,25 @@ final class ChatConversationLayoutMetricsTests: XCTestCase {
         )
     }
 
+    func testUserBubbleWidthUsesMinimumForInvalidInputs() {
+        XCTAssertEqual(
+            ChatConversationLayoutMetrics.userBubbleMaxWidth(for: 0),
+            ChatConversationLayoutMetrics.minimumBubbleWidth
+        )
+        XCTAssertEqual(
+            ChatConversationLayoutMetrics.userBubbleMaxWidth(for: -1),
+            ChatConversationLayoutMetrics.minimumBubbleWidth
+        )
+        XCTAssertEqual(
+            ChatConversationLayoutMetrics.userBubbleMaxWidth(for: .nan),
+            ChatConversationLayoutMetrics.minimumBubbleWidth
+        )
+        XCTAssertEqual(
+            ChatConversationLayoutMetrics.userBubbleMaxWidth(for: .infinity),
+            ChatConversationLayoutMetrics.minimumBubbleWidth
+        )
+    }
+
     func testLayoutWidthBucketIsStableAfterColumnReachesMaximum() {
         XCTAssertEqual(
             ChatConversationLayoutMetrics.layoutWidthBucket(for: 1_200),
@@ -36,6 +66,13 @@ final class ChatConversationLayoutMetricsTests: XCTestCase {
             ChatConversationLayoutMetrics.layoutWidthBucket(for: 900),
             ChatConversationLayoutMetrics.layoutWidthBucket(for: 1_200)
         )
+    }
+
+    func testLayoutWidthBucketHandlesInvalidInputs() {
+        XCTAssertEqual(ChatConversationLayoutMetrics.layoutWidthBucket(for: 0), 0)
+        XCTAssertEqual(ChatConversationLayoutMetrics.layoutWidthBucket(for: -1), 0)
+        XCTAssertEqual(ChatConversationLayoutMetrics.layoutWidthBucket(for: .nan), 0)
+        XCTAssertEqual(ChatConversationLayoutMetrics.layoutWidthBucket(for: .infinity), 0)
     }
 
     func testVisibleContainerWidthExcludesVisibleOverlaySidebar() {
@@ -68,8 +105,6 @@ final class ChatConversationLayoutMetricsTests: XCTestCase {
     func testSidebarCompensationOffsetCentersInVisibleOverlayArea() {
         XCTAssertEqual(
             ChatConversationLayoutMetrics.sidebarCompensationOffset(
-                containerWidth: 1_600,
-                contentWidth: ChatConversationLayoutMetrics.messageColumnMaxWidth,
                 sidebarWidth: 320,
                 isSidebarHidden: false
             ),
@@ -77,8 +112,6 @@ final class ChatConversationLayoutMetricsTests: XCTestCase {
         )
         XCTAssertEqual(
             ChatConversationLayoutMetrics.sidebarCompensationOffset(
-                containerWidth: 1_120,
-                contentWidth: 1_080,
                 sidebarWidth: 320,
                 isSidebarHidden: false
             ),
@@ -86,8 +119,6 @@ final class ChatConversationLayoutMetricsTests: XCTestCase {
         )
         XCTAssertEqual(
             ChatConversationLayoutMetrics.sidebarCompensationOffset(
-                containerWidth: 1_600,
-                contentWidth: ChatConversationLayoutMetrics.messageColumnMaxWidth,
                 sidebarWidth: 320,
                 isSidebarHidden: true
             ),
@@ -98,13 +129,43 @@ final class ChatConversationLayoutMetricsTests: XCTestCase {
     func testSidebarCompensationOffsetSupportsFullscreenVisualTuning() {
         XCTAssertEqual(
             ChatConversationLayoutMetrics.sidebarCompensationOffset(
-                containerWidth: 1_600,
-                contentWidth: ChatConversationLayoutMetrics.messageColumnMaxWidth,
                 sidebarWidth: 320,
                 isSidebarHidden: false,
                 compensationRatio: ChatConversationLayoutMetrics.fullScreenSidebarCompensationRatio
             ),
             320 * ChatConversationLayoutMetrics.fullScreenSidebarCompensationRatio
+        )
+    }
+
+    func testSidebarCompensationOffsetRejectsInvalidInputs() {
+        XCTAssertEqual(
+            ChatConversationLayoutMetrics.sidebarCompensationOffset(
+                sidebarWidth: 0,
+                isSidebarHidden: false
+            ),
+            0
+        )
+        XCTAssertEqual(
+            ChatConversationLayoutMetrics.sidebarCompensationOffset(
+                sidebarWidth: -1,
+                isSidebarHidden: false
+            ),
+            0
+        )
+        XCTAssertEqual(
+            ChatConversationLayoutMetrics.sidebarCompensationOffset(
+                sidebarWidth: .nan,
+                isSidebarHidden: false
+            ),
+            0
+        )
+        XCTAssertEqual(
+            ChatConversationLayoutMetrics.sidebarCompensationOffset(
+                sidebarWidth: 320,
+                isSidebarHidden: false,
+                compensationRatio: .nan
+            ),
+            0
         )
     }
 }

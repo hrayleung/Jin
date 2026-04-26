@@ -45,6 +45,7 @@ struct ContentView: View {
     @State var searchCache = ConversationSearchCache()
     @State var isAssistantInspectorPresented = false
     @State private var sidebarResizeStartWidth: CGFloat?
+    @State private var sidebarLiveResizeWidth: CGFloat?
     @State var assistantContextMenuTargetID: String?
     @State var assistantPendingDeletion: AssistantEntity?
     @State var showingDeleteAssistantConfirmation = false
@@ -79,7 +80,11 @@ struct ContentView: View {
     }
 
     private var resolvedSidebarWidth: CGFloat {
-        SidebarWidthPersistence.resolvedWidth(from: persistedSidebarWidth)
+        if let sidebarLiveResizeWidth {
+            return SidebarWidthPersistence.clamped(sidebarLiveResizeWidth)
+        }
+
+        return SidebarWidthPersistence.resolvedWidth(from: persistedSidebarWidth)
     }
 
     private var sidebarWidthForDetailLayout: CGFloat {
@@ -210,10 +215,14 @@ struct ContentView: View {
                         sidebarResizeStartWidth = startWidth
                         let nextWidth = SidebarWidthPersistence.clamped(startWidth + value.translation.width)
                         guard abs(nextWidth - resolvedSidebarWidth) > 0.5 else { return }
-                        persistedSidebarWidth = Double(nextWidth)
+                        sidebarLiveResizeWidth = nextWidth
                     }
                     .onEnded { _ in
+                        if let sidebarLiveResizeWidth {
+                            persistedSidebarWidth = Double(sidebarLiveResizeWidth)
+                        }
                         sidebarResizeStartWidth = nil
+                        sidebarLiveResizeWidth = nil
                     }
             )
     }
@@ -441,7 +450,10 @@ struct ContentView: View {
         if shouldDelayFocus {
             isSidebarPresented = true
         }
-        DispatchQueue.main.asyncAfter(deadline: .now() + (shouldDelayFocus ? 0.18 : 0)) {
+        Task { @MainActor in
+            if shouldDelayFocus {
+                try? await Task.sleep(nanoseconds: 180_000_000)
+            }
             isSidebarSearchFieldFocused = true
         }
     }
