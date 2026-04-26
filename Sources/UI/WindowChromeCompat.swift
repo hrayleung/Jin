@@ -6,6 +6,8 @@ import AppKit
 struct MainWindowChromeLayout: Equatable {
     var extendsContentIntoTitlebar = false
     var titlebarLeadingInset: CGFloat = 0
+    var titlebarTopInset: CGFloat = 0
+    var isFullScreen = false
 
     static let zero = MainWindowChromeLayout()
 
@@ -84,7 +86,9 @@ private struct WindowChromeObserverModifier: ViewModifier {
 
     private final class ToolbarObservingView: NSView {
         private static let fallbackTitlebarLeadingInset: CGFloat = 78
+        private static let fallbackTitlebarTopInset: CGFloat = 44
         private static let titlebarLeadingPadding: CGFloat = 12
+        private static let titlebarVerticalPadding: CGFloat = 10
 
         private weak var observedWindow: NSWindow?
         private var toolbarObservation: NSKeyValueObservation?
@@ -229,7 +233,7 @@ private struct WindowChromeObserverModifier: ViewModifier {
 
         private func chromeLayout(for window: NSWindow) -> MainWindowChromeLayout {
             guard !window.styleMask.contains(.fullScreen) else {
-                return .zero
+                return MainWindowChromeLayout(isFullScreen: true)
             }
 
             let titlebarButtons = [
@@ -242,7 +246,8 @@ private struct WindowChromeObserverModifier: ViewModifier {
             guard !titlebarButtons.isEmpty else {
                 return MainWindowChromeLayout(
                     extendsContentIntoTitlebar: true,
-                    titlebarLeadingInset: Self.fallbackTitlebarLeadingInset
+                    titlebarLeadingInset: Self.fallbackTitlebarLeadingInset,
+                    titlebarTopInset: Self.fallbackTitlebarTopInset
                 )
             }
 
@@ -254,7 +259,8 @@ private struct WindowChromeObserverModifier: ViewModifier {
             guard !buttonUnion.isNull else {
                 return MainWindowChromeLayout(
                     extendsContentIntoTitlebar: true,
-                    titlebarLeadingInset: Self.fallbackTitlebarLeadingInset
+                    titlebarLeadingInset: Self.fallbackTitlebarLeadingInset,
+                    titlebarTopInset: Self.fallbackTitlebarTopInset
                 )
             }
 
@@ -262,10 +268,16 @@ private struct WindowChromeObserverModifier: ViewModifier {
                 Self.fallbackTitlebarLeadingInset,
                 buttonUnion.maxX + Self.titlebarLeadingPadding
             )
+            let contentHeight = window.contentView?.bounds.height ?? window.frame.height
+            let topInset = max(
+                Self.fallbackTitlebarTopInset,
+                contentHeight - buttonUnion.minY + Self.titlebarVerticalPadding
+            )
 
             return MainWindowChromeLayout(
                 extendsContentIntoTitlebar: true,
-                titlebarLeadingInset: ceil(leadingInset)
+                titlebarLeadingInset: ceil(leadingInset),
+                titlebarTopInset: ceil(topInset)
             )
         }
     }

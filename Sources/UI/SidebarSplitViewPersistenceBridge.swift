@@ -1,6 +1,5 @@
 #if os(macOS)
 import AppKit
-import QuartzCore
 import SwiftUI
 
 struct SidebarSplitViewPersistenceBridge: NSViewRepresentable {

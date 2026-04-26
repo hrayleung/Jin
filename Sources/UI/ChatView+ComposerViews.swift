@@ -305,9 +305,12 @@ extension ChatView {
 
     var floatingComposer: some View {
         GeometryReader { geometry in
+            let layout = floatingComposerLayout(containerWidth: geometry.size.width)
+
             floatingComposerContent
+                .frame(width: layout.visibleContainerWidth, height: geometry.size.height, alignment: .bottom)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
-                .offset(x: floatingComposerCenterOffset(containerWidth: geometry.size.width))
+                .offset(x: layout.offset)
         }
         .allowsHitTesting(!isExpandedComposerPresented)
     }
@@ -339,7 +342,7 @@ extension ChatView {
             }
         }
         .opacity(isExpandedComposerPresented ? 0 : 1)
-        .animation(.easeInOut(duration: 0.24), value: isSidebarHidden)
+        .animation(.easeInOut(duration: 0.24), value: mainSidebarWidth)
         .animation(.spring(response: 0.35, dampingFraction: 0.86), value: isComposerHidden)
         .animation(.easeOut(duration: 0.15), value: isSlashMCPPopoverVisible)
         .animation(.easeOut(duration: 0.18), value: isExpandedComposerPresented)
@@ -352,17 +355,28 @@ extension ChatView {
         }
     }
 
-    private func floatingComposerCenterOffset(containerWidth: CGFloat) -> CGFloat {
-        let contentWidth = min(
-            ChatConversationLayoutMetrics.composerMaxWidth,
-            max(0, containerWidth - ChatConversationLayoutMetrics.compactHorizontalInset * 2)
-        )
-        return ChatConversationLayoutMetrics.sidebarCompensationOffset(
+    private func floatingComposerLayout(containerWidth: CGFloat) -> (
+        visibleContainerWidth: CGFloat,
+        contentWidth: CGFloat,
+        offset: CGFloat
+    ) {
+        let visibleContainerWidth = ChatConversationLayoutMetrics.visibleContainerWidth(
             containerWidth: containerWidth,
-            contentWidth: contentWidth,
             sidebarWidth: mainSidebarWidth,
             isSidebarHidden: isSidebarHidden
         )
+        let contentWidth = min(
+            ChatConversationLayoutMetrics.composerMaxWidth,
+            max(0, visibleContainerWidth - ChatConversationLayoutMetrics.compactHorizontalInset * 2)
+        )
+        let offset = ChatConversationLayoutMetrics.sidebarCompensationOffset(
+            containerWidth: containerWidth,
+            contentWidth: contentWidth,
+            sidebarWidth: mainSidebarWidth,
+            isSidebarHidden: isSidebarHidden,
+            compensationRatio: sidebarCompensationRatio
+        )
+        return (visibleContainerWidth, contentWidth, offset)
     }
 
     func showComposer() {

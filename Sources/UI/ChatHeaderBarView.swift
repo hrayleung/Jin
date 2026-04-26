@@ -39,6 +39,7 @@ struct ChatHeaderBarView<ModelPickerContent: View, AddModelPickerContent: View>:
     let onToggleSidebar: (() -> Void)?
     let onNewChat: (() -> Void)?
     let titlebarLeadingInset: CGFloat
+    let mainSidebarWidth: CGFloat
     let currentProviderIconID: String?
     let currentModelName: String
     let modelPickerHelpText: String
@@ -63,6 +64,7 @@ struct ChatHeaderBarView<ModelPickerContent: View, AddModelPickerContent: View>:
         onToggleSidebar: (() -> Void)?,
         onNewChat: (() -> Void)? = nil,
         titlebarLeadingInset: CGFloat = 0,
+        mainSidebarWidth: CGFloat = 0,
         currentProviderIconID: String?,
         currentModelName: String,
         modelPickerHelpText: String = "Select model",
@@ -86,6 +88,7 @@ struct ChatHeaderBarView<ModelPickerContent: View, AddModelPickerContent: View>:
         self.onToggleSidebar = onToggleSidebar
         self.onNewChat = onNewChat
         self.titlebarLeadingInset = titlebarLeadingInset
+        self.mainSidebarWidth = mainSidebarWidth
         self.currentProviderIconID = currentProviderIconID
         self.currentModelName = currentModelName
         self.modelPickerHelpText = modelPickerHelpText
@@ -128,7 +131,11 @@ struct ChatHeaderBarView<ModelPickerContent: View, AddModelPickerContent: View>:
     }
 
     private var leadingPadding: CGFloat {
-        MainWindowChromeLayout(titlebarLeadingInset: titlebarLeadingInset)
+        if !isSidebarHidden, mainSidebarWidth.isFinite, mainSidebarWidth > 0 {
+            return mainSidebarWidth + JinSpacing.medium
+        }
+
+        return MainWindowChromeLayout(titlebarLeadingInset: titlebarLeadingInset)
             .leadingPadding(
                 baseline: JinSpacing.medium,
                 avoidsTitlebarControls: isSidebarHidden

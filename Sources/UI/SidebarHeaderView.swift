@@ -2,6 +2,9 @@ import SwiftUI
 
 struct SidebarHeaderView: View {
     let assistantDisplayName: String
+    let extendsContentIntoTitlebar: Bool
+    let titlebarLeadingInset: CGFloat
+    let titlebarTopInset: CGFloat
     let onNewChat: () -> Void
     let onHideSidebar: () -> Void
     let shortcutsStore: AppShortcutsStore
@@ -48,9 +51,25 @@ struct SidebarHeaderView: View {
             .keyboardShortcut(",", modifiers: [.command])
             .help("Settings")
         }
-        .padding(.horizontal, JinSpacing.medium)
-        .padding(.top, JinSpacing.large)
+        .padding(.leading, leadingPadding)
+        .padding(.trailing, JinSpacing.medium)
+        .padding(.top, topPadding)
         .padding(.bottom, JinSpacing.small)
         .frame(minHeight: 44)
+    }
+
+    private var leadingPadding: CGFloat {
+        // If the titlebar inset measurement is temporarily unavailable, keep
+        // content to the right of the traffic lights instead of underneath them.
+        guard extendsContentIntoTitlebar, titlebarTopInset <= JinSpacing.xLarge else {
+            return JinSpacing.medium
+        }
+
+        return max(JinSpacing.medium, titlebarLeadingInset)
+    }
+
+    private var topPadding: CGFloat {
+        guard extendsContentIntoTitlebar else { return JinSpacing.large }
+        return max(JinSpacing.large, titlebarTopInset)
     }
 }

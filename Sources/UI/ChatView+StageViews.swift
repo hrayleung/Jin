@@ -132,12 +132,19 @@ extension ChatView {
     }
 
     func singleThreadMessageStage(geometry: GeometryProxy) -> some View {
-        let columnWidth = ChatConversationLayoutMetrics.messageColumnWidth(for: geometry.size.width)
+        let visibleContainerWidth = ChatConversationLayoutMetrics.visibleContainerWidth(
+            containerWidth: geometry.size.width,
+            sidebarWidth: mainSidebarWidth,
+            isSidebarHidden: isSidebarHidden
+        )
+        let columnWidth = ChatConversationLayoutMetrics.messageColumnWidth(for: visibleContainerWidth)
+        let compensationRatio = sidebarCompensationRatio
         let layoutCenterOffset = ChatConversationLayoutMetrics.sidebarCompensationOffset(
             containerWidth: geometry.size.width,
             contentWidth: columnWidth,
             sidebarWidth: mainSidebarWidth,
-            isSidebarHidden: isSidebarHidden
+            isSidebarHidden: isSidebarHidden,
+            compensationRatio: compensationRatio
         )
 
         return ChatSingleThreadMessagesView(
@@ -145,6 +152,7 @@ extension ChatView {
             conversationMessageCount: conversationEntity.messages.count,
             renderRevision: renderCache.version,
             containerSize: geometry.size,
+            visibleContainerWidth: visibleContainerWidth,
             layoutCenterOffset: layoutCenterOffset,
             allMessages: singleThreadRenderContext.visibleMessages,
             toolResultsByCallID: singleThreadRenderContext.toolResultsByCallID,
@@ -175,7 +183,13 @@ extension ChatView {
             isPinnedToBottom: $isPinnedToBottom,
             pinnedBottomRefreshGeneration: $pinnedBottomRefreshGeneration
         )
-        .animation(.easeInOut(duration: 0.24), value: isSidebarHidden)
+        .animation(.easeInOut(duration: 0.24), value: mainSidebarWidth)
+    }
+
+    var sidebarCompensationRatio: CGFloat {
+        mainWindowIsFullScreen
+            ? ChatConversationLayoutMetrics.fullScreenSidebarCompensationRatio
+            : ChatConversationLayoutMetrics.standardSidebarCompensationRatio
     }
 
     func multiThreadMessageStage(geometry: GeometryProxy) -> some View {
@@ -357,6 +371,7 @@ extension ChatView {
             onToggleSidebar: onToggleSidebar,
             onNewChat: onNewChat,
             titlebarLeadingInset: titlebarLeadingInset,
+            mainSidebarWidth: mainSidebarWidth,
             currentProviderIconID: currentProviderIconID,
             currentModelName: currentModelName,
             modelPickerHelpText: providerType == .claudeManagedAgents ? "Select managed agent or model" : "Select model",

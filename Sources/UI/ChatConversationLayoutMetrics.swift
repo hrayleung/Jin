@@ -5,6 +5,8 @@ enum ChatConversationLayoutMetrics {
     static let composerMaxWidth: CGFloat = 1_120
     static let regularHorizontalInset: CGFloat = 24
     static let compactHorizontalInset: CGFloat = 18
+    static let standardSidebarCompensationRatio: CGFloat = 0.5
+    static let fullScreenSidebarCompensationRatio: CGFloat = 0.42
     static let minimumBubbleWidth: CGFloat = 260
     static let userBubbleWidthRatio: CGFloat = 0.70
 
@@ -20,6 +22,17 @@ enum ChatConversationLayoutMetrics {
 
         let availableWidth = max(0, containerWidth - horizontalInset(for: containerWidth) * 2)
         return min(messageColumnMaxWidth, availableWidth)
+    }
+
+    static func visibleContainerWidth(
+        containerWidth: CGFloat,
+        sidebarWidth: CGFloat,
+        isSidebarHidden: Bool
+    ) -> CGFloat {
+        guard containerWidth.isFinite, containerWidth > 0 else { return 0 }
+        guard !isSidebarHidden, sidebarWidth.isFinite, sidebarWidth > 0 else { return containerWidth }
+
+        return max(0, containerWidth - sidebarWidth)
     }
 
     static func assistantBubbleMaxWidth(for columnWidth: CGFloat) -> CGFloat {
@@ -44,28 +57,39 @@ enum ChatConversationLayoutMetrics {
     }
 
     static func sidebarCompensationOffset(sidebarWidth: CGFloat, isSidebarHidden: Bool) -> CGFloat {
+        sidebarCompensationOffset(
+            sidebarWidth: sidebarWidth,
+            isSidebarHidden: isSidebarHidden,
+            compensationRatio: standardSidebarCompensationRatio
+        )
+    }
+
+    static func sidebarCompensationOffset(
+        sidebarWidth: CGFloat,
+        isSidebarHidden: Bool,
+        compensationRatio: CGFloat
+    ) -> CGFloat {
         guard !isSidebarHidden else { return 0 }
         guard sidebarWidth.isFinite, sidebarWidth > 0 else { return 0 }
+        guard compensationRatio.isFinite else { return 0 }
 
-        return -sidebarWidth / 2
+        return sidebarWidth * compensationRatio
     }
 
     static func sidebarCompensationOffset(
         containerWidth: CGFloat,
         contentWidth: CGFloat,
         sidebarWidth: CGFloat,
-        isSidebarHidden: Bool
+        isSidebarHidden: Bool,
+        compensationRatio: CGFloat = standardSidebarCompensationRatio
     ) -> CGFloat {
         let targetOffset = sidebarCompensationOffset(
             sidebarWidth: sidebarWidth,
-            isSidebarHidden: isSidebarHidden
+            isSidebarHidden: isSidebarHidden,
+            compensationRatio: compensationRatio
         )
-        guard targetOffset < 0 else { return targetOffset }
+        guard targetOffset > 0 else { return targetOffset }
         guard containerWidth.isFinite, contentWidth.isFinite else { return 0 }
-        guard containerWidth > contentWidth else { return 0 }
-
-        let centeredSideSpace = max(0, (containerWidth - contentWidth) / 2)
-        let maximumLeadingShift = max(0, centeredSideSpace - horizontalInset(for: containerWidth))
-        return max(targetOffset, -maximumLeadingShift)
+        return targetOffset
     }
 }
