@@ -266,6 +266,8 @@ struct DataSettingsView: View {
             return "This will delete all attachment files (\(sizeStr)). Chat messages will remain but embedded media will no longer display."
         case .networkLogs:
             return "This will delete all network debug trace files (\(sizeStr))."
+        case .chatDiagnostics:
+            return "This will delete all chat diagnostic timing logs (\(sizeStr))."
         case .mcpData:
             return "This will delete all MCP server isolation directories (\(sizeStr)). They will be recreated as needed."
         case .speechModels:

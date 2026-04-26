@@ -4,6 +4,7 @@ enum StorageCategory: String, CaseIterable, Identifiable {
     case attachments
     case database
     case networkLogs
+    case chatDiagnostics
     case mcpData
     case speechModels
 
@@ -14,6 +15,7 @@ enum StorageCategory: String, CaseIterable, Identifiable {
         case .attachments: return "Attachments"
         case .database: return "Database"
         case .networkLogs: return "Network Logs"
+        case .chatDiagnostics: return "Chat Diagnostics"
         case .mcpData: return "MCP Server Data"
         case .speechModels: return "Speech Models"
         }
@@ -24,6 +26,7 @@ enum StorageCategory: String, CaseIterable, Identifiable {
         case .attachments: return "paperclip"
         case .database: return "cylinder"
         case .networkLogs: return "doc.text"
+        case .chatDiagnostics: return "waveform.path.ecg"
         case .mcpData: return "server.rack"
         case .speechModels: return "waveform"
         }
@@ -34,6 +37,7 @@ enum StorageCategory: String, CaseIterable, Identifiable {
         case .attachments: return "Images, videos, audio, and files from conversations."
         case .database: return "Chat history, assistants, and provider configurations."
         case .networkLogs: return "HTTP/WebSocket debug trace files."
+        case .chatDiagnostics: return "Chat send and stream pipeline timing logs."
         case .mcpData: return "Node isolation directories for MCP servers."
         case .speechModels: return "On-device WhisperKit and TTSKit models."
         }
@@ -81,6 +85,11 @@ actor StorageSizeCalculator {
             return
         }
 
+        if category == .chatDiagnostics {
+            try await ChatDiagnosticLogger.shared.clearLogs()
+            return
+        }
+
         guard let url = directoryURL(for: category),
               fileManager.fileExists(atPath: url.path) else { return }
 
@@ -96,7 +105,7 @@ actor StorageSizeCalculator {
         switch category {
         case .attachments, .mcpData:
             try fileManager.createDirectory(at: url, withIntermediateDirectories: true)
-        case .speechModels, .database, .networkLogs:
+        case .speechModels, .database, .networkLogs, .chatDiagnostics:
             break
         }
     }
@@ -111,6 +120,8 @@ actor StorageSizeCalculator {
             return try? AppDataLocations.databaseDirectoryURL(fileManager: fileManager)
         case .networkLogs:
             return try? AppDataLocations.networkTraceDirectoryURL(fileManager: fileManager)
+        case .chatDiagnostics:
+            return try? AppDataLocations.chatDiagnosticsDirectoryURL(fileManager: fileManager)
         case .mcpData:
             return try? AppDataLocations.mcpRuntimeDirectoryURL(fileManager: fileManager)
         case .speechModels:
