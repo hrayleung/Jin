@@ -38,7 +38,34 @@ final class ChatConversationLayoutMetricsTests: XCTestCase {
         )
     }
 
-    func testSidebarCompensationOffsetMovesAtMostAvailableLeadingSpace() {
+    func testVisibleContainerWidthExcludesVisibleOverlaySidebar() {
+        XCTAssertEqual(
+            ChatConversationLayoutMetrics.visibleContainerWidth(
+                containerWidth: 1_600,
+                sidebarWidth: 320,
+                isSidebarHidden: false
+            ),
+            1_280
+        )
+        XCTAssertEqual(
+            ChatConversationLayoutMetrics.visibleContainerWidth(
+                containerWidth: 1_600,
+                sidebarWidth: 320,
+                isSidebarHidden: true
+            ),
+            1_600
+        )
+        XCTAssertEqual(
+            ChatConversationLayoutMetrics.visibleContainerWidth(
+                containerWidth: 1_600,
+                sidebarWidth: -10,
+                isSidebarHidden: false
+            ),
+            1_600
+        )
+    }
+
+    func testSidebarCompensationOffsetCentersInVisibleOverlayArea() {
         XCTAssertEqual(
             ChatConversationLayoutMetrics.sidebarCompensationOffset(
                 containerWidth: 1_600,
@@ -46,7 +73,7 @@ final class ChatConversationLayoutMetricsTests: XCTestCase {
                 sidebarWidth: 320,
                 isSidebarHidden: false
             ),
-            -160
+            160
         )
         XCTAssertEqual(
             ChatConversationLayoutMetrics.sidebarCompensationOffset(
@@ -55,7 +82,7 @@ final class ChatConversationLayoutMetricsTests: XCTestCase {
                 sidebarWidth: 320,
                 isSidebarHidden: false
             ),
-            0
+            160
         )
         XCTAssertEqual(
             ChatConversationLayoutMetrics.sidebarCompensationOffset(
@@ -65,6 +92,19 @@ final class ChatConversationLayoutMetricsTests: XCTestCase {
                 isSidebarHidden: true
             ),
             0
+        )
+    }
+
+    func testSidebarCompensationOffsetSupportsFullscreenVisualTuning() {
+        XCTAssertEqual(
+            ChatConversationLayoutMetrics.sidebarCompensationOffset(
+                containerWidth: 1_600,
+                contentWidth: ChatConversationLayoutMetrics.messageColumnMaxWidth,
+                sidebarWidth: 320,
+                isSidebarHidden: false,
+                compensationRatio: ChatConversationLayoutMetrics.fullScreenSidebarCompensationRatio
+            ),
+            320 * ChatConversationLayoutMetrics.fullScreenSidebarCompensationRatio
         )
     }
 }
