@@ -43,13 +43,7 @@ extension View {
 
     @ViewBuilder
     func mainWindowToolbarChromeCompat(chromeLayout: Binding<MainWindowChromeLayout>) -> some View {
-        if #available(macOS 15.0, *) {
-            self
-                .toolbar(removing: .title)
-                .hideWindowToolbarCompat(chromeLayout: chromeLayout)
-        } else {
-            self.hideWindowToolbarCompat(chromeLayout: chromeLayout)
-        }
+        self.hideWindowToolbarCompat(chromeLayout: chromeLayout)
     }
 }
 

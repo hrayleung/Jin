@@ -38,7 +38,7 @@ struct ContentView: View {
 
     @State var selectedAssistant: AssistantEntity?
     @State var selectedConversation: ConversationEntity?
-    @State private var isSidebarPresented = true
+    @State private var isSidebarPresented = MainSidebarVisibility.defaultIsVisible
     @State var didBootstrapDefaults = false
     @State var didBootstrapAssistants = false
     @State var searchText = ""
@@ -149,12 +149,12 @@ struct ContentView: View {
         HSplitView {
             sidebarPane
                 .frame(
-                    minWidth: isSidebarVisible ? SidebarWidthPersistence.minimumWidth : 0,
-                    idealWidth: isSidebarVisible ? resolvedSidebarWidth : 0,
-                    maxWidth: isSidebarVisible ? SidebarWidthPersistence.maximumWidth : 0,
+                    minWidth: 0,
+                    idealWidth: resolvedSidebarWidth,
+                    maxWidth: SidebarWidthPersistence.maximumWidth,
                     maxHeight: .infinity
                 )
-                .opacity(isSidebarVisible ? 1 : 0)
+                .clipped()
                 .allowsHitTesting(isSidebarVisible)
 
             detailContent
@@ -277,6 +277,7 @@ struct ContentView: View {
                     isAssistantInspectorPresented: $isAssistantInspectorPresented,
                     onPersistConversationIfNeeded: { persistConversationIfNeeded(conversation) },
                     isSidebarHidden: !isSidebarVisible,
+                    mainSidebarWidth: resolvedSidebarWidth,
                     onToggleSidebar: toggleSidebarVisibility,
                     onNewChat: createNewConversation,
                     titlebarLeadingInset: mainWindowChromeLayout.titlebarLeadingInset
@@ -393,16 +394,15 @@ struct ContentView: View {
     }
 
     func toggleSidebarVisibility() {
-        withAnimation(.easeInOut(duration: 0.16)) {
-            isSidebarPresented.toggle()
-        }
+        isSidebarPresented = MainSidebarVisibility.toggled(isSidebarPresented)
     }
 
     func focusChatSearch() {
-        if !isSidebarVisible {
+        let shouldDelayFocus = !isSidebarVisible
+        if shouldDelayFocus {
             isSidebarPresented = true
         }
-        DispatchQueue.main.async {
+        DispatchQueue.main.asyncAfter(deadline: .now() + (shouldDelayFocus ? 0.18 : 0)) {
             isSidebarSearchFieldFocused = true
         }
     }

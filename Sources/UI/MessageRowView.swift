@@ -78,6 +78,9 @@ struct MessageRow: View {
         let showsCopyButton = (isUser || isAssistant) && !copyText.isEmpty
         let canEditUserMessage = item.canEditUserMessage
         let canDeleteResponse = item.canDeleteResponse
+        let effectiveMaxBubbleWidth = isUser
+            ? ChatConversationLayoutMetrics.userBubbleMaxWidth(for: maxBubbleWidth)
+            : maxBubbleWidth
         let collapsedPreview = item.collapsedPreviewForDisplay(in: renderMode)
         let visibleToolCalls = hidesManagedAgentInternalUI ? [] : item.visibleToolCalls
         let visibleCodexToolActivities = hidesManagedAgentInternalUI ? [] : item.codexToolActivities
@@ -102,7 +105,7 @@ struct MessageRow: View {
                         Spacer(minLength: 0)
                     }
 
-                    ConstrainedWidth(maxBubbleWidth) {
+                    ConstrainedWidth(effectiveMaxBubbleWidth) {
                         VStack(alignment: isUser ? .trailing : .leading, spacing: 6) {
                             headerView(isUser: isUser, isTool: isTool, assistantModelLabel: assistantModelLabel)
 
@@ -241,9 +244,11 @@ struct MessageRow: View {
                             }
                         }
                     }
-                    .padding(.horizontal, JinSpacing.large)
+                    .padding(.horizontal, isUser ? 0 : JinSpacing.small)
 
-                    Spacer()
+                    if !isUser {
+                        Spacer(minLength: 0)
+                    }
                 }
                 .frame(maxWidth: .infinity, alignment: isUser ? .trailing : .leading)
                 .padding(.vertical, JinSpacing.small)

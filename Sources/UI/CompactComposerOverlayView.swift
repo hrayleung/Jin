@@ -136,7 +136,7 @@ struct CompactComposerOverlayView<ControlsRow: View>: View {
             trailingActions
         }
         .padding(JinSpacing.medium)
-        .frame(maxWidth: 800)
+        .frame(maxWidth: ChatConversationLayoutMetrics.composerMaxWidth)
         .background {
             shape.fill(.regularMaterial)
         }

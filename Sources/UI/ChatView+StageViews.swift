@@ -67,7 +67,6 @@ private struct ChatStageBottomFadeView: View {
 }
 
 extension ChatView {
-
     var conversationStage: some View {
         Group {
             if isArtifactPaneVisible {
@@ -133,11 +132,20 @@ extension ChatView {
     }
 
     func singleThreadMessageStage(geometry: GeometryProxy) -> some View {
-        ChatSingleThreadMessagesView(
+        let columnWidth = ChatConversationLayoutMetrics.messageColumnWidth(for: geometry.size.width)
+        let layoutCenterOffset = ChatConversationLayoutMetrics.sidebarCompensationOffset(
+            containerWidth: geometry.size.width,
+            contentWidth: columnWidth,
+            sidebarWidth: mainSidebarWidth,
+            isSidebarHidden: isSidebarHidden
+        )
+
+        return ChatSingleThreadMessagesView(
             conversationID: conversationEntity.id,
             conversationMessageCount: conversationEntity.messages.count,
             renderRevision: renderCache.version,
             containerSize: geometry.size,
+            layoutCenterOffset: layoutCenterOffset,
             allMessages: singleThreadRenderContext.visibleMessages,
             toolResultsByCallID: singleThreadRenderContext.toolResultsByCallID,
             messageEntitiesByID: singleThreadRenderContext.messageEntitiesByID,
@@ -167,6 +175,7 @@ extension ChatView {
             isPinnedToBottom: $isPinnedToBottom,
             pinnedBottomRefreshGeneration: $pinnedBottomRefreshGeneration
         )
+        .animation(.easeInOut(duration: 0.24), value: isSidebarHidden)
     }
 
     func multiThreadMessageStage(geometry: GeometryProxy) -> some View {

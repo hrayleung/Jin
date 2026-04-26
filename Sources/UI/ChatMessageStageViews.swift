@@ -13,6 +13,7 @@ struct ChatSingleThreadMessagesView: View {
     let conversationMessageCount: Int
     let renderRevision: Int
     let containerSize: CGSize
+    let layoutCenterOffset: CGFloat
     let allMessages: [MessageRenderItem]
     let toolResultsByCallID: [String: ToolResult]
     let messageEntitiesByID: [UUID: MessageEntity]
@@ -52,6 +53,8 @@ struct ChatSingleThreadMessagesView: View {
             conversationMessageCount: conversationMessageCount,
             renderRevision: renderRevision,
             viewportHeight: containerSize.height,
+            layoutWidthBucket: ChatConversationLayoutMetrics.layoutWidthBucket(for: containerSize.width),
+            layoutCenterOffsetBucket: Int(layoutCenterOffset.rounded(.toNearestOrAwayFromZero)),
             allMessageCount: allMessages.count,
             lastMessageID: allMessages.last?.id,
             toolResultCount: toolResultsByCallID.count,
@@ -80,6 +83,7 @@ struct ChatSingleThreadMessagesView: View {
             eagerCodeHighlightTailCount: eagerCodeHighlightTailCount,
             nonLazyMessageStackThreshold: nonLazyMessageStackThreshold,
             containerSize: containerSize,
+            layoutCenterOffset: layoutCenterOffset,
             composerHeight: composerHeight,
             isStreaming: isStreaming,
             streamingMessage: streamingMessage,
@@ -117,6 +121,7 @@ private struct ChatSingleThreadMessagesContentView: View, Equatable {
     let eagerCodeHighlightTailCount: Int
     let nonLazyMessageStackThreshold: Int
     let containerSize: CGSize
+    let layoutCenterOffset: CGFloat
     let composerHeight: CGFloat
     let isStreaming: Bool
     let streamingMessage: StreamingMessageState?
@@ -153,8 +158,8 @@ private struct ChatSingleThreadMessagesContentView: View, Equatable {
     var body: some View {
         ScrollViewReader { proxy in
             ScrollView {
-                let usableWidth = max(0, containerSize.width - 32)
-                let bubbleMaxWidth = max(260, usableWidth * 0.78)
+                let columnWidth = ChatConversationLayoutMetrics.messageColumnWidth(for: containerSize.width)
+                let bubbleMaxWidth = ChatConversationLayoutMetrics.assistantBubbleMaxWidth(for: columnWidth)
                 let visibleMessages = visibleMessagesForWindow
                 let hiddenCount = allMessageCount - visibleMessages.count
                 let eagerCodeHighlightStartIndex = max(0, visibleMessages.count - eagerCodeHighlightTailCount)
@@ -189,8 +194,9 @@ private struct ChatSingleThreadMessagesContentView: View, Equatable {
                         )
                     }
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 20)
+                .frame(width: columnWidth, alignment: .leading)
+                .frame(maxWidth: .infinity, alignment: .center)
+                .offset(x: layoutCenterOffset)
                 .padding(.top, 24)
             }
             .overlayScrollerStyle()

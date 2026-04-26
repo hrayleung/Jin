@@ -65,6 +65,7 @@ struct ChatView: View {
     @Binding var isAssistantInspectorPresented: Bool
     var onPersistConversationIfNeeded: () -> Void = {}
     var isSidebarHidden: Bool = false
+    var mainSidebarWidth: CGFloat = SidebarWidthPersistence.defaultWidth
     var onToggleSidebar: (() -> Void)? = nil
     var onNewChat: (() -> Void)? = nil
     var titlebarLeadingInset: CGFloat = 0
