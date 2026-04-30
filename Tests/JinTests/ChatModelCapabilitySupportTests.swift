@@ -132,4 +132,47 @@ final class ChatModelCapabilitySupportTests: XCTestCase {
         XCTAssertTrue(normalized.capabilities.contains(.reasoning))
         XCTAssertEqual(normalized.reasoningConfig?.defaultEffort, .medium)
     }
+
+    func testNormalizedFireworksModelInfoAddsExactDeepSeekV4ProMetadata() {
+        let model = ModelInfo(
+            id: "accounts/fireworks/models/deepseek-v4-pro",
+            name: "accounts/fireworks/models/deepseek-v4-pro",
+            capabilities: [.streaming, .toolCalling, .vision, .promptCaching],
+            contextWindow: 8_192,
+            reasoningConfig: nil,
+            isEnabled: true
+        )
+
+        let normalized = ChatModelCapabilitySupport.normalizedSelectedModelInfo(
+            model,
+            providerType: .fireworks
+        )
+
+        XCTAssertEqual(normalized.name, "DeepSeek V4 Pro")
+        XCTAssertEqual(normalized.contextWindow, 1_048_600)
+        XCTAssertEqual(normalized.capabilities, [.streaming, .toolCalling, .reasoning])
+        XCTAssertEqual(normalized.reasoningConfig?.type, .effort)
+        XCTAssertEqual(normalized.reasoningConfig?.defaultEffort, .high)
+    }
+
+    func testNormalizedFireworksModelInfoDoesNotPromoteUndocumentedDeepSeekV4ProID() {
+        let model = ModelInfo(
+            id: "fireworks/deepseek-v4-pro",
+            name: "fireworks/deepseek-v4-pro",
+            capabilities: [.streaming, .toolCalling],
+            contextWindow: 8_192,
+            reasoningConfig: nil,
+            isEnabled: true
+        )
+
+        let normalized = ChatModelCapabilitySupport.normalizedSelectedModelInfo(
+            model,
+            providerType: .fireworks
+        )
+
+        XCTAssertEqual(normalized.name, "fireworks/deepseek-v4-pro")
+        XCTAssertEqual(normalized.contextWindow, 8_192)
+        XCTAssertEqual(normalized.capabilities, [.streaming, .toolCalling])
+        XCTAssertNil(normalized.reasoningConfig)
+    }
 }

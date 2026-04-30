@@ -5,6 +5,7 @@ enum ChatModelSelectionSupport {
     static let preferredFireworksModelOrder: [String] = [
         "kimi-k2p6",
         "qwen3p6-plus",
+        "deepseek-v4-pro",
         "deepseek-v3p2",
         "kimi-k2-instruct-0905",
         "glm-5",
@@ -15,6 +16,15 @@ enum ChatModelSelectionSupport {
 
     static func preferredFireworksModelID(in models: [ModelInfo]) -> String? {
         for canonicalID in preferredFireworksModelOrder {
+            if canonicalID == "deepseek-v4-pro" {
+                for preferredID in fireworksDeepSeekV4ProPreferredModelIDs {
+                    if let modelID = models.first(where: { $0.id.lowercased() == preferredID })?.id {
+                        return modelID
+                    }
+                }
+                continue
+            }
+
             if let modelID = models.first(where: { fireworksCanonicalModelID($0.id) == canonicalID })?.id {
                 return modelID
             }

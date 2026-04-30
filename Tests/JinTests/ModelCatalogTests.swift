@@ -858,16 +858,21 @@ final class ModelCatalogTests: XCTestCase {
         XCTAssertNil(unknown.reasoningConfig)
     }
 
-    func testFireworksSeededModelsPreferExactKimiK26Default() {
+    func testFireworksSeededModelsPreferExactKimiK26Default() throws {
         let seeded = ModelCatalog.seededModels(for: .fireworks).map(\.id)
 
         XCTAssertEqual(seeded.first, "fireworks/kimi-k2p6")
         XCTAssertTrue(seeded.contains("fireworks/qwen3p6-plus"))
+        XCTAssertTrue(seeded.contains("accounts/fireworks/models/deepseek-v4-pro"))
         XCTAssertTrue(seeded.contains("fireworks/deepseek-v3p2"))
         XCTAssertTrue(seeded.contains("fireworks/kimi-k2-instruct-0905"))
         XCTAssertTrue(seeded.contains("fireworks/glm-5"))
         XCTAssertTrue(seeded.contains("fireworks/minimax-m2p5"))
         XCTAssertFalse(seeded.contains("accounts/fireworks/models/kimi-k2p6"))
+
+        let v4ProIndex = try XCTUnwrap(seeded.firstIndex(of: "accounts/fireworks/models/deepseek-v4-pro"))
+        let v32Index = try XCTUnwrap(seeded.firstIndex(of: "fireworks/deepseek-v3p2"))
+        XCTAssertLessThan(v4ProIndex, v32Index)
     }
 
     func testFireworksCatalogMetadataUsesExactIDsAndConservativeFallback() {
@@ -909,6 +914,33 @@ final class ModelCatalogTests: XCTestCase {
         XCTAssertTrue(qwen235.capabilities.contains(.toolCalling))
         XCTAssertFalse(qwen235.capabilities.contains(.reasoning))
         XCTAssertNil(qwen235.reasoningConfig)
+
+        let deepSeekV4Pro = ModelCatalog.modelInfo(
+            for: "accounts/fireworks/models/deepseek-v4-pro",
+            provider: .fireworks
+        )
+        XCTAssertEqual(deepSeekV4Pro.name, "DeepSeek V4 Pro")
+        XCTAssertEqual(deepSeekV4Pro.contextWindow, 1_048_600)
+        XCTAssertNil(deepSeekV4Pro.maxOutputTokens)
+        XCTAssertEqual(deepSeekV4Pro.capabilities, [.streaming, .toolCalling, .reasoning])
+        XCTAssertEqual(deepSeekV4Pro.reasoningConfig?.type, .effort)
+        XCTAssertEqual(deepSeekV4Pro.reasoningConfig?.defaultEffort, .high)
+
+        let deepSeekV4ProAlias = ModelCatalog.modelInfo(
+            for: "deepseek-ai/deepseek-v4-pro",
+            provider: .fireworks
+        )
+        XCTAssertEqual(deepSeekV4ProAlias.contextWindow, 1_048_600)
+        XCTAssertEqual(deepSeekV4ProAlias.capabilities, [.streaming, .toolCalling, .reasoning])
+        XCTAssertEqual(deepSeekV4ProAlias.reasoningConfig?.defaultEffort, .high)
+
+        let undocumentedV4Pro = ModelCatalog.modelInfo(
+            for: "fireworks/deepseek-v4-pro",
+            provider: .fireworks
+        )
+        XCTAssertEqual(undocumentedV4Pro.capabilities, [.streaming, .toolCalling])
+        XCTAssertEqual(undocumentedV4Pro.contextWindow, 128_000)
+        XCTAssertNil(undocumentedV4Pro.reasoningConfig)
 
         let unknown = ModelCatalog.modelInfo(
             for: "accounts/fireworks/models/qwen3p6-plus-custom",
