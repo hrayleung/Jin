@@ -79,6 +79,14 @@ final class ChatModelSelectionSupportTests: XCTestCase {
                 isEnabled: true
             ),
             ModelInfo(
+                id: "deepseek-ai/deepseek-v4-pro",
+                name: "DeepSeek V4 Pro",
+                capabilities: [.streaming],
+                contextWindow: 1_048_600,
+                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
+                isEnabled: true
+            ),
+            ModelInfo(
                 id: "accounts/fireworks/models/deepseek-v4-pro",
                 name: "DeepSeek V4 Pro",
                 capabilities: [.streaming],
@@ -91,6 +99,11 @@ final class ChatModelSelectionSupportTests: XCTestCase {
         XCTAssertEqual(
             ChatModelSelectionSupport.preferredFireworksModelID(in: models),
             "accounts/fireworks/models/deepseek-v4-pro"
+        )
+
+        XCTAssertEqual(
+            ChatModelSelectionSupport.preferredFireworksModelID(in: Array(models.prefix(2))),
+            "accounts/fireworks/models/deepseek-v3p2"
         )
     }
 }

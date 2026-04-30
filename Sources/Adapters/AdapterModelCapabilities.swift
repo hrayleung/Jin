@@ -125,10 +125,13 @@ private let fireworksMiniMaxM2CanonicalIDs: Set<String> = [
     "minimax-m2", "minimax-m2p1", "minimax-m2p5"
 ]
 
-private let fireworksDeepSeekV4ProModelIDs: Set<String> = [
-    "accounts/fireworks/models/deepseek-v4-pro",
-    "deepseek-ai/deepseek-v4-pro",
+let fireworksDeepSeekV4ProAccountModelID = "accounts/fireworks/models/deepseek-v4-pro"
+let fireworksDeepSeekV4ProCatalogModelID = "deepseek-ai/deepseek-v4-pro"
+let fireworksDeepSeekV4ProPreferredModelIDs = [
+    fireworksDeepSeekV4ProAccountModelID,
+    fireworksDeepSeekV4ProCatalogModelID,
 ]
+let fireworksDeepSeekV4ProModelIDs = Set(fireworksDeepSeekV4ProPreferredModelIDs)
 
 /// Extracts the canonical (lowercased, prefix-stripped) Fireworks model ID.
 /// Returns nil if the model ID contains an unrecognized namespace prefix.

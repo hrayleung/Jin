@@ -16,9 +16,13 @@ enum ChatModelSelectionSupport {
 
     static func preferredFireworksModelID(in models: [ModelInfo]) -> String? {
         for canonicalID in preferredFireworksModelOrder {
-            if canonicalID == "deepseek-v4-pro",
-               let modelID = models.first(where: { isFireworksDeepSeekV4ProModel($0.id) })?.id {
-                return modelID
+            if canonicalID == "deepseek-v4-pro" {
+                for preferredID in fireworksDeepSeekV4ProPreferredModelIDs {
+                    if let modelID = models.first(where: { $0.id.lowercased() == preferredID })?.id {
+                        return modelID
+                    }
+                }
+                continue
             }
 
             if let modelID = models.first(where: { fireworksCanonicalModelID($0.id) == canonicalID })?.id {

@@ -135,8 +135,8 @@ actor FireworksAdapter: LLMProviderAdapter {
         let prefix = "accounts/fireworks/models/"
 
         if lower.hasPrefix(prefix) {
-            let suffix = String(trimmed.dropFirst(prefix.count))
-            if suffix.lowercased() == "deepseek-v4-pro" {
+            let suffix = String(lower.dropFirst(prefix.count))
+            if suffix == "deepseek-v4-pro" {
                 return "accounts/fireworks/models/\(suffix)"
             }
             return "fireworks/\(suffix)"

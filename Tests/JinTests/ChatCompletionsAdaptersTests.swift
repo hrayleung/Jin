@@ -246,6 +246,10 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         )
 
         protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://example.com/chat/completions")
+            XCTAssertEqual(request.httpMethod, "POST")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer test-key")
+
             let body = try XCTUnwrap(requestBodyData(request))
             let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
             let root = try XCTUnwrap(json)
@@ -374,7 +378,7 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
                 response = [
                     "models": [
                         ["name": "accounts/fireworks/models/qwen3p6-plus"],
-                        ["name": "accounts/fireworks/models/deepseek-v4-pro"],
+                        ["name": "accounts/fireworks/models/DeepSeek-V4-Pro"],
                         ["name": "accounts/fireworks/models/deepseek-v3p2"],
                         ["name": "accounts/fireworks/models/kimi-k2-instruct-0905"],
                         ["name": "accounts/fireworks/models/kimi-k2p6"],
