@@ -34,7 +34,11 @@ enum OpenAIChatCompletionsCore {
                     continuation.yield(.thinkingDelta(.thinking(textDelta: reasoning, signature: nil)))
                 }
 
-                if let rawContent = normalized(choice.message.content) {
+                if explicitReasoning == nil, let thinking = normalized(choice.message.content?.thinking) {
+                    continuation.yield(.thinkingDelta(.thinking(textDelta: thinking, signature: nil)))
+                }
+
+                if let rawContent = normalized(choice.message.content?.text) {
                     let split = ThinkTagStreamSplitter.splitNonStreaming(rawContent)
                     if explicitReasoning == nil, let thinking = normalized(split.thinking) {
                         continuation.yield(.thinkingDelta(.thinking(textDelta: thinking, signature: nil)))
@@ -109,8 +113,10 @@ enum OpenAIChatCompletionsCore {
 
                             guard let choice = chunk.choices.first else { continue }
 
+                            var didEmitExplicitReasoning = false
                             if let delta = deltaReasoning(choice.delta, field: reasoningField) {
                                 continuation.yield(.thinkingDelta(.thinking(textDelta: delta, signature: nil)))
+                                didEmitExplicitReasoning = true
                             } else if let choiceReasoning = chunkChoiceReasoning(choice, field: reasoningField) {
                                 let incremental = incrementalReasoningDelta(
                                     candidate: choiceReasoning,
@@ -118,11 +124,17 @@ enum OpenAIChatCompletionsCore {
                                 )
                                 if !incremental.isEmpty {
                                     continuation.yield(.thinkingDelta(.thinking(textDelta: incremental, signature: nil)))
+                                    didEmitExplicitReasoning = true
                                 }
                                 streamedChoiceReasoningSnapshot = choiceReasoning
                             }
 
-                            if let delta = normalized(choice.delta.content) {
+                            if !didEmitExplicitReasoning,
+                               let thinking = normalized(choice.delta.content?.thinking) {
+                                continuation.yield(.thinkingDelta(.thinking(textDelta: thinking, signature: nil)))
+                            }
+
+                            if let delta = normalized(choice.delta.content?.text) {
                                 let split = thinkSplitter.process(delta)
                                 if !split.thinking.isEmpty {
                                     continuation.yield(.thinkingDelta(.thinking(textDelta: split.thinking, signature: nil)))
@@ -644,7 +656,7 @@ struct OpenAIChatCompletionsResponse: Decodable {
 
     struct AssistantMessage: Decodable {
         let role: String?
-        let content: String?
+        let content: OpenAIChatCompletionsContent?
         let reasoning: String?
         let reasoningContent: String?
         let reasoningDetails: [[String: AnyCodable]]?
@@ -729,7 +741,7 @@ struct OpenAIChatCompletionsChunk: Decodable {
 
     struct Delta: Decodable {
         let role: String?
-        let content: String?
+        let content: OpenAIChatCompletionsContent?
         let reasoning: String?
         let reasoningContent: String?
         let reasoningDetails: [[String: AnyCodable]]?
@@ -760,6 +772,99 @@ struct OpenAIChatCompletionsSearchResult: Codable {
     let title: String?
     let url: String?
     let snippet: String?
+}
+
+struct OpenAIChatCompletionsContent: Decodable {
+    let text: String?
+    let thinking: String?
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+
+        if container.decodeNil() {
+            text = nil
+            thinking = nil
+            return
+        }
+
+        if let raw = try? container.decode(String.self) {
+            text = raw
+            thinking = nil
+            return
+        }
+
+        let chunks = try container.decode([OpenAIChatCompletionsContentChunk].self)
+        var textParts: [String] = []
+        var thinkingParts: [String] = []
+
+        for chunk in chunks {
+            if chunk.isThinkingChunk {
+                if let fragment = chunk.thinkingFragment {
+                    thinkingParts.append(fragment)
+                }
+            } else if let fragment = chunk.visibleTextFragment {
+                textParts.append(fragment)
+            }
+        }
+
+        let joinedText = textParts.joined()
+        let joinedThinking = thinkingParts.joined()
+        text = joinedText.isEmpty ? nil : joinedText
+        thinking = joinedThinking.isEmpty ? nil : joinedThinking
+    }
+}
+
+private struct OpenAIChatCompletionsContentChunk: Decodable {
+    let type: String?
+    let text: String?
+    let content: String?
+    let thinkingText: String?
+    let thinkingChunks: [OpenAIChatCompletionsContentChunk]?
+
+    enum CodingKeys: String, CodingKey {
+        case type
+        case text
+        case content
+        case thinking
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        type = try container.decodeIfPresent(String.self, forKey: .type)
+        text = try container.decodeIfPresent(String.self, forKey: .text)
+        content = try container.decodeIfPresent(String.self, forKey: .content)
+        thinkingText = try? container.decode(String.self, forKey: .thinking)
+        thinkingChunks = try? container.decode([OpenAIChatCompletionsContentChunk].self, forKey: .thinking)
+    }
+
+    var isThinkingChunk: Bool {
+        type?.caseInsensitiveCompare("thinking") == .orderedSame
+    }
+
+    var visibleTextFragment: String? {
+        normalizedContentFragment(text) ?? normalizedContentFragment(content)
+    }
+
+    var thinkingFragment: String? {
+        var parts: [String] = []
+        if let thinkingText = normalizedContentFragment(thinkingText) {
+            parts.append(thinkingText)
+        }
+        if let thinkingChunks {
+            for chunk in thinkingChunks {
+                if let nested = chunk.visibleTextFragment ?? chunk.thinkingFragment {
+                    parts.append(nested)
+                }
+            }
+        }
+        return parts.isEmpty ? nil : parts.joined()
+    }
+}
+
+private func normalizedContentFragment(_ value: String?) -> String? {
+    guard let value else { return nil }
+    let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+    return trimmed.isEmpty ? nil : value
 }
 
 struct OpenAIChatCompletionsToolCallState {

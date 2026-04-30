@@ -293,6 +293,9 @@ enum ModelCapabilityRegistry {
         "deepseek-ai/deepseek-v4-flash",
         "deepseek-ai/deepseek-v4-pro",
     ]
+    private static let mistralHighOnlyReasoningEffortModelIDs: Set<String> = [
+        "mistral-medium-3.5",
+    ]
     private static let googleModelPrefixes = [
         "google/",
         "google-ai-studio/",
@@ -356,6 +359,8 @@ enum ModelCapabilityRegistry {
         case .together where togetherDeepSeekV4ReasoningEffortModelIDs.contains(lowerModelID):
             return [.high]
         case .deepinfra where deepInfraDeepSeekV4ReasoningEffortModelIDs.contains(lowerModelID):
+            return [.high]
+        case .mistral where mistralHighOnlyReasoningEffortModelIDs.contains(lowerModelID):
             return [.high]
         case .fireworks where fireworksDeepSeekV4ProModelIDs.contains(lowerModelID):
             return [.high, .max]
@@ -477,6 +482,11 @@ enum ModelCapabilityRegistry {
     static func defaultReasoningConfig(for providerType: ProviderType?, modelID: String) -> ModelReasoningConfig? {
         let lowerModelID = modelID.lowercased()
         let shape = requestShape(for: providerType, modelID: modelID)
+
+        if providerType == .mistral,
+           mistralHighOnlyReasoningEffortModelIDs.contains(lowerModelID) {
+            return ModelReasoningConfig(type: .effort, defaultEffort: .high)
+        }
 
         guard isReasoningModelID(lowerModelID, shape: shape) else {
             return nil

@@ -4530,6 +4530,203 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         guard case .messageEnd = events[3] else { return XCTFail("Expected messageEnd") }
     }
 
+    func testOpenAICompatibleMistralFetchModelsUsesMedium35CatalogMetadata() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        let providerConfig = ProviderConfig(
+            id: "mistral",
+            name: "Mistral",
+            type: .mistral,
+            apiKey: "ignored",
+            baseURL: "https://example.com/v1"
+        )
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://example.com/v1/models")
+            let response: [String: Any] = [
+                "data": [
+                    ["id": "mistral-medium-3.5"],
+                    ["id": "unknown-mistral-model"]
+                ]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = OpenAICompatibleAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let models = try await adapter.fetchAvailableModels()
+        let byID = Dictionary(uniqueKeysWithValues: models.map { ($0.id, $0) })
+
+        let medium = try XCTUnwrap(byID["mistral-medium-3.5"])
+        XCTAssertEqual(medium.name, "Mistral Medium 3.5")
+        XCTAssertEqual(medium.contextWindow, 262_144)
+        XCTAssertNil(medium.maxOutputTokens)
+        XCTAssertEqual(medium.capabilities, [.streaming, .toolCalling, .vision, .reasoning])
+        XCTAssertEqual(medium.reasoningConfig?.defaultEffort, .high)
+
+        let unknown = try XCTUnwrap(byID["unknown-mistral-model"])
+        XCTAssertEqual(unknown.capabilities, [.streaming, .toolCalling])
+        XCTAssertEqual(unknown.contextWindow, 128_000)
+        XCTAssertNil(unknown.reasoningConfig)
+    }
+
+    func testOpenAICompatibleMistralMedium35UsesOfficialReasoningAndThinkingChunks() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        let providerConfig = ProviderConfig(
+            id: "mistral",
+            name: "Mistral",
+            type: .mistral,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://example.com/v1/chat/completions")
+            let body = try XCTUnwrap(requestBodyData(request))
+            let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+            let root = try XCTUnwrap(json)
+
+            XCTAssertEqual(root["model"] as? String, "mistral-medium-3.5")
+            XCTAssertEqual(root["reasoning_effort"] as? String, "high")
+            XCTAssertNil(root["reasoning"])
+
+            let messages = try XCTUnwrap(root["messages"] as? [[String: Any]])
+            XCTAssertEqual(messages.count, 2)
+            XCTAssertEqual(messages[0]["role"] as? String, "assistant")
+            let assistantContent = try XCTUnwrap(messages[0]["content"] as? [[String: Any]])
+            XCTAssertEqual(assistantContent.count, 2)
+            XCTAssertEqual(assistantContent[0]["type"] as? String, "thinking")
+            XCTAssertEqual(assistantContent[0]["closed"] as? Bool, true)
+            let thinking = try XCTUnwrap(assistantContent[0]["thinking"] as? [[String: Any]])
+            XCTAssertEqual(thinking[0]["type"] as? String, "text")
+            XCTAssertEqual(thinking[0]["text"] as? String, "previous-think")
+            XCTAssertEqual(assistantContent[1]["type"] as? String, "text")
+            XCTAssertEqual(assistantContent[1]["text"] as? String, "previous-answer")
+
+            let response: [String: Any] = [
+                "id": "cmpl_mistral_medium_35",
+                "choices": [
+                    [
+                        "message": [
+                            "role": "assistant",
+                            "content": [
+                                [
+                                    "type": "thinking",
+                                    "thinking": [
+                                        [
+                                            "type": "text",
+                                            "text": "new-think"
+                                        ]
+                                    ],
+                                    "closed": true
+                                ],
+                                [
+                                    "type": "text",
+                                    "text": "new-answer"
+                                ]
+                            ]
+                        ],
+                        "finish_reason": "stop"
+                    ]
+                ],
+                "usage": [
+                    "prompt_tokens": 10,
+                    "completion_tokens": 20,
+                    "total_tokens": 30
+                ]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        var controls = GenerationControls(reasoning: ReasoningControls(enabled: true, effort: .medium))
+        controls.providerSpecific = [
+            "reasoning": AnyCodable(["effort": "low"]),
+            "reasoning_effort": AnyCodable("none")
+        ]
+
+        let adapter = OpenAICompatibleAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [
+                Message(role: .assistant, content: [
+                    .text("previous-answer"),
+                    .thinking(ThinkingBlock(text: "previous-think"))
+                ]),
+                Message(role: .user, content: [.text("next")])
+            ],
+            modelID: "mistral-medium-3.5",
+            controls: controls,
+            tools: [],
+            streaming: false
+        )
+
+        var events: [StreamEvent] = []
+        for try await event in stream {
+            events.append(event)
+        }
+
+        XCTAssertEqual(events.count, 4)
+        guard case .messageStart(let id) = events[0] else { return XCTFail("Expected messageStart") }
+        XCTAssertEqual(id, "cmpl_mistral_medium_35")
+        guard case .thinkingDelta(.thinking(let reasoning, _)) = events[1] else { return XCTFail("Expected thinkingDelta") }
+        XCTAssertEqual(reasoning, "new-think")
+        guard case .contentDelta(.text(let content)) = events[2] else { return XCTFail("Expected contentDelta") }
+        XCTAssertEqual(content, "new-answer")
+        guard case .messageEnd(let usage) = events[3] else { return XCTFail("Expected messageEnd") }
+        XCTAssertEqual(usage?.inputTokens, 10)
+        XCTAssertEqual(usage?.outputTokens, 20)
+    }
+
+    func testOpenAICompatibleMistralMedium35ReasoningOffUsesNone() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        let providerConfig = ProviderConfig(
+            id: "mistral",
+            name: "Mistral",
+            type: .mistral,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        protocolType.requestHandler = { request in
+            let body = try XCTUnwrap(requestBodyData(request))
+            let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+            let root = try XCTUnwrap(json)
+            XCTAssertEqual(root["reasoning_effort"] as? String, "none")
+            XCTAssertNil(root["reasoning"])
+
+            let response: [String: Any] = [
+                "id": "cmpl_mistral_off",
+                "choices": [
+                    [
+                        "message": [
+                            "role": "assistant",
+                            "content": "OK"
+                        ],
+                        "finish_reason": "stop"
+                    ]
+                ]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = OpenAICompatibleAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hi")])],
+            modelID: "mistral-medium-3.5",
+            controls: GenerationControls(reasoning: ReasoningControls(enabled: false)),
+            tools: [],
+            streaming: false
+        )
+
+        for try await _ in stream {}
+    }
+
     func testZhipuCodingPlanAdapterKeepsThinkingEnabledWhenEffortIsNil() async throws {
         let (configuration, protocolType) = makeMockedSessionConfiguration()
         let networkManager = NetworkManager(configuration: configuration)

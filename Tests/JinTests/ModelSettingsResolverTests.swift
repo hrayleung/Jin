@@ -112,6 +112,28 @@ final class ModelSettingsResolverTests: XCTestCase {
         XCTAssertEqual(resolved.reasoningConfig?.defaultEffort, .high)
     }
 
+    func testResolverAppliesMistralMedium35CatalogMetadataForLegacyModel() {
+        let legacyModel = ModelInfo(
+            id: "mistral-medium-3.5",
+            name: "Mistral Medium 3.5",
+            capabilities: [.streaming, .toolCalling, .vision, .audio, .reasoning, .nativePDF, .codeExecution],
+            contextWindow: 128_000,
+            maxOutputTokens: 16_384,
+            reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+            isEnabled: true
+        )
+
+        let resolved = ModelSettingsResolver.resolve(model: legacyModel, providerType: .mistral)
+        XCTAssertEqual(resolved.contextWindow, 262_144)
+        XCTAssertEqual(resolved.maxOutputTokens, 16_384)
+        XCTAssertEqual(resolved.capabilities, [.streaming, .toolCalling, .vision, .reasoning])
+        XCTAssertEqual(resolved.reasoningConfig?.type, .effort)
+        XCTAssertEqual(resolved.reasoningConfig?.defaultEffort, .high)
+        XCTAssertTrue(resolved.reasoningCanDisable)
+        XCTAssertFalse(resolved.supportsWebSearch)
+        XCTAssertFalse(resolved.supportsOpenAIStyleExtremeEffort)
+    }
+
     func testDeepSeekV4CatalogCarriesDocsVerifiedContextOutputAndReasoning() {
         let flash = ModelCatalog.modelInfo(for: "deepseek-v4-flash", provider: .deepseek)
         let resolvedFlash = ModelSettingsResolver.resolve(model: flash, providerType: .deepseek)
