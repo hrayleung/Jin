@@ -48,6 +48,11 @@ enum OpenAICompatibleReasoningSupport {
         modelID: String,
         requestShape: ModelRequestShape
     ) -> Bool {
+        if isMistralMedium35Model(providerConfig: providerConfig, modelID: modelID) {
+            applyMistralMedium35Reasoning(to: &body, reasoning: reasoning)
+            return false
+        }
+
         if isCloudflareKimiK26Model(providerConfig: providerConfig, modelID: modelID) {
             let isDisabled = reasoning.enabled == false || (reasoning.effort ?? ReasoningEffort.none) == .none
             mergeChatTemplateKwargs(
@@ -90,6 +95,38 @@ enum OpenAICompatibleReasoningSupport {
             "effort": mapReasoningEffort(effort, providerConfig: providerConfig, modelID: modelID)
         ]
         return requestShape == .openAIResponses
+    }
+
+    static func finalizeOpenAICompatibleReasoningBody(
+        _ body: inout [String: Any],
+        controls: GenerationControls,
+        providerConfig: ProviderConfig,
+        modelID: String
+    ) {
+        guard isMistralMedium35Model(providerConfig: providerConfig, modelID: modelID) else {
+            return
+        }
+
+        body.removeValue(forKey: "reasoning")
+        guard let reasoning = controls.reasoning else {
+            body.removeValue(forKey: "reasoning_effort")
+            return
+        }
+
+        applyMistralMedium35Reasoning(to: &body, reasoning: reasoning)
+    }
+
+    static func isMistralMedium35Model(providerConfig: ProviderConfig, modelID: String) -> Bool {
+        providerConfig.type == .mistral && modelID.lowercased() == "mistral-medium-3.5"
+    }
+
+    private static func applyMistralMedium35Reasoning(
+        to body: inout [String: Any],
+        reasoning: ReasoningControls
+    ) {
+        body.removeValue(forKey: "reasoning")
+        let isDisabled = reasoning.enabled == false || (reasoning.effort ?? ReasoningEffort.none) == .none
+        body["reasoning_effort"] = isDisabled ? "none" : "high"
     }
 
     // MARK: - Anthropic-Style Reasoning

@@ -31,6 +31,7 @@ extension ModelCatalog {
         .anthropic: anthropicRecords,
         .claudeManagedAgents: anthropicRecords,
         .perplexity: perplexityRecords,
+        .mistral: mistralRecords,
         .deepinfra: deepInfraRecords,
         .together: togetherRecords,
         .xai: xAIRecords,

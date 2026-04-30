@@ -2,6 +2,79 @@ import XCTest
 @testable import Jin
 
 final class OpenAIChatCompletionsThinkTagTests: XCTestCase {
+    func testStreamingParsesMistralContentChunkArrays() async throws {
+        let sseStream = AsyncThrowingStream<SSEEvent, Error> { continuation in
+            let chunk1: [String: Any] = [
+                "id": "cmpl_mistral_stream",
+                "choices": [
+                    [
+                        "index": 0,
+                        "delta": [
+                            "content": [
+                                [
+                                    "type": "thinking",
+                                    "thinking": [
+                                        [
+                                            "type": "text",
+                                            "text": "stream-think"
+                                        ]
+                                    ],
+                                    "closed": false
+                                ]
+                            ]
+                        ]
+                    ]
+                ]
+            ]
+            let chunk2: [String: Any] = [
+                "id": "cmpl_mistral_stream",
+                "choices": [
+                    [
+                        "index": 0,
+                        "delta": [
+                            "content": [
+                                [
+                                    "type": "text",
+                                    "text": "stream-answer"
+                                ]
+                            ]
+                        ]
+                    ]
+                ]
+            ]
+
+            do {
+                let data1 = try JSONSerialization.data(withJSONObject: chunk1)
+                let data2 = try JSONSerialization.data(withJSONObject: chunk2)
+                continuation.yield(.event(type: "message", data: String(decoding: data1, as: UTF8.self)))
+                continuation.yield(.event(type: "message", data: String(decoding: data2, as: UTF8.self)))
+                continuation.yield(.done)
+                continuation.finish()
+            } catch {
+                continuation.finish(throwing: error)
+            }
+        }
+
+        let stream = OpenAIChatCompletionsCore.makeStreamingStream(
+            sseStream: sseStream,
+            reasoningField: .reasoningOrReasoningContent
+        )
+
+        var events: [StreamEvent] = []
+        for try await event in stream {
+            events.append(event)
+        }
+
+        XCTAssertEqual(events.count, 4)
+        guard case .messageStart(let id) = events[0] else { return XCTFail("Expected messageStart") }
+        XCTAssertEqual(id, "cmpl_mistral_stream")
+        guard case .thinkingDelta(.thinking(let thinking, _)) = events[1] else { return XCTFail("Expected thinkingDelta") }
+        XCTAssertEqual(thinking, "stream-think")
+        guard case .contentDelta(.text(let content)) = events[2] else { return XCTFail("Expected contentDelta") }
+        XCTAssertEqual(content, "stream-answer")
+        guard case .messageEnd = events[3] else { return XCTFail("Expected messageEnd") }
+    }
+
     func testNonStreamingSplitsLeadingThinkTagsIntoThinkingAndVisible() async throws {
         let payload: [String: Any] = [
             "id": "cmpl_1",

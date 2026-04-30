@@ -170,7 +170,7 @@ enum DefaultProviderSeeds {
             type: .mistral,
             iconID: LobeProviderIconCatalog.defaultIconID(for: .mistral),
             baseURL: ProviderType.mistral.defaultBaseURL,
-            models: []
+            models: ModelCatalog.seededModels(for: .mistral)
         )
     }
 

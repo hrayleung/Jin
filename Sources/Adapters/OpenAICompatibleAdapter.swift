@@ -154,7 +154,7 @@ actor OpenAICompatibleAdapter: LLMProviderAdapter {
     ) throws -> URLRequest {
         var body: [String: Any] = [
             "model": modelID,
-            "messages": try translateMessages(messages),
+            "messages": try translateMessages(messages, modelID: modelID),
             "stream": streaming
         ]
 
@@ -208,6 +208,13 @@ actor OpenAICompatibleAdapter: LLMProviderAdapter {
             }
             body[key] = value.value
         }
+
+        OpenAICompatibleReasoningSupport.finalizeOpenAICompatibleReasoningBody(
+            &body,
+            controls: controls,
+            providerConfig: providerConfig,
+            modelID: modelID
+        )
 
         var request = try makeAuthorizedJSONRequest(
             url: validatedURL("\(baseURL)/chat/completions"),
@@ -268,16 +275,19 @@ actor OpenAICompatibleAdapter: LLMProviderAdapter {
         }
     }
 
-    private func translateMessages(_ messages: [Message]) throws -> [[String: Any]] {
-        try translateMessagesToOpenAIFormat(messages, translateNonToolMessage: translateNonToolMessage)
+    private func translateMessages(_ messages: [Message], modelID: String) throws -> [[String: Any]] {
+        try translateMessagesToOpenAIFormat(messages) { message in
+            try translateNonToolMessage(message, modelID: modelID)
+        }
     }
 
-    private func translateNonToolMessage(_ message: Message) throws -> [String: Any] {
+    private func translateNonToolMessage(_ message: Message, modelID: String) throws -> [String: Any] {
+        let supportsAudioInput = supportsAudioInput(modelID: modelID)
         let split = splitContentParts(
             message.content,
             separator: "\n",
             includeImages: true,
-            includeAudio: true
+            includeAudio: supportsAudioInput
         )
 
         var dict: [String: Any] = [
@@ -289,14 +299,22 @@ actor OpenAICompatibleAdapter: LLMProviderAdapter {
             dict["content"] = split.visible
 
         case .assistant:
-            dict["content"] = split.visible
             if let thinking = split.thinkingOrNil {
-                if providerConfig.type == .zhipuCodingPlan
+                if OpenAICompatibleReasoningSupport.isMistralMedium35Model(
+                    providerConfig: providerConfig,
+                    modelID: modelID
+                ) {
+                    dict["content"] = mistralAssistantContentChunks(visible: split.visible, thinking: thinking)
+                } else if providerConfig.type == .zhipuCodingPlan
                     || providerConfig.type == .minimax {
+                    dict["content"] = split.visible
                     dict["reasoning_content"] = thinking
                 } else {
+                    dict["content"] = split.visible
                     dict["reasoning"] = thinking
                 }
+            } else {
+                dict["content"] = split.visible
             }
 
             if let toolCalls = message.toolCalls, !toolCalls.isEmpty {
@@ -307,7 +325,7 @@ actor OpenAICompatibleAdapter: LLMProviderAdapter {
             if split.hasRichUserContent {
                 dict["content"] = try translateUserContentPartsToOpenAIFormat(
                     message.content,
-                    audioPartBuilder: mistralAudioPartBuilder
+                    audioPartBuilder: supportsAudioInput ? mistralAudioPartBuilder : nil
                 )
             } else {
                 dict["content"] = split.visible
@@ -318,6 +336,40 @@ actor OpenAICompatibleAdapter: LLMProviderAdapter {
         }
 
         return dict
+    }
+
+    private func supportsAudioInput(modelID: String) -> Bool {
+        if OpenAICompatibleReasoningSupport.isMistralMedium35Model(
+            providerConfig: providerConfig,
+            modelID: modelID
+        ) {
+            return false
+        }
+        return true
+    }
+
+    private func mistralAssistantContentChunks(visible: String, thinking: String) -> [[String: Any]] {
+        var chunks: [[String: Any]] = [
+            [
+                "type": "thinking",
+                "thinking": [
+                    [
+                        "type": "text",
+                        "text": thinking
+                    ]
+                ],
+                "closed": true
+            ]
+        ]
+
+        if !visible.isEmpty {
+            chunks.append([
+                "type": "text",
+                "text": visible
+            ])
+        }
+
+        return chunks
     }
 
     /// Mistral Voxtral expects a raw base64 string for `input_audio`, not the standard OpenAI format.

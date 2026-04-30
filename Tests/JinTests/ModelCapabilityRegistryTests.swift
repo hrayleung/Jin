@@ -2,6 +2,27 @@ import XCTest
 @testable import Jin
 
 final class ModelCapabilityRegistryTests: XCTestCase {
+    func testMistralMedium35ReasoningAndToolCapabilitiesUseExactID() {
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .mistral, modelID: "mistral-medium-3.5"),
+            [.high]
+        )
+        XCTAssertEqual(
+            ModelCapabilityRegistry.normalizedReasoningEffort(.medium, for: .mistral, modelID: "mistral-medium-3.5"),
+            .high
+        )
+        XCTAssertEqual(
+            ModelCapabilityRegistry.normalizedReasoningEffort(.xhigh, for: .mistral, modelID: "mistral-medium-3.5"),
+            .high
+        )
+        XCTAssertEqual(
+            ModelCapabilityRegistry.normalizedReasoningEffort(.max, for: .mistral, modelID: "mistral-medium-3.5"),
+            .high
+        )
+        XCTAssertFalse(ModelCapabilityRegistry.supportsWebSearch(for: .mistral, modelID: "mistral-medium-3.5"))
+        XCTAssertFalse(ModelCapabilityRegistry.supportsCodeExecution(for: .mistral, modelID: "mistral-medium-3.5"))
+    }
+
     func testOpenAICodeExecutionUsesExactDocumentedModelIDs() {
         XCTAssertTrue(ModelCapabilityRegistry.supportsCodeExecution(for: .openai, modelID: "gpt-4.1"))
         XCTAssertTrue(ModelCapabilityRegistry.supportsCodeExecution(for: .openai, modelID: "gpt-5"))

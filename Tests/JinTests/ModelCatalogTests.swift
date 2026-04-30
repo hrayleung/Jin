@@ -2,6 +2,37 @@ import XCTest
 @testable import Jin
 
 final class ModelCatalogTests: XCTestCase {
+    func testMistralMedium35CatalogUsesExactOfficialID() {
+        let model = ModelCatalog.modelInfo(
+            for: "mistral-medium-3.5",
+            provider: .mistral
+        )
+
+        XCTAssertEqual(model.name, "Mistral Medium 3.5")
+        XCTAssertEqual(model.contextWindow, 262_144)
+        XCTAssertNil(model.maxOutputTokens)
+        XCTAssertEqual(model.capabilities, [.streaming, .toolCalling, .vision, .reasoning])
+        XCTAssertEqual(model.reasoningConfig?.type, .effort)
+        XCTAssertEqual(model.reasoningConfig?.defaultEffort, .high)
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .mistral, modelID: "mistral-medium-3.5"))
+
+        let seeded = ModelCatalog.seededModels(for: .mistral)
+        XCTAssertTrue(seeded.contains(where: { $0.id == "mistral-medium-3.5" }))
+    }
+
+    func testMistralMedium35SimilarIDsUseConservativeFallback() {
+        let custom = ModelCatalog.modelInfo(
+            for: "mistral-medium-3.5-custom",
+            provider: .mistral
+        )
+
+        XCTAssertEqual(custom.capabilities, [.streaming, .toolCalling])
+        XCTAssertEqual(custom.contextWindow, 128_000)
+        XCTAssertNil(custom.maxOutputTokens)
+        XCTAssertNil(custom.reasoningConfig)
+        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .mistral, modelID: "mistral-medium-3.5-custom"))
+    }
+
     func testUnknownGeminiAndVertexIDsUseConservativeFallback() {
         let gemini = ModelCatalog.modelInfo(
             for: "gemini-3-pro-preview-custom",
