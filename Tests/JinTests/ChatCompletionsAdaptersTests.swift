@@ -180,6 +180,116 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         for try await _ in stream {}
     }
 
+    func testFireworksAdapterBuildsDeepSeekV4ProThinkingRequest() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        let providerConfig = ProviderConfig(
+            id: "fw",
+            name: "Fireworks",
+            type: .fireworks,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://example.com/chat/completions")
+
+            let body = try XCTUnwrap(requestBodyData(request))
+            let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+            let root = try XCTUnwrap(json)
+
+            XCTAssertEqual(root["model"] as? String, "accounts/fireworks/models/deepseek-v4-pro")
+            let thinking = try XCTUnwrap(root["thinking"] as? [String: Any])
+            XCTAssertEqual(thinking["type"] as? String, "enabled")
+            XCTAssertEqual(root["reasoning_effort"] as? String, "max")
+
+            let response: [String: Any] = [
+                "id": "cmpl_v4_pro",
+                "choices": [
+                    [
+                        "message": [
+                            "role": "assistant",
+                            "content": "OK"
+                        ],
+                        "finish_reason": "stop"
+                    ]
+                ]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let controls = GenerationControls(reasoning: ReasoningControls(enabled: true, effort: .max))
+        let adapter = FireworksAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hi")])],
+            modelID: "accounts/fireworks/models/deepseek-v4-pro",
+            controls: controls,
+            tools: [],
+            streaming: false
+        )
+
+        for try await _ in stream {}
+    }
+
+    func testFireworksAdapterBuildsDeepSeekV4ProThinkingDisabledRequest() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        let providerConfig = ProviderConfig(
+            id: "fw",
+            name: "Fireworks",
+            type: .fireworks,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://example.com/chat/completions")
+            XCTAssertEqual(request.httpMethod, "POST")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer test-key")
+
+            let body = try XCTUnwrap(requestBodyData(request))
+            let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+            let root = try XCTUnwrap(json)
+
+            XCTAssertEqual(root["model"] as? String, "deepseek-ai/deepseek-v4-pro")
+            let thinking = try XCTUnwrap(root["thinking"] as? [String: Any])
+            XCTAssertEqual(thinking["type"] as? String, "disabled")
+            XCTAssertNil(root["reasoning_effort"])
+
+            let response: [String: Any] = [
+                "id": "cmpl_v4_pro_disabled",
+                "choices": [
+                    [
+                        "message": [
+                            "role": "assistant",
+                            "content": "OK"
+                        ],
+                        "finish_reason": "stop"
+                    ]
+                ]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        var controls = GenerationControls(reasoning: ReasoningControls(enabled: false, effort: .max))
+        controls.providerSpecific = ["reasoning_effort": AnyCodable("max")]
+
+        let adapter = FireworksAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hi")])],
+            modelID: "deepseek-ai/deepseek-v4-pro",
+            controls: controls,
+            tools: [],
+            streaming: false
+        )
+
+        for try await _ in stream {}
+    }
+
     func testFireworksAdapterSanitizesMiniMaxProviderSpecificReasoningOverrides() async throws {
         let (configuration, protocolType) = makeMockedSessionConfiguration()
         let networkManager = NetworkManager(configuration: configuration)
@@ -268,6 +378,7 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
                 response = [
                     "models": [
                         ["name": "accounts/fireworks/models/qwen3p6-plus"],
+                        ["name": "accounts/fireworks/models/DeepSeek-V4-Pro"],
                         ["name": "accounts/fireworks/models/deepseek-v3p2"],
                         ["name": "accounts/fireworks/models/kimi-k2-instruct-0905"],
                         ["name": "accounts/fireworks/models/kimi-k2p6"],
@@ -314,6 +425,12 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         XCTAssertEqual(qwen36.contextWindow, 128_000)
         XCTAssertTrue(qwen36.capabilities.contains(.vision))
         XCTAssertFalse(qwen36.capabilities.contains(.reasoning))
+
+        let deepSeekV4Pro = try XCTUnwrap(byID["accounts/fireworks/models/deepseek-v4-pro"])
+        XCTAssertEqual(deepSeekV4Pro.name, "DeepSeek V4 Pro")
+        XCTAssertEqual(deepSeekV4Pro.contextWindow, 1_048_600)
+        XCTAssertEqual(deepSeekV4Pro.capabilities, [.streaming, .toolCalling, .reasoning])
+        XCTAssertEqual(deepSeekV4Pro.reasoningConfig?.defaultEffort, .high)
 
         let deepSeek = try XCTUnwrap(byID["fireworks/deepseek-v3p2"])
         XCTAssertEqual(deepSeek.name, "DeepSeek V3.2")

@@ -460,7 +460,7 @@ extension ModelCatalog {
     // MARK: Fireworks
 
     static let fireworksRecords: [Record] = [
-        // Seeded (canonical "fireworks/" prefix IDs)
+        // Seeded
         Record(id: "fireworks/kimi-k2p6", displayName: "Kimi K2.6",
                capabilities: [.streaming, .toolCalling, .vision, .reasoning],
                contextWindow: 262_100,
@@ -471,6 +471,11 @@ extension ModelCatalog {
                contextWindow: 128_000,
                reasoningConfig: nil,
                isFullySupported: false, isSeeded: true),
+        Record(id: "accounts/fireworks/models/deepseek-v4-pro", displayName: "DeepSeek V4 Pro",
+               capabilities: [.streaming, .toolCalling, .reasoning],
+               contextWindow: 1_048_600,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
+               isFullySupported: true, isSeeded: true),
         Record(id: "fireworks/deepseek-v3p2", displayName: "DeepSeek V3.2",
                capabilities: [.streaming, .toolCalling],
                contextWindow: 163_800,
@@ -506,6 +511,11 @@ extension ModelCatalog {
                capabilities: [.streaming, .toolCalling, .reasoning],
                contextWindow: 202_800,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+               isFullySupported: true, isSeeded: false),
+        Record(id: "deepseek-ai/deepseek-v4-pro", displayName: "DeepSeek V4 Pro",
+               capabilities: [.streaming, .toolCalling, .reasoning],
+               contextWindow: 1_048_600,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
                isFullySupported: true, isSeeded: false),
         // Alternate "accounts/fireworks/models/" IDs (same capabilities, not seeded separately)
         Record(id: "accounts/fireworks/models/qwen3p6-plus", displayName: "Qwen3.6 Plus",

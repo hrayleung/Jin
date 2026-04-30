@@ -125,6 +125,14 @@ private let fireworksMiniMaxM2CanonicalIDs: Set<String> = [
     "minimax-m2", "minimax-m2p1", "minimax-m2p5"
 ]
 
+let fireworksDeepSeekV4ProAccountModelID = "accounts/fireworks/models/deepseek-v4-pro"
+let fireworksDeepSeekV4ProCatalogModelID = "deepseek-ai/deepseek-v4-pro"
+let fireworksDeepSeekV4ProPreferredModelIDs = [
+    fireworksDeepSeekV4ProAccountModelID,
+    fireworksDeepSeekV4ProCatalogModelID,
+]
+let fireworksDeepSeekV4ProModelIDs = Set(fireworksDeepSeekV4ProPreferredModelIDs)
+
 /// Extracts the canonical (lowercased, prefix-stripped) Fireworks model ID.
 /// Returns nil if the model ID contains an unrecognized namespace prefix.
 func fireworksCanonicalModelID(_ modelID: String) -> String? {
@@ -145,6 +153,11 @@ func fireworksCanonicalModelID(_ modelID: String) -> String? {
 func isFireworksMiniMaxM2FamilyModel(_ modelID: String) -> Bool {
     guard let canonical = fireworksCanonicalModelID(modelID) else { return false }
     return fireworksMiniMaxM2CanonicalIDs.contains(canonical)
+}
+
+/// Checks exact Fireworks IDs verified for DeepSeek V4 Pro support.
+func isFireworksDeepSeekV4ProModel(_ modelID: String) -> Bool {
+    fireworksDeepSeekV4ProModelIDs.contains(modelID.lowercased())
 }
 
 // MARK: - OpenAI Responses API Supported File MIME Types
