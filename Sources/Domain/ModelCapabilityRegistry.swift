@@ -293,6 +293,10 @@ enum ModelCapabilityRegistry {
         "deepseek-ai/deepseek-v4-flash",
         "deepseek-ai/deepseek-v4-pro",
     ]
+    private static let fireworksDeepSeekV4ReasoningEffortModelIDs: Set<String> = [
+        "accounts/fireworks/models/deepseek-v4-pro",
+        "deepseek-ai/deepseek-v4-pro",
+    ]
     private static let googleModelPrefixes = [
         "google/",
         "google-ai-studio/",
@@ -357,6 +361,8 @@ enum ModelCapabilityRegistry {
             return [.high]
         case .deepinfra where deepInfraDeepSeekV4ReasoningEffortModelIDs.contains(lowerModelID):
             return [.high]
+        case .fireworks where fireworksDeepSeekV4ReasoningEffortModelIDs.contains(lowerModelID):
+            return [.high, .max]
         case .opencodeGo where deepSeekV4ReasoningEffortModelIDs.contains(lowerModelID):
             return [.high, .max]
         default:

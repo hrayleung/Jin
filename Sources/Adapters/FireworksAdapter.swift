@@ -6,7 +6,8 @@ import Foundation
 /// - Base URL: https://api.fireworks.ai/inference/v1
 /// - Endpoint: POST /chat/completions
 /// - Model listing: GET /v1/accounts/fireworks/models?filter=supports_serverless=true
-/// - Models: `fireworks/qwen3p6-plus`, `fireworks/deepseek-v3p2`, `fireworks/kimi-k2-instruct-0905`, ...
+/// - Models: `fireworks/qwen3p6-plus`, `accounts/fireworks/models/deepseek-v4-pro`,
+///   `fireworks/deepseek-v3p2`, ...
 actor FireworksAdapter: LLMProviderAdapter {
     let providerConfig: ProviderConfig
     let capabilities: ModelCapability = [.streaming, .toolCalling, .vision, .audio, .reasoning]
@@ -134,7 +135,11 @@ actor FireworksAdapter: LLMProviderAdapter {
         let prefix = "accounts/fireworks/models/"
 
         if lower.hasPrefix(prefix) {
-            return "fireworks/\(trimmed.dropFirst(prefix.count))"
+            let suffix = String(trimmed.dropFirst(prefix.count))
+            if suffix.lowercased() == "deepseek-v4-pro" {
+                return "accounts/fireworks/models/\(suffix)"
+            }
+            return "fireworks/\(suffix)"
         }
 
         return trimmed
@@ -169,11 +174,22 @@ actor FireworksAdapter: LLMProviderAdapter {
         }
 
         // Fireworks reasoning controls:
-        // - Most models: `reasoning_effort` supports `none` / `low` / `medium` / `high`.
+        // - DeepSeek V4 Pro uses `thinking` plus `reasoning_effort` high/max.
+        // - Most other models: `reasoning_effort` supports `none` / `low` / `medium` / `high`.
         // - MiniMax M2 family: only `low` / `medium` / `high`; omitting the field defaults to `medium`.
         let isMiniMaxM2FamilyModel = isFireworksMiniMaxM2FamilyModel(modelID)
+        let isDeepSeekV4ProModel = isFireworksDeepSeekV4ProModel(modelID)
+        var deepSeekV4ProThinkingDisabled = false
         if let reasoning = controls.reasoning {
-            if reasoning.enabled == false || (reasoning.effort ?? ReasoningEffort.none) == .none {
+            if isDeepSeekV4ProModel {
+                if reasoning.enabled == false || reasoning.effort == .some(.none) {
+                    body["thinking"] = ["type": "disabled"]
+                    deepSeekV4ProThinkingDisabled = true
+                } else {
+                    body["thinking"] = ["type": "enabled"]
+                    body["reasoning_effort"] = mapDeepSeekV4ProReasoningEffort(reasoning.effort ?? .high)
+                }
+            } else if reasoning.enabled == false || (reasoning.effort ?? ReasoningEffort.none) == .none {
                 if !isMiniMaxM2FamilyModel {
                     body["reasoning_effort"] = "none"
                 }
@@ -187,6 +203,14 @@ actor FireworksAdapter: LLMProviderAdapter {
         }
 
         for (key, value) in controls.providerSpecific {
+            if key == "reasoning_effort", isDeepSeekV4ProModel {
+                if !deepSeekV4ProThinkingDisabled,
+                   let normalized = normalizeDeepSeekV4ProReasoningEffort(value.value) {
+                    body[key] = normalized
+                }
+                continue
+            }
+
             if key == "reasoning_effort", isMiniMaxM2FamilyModel {
                 if let normalized = normalizeMiniMaxReasoningEffort(value.value) {
                     body[key] = normalized
@@ -305,6 +329,27 @@ actor FireworksAdapter: LLMProviderAdapter {
             return "medium"
         case .high, .xhigh, .max:
             return "high"
+        }
+    }
+
+    private func mapDeepSeekV4ProReasoningEffort(_ effort: ReasoningEffort) -> String {
+        switch effort {
+        case .xhigh, .max:
+            return "max"
+        case .none, .minimal, .low, .medium, .high:
+            return "high"
+        }
+    }
+
+    private func normalizeDeepSeekV4ProReasoningEffort(_ raw: Any) -> String? {
+        guard let effort = raw as? String else { return nil }
+        switch effort.lowercased() {
+        case "max", "xhigh":
+            return "max"
+        case "minimal", "low", "medium", "high":
+            return "high"
+        default:
+            return nil
         }
     }
 

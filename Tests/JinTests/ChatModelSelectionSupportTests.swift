@@ -59,4 +59,38 @@ final class ChatModelSelectionSupportTests: XCTestCase {
             "fireworks/kimi-k2p6"
         )
     }
+
+    func testPreferredFireworksModelIDUsesVerifiedDeepSeekV4ProBeforeV32() {
+        let models = [
+            ModelInfo(
+                id: "accounts/fireworks/models/deepseek-v3p2",
+                name: "DeepSeek V3.2",
+                capabilities: [.streaming],
+                contextWindow: 163_800,
+                reasoningConfig: nil,
+                isEnabled: true
+            ),
+            ModelInfo(
+                id: "fireworks/deepseek-v4-pro",
+                name: "DeepSeek V4 Pro",
+                capabilities: [.streaming],
+                contextWindow: 128_000,
+                reasoningConfig: nil,
+                isEnabled: true
+            ),
+            ModelInfo(
+                id: "accounts/fireworks/models/deepseek-v4-pro",
+                name: "DeepSeek V4 Pro",
+                capabilities: [.streaming],
+                contextWindow: 1_048_600,
+                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
+                isEnabled: true
+            )
+        ]
+
+        XCTAssertEqual(
+            ChatModelSelectionSupport.preferredFireworksModelID(in: models),
+            "accounts/fireworks/models/deepseek-v4-pro"
+        )
+    }
 }

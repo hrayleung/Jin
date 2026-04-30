@@ -915,6 +915,55 @@ final class ModelSettingsResolverTests: XCTestCase {
         XCTAssertTrue(resolvedDeepSeek.capabilities.contains(.toolCalling))
         XCTAssertFalse(resolvedDeepSeek.capabilities.contains(.reasoning))
         XCTAssertNil(resolvedDeepSeek.reasoningConfig)
+
+        let v4ProLegacy = ModelInfo(
+            id: "accounts/fireworks/models/deepseek-v4-pro",
+            name: "DeepSeek V4 Pro",
+            capabilities: [.streaming, .toolCalling],
+            contextWindow: 8_192,
+            reasoningConfig: nil,
+            isEnabled: true
+        )
+        let resolvedV4Pro = ModelSettingsResolver.resolve(model: v4ProLegacy, providerType: .fireworks)
+        XCTAssertEqual(resolvedV4Pro.contextWindow, 1_048_600)
+        XCTAssertNil(resolvedV4Pro.maxOutputTokens)
+        XCTAssertEqual(resolvedV4Pro.capabilities, [.streaming, .toolCalling, .reasoning])
+        XCTAssertEqual(resolvedV4Pro.reasoningConfig?.type, .effort)
+        XCTAssertEqual(resolvedV4Pro.reasoningConfig?.defaultEffort, .high)
+        XCTAssertTrue(resolvedV4Pro.reasoningCanDisable)
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(
+                for: .fireworks,
+                modelID: "accounts/fireworks/models/deepseek-v4-pro"
+            ),
+            [.high, .max]
+        )
+
+        let v4ProAliasLegacy = ModelInfo(
+            id: "deepseek-ai/deepseek-v4-pro",
+            name: "DeepSeek V4 Pro",
+            capabilities: [.streaming, .toolCalling],
+            contextWindow: 8_192,
+            reasoningConfig: nil,
+            isEnabled: true
+        )
+        let resolvedV4ProAlias = ModelSettingsResolver.resolve(model: v4ProAliasLegacy, providerType: .fireworks)
+        XCTAssertEqual(resolvedV4ProAlias.contextWindow, 1_048_600)
+        XCTAssertEqual(resolvedV4ProAlias.capabilities, [.streaming, .toolCalling, .reasoning])
+        XCTAssertEqual(resolvedV4ProAlias.reasoningConfig?.defaultEffort, .high)
+
+        let undocumentedV4Pro = ModelInfo(
+            id: "fireworks/deepseek-v4-pro",
+            name: "DeepSeek V4 Pro",
+            capabilities: [.streaming, .toolCalling],
+            contextWindow: 8_192,
+            reasoningConfig: nil,
+            isEnabled: true
+        )
+        let resolvedUndocumentedV4Pro = ModelSettingsResolver.resolve(model: undocumentedV4Pro, providerType: .fireworks)
+        XCTAssertEqual(resolvedUndocumentedV4Pro.contextWindow, 8_192)
+        XCTAssertEqual(resolvedUndocumentedV4Pro.capabilities, [.streaming, .toolCalling])
+        XCTAssertNil(resolvedUndocumentedV4Pro.reasoningConfig)
     }
 
     func testResolverInfersVerifiedKimiK26MetadataForLegacyPersistedModels() {

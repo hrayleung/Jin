@@ -190,10 +190,12 @@ final class JinModelSupportTests: XCTestCase {
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .deepinfra, modelID: "deepseek-ai/DeepSeek-V4-Pro"))
         XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .deepinfra, modelID: "deepseek-ai/DeepSeek-V4-Flash-custom"))
 
-        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .fireworks, modelID: "fireworks/deepseek-v4-flash"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .fireworks, modelID: "accounts/fireworks/models/deepseek-v4-pro"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .fireworks, modelID: "deepseek-ai/deepseek-v4-pro"))
         XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .fireworks, modelID: "fireworks/deepseek-v4-pro"))
+        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .fireworks, modelID: "fireworks/deepseek-v4-flash"))
         XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .fireworks, modelID: "accounts/fireworks/models/deepseek-v4-flash"))
-        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .fireworks, modelID: "accounts/fireworks/models/deepseek-v4-pro"))
+        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .fireworks, modelID: "accounts/fireworks/models/deepseek-v4-pro-custom"))
     }
 
     func testOpenRouterSeedanceModelsUseExactFullySupportedIDs() {
