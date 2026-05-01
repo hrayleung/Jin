@@ -77,7 +77,8 @@ enum OpenAICompatibleReasoningSupport {
         }
 
         if providerConfig.type == .zhipuCodingPlan
-            || providerConfig.type == .minimax {
+            || providerConfig.type == .minimax
+            || providerConfig.type == .mimoTokenPlanOpenAI {
             let isDisabled = !reasoning.enabled || reasoning.effort == ReasoningEffort.none
             body["thinking"] = [
                 "type": isDisabled ? "disabled" : "enabled"

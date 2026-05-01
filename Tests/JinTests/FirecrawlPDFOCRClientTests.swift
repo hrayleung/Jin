@@ -389,6 +389,7 @@ private func makeFirecrawlProfile(parserMode: FirecrawlPDFParserMode) -> ChatMes
         threadID: UUID(),
         modelName: "Test Model",
         supportsVideoGenerationControl: false,
+        supportsVideoInput: false,
         supportsMediaGenerationControl: false,
         supportsNativePDF: false,
         supportsVision: false,

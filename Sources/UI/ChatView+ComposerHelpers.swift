@@ -14,7 +14,7 @@ extension ChatView {
     }
 
     var supportsExplicitRemoteVideoURLInput: Bool {
-        supportsVideoGenerationControl && providerType == .xai
+        (supportsVideoGenerationControl && providerType == .xai) || supportsVideoInput
     }
 
     var canSendDraft: Bool {

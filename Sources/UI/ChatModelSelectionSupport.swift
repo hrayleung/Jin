@@ -177,6 +177,11 @@ enum ChatModelSelectionSupport {
         case .minimax, .minimaxCodingPlan:
             return models.first(where: { $0.id == "MiniMax-M2.7" })?.id
                 ?? models.first(where: { $0.id == "MiniMax-M2.5" })?.id
+        case .mimoTokenPlanAnthropic, .mimoTokenPlanOpenAI:
+            return models.first(where: { $0.id == "mimo-v2.5-pro" })?.id
+                ?? models.first(where: { $0.id == "mimo-v2.5" })?.id
+                ?? models.first(where: { $0.id == "mimo-v2-pro" })?.id
+                ?? models.first(where: { $0.id == "mimo-v2-omni" })?.id
         case .deepinfra:
             return models.first(where: { $0.id == "zai-org/GLM-5" })?.id
                 ?? models.first(where: { $0.id == "Qwen/Qwen3.5-397B-A17B" })?.id

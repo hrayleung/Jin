@@ -126,6 +126,14 @@ enum AppPreferenceKeys {
     static let ttsGroqVoice = "ttsGroqVoice"
     static let ttsGroqResponseFormat = "ttsGroqResponseFormat"
 
+    static let ttsMiMoAPIKey = "ttsMiMoAPIKey"
+    static let ttsMiMoBaseURL = "ttsMiMoBaseURL"
+    static let ttsMiMoModel = "ttsMiMoModel"
+    static let ttsMiMoVoice = "ttsMiMoVoice"
+    static let ttsMiMoResponseFormat = "ttsMiMoResponseFormat"
+    static let ttsMiMoStyleInstruction = "ttsMiMoStyleInstruction"
+    static let ttsMiMoVoiceCloneSamplePath = "ttsMiMoVoiceCloneSamplePath"
+
     static let ttsElevenLabsAPIKey = "ttsElevenLabsAPIKey"
     static let ttsElevenLabsBaseURL = "ttsElevenLabsBaseURL"
     static let ttsElevenLabsModelID = "ttsElevenLabsModelID"

@@ -26,7 +26,7 @@ extension TextToSpeechPluginSettingsView {
         }
 
         switch load.provider {
-        case .openai, .groq:
+        case .openai, .groq, .xiaomiMiMo:
             await loadRemoteTextToSpeechModels()
             await MainActor.run {
                 guard isCurrentTextToSpeechLoad(
@@ -168,6 +168,8 @@ extension TextToSpeechPluginSettingsView {
             return AppPreferenceKeys.ttsOpenAIAPIKey
         case .groq:
             return AppPreferenceKeys.ttsGroqAPIKey
+        case .xiaomiMiMo:
+            return AppPreferenceKeys.ttsMiMoAPIKey
         case .whisperKit:
             return nil
         }
@@ -203,6 +205,10 @@ extension TextToSpeechPluginSettingsView {
                 case .groq:
                     let base = URL(string: groqBaseURL.trimmingCharacters(in: .whitespacesAndNewlines)) ?? GroqAudioClient.Constants.defaultBaseURL
                     let client = GroqAudioClient(apiKey: trimmedAPIKey, baseURL: base)
+                    try await client.validateAPIKey()
+                case .xiaomiMiMo:
+                    let base = URL(string: miMoBaseURL.trimmingCharacters(in: .whitespacesAndNewlines)) ?? MiMoAudioClient.Constants.defaultBaseURL
+                    let client = MiMoAudioClient(apiKey: trimmedAPIKey, baseURL: base)
                     try await client.validateAPIKey()
                 case .elevenlabs:
                     let base = URL(string: elevenLabsBaseURL.trimmingCharacters(in: .whitespacesAndNewlines)) ?? ElevenLabsTTSClient.Constants.defaultBaseURL
@@ -243,7 +249,7 @@ extension TextToSpeechPluginSettingsView {
                 }
 
                 switch provider {
-                case .openai, .groq:
+                case .openai, .groq, .xiaomiMiMo:
                     await loadRemoteTextToSpeechModels(updateStatus: false)
                 case .elevenlabs:
                     await loadElevenLabsVoicesAndModels(updateStatus: false)
@@ -266,7 +272,7 @@ extension TextToSpeechPluginSettingsView {
     func loadRemoteTextToSpeechModels(updateStatus: Bool = true) async {
         guard let load = await MainActor.run(body: { textToSpeechLoadSnapshot() }) else { return }
         guard !load.apiKey.isEmpty else { return }
-        guard load.provider == .openai || load.provider == .groq else { return }
+        guard load.provider == .openai || load.provider == .groq || load.provider == .xiaomiMiMo else { return }
 
         await MainActor.run {
             guard isCurrentTextToSpeechLoad(
@@ -289,6 +295,11 @@ extension TextToSpeechPluginSettingsView {
                 let base = URL(string: groqBaseURL.trimmingCharacters(in: .whitespacesAndNewlines))
                     ?? GroqAudioClient.Constants.defaultBaseURL
                 let client = GroqAudioClient(apiKey: load.apiKey, baseURL: base)
+                availableModels = try await client.listModels()
+            case .xiaomiMiMo:
+                let base = URL(string: miMoBaseURL.trimmingCharacters(in: .whitespacesAndNewlines))
+                    ?? MiMoAudioClient.Constants.defaultBaseURL
+                let client = MiMoAudioClient(apiKey: load.apiKey, baseURL: base)
                 availableModels = try await client.listModels()
             case .elevenlabs, .whisperKit:
                 return
@@ -435,6 +446,8 @@ extension TextToSpeechPluginSettingsView {
             openAIModels = []
         case .groq:
             groqModels = []
+        case .xiaomiMiMo:
+            miMoModels = []
         case .elevenlabs:
             elevenLabsVoices = []
             elevenLabsModels = []
@@ -444,6 +457,7 @@ extension TextToSpeechPluginSettingsView {
         case .whisperKit, .none:
             openAIModels = []
             groqModels = []
+            miMoModels = []
             elevenLabsVoices = []
             elevenLabsModels = []
             isPlayingVoicePreview = false
@@ -459,6 +473,8 @@ extension TextToSpeechPluginSettingsView {
             openAIModels = models
         case .groq:
             groqModels = models
+        case .xiaomiMiMo:
+            miMoModels = models
         case .elevenlabs, .whisperKit:
             break
         }
@@ -485,6 +501,12 @@ extension TextToSpeechPluginSettingsView {
                     groqModel = nextModel
                     normalizeGroqVoiceIfNeeded()
                 }
+            }
+        case .xiaomiMiMo:
+            let currentModel = miMoModel.trimmingCharacters(in: .whitespacesAndNewlines)
+            if currentModel.isEmpty {
+                miMoModel = models.first?.id ?? miMoModel
+                normalizeMiMoVoiceIfNeeded()
             }
         case .elevenlabs, .whisperKit:
             break

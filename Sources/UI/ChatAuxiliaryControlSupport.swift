@@ -470,6 +470,8 @@ enum ChatAuxiliaryControlSupport {
         switch providerType {
         case .openai, .openaiWebSocket:
             return ContextCacheControls(mode: .implicit)
+        case .mimoTokenPlanAnthropic, .mimoTokenPlanOpenAI:
+            return nil
         case .xai:
             return ContextCacheControls(
                 mode: .implicit,

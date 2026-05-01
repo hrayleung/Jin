@@ -17,6 +17,13 @@ struct TextToSpeechPluginSettingsView: View {
     @AppStorage(AppPreferenceKeys.ttsGroqVoice) var groqVoice = "troy"
     @AppStorage(AppPreferenceKeys.ttsGroqResponseFormat) var groqResponseFormat = "wav"
 
+    @AppStorage(AppPreferenceKeys.ttsMiMoBaseURL) var miMoBaseURL = MiMoAudioClient.Constants.defaultBaseURL.absoluteString
+    @AppStorage(AppPreferenceKeys.ttsMiMoModel) var miMoModel = MiMoAudioClient.Constants.defaultModel
+    @AppStorage(AppPreferenceKeys.ttsMiMoVoice) var miMoVoice = MiMoAudioClient.Constants.defaultVoice
+    @AppStorage(AppPreferenceKeys.ttsMiMoResponseFormat) var miMoResponseFormat = MiMoAudioClient.Constants.defaultResponseFormat
+    @AppStorage(AppPreferenceKeys.ttsMiMoStyleInstruction) var miMoStyleInstruction = ""
+    @AppStorage(AppPreferenceKeys.ttsMiMoVoiceCloneSamplePath) var miMoVoiceCloneSamplePath = ""
+
     @AppStorage(AppPreferenceKeys.ttsElevenLabsBaseURL) var elevenLabsBaseURL = ElevenLabsTTSClient.Constants.defaultBaseURL.absoluteString
     @AppStorage(AppPreferenceKeys.ttsElevenLabsModelID) var elevenLabsModelID = "eleven_multilingual_v2"
     @AppStorage(AppPreferenceKeys.ttsElevenLabsVoiceID) var elevenLabsVoiceID = ""
@@ -45,6 +52,7 @@ struct TextToSpeechPluginSettingsView: View {
 
     @State var openAIModels: [SpeechProviderModelChoice] = []
     @State var groqModels: [SpeechProviderModelChoice] = []
+    @State var miMoModels: [SpeechProviderModelChoice] = []
     @State var elevenLabsVoices: [ElevenLabsTTSClient.Voice] = []
     @State var elevenLabsModels: [ElevenLabsTTSClient.Model] = []
     @State var isLoadingModels = false
@@ -65,6 +73,8 @@ struct TextToSpeechPluginSettingsView: View {
             return AppPreferenceKeys.ttsOpenAIAPIKey
         case .groq:
             return AppPreferenceKeys.ttsGroqAPIKey
+        case .xiaomiMiMo:
+            return AppPreferenceKeys.ttsMiMoAPIKey
         case .whisperKit:
             return nil
         }

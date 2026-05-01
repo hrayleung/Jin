@@ -197,7 +197,22 @@ actor AnthropicAdapter: LLMProviderAdapter {
     // MARK: - Private
 
     var baseURL: String {
-        providerConfig.baseURL ?? "https://api.anthropic.com/v1"
+        let raw = (providerConfig.baseURL ?? "https://api.anthropic.com/v1")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmed = raw.hasSuffix("/") ? String(raw.dropLast()) : raw
+
+        guard providerConfig.type == .mimoTokenPlanAnthropic else {
+            return trimmed
+        }
+
+        let lower = trimmed.lowercased()
+        if lower.hasSuffix("/anthropic/v1") || lower.hasSuffix("/v1") {
+            return trimmed
+        }
+        if lower.hasSuffix("/anthropic") {
+            return "\(trimmed)/v1"
+        }
+        return "\(trimmed)/anthropic/v1"
     }
 
     /// Anthropic-compatible providers (e.g. MiniMax Coding Plan) may not expose a `/models` endpoint.
@@ -243,6 +258,14 @@ actor AnthropicAdapter: LLMProviderAdapter {
     }
 
     func anthropicHeaders(apiKey: String, contentType: String? = nil, betaHeader: String? = nil) -> [String: String] {
+        if providerConfig.type == .mimoTokenPlanAnthropic {
+            var headers: [String: String] = ["api-key": apiKey]
+            if let contentType {
+                headers["Content-Type"] = contentType
+            }
+            return headers
+        }
+
         var headers: [String: String] = [
             "x-api-key": apiKey,
             "anthropic-version": anthropicVersion
@@ -632,6 +655,20 @@ actor AnthropicAdapter: LLMProviderAdapter {
         let providerSpecificThinking = AnthropicThinkingConfigSupport.providerSpecificThinkingDictionary(
             from: controls.providerSpecific["thinking"]?.value
         )
+
+        if providerConfig.type == .mimoTokenPlanAnthropic {
+            if let providerSpecificThinking {
+                body["thinking"] = AnthropicThinkingConfigSupport.normalizedThinkingConfiguration(
+                    providerSpecificThinking,
+                    reasoning: controls.reasoning,
+                    modelID: modelID
+                )
+            } else if controls.reasoning != nil {
+                body["thinking"] = ["type": thinkingEnabled ? "enabled" : "disabled"]
+            }
+            appendSamplingControls(to: &body, controls: controls, modelID: modelID)
+            return
+        }
 
         if !thinkingEnabled {
             if AnthropicModelLimits.supportsDeepSeekV4OutputConfigEffort(for: modelID) {

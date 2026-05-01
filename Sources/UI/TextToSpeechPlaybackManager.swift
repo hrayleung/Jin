@@ -53,6 +53,16 @@ final class TextToSpeechPlaybackManager: NSObject, ObservableObject {
         let voiceSettings: ElevenLabsTTSClient.VoiceSettings?
     }
 
+    struct MiMoConfig: Sendable {
+        let apiKey: String
+        let baseURL: URL
+        let model: String
+        let voice: String?
+        let responseFormat: String
+        let styleInstruction: String?
+        let voiceCloneSampleURL: URL?
+    }
+
     struct TTSKitConfig: Sendable {
         let model: String
         let voice: String?
@@ -65,6 +75,7 @@ final class TextToSpeechPlaybackManager: NSObject, ObservableObject {
         case openai(OpenAIConfig)
         case groq(GroqConfig)
         case elevenlabs(ElevenLabsConfig)
+        case mimo(MiMoConfig)
         case ttsKit(TTSKitConfig)
 
         var usesNativeStreamingPlayback: Bool {
@@ -318,6 +329,34 @@ final class TextToSpeechPlaybackManager: NSObject, ObservableObject {
                 )
                 let clip = await prepareQueuedClip(
                     from: wrappingElevenLabsPCMIfNeeded(clipData, outputFormat: eleven.outputFormat)
+                )
+                enqueueClipIfCurrent(
+                    clip,
+                    messageID: messageID
+                )
+            }
+
+        case .mimo(let mimo):
+            let format = mimo.responseFormat.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            guard Self.supportedMiMoPlaybackFormats.contains(format) else {
+                throw LLMError.invalidRequest(message: "MiMo format “\(format)” is not playable in Jin. Choose wav, mp3, pcm, or pcm16.")
+            }
+
+            let chunks = TextChunker.chunks(for: text, maxCharacters: 4096)
+            let client = MiMoAudioClient(apiKey: mimo.apiKey, baseURL: mimo.baseURL)
+
+            for chunk in chunks {
+                try Task.checkCancellation()
+                let clipData = try await client.createSpeech(
+                    input: chunk,
+                    model: mimo.model,
+                    voice: mimo.voice,
+                    responseFormat: format,
+                    styleInstruction: mimo.styleInstruction,
+                    voiceCloneSampleURL: mimo.voiceCloneSampleURL
+                )
+                let clip = await prepareQueuedClip(
+                    from: wrappingMiMoPCMIfNeeded(clipData, responseFormat: format)
                 )
                 enqueueClipIfCurrent(
                     clip,
@@ -581,12 +620,25 @@ final class TextToSpeechPlaybackManager: NSObject, ObservableObject {
         return WAVContainer.wrapPCM16LEMono(pcmData: data, sampleRate: 24_000)
     }
 
+    private func wrappingMiMoPCMIfNeeded(_ data: Data, responseFormat: String) -> Data {
+        let format = responseFormat.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard format == "pcm" || format == "pcm16" else { return data }
+        return WAVContainer.wrapPCM16LEMono(pcmData: data, sampleRate: 24_000)
+    }
+
     private static let supportedOpenAIPlaybackFormats: Set<String> = [
         "mp3",
         "wav",
         "aac",
         "flac",
         "pcm"
+    ]
+
+    private static let supportedMiMoPlaybackFormats: Set<String> = [
+        "mp3",
+        "wav",
+        "pcm",
+        "pcm16"
     ]
 }
 

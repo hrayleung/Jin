@@ -24,6 +24,13 @@ enum SpeechProviderModelCatalog {
         "whisper-large-v3-turbo"
     ]
 
+    private static let miMoTextToSpeechModelIDs: Set<String> = [
+        "mimo-v2.5-tts",
+        "mimo-v2.5-tts-voicedesign",
+        "mimo-v2.5-tts-voiceclone",
+        "mimo-v2-tts"
+    ]
+
     static func textToSpeechChoices(
         for provider: TextToSpeechProvider,
         availableModels: [SpeechProviderModelChoice]
@@ -33,6 +40,8 @@ enum SpeechProviderModelCatalog {
             return filteredChoices(availableModels, matches: matchesOpenAITextToSpeechModelID)
         case .groq:
             return filteredChoices(availableModels, matches: matchesGroqTextToSpeechModelID)
+        case .xiaomiMiMo:
+            return filteredChoices(availableModels, matches: matchesMiMoTextToSpeechModelID)
         case .elevenlabs, .whisperKit:
             return []
         }
@@ -80,6 +89,13 @@ enum SpeechProviderModelCatalog {
             return [
                 SpeechProviderModelChoice(id: "canopylabs/orpheus-v1-english", name: "Orpheus English"),
                 SpeechProviderModelChoice(id: "canopylabs/orpheus-arabic-saudi", name: "Orpheus Arabic Saudi")
+            ]
+        case .xiaomiMiMo:
+            return [
+                SpeechProviderModelChoice(id: "mimo-v2.5-tts", name: "MiMo V2.5 TTS"),
+                SpeechProviderModelChoice(id: "mimo-v2.5-tts-voicedesign", name: "MiMo V2.5 TTS VoiceDesign"),
+                SpeechProviderModelChoice(id: "mimo-v2.5-tts-voiceclone", name: "MiMo V2.5 TTS VoiceClone"),
+                SpeechProviderModelChoice(id: "mimo-v2-tts", name: "MiMo V2 TTS")
             ]
         case .elevenlabs:
             return [
@@ -161,6 +177,10 @@ enum SpeechProviderModelCatalog {
 
     private static func matchesGroqTextToSpeechModelID(_ modelID: String) -> Bool {
         groqTextToSpeechModelIDs.contains(modelID)
+    }
+
+    private static func matchesMiMoTextToSpeechModelID(_ modelID: String) -> Bool {
+        miMoTextToSpeechModelIDs.contains(modelID)
     }
 
     private static func matchesGroqSpeechToTextModelID(_ modelID: String) -> Bool {

@@ -39,6 +39,8 @@ extension ModelCatalog {
         .zhipuCodingPlan: zhipuCodingPlanRecords,
         .minimax: minimaxRecords,
         .minimaxCodingPlan: minimaxCodingPlanRecords,
+        .mimoTokenPlanOpenAI: mimoTokenPlanOpenAIRecords,
+        .mimoTokenPlanAnthropic: mimoTokenPlanAnthropicRecords,
         .fireworks: fireworksRecords,
         .cerebras: cerebrasRecords,
         .sambanova: sambaNovaRecords,

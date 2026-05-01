@@ -217,6 +217,27 @@ enum SpeechPluginConfigFactory {
                 )
             )
 
+        case .xiaomiMiMo:
+            let baseURL = try resolvedBaseURL(
+                defaults.string(forKey: AppPreferenceKeys.ttsMiMoBaseURL),
+                fallback: MiMoAudioClient.Constants.defaultBaseURL.absoluteString
+            )
+            let model = defaults.string(forKey: AppPreferenceKeys.ttsMiMoModel)
+                ?? MiMoAudioClient.Constants.defaultModel
+            let voiceCloneSamplePath = normalized(defaults.string(forKey: AppPreferenceKeys.ttsMiMoVoiceCloneSamplePath))
+            return .mimo(
+                TextToSpeechPlaybackManager.MiMoConfig(
+                    apiKey: apiKey,
+                    baseURL: baseURL,
+                    model: model,
+                    voice: normalized(defaults.string(forKey: AppPreferenceKeys.ttsMiMoVoice)),
+                    responseFormat: defaults.string(forKey: AppPreferenceKeys.ttsMiMoResponseFormat)
+                        ?? MiMoAudioClient.Constants.defaultResponseFormat,
+                    styleInstruction: normalized(defaults.string(forKey: AppPreferenceKeys.ttsMiMoStyleInstruction)),
+                    voiceCloneSampleURL: voiceCloneSamplePath.map(URL.init(fileURLWithPath:))
+                )
+            )
+
         case .elevenlabs:
             let baseURL = try resolvedBaseURL(
                 defaults.string(forKey: AppPreferenceKeys.ttsElevenLabsBaseURL),
@@ -333,6 +354,7 @@ enum SpeechPluginConfigFactory {
         case .elevenlabs: return AppPreferenceKeys.ttsElevenLabsAPIKey
         case .openai: return AppPreferenceKeys.ttsOpenAIAPIKey
         case .groq: return AppPreferenceKeys.ttsGroqAPIKey
+        case .xiaomiMiMo: return AppPreferenceKeys.ttsMiMoAPIKey
         case .whisperKit: return ""
         }
     }

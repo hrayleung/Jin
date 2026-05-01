@@ -1428,6 +1428,7 @@ private func makeOpenRouterProfile(supportsVision: Bool) -> ChatMessagePreparati
         threadID: UUID(),
         modelName: "Test Model",
         supportsVideoGenerationControl: false,
+        supportsVideoInput: false,
         supportsMediaGenerationControl: false,
         supportsNativePDF: false,
         supportsVision: supportsVision,

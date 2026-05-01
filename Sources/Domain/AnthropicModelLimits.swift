@@ -46,6 +46,17 @@ enum AnthropicModelLimits {
             return 128_000
         }
 
+        if lower == "mimo-v2.5-pro"
+            || lower == "mimo-v2.5"
+            || lower == "mimo-v2-pro"
+            || lower == "mimo-v2-omni" {
+            return 131_072
+        }
+
+        if lower == "mimo-v2-flash" {
+            return 65_536
+        }
+
         if isSonnet46(lower)
             || isModelFamily(lower, prefix: "claude-opus-4-5")
             || isModelFamily(lower, prefix: "claude-sonnet-4-5")

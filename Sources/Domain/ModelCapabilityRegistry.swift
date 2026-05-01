@@ -141,7 +141,7 @@ enum ModelCapabilityRegistry {
         geminiGoogleSearchSupportedModelIDs.union(vertexGoogleSearchSupportedModelIDs)
 
     /// Exact Xiaomi MiMo model IDs documented as supporting the native web_search tool.
-    private static let opencodeGoWebSearchSupportedModelIDs: Set<String> = [
+    private static let mimoWebSearchSupportedModelIDs: Set<String> = [
         "mimo-v2.5-pro",
         "mimo-v2.5",
         "mimo-v2-pro",
@@ -318,13 +318,13 @@ enum ModelCapabilityRegistry {
         switch providerType {
         case .openai, .openaiWebSocket:
             return .openAIResponses
-        case .anthropic, .claudeManagedAgents, .minimaxCodingPlan:
+        case .anthropic, .claudeManagedAgents, .minimaxCodingPlan, .mimoTokenPlanAnthropic:
             return .anthropic
         case .gemini, .vertexai:
             return .gemini
         case .codexAppServer, .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter,
              .groq, .cohere, .mistral, .deepinfra, .together, .xai, .deepseek,
-             .zhipuCodingPlan, .minimax, .fireworks, .cerebras, .sambanova, .perplexity, .morphllm, .opencodeGo, .none:
+             .zhipuCodingPlan, .minimax, .mimoTokenPlanOpenAI, .fireworks, .cerebras, .sambanova, .perplexity, .morphllm, .opencodeGo, .none:
             return .openAICompatible
         }
     }
@@ -471,10 +471,12 @@ enum ModelCapabilityRegistry {
         case .vertexai:
             return supportsGoogleSearch(lowerModelID: lowerModelID, providerType: .vertexai)
         case .opencodeGo:
-            return opencodeGoWebSearchSupportedModelIDs.contains(lowerModelID)
+            return mimoWebSearchSupportedModelIDs.contains(lowerModelID)
+        case .mimoTokenPlanOpenAI:
+            return mimoWebSearchSupportedModelIDs.contains(lowerModelID)
         case .codexAppServer, .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .groq,
              .cohere, .mistral, .deepinfra, .together, .deepseek, .zhipuCodingPlan, .minimax, .minimaxCodingPlan,
-             .fireworks, .cerebras, .sambanova, .morphllm, .none:
+             .mimoTokenPlanAnthropic, .fireworks, .cerebras, .sambanova, .morphllm, .none:
             return false
         }
     }
@@ -703,7 +705,7 @@ enum ModelCapabilityRegistry {
         case .codexAppServer, .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway,
              .openrouter, .perplexity, .groq, .cohere, .mistral, .deepinfra, .together,
              .deepseek, .zhipuCodingPlan, .minimax, .minimaxCodingPlan, .fireworks, .cerebras, .sambanova, .morphllm,
-             .opencodeGo, .none:
+             .mimoTokenPlanAnthropic, .mimoTokenPlanOpenAI, .opencodeGo, .none:
             return false
         }
     }
@@ -735,7 +737,7 @@ enum ModelCapabilityRegistry {
         case .openai, .openaiWebSocket, .anthropic, .claudeManagedAgents, .xai, .codexAppServer, .githubCopilot,
              .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter, .perplexity,
              .groq, .cohere, .mistral, .deepinfra, .together, .deepseek, .zhipuCodingPlan, .minimax, .minimaxCodingPlan,
-             .fireworks, .cerebras, .sambanova, .morphllm, .opencodeGo, .none:
+             .mimoTokenPlanAnthropic, .mimoTokenPlanOpenAI, .fireworks, .cerebras, .sambanova, .morphllm, .opencodeGo, .none:
             return false
         }
     }

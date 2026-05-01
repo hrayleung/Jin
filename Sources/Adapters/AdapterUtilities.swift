@@ -175,19 +175,21 @@ func makeAuthorizedJSONRequest(
     url: URL,
     method: String = "POST",
     apiKey: String,
+    authHeader: (key: String, value: String)? = nil,
     body: [String: Any]? = nil,
     accept: String? = "application/json",
     additionalHeaders: [String: String] = [:],
     includeUserAgent: Bool = true,
     timeoutSeconds: TimeInterval? = nil
 ) throws -> URLRequest {
+    let resolvedAuthHeader = authHeader ?? (key: "Authorization", value: "Bearer \(apiKey)")
     if let body {
         return try NetworkRequestFactory.makeJSONRequest(
             url: url,
             method: method,
             timeoutSeconds: timeoutSeconds,
             headers: makeRequestHeaders(
-                authHeader: (key: "Authorization", value: "Bearer \(apiKey)"),
+                authHeader: resolvedAuthHeader,
                 accept: accept,
                 contentType: nil,
                 includeUserAgent: includeUserAgent,
@@ -202,7 +204,7 @@ func makeAuthorizedJSONRequest(
         method: method,
         timeoutSeconds: timeoutSeconds,
         headers: makeRequestHeaders(
-            authHeader: (key: "Authorization", value: "Bearer \(apiKey)"),
+            authHeader: resolvedAuthHeader,
             accept: accept,
             contentType: nil,
             includeUserAgent: includeUserAgent,
@@ -214,17 +216,19 @@ func makeAuthorizedJSONRequest(
 func makeGETRequest(
     url: URL,
     apiKey: String,
+    authHeader: (key: String, value: String)? = nil,
     accept: String? = "application/json",
     additionalHeaders: [String: String] = [:],
     includeUserAgent: Bool = true,
     timeoutSeconds: TimeInterval? = nil
 ) -> URLRequest {
-    NetworkRequestFactory.makeRequest(
+    let resolvedAuthHeader = authHeader ?? (key: "Authorization", value: "Bearer \(apiKey)")
+    return NetworkRequestFactory.makeRequest(
         url: url,
         method: "GET",
         timeoutSeconds: timeoutSeconds,
         headers: makeRequestHeaders(
-            authHeader: (key: "Authorization", value: "Bearer \(apiKey)"),
+            authHeader: resolvedAuthHeader,
             accept: accept,
             contentType: nil,
             includeUserAgent: includeUserAgent,

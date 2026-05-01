@@ -1649,6 +1649,376 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         guard case .messageEnd = events[3] else { return XCTFail("Expected messageEnd") }
     }
 
+    func testMiMoTokenPlanOpenAIAdapterBuildsDocumentedRequestShape() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        let providerConfig = ProviderConfig(
+            id: "mimo-openai",
+            name: "Xiaomi MiMo Token Plan (OpenAI)",
+            type: .mimoTokenPlanOpenAI,
+            apiKey: "ignored",
+            baseURL: "https://token-plan-sgp.xiaomimimo.com/v1"
+        )
+
+        let audioURL = try XCTUnwrap(URL(string: "https://cdn.example.com/audio.wav"))
+        let videoData = Data([0x00, 0x01, 0x02])
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://token-plan-sgp.xiaomimimo.com/v1/chat/completions")
+            XCTAssertEqual(request.httpMethod, "POST")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "api-key"), "test-key")
+            XCTAssertNil(request.value(forHTTPHeaderField: "Authorization"))
+
+            let body = try XCTUnwrap(requestBodyData(request))
+            let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+            let root = try XCTUnwrap(json)
+
+            XCTAssertEqual(root["model"] as? String, "mimo-v2.5")
+            XCTAssertEqual(root["stream"] as? Bool, false)
+            XCTAssertEqual(root["max_completion_tokens"] as? Int, 2048)
+            XCTAssertNil(root["max_tokens"])
+
+            let thinking = try XCTUnwrap(root["thinking"] as? [String: Any])
+            XCTAssertEqual(thinking["type"] as? String, "enabled")
+
+            let messages = try XCTUnwrap(root["messages"] as? [[String: Any]])
+            XCTAssertEqual(messages.count, 2)
+
+            let userContent = try XCTUnwrap(messages[0]["content"] as? [[String: Any]])
+            XCTAssertEqual(userContent.count, 3)
+            XCTAssertEqual(userContent[0]["type"] as? String, "text")
+
+            let inputAudio = try XCTUnwrap(userContent.first { ($0["type"] as? String) == "input_audio" })
+            let inputAudioPayload = try XCTUnwrap(inputAudio["input_audio"] as? [String: Any])
+            XCTAssertEqual(inputAudioPayload["data"] as? String, audioURL.absoluteString)
+            XCTAssertNil(inputAudioPayload["format"])
+
+            let video = try XCTUnwrap(userContent.first { ($0["type"] as? String) == "video_url" })
+            let videoPayload = try XCTUnwrap(video["video_url"] as? [String: Any])
+            XCTAssertEqual(videoPayload["url"] as? String, mediaDataURI(mimeType: "video/mp4", data: videoData))
+            XCTAssertEqual(video["fps"] as? Int, 2)
+            XCTAssertEqual(video["media_resolution"] as? String, "default")
+
+            XCTAssertEqual(messages[1]["role"] as? String, "assistant")
+            XCTAssertEqual(messages[1]["content"] as? String, "answer")
+            XCTAssertEqual(messages[1]["reasoning_content"] as? String, "thinking trace")
+
+            let toolObjects = try XCTUnwrap(root["tools"] as? [[String: Any]])
+            XCTAssertEqual(toolObjects.count, 2)
+
+            let webSearch = try XCTUnwrap(toolObjects.first { ($0["type"] as? String) == "web_search" })
+            XCTAssertEqual(webSearch["limit"] as? Int, 3)
+            XCTAssertEqual(webSearch["max_keyword"] as? Int, 3)
+            let location = try XCTUnwrap(webSearch["user_location"] as? [String: Any])
+            XCTAssertEqual(location["type"] as? String, "approximate")
+            XCTAssertEqual(location["country"] as? String, "US")
+            XCTAssertEqual(location["region"] as? String, "California")
+            XCTAssertEqual(location["city"] as? String, "San Francisco")
+            XCTAssertEqual(location["timezone"] as? String, "America/Los_Angeles")
+
+            let functionTool = try XCTUnwrap(toolObjects.first { ($0["type"] as? String) == "function" })
+            let function = try XCTUnwrap(functionTool["function"] as? [String: Any])
+            XCTAssertEqual(function["name"] as? String, "lookup_status")
+
+            let response: [String: Any] = [
+                "id": "cmpl_mimo_token_plan",
+                "choices": [
+                    [
+                        "message": [
+                            "role": "assistant",
+                            "content": "OK",
+                            "reasoning_content": "R"
+                        ],
+                        "finish_reason": "stop"
+                    ]
+                ]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = OpenAICompatibleAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [
+                Message(
+                    role: .user,
+                    content: [
+                        .text("Describe these inputs"),
+                        .audio(AudioContent(mimeType: "audio/wav", data: nil, url: audioURL)),
+                        .video(VideoContent(mimeType: "video/mp4", data: videoData, url: nil))
+                    ]
+                ),
+                Message(
+                    role: .assistant,
+                    content: [
+                        .text("answer"),
+                        .thinking(ThinkingBlock(text: "thinking trace"))
+                    ]
+                )
+            ],
+            modelID: "mimo-v2.5",
+            controls: GenerationControls(
+                maxTokens: 2048,
+                reasoning: ReasoningControls(enabled: true, effort: .medium),
+                webSearch: WebSearchControls(
+                    enabled: true,
+                    maxUses: 3,
+                    userLocation: WebSearchUserLocation(
+                        city: "San Francisco",
+                        region: "California",
+                        country: "US",
+                        timezone: "America/Los_Angeles"
+                    )
+                )
+            ),
+            tools: [
+                ToolDefinition(
+                    id: "tool_1",
+                    name: "lookup_status",
+                    description: "Lookup a project status by ID.",
+                    parameters: ParameterSchema(
+                        properties: [
+                            "id": PropertySchema(type: "string", description: "Project ID")
+                        ],
+                        required: ["id"]
+                    ),
+                    source: .builtin
+                )
+            ],
+            streaming: false
+        )
+
+        var events: [StreamEvent] = []
+        for try await event in stream {
+            events.append(event)
+        }
+
+        XCTAssertEqual(events.count, 4)
+        guard case .messageStart(let id) = events[0] else { return XCTFail("Expected messageStart") }
+        XCTAssertEqual(id, "cmpl_mimo_token_plan")
+        guard case .thinkingDelta(.thinking(let reasoning, _)) = events[1] else { return XCTFail("Expected thinkingDelta") }
+        XCTAssertEqual(reasoning, "R")
+        guard case .contentDelta(.text(let content)) = events[2] else { return XCTFail("Expected contentDelta") }
+        XCTAssertEqual(content, "OK")
+        guard case .messageEnd = events[3] else { return XCTFail("Expected messageEnd") }
+    }
+
+    func testMiMoTokenPlanOpenAIAdapterOmitsWebSearchForUnsupportedPreview() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        let providerConfig = ProviderConfig(
+            id: "mimo-openai",
+            name: "Xiaomi MiMo Token Plan (OpenAI)",
+            type: .mimoTokenPlanOpenAI,
+            apiKey: "ignored",
+            baseURL: "https://token-plan-sgp.xiaomimimo.com/v1"
+        )
+
+        protocolType.requestHandler = { request in
+            let body = try XCTUnwrap(requestBodyData(request))
+            let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+            let root = try XCTUnwrap(json)
+
+            XCTAssertEqual(root["model"] as? String, "mimo-v2.5-preview")
+            XCTAssertNil(root["tools"])
+
+            let response: [String: Any] = [
+                "id": "cmpl_mimo_preview",
+                "choices": [
+                    [
+                        "message": [
+                            "role": "assistant",
+                            "content": "OK"
+                        ],
+                        "finish_reason": "stop"
+                    ]
+                ]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = OpenAICompatibleAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("Search")])],
+            modelID: "mimo-v2.5-preview",
+            controls: GenerationControls(webSearch: WebSearchControls(enabled: true, maxUses: 3)),
+            tools: [],
+            streaming: false
+        )
+
+        var events: [StreamEvent] = []
+        for try await event in stream {
+            events.append(event)
+        }
+
+        XCTAssertEqual(events.count, 3)
+    }
+
+    func testMiMoTokenPlanOpenAIAdapterFetchModelsUsesAPIKeyAndFiltersTTSModels() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        let providerConfig = ProviderConfig(
+            id: "mimo-openai",
+            name: "Xiaomi MiMo Token Plan (OpenAI)",
+            type: .mimoTokenPlanOpenAI,
+            apiKey: "ignored",
+            baseURL: "https://token-plan-sgp.xiaomimimo.com/v1"
+        )
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://token-plan-sgp.xiaomimimo.com/v1/models")
+            XCTAssertEqual(request.httpMethod, "GET")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "api-key"), "test-key")
+            XCTAssertNil(request.value(forHTTPHeaderField: "Authorization"))
+
+            let payload: [String: Any] = [
+                "data": [
+                    ["id": "mimo-v2.5-pro"],
+                    ["id": "mimo-v2.5"],
+                    ["id": "mimo-v2.5-tts"],
+                    ["id": "mimo-v2.5-tts-voicedesign"],
+                    ["id": "mimo-v2-tts"]
+                ]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: payload)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = OpenAICompatibleAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let models = try await adapter.fetchAvailableModels()
+
+        XCTAssertEqual(models.map(\.id), ["mimo-v2.5-pro", "mimo-v2.5"])
+        let pro = try XCTUnwrap(models.first(where: { $0.id == "mimo-v2.5-pro" }))
+        XCTAssertEqual(pro.contextWindow, 1_048_576)
+        XCTAssertEqual(pro.maxOutputTokens, 131_072)
+
+        let omni = try XCTUnwrap(models.first(where: { $0.id == "mimo-v2.5" }))
+        XCTAssertTrue(omni.capabilities.contains(.vision))
+        XCTAssertTrue(omni.capabilities.contains(.audio))
+        XCTAssertTrue(omni.capabilities.contains(.videoInput))
+    }
+
+    func testMiMoTokenPlanAnthropicAdapterBuildsDocumentedRequestShape() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        let providerConfig = ProviderConfig(
+            id: "mimo-anthropic",
+            name: "Xiaomi MiMo Token Plan (Anthropic)",
+            type: .mimoTokenPlanAnthropic,
+            apiKey: "ignored",
+            baseURL: "https://token-plan-sgp.xiaomimimo.com/anthropic"
+        )
+
+        let imageData = Data([0x89, 0x50, 0x4e, 0x47])
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://token-plan-sgp.xiaomimimo.com/anthropic/v1/messages")
+            XCTAssertEqual(request.httpMethod, "POST")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "api-key"), "test-key")
+            XCTAssertNil(request.value(forHTTPHeaderField: "x-api-key"))
+            XCTAssertNil(request.value(forHTTPHeaderField: "anthropic-version"))
+            XCTAssertNil(request.value(forHTTPHeaderField: "Authorization"))
+
+            let body = try XCTUnwrap(requestBodyData(request))
+            let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+            let root = try XCTUnwrap(json)
+
+            XCTAssertEqual(root["model"] as? String, "mimo-v2.5")
+            XCTAssertEqual(root["stream"] as? Bool, false)
+            XCTAssertEqual(root["max_tokens"] as? Int, 4096)
+            XCTAssertEqual(root["temperature"] as? Double, 0.7)
+            XCTAssertEqual(root["top_p"] as? Double, 0.8)
+
+            let thinking = try XCTUnwrap(root["thinking"] as? [String: Any])
+            XCTAssertEqual(thinking["type"] as? String, "enabled")
+            XCTAssertNil(thinking["budget_tokens"])
+
+            XCTAssertNil(root["tools"])
+
+            let messages = try XCTUnwrap(root["messages"] as? [[String: Any]])
+            XCTAssertEqual(messages.count, 1)
+            XCTAssertEqual(messages[0]["role"] as? String, "user")
+
+            let content = try XCTUnwrap(messages[0]["content"] as? [[String: Any]])
+            XCTAssertEqual(content.count, 2)
+            XCTAssertEqual(content[0]["type"] as? String, "text")
+            XCTAssertEqual(content[0]["text"] as? String, "describe this image")
+
+            let image = try XCTUnwrap(content.first { ($0["type"] as? String) == "image" })
+            let source = try XCTUnwrap(image["source"] as? [String: Any])
+            XCTAssertEqual(source["type"] as? String, "base64")
+            XCTAssertEqual(source["media_type"] as? String, "image/png")
+            XCTAssertEqual(source["data"] as? String, imageData.base64EncodedString())
+
+            let sse = """
+            event: message_start
+            data: {"type":"message_start","message":{"id":"msg_mimo_token_plan","type":"message","role":"assistant","content":[],"model":"mimo-v2.5","stop_reason":null,"stop_sequence":null,"usage":{"input_tokens":9,"output_tokens":0}}}
+
+            event: content_block_delta
+            data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":"R"}}
+
+            event: content_block_delta
+            data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"OK"}}
+
+            event: message_stop
+            data: {"type":"message_stop"}
+
+            """
+            let data = try XCTUnwrap(sse.data(using: .utf8))
+            return (
+                HTTPURLResponse(
+                    url: request.url!,
+                    statusCode: 200,
+                    httpVersion: nil,
+                    headerFields: ["Content-Type": "text/event-stream"]
+                )!,
+                data
+            )
+        }
+
+        let adapter = AnthropicAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [
+                Message(
+                    role: .user,
+                    content: [
+                        .text("describe this image"),
+                        .image(ImageContent(mimeType: "image/png", data: imageData))
+                    ]
+                )
+            ],
+            modelID: "mimo-v2.5",
+            controls: GenerationControls(
+                temperature: 0.7,
+                maxTokens: 4096,
+                topP: 0.8,
+                reasoning: ReasoningControls(enabled: true),
+                webSearch: WebSearchControls(enabled: true, maxUses: 3)
+            ),
+            tools: [],
+            streaming: false
+        )
+
+        var events: [StreamEvent] = []
+        for try await event in stream {
+            events.append(event)
+        }
+
+        XCTAssertEqual(events.count, 4)
+        guard case .messageStart(let id) = events[0] else { return XCTFail("Expected messageStart") }
+        XCTAssertEqual(id, "msg_mimo_token_plan")
+        guard case .thinkingDelta(.thinking(let reasoning, _)) = events[1] else { return XCTFail("Expected thinkingDelta") }
+        XCTAssertEqual(reasoning, "R")
+        guard case .contentDelta(.text(let content)) = events[2] else { return XCTFail("Expected contentDelta") }
+        XCTAssertEqual(content, "OK")
+        guard case .messageEnd = events[3] else { return XCTFail("Expected messageEnd") }
+    }
+
     func testOpenCodeGoAdapterRoutesDeepSeekV4ToAnthropicMessagesEndpoint() async throws {
         let (configuration, protocolType) = makeMockedSessionConfiguration()
         let networkManager = NetworkManager(configuration: configuration)

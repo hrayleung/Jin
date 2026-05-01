@@ -230,6 +230,18 @@ final class JinModelSupportTests: XCTestCase {
         XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .opencodeGo, modelID: "mimo-v2.5-experimental"))
     }
 
+    func testMiMoTokenPlanModelsUseExactFullySupportedIDs() {
+        for providerType in [ProviderType.mimoTokenPlanOpenAI, .mimoTokenPlanAnthropic] {
+            XCTAssertTrue(JinModelSupport.isFullySupported(providerType: providerType, modelID: "mimo-v2.5-pro"))
+            XCTAssertTrue(JinModelSupport.isFullySupported(providerType: providerType, modelID: "mimo-v2.5"))
+            XCTAssertTrue(JinModelSupport.isFullySupported(providerType: providerType, modelID: "mimo-v2-pro"))
+            XCTAssertTrue(JinModelSupport.isFullySupported(providerType: providerType, modelID: "mimo-v2-omni"))
+            XCTAssertTrue(JinModelSupport.isFullySupported(providerType: providerType, modelID: "mimo-v2-flash"))
+            XCTAssertFalse(JinModelSupport.isFullySupported(providerType: providerType, modelID: "mimo-v2.5-pro-preview"))
+            XCTAssertFalse(JinModelSupport.isFullySupported(providerType: providerType, modelID: "mimo-v2.5-experimental"))
+        }
+    }
+
     func testOpenCodeGoDeepSeekV4ModelsUseExactFullySupportedIDs() {
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .opencodeGo, modelID: "deepseek-v4-pro"))
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .opencodeGo, modelID: "deepseek-v4-flash"))

@@ -96,7 +96,8 @@ extension ProviderConfigFormView {
                 apiKey = provider.apiKey ?? ""
             case .openai, .openaiWebSocket, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter,
                  .anthropic, .claudeManagedAgents, .perplexity, .groq, .cohere, .mistral, .deepinfra, .together, .xai,
-                 .deepseek, .zhipuCodingPlan, .minimax, .minimaxCodingPlan, .fireworks, .cerebras, .sambanova, .morphllm, .opencodeGo, .gemini:
+                 .deepseek, .zhipuCodingPlan, .minimax, .minimaxCodingPlan, .mimoTokenPlanAnthropic, .mimoTokenPlanOpenAI,
+                 .fireworks, .cerebras, .sambanova, .morphllm, .opencodeGo, .gemini:
                 apiKey = provider.apiKey ?? ""
             case .vertexai:
                 serviceAccountJSON = provider.serviceAccountJSON ?? ""
@@ -159,7 +160,8 @@ extension ProviderConfigFormView {
 
         case .githubCopilot, .openai, .openaiWebSocket, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter,
              .anthropic, .claudeManagedAgents, .perplexity, .groq, .cohere, .mistral, .deepinfra, .together, .xai, .deepseek,
-             .zhipuCodingPlan, .minimax, .minimaxCodingPlan, .fireworks, .cerebras, .sambanova, .morphllm, .opencodeGo, .gemini:
+             .zhipuCodingPlan, .minimax, .minimaxCodingPlan, .mimoTokenPlanAnthropic, .mimoTokenPlanOpenAI,
+             .fireworks, .cerebras, .sambanova, .morphllm, .opencodeGo, .gemini:
             let key = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
             await MainActor.run {
                 if ProviderType(rawValue: provider.typeRaw) != .claudeManagedAgents {
@@ -197,7 +199,8 @@ extension ProviderConfigFormView {
             return !codexCanUseCurrentAuthenticationMode || testStatus == .testing || codexAuthStatus == .working
         case .githubCopilot, .openai, .openaiWebSocket, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter,
              .anthropic, .claudeManagedAgents, .perplexity, .groq, .cohere, .mistral, .deepinfra, .together, .xai, .deepseek,
-             .zhipuCodingPlan, .minimax, .minimaxCodingPlan, .fireworks, .cerebras, .sambanova, .morphllm, .opencodeGo, .gemini:
+             .zhipuCodingPlan, .minimax, .minimaxCodingPlan, .mimoTokenPlanAnthropic, .mimoTokenPlanOpenAI,
+             .fireworks, .cerebras, .sambanova, .morphllm, .opencodeGo, .gemini:
             return apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || testStatus == .testing
         case .vertexai:
             return serviceAccountJSON.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || testStatus == .testing

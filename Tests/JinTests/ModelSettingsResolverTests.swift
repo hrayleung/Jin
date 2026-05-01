@@ -1105,6 +1105,41 @@ final class ModelSettingsResolverTests: XCTestCase {
         XCTAssertEqual(resolvedMimoV25.reasoningConfig?.defaultEffort, .medium)
     }
 
+    func testResolverInfersMiMoTokenPlanMetadataForLegacyPersistedModels() {
+        let mimoV25Legacy = ModelInfo(
+            id: "mimo-v2.5",
+            name: "MiMo V2.5",
+            capabilities: [.streaming, .toolCalling],
+            contextWindow: 8_192,
+            reasoningConfig: nil,
+            isEnabled: true
+        )
+
+        let resolvedOpenAI = ModelSettingsResolver.resolve(model: mimoV25Legacy, providerType: .mimoTokenPlanOpenAI)
+        XCTAssertEqual(resolvedOpenAI.contextWindow, 1_048_576)
+        XCTAssertEqual(resolvedOpenAI.maxOutputTokens, 131_072)
+        XCTAssertTrue(resolvedOpenAI.capabilities.contains(.vision))
+        XCTAssertTrue(resolvedOpenAI.capabilities.contains(.audio))
+        XCTAssertTrue(resolvedOpenAI.capabilities.contains(.videoInput))
+        XCTAssertTrue(resolvedOpenAI.capabilities.contains(.reasoning))
+        XCTAssertTrue(resolvedOpenAI.reasoningCanDisable)
+        XCTAssertTrue(resolvedOpenAI.supportsWebSearch)
+        XCTAssertEqual(resolvedOpenAI.requestShape, .openAICompatible)
+        XCTAssertEqual(resolvedOpenAI.reasoningConfig?.type, .toggle)
+
+        let resolvedAnthropic = ModelSettingsResolver.resolve(model: mimoV25Legacy, providerType: .mimoTokenPlanAnthropic)
+        XCTAssertEqual(resolvedAnthropic.contextWindow, 1_048_576)
+        XCTAssertEqual(resolvedAnthropic.maxOutputTokens, 131_072)
+        XCTAssertTrue(resolvedAnthropic.capabilities.contains(.vision))
+        XCTAssertFalse(resolvedAnthropic.capabilities.contains(.audio))
+        XCTAssertFalse(resolvedAnthropic.capabilities.contains(.videoInput))
+        XCTAssertTrue(resolvedAnthropic.capabilities.contains(.reasoning))
+        XCTAssertTrue(resolvedAnthropic.reasoningCanDisable)
+        XCTAssertFalse(resolvedAnthropic.supportsWebSearch)
+        XCTAssertEqual(resolvedAnthropic.requestShape, .anthropic)
+        XCTAssertEqual(resolvedAnthropic.reasoningConfig?.type, .toggle)
+    }
+
     func testResolverInfersOpenCodeGoDeepSeekV4MetadataForLegacyPersistedModels() {
         let proLegacy = ModelInfo(
             id: "deepseek-v4-pro",

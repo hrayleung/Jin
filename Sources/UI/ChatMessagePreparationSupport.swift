@@ -13,6 +13,7 @@ enum ChatMessagePreparationSupport {
         let threadID: UUID
         let modelName: String
         let supportsVideoGenerationControl: Bool
+        let supportsVideoInput: Bool
         let supportsMediaGenerationControl: Bool
         let supportsNativePDF: Bool
         let supportsVision: Bool
@@ -65,7 +66,8 @@ enum ChatMessagePreparationSupport {
             return ChatView.geminiImageGenerationModelIDs.contains(lowerModelID)
         case .codexAppServer, .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway,
              .openrouter, .anthropic, .claudeManagedAgents, .perplexity, .groq, .cohere, .mistral, .deepinfra, .together,
-             .deepseek, .zhipuCodingPlan, .minimax, .minimaxCodingPlan, .fireworks, .cerebras, .sambanova, .morphllm, .opencodeGo, .none:
+             .deepseek, .zhipuCodingPlan, .minimax, .minimaxCodingPlan, .mimoTokenPlanAnthropic, .mimoTokenPlanOpenAI,
+             .fireworks, .cerebras, .sambanova, .morphllm, .opencodeGo, .none:
             return false
         }
     }
@@ -95,7 +97,7 @@ enum ChatMessagePreparationSupport {
             break
         case .codexAppServer, .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter, .groq,
              .cohere, .mistral, .deepinfra, .together, .deepseek, .zhipuCodingPlan, .minimax, .minimaxCodingPlan,
-             .fireworks, .cerebras, .sambanova, .morphllm, .opencodeGo:
+             .mimoTokenPlanAnthropic, .mimoTokenPlanOpenAI, .fireworks, .cerebras, .sambanova, .morphllm, .opencodeGo:
             return false
         }
 
@@ -170,6 +172,7 @@ enum ChatMessagePreparationSupport {
             || supportsImageGenerationModel(providerType: providerTypeSnapshot, lowerModelID: lowerModelID)
         let supportsVideoGen = (resolvedModelSettings?.capabilities.contains(.videoGeneration) == true)
             || supportsVideoGenerationModel(providerType: providerTypeSnapshot, lowerModelID: lowerModelID)
+        let supportsVideoInput = resolvedModelSettings?.capabilities.contains(.videoInput) == true
         let supportsMediaGen = supportsImageGen || supportsVideoGen
         let nativePDFSupported = supportsNativePDFForThread(
             providerType: providerTypeSnapshot,
@@ -200,6 +203,7 @@ enum ChatMessagePreparationSupport {
             threadID: thread.id,
             modelName: modelName,
             supportsVideoGenerationControl: supportsVideoGen,
+            supportsVideoInput: supportsVideoInput,
             supportsMediaGenerationControl: supportsMediaGen,
             supportsNativePDF: nativePDFSupported,
             supportsVision: supportsVision,
@@ -253,7 +257,7 @@ enum ChatMessagePreparationSupport {
         }
 
         if let remoteVideoURL {
-            guard profile.supportsVideoGenerationControl else {
+            guard profile.supportsVideoGenerationControl || profile.supportsVideoInput else {
                 throw LLMError.invalidRequest(
                     message: "Remote video URL is only supported by video-capable models. (\(profile.modelName))"
                 )

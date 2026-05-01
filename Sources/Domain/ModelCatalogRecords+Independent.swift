@@ -683,6 +683,74 @@ extension ModelCatalog {
 
     // MARK: MorphLLM
 
+    // MARK: Xiaomi MiMo Token Plan
+
+    static let mimoTokenPlanOpenAIRecords: [Record] = [
+        Record(id: "mimo-v2.5-pro", displayName: "MiMo V2.5 Pro",
+               capabilities: [.streaming, .toolCalling, .reasoning],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 131_072,
+               reasoningConfig: ModelReasoningConfig(type: .toggle),
+               isFullySupported: true, isSeeded: true),
+        Record(id: "mimo-v2.5", displayName: "MiMo V2.5",
+               capabilities: [.streaming, .toolCalling, .vision, .audio, .videoInput, .reasoning],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 131_072,
+               reasoningConfig: ModelReasoningConfig(type: .toggle),
+               isFullySupported: true, isSeeded: true),
+        Record(id: "mimo-v2-pro", displayName: "MiMo V2 Pro",
+               capabilities: [.streaming, .toolCalling, .reasoning],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 131_072,
+               reasoningConfig: ModelReasoningConfig(type: .toggle),
+               isFullySupported: true, isSeeded: true),
+        Record(id: "mimo-v2-omni", displayName: "MiMo V2 Omni",
+               capabilities: [.streaming, .toolCalling, .vision, .audio, .videoInput, .reasoning],
+               contextWindow: 262_144,
+               maxOutputTokens: 131_072,
+               reasoningConfig: ModelReasoningConfig(type: .toggle),
+               isFullySupported: true, isSeeded: true),
+        Record(id: "mimo-v2-flash", displayName: "MiMo V2 Flash",
+               capabilities: [.streaming, .toolCalling, .reasoning],
+               contextWindow: 262_144,
+               maxOutputTokens: 65_536,
+               reasoningConfig: ModelReasoningConfig(type: .toggle),
+               isFullySupported: true, isSeeded: true),
+    ]
+
+    static let mimoTokenPlanAnthropicRecords: [Record] = [
+        Record(id: "mimo-v2.5-pro", displayName: "MiMo V2.5 Pro",
+               capabilities: [.streaming, .toolCalling, .reasoning],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 131_072,
+               reasoningConfig: ModelReasoningConfig(type: .toggle),
+               isFullySupported: true, isSeeded: true),
+        Record(id: "mimo-v2.5", displayName: "MiMo V2.5",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 131_072,
+               reasoningConfig: ModelReasoningConfig(type: .toggle),
+               isFullySupported: true, isSeeded: true),
+        Record(id: "mimo-v2-pro", displayName: "MiMo V2 Pro",
+               capabilities: [.streaming, .toolCalling, .reasoning],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 131_072,
+               reasoningConfig: ModelReasoningConfig(type: .toggle),
+               isFullySupported: true, isSeeded: true),
+        Record(id: "mimo-v2-omni", displayName: "MiMo V2 Omni",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               contextWindow: 262_144,
+               maxOutputTokens: 131_072,
+               reasoningConfig: ModelReasoningConfig(type: .toggle),
+               isFullySupported: true, isSeeded: true),
+        Record(id: "mimo-v2-flash", displayName: "MiMo V2 Flash",
+               capabilities: [.streaming, .toolCalling, .reasoning],
+               contextWindow: 262_144,
+               maxOutputTokens: 65_536,
+               reasoningConfig: ModelReasoningConfig(type: .toggle),
+               isFullySupported: true, isSeeded: true),
+    ]
+
     // MARK: OpenCode Go
 
     static let opencodeGoRecords: [Record] = [
