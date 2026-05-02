@@ -35,19 +35,33 @@ Rules:
             Message(role: .user, content: [.text(renderContextText(trimmedContext))])
         ]
 
+        let titleControls = GenerationControls(
+            temperature: 0.2,
+            maxTokens: 64,
+            reasoning: ReasoningControls(enabled: false, effort: ReasoningEffort.none)
+        )
+        let shouldStream = ChatNamingModelSupport.shouldRequestStreaming(
+            providerConfig: providerConfig,
+            modelID: modelID
+        )
+
         let stream = try await adapter.sendMessage(
             messages: requestMessages,
             modelID: modelID,
-            controls: GenerationControls(temperature: 0.2, maxTokens: 64),
+            controls: titleControls,
             tools: [],
-            streaming: false
+            streaming: shouldStream
         )
 
         var collected = ""
         for try await event in stream {
-            if case .contentDelta(let part) = event,
-               case .text(let text) = part {
+            switch event {
+            case .contentDelta(.text(let text)):
                 collected.append(text)
+            case .error(let error):
+                throw error
+            default:
+                continue
             }
         }
 

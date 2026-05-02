@@ -23,7 +23,7 @@ struct ChatNamingPluginSettingsView: View {
                 detail: "Choose the provider and model used when Jin suggests chat titles."
             ) {
                 if allProviderModelPairs.isEmpty {
-                    Text("No providers with models found. Add models under Settings → Providers.")
+                    Text("No providers with chat-capable models found. Add or enable a chat model under Settings → Providers.")
                         .jinInfoCallout()
                 } else {
                     Picker("Provider", selection: $chatNamingProviderID) {
@@ -62,7 +62,7 @@ struct ChatNamingPluginSettingsView: View {
         providers
             .filter(\.isEnabled)
             .compactMap { provider in
-                let models = provider.enabledModels
+                let models = chatNamingModels(for: provider)
                 guard !models.isEmpty else {
                     return nil
                 }
@@ -76,7 +76,7 @@ struct ChatNamingPluginSettingsView: View {
         guard let provider = providers.first(where: { $0.id == chatNamingProviderID }) else {
             return []
         }
-        return provider.enabledModels
+        return chatNamingModels(for: provider)
     }
 
     private var allProviderModelPairs: [(providerID: String, modelID: String)] {
@@ -90,7 +90,14 @@ struct ChatNamingPluginSettingsView: View {
         guard let provider = providers.first(where: { $0.id == providerID }) else {
             return []
         }
-        return provider.enabledModels
+        return chatNamingModels(for: provider)
+    }
+
+    private func chatNamingModels(for provider: ProviderConfigEntity) -> [ModelInfo] {
+        ChatNamingModelSupport.supportedModels(
+            from: provider.enabledModels,
+            providerType: ProviderType(rawValue: provider.typeRaw)
+        )
     }
 
     private func ensureValidSelection() {

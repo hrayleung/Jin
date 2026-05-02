@@ -729,8 +729,14 @@ extension ChatView {
             return nil
         }
 
-        let models = providerEntity.enabledModels
-        guard models.contains(where: { $0.id == modelID }) else { return nil }
+        let models = ChatNamingModelSupport.supportedModels(
+            from: providerEntity.enabledModels,
+            providerType: ProviderType(rawValue: providerEntity.typeRaw)
+        )
+        guard models.contains(where: { $0.id == modelID }),
+              ChatNamingModelSupport.isSupported(providerConfig: provider, modelID: modelID) else {
+            return nil
+        }
 
         return (provider, modelID)
     }
