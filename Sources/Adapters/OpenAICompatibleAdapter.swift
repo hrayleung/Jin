@@ -503,17 +503,12 @@ actor OpenAICompatibleAdapter: LLMProviderAdapter {
     }
 
     private static let miMoFullModalInputModelIDs: Set<String> = [
-        "mimo-v2.5",
-        "mimo-v2-omni"
+        MiMoModelIDs.v25,
+        MiMoModelIDs.v2Omni
     ]
 
     private static func isMiMoTTSModelID(_ modelID: String) -> Bool {
-        switch modelID.lowercased() {
-        case "mimo-v2.5-tts", "mimo-v2.5-tts-voicedesign", "mimo-v2.5-tts-voiceclone", "mimo-v2-tts":
-            return true
-        default:
-            return false
-        }
+        MiMoModelIDs.isTextToSpeechModelID(modelID)
     }
 
     private func makeModelInfo(from model: OpenAIModelsResponse.Model) -> ModelInfo {

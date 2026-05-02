@@ -138,7 +138,7 @@ extension TextToSpeechPluginSettingsView {
                         normalizeMiMoVoiceIfNeeded()
                     }
 
-                    if miMoModel != "mimo-v2.5-tts-voicedesign" && miMoModel != "mimo-v2.5-tts-voiceclone" {
+                    if miMoModel != MiMoModelIDs.ttsV25VoiceDesign && miMoModel != MiMoModelIDs.ttsV25VoiceClone {
                         JinSettingsControlRow("Voice") {
                             Picker("Voice", selection: $miMoVoice) {
                                 ForEach(miMoVoiceChoices, id: \.self) { voice in
@@ -154,7 +154,7 @@ extension TextToSpeechPluginSettingsView {
                         }
                     }
 
-                    if miMoModel == "mimo-v2.5-tts-voiceclone" {
+                    if miMoModel == MiMoModelIDs.ttsV25VoiceClone {
                         JinSettingsControlRow("Voice Sample", supportingText: "Required for VoiceClone. Use an mp3 or wav sample.") {
                             HStack {
                                 TextField("Voice sample path", text: $miMoVoiceCloneSamplePath)
@@ -170,7 +170,7 @@ extension TextToSpeechPluginSettingsView {
 
                     JinSettingsControlRow("Format") {
                         Picker("Format", selection: $miMoResponseFormat) {
-                            ForEach(Self.miMoResponseFormats, id: \.self) { format in
+                            ForEach(MiMoModelIDs.textToSpeechResponseFormats, id: \.self) { format in
                                 Text(format).tag(format)
                             }
                         }
@@ -180,8 +180,8 @@ extension TextToSpeechPluginSettingsView {
                     }
 
                     JinSettingsControlRow(
-                        miMoModel == "mimo-v2.5-tts-voicedesign" ? "Voice Design" : "Style",
-                        supportingText: miMoModel == "mimo-v2.5-tts-voicedesign" ? "Required." : "Optional."
+                        miMoModel == MiMoModelIDs.ttsV25VoiceDesign ? "Voice Design" : "Style",
+                        supportingText: miMoModel == MiMoModelIDs.ttsV25VoiceDesign ? "Required." : "Optional."
                     ) {
                         TextField("Describe voice or speaking style", text: $miMoStyleInstruction)
                             .textFieldStyle(.roundedBorder)
@@ -372,7 +372,7 @@ extension TextToSpeechPluginSettingsView {
 
     var miMoVoiceChoices: [String] {
         let lower = miMoModel.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        if lower == "mimo-v2-tts" {
+        if lower == MiMoModelIDs.ttsV2 {
             return Self.miMoV2Voices
         }
         return Self.miMoV25Voices
@@ -459,13 +459,6 @@ extension TextToSpeechPluginSettingsView {
         "mimo_default",
         "default_en",
         "default_zh"
-    ]
-
-    static let miMoResponseFormats: [String] = [
-        "wav",
-        "mp3",
-        "pcm",
-        "pcm16"
     ]
 
     static let elevenLabsOutputFormats: [String] = [

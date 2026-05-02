@@ -24,13 +24,6 @@ enum SpeechProviderModelCatalog {
         "whisper-large-v3-turbo"
     ]
 
-    private static let miMoTextToSpeechModelIDs: Set<String> = [
-        "mimo-v2.5-tts",
-        "mimo-v2.5-tts-voicedesign",
-        "mimo-v2.5-tts-voiceclone",
-        "mimo-v2-tts"
-    ]
-
     static func textToSpeechChoices(
         for provider: TextToSpeechProvider,
         availableModels: [SpeechProviderModelChoice]
@@ -92,10 +85,10 @@ enum SpeechProviderModelCatalog {
             ]
         case .xiaomiMiMo:
             return [
-                SpeechProviderModelChoice(id: "mimo-v2.5-tts", name: "MiMo V2.5 TTS"),
-                SpeechProviderModelChoice(id: "mimo-v2.5-tts-voicedesign", name: "MiMo V2.5 TTS VoiceDesign"),
-                SpeechProviderModelChoice(id: "mimo-v2.5-tts-voiceclone", name: "MiMo V2.5 TTS VoiceClone"),
-                SpeechProviderModelChoice(id: "mimo-v2-tts", name: "MiMo V2 TTS")
+                SpeechProviderModelChoice(id: MiMoModelIDs.ttsV25, name: "MiMo V2.5 TTS"),
+                SpeechProviderModelChoice(id: MiMoModelIDs.ttsV25VoiceDesign, name: "MiMo V2.5 TTS VoiceDesign"),
+                SpeechProviderModelChoice(id: MiMoModelIDs.ttsV25VoiceClone, name: "MiMo V2.5 TTS VoiceClone"),
+                SpeechProviderModelChoice(id: MiMoModelIDs.ttsV2, name: "MiMo V2 TTS")
             ]
         case .elevenlabs:
             return [
@@ -180,7 +173,7 @@ enum SpeechProviderModelCatalog {
     }
 
     private static func matchesMiMoTextToSpeechModelID(_ modelID: String) -> Bool {
-        miMoTextToSpeechModelIDs.contains(modelID)
+        MiMoModelIDs.textToSpeechModelIDs.contains(modelID)
     }
 
     private static func matchesGroqSpeechToTextModelID(_ modelID: String) -> Bool {

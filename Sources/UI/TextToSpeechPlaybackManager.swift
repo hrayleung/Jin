@@ -338,7 +338,7 @@ final class TextToSpeechPlaybackManager: NSObject, ObservableObject {
 
         case .mimo(let mimo):
             let format = mimo.responseFormat.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-            guard Self.supportedMiMoPlaybackFormats.contains(format) else {
+            guard MiMoModelIDs.textToSpeechResponseFormatSet.contains(format) else {
                 throw LLMError.invalidRequest(message: "MiMo format “\(format)” is not playable in Jin. Choose wav, mp3, pcm, or pcm16.")
             }
 
@@ -634,12 +634,6 @@ final class TextToSpeechPlaybackManager: NSObject, ObservableObject {
         "pcm"
     ]
 
-    private static let supportedMiMoPlaybackFormats: Set<String> = [
-        "mp3",
-        "wav",
-        "pcm",
-        "pcm16"
-    ]
 }
 
 private enum WAVContainer {

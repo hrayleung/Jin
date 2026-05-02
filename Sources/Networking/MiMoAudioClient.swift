@@ -5,7 +5,7 @@ actor MiMoAudioClient {
     enum Constants {
         static let defaultBaseURL = URL(string: "https://token-plan-sgp.xiaomimimo.com/v1")!
         static let defaultVoice = "mimo_default"
-        static let defaultModel = "mimo-v2.5-tts"
+        static let defaultModel = MiMoModelIDs.ttsV25
         static let defaultResponseFormat = "wav"
         static let maxVoiceCloneSampleBase64Bytes = 10_000_000
     }
@@ -76,7 +76,11 @@ actor MiMoAudioClient {
         )
 
         let (data, _) = try await networkManager.sendRequest(request)
-        return try OpenAICompatibleAudioClientSupport.decodeAvailableModels(data)
+        let models = try OpenAICompatibleAudioClientSupport.decodeAvailableModels(data)
+        return SpeechProviderModelCatalog.textToSpeechChoices(
+            for: .xiaomiMiMo,
+            availableModels: models
+        )
     }
 
     func createSpeech(
@@ -88,14 +92,18 @@ actor MiMoAudioClient {
         voiceCloneSampleURL: URL? = nil,
         timeoutSeconds: TimeInterval = 120
     ) async throws -> Data {
-        let normalizedModel = normalizedTrimmedString(model) ?? Constants.defaultModel
+        let requestedModel = normalizedTrimmedString(model) ?? Constants.defaultModel
+        let normalizedModel = requestedModel.lowercased()
+        guard MiMoModelIDs.isTextToSpeechModelID(normalizedModel) else {
+            throw LLMError.invalidRequest(message: "MiMo TTS does not support model “\(requestedModel)”.")
+        }
         let format = normalizedTrimmedString(responseFormat) ?? Constants.defaultResponseFormat
         let style = normalizedTrimmedString(styleInstruction)
 
         var messages: [ChatMessage] = []
         if let style {
             messages.append(ChatMessage(role: "user", content: style))
-        } else if normalizedModel == "mimo-v2.5-tts-voicedesign" {
+        } else if normalizedModel == MiMoModelIDs.ttsV25VoiceDesign {
             throw SpeechExtensionError.missingMiMoVoiceDesignPrompt
         }
         messages.append(ChatMessage(role: "assistant", content: input))
@@ -134,9 +142,9 @@ actor MiMoAudioClient {
         voiceCloneSampleURL: URL?
     ) throws -> String? {
         switch model {
-        case "mimo-v2.5-tts-voicedesign":
+        case MiMoModelIDs.ttsV25VoiceDesign:
             return nil
-        case "mimo-v2.5-tts-voiceclone":
+        case MiMoModelIDs.ttsV25VoiceClone:
             guard let voiceCloneSampleURL else {
                 throw SpeechExtensionError.missingMiMoVoiceCloneSample
             }

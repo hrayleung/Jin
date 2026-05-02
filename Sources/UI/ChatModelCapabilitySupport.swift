@@ -301,6 +301,25 @@ enum ChatModelCapabilitySupport {
         }
     }
 
+    static func supportsVideoInput(
+        resolvedModelSettings: ResolvedModelSettings?,
+        supportsMediaGenerationControl: Bool,
+        providerType: ProviderType?,
+        lowerModelID: String
+    ) -> Bool {
+        if resolvedModelSettings?.capabilities.contains(.videoInput) == true {
+            return true
+        }
+
+        guard !supportsMediaGenerationControl else { return false }
+        guard providerType == .mimoTokenPlanOpenAI else { return false }
+
+        return ModelCatalog.modelInfo(
+            for: lowerModelID,
+            provider: .mimoTokenPlanOpenAI
+        ).capabilities.contains(.videoInput)
+    }
+
     static func supportsImageGenerationWebSearch(
         supportsImageGenerationControl: Bool,
         resolvedModelSettings: ResolvedModelSettings?,

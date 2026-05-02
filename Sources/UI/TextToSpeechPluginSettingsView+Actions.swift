@@ -506,8 +506,8 @@ extension TextToSpeechPluginSettingsView {
             let currentModel = miMoModel.trimmingCharacters(in: .whitespacesAndNewlines)
             if currentModel.isEmpty {
                 miMoModel = models.first?.id ?? miMoModel
-                normalizeMiMoVoiceIfNeeded()
             }
+            normalizeMiMoVoiceIfNeeded()
         case .elevenlabs, .whisperKit:
             break
         }

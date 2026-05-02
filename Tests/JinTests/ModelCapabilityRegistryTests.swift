@@ -153,14 +153,30 @@ final class ModelCapabilityRegistryTests: XCTestCase {
     }
 
     func testMiMoTokenPlanWebSearchUsesExactSupportedModelIDs() {
-        XCTAssertTrue(ModelCapabilityRegistry.supportsWebSearch(for: .mimoTokenPlanOpenAI, modelID: "mimo-v2.5-pro"))
-        XCTAssertTrue(ModelCapabilityRegistry.supportsWebSearch(for: .mimoTokenPlanOpenAI, modelID: "mimo-v2.5"))
-        XCTAssertTrue(ModelCapabilityRegistry.supportsWebSearch(for: .mimoTokenPlanOpenAI, modelID: "mimo-v2-pro"))
-        XCTAssertTrue(ModelCapabilityRegistry.supportsWebSearch(for: .mimoTokenPlanOpenAI, modelID: "mimo-v2-omni"))
-        XCTAssertTrue(ModelCapabilityRegistry.supportsWebSearch(for: .mimoTokenPlanOpenAI, modelID: "mimo-v2-flash"))
+        let supportedIDs = [
+            "mimo-v2.5-pro",
+            "mimo-v2.5",
+            "mimo-v2-pro",
+            "mimo-v2-omni",
+            "mimo-v2-flash",
+        ]
+
+        for modelID in supportedIDs {
+            XCTAssertTrue(
+                ModelCapabilityRegistry.supportsWebSearch(for: .mimoTokenPlanOpenAI, modelID: modelID),
+                modelID
+            )
+        }
+
+        for modelID in supportedIDs {
+            XCTAssertFalse(
+                ModelCapabilityRegistry.supportsWebSearch(for: .mimoTokenPlanAnthropic, modelID: modelID),
+                modelID
+            )
+        }
 
         XCTAssertFalse(ModelCapabilityRegistry.supportsWebSearch(for: .mimoTokenPlanOpenAI, modelID: "mimo-v2.5-preview"))
-        XCTAssertFalse(ModelCapabilityRegistry.supportsWebSearch(for: .mimoTokenPlanAnthropic, modelID: "mimo-v2.5-pro"))
+        XCTAssertFalse(ModelCapabilityRegistry.supportsWebSearch(for: .mimoTokenPlanAnthropic, modelID: "mimo-v2.5-preview"))
     }
 
     func testGoogleMapsSupportUsesExactDocumentedModelIDs() {
