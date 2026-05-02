@@ -31,15 +31,35 @@ enum SQLiteDatabaseSupport {
         guard sqlite3_open_v2(destinationURL.path, &destinationDB, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE, nil) == SQLITE_OK else {
             throw SQLiteError.openFailed(path: destinationURL.path, message: message(for: destinationDB))
         }
+        sqlite3_busy_timeout(sourceDB, 5_000)
+        sqlite3_busy_timeout(destinationDB, 5_000)
 
         guard let backup = sqlite3_backup_init(destinationDB, "main", sourceDB, "main") else {
             throw SQLiteError.backupFailed(message: message(for: destinationDB))
         }
         defer { sqlite3_backup_finish(backup) }
 
-        let result = sqlite3_backup_step(backup, -1)
-        guard result == SQLITE_DONE else {
-            throw SQLiteError.backupFailed(message: message(for: destinationDB))
+        var busyRetryCount = 0
+        while true {
+            let result = sqlite3_backup_step(backup, 256)
+            switch result {
+            case SQLITE_DONE:
+                return
+            case SQLITE_OK:
+                busyRetryCount = 0
+            case SQLITE_BUSY, SQLITE_LOCKED:
+                busyRetryCount += 1
+                guard busyRetryCount <= 50 else {
+                    throw SQLiteError.backupFailed(
+                        message: backupMessage(result: result, source: sourceDB, destination: destinationDB)
+                    )
+                }
+                sqlite3_sleep(100)
+            default:
+                throw SQLiteError.backupFailed(
+                    message: backupMessage(result: result, source: sourceDB, destination: destinationDB)
+                )
+            }
         }
     }
 
@@ -86,6 +106,25 @@ enum SQLiteDatabaseSupport {
     private static func message(for database: OpaquePointer?) -> String {
         guard let message = sqlite3_errmsg(database) else { return "Unknown SQLite error." }
         return String(cString: message)
+    }
+
+    private static func backupMessage(
+        result: Int32,
+        source: OpaquePointer?,
+        destination: OpaquePointer?
+    ) -> String {
+        var parts = [
+            "SQLite result \(result) (\(String(cString: sqlite3_errstr(result))))"
+        ]
+        let sourceMessage = message(for: source)
+        if sourceMessage != "not an error" {
+            parts.append("source: \(sourceMessage)")
+        }
+        let destinationMessage = message(for: destination)
+        if destinationMessage != "not an error" {
+            parts.append("destination: \(destinationMessage)")
+        }
+        return parts.joined(separator: "; ")
     }
 }
 

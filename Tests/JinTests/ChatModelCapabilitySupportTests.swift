@@ -32,6 +32,42 @@ final class ChatModelCapabilitySupportTests: XCTestCase {
         )
     }
 
+    func testSupportsVideoInputUsesMiMoTokenPlanCatalogFallback() {
+        XCTAssertTrue(
+            ChatModelCapabilitySupport.supportsVideoInput(
+                resolvedModelSettings: nil,
+                supportsMediaGenerationControl: false,
+                providerType: .mimoTokenPlanOpenAI,
+                lowerModelID: "mimo-v2-omni"
+            )
+        )
+        XCTAssertTrue(
+            ChatModelCapabilitySupport.supportsVideoInput(
+                resolvedModelSettings: nil,
+                supportsMediaGenerationControl: false,
+                providerType: .mimoTokenPlanOpenAI,
+                lowerModelID: "mimo-v2.5"
+            )
+        )
+
+        XCTAssertFalse(
+            ChatModelCapabilitySupport.supportsVideoInput(
+                resolvedModelSettings: nil,
+                supportsMediaGenerationControl: false,
+                providerType: .mimoTokenPlanAnthropic,
+                lowerModelID: "mimo-v2-omni"
+            )
+        )
+        XCTAssertFalse(
+            ChatModelCapabilitySupport.supportsVideoInput(
+                resolvedModelSettings: nil,
+                supportsMediaGenerationControl: true,
+                providerType: .mimoTokenPlanOpenAI,
+                lowerModelID: "mimo-v2-omni"
+            )
+        )
+    }
+
     func testResolvedClaudeManagedAgentModelInfoUsesRuntimeSessionModelMetadata() throws {
         let provider = ProviderConfigEntity(
             id: "claude-managed",

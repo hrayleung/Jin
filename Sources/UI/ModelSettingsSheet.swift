@@ -74,6 +74,7 @@ struct ModelSettingsSheet: View {
                     capabilityToggle("Image input", capability: .vision)
                     capabilityToggle("Image output", capability: .imageGeneration)
                     capabilityToggle("Audio input", capability: .audio)
+                    capabilityToggle("Video input", capability: .videoInput)
                     capabilityToggle("Video generation", capability: .videoGeneration)
                 }
 

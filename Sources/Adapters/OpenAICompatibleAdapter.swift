@@ -56,6 +56,7 @@ actor OpenAICompatibleAdapter: LLMProviderAdapter {
         var request = makeGETRequest(
             url: try validatedURL(modelsListURLString),
             apiKey: key,
+            authHeader: providerAuthenticationHeader(apiKey: key),
             accept: acceptHeaderValue,
             includeUserAgent: false
         )
@@ -73,6 +74,7 @@ actor OpenAICompatibleAdapter: LLMProviderAdapter {
         var request = makeGETRequest(
             url: try validatedURL(modelsListURLString),
             apiKey: apiKey,
+            authHeader: providerAuthenticationHeader(apiKey: apiKey),
             accept: acceptHeaderValue,
             includeUserAgent: false
         )
@@ -86,7 +88,11 @@ actor OpenAICompatibleAdapter: LLMProviderAdapter {
         }
 
         let response = try JSONDecoder().decode(OpenAIModelsResponse.self, from: data)
-        return response.data.map(makeModelInfo(from:))
+        let models = response.data.map(makeModelInfo(from:))
+        if providerConfig.type == .mimoTokenPlanOpenAI {
+            return models.filter { !Self.isMiMoTTSModelID($0.id) }
+        }
+        return models
     }
 
     // MARK: - Private
@@ -177,7 +183,7 @@ actor OpenAICompatibleAdapter: LLMProviderAdapter {
         }
 
         if let maxTokens = controls.maxTokens {
-            body["max_tokens"] = maxTokens
+            body[providerConfig.type == .mimoTokenPlanOpenAI ? "max_completion_tokens" : "max_tokens"] = maxTokens
         }
 
         if providerConfig.type == .openai,
@@ -185,8 +191,19 @@ actor OpenAICompatibleAdapter: LLMProviderAdapter {
             body["service_tier"] = serviceTier
         }
 
+        var toolObjects: [[String: Any]] = []
+        if controls.webSearch?.enabled == true,
+           providerConfig.type == .mimoTokenPlanOpenAI,
+           ModelCapabilityRegistry.supportsWebSearch(for: providerConfig.type, modelID: modelID) {
+            toolObjects.append(buildMiMoWebSearchTool(from: controls.webSearch))
+        }
+
         if !tools.isEmpty, let functionTools = translateTools(tools) as? [[String: Any]] {
-            body["tools"] = functionTools
+            toolObjects.append(contentsOf: functionTools)
+        }
+
+        if !toolObjects.isEmpty {
+            body["tools"] = toolObjects
         }
 
         for (key, value) in controls.providerSpecific {
@@ -219,6 +236,7 @@ actor OpenAICompatibleAdapter: LLMProviderAdapter {
         var request = try makeAuthorizedJSONRequest(
             url: validatedURL("\(baseURL)/chat/completions"),
             apiKey: apiKey,
+            authHeader: providerAuthenticationHeader(apiKey: apiKey),
             body: body,
             accept: acceptHeaderValue,
             includeUserAgent: false
@@ -235,10 +253,16 @@ actor OpenAICompatibleAdapter: LLMProviderAdapter {
         request.setValue(gitHubModelsAPIVersion, forHTTPHeaderField: "X-GitHub-Api-Version")
     }
 
+    private func providerAuthenticationHeader(apiKey: String) -> (key: String, value: String)? {
+        guard providerConfig.type == .mimoTokenPlanOpenAI else { return nil }
+        return (key: "api-key", value: apiKey)
+    }
+
     private func validateGitHubModelsToken(_ key: String) async throws -> Bool {
         var request = makeGETRequest(
             url: try validatedURL(modelsListURLString),
             apiKey: key,
+            authHeader: providerAuthenticationHeader(apiKey: key),
             accept: acceptHeaderValue,
             includeUserAgent: false
         )
@@ -283,11 +307,13 @@ actor OpenAICompatibleAdapter: LLMProviderAdapter {
 
     private func translateNonToolMessage(_ message: Message, modelID: String) throws -> [String: Any] {
         let supportsAudioInput = supportsAudioInput(modelID: modelID)
+        let supportsVideoInput = supportsVideoInput(modelID: modelID)
         let split = splitContentParts(
             message.content,
             separator: "\n",
             includeImages: true,
-            includeAudio: supportsAudioInput
+            includeAudio: supportsAudioInput,
+            includeVideo: supportsVideoInput
         )
 
         var dict: [String: Any] = [
@@ -306,7 +332,8 @@ actor OpenAICompatibleAdapter: LLMProviderAdapter {
                 ) {
                     dict["content"] = mistralAssistantContentChunks(visible: split.visible, thinking: thinking)
                 } else if providerConfig.type == .zhipuCodingPlan
-                    || providerConfig.type == .minimax {
+                    || providerConfig.type == .minimax
+                    || providerConfig.type == .mimoTokenPlanOpenAI {
                     dict["content"] = split.visible
                     dict["reasoning_content"] = thinking
                 } else {
@@ -323,9 +350,14 @@ actor OpenAICompatibleAdapter: LLMProviderAdapter {
 
         case .user:
             if split.hasRichUserContent {
+                let audioBuilder: ((AudioContent) throws -> [String: Any]?)? = {
+                    guard supportsAudioInput else { return nil }
+                    return providerConfig.type == .mimoTokenPlanOpenAI ? mimoInputAudioPart : mistralAudioPartBuilder
+                }()
                 dict["content"] = try translateUserContentPartsToOpenAIFormat(
                     message.content,
-                    audioPartBuilder: supportsAudioInput ? mistralAudioPartBuilder : nil
+                    audioPartBuilder: audioBuilder,
+                    videoPartBuilder: supportsVideoInput ? mimoInputVideoPart : nil
                 )
             } else {
                 dict["content"] = split.visible
@@ -345,7 +377,15 @@ actor OpenAICompatibleAdapter: LLMProviderAdapter {
         ) {
             return false
         }
+        if providerConfig.type == .mimoTokenPlanOpenAI {
+            return Self.miMoFullModalInputModelIDs.contains(modelID.lowercased())
+        }
         return true
+    }
+
+    private func supportsVideoInput(modelID: String) -> Bool {
+        providerConfig.type == .mimoTokenPlanOpenAI
+            && Self.miMoFullModalInputModelIDs.contains(modelID.lowercased())
     }
 
     private func mistralAssistantContentChunks(visible: String, thinking: String) -> [[String: Any]] {
@@ -382,6 +422,93 @@ actor OpenAICompatibleAdapter: LLMProviderAdapter {
             ]
         }
         return try openAIInputAudioPart(audio)
+    }
+
+    private func mimoInputAudioPart(_ audio: AudioContent) throws -> [String: Any]? {
+        if let url = audio.url, !url.isFileURL {
+            return [
+                "type": "input_audio",
+                "input_audio": ["data": url.absoluteString]
+            ]
+        }
+        guard let payloadData = try resolveAudioData(audio) else { return nil }
+        return [
+            "type": "input_audio",
+            "input_audio": [
+                "data": mediaDataURI(mimeType: audio.mimeType, data: payloadData)
+            ]
+        ]
+    }
+
+    private func mimoInputVideoPart(_ video: VideoContent) throws -> [String: Any]? {
+        let urlString: String?
+        if let url = video.url, !url.isFileURL {
+            urlString = url.absoluteString
+        } else if let payloadData = try resolveVideoData(video) {
+            urlString = mediaDataURI(mimeType: video.mimeType, data: payloadData)
+        } else {
+            urlString = nil
+        }
+        guard let urlString else { return nil }
+
+        return [
+            "type": "video_url",
+            "video_url": ["url": urlString],
+            "fps": 2,
+            "media_resolution": "default"
+        ]
+    }
+
+    private func buildMiMoWebSearchTool(from controls: WebSearchControls?) -> [String: Any] {
+        var tool: [String: Any] = ["type": "web_search"]
+
+        if let limit = controls?.maxUses, limit > 0 {
+            tool["limit"] = limit
+            tool["max_keyword"] = limit
+        }
+
+        if let location = controls?.userLocation,
+           let userLocation = buildMiMoUserLocation(location) {
+            tool["user_location"] = userLocation
+        }
+
+        return tool
+    }
+
+    private func buildMiMoUserLocation(_ location: WebSearchUserLocation) -> [String: Any]? {
+        var userLocation: [String: Any] = ["type": "approximate"]
+
+        if let country = normalizedWebSearchLocationField(location.country) {
+            userLocation["country"] = country
+        }
+        if let region = normalizedWebSearchLocationField(location.region) {
+            userLocation["region"] = region
+        }
+        if let city = normalizedWebSearchLocationField(location.city) {
+            userLocation["city"] = city
+        }
+        if let timezone = normalizedWebSearchLocationField(location.timezone) {
+            userLocation["timezone"] = timezone
+        }
+
+        return userLocation.count > 1 ? userLocation : nil
+    }
+
+    private func normalizedWebSearchLocationField(_ value: String?) -> String? {
+        guard let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !trimmed.isEmpty else {
+            return nil
+        }
+        return trimmed
+    }
+
+    private static let miMoFullModalInputModelIDs: Set<String> = [
+        MiMoModelIDs.v25,
+        MiMoModelIDs.v2Omni
+    ]
+
+    private static func isMiMoTTSModelID(_ modelID: String) -> Bool {
+        MiMoModelIDs.isTextToSpeechModelID(modelID)
     }
 
     private func makeModelInfo(from model: OpenAIModelsResponse.Model) -> ModelInfo {

@@ -192,7 +192,8 @@ enum ChatModelCapabilitySupport {
             return geminiImageGenerationModelIDs.contains(lowerModelID)
         case .codexAppServer, .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway,
              .openrouter, .groq, .cohere, .mistral, .deepinfra, .together, .anthropic, .claudeManagedAgents, .perplexity,
-             .deepseek, .zhipuCodingPlan, .minimax, .minimaxCodingPlan, .fireworks, .cerebras, .sambanova, .morphllm, .opencodeGo, .none:
+             .deepseek, .zhipuCodingPlan, .minimax, .minimaxCodingPlan, .mimoTokenPlanAnthropic, .mimoTokenPlanOpenAI,
+             .fireworks, .cerebras, .sambanova, .morphllm, .opencodeGo, .none:
             return false
         }
     }
@@ -227,7 +228,7 @@ enum ChatModelCapabilitySupport {
             break
         case .codexAppServer, .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter, .groq,
              .cohere, .mistral, .deepinfra, .together, .deepseek, .zhipuCodingPlan, .minimax, .minimaxCodingPlan,
-             .fireworks, .cerebras, .sambanova, .morphllm, .opencodeGo:
+             .mimoTokenPlanAnthropic, .mimoTokenPlanOpenAI, .fireworks, .cerebras, .sambanova, .morphllm, .opencodeGo:
             return false
         }
 
@@ -290,12 +291,33 @@ enum ChatModelCapabilitySupport {
             return geminiAudioInputModelIDs.contains(lowerModelID)
         case .githubCopilot, .openrouter, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .deepinfra, .together:
             return compatibleAudioInputModelIDs.contains(lowerModelID)
+        case .mimoTokenPlanOpenAI:
+            return resolvedModelSettings?.capabilities.contains(.audio) == true
         case .fireworks:
             return fireworksAudioInputModelIDs.contains(lowerModelID)
         case .anthropic, .claudeManagedAgents, .perplexity, .groq, .cohere, .xai, .deepseek, .zhipuCodingPlan, .minimax, .minimaxCodingPlan,
-             .cerebras, .sambanova, .codexAppServer, .morphllm, .opencodeGo, .none:
+             .mimoTokenPlanAnthropic, .cerebras, .sambanova, .codexAppServer, .morphllm, .opencodeGo, .none:
             return false
         }
+    }
+
+    static func supportsVideoInput(
+        resolvedModelSettings: ResolvedModelSettings?,
+        supportsMediaGenerationControl: Bool,
+        providerType: ProviderType?,
+        lowerModelID: String
+    ) -> Bool {
+        if resolvedModelSettings?.capabilities.contains(.videoInput) == true {
+            return true
+        }
+
+        guard !supportsMediaGenerationControl else { return false }
+        guard providerType == .mimoTokenPlanOpenAI else { return false }
+
+        return ModelCatalog.modelInfo(
+            for: lowerModelID,
+            provider: .mimoTokenPlanOpenAI
+        ).capabilities.contains(.videoInput)
     }
 
     static func supportsImageGenerationWebSearch(

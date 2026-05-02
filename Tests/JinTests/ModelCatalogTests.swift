@@ -320,6 +320,55 @@ final class ModelCatalogTests: XCTestCase {
         XCTAssertEqual(mimoV25.reasoningConfig?.defaultEffort, .medium)
     }
 
+    func testMiMoTokenPlanCatalogUsesExactProviderIDs() {
+        let openAIV25Pro = ModelCatalog.modelInfo(
+            for: "mimo-v2.5-pro",
+            provider: .mimoTokenPlanOpenAI
+        )
+        XCTAssertEqual(openAIV25Pro.contextWindow, 1_048_576)
+        XCTAssertEqual(openAIV25Pro.maxOutputTokens, 131_072)
+        XCTAssertFalse(openAIV25Pro.capabilities.contains(.vision))
+        XCTAssertFalse(openAIV25Pro.capabilities.contains(.audio))
+        XCTAssertFalse(openAIV25Pro.capabilities.contains(.videoInput))
+        XCTAssertTrue(openAIV25Pro.capabilities.contains(.toolCalling))
+        XCTAssertTrue(openAIV25Pro.capabilities.contains(.reasoning))
+        XCTAssertEqual(openAIV25Pro.reasoningConfig?.type, .toggle)
+
+        let openAIV25 = ModelCatalog.modelInfo(
+            for: "mimo-v2.5",
+            provider: .mimoTokenPlanOpenAI
+        )
+        XCTAssertEqual(openAIV25.contextWindow, 1_048_576)
+        XCTAssertEqual(openAIV25.maxOutputTokens, 131_072)
+        XCTAssertTrue(openAIV25.capabilities.contains(.vision))
+        XCTAssertTrue(openAIV25.capabilities.contains(.audio))
+        XCTAssertTrue(openAIV25.capabilities.contains(.videoInput))
+        XCTAssertTrue(openAIV25.capabilities.contains(.toolCalling))
+        XCTAssertTrue(openAIV25.capabilities.contains(.reasoning))
+        XCTAssertEqual(openAIV25.reasoningConfig?.type, .toggle)
+
+        let openAIFlash = ModelCatalog.modelInfo(
+            for: "mimo-v2-flash",
+            provider: .mimoTokenPlanOpenAI
+        )
+        XCTAssertEqual(openAIFlash.contextWindow, 262_144)
+        XCTAssertEqual(openAIFlash.maxOutputTokens, 65_536)
+        XCTAssertTrue(openAIFlash.capabilities.contains(.reasoning))
+
+        let anthropicOmni = ModelCatalog.modelInfo(
+            for: "mimo-v2-omni",
+            provider: .mimoTokenPlanAnthropic
+        )
+        XCTAssertEqual(anthropicOmni.contextWindow, 262_144)
+        XCTAssertEqual(anthropicOmni.maxOutputTokens, 131_072)
+        XCTAssertTrue(anthropicOmni.capabilities.contains(.vision))
+        XCTAssertFalse(anthropicOmni.capabilities.contains(.audio))
+        XCTAssertFalse(anthropicOmni.capabilities.contains(.videoInput))
+        XCTAssertTrue(anthropicOmni.capabilities.contains(.toolCalling))
+        XCTAssertTrue(anthropicOmni.capabilities.contains(.reasoning))
+        XCTAssertEqual(anthropicOmni.reasoningConfig?.type, .toggle)
+    }
+
     func testOpenCodeGoDeepSeekV4CatalogUsesExactProviderIDs() {
         let pro = ModelCatalog.modelInfo(
             for: "deepseek-v4-pro",
@@ -403,6 +452,24 @@ final class ModelCatalogTests: XCTestCase {
         )
         XCTAssertEqual(mimoV25.capabilities, [.streaming, .toolCalling])
         XCTAssertEqual(mimoV25.contextWindow, 128_000)
+    }
+
+    func testMiMoTokenPlanCatalogRequiresExactIDs() {
+        let openAIPreview = ModelCatalog.modelInfo(
+            for: "mimo-v2.5-pro-preview",
+            provider: .mimoTokenPlanOpenAI
+        )
+        XCTAssertEqual(openAIPreview.capabilities, [.streaming, .toolCalling])
+        XCTAssertEqual(openAIPreview.contextWindow, 128_000)
+        XCTAssertNil(openAIPreview.maxOutputTokens)
+
+        let anthropicPreview = ModelCatalog.modelInfo(
+            for: "mimo-v2.5-experimental",
+            provider: .mimoTokenPlanAnthropic
+        )
+        XCTAssertEqual(anthropicPreview.capabilities, [.streaming, .toolCalling])
+        XCTAssertEqual(anthropicPreview.contextWindow, 128_000)
+        XCTAssertNil(anthropicPreview.maxOutputTokens)
     }
 
     func testOpenCodeGoDeepSeekV4CatalogRequiresExactIDs() {

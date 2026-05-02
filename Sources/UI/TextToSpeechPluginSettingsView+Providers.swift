@@ -1,4 +1,8 @@
 import SwiftUI
+import UniformTypeIdentifiers
+#if os(macOS)
+import AppKit
+#endif
 
 // MARK: - Provider-Specific Settings & Constants
 
@@ -109,6 +113,78 @@ extension TextToSpeechPluginSettingsView {
                         .labelsHidden()
                         .pickerStyle(.menu)
                         .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                }
+
+            case .xiaomiMiMo:
+                JinSettingsSection("Xiaomi MiMo") {
+                    JinSettingsControlRow("API Base URL") {
+                        TextField("API Base URL", text: $miMoBaseURL)
+                            .font(.system(.body, design: .monospaced))
+                            .textFieldStyle(.roundedBorder)
+                    }
+
+                    JinSettingsControlRow("Model") {
+                        Picker("Model", selection: $miMoModel) {
+                            ForEach(displayedMiMoModels) { model in
+                                Text(model.name).tag(model.id)
+                            }
+                        }
+                        .labelsHidden()
+                        .pickerStyle(.menu)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .onChange(of: miMoModel) { _, _ in
+                        normalizeMiMoVoiceIfNeeded()
+                    }
+
+                    if miMoModel != MiMoModelIDs.ttsV25VoiceDesign && miMoModel != MiMoModelIDs.ttsV25VoiceClone {
+                        JinSettingsControlRow("Voice") {
+                            Picker("Voice", selection: $miMoVoice) {
+                                ForEach(miMoVoiceChoices, id: \.self) { voice in
+                                    Text(voice).tag(voice)
+                                }
+                            }
+                            .labelsHidden()
+                            .pickerStyle(.menu)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .onAppear {
+                            normalizeMiMoVoiceIfNeeded()
+                        }
+                    }
+
+                    if miMoModel == MiMoModelIDs.ttsV25VoiceClone {
+                        JinSettingsControlRow("Voice Sample", supportingText: "Required for VoiceClone. Use an mp3 or wav sample.") {
+                            HStack {
+                                TextField("Voice sample path", text: $miMoVoiceCloneSamplePath)
+                                    .font(.system(.body, design: .monospaced))
+                                    .textFieldStyle(.roundedBorder)
+
+                                Button("Choose…") {
+                                    chooseMiMoVoiceCloneSample()
+                                }
+                            }
+                        }
+                    }
+
+                    JinSettingsControlRow("Format") {
+                        Picker("Format", selection: $miMoResponseFormat) {
+                            ForEach(MiMoModelIDs.textToSpeechResponseFormats, id: \.self) { format in
+                                Text(format).tag(format)
+                            }
+                        }
+                        .labelsHidden()
+                        .pickerStyle(.menu)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+
+                    JinSettingsControlRow(
+                        miMoModel == MiMoModelIDs.ttsV25VoiceDesign ? "Voice Design" : "Style",
+                        supportingText: miMoModel == MiMoModelIDs.ttsV25VoiceDesign ? "Required." : "Optional."
+                    ) {
+                        TextField("Describe voice or speaking style", text: $miMoStyleInstruction)
+                            .textFieldStyle(.roundedBorder)
                     }
                 }
 
@@ -246,6 +322,16 @@ extension TextToSpeechPluginSettingsView {
         SpeechProviderModelCatalog.presentingChoices(availableGroqModels, selectedModelID: groqModel)
     }
 
+    var availableMiMoModels: [SpeechProviderModelChoice] {
+        miMoModels.isEmpty
+            ? SpeechProviderModelCatalog.defaultTextToSpeechChoices(for: .xiaomiMiMo)
+            : miMoModels
+    }
+
+    var displayedMiMoModels: [SpeechProviderModelChoice] {
+        SpeechProviderModelCatalog.presentingChoices(availableMiMoModels, selectedModelID: miMoModel)
+    }
+
     var availableElevenLabsModels: [SpeechProviderModelChoice] {
         if !elevenLabsModels.isEmpty {
             return elevenLabsModels.map { model in
@@ -282,6 +368,37 @@ extension TextToSpeechPluginSettingsView {
         if !choices.contains(groqVoice) {
             groqVoice = choices[0]
         }
+    }
+
+    var miMoVoiceChoices: [String] {
+        let lower = miMoModel.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if lower == MiMoModelIDs.ttsV2 {
+            return Self.miMoV2Voices
+        }
+        return Self.miMoV25Voices
+    }
+
+    func normalizeMiMoVoiceIfNeeded() {
+        let choices = miMoVoiceChoices
+        guard !choices.isEmpty else { return }
+        if !choices.contains(miMoVoice) {
+            miMoVoice = choices[0]
+        }
+    }
+
+    func chooseMiMoVoiceCloneSample() {
+        #if os(macOS)
+        let panel = NSOpenPanel()
+        panel.allowsMultipleSelection = false
+        panel.canChooseDirectories = false
+        panel.allowedContentTypes = [
+            UTType(filenameExtension: "mp3"),
+            UTType(filenameExtension: "wav")
+        ].compactMap { $0 }
+        if panel.runModal() == .OK, let url = panel.url {
+            miMoVoiceCloneSamplePath = url.path
+        }
+        #endif
     }
 
     // MARK: - Static Constants
@@ -324,6 +441,24 @@ extension TextToSpeechPluginSettingsView {
         "sultan",
         "lulwa",
         "noura"
+    ]
+
+    static let miMoV25Voices: [String] = [
+        "mimo_default",
+        "冰糖",
+        "茉莉",
+        "苏打",
+        "白桦",
+        "Mia",
+        "Chloe",
+        "Milo",
+        "Dean"
+    ]
+
+    static let miMoV2Voices: [String] = [
+        "mimo_default",
+        "default_en",
+        "default_zh"
     ]
 
     static let elevenLabsOutputFormats: [String] = [

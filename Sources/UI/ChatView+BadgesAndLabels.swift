@@ -9,7 +9,7 @@ extension ChatView {
     var reasoningHelpText: String {
         guard supportsReasoningControl else { return "Reasoning: Not supported" }
         switch providerType {
-        case .anthropic, .claudeManagedAgents, .gemini, .vertexai:
+        case .anthropic, .claudeManagedAgents, .mimoTokenPlanAnthropic, .mimoTokenPlanOpenAI, .gemini, .vertexai:
             return "Thinking: \(reasoningLabel)"
         case .perplexity:
             return "Reasoning: \(reasoningLabel)"
@@ -110,7 +110,8 @@ extension ChatView {
             return webSearchSourcesLabel
         case .codexAppServer, .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter, .anthropic, .claudeManagedAgents,
              .groq, .cohere, .mistral, .deepinfra, .together, .gemini, .vertexai, .deepseek,
-             .zhipuCodingPlan, .minimax, .minimaxCodingPlan, .fireworks, .cerebras, .sambanova, .morphllm, .opencodeGo, .none:
+             .zhipuCodingPlan, .minimax, .minimaxCodingPlan, .mimoTokenPlanAnthropic, .mimoTokenPlanOpenAI,
+             .fireworks, .cerebras, .sambanova, .morphllm, .opencodeGo, .none:
             return "On"
         }
     }
@@ -192,11 +193,12 @@ extension ChatView {
             if sources == [.x] { return "X" }
             if sources.contains(.web), sources.contains(.x) { return "W+X" }
             return "On"
-        case .anthropic, .claudeManagedAgents:
+        case .anthropic, .claudeManagedAgents, .mimoTokenPlanOpenAI:
             return "On"
         case .codexAppServer, .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter, .groq,
              .cohere, .mistral, .deepinfra, .together, .gemini, .vertexai, .deepseek,
-             .zhipuCodingPlan, .minimax, .minimaxCodingPlan, .fireworks, .cerebras, .sambanova, .morphllm, .opencodeGo, .none:
+             .zhipuCodingPlan, .minimax, .minimaxCodingPlan, .mimoTokenPlanAnthropic,
+             .fireworks, .cerebras, .sambanova, .morphllm, .opencodeGo, .none:
             return "On"
         }
     }

@@ -161,6 +161,7 @@ enum AppPreferencesSnapshotStore {
         AppPreferenceKeys.pluginOpenRouterOCRAPIKey,
         AppPreferenceKeys.pluginOpenRouterOCRModelID,
         AppPreferenceKeys.ttsGroqAPIKey,
+        AppPreferenceKeys.ttsMiMoAPIKey,
         AppPreferenceKeys.sttGroqAPIKey,
         AppPreferenceKeys.sttElevenLabsAPIKey,
         AppPreferenceKeys.cloudflareR2AccountID,

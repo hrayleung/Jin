@@ -154,6 +154,30 @@ final class AdapterUtilitiesTests: XCTestCase {
         XCTAssertNil(request.httpBody)
     }
 
+    func testMakeAuthorizedJSONRequestAcceptsProviderSpecificAuthHeader() throws {
+        let request = try makeAuthorizedJSONRequest(
+            url: URL(string: "https://example.com/request")!,
+            apiKey: "test-key",
+            authHeader: (key: "api-key", value: "test-key"),
+            body: ["model": "mimo-v2.5-pro"]
+        )
+
+        XCTAssertEqual(request.value(forHTTPHeaderField: "api-key"), "test-key")
+        XCTAssertNil(request.value(forHTTPHeaderField: "Authorization"))
+        XCTAssertEqual(request.value(forHTTPHeaderField: "Content-Type"), "application/json")
+    }
+
+    func testMakeGETRequestAcceptsProviderSpecificAuthHeader() {
+        let request = makeGETRequest(
+            url: URL(string: "https://example.com/models")!,
+            apiKey: "test-key",
+            authHeader: (key: "api-key", value: "test-key")
+        )
+
+        XCTAssertEqual(request.value(forHTTPHeaderField: "api-key"), "test-key")
+        XCTAssertNil(request.value(forHTTPHeaderField: "Authorization"))
+    }
+
     func testNormalizedMIMETypeTrimsAndLowercasesForSetMembership() {
         let normalized = normalizedMIMEType(" Application/PDF \n")
         XCTAssertEqual(normalized, "application/pdf")

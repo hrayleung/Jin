@@ -74,7 +74,7 @@ extension AnthropicAdapter {
                 // or nil signatures that would cause a 400 error from Anthropic.
                 // Blocks with provider == nil are from pre-tagging persisted data — skip them
                 // since we cannot verify their origin.
-                guard thinking.provider == ProviderType.anthropic.rawValue,
+                guard thinking.provider == providerConfig.type.rawValue,
                       let signature = thinking.signature,
                       !signature.isEmpty else {
                     continue
@@ -85,7 +85,7 @@ extension AnthropicAdapter {
                     "signature": signature
                 ])
             case .redactedThinking(let redacted):
-                guard redacted.provider == ProviderType.anthropic.rawValue,
+                guard redacted.provider == providerConfig.type.rawValue,
                       !redacted.data.isEmpty else {
                     continue
                 }

@@ -195,6 +195,15 @@ extension ChatView {
         )
     }
 
+    var supportsVideoInput: Bool {
+        ChatModelCapabilitySupport.supportsVideoInput(
+            resolvedModelSettings: resolvedModelSettings,
+            supportsMediaGenerationControl: supportsMediaGenerationControl,
+            providerType: providerType,
+            lowerModelID: lowerModelID
+        )
+    }
+
     var isMistralTranscriptionOnlyModelID: Bool {
         ChatModelCapabilitySupport.isMistralTranscriptionOnlyModelID(
             providerType: providerType,

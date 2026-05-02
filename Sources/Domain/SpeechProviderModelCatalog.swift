@@ -33,6 +33,8 @@ enum SpeechProviderModelCatalog {
             return filteredChoices(availableModels, matches: matchesOpenAITextToSpeechModelID)
         case .groq:
             return filteredChoices(availableModels, matches: matchesGroqTextToSpeechModelID)
+        case .xiaomiMiMo:
+            return filteredChoices(availableModels, matches: matchesMiMoTextToSpeechModelID)
         case .elevenlabs, .whisperKit:
             return []
         }
@@ -80,6 +82,13 @@ enum SpeechProviderModelCatalog {
             return [
                 SpeechProviderModelChoice(id: "canopylabs/orpheus-v1-english", name: "Orpheus English"),
                 SpeechProviderModelChoice(id: "canopylabs/orpheus-arabic-saudi", name: "Orpheus Arabic Saudi")
+            ]
+        case .xiaomiMiMo:
+            return [
+                SpeechProviderModelChoice(id: MiMoModelIDs.ttsV25, name: "MiMo V2.5 TTS"),
+                SpeechProviderModelChoice(id: MiMoModelIDs.ttsV25VoiceDesign, name: "MiMo V2.5 TTS VoiceDesign"),
+                SpeechProviderModelChoice(id: MiMoModelIDs.ttsV25VoiceClone, name: "MiMo V2.5 TTS VoiceClone"),
+                SpeechProviderModelChoice(id: MiMoModelIDs.ttsV2, name: "MiMo V2 TTS")
             ]
         case .elevenlabs:
             return [
@@ -161,6 +170,10 @@ enum SpeechProviderModelCatalog {
 
     private static func matchesGroqTextToSpeechModelID(_ modelID: String) -> Bool {
         groqTextToSpeechModelIDs.contains(modelID)
+    }
+
+    private static func matchesMiMoTextToSpeechModelID(_ modelID: String) -> Bool {
+        MiMoModelIDs.textToSpeechModelIDs.contains(modelID)
     }
 
     private static func matchesGroqSpeechToTextModelID(_ modelID: String) -> Bool {

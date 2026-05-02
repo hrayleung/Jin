@@ -13,6 +13,21 @@ func resolveAudioData(_ audio: AudioContent) throws -> Data? {
     return nil
 }
 
+/// Resolves the raw video data from a `VideoContent`, reading from disk if needed.
+func resolveVideoData(_ video: VideoContent) throws -> Data? {
+    if let data = video.data {
+        return data
+    }
+    if let url = video.url, url.isFileURL {
+        return try resolveFileData(from: url)
+    }
+    return nil
+}
+
+func mediaDataURI(mimeType: String, data: Data) -> String {
+    "data:\(mimeType);base64,\(data.base64EncodedString())"
+}
+
 /// Maps a MIME type to the OpenAI `input_audio.format` value.
 /// Returns nil for unsupported formats.
 func openAIInputAudioFormat(mimeType: String) -> String? {
@@ -46,7 +61,7 @@ func openAIInputAudioPart(_ audio: AudioContent) throws -> [String: Any]? {
 // MARK: - Content Splitting
 
 /// Result of splitting `[ContentPart]` into visible text, thinking text, and
-/// a flag indicating whether the message contains rich user content (images/audio).
+/// a flag indicating whether the message contains rich user content (images/audio/video).
 struct SplitContentResult {
     let visible: String
     let thinking: String
@@ -65,6 +80,7 @@ struct SplitContentResult {
 ///   - separator: The string used to join visible segments (default: empty string).
 ///   - includeImages: Whether to detect images as rich content (default: true).
 ///   - includeAudio: Whether to detect audio as rich content (default: false).
+///   - includeVideo: Whether to detect video as rich content (default: false).
 ///   - imageUnsupportedMessage: If non-nil, appends this message for image parts instead of
 ///     flagging as rich content. Used by text-only providers (DeepSeek, Cerebras).
 func splitContentParts(
@@ -72,6 +88,7 @@ func splitContentParts(
     separator: String = "",
     includeImages: Bool = true,
     includeAudio: Bool = false,
+    includeVideo: Bool = false,
     imageUnsupportedMessage: String? = nil
 ) -> SplitContentResult {
     var visibleParts: [String] = []
@@ -100,11 +117,15 @@ func splitContentParts(
             if includeAudio {
                 hasRichUserContent = true
             }
+        case .video:
+            if includeVideo {
+                hasRichUserContent = true
+            }
         case .thinking(let thinking):
             if !thinking.text.isEmpty {
                 thinkingParts.append(thinking.text)
             }
-        case .redactedThinking, .video:
+        case .redactedThinking:
             break
         }
     }
@@ -122,7 +143,8 @@ func splitContentParts(
 /// Used by adapters that support vision and/or audio input.
 func translateUserContentPartsToOpenAIFormat(
     _ parts: [ContentPart],
-    audioPartBuilder: ((AudioContent) throws -> [String: Any]?)? = openAIInputAudioPart
+    audioPartBuilder: ((AudioContent) throws -> [String: Any]?)? = openAIInputAudioPart,
+    videoPartBuilder: ((VideoContent) throws -> [String: Any]?)? = nil
 ) throws -> [[String: Any]] {
     var out: [[String: Any]] = []
     out.reserveCapacity(parts.count)
@@ -161,7 +183,12 @@ func translateUserContentPartsToOpenAIFormat(
                 out.append(inputAudio)
             }
 
-        case .thinking, .redactedThinking, .video:
+        case .video(let video):
+            if let builder = videoPartBuilder, let inputVideo = try builder(video) {
+                out.append(inputVideo)
+            }
+
+        case .thinking, .redactedThinking:
             continue
         }
     }

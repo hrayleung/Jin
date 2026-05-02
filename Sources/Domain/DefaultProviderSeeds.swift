@@ -29,6 +29,8 @@ enum DefaultProviderSeeds {
             zhipuCodingPlan,
             minimax,
             minimaxCodingPlan,
+            mimoTokenPlanOpenAI,
+            mimoTokenPlanAnthropic,
             fireworks,
             sambaNova,
             morphLLM,
@@ -259,6 +261,28 @@ enum DefaultProviderSeeds {
             iconID: LobeProviderIconCatalog.defaultIconID(for: .minimaxCodingPlan),
             baseURL: ProviderType.minimaxCodingPlan.defaultBaseURL,
             models: ModelCatalog.seededModels(for: .minimaxCodingPlan)
+        )
+    }
+
+    static var mimoTokenPlanOpenAI: ProviderConfig {
+        ProviderConfig(
+            id: "mimo-token-plan-openai",
+            name: "Xiaomi MiMo Token Plan (OpenAI)",
+            type: .mimoTokenPlanOpenAI,
+            iconID: LobeProviderIconCatalog.defaultIconID(for: .mimoTokenPlanOpenAI),
+            baseURL: ProviderType.mimoTokenPlanOpenAI.defaultBaseURL,
+            models: ModelCatalog.seededModels(for: .mimoTokenPlanOpenAI)
+        )
+    }
+
+    static var mimoTokenPlanAnthropic: ProviderConfig {
+        ProviderConfig(
+            id: "mimo-token-plan-anthropic",
+            name: "Xiaomi MiMo Token Plan (Anthropic)",
+            type: .mimoTokenPlanAnthropic,
+            iconID: LobeProviderIconCatalog.defaultIconID(for: .mimoTokenPlanAnthropic),
+            baseURL: ProviderType.mimoTokenPlanAnthropic.defaultBaseURL,
+            models: ModelCatalog.seededModels(for: .mimoTokenPlanAnthropic)
         )
     }
 

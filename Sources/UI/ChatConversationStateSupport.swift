@@ -155,6 +155,8 @@ enum ChatConversationStateSupport {
                 key = AppPreferenceKeys.ttsOpenAIAPIKey
             case .groq:
                 key = AppPreferenceKeys.ttsGroqAPIKey
+            case .xiaomiMiMo:
+                key = AppPreferenceKeys.ttsMiMoAPIKey
             case .whisperKit:
                 return true
             }

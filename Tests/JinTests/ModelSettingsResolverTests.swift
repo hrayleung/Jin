@@ -1105,6 +1105,94 @@ final class ModelSettingsResolverTests: XCTestCase {
         XCTAssertEqual(resolvedMimoV25.reasoningConfig?.defaultEffort, .medium)
     }
 
+    func testResolverInfersMiMoTokenPlanMetadataForLegacyPersistedModels() {
+        func legacyModel(id: String, name: String) -> ModelInfo {
+            ModelInfo(
+                id: id,
+                name: name,
+                capabilities: [.streaming, .toolCalling],
+                contextWindow: 8_192,
+                reasoningConfig: nil,
+                isEnabled: true
+            )
+        }
+
+        let mimoV25Legacy = legacyModel(id: "mimo-v2.5", name: "MiMo V2.5")
+        let resolvedOpenAI = ModelSettingsResolver.resolve(model: mimoV25Legacy, providerType: .mimoTokenPlanOpenAI)
+        XCTAssertEqual(resolvedOpenAI.contextWindow, 1_048_576)
+        XCTAssertEqual(resolvedOpenAI.maxOutputTokens, 131_072)
+        XCTAssertTrue(resolvedOpenAI.capabilities.contains(.vision))
+        XCTAssertTrue(resolvedOpenAI.capabilities.contains(.audio))
+        XCTAssertTrue(resolvedOpenAI.capabilities.contains(.videoInput))
+        XCTAssertTrue(resolvedOpenAI.capabilities.contains(.reasoning))
+        XCTAssertTrue(resolvedOpenAI.reasoningCanDisable)
+        XCTAssertTrue(resolvedOpenAI.supportsWebSearch)
+        XCTAssertEqual(resolvedOpenAI.requestShape, .openAICompatible)
+        XCTAssertEqual(resolvedOpenAI.reasoningConfig?.type, .toggle)
+
+        let resolvedAnthropic = ModelSettingsResolver.resolve(model: mimoV25Legacy, providerType: .mimoTokenPlanAnthropic)
+        XCTAssertEqual(resolvedAnthropic.contextWindow, 1_048_576)
+        XCTAssertEqual(resolvedAnthropic.maxOutputTokens, 131_072)
+        XCTAssertTrue(resolvedAnthropic.capabilities.contains(.vision))
+        XCTAssertFalse(resolvedAnthropic.capabilities.contains(.audio))
+        XCTAssertFalse(resolvedAnthropic.capabilities.contains(.videoInput))
+        XCTAssertTrue(resolvedAnthropic.capabilities.contains(.reasoning))
+        XCTAssertTrue(resolvedAnthropic.reasoningCanDisable)
+        XCTAssertFalse(resolvedAnthropic.supportsWebSearch)
+        XCTAssertEqual(resolvedAnthropic.requestShape, .anthropic)
+        XCTAssertEqual(resolvedAnthropic.reasoningConfig?.type, .toggle)
+
+        let mimoV2OmniLegacy = legacyModel(id: "mimo-v2-omni", name: "MiMo V2 Omni")
+        let resolvedOpenAIOmni = ModelSettingsResolver.resolve(model: mimoV2OmniLegacy, providerType: .mimoTokenPlanOpenAI)
+        XCTAssertEqual(resolvedOpenAIOmni.contextWindow, 262_144)
+        XCTAssertEqual(resolvedOpenAIOmni.maxOutputTokens, 131_072)
+        XCTAssertTrue(resolvedOpenAIOmni.capabilities.contains(.vision))
+        XCTAssertTrue(resolvedOpenAIOmni.capabilities.contains(.audio))
+        XCTAssertTrue(resolvedOpenAIOmni.capabilities.contains(.videoInput))
+        XCTAssertTrue(resolvedOpenAIOmni.capabilities.contains(.reasoning))
+        XCTAssertTrue(resolvedOpenAIOmni.reasoningCanDisable)
+        XCTAssertTrue(resolvedOpenAIOmni.supportsWebSearch)
+        XCTAssertEqual(resolvedOpenAIOmni.requestShape, .openAICompatible)
+        XCTAssertEqual(resolvedOpenAIOmni.reasoningConfig?.type, .toggle)
+
+        let resolvedAnthropicOmni = ModelSettingsResolver.resolve(model: mimoV2OmniLegacy, providerType: .mimoTokenPlanAnthropic)
+        XCTAssertEqual(resolvedAnthropicOmni.contextWindow, 262_144)
+        XCTAssertEqual(resolvedAnthropicOmni.maxOutputTokens, 131_072)
+        XCTAssertTrue(resolvedAnthropicOmni.capabilities.contains(.vision))
+        XCTAssertFalse(resolvedAnthropicOmni.capabilities.contains(.audio))
+        XCTAssertFalse(resolvedAnthropicOmni.capabilities.contains(.videoInput))
+        XCTAssertTrue(resolvedAnthropicOmni.capabilities.contains(.reasoning))
+        XCTAssertTrue(resolvedAnthropicOmni.reasoningCanDisable)
+        XCTAssertFalse(resolvedAnthropicOmni.supportsWebSearch)
+        XCTAssertEqual(resolvedAnthropicOmni.requestShape, .anthropic)
+        XCTAssertEqual(resolvedAnthropicOmni.reasoningConfig?.type, .toggle)
+
+        let mimoV2FlashLegacy = legacyModel(id: "mimo-v2-flash", name: "MiMo V2 Flash")
+        let resolvedOpenAIFlash = ModelSettingsResolver.resolve(model: mimoV2FlashLegacy, providerType: .mimoTokenPlanOpenAI)
+        XCTAssertEqual(resolvedOpenAIFlash.contextWindow, 262_144)
+        XCTAssertEqual(resolvedOpenAIFlash.maxOutputTokens, 65_536)
+        XCTAssertFalse(resolvedOpenAIFlash.capabilities.contains(.vision))
+        XCTAssertFalse(resolvedOpenAIFlash.capabilities.contains(.audio))
+        XCTAssertFalse(resolvedOpenAIFlash.capabilities.contains(.videoInput))
+        XCTAssertTrue(resolvedOpenAIFlash.capabilities.contains(.reasoning))
+        XCTAssertTrue(resolvedOpenAIFlash.reasoningCanDisable)
+        XCTAssertTrue(resolvedOpenAIFlash.supportsWebSearch)
+        XCTAssertEqual(resolvedOpenAIFlash.requestShape, .openAICompatible)
+        XCTAssertEqual(resolvedOpenAIFlash.reasoningConfig?.type, .toggle)
+
+        let resolvedAnthropicFlash = ModelSettingsResolver.resolve(model: mimoV2FlashLegacy, providerType: .mimoTokenPlanAnthropic)
+        XCTAssertEqual(resolvedAnthropicFlash.contextWindow, 262_144)
+        XCTAssertEqual(resolvedAnthropicFlash.maxOutputTokens, 65_536)
+        XCTAssertFalse(resolvedAnthropicFlash.capabilities.contains(.vision))
+        XCTAssertFalse(resolvedAnthropicFlash.capabilities.contains(.audio))
+        XCTAssertFalse(resolvedAnthropicFlash.capabilities.contains(.videoInput))
+        XCTAssertTrue(resolvedAnthropicFlash.capabilities.contains(.reasoning))
+        XCTAssertTrue(resolvedAnthropicFlash.reasoningCanDisable)
+        XCTAssertFalse(resolvedAnthropicFlash.supportsWebSearch)
+        XCTAssertEqual(resolvedAnthropicFlash.requestShape, .anthropic)
+        XCTAssertEqual(resolvedAnthropicFlash.reasoningConfig?.type, .toggle)
+    }
+
     func testResolverInfersOpenCodeGoDeepSeekV4MetadataForLegacyPersistedModels() {
         let proLegacy = ModelInfo(
             id: "deepseek-v4-pro",

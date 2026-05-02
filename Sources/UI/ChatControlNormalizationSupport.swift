@@ -50,11 +50,14 @@ enum ChatControlNormalizationSupport {
             return WebSearchControls(enabled: true, contextSize: nil, sources: nil)
         case .xai:
             return WebSearchControls(enabled: true, contextSize: nil, sources: [.web])
+        case .mimoTokenPlanOpenAI:
+            return WebSearchControls(enabled: true, maxUses: 3)
         case .anthropic, .claudeManagedAgents:
             return WebSearchControls(enabled: true)
         case .codexAppServer, .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter, .groq,
              .cohere, .mistral, .deepinfra, .together, .gemini, .vertexai, .deepseek,
-             .zhipuCodingPlan, .minimax, .minimaxCodingPlan, .fireworks, .cerebras, .sambanova, .morphllm, .opencodeGo, .none:
+             .zhipuCodingPlan, .minimax, .minimaxCodingPlan, .mimoTokenPlanAnthropic,
+             .fireworks, .cerebras, .sambanova, .morphllm, .opencodeGo, .none:
             return WebSearchControls(enabled: true, contextSize: nil, sources: nil)
         }
     }
@@ -78,13 +81,23 @@ enum ChatControlNormalizationSupport {
             if sources.isEmpty {
                 controls.webSearch?.sources = [.web]
             }
+        case .mimoTokenPlanOpenAI:
+            controls.webSearch?.contextSize = nil
+            controls.webSearch?.sources = nil
+            controls.webSearch?.allowedDomains = nil
+            controls.webSearch?.blockedDomains = nil
+            controls.webSearch?.dynamicFiltering = nil
+            if let maxUses = controls.webSearch?.maxUses, maxUses <= 0 {
+                controls.webSearch?.maxUses = nil
+            }
         case .anthropic, .claudeManagedAgents:
             controls.webSearch?.contextSize = nil
             controls.webSearch?.sources = nil
             normalizeAnthropicDomainFilters(controls: &controls)
         case .codexAppServer, .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter, .groq,
              .cohere, .mistral, .deepinfra, .together, .gemini, .vertexai, .deepseek,
-             .zhipuCodingPlan, .minimax, .minimaxCodingPlan, .fireworks, .cerebras, .sambanova, .morphllm, .opencodeGo, .none:
+             .zhipuCodingPlan, .minimax, .minimaxCodingPlan, .mimoTokenPlanAnthropic,
+             .fireworks, .cerebras, .sambanova, .morphllm, .opencodeGo, .none:
             controls.webSearch?.contextSize = nil
             controls.webSearch?.sources = nil
         }

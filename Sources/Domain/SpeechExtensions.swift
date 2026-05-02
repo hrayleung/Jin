@@ -4,6 +4,7 @@ enum TextToSpeechProvider: String, CaseIterable, Identifiable {
     case elevenlabs
     case openai
     case groq
+    case xiaomiMiMo
     case whisperKit
 
     var id: String { rawValue }
@@ -13,13 +14,14 @@ enum TextToSpeechProvider: String, CaseIterable, Identifiable {
         case .elevenlabs: return "ElevenLabs"
         case .openai: return "OpenAI"
         case .groq: return "Groq"
+        case .xiaomiMiMo: return "Xiaomi MiMo"
         case .whisperKit: return "TTSKit (On-Device)"
         }
     }
 
     var requiresAPIKey: Bool {
         switch self {
-        case .elevenlabs, .openai, .groq: return true
+        case .elevenlabs, .openai, .groq, .xiaomiMiMo: return true
         case .whisperKit: return false
         }
     }

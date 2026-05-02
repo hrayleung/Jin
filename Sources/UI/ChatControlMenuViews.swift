@@ -329,6 +329,22 @@ struct WebSearchControlMenuView<MenuItemLabel: View>: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
+                case .mimoTokenPlanOpenAI:
+                    Divider()
+                    Menu("Max Keywords") {
+                        Button {
+                            onSelectAnthropicMaxUses(nil)
+                        } label: {
+                            menuItemLabel("Default", anthropicMaxUses == nil)
+                        }
+                        ForEach([1, 3, 5, 10, 20], id: \.self) { value in
+                            Button {
+                                onSelectAnthropicMaxUses(value)
+                            } label: {
+                                menuItemLabel("\(value)", anthropicMaxUses == value)
+                            }
+                        }
+                    }
                 case .anthropic:
                     Divider()
                     Menu("Max Uses") {
@@ -354,7 +370,8 @@ struct WebSearchControlMenuView<MenuItemLabel: View>: View {
                     EmptyView()
                 case .codexAppServer, .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter, .groq,
                      .cohere, .mistral, .deepinfra, .together, .gemini, .vertexai, .deepseek,
-                     .zhipuCodingPlan, .minimax, .minimaxCodingPlan, .fireworks, .cerebras, .sambanova, .morphllm, .opencodeGo, .none:
+                     .zhipuCodingPlan, .minimax, .minimaxCodingPlan, .mimoTokenPlanAnthropic,
+                     .fireworks, .cerebras, .sambanova, .morphllm, .opencodeGo, .none:
                     EmptyView()
                 }
             }

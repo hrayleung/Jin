@@ -230,6 +230,81 @@ final class AudioNetworkingClientTests: XCTestCase {
         )
     }
 
+    func testMiMoAudioClientListModelsFiltersToTTSModelIDs() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://example.com/v1/models")
+            XCTAssertEqual(request.httpMethod, "GET")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "api-key"), "test-key")
+
+            return (
+                HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                Data("""
+                {
+                  "data": [
+                    { "id": "mimo-v2.5", "name": "MiMo V2.5" },
+                    { "id": "mimo-v2.5-tts", "name": "MiMo V2.5 TTS" },
+                    { "id": "mimo-v2.5-pro", "name": "MiMo V2.5 Pro" },
+                    { "id": "mimo-v2.5-tts-voiceclone", "name": "MiMo V2.5 VoiceClone" },
+                    { "id": "mimo-v2-tts", "name": "MiMo V2 TTS" }
+                  ]
+                }
+                """.utf8)
+            )
+        }
+
+        let client = MiMoAudioClient(
+            apiKey: "test-key",
+            baseURL: URL(string: "https://example.com/v1")!,
+            networkManager: networkManager
+        )
+
+        let models = try await client.listModels()
+
+        XCTAssertEqual(
+            models,
+            [
+                SpeechProviderModelChoice(id: "mimo-v2-tts", name: "MiMo V2 TTS"),
+                SpeechProviderModelChoice(id: "mimo-v2.5-tts", name: "MiMo V2.5 TTS"),
+                SpeechProviderModelChoice(id: "mimo-v2.5-tts-voiceclone", name: "MiMo V2.5 VoiceClone")
+            ]
+        )
+    }
+
+    func testMiMoAudioClientRejectsNonTTSModelBeforeRequest() async {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+        var didMakeRequest = false
+
+        protocolType.requestHandler = { request in
+            didMakeRequest = true
+            return (
+                HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                Data()
+            )
+        }
+
+        let client = MiMoAudioClient(
+            apiKey: "test-key",
+            baseURL: URL(string: "https://example.com/v1")!,
+            networkManager: networkManager
+        )
+
+        await XCTAssertThrowsErrorAsync({
+            try await client.createSpeech(input: "Hello", model: "mimo-v2.5")
+        }) { error in
+            guard case .invalidRequest(let message) = error as? LLMError else {
+                return XCTFail("Expected LLMError.invalidRequest, got \(error)")
+            }
+            XCTAssertTrue(message.contains("MiMo TTS does not support model"))
+            XCTAssertTrue(message.contains("mimo-v2.5"))
+        }
+
+        XCTAssertFalse(didMakeRequest)
+    }
+
     func testElevenLabsSTTClientListModelsDecodesAvailableModels() async throws {
         let (configuration, protocolType) = makeMockedSessionConfiguration()
         let networkManager = NetworkManager(configuration: configuration)
@@ -302,6 +377,20 @@ private func makeMockedSessionConfiguration() -> (URLSessionConfiguration, MockU
     let config = URLSessionConfiguration.ephemeral
     config.protocolClasses = [MockURLProtocol.self]
     return (config, MockURLProtocol.self)
+}
+
+private func XCTAssertThrowsErrorAsync<T>(
+    _ expression: @escaping @Sendable () async throws -> T,
+    _ errorHandler: (Error) -> Void,
+    file: StaticString = #filePath,
+    line: UInt = #line
+) async {
+    do {
+        _ = try await expression()
+        XCTFail("Expected error to be thrown", file: file, line: line)
+    } catch {
+        errorHandler(error)
+    }
 }
 
 private func requestBodyData(_ request: URLRequest) -> Data? {

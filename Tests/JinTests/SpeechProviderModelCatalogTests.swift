@@ -70,6 +70,30 @@ final class SpeechProviderModelCatalogTests: XCTestCase {
         )
     }
 
+    func testMiMoTextToSpeechChoicesUseExactTTSModelIDs() {
+        let models = SpeechProviderModelCatalog.textToSpeechChoices(
+            for: .xiaomiMiMo,
+            availableModels: [
+                SpeechProviderModelChoice(id: "mimo-v2.5", name: "MiMo V2.5"),
+                SpeechProviderModelChoice(id: "mimo-v2.5-tts", name: "MiMo V2.5 TTS"),
+                SpeechProviderModelChoice(id: "mimo-v2.5-pro", name: "MiMo V2.5 Pro"),
+                SpeechProviderModelChoice(id: "mimo-v2.5-tts-voicedesign", name: "MiMo V2.5 VoiceDesign"),
+                SpeechProviderModelChoice(id: "mimo-v2.5-tts-voiceclone", name: "MiMo V2.5 VoiceClone"),
+                SpeechProviderModelChoice(id: "mimo-v2-tts", name: "MiMo V2 TTS")
+            ]
+        )
+
+        XCTAssertEqual(
+            models.map(\.id),
+            [
+                "mimo-v2-tts",
+                "mimo-v2.5-tts",
+                "mimo-v2.5-tts-voiceclone",
+                "mimo-v2.5-tts-voicedesign"
+            ]
+        )
+    }
+
     func testMistralSpeechToTextChoicesStayConservative() {
         let models = SpeechProviderModelCatalog.speechToTextChoices(
             for: .mistral,
@@ -122,6 +146,10 @@ final class SpeechProviderModelCatalogTests: XCTestCase {
         XCTAssertEqual(
             SpeechProviderModelCatalog.defaultTextToSpeechChoices(for: .groq).map(\.id),
             ["canopylabs/orpheus-v1-english", "canopylabs/orpheus-arabic-saudi"]
+        )
+        XCTAssertEqual(
+            SpeechProviderModelCatalog.defaultTextToSpeechChoices(for: .xiaomiMiMo).map(\.id),
+            ["mimo-v2.5-tts", "mimo-v2.5-tts-voicedesign", "mimo-v2.5-tts-voiceclone", "mimo-v2-tts"]
         )
         XCTAssertEqual(
             SpeechProviderModelCatalog.defaultTextToSpeechChoices(for: .elevenlabs).map(\.id),

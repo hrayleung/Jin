@@ -305,6 +305,8 @@ enum LobeProviderIconCatalog {
             return "Zhipu"
         case .minimax, .minimaxCodingPlan:
             return "MiniMax"
+        case .mimoTokenPlanAnthropic, .mimoTokenPlanOpenAI:
+            return "XiaomiMiMo"
         case .fireworks:
             return "Fireworks"
         case .cerebras:

@@ -68,6 +68,8 @@ enum ProviderType: String, Codable, CaseIterable {
     case groq
     case minimax
     case minimaxCodingPlan
+    case mimoTokenPlanAnthropic
+    case mimoTokenPlanOpenAI
     case mistral
     case morphllm
     case openai
@@ -107,6 +109,8 @@ enum ProviderType: String, Codable, CaseIterable {
         case .zhipuCodingPlan: return "Zhipu Coding Plan"
         case .minimax: return "MiniMax"
         case .minimaxCodingPlan: return "MiniMax Coding Plan"
+        case .mimoTokenPlanAnthropic: return "Xiaomi MiMo Token Plan (Anthropic)"
+        case .mimoTokenPlanOpenAI: return "Xiaomi MiMo Token Plan (OpenAI)"
         case .fireworks: return "Fireworks"
         case .cerebras: return "Cerebras"
         case .sambanova: return "SambaNova"
@@ -168,6 +172,8 @@ enum ProviderType: String, Codable, CaseIterable {
         case .zhipuCodingPlan: return "https://open.bigmodel.cn/api/coding/paas/v4"
         case .minimax: return "https://api.minimax.io/v1"
         case .minimaxCodingPlan: return "https://api.minimaxi.com/anthropic/v1"
+        case .mimoTokenPlanAnthropic: return "https://token-plan-sgp.xiaomimimo.com/anthropic"
+        case .mimoTokenPlanOpenAI: return "https://token-plan-sgp.xiaomimimo.com/v1"
         case .fireworks: return "https://api.fireworks.ai/inference/v1"
         case .cerebras: return "https://api.cerebras.ai/v1"
         case .sambanova: return "https://api.sambanova.ai/v1"
@@ -300,10 +306,11 @@ struct ModelCapability: OptionSet, Codable, Equatable {
     static let imageGeneration = ModelCapability(rawValue: 1 << 7)
     static let videoGeneration = ModelCapability(rawValue: 1 << 8)
     static let codeExecution = ModelCapability(rawValue: 1 << 9)
+    static let videoInput = ModelCapability(rawValue: 1 << 10)
 
     static let all: ModelCapability = [
         .streaming, .toolCalling, .vision, .audio, .reasoning,
-        .promptCaching, .nativePDF, .imageGeneration, .videoGeneration, .codeExecution
+        .promptCaching, .nativePDF, .imageGeneration, .videoGeneration, .codeExecution, .videoInput
     ]
 }
 
