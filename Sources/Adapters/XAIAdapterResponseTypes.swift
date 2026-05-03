@@ -2,16 +2,49 @@ import Foundation
 
 // MARK: - Models Response
 
-struct XAIModelsResponse: Codable {
+struct XAIModelsResponse: Decodable {
     let data: [XAIModelData]
 }
 
-struct XAIModelData: Codable {
+struct XAIModelData: Decodable {
     let id: String
     let inputModalities: [String]?
     let outputModalities: [String]?
     let modalities: [String]?
     let contextWindow: Int?
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case inputModalities
+        case outputModalities
+        case modalities
+        case contextWindow
+        case maxPromptLength
+    }
+
+    init(
+        id: String,
+        inputModalities: [String]? = nil,
+        outputModalities: [String]? = nil,
+        modalities: [String]? = nil,
+        contextWindow: Int? = nil
+    ) {
+        self.id = id
+        self.inputModalities = inputModalities
+        self.outputModalities = outputModalities
+        self.modalities = modalities
+        self.contextWindow = contextWindow
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        inputModalities = try container.decodeIfPresent([String].self, forKey: .inputModalities)
+        outputModalities = try container.decodeIfPresent([String].self, forKey: .outputModalities)
+        modalities = try container.decodeIfPresent([String].self, forKey: .modalities)
+        contextWindow = try container.decodeIfPresent(Int.self, forKey: .contextWindow)
+            ?? container.decodeIfPresent(Int.self, forKey: .maxPromptLength)
+    }
 }
 
 // MARK: - Media Generation Response Types

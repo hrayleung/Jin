@@ -84,6 +84,8 @@ final class JinModelSupportTests: XCTestCase {
     func testFireworksLatestExactIDsUseExpectedSupportBadges() {
         XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .fireworks, modelID: "fireworks/qwen3p6-plus"))
         XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .fireworks, modelID: "accounts/fireworks/models/qwen3p6-plus"))
+        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .fireworks, modelID: "fireworks/kimi-k2-thinking"))
+        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .fireworks, modelID: "accounts/fireworks/models/kimi-k2-thinking"))
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .fireworks, modelID: "fireworks/deepseek-v3p2"))
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .fireworks, modelID: "accounts/fireworks/models/deepseek-v3p2"))
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .fireworks, modelID: "fireworks/kimi-k2-instruct-0905"))
@@ -120,6 +122,13 @@ final class JinModelSupportTests: XCTestCase {
     }
 
     func testDeepInfraUsesExactMatchForFullySupportedTag() {
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .deepinfra, modelID: "zai-org/GLM-5.1"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .deepinfra, modelID: "Qwen/Qwen3.6-35B-A3B"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .deepinfra, modelID: "nvidia/Nemotron-3-Nano-Omni-30B-A3B-Reasoning"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .deepinfra, modelID: "nvidia/NVIDIA-Nemotron-3-Super-120B-A12B"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .deepinfra, modelID: "stepfun-ai/Step-3.5-Flash"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .deepinfra, modelID: "Qwen/Qwen3-Max"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .deepinfra, modelID: "Qwen/Qwen3-Max-Thinking"))
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .deepinfra, modelID: "zai-org/GLM-5"))
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .deepinfra, modelID: "Qwen/Qwen3.5-397B-A17B"))
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .deepinfra, modelID: "Qwen/Qwen3.5-122B-A10B"))
@@ -127,6 +136,7 @@ final class JinModelSupportTests: XCTestCase {
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .deepinfra, modelID: "Qwen/Qwen3.5-27B"))
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .deepinfra, modelID: "Qwen/Qwen3.5-9B"))
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .deepinfra, modelID: "moonshotai/Kimi-K2.5"))
+        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .deepinfra, modelID: "zai-org/GLM-5.1-custom"))
         XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .deepinfra, modelID: "zai-org/GLM-5-custom"))
         XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .deepinfra, modelID: "Qwen/Qwen3.5-397B-A17B-custom"))
     }
@@ -263,11 +273,24 @@ final class JinModelSupportTests: XCTestCase {
     }
 
     func testXAIGrok41FastVariantsUseExactMatch() {
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .xai, modelID: "grok-4.3"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .xai, modelID: "grok-4.20"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .xai, modelID: "grok-4.20-multi-agent"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .xai, modelID: "grok-4.20-multi-agent-0309"))
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .xai, modelID: "grok-4-1-fast-non-reasoning"))
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .xai, modelID: "grok-4-1-fast-reasoning"))
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .xai, modelID: "grok-imagine-image-pro"))
+        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .xai, modelID: "grok-4.3-custom"))
+        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .xai, modelID: "grok-4.20-custom"))
+        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .xai, modelID: "grok-4.2"))
+        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .xai, modelID: "grok-4.20-multi-agent-0310"))
         XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .xai, modelID: "grok-5"))
         XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .xai, modelID: "grok-imagine-image-pro-v2"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .openrouter, modelID: "x-ai/grok-4.3"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .openrouter, modelID: "x-ai/grok-4.20"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .openrouter, modelID: "x-ai/grok-4.20-multi-agent"))
+        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .openrouter, modelID: "x-ai/grok-4.20-multi-agent-0309"))
+        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .openrouter, modelID: "x-ai/grok-4.20-multi-agent-custom"))
     }
 
     func testOpenAINativePDFSupportUsesExactMatch() {
@@ -291,8 +314,17 @@ final class JinModelSupportTests: XCTestCase {
     }
 
     func testXAINativePDFSupportUsesExactMatch() {
+        XCTAssertTrue(JinModelSupport.supportsNativePDF(providerType: .xai, modelID: "grok-4.3"))
+        XCTAssertTrue(JinModelSupport.supportsNativePDF(providerType: .xai, modelID: "grok-4.20"))
+        XCTAssertTrue(JinModelSupport.supportsNativePDF(providerType: .xai, modelID: "grok-4.20-multi-agent"))
+        XCTAssertTrue(JinModelSupport.supportsNativePDF(providerType: .xai, modelID: "grok-4.20-multi-agent-0309"))
         XCTAssertTrue(JinModelSupport.supportsNativePDF(providerType: .xai, modelID: "grok-4-1-fast-reasoning"))
+        XCTAssertTrue(JinModelSupport.supportsNativePDF(providerType: .openrouter, modelID: "x-ai/grok-4.20"))
+        XCTAssertTrue(JinModelSupport.supportsNativePDF(providerType: .openrouter, modelID: "x-ai/grok-4.20-multi-agent"))
+        XCTAssertFalse(JinModelSupport.supportsNativePDF(providerType: .xai, modelID: "grok-4.3-custom"))
+        XCTAssertFalse(JinModelSupport.supportsNativePDF(providerType: .xai, modelID: "grok-4.2"))
         XCTAssertFalse(JinModelSupport.supportsNativePDF(providerType: .xai, modelID: "grok-5"))
+        XCTAssertFalse(JinModelSupport.supportsNativePDF(providerType: .openrouter, modelID: "x-ai/grok-4.20-multi-agent-0309"))
     }
 
     func testNanoBanana2NativePDFSupportUsesExactMatch() {

@@ -70,6 +70,20 @@ enum ChatModelCapabilitySupport {
     }
 
     static func normalizedFireworksModelInfo(_ model: ModelInfo) -> ModelInfo {
+        if let catalogEntry = ModelCatalog.entry(for: model.id, provider: .fireworks) {
+            return ModelInfo(
+                id: model.id,
+                name: model.name == model.id ? catalogEntry.displayName : model.name,
+                capabilities: catalogEntry.capabilities,
+                contextWindow: catalogEntry.contextWindow,
+                maxOutputTokens: catalogEntry.maxOutputTokens,
+                reasoningConfig: catalogEntry.reasoningConfig,
+                overrides: model.overrides,
+                catalogMetadata: model.catalogMetadata,
+                isEnabled: model.isEnabled
+            )
+        }
+
         let canonicalID = fireworksCanonicalModelID(model.id)
         var caps = model.capabilities
         var contextWindow = model.contextWindow

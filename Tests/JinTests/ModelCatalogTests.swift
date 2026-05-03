@@ -825,6 +825,41 @@ final class ModelCatalogTests: XCTestCase {
     }
 
     func testDeepInfraCatalogMetadataUsesExactIDsAndConservativeFallback() {
+        let glm51 = ModelCatalog.modelInfo(
+            for: "zai-org/GLM-5.1",
+            provider: .deepinfra
+        )
+        XCTAssertEqual(glm51.name, "GLM-5.1")
+        XCTAssertEqual(glm51.contextWindow, 202_752)
+        XCTAssertTrue(glm51.capabilities.contains(.streaming))
+        XCTAssertTrue(glm51.capabilities.contains(.toolCalling))
+        XCTAssertTrue(glm51.capabilities.contains(.reasoning))
+        XCTAssertFalse(glm51.capabilities.contains(.vision))
+        XCTAssertNil(glm51.reasoningConfig)
+
+        let qwen36 = ModelCatalog.modelInfo(
+            for: "Qwen/Qwen3.6-35B-A3B",
+            provider: .deepinfra
+        )
+        XCTAssertEqual(qwen36.name, "Qwen3.6 35B A3B")
+        XCTAssertEqual(qwen36.contextWindow, 262_144)
+        XCTAssertTrue(qwen36.capabilities.contains(.toolCalling))
+        XCTAssertTrue(qwen36.capabilities.contains(.vision))
+        XCTAssertTrue(qwen36.capabilities.contains(.reasoning))
+        XCTAssertNil(qwen36.reasoningConfig)
+
+        let nemotronOmni = ModelCatalog.modelInfo(
+            for: "nvidia/Nemotron-3-Nano-Omni-30B-A3B-Reasoning",
+            provider: .deepinfra
+        )
+        XCTAssertEqual(nemotronOmni.contextWindow, 262_144)
+        XCTAssertTrue(nemotronOmni.capabilities.contains(.toolCalling))
+        XCTAssertTrue(nemotronOmni.capabilities.contains(.vision))
+        XCTAssertTrue(nemotronOmni.capabilities.contains(.audio))
+        XCTAssertTrue(nemotronOmni.capabilities.contains(.videoInput))
+        XCTAssertTrue(nemotronOmni.capabilities.contains(.reasoning))
+        XCTAssertNil(nemotronOmni.reasoningConfig)
+
         let glm5 = ModelCatalog.modelInfo(
             for: "zai-org/GLM-5",
             provider: .deepinfra
@@ -888,6 +923,22 @@ final class ModelCatalogTests: XCTestCase {
         XCTAssertEqual(deepSeekV4Pro.reasoningConfig?.type, .effort)
         XCTAssertEqual(deepSeekV4Pro.reasoningConfig?.defaultEffort, .high)
 
+        let nemotronSuper = ModelCatalog.modelInfo(
+            for: "nvidia/NVIDIA-Nemotron-3-Super-120B-A12B",
+            provider: .deepinfra
+        )
+        XCTAssertEqual(nemotronSuper.contextWindow, 262_144)
+        XCTAssertTrue(nemotronSuper.capabilities.contains(.toolCalling))
+        XCTAssertTrue(nemotronSuper.capabilities.contains(.reasoning))
+
+        let qwenMax = ModelCatalog.modelInfo(
+            for: "Qwen/Qwen3-Max",
+            provider: .deepinfra
+        )
+        XCTAssertEqual(qwenMax.contextWindow, 256_000)
+        XCTAssertTrue(qwenMax.capabilities.contains(.toolCalling))
+        XCTAssertFalse(qwenMax.capabilities.contains(.reasoning))
+
         let unknown = ModelCatalog.modelInfo(
             for: "zai-org/GLM-5-custom",
             provider: .deepinfra
@@ -902,6 +953,9 @@ final class ModelCatalogTests: XCTestCase {
         XCTAssertEqual(
             seeded,
             [
+                "zai-org/GLM-5.1",
+                "Qwen/Qwen3.6-35B-A3B",
+                "nvidia/Nemotron-3-Nano-Omni-30B-A3B-Reasoning",
                 "zai-org/GLM-5",
                 "Qwen/Qwen3.5-397B-A17B",
                 "Qwen/Qwen3.5-122B-A10B",
@@ -919,6 +973,134 @@ final class ModelCatalogTests: XCTestCase {
         let unknown = ModelCatalog.modelInfo(
             for: "Qwen/Qwen3.5-397B-A17B-custom",
             provider: .together
+        )
+        XCTAssertEqual(unknown.capabilities, [.streaming, .toolCalling])
+        XCTAssertEqual(unknown.contextWindow, 128_000)
+        XCTAssertNil(unknown.reasoningConfig)
+    }
+
+    func testXAIGrok43CatalogUsesDocsVerifiedExactMetadata() {
+        let grok43 = ModelCatalog.modelInfo(
+            for: "grok-4.3",
+            provider: .xai
+        )
+
+        XCTAssertEqual(grok43.name, "Grok 4.3")
+        XCTAssertEqual(grok43.contextWindow, 1_000_000)
+        XCTAssertTrue(grok43.capabilities.contains(.streaming))
+        XCTAssertTrue(grok43.capabilities.contains(.toolCalling))
+        XCTAssertTrue(grok43.capabilities.contains(.vision))
+        XCTAssertTrue(grok43.capabilities.contains(.reasoning))
+        XCTAssertTrue(grok43.capabilities.contains(.promptCaching))
+        XCTAssertTrue(grok43.capabilities.contains(.nativePDF))
+        XCTAssertTrue(grok43.capabilities.contains(.codeExecution))
+        XCTAssertNil(grok43.reasoningConfig)
+
+        let multiAgent = ModelCatalog.modelInfo(
+            for: "grok-4.20-multi-agent",
+            provider: .xai
+        )
+
+        XCTAssertEqual(multiAgent.name, "Grok 4.20 Multi-Agent")
+        XCTAssertEqual(multiAgent.contextWindow, 2_000_000)
+        XCTAssertTrue(multiAgent.capabilities.contains(.streaming))
+        XCTAssertFalse(multiAgent.capabilities.contains(.toolCalling))
+        XCTAssertTrue(multiAgent.capabilities.contains(.vision))
+        XCTAssertTrue(multiAgent.capabilities.contains(.reasoning))
+        XCTAssertTrue(multiAgent.capabilities.contains(.promptCaching))
+        XCTAssertTrue(multiAgent.capabilities.contains(.nativePDF))
+        XCTAssertTrue(multiAgent.capabilities.contains(.codeExecution))
+        XCTAssertEqual(multiAgent.reasoningConfig?.type, .effort)
+        XCTAssertEqual(multiAgent.reasoningConfig?.defaultEffort, .low)
+
+        let multiAgentSnapshot = ModelCatalog.modelInfo(
+            for: "grok-4.20-multi-agent-0309",
+            provider: .xai
+        )
+
+        XCTAssertEqual(multiAgentSnapshot.name, "Grok 4.20 Multi-Agent 0309")
+        XCTAssertEqual(multiAgentSnapshot.contextWindow, 2_000_000)
+        XCTAssertTrue(multiAgentSnapshot.capabilities.contains(.streaming))
+        XCTAssertFalse(multiAgentSnapshot.capabilities.contains(.toolCalling))
+        XCTAssertTrue(multiAgentSnapshot.capabilities.contains(.vision))
+        XCTAssertTrue(multiAgentSnapshot.capabilities.contains(.reasoning))
+        XCTAssertTrue(multiAgentSnapshot.capabilities.contains(.promptCaching))
+        XCTAssertTrue(multiAgentSnapshot.capabilities.contains(.nativePDF))
+        XCTAssertTrue(multiAgentSnapshot.capabilities.contains(.codeExecution))
+        XCTAssertEqual(multiAgentSnapshot.reasoningConfig?.type, .effort)
+        XCTAssertEqual(multiAgentSnapshot.reasoningConfig?.defaultEffort, .low)
+
+        let grok420 = ModelCatalog.modelInfo(
+            for: "grok-4.20",
+            provider: .xai
+        )
+
+        XCTAssertEqual(grok420.name, "Grok 4.20")
+        XCTAssertEqual(grok420.contextWindow, 2_000_000)
+        XCTAssertTrue(grok420.capabilities.contains(.streaming))
+        XCTAssertTrue(grok420.capabilities.contains(.toolCalling))
+        XCTAssertTrue(grok420.capabilities.contains(.vision))
+        XCTAssertTrue(grok420.capabilities.contains(.reasoning))
+        XCTAssertTrue(grok420.capabilities.contains(.promptCaching))
+        XCTAssertTrue(grok420.capabilities.contains(.nativePDF))
+        XCTAssertTrue(grok420.capabilities.contains(.codeExecution))
+        XCTAssertNil(grok420.reasoningConfig)
+
+        let unknown = ModelCatalog.modelInfo(
+            for: "grok-4.3-custom",
+            provider: .xai
+        )
+        XCTAssertEqual(unknown.capabilities, [.streaming, .toolCalling])
+        XCTAssertEqual(unknown.contextWindow, 128_000)
+        XCTAssertNil(unknown.reasoningConfig)
+    }
+
+    func testOpenRouterXAIGrokCatalogUsesExactProviderPrefixedIDs() {
+        let grok43 = ModelCatalog.modelInfo(
+            for: "x-ai/grok-4.3",
+            provider: .openrouter
+        )
+        XCTAssertEqual(grok43.name, "xAI: Grok 4.3")
+        XCTAssertEqual(grok43.contextWindow, 1_000_000)
+        XCTAssertTrue(grok43.capabilities.contains(.streaming))
+        XCTAssertTrue(grok43.capabilities.contains(.toolCalling))
+        XCTAssertTrue(grok43.capabilities.contains(.vision))
+        XCTAssertTrue(grok43.capabilities.contains(.reasoning))
+        XCTAssertTrue(grok43.capabilities.contains(.promptCaching))
+        XCTAssertFalse(grok43.capabilities.contains(.nativePDF))
+        XCTAssertEqual(grok43.reasoningConfig?.defaultEffort, .medium)
+
+        let grok420 = ModelCatalog.modelInfo(
+            for: "x-ai/grok-4.20",
+            provider: .openrouter
+        )
+        XCTAssertEqual(grok420.name, "xAI: Grok 4.20")
+        XCTAssertEqual(grok420.contextWindow, 2_000_000)
+        XCTAssertTrue(grok420.capabilities.contains(.toolCalling))
+        XCTAssertTrue(grok420.capabilities.contains(.vision))
+        XCTAssertTrue(grok420.capabilities.contains(.reasoning))
+        XCTAssertTrue(grok420.capabilities.contains(.promptCaching))
+        XCTAssertTrue(grok420.capabilities.contains(.nativePDF))
+        XCTAssertEqual(grok420.reasoningConfig?.defaultEffort, .medium)
+
+        let multiAgent = ModelCatalog.modelInfo(
+            for: "x-ai/grok-4.20-multi-agent",
+            provider: .openrouter
+        )
+        XCTAssertEqual(multiAgent.name, "xAI: Grok 4.20 Multi-Agent")
+        XCTAssertEqual(multiAgent.contextWindow, 2_000_000)
+        XCTAssertTrue(multiAgent.capabilities.contains(.streaming))
+        XCTAssertFalse(multiAgent.capabilities.contains(.toolCalling))
+        XCTAssertTrue(multiAgent.capabilities.contains(.vision))
+        XCTAssertTrue(multiAgent.capabilities.contains(.reasoning))
+        XCTAssertTrue(multiAgent.capabilities.contains(.promptCaching))
+        XCTAssertTrue(multiAgent.capabilities.contains(.nativePDF))
+        XCTAssertEqual(multiAgent.reasoningConfig?.type, .effort)
+        XCTAssertEqual(multiAgent.reasoningConfig?.defaultEffort, .low)
+
+        let unknown = ModelCatalog.modelInfo(
+            for: "x-ai/grok-4.20-multi-agent-0309",
+            provider: .openrouter
         )
         XCTAssertEqual(unknown.capabilities, [.streaming, .toolCalling])
         XCTAssertEqual(unknown.contextWindow, 128_000)
@@ -981,6 +1163,27 @@ final class ModelCatalogTests: XCTestCase {
         XCTAssertTrue(qwen235.capabilities.contains(.toolCalling))
         XCTAssertFalse(qwen235.capabilities.contains(.reasoning))
         XCTAssertNil(qwen235.reasoningConfig)
+
+        let kimiThinking = ModelCatalog.modelInfo(
+            for: "fireworks/kimi-k2-thinking",
+            provider: .fireworks
+        )
+        XCTAssertEqual(kimiThinking.name, "Kimi K2 Thinking")
+        XCTAssertEqual(kimiThinking.contextWindow, 262_100)
+        XCTAssertTrue(kimiThinking.capabilities.contains(.toolCalling))
+        XCTAssertTrue(kimiThinking.capabilities.contains(.reasoning))
+        XCTAssertFalse(kimiThinking.capabilities.contains(.vision))
+        XCTAssertNil(kimiThinking.reasoningConfig)
+        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .fireworks, modelID: "fireworks/kimi-k2-thinking"))
+
+        let kimiThinkingAccount = ModelCatalog.modelInfo(
+            for: "accounts/fireworks/models/kimi-k2-thinking",
+            provider: .fireworks
+        )
+        XCTAssertEqual(kimiThinkingAccount.name, "Kimi K2 Thinking")
+        XCTAssertEqual(kimiThinkingAccount.contextWindow, 262_100)
+        XCTAssertTrue(kimiThinkingAccount.capabilities.contains(.reasoning))
+        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .fireworks, modelID: "accounts/fireworks/models/kimi-k2-thinking"))
 
         let deepSeekV4Pro = ModelCatalog.modelInfo(
             for: "accounts/fireworks/models/deepseek-v4-pro",

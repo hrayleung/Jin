@@ -203,6 +203,7 @@ actor OpenRouterAdapter: LLMProviderAdapter {
         }
 
         if !imageGenerationModel,
+           supportsClientFunctionTools(modelID: modelID),
            !tools.isEmpty,
            let functionTools = translateTools(tools) as? [[String: Any]] {
             body["tools"] = functionTools
@@ -350,6 +351,15 @@ actor OpenRouterAdapter: LLMProviderAdapter {
 
         let resolved = ModelSettingsResolver.resolve(model: model, providerType: providerConfig.type)
         return resolved.supportsWebSearch
+    }
+
+    private func supportsClientFunctionTools(modelID: String) -> Bool {
+        guard let model = findConfiguredModel(in: providerConfig, for: modelID) else {
+            return ModelCatalog.entry(for: modelID, provider: .openrouter)?.capabilities.contains(.toolCalling) ?? true
+        }
+
+        let resolved = ModelSettingsResolver.resolve(model: model, providerType: providerConfig.type)
+        return resolved.capabilities.contains(.toolCalling)
     }
 
     // MARK: - Model Info

@@ -3537,6 +3537,9 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
 
             let payload: [String: Any] = [
                 "data": [
+                    ["id": "zai-org/GLM-5.1"],
+                    ["id": "Qwen/Qwen3.6-35B-A3B"],
+                    ["id": "nvidia/Nemotron-3-Nano-Omni-30B-A3B-Reasoning"],
                     ["id": "zai-org/GLM-5"],
                     ["id": "Qwen/Qwen3.5-397B-A17B"],
                     ["id": "deepseek-ai/DeepSeek-V4-Flash"],
@@ -3551,6 +3554,28 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         let adapter = OpenAICompatibleAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
         let models = try await adapter.fetchAvailableModels()
         let byID = Dictionary(uniqueKeysWithValues: models.map { ($0.id, $0) })
+
+        let glm51 = try XCTUnwrap(byID["zai-org/GLM-5.1"])
+        XCTAssertEqual(glm51.name, "GLM-5.1")
+        XCTAssertEqual(glm51.contextWindow, 202_752)
+        XCTAssertTrue(glm51.capabilities.contains(.toolCalling))
+        XCTAssertTrue(glm51.capabilities.contains(.reasoning))
+
+        let qwen36 = try XCTUnwrap(byID["Qwen/Qwen3.6-35B-A3B"])
+        XCTAssertEqual(qwen36.name, "Qwen3.6 35B A3B")
+        XCTAssertEqual(qwen36.contextWindow, 262_144)
+        XCTAssertTrue(qwen36.capabilities.contains(.toolCalling))
+        XCTAssertTrue(qwen36.capabilities.contains(.vision))
+        XCTAssertTrue(qwen36.capabilities.contains(.reasoning))
+
+        let nemotronOmni = try XCTUnwrap(byID["nvidia/Nemotron-3-Nano-Omni-30B-A3B-Reasoning"])
+        XCTAssertEqual(nemotronOmni.name, "Nemotron 3 Nano Omni 30B A3B Reasoning")
+        XCTAssertEqual(nemotronOmni.contextWindow, 262_144)
+        XCTAssertTrue(nemotronOmni.capabilities.contains(.toolCalling))
+        XCTAssertTrue(nemotronOmni.capabilities.contains(.vision))
+        XCTAssertTrue(nemotronOmni.capabilities.contains(.audio))
+        XCTAssertTrue(nemotronOmni.capabilities.contains(.videoInput))
+        XCTAssertTrue(nemotronOmni.capabilities.contains(.reasoning))
 
         let glm5 = try XCTUnwrap(byID["zai-org/GLM-5"])
         XCTAssertEqual(glm5.name, "GLM-5")
@@ -4130,6 +4155,79 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
                 reasoning: ReasoningControls(enabled: true, effort: .low)
             ),
             tools: [],
+            streaming: false
+        )
+
+        for try await _ in stream {}
+    }
+
+    func testOpenRouterAdapterOmitsToolsForXAIGrok420MultiAgent() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        let providerConfig = ProviderConfig(
+            id: "or",
+            name: "OpenRouter",
+            type: .openrouter,
+            apiKey: "ignored",
+            baseURL: "https://openrouter.ai/api/v1",
+            models: [
+                ModelCatalog.modelInfo(
+                    for: "x-ai/grok-4.20-multi-agent",
+                    provider: .openrouter
+                )
+            ]
+        )
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://openrouter.ai/api/v1/chat/completions")
+
+            let body = try XCTUnwrap(requestBodyData(request))
+            let root = try XCTUnwrap(try JSONSerialization.jsonObject(with: body) as? [String: Any])
+            XCTAssertEqual(root["model"] as? String, "x-ai/grok-4.20-multi-agent")
+            XCTAssertNil(root["tools"])
+
+            let reasoning = try XCTUnwrap(root["reasoning"] as? [String: Any])
+            XCTAssertEqual(reasoning["effort"] as? String, "xhigh")
+            XCTAssertEqual(root["include_reasoning"] as? Bool, true)
+
+            let response: [String: Any] = [
+                "id": "cmpl_or_xai_multi",
+                "choices": [
+                    [
+                        "message": [
+                            "role": "assistant",
+                            "content": "OK"
+                        ],
+                        "finish_reason": "stop"
+                    ]
+                ]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = OpenRouterAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let tool = ToolDefinition(
+            id: "tool_1",
+            name: "lookup_status",
+            description: "Lookup a project status.",
+            parameters: ParameterSchema(
+                properties: [
+                    "id": PropertySchema(type: "string", description: "Project ID")
+                ],
+                required: ["id"]
+            ),
+            source: .builtin
+        )
+
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hello")])],
+            modelID: "x-ai/grok-4.20-multi-agent",
+            controls: GenerationControls(
+                reasoning: ReasoningControls(enabled: true, effort: .xhigh)
+            ),
+            tools: [tool],
             streaming: false
         )
 

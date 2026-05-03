@@ -178,6 +178,21 @@ extension ModelCatalog {
     // MARK: OpenRouter
 
     static let openRouterRecords: [Record] = [
+        Record(id: "x-ai/grok-4.3", displayName: "xAI: Grok 4.3",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_000_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+               isFullySupported: true, isSeeded: false),
+        Record(id: "x-ai/grok-4.20", displayName: "xAI: Grok 4.20",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .nativePDF],
+               contextWindow: 2_000_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+               isFullySupported: true, isSeeded: false),
+        Record(id: "x-ai/grok-4.20-multi-agent", displayName: "xAI: Grok 4.20 Multi-Agent",
+               capabilities: [.streaming, .vision, .reasoning, .promptCaching, .nativePDF],
+               contextWindow: 2_000_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .low),
+               isFullySupported: true, isSeeded: false),
         Record(id: "xiaomi/mimo-v2-omni", displayName: "MiMo V2 Omni",
                capabilities: [.streaming, .toolCalling, .vision, .audio, .reasoning, .promptCaching],
                contextWindow: 262_144,
