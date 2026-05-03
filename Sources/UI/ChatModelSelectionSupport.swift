@@ -13,6 +13,17 @@ enum ChatModelSelectionSupport {
         "kimi-k2p5",
         "glm-4p7"
     ]
+    static let preferredDeepInfraModelOrder: [String] = [
+        "zai-org/GLM-5.1",
+        "Qwen/Qwen3.6-35B-A3B",
+        "nvidia/Nemotron-3-Nano-Omni-30B-A3B-Reasoning",
+        "zai-org/GLM-5",
+        "Qwen/Qwen3.5-397B-A17B",
+        "Qwen/Qwen3.5-122B-A10B",
+        "Qwen/Qwen3.5-35B-A3B",
+        "Qwen/Qwen3.5-27B",
+        "Qwen/Qwen3.5-9B",
+    ]
 
     static func preferredFireworksModelID(in models: [ModelInfo]) -> String? {
         for canonicalID in preferredFireworksModelOrder {
@@ -26,6 +37,15 @@ enum ChatModelSelectionSupport {
             }
 
             if let modelID = models.first(where: { fireworksCanonicalModelID($0.id) == canonicalID })?.id {
+                return modelID
+            }
+        }
+        return nil
+    }
+
+    static func preferredDeepInfraModelID(in models: [ModelInfo]) -> String? {
+        for preferredID in preferredDeepInfraModelOrder {
+            if let modelID = models.first(where: { $0.id == preferredID })?.id {
                 return modelID
             }
         }
@@ -183,12 +203,7 @@ enum ChatModelSelectionSupport {
                 ?? models.first(where: { $0.id == "mimo-v2-pro" })?.id
                 ?? models.first(where: { $0.id == "mimo-v2-omni" })?.id
         case .deepinfra:
-            return models.first(where: { $0.id == "zai-org/GLM-5" })?.id
-                ?? models.first(where: { $0.id == "Qwen/Qwen3.5-397B-A17B" })?.id
-                ?? models.first(where: { $0.id == "Qwen/Qwen3.5-122B-A10B" })?.id
-                ?? models.first(where: { $0.id == "Qwen/Qwen3.5-35B-A3B" })?.id
-                ?? models.first(where: { $0.id == "Qwen/Qwen3.5-27B" })?.id
-                ?? models.first(where: { $0.id == "Qwen/Qwen3.5-9B" })?.id
+            return preferredDeepInfraModelID(in: models)
         case .together:
             return models.first(where: { $0.id == "moonshotai/Kimi-K2.5" })?.id
                 ?? models.first(where: { $0.id == "zai-org/GLM-5" })?.id

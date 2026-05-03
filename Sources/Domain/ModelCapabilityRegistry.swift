@@ -284,6 +284,11 @@ enum ModelCapabilityRegistry {
         "deepseek-ai/deepseek-v4-flash",
         "deepseek-ai/deepseek-v4-pro",
     ]
+    private static let xAIMultiAgentReasoningEffortModelIDs: Set<String> = [
+        "grok-4.20-multi-agent",
+        "grok-4.20-multi-agent-0309",
+        "x-ai/grok-4.20-multi-agent",
+    ]
     private static let mistralHighOnlyReasoningEffortModelIDs: Set<String> = [
         "mistral-medium-3.5",
     ]
@@ -347,10 +352,14 @@ enum ModelCapabilityRegistry {
             return [.high, .max]
         case .openrouter where openRouterDeepSeekV4ReasoningEffortModelIDs.contains(lowerModelID):
             return [.high, .xhigh]
+        case .openrouter where xAIMultiAgentReasoningEffortModelIDs.contains(lowerModelID):
+            return [.low, .medium, .high, .xhigh]
         case .together where togetherDeepSeekV4ReasoningEffortModelIDs.contains(lowerModelID):
             return [.high]
         case .deepinfra where deepInfraDeepSeekV4ReasoningEffortModelIDs.contains(lowerModelID):
             return [.high]
+        case .xai where xAIMultiAgentReasoningEffortModelIDs.contains(lowerModelID):
+            return [.low, .medium, .high, .xhigh]
         case .mistral where mistralHighOnlyReasoningEffortModelIDs.contains(lowerModelID):
             return [.high]
         case .fireworks where fireworksDeepSeekV4ProModelIDs.contains(lowerModelID):
@@ -685,8 +694,7 @@ enum ModelCapabilityRegistry {
         case .claudeManagedAgents:
             return false
         case .xai:
-            // xAI Responses API code_interpreter tool: Grok models
-            return !isLikelyMediaGenerationModelID(lowerModelID)
+            return ModelCatalog.entry(for: modelID, provider: .xai)?.capabilities.contains(.codeExecution) ?? false
         case .gemini:
             // Gemini API `tools.code_execution`
             return supportsGoogleCodeExecution(lowerModelID: lowerModelID, providerType: .gemini)

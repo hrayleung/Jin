@@ -414,7 +414,7 @@ extension ContentView {
             case "anthropic":
                 return "claude-opus-4-7"
             case "xai":
-                return "grok-4-1-fast"
+                return "grok-4.3"
             case "deepseek":
                 return "deepseek-chat"
             case "zhipu-coding-plan":
@@ -461,6 +461,12 @@ extension ContentView {
         if providerID == "anthropic", let sonnet45 = models.first(where: { $0.id == "claude-sonnet-4-5-20250929" }) {
             return sonnet45.id
         }
+        if providerID == "xai", let grok43 = models.first(where: { $0.id == "grok-4.3" }) {
+            return grok43.id
+        }
+        if providerID == "xai", let grok420 = models.first(where: { $0.id == "grok-4.20" }) {
+            return grok420.id
+        }
         if providerID == "xai", let grok41Fast = models.first(where: { $0.id == "grok-4-1-fast" }) {
             return grok41Fast.id
         }
@@ -480,6 +486,12 @@ extension ContentView {
         if providerID == "minimax" || providerID == "minimax-coding-plan",
            let m25 = models.first(where: { $0.id == "MiniMax-M2.5" }) {
             return m25.id
+        }
+        if providerID == "deepinfra", let glm51 = models.first(where: { $0.id == "zai-org/GLM-5.1" }) {
+            return glm51.id
+        }
+        if providerID == "deepinfra", let qwen36 = models.first(where: { $0.id == "Qwen/Qwen3.6-35B-A3B" }) {
+            return qwen36.id
         }
         if providerID == "deepinfra", let glm5 = models.first(where: { $0.id == "zai-org/GLM-5" }) {
             return glm5.id

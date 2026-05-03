@@ -340,6 +340,10 @@ final class XAIAdapterMediaTests: XCTestCase {
 
     func testXAIReasoningChatModelIDsRouteToResponsesEndpoint() async throws {
         let chatModelIDs = [
+            "grok-4.3",
+            "grok-4.20",
+            "grok-4.20-multi-agent",
+            "grok-4.20-multi-agent-0309",
             "grok-4-1",
             "grok-4-1-fast",
             "grok-4-1-fast-non-reasoning",
@@ -389,6 +393,201 @@ final class XAIAdapterMediaTests: XCTestCase {
 
             for try await _ in stream {}
         }
+    }
+
+    func testXAIGrok43OmitsUnsupportedReasoningParameters() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        let providerConfig = ProviderConfig(
+            id: "x",
+            name: "xAI",
+            type: .xai,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://example.com/responses")
+            XCTAssertEqual(request.httpMethod, "POST")
+
+            let body = try XCTUnwrap(requestBodyData(request))
+            let root = try XCTUnwrap(try JSONSerialization.jsonObject(with: body) as? [String: Any])
+
+            XCTAssertEqual(root["model"] as? String, "grok-4.3")
+            XCTAssertNil(root["reasoning"])
+            XCTAssertNil(root["reasoning_effort"])
+
+            let response: [String: Any] = [
+                "id": "resp_grok43",
+                "output": [[
+                    "type": "message",
+                    "content": [["type": "output_text", "text": "OK"]]
+                ]]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = XAIAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("reason this")])],
+            modelID: "grok-4.3",
+            controls: GenerationControls(reasoning: ReasoningControls(enabled: true, effort: .high)),
+            tools: [],
+            streaming: false
+        )
+
+        for try await _ in stream {}
+    }
+
+    func testXAIGrok420MultiAgentUsesReasoningObjectAndOmitsUnsupportedFunctionToolsAndMaxTokens() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+        let requestedModelID = "grok-4.20-multi-agent-0309"
+
+        let providerConfig = ProviderConfig(
+            id: "x",
+            name: "xAI",
+            type: .xai,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://example.com/responses")
+            XCTAssertEqual(request.httpMethod, "POST")
+
+            let body = try XCTUnwrap(requestBodyData(request))
+            let root = try XCTUnwrap(try JSONSerialization.jsonObject(with: body) as? [String: Any])
+
+            XCTAssertEqual(root["model"] as? String, requestedModelID)
+            XCTAssertNil(root["reasoning_effort"])
+            XCTAssertNil(root["max_output_tokens"])
+            XCTAssertNil(root["max_tokens"])
+
+            let reasoning = try XCTUnwrap(root["reasoning"] as? [String: Any])
+            XCTAssertEqual(reasoning["effort"] as? String, "high")
+
+            let toolObjects = try XCTUnwrap(root["tools"] as? [[String: Any]])
+            XCTAssertTrue(toolObjects.contains { ($0["type"] as? String) == "web_search" })
+            XCTAssertTrue(toolObjects.contains { ($0["type"] as? String) == "x_search" })
+            XCTAssertTrue(toolObjects.contains { ($0["type"] as? String) == "code_interpreter" })
+            XCTAssertFalse(toolObjects.contains { ($0["type"] as? String) == "function" })
+
+            let include = try XCTUnwrap(root["include"] as? [String])
+            XCTAssertTrue(include.contains("code_interpreter_call.outputs"))
+
+            let response: [String: Any] = [
+                "id": "resp_grok420_multi",
+                "output": [[
+                    "type": "message",
+                    "content": [["type": "output_text", "text": "OK"]]
+                ]]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = XAIAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let tool = ToolDefinition(
+            id: "tool_1",
+            name: "lookup_status",
+            description: "Lookup a project status.",
+            parameters: ParameterSchema(
+                properties: [
+                    "id": PropertySchema(type: "string", description: "Project ID")
+                ],
+                required: ["id"]
+            ),
+            source: .builtin
+        )
+
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("research this")])],
+            modelID: requestedModelID,
+            controls: GenerationControls(
+                maxTokens: 2048,
+                reasoning: ReasoningControls(enabled: true, effort: .xhigh),
+                webSearch: WebSearchControls(enabled: true, sources: [.web, .x]),
+                codeExecution: CodeExecutionControls(enabled: true),
+                providerSpecific: [
+                    "max_output_tokens": AnyCodable(4096),
+                    "max_tokens": AnyCodable(4096)
+                ]
+            ),
+            tools: [tool],
+            streaming: false
+        )
+
+        for try await _ in stream {}
+    }
+
+    func testXAIUnknownNearMatchOmitsClientFunctionToolsAndMaxTokens() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+        let requestedModelID = "grok-4.20-multi-agent-0310"
+
+        let providerConfig = ProviderConfig(
+            id: "x",
+            name: "xAI",
+            type: .xai,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://example.com/responses")
+            XCTAssertEqual(request.httpMethod, "POST")
+
+            let body = try XCTUnwrap(requestBodyData(request))
+            let root = try XCTUnwrap(try JSONSerialization.jsonObject(with: body) as? [String: Any])
+
+            XCTAssertEqual(root["model"] as? String, requestedModelID)
+            XCTAssertNil(root["max_output_tokens"])
+            XCTAssertNil(root["max_tokens"])
+            XCTAssertNil(root["tools"])
+
+            let response: [String: Any] = [
+                "id": "resp_xai_unknown_near_match",
+                "output": [[
+                    "type": "message",
+                    "content": [["type": "output_text", "text": "OK"]]
+                ]]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = XAIAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let tool = ToolDefinition(
+            id: "tool_1",
+            name: "lookup_status",
+            description: "Lookup a project status.",
+            parameters: ParameterSchema(
+                properties: [
+                    "id": PropertySchema(type: "string", description: "Project ID")
+                ],
+                required: ["id"]
+            ),
+            source: .builtin
+        )
+
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hello")])],
+            modelID: requestedModelID,
+            controls: GenerationControls(
+                maxTokens: 2048,
+                providerSpecific: [
+                    "max_output_tokens": AnyCodable(4096),
+                    "max_tokens": AnyCodable(4096)
+                ]
+            ),
+            tools: [tool],
+            streaming: false
+        )
+
+        for try await _ in stream {}
     }
 
     func testXAIChatFallsBackToTextForVideoInput() async throws {
@@ -2021,6 +2220,32 @@ final class XAIAdapterMediaTests: XCTestCase {
                         "context_window": 200000
                     ],
                     [
+                        "id": "grok-4.3",
+                        "input_modalities": ["text", "image"],
+                        "output_modalities": ["text"]
+                    ],
+                    [
+                        "id": "grok-4.20",
+                        "input_modalities": ["text", "image"],
+                        "output_modalities": ["text"]
+                    ],
+                    [
+                        "id": "grok-4.20-multi-agent",
+                        "input_modalities": ["text", "image"],
+                        "output_modalities": ["text"]
+                    ],
+                    [
+                        "id": "grok-4.20-multi-agent-0309",
+                        "input_modalities": ["text", "image"],
+                        "output_modalities": ["text"]
+                    ],
+                    [
+                        "id": "example-chat",
+                        "input_modalities": ["text", "image"],
+                        "output_modalities": ["text"],
+                        "max_prompt_length": 777000
+                    ],
+                    [
                         "id": "grok-imagine-image",
                         "input_modalities": ["text"],
                         "output_modalities": ["image"]
@@ -2058,7 +2283,45 @@ final class XAIAdapterMediaTests: XCTestCase {
         XCTAssertTrue(chat.capabilities.contains(.reasoning))
         XCTAssertTrue(chat.capabilities.contains(.promptCaching))
         XCTAssertTrue(chat.capabilities.contains(.nativePDF))
-        XCTAssertEqual(chat.contextWindow, 200000)
+        XCTAssertEqual(chat.contextWindow, 2_000_000)
+
+        let grok43 = try XCTUnwrap(byID["grok-4.3"])
+        XCTAssertEqual(grok43.name, "Grok 4.3")
+        XCTAssertEqual(grok43.contextWindow, 1_000_000)
+        XCTAssertTrue(grok43.capabilities.contains(.toolCalling))
+        XCTAssertTrue(grok43.capabilities.contains(.reasoning))
+        XCTAssertTrue(grok43.capabilities.contains(.nativePDF))
+        XCTAssertTrue(grok43.capabilities.contains(.codeExecution))
+        XCTAssertNil(grok43.reasoningConfig)
+
+        let grok420 = try XCTUnwrap(byID["grok-4.20"])
+        XCTAssertEqual(grok420.name, "Grok 4.20")
+        XCTAssertEqual(grok420.contextWindow, 2_000_000)
+        XCTAssertTrue(grok420.capabilities.contains(.toolCalling))
+        XCTAssertTrue(grok420.capabilities.contains(.vision))
+        XCTAssertTrue(grok420.capabilities.contains(.reasoning))
+        XCTAssertTrue(grok420.capabilities.contains(.nativePDF))
+        XCTAssertTrue(grok420.capabilities.contains(.codeExecution))
+        XCTAssertNil(grok420.reasoningConfig)
+
+        let multiAgent = try XCTUnwrap(byID["grok-4.20-multi-agent"])
+        XCTAssertEqual(multiAgent.name, "Grok 4.20 Multi-Agent")
+        XCTAssertEqual(multiAgent.contextWindow, 2_000_000)
+        XCTAssertFalse(multiAgent.capabilities.contains(.toolCalling))
+        XCTAssertTrue(multiAgent.capabilities.contains(.reasoning))
+        XCTAssertEqual(multiAgent.reasoningConfig?.defaultEffort, .low)
+
+        let multiAgentSnapshot = try XCTUnwrap(byID["grok-4.20-multi-agent-0309"])
+        XCTAssertEqual(multiAgentSnapshot.name, "Grok 4.20 Multi-Agent 0309")
+        XCTAssertEqual(multiAgentSnapshot.contextWindow, 2_000_000)
+        XCTAssertFalse(multiAgentSnapshot.capabilities.contains(.toolCalling))
+        XCTAssertTrue(multiAgentSnapshot.capabilities.contains(.reasoning))
+        XCTAssertEqual(multiAgentSnapshot.reasoningConfig?.defaultEffort, .low)
+
+        let unknownChat = try XCTUnwrap(byID["example-chat"])
+        XCTAssertEqual(unknownChat.contextWindow, 777000)
+        XCTAssertTrue(unknownChat.capabilities.contains(.vision))
+        XCTAssertFalse(unknownChat.capabilities.contains(.nativePDF))
 
         let image = try XCTUnwrap(byID["grok-imagine-image"])
         XCTAssertTrue(image.capabilities.contains(.imageGeneration))

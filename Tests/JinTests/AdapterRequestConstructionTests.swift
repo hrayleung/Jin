@@ -105,6 +105,19 @@ final class AdapterRequestConstructionTests: XCTestCase {
                             ],
                         ],
                         [
+                            "id": "x-ai/grok-4.20-multi-agent",
+                            "name": "xAI: Grok 4.20 Multi-Agent",
+                            "context_length": 2_000_000,
+                            "architecture": [
+                                "input_modalities": ["text", "image", "file"],
+                                "output_modalities": ["text"],
+                            ],
+                            "supported_parameters": ["reasoning", "include_reasoning", "max_tokens"],
+                            "pricing": [
+                                "input_cache_read": "0.0000002",
+                            ],
+                        ],
+                        [
                             "id": "vendor/unknown-vision-reasoner",
                             "name": "Unknown Vision Reasoner",
                             "context_length": 321_000,
@@ -150,6 +163,16 @@ final class AdapterRequestConstructionTests: XCTestCase {
         XCTAssertTrue(mimoOmni.capabilities.contains(.reasoning))
         XCTAssertTrue(mimoOmni.capabilities.contains(.promptCaching))
         XCTAssertEqual(mimoOmni.reasoningConfig?.type, .effort)
+
+        let multiAgent = try XCTUnwrap(byID["x-ai/grok-4.20-multi-agent"])
+        XCTAssertEqual(multiAgent.name, "xAI: Grok 4.20 Multi-Agent")
+        XCTAssertEqual(multiAgent.contextWindow, 2_000_000)
+        XCTAssertFalse(multiAgent.capabilities.contains(.toolCalling))
+        XCTAssertTrue(multiAgent.capabilities.contains(.vision))
+        XCTAssertTrue(multiAgent.capabilities.contains(.reasoning))
+        XCTAssertTrue(multiAgent.capabilities.contains(.promptCaching))
+        XCTAssertEqual(multiAgent.reasoningConfig?.type, .effort)
+        XCTAssertEqual(multiAgent.reasoningConfig?.defaultEffort, .low)
 
         let unknown = try XCTUnwrap(byID["vendor/unknown-vision-reasoner"])
         XCTAssertEqual(unknown.name, "Unknown Vision Reasoner")

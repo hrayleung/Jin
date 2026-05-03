@@ -17,6 +17,10 @@ actor XAIAdapter: LLMProviderAdapter {
     let capabilities: ModelCapability = [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .imageGeneration, .videoGeneration]
     private static let chatReasoningModelIDs: Set<String> = [
         "grok-4",
+        "grok-4.3",
+        "grok-4.20",
+        "grok-4.20-multi-agent",
+        "grok-4.20-multi-agent-0309",
         "grok-4-1",
         "grok-4-1-fast",
         "grok-4-1-fast-non-reasoning",
@@ -33,6 +37,28 @@ actor XAIAdapter: LLMProviderAdapter {
     ]
     private static let reasoningEffortModelIDs: Set<String> = [
         "grok-3-mini",
+    ]
+    private static let multiAgentReasoningModelIDs: Set<String> = [
+        "grok-4.20-multi-agent",
+        "grok-4.20-multi-agent-0309",
+    ]
+    private static let clientFunctionToolsModelIDs: Set<String> = [
+        "grok-4",
+        "grok-4.3",
+        "grok-4.20",
+        "grok-4-1",
+        "grok-4-1-fast",
+        "grok-4-1-fast-non-reasoning",
+        "grok-4-1-fast-reasoning",
+    ]
+    private static let maxOutputTokensModelIDs: Set<String> = [
+        "grok-4",
+        "grok-4.3",
+        "grok-4.20",
+        "grok-4-1",
+        "grok-4-1-fast",
+        "grok-4-1-fast-non-reasoning",
+        "grok-4-1-fast-reasoning",
     ]
 
     let networkManager: NetworkManager
@@ -99,6 +125,10 @@ actor XAIAdapter: LLMProviderAdapter {
 
         return response.data
             .map { model in
+                if ModelCatalog.entry(for: model.id, provider: .xai) != nil {
+                    return ModelCatalog.modelInfo(for: model.id, provider: .xai)
+                }
+
                 let caps = inferCapabilities(for: model)
                 return ModelInfo(
                     id: model.id,
@@ -272,18 +302,19 @@ actor XAIAdapter: LLMProviderAdapter {
         if let temperature = controls.temperature {
             body["temperature"] = temperature
         }
-        if let maxTokens = controls.maxTokens {
+        if let maxTokens = controls.maxTokens, supportsMaxOutputTokens(modelID: modelID) {
             body["max_output_tokens"] = maxTokens
         }
         if let topP = controls.topP {
             body["top_p"] = topP
         }
 
-        if supportsReasoningEffort(modelID: modelID),
-           let reasoning = controls.reasoning,
-           reasoning.enabled,
-           let effort = reasoning.effort {
-            body["reasoning_effort"] = mapReasoningEffort(effort)
+        if let reasoning = controls.reasoning, reasoning.enabled {
+            if supportsMultiAgentReasoning(modelID: modelID), let effort = reasoning.effort {
+                body["reasoning"] = ["effort": mapMultiAgentReasoningEffort(effort)]
+            } else if supportsReasoningEffort(modelID: modelID), let effort = reasoning.effort {
+                body["reasoning_effort"] = mapReasoningEffort(effort)
+            }
         }
 
         var toolObjects: [[String: Any]] = []
@@ -300,11 +331,15 @@ actor XAIAdapter: LLMProviderAdapter {
             }
         }
 
-        if controls.codeExecution?.enabled == true {
+        let codeExecutionEnabled = controls.codeExecution?.enabled == true
+
+        if codeExecutionEnabled {
             toolObjects.append(["type": "code_interpreter"])
         }
 
-        if !tools.isEmpty, let functionTools = translateTools(tools) as? [[String: Any]] {
+        if supportsClientFunctionTools(modelID: modelID),
+           !tools.isEmpty,
+           let functionTools = translateTools(tools) as? [[String: Any]] {
             toolObjects.append(contentsOf: functionTools)
         }
 
@@ -313,13 +348,13 @@ actor XAIAdapter: LLMProviderAdapter {
         }
 
         // Include code interpreter outputs (logs, images) in the response.
-        if controls.codeExecution?.enabled == true {
+        if codeExecutionEnabled {
             var includeFields = (body["include"] as? [String]) ?? []
             includeFields.append("code_interpreter_call.outputs")
             body["include"] = includeFields
         }
 
-        applyProviderSpecificOverrides(controls: controls, body: &body)
+        applyProviderSpecificOverrides(controls: controls, modelID: modelID, body: &body)
 
         var additionalHeaders: [String: String] = [:]
         if controls.contextCache?.mode != .off, let conversationID {
@@ -512,8 +547,29 @@ actor XAIAdapter: LLMProviderAdapter {
         }
     }
 
+    private func mapMultiAgentReasoningEffort(_ effort: ReasoningEffort) -> String {
+        switch effort {
+        case .high, .xhigh, .max:
+            return "high"
+        case .none, .minimal, .low, .medium:
+            return "low"
+        }
+    }
+
     private func supportsReasoningEffort(modelID: String) -> Bool {
         Self.reasoningEffortModelIDs.contains(modelID.lowercased())
+    }
+
+    private func supportsMultiAgentReasoning(modelID: String) -> Bool {
+        Self.multiAgentReasoningModelIDs.contains(modelID.lowercased())
+    }
+
+    private func supportsClientFunctionTools(modelID: String) -> Bool {
+        Self.clientFunctionToolsModelIDs.contains(modelID.lowercased())
+    }
+
+    private func supportsMaxOutputTokens(modelID: String) -> Bool {
+        Self.maxOutputTokensModelIDs.contains(modelID.lowercased())
     }
 
     private func supportsWebSearch(modelID: String) -> Bool {
@@ -524,8 +580,18 @@ actor XAIAdapter: LLMProviderAdapter {
         JinModelSupport.supportsNativePDF(providerType: .xai, modelID: modelID)
     }
 
-    func applyProviderSpecificOverrides(controls: GenerationControls, body: inout [String: Any]) {
+    func applyProviderSpecificOverrides(
+        controls: GenerationControls,
+        modelID: String? = nil,
+        body: inout [String: Any]
+    ) {
         for (key, value) in controls.providerSpecific {
+            if let modelID,
+               key == "max_output_tokens" || key == "max_tokens" {
+                if !supportsMaxOutputTokens(modelID: modelID) {
+                    continue
+                }
+            }
             body[key] = value.value
         }
     }

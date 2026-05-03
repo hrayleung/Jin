@@ -742,6 +742,26 @@ final class ModelSettingsResolverTests: XCTestCase {
             ModelCapabilityRegistry.normalizedReasoningEffort(.max, for: .deepinfra, modelID: "deepseek-ai/DeepSeek-V4-Pro"),
             .high
         )
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .xai, modelID: "grok-4.20-multi-agent"),
+            [.low, .medium, .high, .xhigh]
+        )
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .xai, modelID: "grok-4.20-multi-agent-0309"),
+            [.low, .medium, .high, .xhigh]
+        )
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .openrouter, modelID: "x-ai/grok-4.20-multi-agent"),
+            [.low, .medium, .high, .xhigh]
+        )
+        XCTAssertEqual(
+            ModelCapabilityRegistry.normalizedReasoningEffort(.minimal, for: .xai, modelID: "grok-4.20-multi-agent"),
+            .low
+        )
+        XCTAssertEqual(
+            ModelCapabilityRegistry.normalizedReasoningEffort(.max, for: .xai, modelID: "grok-4.20-multi-agent"),
+            .xhigh
+        )
     }
 
     func testOpenAIGPT53ChatLatestCatalogMetadataKeepsReasoningDisabled() {
@@ -1392,6 +1412,112 @@ final class ModelSettingsResolverTests: XCTestCase {
         )
     }
 
+    func testResolverInfersRecentXAICatalogMetadataForLegacyPersistedModels() {
+        let grok43Legacy = ModelInfo(
+            id: "grok-4.3",
+            name: "Grok 4.3",
+            capabilities: [.streaming, .toolCalling],
+            contextWindow: 8_192,
+            reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
+            isEnabled: true
+        )
+
+        let resolvedGrok43 = ModelSettingsResolver.resolve(model: grok43Legacy, providerType: .xai)
+        XCTAssertEqual(resolvedGrok43.contextWindow, 1_000_000)
+        XCTAssertTrue(resolvedGrok43.capabilities.contains(.toolCalling))
+        XCTAssertTrue(resolvedGrok43.capabilities.contains(.vision))
+        XCTAssertTrue(resolvedGrok43.capabilities.contains(.reasoning))
+        XCTAssertTrue(resolvedGrok43.capabilities.contains(.nativePDF))
+        XCTAssertTrue(resolvedGrok43.capabilities.contains(.codeExecution))
+        XCTAssertNil(resolvedGrok43.reasoningConfig)
+
+        let grok420Legacy = ModelInfo(
+            id: "grok-4.20",
+            name: "Grok 4.20",
+            capabilities: [.streaming],
+            contextWindow: 8_192,
+            reasoningConfig: nil,
+            isEnabled: true
+        )
+
+        let resolvedGrok420 = ModelSettingsResolver.resolve(model: grok420Legacy, providerType: .xai)
+        XCTAssertEqual(resolvedGrok420.contextWindow, 2_000_000)
+        XCTAssertTrue(resolvedGrok420.capabilities.contains(.toolCalling))
+        XCTAssertTrue(resolvedGrok420.capabilities.contains(.reasoning))
+        XCTAssertTrue(resolvedGrok420.capabilities.contains(.nativePDF))
+        XCTAssertNil(resolvedGrok420.reasoningConfig)
+
+        let multiAgentLegacy = ModelInfo(
+            id: "grok-4.20-multi-agent",
+            name: "Grok 4.20 Multi-Agent",
+            capabilities: [.streaming, .toolCalling],
+            contextWindow: 8_192,
+            reasoningConfig: nil,
+            isEnabled: true
+        )
+
+        let resolvedMultiAgent = ModelSettingsResolver.resolve(model: multiAgentLegacy, providerType: .xai)
+        XCTAssertEqual(resolvedMultiAgent.contextWindow, 2_000_000)
+        XCTAssertEqual(
+            resolvedMultiAgent.capabilities,
+            [.streaming, .vision, .reasoning, .promptCaching, .nativePDF, .codeExecution]
+        )
+        XCTAssertEqual(resolvedMultiAgent.reasoningConfig?.type, .effort)
+        XCTAssertEqual(resolvedMultiAgent.reasoningConfig?.defaultEffort, .low)
+
+        let multiAgentSnapshotLegacy = ModelInfo(
+            id: "grok-4.20-multi-agent-0309",
+            name: "grok-4.20-multi-agent-0309",
+            capabilities: [.streaming, .toolCalling],
+            contextWindow: 8_192,
+            reasoningConfig: nil,
+            isEnabled: true
+        )
+
+        let resolvedMultiAgentSnapshot = ModelSettingsResolver.resolve(model: multiAgentSnapshotLegacy, providerType: .xai)
+        XCTAssertEqual(resolvedMultiAgentSnapshot.contextWindow, 2_000_000)
+        XCTAssertEqual(
+            resolvedMultiAgentSnapshot.capabilities,
+            [.streaming, .vision, .reasoning, .promptCaching, .nativePDF, .codeExecution]
+        )
+        XCTAssertEqual(resolvedMultiAgentSnapshot.reasoningConfig?.type, .effort)
+        XCTAssertEqual(resolvedMultiAgentSnapshot.reasoningConfig?.defaultEffort, .low)
+    }
+
+    func testResolverInfersRecentOpenRouterXAICatalogMetadataForLegacyPersistedModels() {
+        let multiAgentLegacy = ModelInfo(
+            id: "x-ai/grok-4.20-multi-agent",
+            name: "x-ai/grok-4.20-multi-agent",
+            capabilities: [.streaming, .toolCalling],
+            contextWindow: 8_192,
+            reasoningConfig: nil,
+            isEnabled: true
+        )
+
+        let resolvedMultiAgent = ModelSettingsResolver.resolve(model: multiAgentLegacy, providerType: .openrouter)
+        XCTAssertEqual(resolvedMultiAgent.contextWindow, 2_000_000)
+        XCTAssertEqual(resolvedMultiAgent.capabilities, [.streaming, .vision, .reasoning, .promptCaching, .nativePDF])
+        XCTAssertEqual(resolvedMultiAgent.reasoningConfig?.type, .effort)
+        XCTAssertEqual(resolvedMultiAgent.reasoningConfig?.defaultEffort, .low)
+        XCTAssertTrue(resolvedMultiAgent.supportsWebSearch)
+
+        let grok43Legacy = ModelInfo(
+            id: "x-ai/grok-4.3",
+            name: "x-ai/grok-4.3",
+            capabilities: [.streaming],
+            contextWindow: 8_192,
+            reasoningConfig: nil,
+            isEnabled: true
+        )
+
+        let resolvedGrok43 = ModelSettingsResolver.resolve(model: grok43Legacy, providerType: .openrouter)
+        XCTAssertEqual(resolvedGrok43.contextWindow, 1_000_000)
+        XCTAssertTrue(resolvedGrok43.capabilities.contains(.toolCalling))
+        XCTAssertTrue(resolvedGrok43.capabilities.contains(.vision))
+        XCTAssertTrue(resolvedGrok43.capabilities.contains(.reasoning))
+        XCTAssertTrue(resolvedGrok43.supportsWebSearch)
+    }
+
     func testResolverInfersContextWindowForKnownLegacyOpenAIImage2Models() {
         let legacyAlias = ModelInfo(
             id: "gpt-image-2",
@@ -1509,6 +1635,50 @@ final class ModelSettingsResolverTests: XCTestCase {
     }
 
     func testResolverInfersRecentDeepInfraCatalogMetadataForLegacyPersistedModels() {
+        let glm51Legacy = ModelInfo(
+            id: "zai-org/GLM-5.1",
+            name: "GLM-5.1",
+            capabilities: [.streaming],
+            contextWindow: 8_192,
+            reasoningConfig: nil,
+            isEnabled: true
+        )
+        let resolvedGLM51 = ModelSettingsResolver.resolve(model: glm51Legacy, providerType: .deepinfra)
+        XCTAssertEqual(resolvedGLM51.contextWindow, 202_752)
+        XCTAssertEqual(resolvedGLM51.capabilities, [.streaming, .toolCalling, .reasoning])
+        XCTAssertNil(resolvedGLM51.reasoningConfig)
+
+        let qwen36Legacy = ModelInfo(
+            id: "Qwen/Qwen3.6-35B-A3B",
+            name: "Qwen3.6 35B A3B",
+            capabilities: [.streaming],
+            contextWindow: 8_192,
+            reasoningConfig: nil,
+            isEnabled: true
+        )
+        let resolvedQwen36 = ModelSettingsResolver.resolve(model: qwen36Legacy, providerType: .deepinfra)
+        XCTAssertEqual(resolvedQwen36.contextWindow, 262_144)
+        XCTAssertTrue(resolvedQwen36.capabilities.contains(.toolCalling))
+        XCTAssertTrue(resolvedQwen36.capabilities.contains(.vision))
+        XCTAssertTrue(resolvedQwen36.capabilities.contains(.reasoning))
+        XCTAssertNil(resolvedQwen36.reasoningConfig)
+
+        let nemotronOmniLegacy = ModelInfo(
+            id: "nvidia/Nemotron-3-Nano-Omni-30B-A3B-Reasoning",
+            name: "Nemotron 3 Nano Omni",
+            capabilities: [.streaming],
+            contextWindow: 8_192,
+            reasoningConfig: nil,
+            isEnabled: true
+        )
+        let resolvedNemotronOmni = ModelSettingsResolver.resolve(model: nemotronOmniLegacy, providerType: .deepinfra)
+        XCTAssertEqual(resolvedNemotronOmni.contextWindow, 262_144)
+        XCTAssertTrue(resolvedNemotronOmni.capabilities.contains(.audio))
+        XCTAssertTrue(resolvedNemotronOmni.capabilities.contains(.videoInput))
+        XCTAssertTrue(resolvedNemotronOmni.capabilities.contains(.vision))
+        XCTAssertTrue(resolvedNemotronOmni.capabilities.contains(.reasoning))
+        XCTAssertNil(resolvedNemotronOmni.reasoningConfig)
+
         let qwen397Legacy = ModelInfo(
             id: "Qwen/Qwen3.5-397B-A17B",
             name: "Qwen3.5 397B A17B",

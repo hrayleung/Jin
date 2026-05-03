@@ -211,4 +211,33 @@ final class ChatModelCapabilitySupportTests: XCTestCase {
         XCTAssertEqual(normalized.capabilities, [.streaming, .toolCalling])
         XCTAssertNil(normalized.reasoningConfig)
     }
+
+    func testNormalizedFireworksModelInfoAddsCatalogOnlyKimiK2ThinkingMetadataWithoutSupportBadge() {
+        let model = ModelInfo(
+            id: "accounts/fireworks/models/kimi-k2-thinking",
+            name: "accounts/fireworks/models/kimi-k2-thinking",
+            capabilities: [.streaming, .toolCalling],
+            contextWindow: 8_192,
+            reasoningConfig: nil,
+            isEnabled: true
+        )
+
+        let normalized = ChatModelCapabilitySupport.normalizedSelectedModelInfo(
+            model,
+            providerType: .fireworks
+        )
+
+        XCTAssertEqual(normalized.name, "Kimi K2 Thinking")
+        XCTAssertEqual(normalized.contextWindow, 262_100)
+        XCTAssertTrue(normalized.capabilities.contains(.toolCalling))
+        XCTAssertTrue(normalized.capabilities.contains(.reasoning))
+        XCTAssertFalse(normalized.capabilities.contains(.vision))
+        XCTAssertNil(normalized.reasoningConfig)
+        XCTAssertFalse(
+            JinModelSupport.isFullySupported(
+                providerType: .fireworks,
+                modelID: "accounts/fireworks/models/kimi-k2-thinking"
+            )
+        )
+    }
 }

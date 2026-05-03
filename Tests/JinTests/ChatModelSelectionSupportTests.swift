@@ -106,4 +106,50 @@ final class ChatModelSelectionSupportTests: XCTestCase {
             "accounts/fireworks/models/deepseek-v3p2"
         )
     }
+
+    func testPreferredModelIDPrefersLatestDeepInfraExactModels() {
+        let models = [
+            ModelInfo(
+                id: "Qwen/Qwen3.6-35B-A3B",
+                name: "Qwen3.6 35B A3B",
+                capabilities: [.streaming],
+                contextWindow: 262_144,
+                reasoningConfig: nil,
+                isEnabled: true
+            ),
+            ModelInfo(
+                id: "zai-org/GLM-5.1",
+                name: "GLM-5.1",
+                capabilities: [.streaming],
+                contextWindow: 202_752,
+                reasoningConfig: nil,
+                isEnabled: true
+            ),
+            ModelInfo(
+                id: "zai-org/GLM-5",
+                name: "GLM-5",
+                capabilities: [.streaming],
+                contextWindow: 202_752,
+                reasoningConfig: nil,
+                isEnabled: true
+            )
+        ]
+
+        let provider = ProviderConfigEntity(
+            id: "deepinfra",
+            name: "DeepInfra",
+            typeRaw: ProviderType.deepinfra.rawValue,
+            modelsData: try! JSONEncoder().encode(models)
+        )
+
+        XCTAssertEqual(
+            ChatModelSelectionSupport.preferredModelID(
+                in: models,
+                providerID: "deepinfra",
+                providers: [provider],
+                geminiPreferredModelOrder: []
+            ),
+            "zai-org/GLM-5.1"
+        )
+    }
 }
