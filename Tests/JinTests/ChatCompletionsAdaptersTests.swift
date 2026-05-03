@@ -4234,6 +4234,69 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         for try await _ in stream {}
     }
 
+    func testOpenRouterAdapterOmitsToolsForUncataloguedXAIGrok420MultiAgentSnapshot() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+        let requestedModelID = "x-ai/grok-4.20-multi-agent-0309"
+
+        let providerConfig = ProviderConfig(
+            id: "or",
+            name: "OpenRouter",
+            type: .openrouter,
+            apiKey: "ignored",
+            baseURL: "https://openrouter.ai/api/v1",
+            models: []
+        )
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://openrouter.ai/api/v1/chat/completions")
+
+            let body = try XCTUnwrap(requestBodyData(request))
+            let root = try XCTUnwrap(try JSONSerialization.jsonObject(with: body) as? [String: Any])
+            XCTAssertEqual(root["model"] as? String, requestedModelID)
+            XCTAssertNil(root["tools"])
+
+            let response: [String: Any] = [
+                "id": "cmpl_or_xai_unknown_snapshot",
+                "choices": [
+                    [
+                        "message": [
+                            "role": "assistant",
+                            "content": "OK"
+                        ],
+                        "finish_reason": "stop"
+                    ]
+                ]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = OpenRouterAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let tool = ToolDefinition(
+            id: "tool_1",
+            name: "lookup_status",
+            description: "Lookup a project status.",
+            parameters: ParameterSchema(
+                properties: [
+                    "id": PropertySchema(type: "string", description: "Project ID")
+                ],
+                required: ["id"]
+            ),
+            source: .builtin
+        )
+
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hello")])],
+            modelID: requestedModelID,
+            controls: GenerationControls(),
+            tools: [tool],
+            streaming: false
+        )
+
+        for try await _ in stream {}
+    }
+
     func testOpenRouterAdapterOmitsReasoningWhenModelOverrideDisablesReasoning() async throws {
         let (configuration, protocolType) = makeMockedSessionConfiguration()
         let networkManager = NetworkManager(configuration: configuration)

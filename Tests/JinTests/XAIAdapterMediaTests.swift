@@ -343,6 +343,7 @@ final class XAIAdapterMediaTests: XCTestCase {
             "grok-4.3",
             "grok-4.20",
             "grok-4.20-multi-agent",
+            "grok-4.20-multi-agent-0309",
             "grok-4-1",
             "grok-4-1-fast",
             "grok-4-1-fast-non-reasoning",
@@ -510,6 +511,73 @@ final class XAIAdapterMediaTests: XCTestCase {
                 reasoning: ReasoningControls(enabled: true, effort: .xhigh),
                 webSearch: WebSearchControls(enabled: true, sources: [.web, .x]),
                 codeExecution: CodeExecutionControls(enabled: true),
+                providerSpecific: [
+                    "max_output_tokens": AnyCodable(4096),
+                    "max_tokens": AnyCodable(4096)
+                ]
+            ),
+            tools: [tool],
+            streaming: false
+        )
+
+        for try await _ in stream {}
+    }
+
+    func testXAIUnknownNearMatchOmitsClientFunctionToolsAndMaxTokens() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+        let requestedModelID = "grok-4.20-multi-agent-0310"
+
+        let providerConfig = ProviderConfig(
+            id: "x",
+            name: "xAI",
+            type: .xai,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://example.com/responses")
+            XCTAssertEqual(request.httpMethod, "POST")
+
+            let body = try XCTUnwrap(requestBodyData(request))
+            let root = try XCTUnwrap(try JSONSerialization.jsonObject(with: body) as? [String: Any])
+
+            XCTAssertEqual(root["model"] as? String, requestedModelID)
+            XCTAssertNil(root["max_output_tokens"])
+            XCTAssertNil(root["max_tokens"])
+            XCTAssertNil(root["tools"])
+
+            let response: [String: Any] = [
+                "id": "resp_xai_unknown_near_match",
+                "output": [[
+                    "type": "message",
+                    "content": [["type": "output_text", "text": "OK"]]
+                ]]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = XAIAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let tool = ToolDefinition(
+            id: "tool_1",
+            name: "lookup_status",
+            description: "Lookup a project status.",
+            parameters: ParameterSchema(
+                properties: [
+                    "id": PropertySchema(type: "string", description: "Project ID")
+                ],
+                required: ["id"]
+            ),
+            source: .builtin
+        )
+
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hello")])],
+            modelID: requestedModelID,
+            controls: GenerationControls(
+                maxTokens: 2048,
                 providerSpecific: [
                     "max_output_tokens": AnyCodable(4096),
                     "max_tokens": AnyCodable(4096)
@@ -2157,6 +2225,11 @@ final class XAIAdapterMediaTests: XCTestCase {
                         "output_modalities": ["text"]
                     ],
                     [
+                        "id": "grok-4.20",
+                        "input_modalities": ["text", "image"],
+                        "output_modalities": ["text"]
+                    ],
+                    [
                         "id": "grok-4.20-multi-agent",
                         "input_modalities": ["text", "image"],
                         "output_modalities": ["text"]
@@ -2220,6 +2293,16 @@ final class XAIAdapterMediaTests: XCTestCase {
         XCTAssertTrue(grok43.capabilities.contains(.nativePDF))
         XCTAssertTrue(grok43.capabilities.contains(.codeExecution))
         XCTAssertNil(grok43.reasoningConfig)
+
+        let grok420 = try XCTUnwrap(byID["grok-4.20"])
+        XCTAssertEqual(grok420.name, "Grok 4.20")
+        XCTAssertEqual(grok420.contextWindow, 2_000_000)
+        XCTAssertTrue(grok420.capabilities.contains(.toolCalling))
+        XCTAssertTrue(grok420.capabilities.contains(.vision))
+        XCTAssertTrue(grok420.capabilities.contains(.reasoning))
+        XCTAssertTrue(grok420.capabilities.contains(.nativePDF))
+        XCTAssertTrue(grok420.capabilities.contains(.codeExecution))
+        XCTAssertNil(grok420.reasoningConfig)
 
         let multiAgent = try XCTUnwrap(byID["grok-4.20-multi-agent"])
         XCTAssertEqual(multiAgent.name, "Grok 4.20 Multi-Agent")

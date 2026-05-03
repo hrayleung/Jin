@@ -355,7 +355,7 @@ actor OpenRouterAdapter: LLMProviderAdapter {
 
     private func supportsClientFunctionTools(modelID: String) -> Bool {
         guard let model = findConfiguredModel(in: providerConfig, for: modelID) else {
-            return ModelCatalog.entry(for: modelID, provider: .openrouter)?.capabilities.contains(.toolCalling) ?? true
+            return ModelCatalog.entry(for: modelID, provider: .openrouter)?.capabilities.contains(.toolCalling) == true
         }
 
         let resolved = ModelSettingsResolver.resolve(model: model, providerType: providerConfig.type)

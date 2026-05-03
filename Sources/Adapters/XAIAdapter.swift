@@ -42,6 +42,24 @@ actor XAIAdapter: LLMProviderAdapter {
         "grok-4.20-multi-agent",
         "grok-4.20-multi-agent-0309",
     ]
+    private static let clientFunctionToolsModelIDs: Set<String> = [
+        "grok-4",
+        "grok-4.3",
+        "grok-4.20",
+        "grok-4-1",
+        "grok-4-1-fast",
+        "grok-4-1-fast-non-reasoning",
+        "grok-4-1-fast-reasoning",
+    ]
+    private static let maxOutputTokensModelIDs: Set<String> = [
+        "grok-4",
+        "grok-4.3",
+        "grok-4.20",
+        "grok-4-1",
+        "grok-4-1-fast",
+        "grok-4-1-fast-non-reasoning",
+        "grok-4-1-fast-reasoning",
+    ]
 
     let networkManager: NetworkManager
     let r2Uploader: CloudflareR2Uploader
@@ -547,11 +565,11 @@ actor XAIAdapter: LLMProviderAdapter {
     }
 
     private func supportsClientFunctionTools(modelID: String) -> Bool {
-        !supportsMultiAgentReasoning(modelID: modelID)
+        Self.clientFunctionToolsModelIDs.contains(modelID.lowercased())
     }
 
     private func supportsMaxOutputTokens(modelID: String) -> Bool {
-        !supportsMultiAgentReasoning(modelID: modelID)
+        Self.maxOutputTokensModelIDs.contains(modelID.lowercased())
     }
 
     private func supportsWebSearch(modelID: String) -> Bool {
@@ -569,9 +587,10 @@ actor XAIAdapter: LLMProviderAdapter {
     ) {
         for (key, value) in controls.providerSpecific {
             if let modelID,
-               supportsMultiAgentReasoning(modelID: modelID),
                key == "max_output_tokens" || key == "max_tokens" {
-                continue
+                if !supportsMaxOutputTokens(modelID: modelID) {
+                    continue
+                }
             }
             body[key] = value.value
         }
