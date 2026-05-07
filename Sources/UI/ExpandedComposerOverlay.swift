@@ -92,12 +92,7 @@ struct ExpandedComposerOverlay<ControlsRow: View>: View {
                                 onRemoveQuote(quote)
                             }
                             .equatable()
-                            .transition(
-                                .asymmetric(
-                                    insertion: .opacity.combined(with: .scale(scale: 0.96, anchor: .top)),
-                                    removal: .opacity.combined(with: .move(edge: .top))
-                                )
-                            )
+                            .transition(ComposerQuoteCardView.transition(reduceMotion: reduceMotion))
                         }
                     }
                 }

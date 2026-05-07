@@ -244,6 +244,16 @@ struct ComposerQuoteCardView: View, Equatable {
     static func == (lhs: Self, rhs: Self) -> Bool {
         lhs.quote == rhs.quote
     }
+
+    static func transition(reduceMotion: Bool) -> AnyTransition {
+        if reduceMotion {
+            return .opacity
+        }
+        return .asymmetric(
+            insertion: .opacity.combined(with: .scale(scale: 0.96, anchor: .top)),
+            removal: .opacity.combined(with: .move(edge: .top))
+        )
+    }
 }
 
 private struct QuoteDismissButton: View {
