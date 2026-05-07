@@ -118,15 +118,13 @@ actor ProviderManager {
     }
 
     private func resolveRequiredAPIKey(for config: ProviderConfig) async throws -> String {
-        let direct = (config.apiKey ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-        if !direct.isEmpty { return direct }
+        if let direct = config.apiKey?.trimmedNonEmpty { return direct }
 
         throw ProviderError.missingAPIKey(provider: config.name)
     }
 
     private func resolveCodexCredentials(for config: ProviderConfig) async throws -> ResolvedCredentials {
-        let direct = (config.apiKey ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-        if !direct.isEmpty {
+        if let direct = config.apiKey?.trimmedNonEmpty {
             return .apiKey(direct)
         }
 
@@ -141,8 +139,7 @@ actor ProviderManager {
     }
 
     private func resolveServiceAccountCredentials(for config: ProviderConfig) async throws -> ServiceAccountCredentials {
-        let direct = (config.serviceAccountJSON ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !direct.isEmpty else {
+        guard let direct = config.serviceAccountJSON?.trimmedNonEmpty else {
             throw ProviderError.missingServiceAccount(provider: config.name)
         }
 

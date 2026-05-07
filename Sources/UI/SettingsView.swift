@@ -73,42 +73,19 @@ struct SettingsView: View {
     // MARK: - Computed Filters
 
     var trimmedSearchText: String {
-        searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        SettingsSearchSupport.trimmedSearchText(searchText)
     }
 
     var filteredProviders: [ProviderConfigEntity] {
-        let needle = trimmedSearchText
-        guard !needle.isEmpty else { return providers }
-
-        return providers.filter { provider in
-            let typeName = ProviderType(rawValue: provider.typeRaw)?.displayName ?? provider.typeRaw
-            return provider.name.localizedCaseInsensitiveContains(needle)
-                || provider.typeRaw.localizedCaseInsensitiveContains(needle)
-                || typeName.localizedCaseInsensitiveContains(needle)
-                || (provider.baseURL ?? "").localizedCaseInsensitiveContains(needle)
-        }
+        SettingsSearchSupport.filteredProviders(providers, searchText: searchText)
     }
 
     var filteredMCPServers: [MCPServerConfigEntity] {
-        let needle = trimmedSearchText
-        guard !needle.isEmpty else { return mcpServers }
-
-        return mcpServers.filter { server in
-            return server.name.localizedCaseInsensitiveContains(needle)
-                || server.id.localizedCaseInsensitiveContains(needle)
-                || server.transportSummary.localizedCaseInsensitiveContains(needle)
-                || server.transportKind.rawValue.localizedCaseInsensitiveContains(needle)
-        }
+        SettingsSearchSupport.filteredMCPServers(mcpServers, searchText: searchText)
     }
 
     var filteredPlugins: [PluginDescriptor] {
-        let needle = trimmedSearchText
-        guard !needle.isEmpty else { return Self.availablePlugins }
-
-        return Self.availablePlugins.filter { plugin in
-            plugin.name.localizedCaseInsensitiveContains(needle)
-                || plugin.summary.localizedCaseInsensitiveContains(needle)
-        }
+        SettingsSearchSupport.filteredPlugins(Self.availablePlugins, searchText: searchText)
     }
 
     // MARK: - Animation Helpers
@@ -212,7 +189,7 @@ struct SettingsView: View {
         ) { server in
             Button("Delete", role: .destructive) { deleteServer(server) }
         } message: { server in
-            Text("This will permanently delete \u{201C}\(server.name)\u{201D}.")
+            Text(SettingsDeletionSupport.serverDeletionMessage(serverName: server.name))
         }
     }
 
@@ -291,24 +268,26 @@ struct SettingsView: View {
     @ViewBuilder
     private var providerDetailView: some View {
         if let id = selectedProviderID, let provider = providers.first(where: { $0.id == id }) {
-            ProviderConfigFormView(provider: provider)
-                .id(id)
-                .transition(settingsColumnTransition)
+            identifiedDetail(id) {
+                ProviderConfigFormView(provider: provider)
+            }
         } else {
-            ContentUnavailableView("Select a Provider", systemImage: "network")
-                .transition(settingsColumnTransition)
+            transitionedDetail {
+                ContentUnavailableView("Select a Provider", systemImage: "network")
+            }
         }
     }
 
     @ViewBuilder
     private var mcpServerDetailView: some View {
         if let id = selectedServerID, let server = mcpServers.first(where: { $0.id == id }) {
-            MCPServerConfigFormView(server: server)
-                .id(id)
-                .transition(settingsColumnTransition)
+            identifiedDetail(id) {
+                MCPServerConfigFormView(server: server)
+            }
         } else {
-            ContentUnavailableView("Select an MCP server", systemImage: "server.rack")
-                .transition(settingsColumnTransition)
+            transitionedDetail {
+                ContentUnavailableView("Select an MCP server", systemImage: "server.rack")
+            }
         }
     }
 
@@ -316,30 +295,31 @@ struct SettingsView: View {
     private var pluginDetailView: some View {
         switch selectedPluginID {
         case "mistral_ocr":
-            MistralOCRPluginSettingsView().id("mistral_ocr").transition(settingsColumnTransition)
+            identifiedDetail("mistral_ocr") { MistralOCRPluginSettingsView() }
         case "mineru_ocr":
-            MinerUOCRPluginSettingsView().id("mineru_ocr").transition(settingsColumnTransition)
+            identifiedDetail("mineru_ocr") { MinerUOCRPluginSettingsView() }
         case "web_search_builtin":
-            WebSearchPluginSettingsView().id("web_search_builtin").transition(settingsColumnTransition)
+            identifiedDetail("web_search_builtin") { WebSearchPluginSettingsView() }
         case "deepseek_ocr":
-            DeepSeekOCRPluginSettingsView().id("deepseek_ocr").transition(settingsColumnTransition)
+            identifiedDetail("deepseek_ocr") { DeepSeekOCRPluginSettingsView() }
         case "openrouter_ocr":
-            OpenRouterOCRPluginSettingsView().id("openrouter_ocr").transition(settingsColumnTransition)
+            identifiedDetail("openrouter_ocr") { OpenRouterOCRPluginSettingsView() }
         case "firecrawl_ocr":
-            FirecrawlOCRPluginSettingsView().id("firecrawl_ocr").transition(settingsColumnTransition)
+            identifiedDetail("firecrawl_ocr") { FirecrawlOCRPluginSettingsView() }
         case "text_to_speech":
-            TextToSpeechPluginSettingsView().id("text_to_speech").transition(settingsColumnTransition)
+            identifiedDetail("text_to_speech") { TextToSpeechPluginSettingsView() }
         case "speech_to_text":
-            SpeechToTextPluginSettingsView().id("speech_to_text").transition(settingsColumnTransition)
+            identifiedDetail("speech_to_text") { SpeechToTextPluginSettingsView() }
         case "chat_naming":
-            ChatNamingPluginSettingsView().id("chat_naming").transition(settingsColumnTransition)
+            identifiedDetail("chat_naming") { ChatNamingPluginSettingsView() }
         case "cloudflare_r2_upload":
-            CloudflareR2UploadPluginSettingsView().id("cloudflare_r2_upload").transition(settingsColumnTransition)
+            identifiedDetail("cloudflare_r2_upload") { CloudflareR2UploadPluginSettingsView() }
         case "agent_mode":
-            AgentModeSettingsView().id("agent_mode").transition(settingsColumnTransition)
+            identifiedDetail("agent_mode") { AgentModeSettingsView() }
         default:
-            ContentUnavailableView("Select a Plugin", systemImage: "puzzlepiece.extension")
-                .transition(settingsColumnTransition)
+            transitionedDetail {
+                ContentUnavailableView("Select a Plugin", systemImage: "puzzlepiece.extension")
+            }
         }
     }
 
@@ -347,20 +327,39 @@ struct SettingsView: View {
     private var generalDetailView: some View {
         switch selectedGeneralCategory {
         case .appearance:
-            AppearanceSettingsView().id("appearance").transition(settingsColumnTransition)
+            identifiedDetail("appearance") { AppearanceSettingsView() }
         case .chat:
-            ChatSettingsView().id("chat").transition(settingsColumnTransition)
+            identifiedDetail("chat") { ChatSettingsView() }
         case .shortcuts:
-            KeyboardShortcutsSettingsView().id("shortcuts").transition(settingsColumnTransition)
+            identifiedDetail("shortcuts") { KeyboardShortcutsSettingsView() }
         case .defaults:
-            DefaultsSettingsView().id("defaults").transition(settingsColumnTransition)
+            identifiedDetail("defaults") { DefaultsSettingsView() }
         case .updates:
-            UpdateSettingsView().id("updates").transition(settingsColumnTransition)
+            identifiedDetail("updates") { UpdateSettingsView() }
         case .data:
-            DataSettingsView().id("data").transition(settingsColumnTransition)
+            identifiedDetail("data") { DataSettingsView() }
         case nil:
-            ContentUnavailableView("Select a Category", systemImage: "gearshape")
-                .transition(settingsColumnTransition)
+            transitionedDetail {
+                ContentUnavailableView("Select a Category", systemImage: "gearshape")
+            }
         }
+    }
+
+    @ViewBuilder
+    private func identifiedDetail<ID: Hashable, Content: View>(
+        _ id: ID,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        content()
+            .id(id)
+            .transition(settingsColumnTransition)
+    }
+
+    @ViewBuilder
+    private func transitionedDetail<Content: View>(
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        content()
+            .transition(settingsColumnTransition)
     }
 }

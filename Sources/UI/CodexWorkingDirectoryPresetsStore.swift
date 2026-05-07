@@ -29,7 +29,7 @@ struct CodexWorkingDirectoryPreset: Identifiable, Codable, Equatable, Sendable {
 enum CodexWorkingDirectoryPresetsStore {
     static func load(defaults: UserDefaults = .standard) -> [CodexWorkingDirectoryPreset] {
         guard let raw = defaults.string(forKey: AppPreferenceKeys.codexWorkingDirectoryPresetsJSON),
-              !raw.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+              raw.trimmedNonEmpty != nil,
               let data = raw.data(using: .utf8),
               let decoded = try? JSONDecoder().decode([CodexWorkingDirectoryPreset].self, from: data) else {
             return []
@@ -60,7 +60,7 @@ enum CodexWorkingDirectoryPresetsStore {
             guard !seenPaths.contains(dedupeKey) else { continue }
             seenPaths.append(dedupeKey)
 
-            let trimmedName = preset.name.trimmingCharacters(in: .whitespacesAndNewlines)
+            let trimmedName = preset.name.trimmed
             let fallbackName = URL(fileURLWithPath: normalizedPath, isDirectory: true).lastPathComponent
             let name = trimmedName.isEmpty ? fallbackName : trimmedName
             guard !name.isEmpty else { continue }
@@ -81,8 +81,7 @@ enum CodexWorkingDirectoryPresetsStore {
         from raw: String,
         requireExistingDirectory: Bool = true
     ) -> String? {
-        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return nil }
+        guard let trimmed = raw.trimmedNonEmpty else { return nil }
 
         let expanded = (trimmed as NSString).expandingTildeInPath
         guard expanded.hasPrefix("/") else { return nil }

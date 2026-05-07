@@ -116,7 +116,7 @@ enum ChatStreamingSessionResolver {
         sanitizeProviderSpecific(providerType, &controlsToUse)
         injectCodexThreadPersistence(&controlsToUse)
         injectClaudeManagedAgentSessionPersistence(&controlsToUse)
-        controlsToUse.agentMode = ChatView.resolvedAgentModeControls(active: isAgentModeActive)
+        controlsToUse.agentMode = AgentModeControlsResolver.controls(active: isAgentModeActive)
         return controlsToUse
     }
 

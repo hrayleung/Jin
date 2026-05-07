@@ -59,45 +59,19 @@ extension ChatView {
     }
 
     var pdfProcessingBadgeText: String? {
-        switch resolvedPDFProcessingMode {
-        case .native:
-            return nil
-        case .mistralOCR:
-            return "OCR"
-        case .mineruOCR:
-            return "MU"
-        case .deepSeekOCR:
-            return "DS"
-        case .openRouterOCR:
-            return "OR"
-        case .firecrawlOCR:
-            return "FC"
-        case .macOSExtract:
-            return "mac"
-        }
+        ChatModelCapabilitySupport.pdfProcessingBadgeText(mode: resolvedPDFProcessingMode)
     }
 
     var pdfProcessingHelpText: String {
-        switch resolvedPDFProcessingMode {
-        case .native:
-            return "PDF handling: Native"
-        case .mistralOCR:
-            return mistralOCRConfigured ? "PDF handling: Mistral OCR" : "PDF handling: Mistral OCR (API key required)"
-        case .mineruOCR:
-            return mineruOCRConfigured ? "PDF handling: MinerU OCR" : "PDF handling: MinerU OCR (API token required)"
-        case .deepSeekOCR:
-            return deepSeekOCRConfigured ? "PDF handling: DeepSeek OCR (DeepInfra)" : "PDF handling: DeepSeek OCR (API key required)"
-        case .openRouterOCR:
-            return openRouterOCRConfigured ? "PDF handling: OpenRouter OCR" : "PDF handling: OpenRouter OCR (API key required)"
-        case .firecrawlOCR:
-            let mode = resolvedFirecrawlPDFParserMode.displayName
-            if firecrawlOCRConfigured {
-                return "PDF handling: Firecrawl OCR (\(mode))"
-            }
-            return "PDF handling: Firecrawl OCR (\(mode), Firecrawl API key + Cloudflare R2 required)"
-        case .macOSExtract:
-            return "PDF handling: macOS Extract"
-        }
+        ChatModelCapabilitySupport.pdfProcessingHelpText(
+            mode: resolvedPDFProcessingMode,
+            firecrawlParserMode: resolvedFirecrawlPDFParserMode,
+            mistralOCRConfigured: mistralOCRConfigured,
+            mineruOCRConfigured: mineruOCRConfigured,
+            deepSeekOCRConfigured: deepSeekOCRConfigured,
+            openRouterOCRConfigured: openRouterOCRConfigured,
+            firecrawlOCRConfigured: firecrawlOCRConfigured
+        )
     }
 
     // MARK: - Reasoning
@@ -139,29 +113,75 @@ extension ChatView {
     // MARK: - Web Search
 
     var isWebSearchEnabled: Bool {
-        guard supportsWebSearchControl else { return false }
-        switch providerType {
-        case .perplexity:
-            return controls.webSearch?.enabled ?? true
-        case .openai, .openaiWebSocket, .codexAppServer, .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway,
-             .openrouter, .anthropic, .claudeManagedAgents, .groq, .cohere, .mistral, .deepinfra, .together, .xai,
-             .deepseek, .zhipuCodingPlan, .minimax, .minimaxCodingPlan, .mimoTokenPlanAnthropic, .mimoTokenPlanOpenAI,
-             .fireworks, .cerebras, .sambanova, .gemini, .vertexai, .morphllm, .opencodeGo, .none:
-            return controls.webSearch?.enabled == true
-        }
+        ChatAuxiliaryControlSupport.isWebSearchEnabled(
+            supportsWebSearchControl: supportsWebSearchControl,
+            providerType: providerType,
+            controls: controls
+        )
     }
 
     var supportsNativeWebSearchControl: Bool {
-        guard !ManagedAgentUIVisibilitySupport.hidesInternalUI(providerType: providerType) else { return false }
-        guard providerType != .codexAppServer else { return false }
+        ChatAuxiliaryControlSupport.supportsNativeWebSearchControl(
+            hidesManagedAgentInternalUI: ManagedAgentUIVisibilitySupport.hidesInternalUI(providerType: providerType),
+            providerType: providerType,
+            supportsMediaGenerationControl: supportsMediaGenerationControl,
+            supportsImageGenerationControl: supportsImageGenerationControl,
+            supportsImageGenerationWebSearch: supportsImageGenerationWebSearch,
+            modelSupportsWebSearch: resolvedModelSupportsWebSearch
+        )
+    }
 
-        if supportsMediaGenerationControl {
-            if supportsImageGenerationControl {
-                return supportsImageGenerationWebSearch
-            }
-            return false
-        }
+    var modelSupportsBuiltinSearchPluginControl: Bool {
+        ChatAuxiliaryControlSupport.modelSupportsBuiltinSearchPluginControl(
+            hidesManagedAgentInternalUI: ManagedAgentUIVisibilitySupport.hidesInternalUI(providerType: providerType),
+            providerType: providerType,
+            supportsMediaGenerationControl: supportsMediaGenerationControl,
+            modelSupportsToolCalling: resolvedModelSettings?.capabilities.contains(.toolCalling) == true
+        )
+    }
 
+    var supportsBuiltinSearchPluginControl: Bool {
+        ChatAuxiliaryControlSupport.supportsBuiltinSearchPluginControl(
+            modelSupportsBuiltinSearchPluginControl: modelSupportsBuiltinSearchPluginControl,
+            webSearchPluginEnabled: webSearchPluginEnabled,
+            webSearchPluginConfigured: webSearchPluginConfigured
+        )
+    }
+
+    var supportsSearchEngineModeSwitch: Bool {
+        ChatAuxiliaryControlSupport.supportsSearchEngineModeSwitch(
+            supportsNativeWebSearchControl: supportsNativeWebSearchControl,
+            supportsBuiltinSearchPluginControl: supportsBuiltinSearchPluginControl
+        )
+    }
+
+    var prefersJinSearchEngine: Bool {
+        controls.searchPlugin?.preferJinSearch == true
+    }
+
+    var usesBuiltinSearchPlugin: Bool {
+        ChatAuxiliaryControlSupport.usesBuiltinSearchPlugin(
+            supportsNativeWebSearchControl: supportsNativeWebSearchControl,
+            supportsBuiltinSearchPluginControl: supportsBuiltinSearchPluginControl,
+            prefersJinSearchEngine: prefersJinSearchEngine
+        )
+    }
+
+    var modelSupportsWebSearchControl: Bool {
+        ChatAuxiliaryControlSupport.modelSupportsWebSearchControl(
+            supportsNativeWebSearchControl: supportsNativeWebSearchControl,
+            modelSupportsBuiltinSearchPluginControl: modelSupportsBuiltinSearchPluginControl
+        )
+    }
+
+    var supportsWebSearchControl: Bool {
+        ChatAuxiliaryControlSupport.supportsWebSearchControl(
+            supportsNativeWebSearchControl: supportsNativeWebSearchControl,
+            supportsBuiltinSearchPluginControl: supportsBuiltinSearchPluginControl
+        )
+    }
+
+    var resolvedModelSupportsWebSearch: Bool {
         if let resolvedModelSettings {
             return resolvedModelSettings.supportsWebSearch
         }
@@ -170,44 +190,6 @@ extension ChatView {
             for: providerType,
             modelID: conversationEntity.modelID
         )
-    }
-
-    var modelSupportsBuiltinSearchPluginControl: Bool {
-        guard !ManagedAgentUIVisibilitySupport.hidesInternalUI(providerType: providerType) else { return false }
-        guard providerType != .codexAppServer else { return false }
-        guard !supportsMediaGenerationControl else { return false }
-        guard resolvedModelSettings?.capabilities.contains(.toolCalling) == true else { return false }
-        return true
-    }
-
-    var supportsBuiltinSearchPluginControl: Bool {
-        guard modelSupportsBuiltinSearchPluginControl else { return false }
-        guard webSearchPluginEnabled, webSearchPluginConfigured else { return false }
-        return true
-    }
-
-    var supportsSearchEngineModeSwitch: Bool {
-        supportsNativeWebSearchControl && supportsBuiltinSearchPluginControl
-    }
-
-    var prefersJinSearchEngine: Bool {
-        controls.searchPlugin?.preferJinSearch == true
-    }
-
-    var usesBuiltinSearchPlugin: Bool {
-        guard supportsBuiltinSearchPluginControl else { return false }
-        if supportsNativeWebSearchControl {
-            return prefersJinSearchEngine
-        }
-        return true
-    }
-
-    var modelSupportsWebSearchControl: Bool {
-        supportsNativeWebSearchControl || modelSupportsBuiltinSearchPluginControl
-    }
-
-    var supportsWebSearchControl: Bool {
-        supportsNativeWebSearchControl || supportsBuiltinSearchPluginControl
     }
 
     var effectiveSearchPluginProvider: SearchPluginProvider {
@@ -229,74 +211,48 @@ extension ChatView {
     }
 
     var hasCodeExecutionConfiguration: Bool {
-        providerType == .openai || providerType == .openaiWebSocket || providerType == .anthropic
+        CodeExecutionSheetSupport.supportsConfiguration(for: providerType)
     }
 
     var codeExecutionEnabledBinding: Binding<Bool> {
         Binding(
             get: { controls.codeExecution?.enabled ?? false },
             set: { enabled in
-                var updated = controls.codeExecution ?? CodeExecutionControls()
-                updated.enabled = enabled
-                controls.codeExecution = updated
+                controls = ChatAuxiliaryControlSupport.setCodeExecutionEnabled(
+                    enabled,
+                    controls: controls
+                )
                 persistControlsToConversation()
             }
         )
     }
 
     var isCodeExecutionDraftValid: Bool {
-        guard (providerType == .openai || providerType == .openaiWebSocket),
-              codeExecutionOpenAIUseExistingContainer else {
-            return true
-        }
-        return codeExecutionDraft.openAI?.normalizedExistingContainerID != nil
+        CodeExecutionSheetSupport.isDraftValid(
+            providerType: providerType,
+            openAIUseExistingContainer: codeExecutionOpenAIUseExistingContainer,
+            openAI: codeExecutionDraft.openAI
+        )
     }
 
     var parsedCodeExecutionOpenAIFileIDsDraft: [String] {
-        codeExecutionOpenAIFileIDsDraft
-            .split(whereSeparator: { $0 == "," || $0.isNewline })
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
+        CodeExecutionSheetSupport.parsedOpenAIFileIDsDraft(codeExecutionOpenAIFileIDsDraft)
     }
 
     var codeExecutionBadgeText: String? {
-        guard isCodeExecutionEnabled else { return nil }
-
-        switch providerType {
-        case .openai, .openaiWebSocket:
-            if controls.codeExecution?.openAI?.normalizedExistingContainerID != nil {
-                return "reuse"
-            }
-            return controls.codeExecution?.openAI?.container?.normalizedMemoryLimit
-        case .anthropic:
-            return controls.codeExecution?.anthropic?.normalizedContainerID == nil ? nil : "reuse"
-        default:
-            return nil
-        }
+        CodeExecutionSheetSupport.badgeText(
+            isEnabled: isCodeExecutionEnabled,
+            providerType: providerType,
+            controls: controls.codeExecution
+        )
     }
 
     var codeExecutionHelpText: String {
-        guard isCodeExecutionEnabled else { return "Code Execution: Off" }
-
-        switch providerType {
-        case .openai, .openaiWebSocket:
-            if let containerID = controls.codeExecution?.openAI?.normalizedExistingContainerID {
-                return "Code Execution: Reuse \(containerID)"
-            }
-            if let memoryLimit = controls.codeExecution?.openAI?.container?.normalizedMemoryLimit {
-                return "Code Execution: Auto container (\(memoryLimit))"
-            }
-            return "Code Execution: Auto container"
-        case .anthropic:
-            if controls.codeExecution?.anthropic?.normalizedContainerID != nil {
-                return "Code Execution: Reuse container"
-            }
-            return "Code Execution: On"
-        case .vertexai:
-            return "Code Execution: On (no file I/O in sandbox)"
-        default:
-            return "Code Execution: On"
-        }
+        CodeExecutionSheetSupport.helpText(
+            isEnabled: isCodeExecutionEnabled,
+            providerType: providerType,
+            controls: controls.codeExecution
+        )
     }
 
     // MARK: - Google Maps
@@ -311,28 +267,24 @@ extension ChatView {
     }
 
     var googleMapsBadgeText: String? {
-        guard isGoogleMapsEnabled else { return nil }
-        if controls.googleMaps?.hasLocation == true {
-            return "Loc"
-        }
-        return nil
+        ChatModelCapabilitySupport.googleMapsBadgeText(
+            isEnabled: isGoogleMapsEnabled,
+            hasLocation: controls.googleMaps?.hasLocation == true
+        )
     }
 
     var googleMapsHelpText: String {
-        guard isGoogleMapsEnabled else { return "Google Maps: Off" }
-        if controls.googleMaps?.hasLocation == true {
-            return "Google Maps: On (with location)"
-        }
-        return "Google Maps: On"
+        ChatModelCapabilitySupport.googleMapsHelpText(
+            isEnabled: isGoogleMapsEnabled,
+            hasLocation: controls.googleMaps?.hasLocation == true
+        )
     }
 
     var googleMapsEnabledBinding: Binding<Bool> {
         Binding(
             get: { controls.googleMaps?.enabled == true },
             set: { enabled in
-                var updated = controls.googleMaps ?? GoogleMapsControls(enabled: enabled)
-                updated.enabled = enabled
-                controls.googleMaps = updated.isEmpty ? nil : updated
+                controls = ChatAuxiliaryControlSupport.setGoogleMapsEnabled(enabled, controls: controls)
                 persistControlsToConversation()
             }
         )
@@ -345,16 +297,14 @@ extension ChatView {
     }
 
     var supportsMCPToolsControl: Bool {
-        guard !ManagedAgentUIVisibilitySupport.hidesInternalUI(providerType: providerType) else { return false }
-        guard providerType != .codexAppServer else { return false }
-        guard !supportsMediaGenerationControl else { return false }
-        return resolvedModelSettings?.capabilities.contains(.toolCalling) == true
+        ChatMCPToolCapabilitySupport.supportsMCPTools(
+            providerType: providerType,
+            resolvedModelSettings: resolvedModelSettings
+        )
     }
 
     var eligibleMCPServers: [MCPServerConfigEntity] {
-        mcpServers
-            .filter { $0.isEnabled && $0.runToolsAutomatically }
-            .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+        ChatAuxiliaryControlSupport.eligibleMCPServers(from: mcpServers)
     }
 
     var selectedMCPServerIDs: Set<String> {

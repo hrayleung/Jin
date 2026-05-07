@@ -37,44 +37,24 @@ struct PluginAPIKeySettingsView: View {
                 "API Key",
                 detail: "Stored locally on this Mac and saved automatically as you type."
             ) {
-                JinSettingsControlRow(
+                JinSettingsSecureFieldRow(
                     "API Key",
-                    supportingText: "Stored locally on this Mac. Changes save automatically."
-                ) {
-                    JinRevealableSecureField(
-                        title: "API Key",
-                        text: $apiKey,
-                        isRevealed: $isKeyVisible,
-                        revealHelp: "Show API key",
-                        concealHelp: "Hide API key"
-                    )
-                }
+                    supportingText: "Stored locally on this Mac. Changes save automatically.",
+                    text: $apiKey,
+                    isRevealed: $isKeyVisible,
+                    revealHelp: "Show API key",
+                    concealHelp: "Hide API key"
+                )
 
-                HStack(spacing: JinSpacing.medium) {
-                    Button("Test Connection") { runTestConnection() }
-                        .disabled(trimmedAPIKey.isEmpty || isTesting)
-
-                    Button("Clear", role: .destructive) { clearKey() }
-                        .disabled(isTesting)
-
-                    Spacer()
-
-                    if isTesting {
-                        ProgressView()
-                            .controlSize(.small)
-                    }
-                }
-
-                if let statusMessage {
-                    JinSettingsStatusText(
-                        text: statusMessage,
-                        isError: statusIsError,
-                        isSuccess: JinSettingsStatusText.isConnectionVerifiedStatus(
-                            statusMessage,
-                            isError: statusIsError
-                        )
-                    )
-                }
+                PluginCredentialActionsView(
+                    canTestConnection: !trimmedAPIKey.isEmpty,
+                    canClear: true,
+                    isTesting: isTesting,
+                    statusMessage: statusMessage,
+                    statusIsError: statusIsError,
+                    onTestConnection: runTestConnection,
+                    onClear: clearKey
+                )
 
                 if let apiKeyHint, !apiKeyHint.isEmpty {
                     Text(apiKeyHint)

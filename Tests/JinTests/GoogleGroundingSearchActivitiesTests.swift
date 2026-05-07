@@ -87,6 +87,37 @@ final class GoogleGroundingSearchActivitiesTests: XCTestCase {
         XCTAssertEqual(activities[0].arguments["mapsPlaceID"]?.value as? String, "place-123")
     }
 
+    func testEventsTrimQueriesURLsAndTitles() {
+        let grounding = GoogleGroundingSearchActivities.GroundingMetadata(
+            webSearchQueries: ["  Swift  "],
+            retrievalQueries: ["swift", "   "],
+            groundingChunks: [
+                .init(webURI: "  https://example.com/swift  ", webTitle: "  Swift Docs  ")
+            ],
+            groundingSupports: nil,
+            searchEntryPoint: nil
+        )
+
+        let events = GoogleGroundingSearchActivities.events(
+            from: grounding,
+            searchPrefix: "search",
+            openPrefix: "open",
+            searchURLPrefix: "fallback"
+        )
+
+        let searches = events.compactMap { event -> SearchActivity? in
+            guard case .searchActivity(let activity) = event, activity.type == "search" else {
+                return nil
+            }
+            return activity
+        }
+        let sources = sourceActivities(from: events)
+
+        XCTAssertEqual(searches.map { $0.arguments["query"]?.value as? String }, ["Swift"])
+        XCTAssertEqual(sources.map { $0.arguments["url"]?.value as? String }, ["https://example.com/swift"])
+        XCTAssertEqual(sources.map { $0.arguments["title"]?.value as? String }, ["Swift Docs"])
+    }
+
     private func sourceActivities(from events: [StreamEvent]) -> [SearchActivity] {
         events.compactMap { event in
             guard case .searchActivity(let activity) = event, activity.type == "open_page" else {

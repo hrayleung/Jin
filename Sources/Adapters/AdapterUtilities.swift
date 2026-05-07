@@ -33,20 +33,18 @@ func validatedURL(_ string: String) throws -> URL {
 /// Returns a trimmed, non-empty string or nil. Used across adapters to normalize
 /// optional string fields (cache keys, conversation IDs, etc.) before sending to providers.
 func normalizedTrimmedString(_ value: String?) -> String? {
-    guard let value else { return nil }
-    let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-    return trimmed.isEmpty ? nil : trimmed
+    value?.trimmedNonEmpty
 }
 
 /// Returns a trimmed, lowercased MIME type for stable comparisons.
 func normalizedMIMEType(_ mimeType: String) -> String {
-    mimeType.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    mimeType.trimmedLowercased
 }
 
 /// Google native grounding tools are handled by Gemini / Vertex internally and
 /// should never be re-routed into Jin's MCP or builtin-tool execution pipeline.
 func isGoogleProviderNativeToolName(_ name: String) -> Bool {
-    let normalized = name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    let normalized = name.trimmedLowercased
     switch normalized {
     case "google_search", "googlemaps", "google_maps":
         return true

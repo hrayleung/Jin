@@ -103,8 +103,7 @@ enum MistralOCRMarkdown {
     }
 
     private static func normalizedResourceID(from raw: String) -> String {
-        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return "" }
+        guard let trimmed = raw.trimmedNonEmpty else { return "" }
 
         let unwrapped = trimmed.trimmingCharacters(in: CharacterSet(charactersIn: "<>\"'"))
         let lastComponent = (unwrapped as NSString).lastPathComponent

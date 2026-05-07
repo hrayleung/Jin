@@ -148,18 +148,8 @@ extension SpeechToTextPluginSettingsView {
 
     func apiKeyPreferenceKey(for rawValue: String) -> String? {
         guard let resolved = SpeechToTextProvider(rawValue: rawValue) else { return nil }
-        switch resolved {
-        case .openai:
-            return AppPreferenceKeys.sttOpenAIAPIKey
-        case .groq:
-            return AppPreferenceKeys.sttGroqAPIKey
-        case .mistral:
-            return AppPreferenceKeys.sttMistralAPIKey
-        case .elevenlabs:
-            return AppPreferenceKeys.sttElevenLabsAPIKey
-        case .whisperKit:
-            return nil
-        }
+        let preferenceKey = SpeechPluginPreferenceSupport.speechToTextAPIKeyPreferenceKey(for: resolved)
+        return preferenceKey.isEmpty ? nil : preferenceKey
     }
 
     func providerErrorMessage(for rawValue: String) -> String {
@@ -184,27 +174,10 @@ extension SpeechToTextPluginSettingsView {
 
         Task {
             do {
-                switch provider {
-                case .openai:
-                    let base = URL(string: openAIBaseURL.trimmingCharacters(in: .whitespacesAndNewlines)) ?? OpenAIAudioClient.Constants.defaultBaseURL
-                    let client = OpenAIAudioClient(apiKey: trimmedAPIKey, baseURL: base)
-                    try await client.validateAPIKey()
-                case .groq:
-                    let base = URL(string: groqBaseURL.trimmingCharacters(in: .whitespacesAndNewlines)) ?? GroqAudioClient.Constants.defaultBaseURL
-                    let client = GroqAudioClient(apiKey: trimmedAPIKey, baseURL: base)
-                    try await client.validateAPIKey()
-                case .mistral:
-                    let defaultBase = URL(string: ProviderType.mistral.defaultBaseURL ?? "https://api.mistral.ai/v1")!
-                    let base = URL(string: mistralBaseURL.trimmingCharacters(in: .whitespacesAndNewlines)) ?? defaultBase
-                    let client = OpenAIAudioClient(apiKey: trimmedAPIKey, baseURL: base)
-                    try await client.validateAPIKey()
-                case .elevenlabs:
-                    let base = URL(string: elevenLabsBaseURL.trimmingCharacters(in: .whitespacesAndNewlines)) ?? ElevenLabsSTTClient.Constants.defaultBaseURL
-                    let client = ElevenLabsSTTClient(apiKey: trimmedAPIKey, baseURL: base)
-                    try await client.validateAPIKey()
-                case .whisperKit:
-                    return
-                }
+                try await validateRemoteSpeechToTextConnection(
+                    for: provider,
+                    apiKey: trimmedAPIKey
+                )
 
                 await MainActor.run {
                     isTesting = false
@@ -227,6 +200,7 @@ extension SpeechToTextPluginSettingsView {
             }
         }
     }
+
     func loadRemoteSpeechToTextModels(updateStatus: Bool = true) async {
         guard let load = await MainActor.run(body: { speechToTextLoadSnapshot() }) else { return }
         guard !load.apiKey.isEmpty else { return }
@@ -242,32 +216,10 @@ extension SpeechToTextPluginSettingsView {
         }
 
         do {
-            let availableModels: [SpeechProviderModelChoice]
-            switch load.provider {
-            case .openai:
-                let base = URL(string: openAIBaseURL.trimmingCharacters(in: .whitespacesAndNewlines))
-                    ?? OpenAIAudioClient.Constants.defaultBaseURL
-                let client = OpenAIAudioClient(apiKey: load.apiKey, baseURL: base)
-                availableModels = try await client.listModels()
-            case .groq:
-                let base = URL(string: groqBaseURL.trimmingCharacters(in: .whitespacesAndNewlines))
-                    ?? GroqAudioClient.Constants.defaultBaseURL
-                let client = GroqAudioClient(apiKey: load.apiKey, baseURL: base)
-                availableModels = try await client.listModels()
-            case .mistral:
-                let defaultBase = URL(string: ProviderType.mistral.defaultBaseURL ?? "https://api.mistral.ai/v1")!
-                let base = URL(string: mistralBaseURL.trimmingCharacters(in: .whitespacesAndNewlines))
-                    ?? defaultBase
-                let client = OpenAIAudioClient(apiKey: load.apiKey, baseURL: base)
-                availableModels = try await client.listModels()
-            case .elevenlabs:
-                let base = URL(string: elevenLabsBaseURL.trimmingCharacters(in: .whitespacesAndNewlines))
-                    ?? ElevenLabsSTTClient.Constants.defaultBaseURL
-                let client = ElevenLabsSTTClient(apiKey: load.apiKey, baseURL: base)
-                availableModels = try await client.listModels()
-            case .whisperKit:
-                return
-            }
+            let availableModels = try await fetchRemoteSpeechToTextModels(
+                for: load.provider,
+                apiKey: load.apiKey
+            )
 
             let filteredModels = SpeechProviderModelCatalog.speechToTextChoices(
                 for: load.provider,
@@ -297,6 +249,49 @@ extension SpeechToTextPluginSettingsView {
                     statusIsError = true
                 }
             }
+        }
+    }
+
+    private func validateRemoteSpeechToTextConnection(
+        for provider: SpeechToTextProvider,
+        apiKey: String
+    ) async throws {
+        guard let client = remoteSpeechToTextClient(for: provider, apiKey: apiKey) else { return }
+        try await client.validateAPIKey()
+    }
+
+    private func fetchRemoteSpeechToTextModels(
+        for provider: SpeechToTextProvider,
+        apiKey: String
+    ) async throws -> [SpeechProviderModelChoice] {
+        guard let client = remoteSpeechToTextClient(for: provider, apiKey: apiKey) else { return [] }
+        return try await client.listModels()
+    }
+
+    private func remoteSpeechToTextClient(
+        for provider: SpeechToTextProvider,
+        apiKey: String
+    ) -> SpeechToTextSettingsRemoteClient? {
+        switch provider {
+        case .openai:
+            let base = URL(string: openAIBaseURL.trimmingCharacters(in: .whitespacesAndNewlines))
+                ?? OpenAIAudioClient.Constants.defaultBaseURL
+            return .openAI(OpenAIAudioClient(apiKey: apiKey, baseURL: base))
+        case .groq:
+            let base = URL(string: groqBaseURL.trimmingCharacters(in: .whitespacesAndNewlines))
+                ?? GroqAudioClient.Constants.defaultBaseURL
+            return .groq(GroqAudioClient(apiKey: apiKey, baseURL: base))
+        case .mistral:
+            let defaultBase = URL(string: ProviderType.mistral.defaultBaseURL ?? "https://api.mistral.ai/v1")!
+            let base = URL(string: mistralBaseURL.trimmingCharacters(in: .whitespacesAndNewlines))
+                ?? defaultBase
+            return .mistral(OpenAIAudioClient(apiKey: apiKey, baseURL: base))
+        case .elevenlabs:
+            let base = URL(string: elevenLabsBaseURL.trimmingCharacters(in: .whitespacesAndNewlines))
+                ?? ElevenLabsSTTClient.Constants.defaultBaseURL
+            return .elevenLabs(ElevenLabsSTTClient(apiKey: apiKey, baseURL: base))
+        case .whisperKit:
+            return nil
         }
     }
 

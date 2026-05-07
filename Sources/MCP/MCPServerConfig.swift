@@ -89,12 +89,10 @@ enum MCPHTTPAuthentication: Codable, Equatable, Sendable {
         case .none:
             return nil
         case .bearerToken(let token):
-            let trimmedToken = token.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !trimmedToken.isEmpty else { return nil }
+            guard let trimmedToken = token.trimmedNonEmpty else { return nil }
             return MCPHeader(name: "Authorization", value: "Bearer \(trimmedToken)", isSensitive: true)
         case .header(let header):
-            let trimmedName = header.name.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !trimmedName.isEmpty else { return nil }
+            guard let trimmedName = header.name.trimmedNonEmpty else { return nil }
             return MCPHeader(
                 name: trimmedName,
                 value: header.value,
@@ -109,11 +107,10 @@ enum MCPHTTPAuthentication: Codable, Equatable, Sendable {
         case .none:
             return .none
         case .bearerToken(let token):
-            let trimmed = token.trimmingCharacters(in: .whitespacesAndNewlines)
-            return trimmed.isEmpty ? .none : .bearerToken(trimmed)
+            guard let trimmed = token.trimmedNonEmpty else { return .none }
+            return .bearerToken(trimmed)
         case .header(let header):
-            let trimmedName = header.name.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !trimmedName.isEmpty else { return .none }
+            guard let trimmedName = header.name.trimmedNonEmpty else { return .none }
             return .header(
                 MCPHeader(
                     name: trimmedName,
@@ -144,13 +141,13 @@ enum MCPHTTPAuthentication: Codable, Equatable, Sendable {
         case .none:
             return nil
         case .bearerToken:
-            return bearerToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            return bearerToken.trimmedNonEmpty == nil
                 ? "Bearer token is required." : nil
         case .customHeader:
-            if headerName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            if headerName.trimmedNonEmpty == nil {
                 return "Header name is required."
             }
-            if headerValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            if headerValue.trimmedNonEmpty == nil {
                 return "Header value is required."
             }
             return nil
@@ -171,9 +168,9 @@ enum MCPHTTPAuthentication: Codable, Equatable, Sendable {
         case .none:
             return MCPHTTPAuthentication.none
         case .bearerToken:
-            return .bearerToken(bearerToken.trimmingCharacters(in: .whitespacesAndNewlines))
+            return .bearerToken(bearerToken.trimmed)
         case .customHeader:
-            let name = headerName.trimmingCharacters(in: .whitespacesAndNewlines)
+            let name = headerName.trimmed
             return .header(
                 MCPHeader(
                     name: name,
@@ -247,7 +244,7 @@ struct MCPHTTPTransportConfig: Codable, Equatable, Sendable {
         var authentication = decodedAuthentication ?? .none
         if case .none = authentication,
            let bearerToken = try container.decodeIfPresent(String.self, forKey: .bearerToken),
-           !bearerToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+           bearerToken.trimmedNonEmpty != nil {
             authentication = .bearerToken(bearerToken)
         }
 
@@ -271,8 +268,7 @@ struct MCPHTTPTransportConfig: Codable, Equatable, Sendable {
         var values: [String: String] = [:]
 
         for header in additionalHeaders {
-            let key = header.name.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !key.isEmpty else { continue }
+            guard let key = header.name.trimmedNonEmpty else { continue }
             values[key] = header.value
         }
 
@@ -288,8 +284,7 @@ struct MCPHTTPTransportConfig: Codable, Equatable, Sendable {
         additionalHeaders: [MCPHeader]
     ) -> (authentication: MCPHTTPAuthentication, additionalHeaders: [MCPHeader]) {
         var normalizedHeaders = additionalHeaders.compactMap { header -> MCPHeader? in
-            let key = header.name.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !key.isEmpty else { return nil }
+            guard let key = header.name.trimmedNonEmpty else { return nil }
             return MCPHeader(
                 name: key,
                 value: header.value,
@@ -316,8 +311,7 @@ struct MCPHTTPTransportConfig: Codable, Equatable, Sendable {
     }
 
     static func isSensitiveHeaderName(_ name: String) -> Bool {
-        let normalized = name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        return ["authorization", "proxy-authorization", "x-api-key", "api-key"].contains(normalized)
+        ["authorization", "proxy-authorization", "x-api-key", "api-key"].contains(name.trimmedLowercased)
     }
 }
 

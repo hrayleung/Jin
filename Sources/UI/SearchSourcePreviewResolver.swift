@@ -184,7 +184,7 @@ actor SearchSourcePreviewResolver {
         }
 
         let prefix = String(decoding: data.prefix(32), as: UTF8.self)
-            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .trimmed
         return prefix.hasPrefix("{") || prefix.hasPrefix("[")
     }
 }

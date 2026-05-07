@@ -173,7 +173,7 @@ extension VertexAIAdapter {
 
     /// Converts a `gs://bucket/path` URI to an HTTPS URL for the GCS JSON API.
     private func convertGCSURIToHTTPS(_ gcsUri: String) throws -> URL {
-        let trimmed = gcsUri.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmed = gcsUri.trimmed
         guard trimmed.lowercased().hasPrefix("gs://") else {
             throw LLMError.decodingError(message: "Invalid GCS URI: \(trimmed)")
         }

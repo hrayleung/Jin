@@ -5,11 +5,9 @@ struct SpeechProviderModelChoice: Identifiable, Hashable, Sendable {
     let name: String
 
     init(id: String, name: String? = nil) {
-        let trimmedID = id.trimmingCharacters(in: .whitespacesAndNewlines)
-        let trimmedName = name?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-
+        let trimmedID = id.trimmed
         self.id = trimmedID
-        self.name = trimmedName.isEmpty ? trimmedID : trimmedName
+        self.name = name?.trimmedNonEmpty ?? trimmedID
     }
 }
 
@@ -62,8 +60,7 @@ enum SpeechProviderModelCatalog {
         _ choices: [SpeechProviderModelChoice],
         selectedModelID: String
     ) -> [SpeechProviderModelChoice] {
-        let trimmedSelection = selectedModelID.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedSelection.isEmpty else { return choices }
+        guard let trimmedSelection = selectedModelID.trimmedNonEmpty else { return choices }
         guard !choices.contains(where: { $0.id == trimmedSelection }) else { return choices }
         return [SpeechProviderModelChoice(id: trimmedSelection)] + choices
     }
@@ -142,8 +139,7 @@ enum SpeechProviderModelCatalog {
 
         return choices
             .filter { choice in
-                let modelID = choice.id.trimmingCharacters(in: .whitespacesAndNewlines)
-                guard !modelID.isEmpty else { return false }
+                guard let modelID = choice.id.trimmedNonEmpty else { return false }
                 guard matches(modelID.lowercased()) else { return false }
                 guard seenIDs.insert(modelID).inserted else { return false }
                 return true

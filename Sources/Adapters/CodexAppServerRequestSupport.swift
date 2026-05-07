@@ -94,9 +94,7 @@ struct CodexAppServerRequestBuilder {
     }
 
     private static func providerString(key: String, controls: GenerationControls) -> String? {
-        guard let value = providerSpecificValue(key: key, controls: controls) as? String else { return nil }
-        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? nil : trimmed
+        normalizedTrimmedString(providerSpecificValue(key: key, controls: controls) as? String)
     }
 }
 

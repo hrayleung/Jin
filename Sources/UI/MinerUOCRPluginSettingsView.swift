@@ -50,64 +50,40 @@ struct MinerUOCRPluginSettingsView: View {
                 "API Token",
                 detail: "MinerU uses a token plus an optional user header. Changes save automatically."
             ) {
-                JinSettingsControlRow(
+                JinSettingsSecureFieldRow(
                     "API Token",
-                    supportingText: "Stored locally on this Mac. Changes save automatically."
-                ) {
-                    JinRevealableSecureField(
-                        title: "MinerU API Token",
-                        text: $apiToken,
-                        isRevealed: $isTokenVisible,
-                        revealHelp: "Show API token",
-                        concealHelp: "Hide API token"
-                    )
-                }
+                    fieldTitle: "MinerU API Token",
+                    supportingText: "Stored locally on this Mac. Changes save automatically.",
+                    text: $apiToken,
+                    isRevealed: $isTokenVisible,
+                    revealHelp: "Show API token",
+                    concealHelp: "Hide API token"
+                )
 
-                JinSettingsControlRow(
+                JinSettingsTextFieldRow(
                     "User Header",
-                    supportingText: "Optional. Sends an extra user identifier with requests."
-                ) {
-                    TextField("Optional user header", text: $userIdentifier)
-                        .textFieldStyle(.roundedBorder)
-                }
+                    fieldTitle: "Optional user header",
+                    supportingText: "Optional. Sends an extra user identifier with requests.",
+                    text: $userIdentifier
+                )
 
-                HStack(spacing: 12) {
-                    Button("Test Connection") { runTestConnection() }
-                        .disabled(trimmedToken.isEmpty || isTesting)
-
-                    Button("Clear", role: .destructive) { clearSettings() }
-                        .disabled(isTesting)
-
-                    Spacer()
-
-                    if isTesting {
-                        ProgressView()
-                            .controlSize(.small)
-                    }
-                }
-
-                if let statusMessage {
-                    JinSettingsStatusText(
-                        text: statusMessage,
-                        isError: statusIsError,
-                        isSuccess: JinSettingsStatusText.isConnectionVerifiedStatus(
-                            statusMessage,
-                            isError: statusIsError
-                        )
-                    )
-                }
+                PluginCredentialActionsView(
+                    canTestConnection: !trimmedToken.isEmpty,
+                    canClear: true,
+                    isTesting: isTesting,
+                    statusMessage: statusMessage,
+                    statusIsError: statusIsError,
+                    spacing: 12,
+                    onTestConnection: runTestConnection,
+                    onClear: clearSettings
+                )
             }
 
             JinSettingsSection("OCR") {
-                JinSettingsControlRow("Language") {
-                    Picker("Language", selection: $selectedLanguage) {
-                        ForEach(Self.languageOptions) { option in
-                            Text(option.label).tag(option.code)
-                        }
+                JinSettingsPickerRow("Language", selection: $selectedLanguage) {
+                    ForEach(Self.languageOptions) { option in
+                        Text(option.label).tag(option.code)
                     }
-                    .labelsHidden()
-                    .pickerStyle(.menu)
-                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
         }

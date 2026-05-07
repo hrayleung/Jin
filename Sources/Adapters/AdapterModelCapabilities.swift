@@ -191,9 +191,7 @@ private let googleSpreadsheetMIMETypes: Set<String> = [
 func googleFileFallbackText(_ file: FileContent, providerName: String) -> String {
     let base = AttachmentPromptRenderer.fallbackText(for: file)
     let mimeType = normalizedMIMEType(file.mimeType)
-    let hasExtractedText = file.extractedText?
-        .trimmingCharacters(in: .whitespacesAndNewlines)
-        .isEmpty == false
+    let hasExtractedText = file.extractedText?.trimmedNonEmpty != nil
 
     guard googleSpreadsheetMIMETypes.contains(mimeType) || hasExtractedText else {
         return base

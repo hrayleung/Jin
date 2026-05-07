@@ -13,6 +13,19 @@ final class NPMRCUtilsTests: XCTestCase {
         XCTAssertEqual(assignments["registry"], "https://two.example")
     }
 
+    func testParseAssignmentsTrimsKeysAndValuesAndSkipsBlankKeys() {
+        let contents = """
+          registry = https://registry.example
+             =ignored
+          @scope:registry = https://packages.example
+        """
+
+        let assignments = NPMRCUtils.parseAssignments(from: contents)
+        XCTAssertEqual(assignments["registry"], "https://registry.example")
+        XCTAssertEqual(assignments["@scope:registry"], "https://packages.example")
+        XCTAssertNil(assignments[""])
+    }
+
     func testSafeEntriesToInheritSkipsCredentialsAndManagedKeys() {
         let contents = """
         registry=https://registry.npmmirror.com
@@ -51,4 +64,3 @@ final class NPMRCUtilsTests: XCTestCase {
         XCTAssertNil(safe["always-auth"])
     }
 }
-

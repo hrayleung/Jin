@@ -42,6 +42,6 @@ struct GoogleMapsControls: Codable {
             && enableWidget == nil
             && latitude == nil
             && longitude == nil
-            && (languageCode?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true)
+            && languageCode?.trimmedNonEmpty == nil
     }
 }

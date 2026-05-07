@@ -81,13 +81,12 @@ struct TTSKitTextToSpeechSettingsSection: View {
             Text("On-device speech synthesis powered by Core ML.")
                 .jinInfoCallout()
 
-            Picker("Model", selection: $modelSelection) {
+            JinSettingsPickerRow("Model", selection: $modelSelection) {
                 ForEach(TTSKitModelCatalog.presets) { preset in
                     Text("\(preset.title) \u{00B7} \(preset.approximateSize)")
                         .tag(preset.id)
                 }
             }
-            .pickerStyle(.menu)
 
             if let selectedPreset {
                 Text(selectedPreset.summary)
@@ -117,13 +116,12 @@ struct TTSKitTextToSpeechSettingsSection: View {
 
     private var playbackSection: some View {
         JinSettingsSection("Playback") {
-            Picker("Playback Mode", selection: $playbackModeRaw) {
+            JinSettingsPickerRow("Playback Mode", selection: $playbackModeRaw) {
                 ForEach(TTSKitPlaybackMode.allCases) { mode in
                     Text(mode.title)
                         .tag(mode.rawValue)
                 }
             }
-            .pickerStyle(.menu)
 
             Text(selectedPlaybackMode.summary)
                 .font(.caption)
@@ -135,7 +133,7 @@ struct TTSKitTextToSpeechSettingsSection: View {
 
     private var optionsSection: some View {
         JinSettingsSection("Options") {
-            Picker("Voice", selection: $voiceSelection) {
+            JinSettingsPickerRow("Voice", selection: $voiceSelection) {
                 Text("Default (Ryan)")
                     .tag("")
                 ForEach(TTSKitModelCatalog.voices) { voice in
@@ -143,7 +141,6 @@ struct TTSKitTextToSpeechSettingsSection: View {
                         .tag(voice.id)
                 }
             }
-            .pickerStyle(.menu)
 
             if let selectedVoiceSummary {
                 Text(selectedVoiceSummary)
@@ -151,7 +148,7 @@ struct TTSKitTextToSpeechSettingsSection: View {
                     .foregroundStyle(.secondary)
             }
 
-            Picker("Language", selection: $languageSelection) {
+            JinSettingsPickerRow("Language", selection: $languageSelection) {
                 Text("Default (English)")
                     .tag("")
                 ForEach(TTSKitModelCatalog.languages) { language in
@@ -159,12 +156,13 @@ struct TTSKitTextToSpeechSettingsSection: View {
                         .tag(language.id)
                 }
             }
-            .pickerStyle(.menu)
 
             if selectedPreset?.supportsStyleInstruction == true {
-                TextField(text: $styleInstruction, prompt: Text("Optional speaking style")) {
-                    Text("Style Direction")
-                }
+                JinSettingsTextFieldRow(
+                    "Style Direction",
+                    fieldTitle: "Optional speaking style",
+                    text: $styleInstruction
+                )
                 .help("Only Qwen3 TTS 1.7B supports style directions (e.g. calm, excited, documentary narration).")
             } else {
                 Text("Style directions are only available on Qwen3 TTS 1.7B.")
@@ -179,40 +177,18 @@ struct TTSKitTextToSpeechSettingsSection: View {
     private var downloadedModelsSection: some View {
         JinSettingsSection("Downloaded Models") {
             ForEach(library.localModels) { localModel in
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack(spacing: 8) {
-                        Text(TTSKitModelCatalog.preset(for: localModel.id)?.title ?? localModel.id)
-                            .font(.subheadline.weight(.medium))
-
-                        Spacer(minLength: 8)
-
-                        if localModel.id == modelSelection {
-                            Text("Selected")
-                                .jinTagStyle(foreground: Color.accentColor)
-                        }
+                TTSKitDownloadedModelRow(
+                    localModel: localModel,
+                    isSelected: localModel.id == modelSelection,
+                    isDownloading: isDownloading,
+                    onUse: {
+                        modelSelection = localModel.id
+                    },
+                    onReveal: revealRepositoryRoot,
+                    onRemove: {
+                        deletionTarget = localModel
                     }
-
-                    HStack(spacing: 10) {
-                        if localModel.id != modelSelection {
-                            Button("Use This") {
-                                modelSelection = localModel.id
-                            }
-                        }
-
-                        Button("Reveal in Finder") {
-                            revealRepositoryRoot()
-                        }
-
-                        Button("Remove", role: .destructive) {
-                            deletionTarget = localModel
-                        }
-                        .disabled(isDownloading)
-
-                        Spacer()
-                    }
-                    .controlSize(.small)
-                }
-                .padding(.vertical, 4)
+                )
             }
         }
     }
@@ -225,38 +201,14 @@ struct TTSKitTextToSpeechSettingsSection: View {
             detail: "Manage downloaded models or import them manually.",
             style: .plain
         ) {
-            DisclosureGroup("Storage & Manual Import") {
-                Text(library.repositoryRootURL.path)
-                    .font(.system(.caption, design: .monospaced))
-                    .foregroundStyle(.secondary)
-                    .textSelection(.enabled)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                HStack(spacing: 10) {
-                    Button {
-                        openStorageFolder()
-                    } label: {
-                        Label("Open Folder", systemImage: "folder")
-                    }
-
-                    Button("Refresh") {
-                        Task { await refreshLibrary() }
-                    }
-
-                    CopyToPasteboardButton(
-                        text: library.repositoryRootURL.path,
-                        helpText: "Copy folder path",
-                        useProminentStyle: false
-                    )
-
-                    Spacer()
+            OnDeviceModelStorageDisclosure(
+                repositoryRootURL: library.repositoryRootURL,
+                guidanceText: "Each TTSKit model is split across six component directories. Keep the original layout intact if managing files manually.",
+                onOpenFolder: openStorageFolder,
+                onRefresh: {
+                    Task { await refreshLibrary() }
                 }
-                .controlSize(.small)
-
-                Text("Each TTSKit model is split across six component directories. Keep the original layout intact if managing files manually.")
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
-            }
+            )
         }
     }
 

@@ -57,10 +57,10 @@ struct DefaultsSettingsView: View {
                 }
 
                 if newChatMCPMode == .fixed {
-                    Toggle("Enable MCP Tools by default", isOn: $newChatFixedMCPEnabled)
+                    JinSettingsToggleRow("Enable MCP Tools by default", isOn: $newChatFixedMCPEnabled)
 
                     if newChatFixedMCPEnabled {
-                        Toggle("Use all enabled servers", isOn: $newChatFixedMCPUseAllServers)
+                        JinSettingsToggleRow("Use all enabled servers", isOn: $newChatFixedMCPUseAllServers)
                             .onChange(of: newChatFixedMCPUseAllServers) { _, isOn in
                                 guard !isOn else { return }
                                 let current = AppPreferences.decodeStringArrayJSON(newChatFixedMCPServerIDsJSON)

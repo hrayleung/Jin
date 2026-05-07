@@ -69,13 +69,12 @@ struct WhisperKitSpeechToTextSettingsSection: View {
             Text("On-device speech recognition powered by Core ML.")
                 .jinInfoCallout()
 
-            Picker("Model", selection: $modelSelection) {
+            JinSettingsPickerRow("Model", selection: $modelSelection) {
                 ForEach(WhisperKitModelCatalog.presets) { preset in
                     Text("\(preset.title) \u{00B7} \(preset.approximateSize)")
                         .tag(preset.id)
                 }
             }
-            .pickerStyle(.menu)
 
             if let selectedPreset {
                 Text(selectedPreset.summary)
@@ -105,13 +104,15 @@ struct WhisperKitSpeechToTextSettingsSection: View {
 
     private var optionsSection: some View {
         JinSettingsSection("Options") {
-            Toggle("Translate to English", isOn: $translateToEnglish)
+            JinSettingsToggleRow("Translate to English", isOn: $translateToEnglish)
                 .help("Translate non-English speech to English instead of transcribing in the original language.")
 
-            TextField(text: $language, prompt: Text("Auto-detect")) {
-                Text("Language")
-            }
-            .font(.system(.body, design: .monospaced))
+            JinSettingsTextFieldRow(
+                "Language",
+                fieldTitle: "Auto-detect",
+                text: $language,
+                usesMonospacedFont: true
+            )
             .help("ISO 639-1 code (e.g. en, zh, ja). Leave empty for auto-detection.")
         }
     }
@@ -121,40 +122,20 @@ struct WhisperKitSpeechToTextSettingsSection: View {
     private var downloadedModelsSection: some View {
         JinSettingsSection("Downloaded Models") {
             ForEach(library.localModels) { localModel in
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack(spacing: 8) {
-                        Text(WhisperKitModelCatalog.title(for: localModel.id))
-                            .font(.subheadline.weight(.medium))
-
-                        Spacer(minLength: 8)
-
-                        if isSelected(localModel) {
-                            Text("Selected")
-                                .jinTagStyle(foreground: Color.accentColor)
-                        }
+                WhisperKitDownloadedModelRow(
+                    localModel: localModel,
+                    isSelected: isSelected(localModel),
+                    isDownloading: isDownloading,
+                    onUse: { presetID in
+                        modelSelection = presetID
+                    },
+                    onReveal: {
+                        reveal(localModel.folderURL)
+                    },
+                    onRemove: {
+                        deletionTarget = localModel
                     }
-
-                    HStack(spacing: 10) {
-                        if let presetID = localModel.presetID, !isSelected(localModel) {
-                            Button("Use This") {
-                                modelSelection = presetID
-                            }
-                        }
-
-                        Button("Reveal in Finder") {
-                            reveal(localModel.folderURL)
-                        }
-
-                        Button("Remove", role: .destructive) {
-                            deletionTarget = localModel
-                        }
-                        .disabled(isDownloading)
-
-                        Spacer()
-                    }
-                    .controlSize(.small)
-                }
-                .padding(.vertical, 4)
+                )
             }
         }
     }
@@ -167,38 +148,14 @@ struct WhisperKitSpeechToTextSettingsSection: View {
             detail: "Manage downloaded models or import them manually.",
             style: .plain
         ) {
-            DisclosureGroup("Storage & Manual Import") {
-                Text(library.repositoryRootURL.path)
-                    .font(.system(.caption, design: .monospaced))
-                    .foregroundStyle(.secondary)
-                    .textSelection(.enabled)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                HStack(spacing: 10) {
-                    Button {
-                        openStorageFolder()
-                    } label: {
-                        Label("Open Folder", systemImage: "folder")
-                    }
-
-                    Button("Refresh") {
-                        Task { await refreshLibrary() }
-                    }
-
-                    CopyToPasteboardButton(
-                        text: library.repositoryRootURL.path,
-                        helpText: "Copy folder path",
-                        useProminentStyle: false
-                    )
-
-                    Spacer()
+            OnDeviceModelStorageDisclosure(
+                repositoryRootURL: library.repositoryRootURL,
+                guidanceText: "Place a valid WhisperKit model folder here and press Refresh to import manually.",
+                onOpenFolder: openStorageFolder,
+                onRefresh: {
+                    Task { await refreshLibrary() }
                 }
-                .controlSize(.small)
-
-                Text("Place a valid WhisperKit model folder here and press Refresh to import manually.")
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
-            }
+            )
         }
     }
 

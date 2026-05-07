@@ -130,8 +130,7 @@ enum ChatConversationStateSupport {
         defaults: UserDefaults = .standard
     ) -> ChatExtensionCredentialStatus {
         func hasStoredKey(_ key: String) -> Bool {
-            let trimmed = (defaults.string(forKey: key) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-            return !trimmed.isEmpty
+            defaults.string(forKey: key)?.trimmedNonEmpty != nil
         }
 
         let mistralConfigured = hasStoredKey(AppPreferenceKeys.pluginMistralOCRAPIKey)
@@ -184,9 +183,8 @@ enum ChatConversationStateSupport {
 
         let ttsConfigured: Bool
         if ttsProvider == .elevenlabs {
-            let voiceID = (defaults.string(forKey: AppPreferenceKeys.ttsElevenLabsVoiceID) ?? "")
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            ttsConfigured = ttsKeyConfigured && !voiceID.isEmpty
+            let hasVoiceID = defaults.string(forKey: AppPreferenceKeys.ttsElevenLabsVoiceID)?.trimmedNonEmpty != nil
+            ttsConfigured = ttsKeyConfigured && hasVoiceID
         } else {
             ttsConfigured = ttsKeyConfigured
         }

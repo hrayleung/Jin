@@ -42,7 +42,7 @@ struct CompactComposerOverlayView<ControlsRow: View>: View {
     let onSlashCommandDismiss: () -> Void
     let onRemovePerMessageMCPServer: (String) -> Void
     let onInterceptKeyDown: ((UInt16) -> Bool)?
-    private let controlsRow: () -> ControlsRow
+    let controlsRow: () -> ControlsRow
 
     init(
         messageText: Binding<String>,
@@ -124,8 +124,14 @@ struct CompactComposerOverlayView<ControlsRow: View>: View {
         self.controlsRow = controlsRow
     }
 
-    private var trimmedRemoteVideoURLText: String {
-        remoteVideoURLText.trimmingCharacters(in: .whitespacesAndNewlines)
+    var sendButtonPresentation: ComposerSendButtonPresentation {
+        ComposerSendButtonPresentation(
+            usesCommandReturn: sendWithCommandEnter,
+            isBusy: isBusy,
+            canSendDraft: canSendDraft,
+            isRecording: isRecording,
+            isTranscribing: isTranscribing
+        )
     }
 
     var body: some View {
@@ -156,223 +162,15 @@ struct CompactComposerOverlayView<ControlsRow: View>: View {
             .padding(.trailing, JinSpacing.medium)
         }
     }
+}
 
-    @ViewBuilder
-    private var trailingActions: some View {
-        HStack(alignment: .center, spacing: JinSpacing.small) {
-            if let contextUsageEstimate {
-                ContextUsageIndicatorView(
-                    estimate: contextUsageEstimate,
-                    modelName: currentModelName
-                )
-                .equatable()
-                .padding(.bottom, 2)
-            }
-
-            sendButton
+extension CompactComposerOverlayView {
+    func updateComposerTextContentHeight(to measuredHeight: CGFloat) {
+        if let nextHeight = CompactComposerTextHeightMetrics.updatedHeight(
+            current: composerTextContentHeight,
+            measured: measuredHeight
+        ) {
+            composerTextContentHeight = nextHeight
         }
-    }
-
-    @ViewBuilder
-    private var leftColumn: some View {
-        VStack(alignment: .leading, spacing: JinSpacing.small) {
-            perMessageMCPChipsRow
-            quoteCardsRow
-            attachmentChipsRow
-            remoteVideoInputRow
-            composerTextEditor
-            controlsRow()
-            prepareStatusRow
-            speechStatusRow
-        }
-    }
-
-    @ViewBuilder
-    private var perMessageMCPChipsRow: some View {
-        if !perMessageMCPChips.isEmpty {
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: JinSpacing.small) {
-                    ForEach(perMessageMCPChips) { chip in
-                        PerMessageMCPChip(
-                            name: chip.name,
-                            onRemove: { onRemovePerMessageMCPServer(chip.id) }
-                        )
-                    }
-                }
-                .padding(.horizontal, JinSpacing.xSmall)
-            }
-        }
-    }
-
-    @ViewBuilder
-    private var quoteCardsRow: some View {
-        if !draftQuotes.isEmpty {
-            VStack(alignment: .leading, spacing: JinSpacing.small) {
-                ForEach(draftQuotes) { quote in
-                    ComposerQuoteCardView(quote: quote) {
-                        onRemoveQuote(quote)
-                    }
-                }
-            }
-        }
-    }
-
-    @ViewBuilder
-    private var attachmentChipsRow: some View {
-        if !draftAttachments.isEmpty {
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: JinSpacing.small) {
-                    ForEach(draftAttachments) { attachment in
-                        DraftAttachmentChip(
-                            attachment: attachment,
-                            onRemove: { onRemoveAttachment(attachment) }
-                        )
-                    }
-                }
-                .padding(.horizontal, JinSpacing.xSmall)
-            }
-        }
-    }
-
-    @ViewBuilder
-    private var remoteVideoInputRow: some View {
-        if showsRemoteVideoURLField {
-            HStack(spacing: JinSpacing.small) {
-                Image(systemName: "link")
-                    .foregroundStyle(.secondary)
-
-                TextField("Source Video URL", text: $remoteVideoURLText)
-                    .textFieldStyle(.plain)
-                    .font(.callout)
-                    .disabled(isBusy)
-
-                if !trimmedRemoteVideoURLText.isEmpty {
-                    Button {
-                        remoteVideoURLText = ""
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .foregroundStyle(.secondary)
-                    }
-                    .buttonStyle(.plain)
-                    .help("Clear source video URL")
-                    .disabled(isBusy)
-                }
-            }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 8)
-            .jinSurface(.subtle, cornerRadius: JinRadius.medium)
-        }
-    }
-
-    @ViewBuilder
-    private var composerTextEditor: some View {
-        DroppableTextEditor(
-            text: $messageText,
-            isDropTargeted: $isComposerDropTargeted,
-            isFocused: $isComposerFocused,
-            placeholder: "Write a message",
-            font: NSFont.preferredFont(forTextStyle: .body),
-            useCommandEnterToSubmit: sendWithCommandEnter,
-            onDropFileURLs: onDropFileURLs,
-            onDropImages: onDropImages,
-            onSubmit: onSubmit,
-            onCancel: onCancel,
-            onContentHeightChanged: { height in
-                let clamped = max(36, min(height, 120))
-                if abs(composerTextContentHeight - clamped) > 0.5 {
-                    composerTextContentHeight = clamped
-                }
-            },
-            onInterceptKeyDown: onInterceptKeyDown
-        )
-        .frame(height: composerTextContentHeight)
-    }
-
-    @ViewBuilder
-    private var prepareStatusRow: some View {
-        if isPreparingToSend, let prepareToSendStatus {
-            HStack(spacing: 8) {
-                ProgressView()
-                    .controlSize(.small)
-                Text(prepareToSendStatus)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(2)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                Spacer(minLength: 0)
-            }
-            .padding(.top, 2)
-        }
-    }
-
-    @ViewBuilder
-    private var speechStatusRow: some View {
-        if isRecording {
-            HStack(spacing: 8) {
-                Circle()
-                    .fill(Color.red)
-                    .frame(width: 6, height: 6)
-                Text("Recording… \(recordingDurationText)")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(2)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                Spacer(minLength: 0)
-            }
-            .padding(.top, 2)
-        } else if isTranscribing {
-            HStack(spacing: 8) {
-                ProgressView()
-                    .controlSize(.small)
-                Text(transcribingStatusText)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(2)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                Spacer(minLength: 0)
-            }
-            .padding(.top, 2)
-        }
-    }
-
-    private var hideButton: some View {
-        Button(action: onHide) {
-            Image(systemName: "chevron.down")
-                .font(.system(size: 10, weight: .medium))
-                .foregroundStyle(.tertiary)
-                .frame(width: 22, height: 22)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .help("Hide composer")
-    }
-
-    private var expandButton: some View {
-        Button(action: onExpand) {
-            Image(systemName: "arrow.up.left.and.arrow.down.right")
-                .font(.system(size: 10, weight: .medium))
-                .foregroundStyle(.tertiary)
-                .frame(width: 22, height: 22)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .help("Expand composer")
-        .disabled(isBusy)
-    }
-
-    private var sendButton: some View {
-        Button(action: onSend) {
-            Image(systemName: isBusy ? "stop.circle.fill" : "arrow.up.circle.fill")
-                .resizable()
-                .symbolRenderingMode(.hierarchical)
-                .frame(width: 22, height: 22)
-                .foregroundStyle(isBusy ? Color.secondary : (canSendDraft ? Color.accentColor : .gray))
-        }
-        .buttonStyle(.plain)
-        .disabled((!canSendDraft && !isBusy) || isRecording || isTranscribing)
-        .padding(.bottom, 2)
     }
 }

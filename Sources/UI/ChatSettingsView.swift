@@ -10,80 +10,129 @@ struct ChatSettingsView: View {
 
     var body: some View {
         JinSettingsPage {
-            JinSettingsSection("Send Behavior") {
-                Toggle("Use \u{2318}Return to send", isOn: $sendWithCommandEnter)
-            }
-
-            JinSettingsSection("Network Trace") {
-                Toggle("Enable Network Trace", isOn: $networkDebugLoggingEnabled)
-                JinSettingsStatusText(text: "JSON logs in time folders.")
-
-                HStack(spacing: JinSpacing.small) {
-                    Button("Open Trace Folder") {
-                        let folder = NetworkDebugLogger.logRootDirectoryURL
-                        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-                        NSWorkspace.shared.open(folder)
-                    }
-                    .disabled(!networkDebugLoggingEnabled)
-
-                    Button("Clear Traces") {
-                        Task {
-                            try? await NetworkDebugLogger.shared.clearLogs()
-                        }
-                    }
-                }
-            }
-
-            JinSettingsSection("Chat Diagnostics") {
-                Toggle("Enable Chat Diagnostics", isOn: $chatDiagnosticLoggingEnabled)
-                JinSettingsStatusText(text: "Lightweight NDJSON timing logs for the chat send/stream pipeline.")
-
-                HStack(spacing: JinSpacing.small) {
-                    Button("Open Diagnostic Folder") {
-                        let folder = ChatDiagnosticLogger.logRootDirectoryURL
-                        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-                        NSWorkspace.shared.open(folder)
-                    }
-                    .disabled(!chatDiagnosticLoggingEnabled)
-
-                    Button("Clear Diagnostics") {
-                        Task {
-                            try? await ChatDiagnosticLogger.shared.clearLogs()
-                        }
-                    }
-                }
-            }
-
-            JinSettingsSection("Notifications") {
-                Toggle("Notify when replies finish in background", isOn: $notifyOnBackgroundResponseCompletion)
-                    .onChange(of: notifyOnBackgroundResponseCompletion) { _, enabled in
-                        guard enabled else { return }
-                        Task {
-                            let granted = await responseCompletionNotifier.requestAuthorizationIfNeeded()
-                            if !granted {
-                                await MainActor.run {
-                                    notifyOnBackgroundResponseCompletion = false
-                                }
-                            }
-                        }
-                    }
-
-                if responseCompletionNotifier.authorizationStatus == .denied {
-                    JinSettingsStatusText(text: "Notifications are disabled for Jin in System Settings > Notifications.")
-                }
-            }
+            sendBehaviorSection
+            networkTraceSection
+            chatDiagnosticsSection
+            notificationsSection
         }
         .navigationTitle("Chat")
         .task {
-            await responseCompletionNotifier.refreshAuthorizationStatus()
-            guard notifyOnBackgroundResponseCompletion,
-                  responseCompletionNotifier.authorizationStatus == .notDetermined else {
-                return
+            await refreshNotificationAuthorization()
+        }
+    }
+
+    private var sendBehaviorSection: some View {
+        JinSettingsSection("Send Behavior") {
+            JinSettingsToggleRow("Use \u{2318}Return to send", isOn: $sendWithCommandEnter)
+        }
+    }
+
+    private var networkTraceSection: some View {
+        JinSettingsSection("Network Trace") {
+            JinSettingsToggleRow("Enable Network Trace", isOn: $networkDebugLoggingEnabled)
+            JinSettingsStatusText(text: "JSON logs in time folders.")
+
+            ChatSettingsLogActionsRow(
+                openTitle: "Open Trace Folder",
+                clearTitle: "Clear Traces",
+                isOpenDisabled: !networkDebugLoggingEnabled,
+                onOpen: openNetworkTraceFolder,
+                onClear: clearNetworkTraces
+            )
+        }
+    }
+
+    private var chatDiagnosticsSection: some View {
+        JinSettingsSection("Chat Diagnostics") {
+            JinSettingsToggleRow("Enable Chat Diagnostics", isOn: $chatDiagnosticLoggingEnabled)
+            JinSettingsStatusText(text: "Lightweight NDJSON timing logs for the chat send/stream pipeline.")
+
+            ChatSettingsLogActionsRow(
+                openTitle: "Open Diagnostic Folder",
+                clearTitle: "Clear Diagnostics",
+                isOpenDisabled: !chatDiagnosticLoggingEnabled,
+                onOpen: openChatDiagnosticFolder,
+                onClear: clearChatDiagnostics
+            )
+        }
+    }
+
+    private var notificationsSection: some View {
+        JinSettingsSection("Notifications") {
+            JinSettingsToggleRow("Notify when replies finish in background", isOn: $notifyOnBackgroundResponseCompletion)
+                .onChange(of: notifyOnBackgroundResponseCompletion) { _, enabled in
+                    handleNotificationToggle(enabled: enabled)
+                }
+
+            if responseCompletionNotifier.authorizationStatus == .denied {
+                JinSettingsStatusText(text: "Notifications are disabled for Jin in System Settings > Notifications.")
             }
+        }
+    }
+
+    private func openNetworkTraceFolder() {
+        openFolder(NetworkDebugLogger.logRootDirectoryURL)
+    }
+
+    private func clearNetworkTraces() {
+        Task {
+            try? await NetworkDebugLogger.shared.clearLogs()
+        }
+    }
+
+    private func openChatDiagnosticFolder() {
+        openFolder(ChatDiagnosticLogger.logRootDirectoryURL)
+    }
+
+    private func clearChatDiagnostics() {
+        Task {
+            try? await ChatDiagnosticLogger.shared.clearLogs()
+        }
+    }
+
+    private func openFolder(_ folder: URL) {
+        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        NSWorkspace.shared.open(folder)
+    }
+
+    private func handleNotificationToggle(enabled: Bool) {
+        guard enabled else { return }
+        Task {
             let granted = await responseCompletionNotifier.requestAuthorizationIfNeeded()
             if !granted {
-                notifyOnBackgroundResponseCompletion = false
+                await MainActor.run {
+                    notifyOnBackgroundResponseCompletion = false
+                }
             }
+        }
+    }
+
+    private func refreshNotificationAuthorization() async {
+        await responseCompletionNotifier.refreshAuthorizationStatus()
+        guard notifyOnBackgroundResponseCompletion,
+              responseCompletionNotifier.authorizationStatus == .notDetermined else {
+            return
+        }
+        let granted = await responseCompletionNotifier.requestAuthorizationIfNeeded()
+        if !granted {
+            notifyOnBackgroundResponseCompletion = false
+        }
+    }
+}
+
+private struct ChatSettingsLogActionsRow: View {
+    let openTitle: String
+    let clearTitle: String
+    let isOpenDisabled: Bool
+    let onOpen: () -> Void
+    let onClear: () -> Void
+
+    var body: some View {
+        HStack(spacing: JinSpacing.small) {
+            Button(openTitle, action: onOpen)
+                .disabled(isOpenDisabled)
+
+            Button(clearTitle, action: onClear)
         }
     }
 }

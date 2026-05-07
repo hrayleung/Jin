@@ -38,6 +38,32 @@ final class ChatContextUsageEstimatorTests: XCTestCase {
         XCTAssertFalse(estimate.didTruncateHistory)
     }
 
+    func testPreparedHistoryTrimsAndDropsBlankSystemPrompt() {
+        let paddedPromptHistory = ChatContextUsageEstimator.preparedHistory(
+            history: [],
+            draftMessageParts: [],
+            systemPrompt: " Be concise.\n",
+            maxHistoryMessages: nil,
+            shouldTruncateMessages: false
+        )
+
+        if case .text("Be concise.")? = paddedPromptHistory.first?.content.first {
+            XCTAssertEqual(paddedPromptHistory.first?.role, .system)
+        } else {
+            XCTFail("Expected trimmed system prompt")
+        }
+
+        let blankPromptHistory = ChatContextUsageEstimator.preparedHistory(
+            history: [],
+            draftMessageParts: [],
+            systemPrompt: " \n\t ",
+            maxHistoryMessages: nil,
+            shouldTruncateMessages: false
+        )
+
+        XCTAssertTrue(blankPromptHistory.isEmpty)
+    }
+
     func testEstimateReportsTruncationWhenBudgetIsExceeded() {
         let history = [
             Message(role: .user, content: [.text(String(repeating: "a", count: 200))]),

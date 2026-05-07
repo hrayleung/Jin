@@ -14,8 +14,7 @@ enum JinTypography {
     static let availableFontFamilies: [String] = {
         #if os(macOS)
         let families = NSFontManager.shared.availableFontFamilies
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
+            .compactMap(\.trimmedNonEmpty)
 
         return Array(Set(families)).sorted {
             $0.localizedStandardCompare($1) == .orderedAscending
@@ -26,8 +25,7 @@ enum JinTypography {
     }()
 
     static func normalizedFontPreference(_ value: String) -> String {
-        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return systemFontPreferenceValue }
+        guard let trimmed = value.trimmedNonEmpty else { return systemFontPreferenceValue }
 
         if let exactMatch = availableFontFamilies.first(where: {
             $0.compare(trimmed, options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame

@@ -78,9 +78,7 @@ struct ImageGenerationSheetView: View {
                 }
             }
 
-            TextField("Seed (optional)", text: $seedDraft)
-                .font(.system(.body, design: .monospaced))
-                .textFieldStyle(.roundedBorder)
+            JinSettingsTextField("Seed (optional)", text: $seedDraft, usesMonospacedFont: true)
         }
     }
 
@@ -100,9 +98,11 @@ struct ImageGenerationSheetView: View {
                 }
             }
 
-            TextField("JPEG quality 0-100 (optional)", text: $compressionQualityDraft)
-                .font(.system(.body, design: .monospaced))
-                .textFieldStyle(.roundedBorder)
+            JinSettingsTextField(
+                "JPEG quality 0-100 (optional)",
+                text: $compressionQualityDraft,
+                usesMonospacedFont: true
+            )
         }
     }
 
@@ -110,9 +110,7 @@ struct ImageGenerationSheetView: View {
     private var errorSection: some View {
         if let draftError {
             Section {
-                Text(draftError)
-                    .foregroundStyle(.red)
-                    .font(.caption)
+                JinSettingsErrorText(text: draftError)
             }
         }
     }

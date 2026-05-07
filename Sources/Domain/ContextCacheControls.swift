@@ -77,9 +77,7 @@ enum ContextCacheTTL: Codable, Equatable {
             return
         }
 
-        let raw = try container.decode(String.self)
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .lowercased()
+        let raw = try container.decode(String.self).trimmedLowercased
 
         switch raw {
         case "", "default", "provider_default", "providerdefault":
@@ -90,7 +88,7 @@ enum ContextCacheTTL: Codable, Equatable {
             self = .hour1
         default:
             if raw.hasPrefix("custom:"),
-               let value = Int(raw.dropFirst("custom:".count).trimmingCharacters(in: .whitespacesAndNewlines)),
+               let value = Int(String(raw.dropFirst("custom:".count)).trimmed),
                value > 0 {
                 self = .customSeconds(value)
             } else {

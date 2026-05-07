@@ -2,6 +2,27 @@ import XCTest
 @testable import Jin
 
 final class AppDataLocationsMigrationTests: XCTestCase {
+    func testApplicationSupportOverrideTrimsWhitespaceAndCreatesDirectory() throws {
+        let previousRoot = ProcessInfo.processInfo.environment["JIN_APP_SUPPORT_ROOT"]
+        let temporaryRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer {
+            if let previousRoot {
+                setenv("JIN_APP_SUPPORT_ROOT", previousRoot, 1)
+            } else {
+                unsetenv("JIN_APP_SUPPORT_ROOT")
+            }
+            try? FileManager.default.removeItem(at: temporaryRoot)
+        }
+
+        setenv("JIN_APP_SUPPORT_ROOT", " \n \(temporaryRoot.path) \t ", 1)
+
+        let resolved = try AppDataLocations.applicationSupportDirectory()
+
+        XCTAssertEqual(resolved.standardizedFileURL.path, temporaryRoot.standardizedFileURL.path)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: temporaryRoot.path))
+    }
+
     func testMigrationMovesLegacyStoreAndAttachmentDataIntoSharedRoot() throws {
         let previousRoot = ProcessInfo.processInfo.environment["JIN_APP_SUPPORT_ROOT"]
         let temporaryRoot = FileManager.default.temporaryDirectory

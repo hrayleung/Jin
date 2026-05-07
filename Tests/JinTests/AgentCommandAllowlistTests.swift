@@ -180,6 +180,15 @@ final class AgentCommandAllowlistTests: XCTestCase {
         XCTAssertTrue(allowed)
     }
 
+    func testCustomPrefixMatchingTrimsConfiguredPrefixes() {
+        let allowed = AgentCommandAllowlist.isCommandAllowed(
+            "swift build --configuration release",
+            allowedPrefixes: [" swift build\n", " "],
+            sessionPrefixes: []
+        )
+        XCTAssertTrue(allowed)
+    }
+
     func testCustomPrefixDoesNotPartialMatch() {
         let notAllowed = AgentCommandAllowlist.isCommandAllowed(
             "swiftlint lint",

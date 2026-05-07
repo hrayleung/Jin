@@ -29,6 +29,20 @@ final class MCPMessageFramerTests: XCTestCase {
         XCTAssertNil(try framer.nextMessage())
     }
 
+    func testNextMessageParsesWhitespacePaddedHeader() throws {
+        var framer = MCPMessageFramer()
+
+        let payload = Data(#"{"jsonrpc":"2.0","id":1,"result":{"ok":true}}"#.utf8)
+        var framed = Data()
+        framed.append(" Content-Length : \t \(payload.count) \r\n\r\n".data(using: .utf8)!)
+        framed.append(payload)
+
+        framer.append(framed)
+
+        let message = try XCTUnwrap(framer.nextMessage())
+        XCTAssertEqual(message, payload)
+    }
+
     func testDropsPreambleBeforeContentLength() throws {
         var framer = MCPMessageFramer()
 
@@ -53,4 +67,3 @@ final class MCPMessageFramerTests: XCTestCase {
         XCTAssertThrowsError(try framer.nextMessage())
     }
 }
-

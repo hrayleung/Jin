@@ -12,6 +12,15 @@ final class SearchSourcePreviewResolverTests: XCTestCase {
         )
     }
 
+    func testCanonicalXStatusURLIfNeededNormalizesPluralProfileStatusesURL() {
+        let url = URL(string: "https://twitter.com/Interior/statuses/463440424141459456?s=20")!
+
+        XCTAssertEqual(
+            SearchSourcePreviewResolver.canonicalXStatusURLIfNeeded(for: url)?.absoluteString,
+            "https://x.com/Interior/status/463440424141459456"
+        )
+    }
+
     func testCanonicalXStatusURLIfNeededNormalizesIWebStatusURL() {
         let url = URL(string: "https://x.com/i/web/status/463440424141459456?t=abc")!
 

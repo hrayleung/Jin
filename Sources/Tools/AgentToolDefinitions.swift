@@ -1,12 +1,18 @@
 import Foundation
 
 enum AgentToolNames {
-    static let shellExecute = AgentToolHub.shellExecuteFunctionName
-    static let fileRead = AgentToolHub.fileReadFunctionName
-    static let fileWrite = AgentToolHub.fileWriteFunctionName
-    static let fileEdit = AgentToolHub.fileEditFunctionName
-    static let globSearch = AgentToolHub.globSearchFunctionName
-    static let grepSearch = AgentToolHub.grepSearchFunctionName
+    static let serverID = "agent"
+    static let functionNamePrefix = "\(serverID)__"
+    static let shellExecute = "\(functionNamePrefix)shell_execute"
+    static let fileRead = "\(functionNamePrefix)file_read"
+    static let fileWrite = "\(functionNamePrefix)file_write"
+    static let fileEdit = "\(functionNamePrefix)file_edit"
+    static let globSearch = "\(functionNamePrefix)glob_search"
+    static let grepSearch = "\(functionNamePrefix)grep_search"
+
+    static func isAgentFunctionName(_ functionName: String) -> Bool {
+        functionName.hasPrefix(functionNamePrefix)
+    }
 }
 
 enum AgentToolDefinitionFactory {

@@ -3,6 +3,44 @@ import XCTest
 @testable import Jin
 
 final class OpenAIWebSocketAdapterTests: XCTestCase {
+    func testOpenAIWebSocketURLResolutionTrimsBaseURLAndNormalizesSchemes() async throws {
+        let adapter = OpenAIWebSocketAdapter(
+            providerConfig: ProviderConfig(
+                id: "openai-websocket",
+                name: "OpenAI (WebSocket)",
+                type: .openaiWebSocket,
+                apiKey: "ignored",
+                baseURL: " \n https://example.com/v1/responses \t "
+            ),
+            apiKey: "test-key"
+        )
+
+        let wsURL = try await adapter.resolvedWebSocketResponsesURL()
+        let httpBase = await adapter.resolvedHTTPBaseURLString()
+
+        XCTAssertEqual(wsURL.absoluteString, "wss://example.com/v1/responses")
+        XCTAssertEqual(httpBase, "https://example.com/v1")
+    }
+
+    func testOpenAIWebSocketURLResolutionFallsBackForBlankBaseURL() async throws {
+        let adapter = OpenAIWebSocketAdapter(
+            providerConfig: ProviderConfig(
+                id: "openai-websocket",
+                name: "OpenAI (WebSocket)",
+                type: .openaiWebSocket,
+                apiKey: "ignored",
+                baseURL: " \n\t "
+            ),
+            apiKey: "test-key"
+        )
+
+        let wsURL = try await adapter.resolvedWebSocketResponsesURL()
+        let httpBase = await adapter.resolvedHTTPBaseURLString()
+
+        XCTAssertEqual(wsURL.absoluteString, "wss://api.openai.com/v1/responses")
+        XCTAssertEqual(httpBase, "https://api.openai.com/v1")
+    }
+
     func testOpenAIWebSocketAdapterFetchModelsAddsNativePDFForVisionFamilies() async throws {
         let (configuration, protocolType) = makeMockedSessionConfiguration()
         let networkManager = NetworkManager(configuration: configuration)

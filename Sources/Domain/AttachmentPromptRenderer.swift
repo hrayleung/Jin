@@ -5,8 +5,7 @@ enum AttachmentPromptRenderer {
         let filename = file.filename
         let mimeType = file.mimeType
 
-        let trimmedExtracted = file.extractedText?.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let trimmedExtracted, !trimmedExtracted.isEmpty else {
+        guard let trimmedExtracted = file.extractedText?.trimmedNonEmpty else {
             return "Attachment: \(filename) (\(mimeType))"
         }
 

@@ -4,7 +4,7 @@ import XCTest
 final class MistralOCRMarkdownTests: XCTestCase {
     func testReferencedImageIDsExtractsLastPathComponent() {
         let markdown = """
-        Before ![img](img-0.jpeg) and ![](folder/table-1.png).
+        Before ![img](img-0.jpeg) and ![]( <folder/table-1.png?x=1#page> ).
         """
         XCTAssertEqual(
             MistralOCRMarkdown.referencedImageIDs(in: markdown),
@@ -30,4 +30,3 @@ final class MistralOCRMarkdownTests: XCTestCase {
         XCTAssertEqual(replaced, "See [Image: img-0.jpeg] here.")
     }
 }
-

@@ -9,7 +9,7 @@ final class CodexAppServerAdapterResumeTests: XCTestCase {
             Message(
                 role: .user,
                 content: [
-                    .text("Please inspect this image"),
+                    .text(" Please inspect this image\n"),
                     .image(ImageContent(mimeType: "image/png", url: URL(fileURLWithPath: "/tmp/reference.png")))
                 ]
             )

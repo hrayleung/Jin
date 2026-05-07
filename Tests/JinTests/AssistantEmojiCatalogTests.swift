@@ -12,6 +12,10 @@ final class AssistantEmojiCatalogTests: XCTestCase {
         XCTAssertTrue(AssistantEmojiCatalog.matchesSearchQuery("smi", emoji: "😄"))
     }
 
+    func testEmojiSearchTrimsWrappedQueryWhitespace() {
+        XCTAssertTrue(AssistantEmojiCatalog.matchesSearchQuery("  grinning \n", emoji: "😀"))
+    }
+
     func testEmojiSearchMatchesGroupTerms() {
         XCTAssertTrue(AssistantEmojiCatalog.matchesSearchQuery("smile", emoji: "😀"))
     }

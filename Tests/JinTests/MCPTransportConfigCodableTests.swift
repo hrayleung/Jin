@@ -60,7 +60,7 @@ final class MCPTransportConfigCodableTests: XCTestCase {
               { "name": "X-Test", "value": "abc", "isSensitive": false },
               { "name": "Authorization", "value": "Basic ignored", "isSensitive": true }
             ],
-            "bearerToken": "token-123"
+            "bearerToken": "  token-123  "
           }
         }
         """
@@ -78,5 +78,23 @@ final class MCPTransportConfigCodableTests: XCTestCase {
         let headers = http.resolvedHeaders()
         XCTAssertEqual(headers["Authorization"], "Bearer token-123")
         XCTAssertEqual(headers["X-Test"], "abc")
+    }
+
+    func testHTTPTransportNormalizesWhitespaceOnlyAuthenticationAndHeaders() {
+        let http = MCPHTTPTransportConfig(
+            endpoint: URL(string: "https://mcp.example.com")!,
+            authentication: .header(MCPHeader(name: "   ", value: "ignored")),
+            additionalHeaders: [
+                MCPHeader(name: "  X-Test  ", value: "abc"),
+                MCPHeader(name: "\n\t", value: "ignored"),
+                MCPHeader(name: "  X-API-Key  ", value: "secret")
+            ]
+        )
+
+        XCTAssertEqual(http.authentication, .none)
+        XCTAssertEqual(http.additionalHeaders.map(\.name), ["X-Test", "X-API-Key"])
+        XCTAssertEqual(http.additionalHeaders.map(\.isSensitive), [false, true])
+        XCTAssertEqual(http.resolvedHeaders()["X-Test"], "abc")
+        XCTAssertEqual(http.resolvedHeaders()["X-API-Key"], "secret")
     }
 }

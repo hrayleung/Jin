@@ -261,29 +261,6 @@ final class ChatRenderCacheController: ObservableObject {
         )
     }
 
-    func selectLatestArtifact(
-        from message: Message,
-        threadID: UUID,
-        selectedArtifactIDByThreadID: inout [UUID: String],
-        selectedArtifactVersionByThreadID: inout [UUID: Int]
-    ) -> Bool {
-        let artifacts = message.content.compactMap { part -> [ParsedArtifact]? in
-            guard case .text(let text) = part else { return nil }
-            return ArtifactMarkupParser.parse(text).artifacts
-        }.flatMap { $0 }
-
-        guard let latest = artifacts.last else { return false }
-
-        if let resolvedVersion = artifactCatalog.latestVersion(for: latest.artifactID) {
-            selectedArtifactIDByThreadID[threadID] = resolvedVersion.artifactID
-            selectedArtifactVersionByThreadID[threadID] = resolvedVersion.version
-        } else {
-            selectedArtifactIDByThreadID[threadID] = latest.artifactID
-        }
-
-        return true
-    }
-
     private func applyDecodedRenderContext(
         _ context: ChatDecodedRenderContext,
         messageEntitiesByID: [UUID: MessageEntity],
@@ -369,18 +346,15 @@ final class ChatRenderCacheController: ObservableObject {
         activeThreadHistory = historyMessages
         isHistoryReady = true
         if let activeThreadID {
-            let visibleMessages = contextsByThreadID[activeThreadID]?.visibleMessages ?? self.visibleMessages
-            let messageEntitiesByID = contextsByThreadID[activeThreadID]?.messageEntitiesByID ?? self.messageEntitiesByID
-            let toolResultsByCallID = contextsByThreadID[activeThreadID]?.toolResultsByCallID ?? self.toolResultsByCallID
-            let artifactCatalog = contextsByThreadID[activeThreadID]?.artifactCatalog ?? self.artifactCatalog
-
-            contextsByThreadID[activeThreadID] = ChatThreadRenderContext(
-                visibleMessages: visibleMessages,
-                historyMessages: historyMessages,
-                messageEntitiesByID: messageEntitiesByID,
-                toolResultsByCallID: toolResultsByCallID,
-                artifactCatalog: artifactCatalog
-            )
+            let context = contextsByThreadID[activeThreadID]
+                ?? ChatThreadRenderContext(
+                    visibleMessages: visibleMessages,
+                    historyMessages: activeThreadHistory,
+                    messageEntitiesByID: messageEntitiesByID,
+                    toolResultsByCallID: toolResultsByCallID,
+                    artifactCatalog: artifactCatalog
+                )
+            contextsByThreadID[activeThreadID] = context.replacingHistoryMessages(historyMessages)
         }
     }
 }

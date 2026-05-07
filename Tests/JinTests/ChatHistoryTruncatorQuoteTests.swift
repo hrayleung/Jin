@@ -12,6 +12,16 @@ final class ChatHistoryTruncatorQuoteTests: XCTestCase {
         )
     }
 
+    func testApproximateTokenCountIgnoresWhitespaceOnlyTextContent() {
+        let emptyMessage = Message(role: .user, content: [])
+        let whitespaceMessage = Message(role: .user, content: [.text(" \n\t ")])
+
+        XCTAssertEqual(
+            ChatHistoryTruncator.approximateTokenCount(for: whitespaceMessage),
+            ChatHistoryTruncator.approximateTokenCount(for: emptyMessage)
+        )
+    }
+
     func testTruncatedHistoryKeepsQuoteHeavyMessageWhenBudgetExactlyFits() {
         let history = makeHistory(quotedText: String(repeating: "Q", count: 40))
         let exactBudget = ChatHistoryTruncator.approximateTokenCount(for: history)

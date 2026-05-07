@@ -61,9 +61,7 @@ extension ProviderConfigFormView {
             }
 
             if case .failure(let message) = openRouterUsageStatus {
-                Text(message)
-                    .foregroundStyle(.red)
-                    .font(.caption)
+                JinSettingsErrorText(text: message)
             }
         }
         .padding(.vertical, 4)
@@ -120,37 +118,18 @@ extension ProviderConfigFormView {
     }
 
     func fetchOpenRouterKeyUsage(apiKey: String) async throws -> OpenRouterKeyUsage {
-        let defaultBaseURL = ProviderType.openrouter.defaultBaseURL ?? "https://openrouter.ai/api/v1"
-        let raw = (provider.baseURL ?? defaultBaseURL).trimmingCharacters(in: .whitespacesAndNewlines)
-        let trimmed = raw.hasSuffix("/") ? String(raw.dropLast()) : raw
-
-        let lower = trimmed.lowercased()
-        let normalizedBaseURL: String
-        if lower.hasSuffix("/api/v1") || lower.hasSuffix("/v1") {
-            normalizedBaseURL = trimmed
-        } else if lower.hasSuffix("/api") {
-            normalizedBaseURL = "\(trimmed)/v1"
-        } else if let url = URL(string: trimmed), url.host?.lowercased().contains("openrouter.ai") == true {
-            let path = url.path.lowercased()
-            if path.isEmpty || path == "/" {
-                normalizedBaseURL = "\(trimmed)/api/v1"
-            } else {
-                normalizedBaseURL = trimmed
-            }
-        } else {
-            normalizedBaseURL = trimmed
-        }
+        let normalizedBaseURL = OpenRouterProviderSupport.normalizedBaseURL(provider.baseURL)
 
         guard let url = URL(string: "\(normalizedBaseURL)/key") else {
             throw LLMError.invalidRequest(message: "Invalid OpenRouter base URL.")
         }
 
-        var request = URLRequest(url: url)
-        request.httpMethod = "GET"
-        request.addValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-        request.addValue("application/json", forHTTPHeaderField: "Accept")
-        request.addValue("https://jin.app", forHTTPHeaderField: "HTTP-Referer")
-        request.addValue("Jin", forHTTPHeaderField: "X-Title")
+        let request = makeGETRequest(
+            url: url,
+            apiKey: apiKey,
+            additionalHeaders: OpenRouterProviderSupport.appIdentityHeaders,
+            includeUserAgent: false
+        )
 
         let (data, _) = try await networkManager.sendRequest(request)
 
@@ -176,12 +155,12 @@ extension ProviderConfigFormView {
             return nil
         }
 
-        var request = URLRequest(url: url)
-        request.httpMethod = "GET"
-        request.addValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-        request.addValue("application/json", forHTTPHeaderField: "Accept")
-        request.addValue("https://jin.app", forHTTPHeaderField: "HTTP-Referer")
-        request.addValue("Jin", forHTTPHeaderField: "X-Title")
+        let request = makeGETRequest(
+            url: url,
+            apiKey: apiKey,
+            additionalHeaders: OpenRouterProviderSupport.appIdentityHeaders,
+            includeUserAgent: false
+        )
 
         let (data, _) = try await networkManager.sendRequest(request)
 
@@ -199,19 +178,19 @@ extension ProviderConfigFormView {
 
     // MARK: - OpenRouter Usage Helpers
 
+    var openRouterUsagePresentation: ProviderFormSupport.OpenRouterUsagePresentation {
+        ProviderFormSupport.openRouterUsagePresentation(
+            apiKey: apiKey,
+            status: openRouterUsageStatus
+        )
+    }
+
     var isOpenRouterUsageRefreshDisabled: Bool {
-        apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || openRouterUsageStatus == .loading
+        openRouterUsagePresentation.isRefreshDisabled
     }
 
     var openRouterUsageStatusLabel: String {
-        switch openRouterUsageStatus {
-        case .idle, .failure:
-            return "Not observed"
-        case .loading:
-            return "Checking"
-        case .observed:
-            return "Observed"
-        }
+        openRouterUsagePresentation.statusLabel
     }
 
     var openRouterUsageStatusColor: Color {
@@ -226,18 +205,7 @@ extension ProviderConfigFormView {
     }
 
     var openRouterUsageHintText: String {
-        switch openRouterUsageStatus {
-        case .idle:
-            return apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                ? "Enter an API key to check usage."
-                : "Usage not fetched yet."
-        case .loading:
-            return "Fetching current key usage..."
-        case .observed:
-            return "No usage data returned for this key."
-        case .failure:
-            return "Failed to fetch usage for this key."
-        }
+        openRouterUsagePresentation.hintText
     }
 
     func formatUSD(_ value: Double) -> String {

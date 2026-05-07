@@ -40,7 +40,7 @@ final class CodexSessionSettingsTests: XCTestCase {
 
     func testInternalCodexResumeKeysRoundTripWithoutAffectingVisibleOverrides() {
         var controls = GenerationControls()
-        controls.codexResumeThreadID = "remote-thread-123"
+        controls.codexResumeThreadID = " remote-thread-123 "
         controls.codexPendingRollbackTurns = 2
 
         XCTAssertEqual(controls.codexResumeThreadID, "remote-thread-123")
@@ -52,5 +52,17 @@ final class CodexSessionSettingsTests: XCTestCase {
 
         XCTAssertNil(controls.codexResumeThreadID)
         XCTAssertEqual(controls.codexPendingRollbackTurns, 0)
+    }
+
+    func testCodexStringOverridesDropBlankValues() {
+        var controls = GenerationControls()
+
+        controls.codexWorkingDirectory = " \n\t "
+        controls.codexResumeThreadID = " \n\t "
+
+        XCTAssertNil(controls.codexWorkingDirectory)
+        XCTAssertNil(controls.codexResumeThreadID)
+        XCTAssertNil(controls.providerSpecific["codex_cwd"])
+        XCTAssertNil(controls.providerSpecific["codex_internal_resume_thread_id"])
     }
 }

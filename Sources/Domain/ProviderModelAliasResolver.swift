@@ -32,7 +32,7 @@ enum ProviderModelAliasResolver {
     }
 
     private static func normalizedLookupKey(_ raw: String) -> String {
-        raw.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        raw.trimmedLowercased
     }
 
     private static func normalizedGitHubSuffix(_ raw: String) -> String {

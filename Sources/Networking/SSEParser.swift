@@ -47,16 +47,14 @@ struct SSEParser: StreamParser {
         var eventData: String?
 
         for line in eventString.components(separatedBy: "\n") {
-            let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
-            if trimmed.isEmpty {
+            guard let trimmed = line.trimmedNonEmpty else {
                 continue
             }
 
             if trimmed.hasPrefix("event:") {
-                eventType = String(trimmed.dropFirst(6).trimmingCharacters(in: .whitespacesAndNewlines))
+                eventType = String(trimmed.dropFirst(6)).trimmed
             } else if trimmed.hasPrefix("data:") {
-                let dataString = String(trimmed.dropFirst(5).trimmingCharacters(in: .whitespacesAndNewlines))
-                guard !dataString.isEmpty else {
+                guard let dataString = String(trimmed.dropFirst(5)).trimmedNonEmpty else {
                     continue
                 }
                 if dataString == "[DONE]" {
@@ -106,8 +104,7 @@ struct JSONLineParser: StreamParser {
         defer { buffer.removeAll() }
 
         guard !buffer.isEmpty,
-              let lineString = String(data: buffer, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
-              !lineString.isEmpty else {
+              let lineString = String(data: buffer, encoding: .utf8)?.trimmedNonEmpty else {
             return
         }
 

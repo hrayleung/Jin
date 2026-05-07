@@ -9,9 +9,7 @@ enum AppDataLocations {
     static let storeFileName = "default.store"
 
     static func applicationSupportDirectory(fileManager: FileManager = .default) throws -> URL {
-        if let override = ProcessInfo.processInfo.environment[appSupportOverrideEnvironmentKey]?
-            .trimmingCharacters(in: .whitespacesAndNewlines),
-           !override.isEmpty {
+        if let override = ProcessInfo.processInfo.environment[appSupportOverrideEnvironmentKey]?.trimmedNonEmpty {
             let overrideURL = URL(fileURLWithPath: override, isDirectory: true)
             if !fileManager.fileExists(atPath: overrideURL.path) {
                 try fileManager.createDirectory(at: overrideURL, withIntermediateDirectories: true)

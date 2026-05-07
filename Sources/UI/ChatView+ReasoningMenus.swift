@@ -98,15 +98,11 @@ extension ChatView {
     }
 
     var fireworksReasoningHistory: String? {
-        controls.providerSpecific["reasoning_history"]?.value as? String
+        ChatReasoningSupport.fireworksReasoningHistory(controls: controls)
     }
 
     func setFireworksReasoningHistory(_ value: String?) {
-        if let value {
-            controls.providerSpecific["reasoning_history"] = AnyCodable(value)
-        } else {
-            controls.providerSpecific.removeValue(forKey: "reasoning_history")
-        }
+        controls = ChatReasoningSupport.setFireworksReasoningHistory(value, controls: controls)
         persistControlsToConversation()
     }
 
@@ -135,17 +131,10 @@ extension ChatView {
     var cerebrasPreserveThinkingBinding: Binding<Bool> {
         Binding(
             get: {
-                // Cerebras `clear_thinking` defaults to true. Preserve thinking == clear_thinking false.
-                let clear = (controls.providerSpecific["clear_thinking"]?.value as? Bool) ?? true
-                return clear == false
+                ChatReasoningSupport.cerebrasPreservesThinking(controls: controls)
             },
             set: { preserve in
-                if preserve {
-                    controls.providerSpecific["clear_thinking"] = AnyCodable(false)
-                } else {
-                    // Use provider default (clear_thinking true).
-                    controls.providerSpecific.removeValue(forKey: "clear_thinking")
-                }
+                controls = ChatReasoningSupport.setCerebrasPreservesThinking(preserve, controls: controls)
                 persistControlsToConversation()
             }
         )

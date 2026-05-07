@@ -66,18 +66,8 @@ struct TextToSpeechPluginSettingsView: View {
 
     var currentAPIKeyPreferenceKey: String? {
         guard let provider else { return nil }
-        switch provider {
-        case .elevenlabs:
-            return AppPreferenceKeys.ttsElevenLabsAPIKey
-        case .openai:
-            return AppPreferenceKeys.ttsOpenAIAPIKey
-        case .groq:
-            return AppPreferenceKeys.ttsGroqAPIKey
-        case .xiaomiMiMo:
-            return AppPreferenceKeys.ttsMiMoAPIKey
-        case .whisperKit:
-            return nil
-        }
+        let preferenceKey = SpeechPluginPreferenceSupport.textToSpeechAPIKeyPreferenceKey(for: provider)
+        return preferenceKey.isEmpty ? nil : preferenceKey
     }
 
     var trimmedAPIKey: String {
@@ -87,20 +77,15 @@ struct TextToSpeechPluginSettingsView: View {
     var body: some View {
         JinSettingsPage {
             JinSettingsSection("Playback") {
-                Toggle("Show floating mini player", isOn: $miniPlayerEnabled)
+                JinSettingsToggleRow("Show floating mini player", isOn: $miniPlayerEnabled)
                     .help("Show a floating mini player at the top of the chat when speech is playing.")
             }
 
             JinSettingsSection("Provider") {
-                JinSettingsControlRow("Provider") {
-                    Picker("Provider", selection: $providerRaw) {
-                        ForEach(TextToSpeechProvider.allCases) { provider in
-                            Text(provider.displayName).tag(provider.rawValue)
-                        }
+                JinSettingsPickerRow("Provider", selection: $providerRaw) {
+                    ForEach(TextToSpeechProvider.allCases) { provider in
+                        Text(provider.displayName).tag(provider.rawValue)
                     }
-                    .labelsHidden()
-                    .pickerStyle(.menu)
-                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 .onChange(of: providerRaw) { oldProviderRaw, _ in
                     autoSaveTask?.cancel()
@@ -117,41 +102,25 @@ struct TextToSpeechPluginSettingsView: View {
                     "API Key",
                     detail: "Stored locally on this Mac. Changes save automatically."
                 ) {
-                    JinSettingsControlRow("API Key") {
-                        JinRevealableSecureField(
-                            title: "API Key",
-                            text: $apiKey,
-                            isRevealed: $isKeyVisible,
-                            revealHelp: "Show API key",
-                            concealHelp: "Hide API key"
-                        )
-                    }
+                    JinSettingsSecureFieldRow(
+                        "API Key",
+                        text: $apiKey,
+                        isRevealed: $isKeyVisible,
+                        revealHelp: "Show API key",
+                        concealHelp: "Hide API key"
+                    )
 
-                    HStack(spacing: 12) {
-                        Button("Test Connection") { testConnection() }
-                            .disabled(trimmedAPIKey.isEmpty || isTesting)
-
-                        Button("Clear", role: .destructive) { clearKey() }
-                            .disabled(isTesting)
-
-                        Spacer()
-
-                        if isTesting || isLoadingModels || isLoadingVoices {
-                            ProgressView()
-                                .controlSize(.small)
-                        }
-                    }
-
-                    if let statusMessage {
-                        JinSettingsStatusText(
-                            text: statusMessage,
-                            isError: statusIsError,
-                            isSuccess: JinSettingsStatusText.isConnectionVerifiedStatus(
-                                statusMessage,
-                                isError: statusIsError
-                            )
-                        )
-                    }
+                    PluginCredentialActionsView(
+                        canTestConnection: !trimmedAPIKey.isEmpty,
+                        canClear: true,
+                        isTesting: isTesting,
+                        showsProgress: isTesting || isLoadingModels || isLoadingVoices,
+                        statusMessage: statusMessage,
+                        statusIsError: statusIsError,
+                        spacing: 12,
+                        onTestConnection: testConnection,
+                        onClear: clearKey
+                    )
                 }
             }
 

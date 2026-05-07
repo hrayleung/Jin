@@ -60,14 +60,12 @@ extension ProviderConfig {
 
     private func authModeHintValue(for key: String) -> String? {
         guard let raw = authModeHintMap[key] else { return nil }
-        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? nil : trimmed
+        return raw.trimmedNonEmpty
     }
 
     private mutating func setAuthModeHintValue(_ value: String?, for key: String) {
         var updated = authModeHintMap
-        let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines)
-        if let trimmed, !trimmed.isEmpty {
+        if let trimmed = value?.trimmedNonEmpty {
             updated[key] = trimmed
         } else {
             updated.removeValue(forKey: key)
@@ -145,14 +143,12 @@ extension ProviderConfigEntity {
 
     private func authModeHintValue(for key: String) -> String? {
         guard let raw = ProviderConfigAuthHintCodec.decode(apiKeyKeychainID)[key] else { return nil }
-        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? nil : trimmed
+        return raw.trimmedNonEmpty
     }
 
     private func setAuthModeHintValue(_ value: String?, for key: String) {
         var updated = ProviderConfigAuthHintCodec.decode(apiKeyKeychainID)
-        let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines)
-        if let trimmed, !trimmed.isEmpty {
+        if let trimmed = value?.trimmedNonEmpty {
             updated[key] = trimmed
         } else {
             updated.removeValue(forKey: key)
@@ -163,7 +159,7 @@ extension ProviderConfigEntity {
 
 private enum ProviderConfigAuthHintCodec {
     static func decode(_ raw: String?) -> [String: String] {
-        guard let raw = raw?.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty else {
+        guard let raw = raw?.trimmedNonEmpty else {
             return [:]
         }
         guard raw.hasPrefix("{"),
@@ -175,10 +171,7 @@ private enum ProviderConfigAuthHintCodec {
     }
 
     static func encode(_ values: [String: String]) -> String? {
-        let filtered = values.compactMapValues { value -> String? in
-            let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-            return trimmed.isEmpty ? nil : trimmed
-        }
+        let filtered = values.compactMapValues(\.trimmedNonEmpty)
         guard !filtered.isEmpty,
               let data = try? JSONEncoder().encode(filtered),
               let string = String(data: data, encoding: .utf8) else {

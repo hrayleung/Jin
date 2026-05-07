@@ -72,9 +72,7 @@ struct TTSKitModelCatalog {
     }
 
     static func normalizedModelID(_ rawModelID: String?) -> String {
-        let trimmed = (rawModelID ?? "")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return defaultModelID }
+        guard let trimmed = rawModelID?.trimmedNonEmpty else { return defaultModelID }
 
         if TTSModelVariant(rawValue: trimmed) != nil {
             return trimmed

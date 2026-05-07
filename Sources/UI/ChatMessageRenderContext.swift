@@ -6,6 +6,16 @@ struct ChatThreadRenderContext {
     let messageEntitiesByID: [UUID: MessageEntity]
     let toolResultsByCallID: [String: ToolResult]
     let artifactCatalog: ArtifactCatalog
+
+    func replacingHistoryMessages(_ historyMessages: [Message]) -> ChatThreadRenderContext {
+        ChatThreadRenderContext(
+            visibleMessages: visibleMessages,
+            historyMessages: historyMessages,
+            messageEntitiesByID: messageEntitiesByID,
+            toolResultsByCallID: toolResultsByCallID,
+            artifactCatalog: artifactCatalog
+        )
+    }
 }
 
 struct ChatDecodedRenderContext: Sendable {

@@ -44,52 +44,56 @@ struct WebSearchPluginSettings: Sendable {
     }
 
     func hasConfiguredCredential(for provider: SearchPluginProvider) -> Bool {
-        !apiKey(for: provider).trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        apiKey(for: provider).trimmedNonEmpty != nil
     }
 }
 
 enum WebSearchPluginSettingsStore {
     static func load(defaults: UserDefaults = .standard) -> WebSearchPluginSettings {
+        func trimmedPreference(_ key: String) -> String? {
+            defaults.string(forKey: key)?.trimmedNonEmpty
+        }
+
         let providerRaw = defaults.string(forKey: AppPreferenceKeys.pluginWebSearchDefaultProvider)
         let defaultProvider = SearchPluginProvider(rawValue: providerRaw ?? "") ?? .exa
 
         let maxResultsStored = defaults.integer(forKey: AppPreferenceKeys.pluginWebSearchDefaultMaxResults)
-        let defaultMaxResults = clamp(maxResultsStored == 0 ? 8 : maxResultsStored, min: 1, max: 50)
+        let defaultMaxResults = (maxResultsStored == 0 ? 8 : maxResultsStored).clamped(to: 1...50)
 
         let recencyStored = defaults.integer(forKey: AppPreferenceKeys.pluginWebSearchDefaultRecencyDays)
         let defaultRecencyDays: Int?
         if recencyStored <= 0 {
             defaultRecencyDays = nil
         } else {
-            defaultRecencyDays = clamp(recencyStored, min: 1, max: 365)
+            defaultRecencyDays = recencyStored.clamped(to: 1...365)
         }
 
         let exaType = ExaSearchType.resolved(from: defaults.string(forKey: AppPreferenceKeys.pluginWebSearchExaSearchType))
 
-        let braveCountry = trimmed(defaults.string(forKey: AppPreferenceKeys.pluginWebSearchBraveCountry))
-        let braveLanguage = trimmed(defaults.string(forKey: AppPreferenceKeys.pluginWebSearchBraveLanguage))
-        let braveSafesearch = trimmed(defaults.string(forKey: AppPreferenceKeys.pluginWebSearchBraveSafesearch))
+        let braveCountry = trimmedPreference(AppPreferenceKeys.pluginWebSearchBraveCountry)
+        let braveLanguage = trimmedPreference(AppPreferenceKeys.pluginWebSearchBraveLanguage)
+        let braveSafesearch = trimmedPreference(AppPreferenceKeys.pluginWebSearchBraveSafesearch)
 
-        let tavilySearchDepth = trimmed(defaults.string(forKey: AppPreferenceKeys.pluginWebSearchTavilySearchDepth))
-        let tavilyTopic = trimmed(defaults.string(forKey: AppPreferenceKeys.pluginWebSearchTavilyTopic))
+        let tavilySearchDepth = trimmedPreference(AppPreferenceKeys.pluginWebSearchTavilySearchDepth)
+        let tavilyTopic = trimmedPreference(AppPreferenceKeys.pluginWebSearchTavilyTopic)
 
         return WebSearchPluginSettings(
             isEnabled: AppPreferences.isPluginEnabled("web_search_builtin", defaults: defaults),
             defaultProvider: defaultProvider,
             defaultMaxResults: defaultMaxResults,
             defaultRecencyDays: defaultRecencyDays,
-            exaAPIKey: trimmed(defaults.string(forKey: AppPreferenceKeys.pluginWebSearchExaAPIKey)) ?? "",
-            braveAPIKey: trimmed(defaults.string(forKey: AppPreferenceKeys.pluginWebSearchBraveAPIKey)) ?? "",
-            jinaAPIKey: trimmed(defaults.string(forKey: AppPreferenceKeys.pluginWebSearchJinaAPIKey)) ?? "",
-            firecrawlAPIKey: trimmed(defaults.string(forKey: AppPreferenceKeys.pluginWebSearchFirecrawlAPIKey)) ?? "",
+            exaAPIKey: trimmedPreference(AppPreferenceKeys.pluginWebSearchExaAPIKey) ?? "",
+            braveAPIKey: trimmedPreference(AppPreferenceKeys.pluginWebSearchBraveAPIKey) ?? "",
+            jinaAPIKey: trimmedPreference(AppPreferenceKeys.pluginWebSearchJinaAPIKey) ?? "",
+            firecrawlAPIKey: trimmedPreference(AppPreferenceKeys.pluginWebSearchFirecrawlAPIKey) ?? "",
             exaSearchType: exaType,
             braveCountry: braveCountry,
             braveLanguage: braveLanguage,
             braveSafesearch: braveSafesearch,
             jinaReadPages: defaults.object(forKey: AppPreferenceKeys.pluginWebSearchJinaReadPages) as? Bool ?? true,
             firecrawlExtractContent: defaults.object(forKey: AppPreferenceKeys.pluginWebSearchFirecrawlExtractContent) as? Bool ?? true,
-            tavilyAPIKey: trimmed(defaults.string(forKey: AppPreferenceKeys.pluginWebSearchTavilyAPIKey)) ?? "",
-            perplexityAPIKey: trimmed(defaults.string(forKey: AppPreferenceKeys.pluginWebSearchPerplexityAPIKey)) ?? "",
+            tavilyAPIKey: trimmedPreference(AppPreferenceKeys.pluginWebSearchTavilyAPIKey) ?? "",
+            perplexityAPIKey: trimmedPreference(AppPreferenceKeys.pluginWebSearchPerplexityAPIKey) ?? "",
             tavilySearchDepth: tavilySearchDepth,
             tavilyTopic: tavilyTopic
         )
@@ -102,15 +106,5 @@ enum WebSearchPluginSettingsStore {
 
     static func hasConfiguredProvider(_ provider: SearchPluginProvider, defaults: UserDefaults = .standard) -> Bool {
         load(defaults: defaults).hasConfiguredCredential(for: provider)
-    }
-
-    private static func trimmed(_ value: String?) -> String? {
-        guard let value else { return nil }
-        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? nil : trimmed
-    }
-
-    private static func clamp(_ value: Int, min minimum: Int, max maximum: Int) -> Int {
-        Swift.max(minimum, Swift.min(maximum, value))
     }
 }

@@ -1,5 +1,4 @@
 import Foundation
-import CryptoKit
 
 actor AutomaticExplicitCacheRegistry {
     static let shared = AutomaticExplicitCacheRegistry()
@@ -32,8 +31,7 @@ enum ContextCacheUtilities {
     static let automaticGoogleExplicitCacheMinTokenEstimate = 2048
 
     static func sha256Hex(_ text: String) -> String {
-        let digest = SHA256.hash(data: Data(text.utf8))
-        return digest.map { String(format: "%02x", $0) }.joined()
+        SHA256HexDigest.string(text)
     }
 
     static func normalizedSystemPrompt(in messages: [Message]) -> String? {
@@ -46,8 +44,7 @@ enum ContextCacheUtilities {
             }
             return nil
         }.joined(separator: "\n")
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? nil : trimmed
+        return text.trimmedNonEmpty
     }
 
     static func approximateTokenEstimate(for text: String) -> Int {
@@ -56,7 +53,7 @@ enum ContextCacheUtilities {
     }
 
     static func normalizedGeminiCachedContentModel(_ modelID: String) -> String {
-        let trimmed = modelID.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmed = modelID.trimmed
         if trimmed.hasPrefix("models/") {
             return trimmed
         }
@@ -64,7 +61,7 @@ enum ContextCacheUtilities {
     }
 
     static func normalizedVertexCachedContentModel(_ modelID: String) -> String {
-        let trimmed = modelID.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmed = modelID.trimmed
         if trimmed.hasPrefix("publishers/") {
             return trimmed
         }

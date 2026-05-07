@@ -43,11 +43,10 @@ struct ProviderIconPickerField: View {
     @State private var isPickerPresented = false
 
     private var activeIconID: String? {
-        let trimmed = selectedIconID?.trimmingCharacters(in: .whitespacesAndNewlines)
-        if trimmed?.isEmpty == false {
-            return trimmed
-        }
-        return defaultIconID
+        ProviderIconPickerSupport.activeIconID(
+            selectedIconID: selectedIconID,
+            defaultIconID: defaultIconID
+        )
     }
 
     var body: some View {
@@ -84,18 +83,10 @@ struct ProviderIconPickerField: View {
     }
 
     private var iconLabel: String {
-        if let selectedIconID {
-            let trimmed = selectedIconID.trimmingCharacters(in: .whitespacesAndNewlines)
-            if !trimmed.isEmpty {
-                return trimmed
-            }
-        }
-
-        if let defaultIconID {
-            return "Default (\(defaultIconID))"
-        }
-
-        return "Choose..."
+        ProviderIconPickerSupport.displayLabel(
+            selectedIconID: selectedIconID,
+            defaultIconID: defaultIconID
+        )
     }
 }
 
@@ -113,18 +104,10 @@ private struct ProviderIconPickerSheet: View {
     ]
 
     private var filteredIcons: [LobeProviderIcon] {
-        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        guard !query.isEmpty else { return LobeProviderIconCatalog.all }
-
-        return LobeProviderIconCatalog.all.filter { icon in
-            icon.id.lowercased().contains(query) || icon.docsSlug.lowercased().contains(query)
-        }
-    }
-
-    private var normalizedDraftIconID: String? {
-        let trimmed = draftIconID?.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let trimmed, !trimmed.isEmpty else { return nil }
-        return trimmed
+        ProviderIconPickerSupport.filteredIcons(
+            from: LobeProviderIconCatalog.all,
+            searchText: searchText
+        )
     }
 
     var body: some View {
@@ -167,7 +150,7 @@ private struct ProviderIconPickerSheet: View {
     }
 
     private var defaultCell: some View {
-        let isSelected = normalizedDraftIconID == nil
+        let isSelected = ProviderIconPickerSupport.isDefaultSelected(draftIconID)
 
         return Button {
             draftIconID = nil
@@ -200,7 +183,10 @@ private struct ProviderIconPickerSheet: View {
     }
 
     private func iconCell(icon: LobeProviderIcon) -> some View {
-        let isSelected = normalizedDraftIconID?.caseInsensitiveCompare(icon.id) == .orderedSame
+        let isSelected = ProviderIconPickerSupport.isSelected(
+            icon: icon,
+            selectedIconID: draftIconID
+        )
 
         return Button {
             draftIconID = icon.id

@@ -29,8 +29,7 @@ enum AgentCommandAllowlist {
         allowedPrefixes: [String],
         sessionPrefixes: [String] = []
     ) -> Bool {
-        let trimmed = command.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return false }
+        guard let trimmed = command.trimmedNonEmpty else { return false }
 
         // For piped commands, check the first command in the pipeline
         let firstCommand = extractFirstPipelineCommand(trimmed)
@@ -63,20 +62,18 @@ enum AgentCommandAllowlist {
                 depth = max(0, depth - 1)
             case "|" where !inSingleQuote && !inDoubleQuote && depth == 0:
                 let firstPart = String(command[command.startIndex..<command.index(command.startIndex, offsetBy: index)])
-                return firstPart.trimmingCharacters(in: .whitespacesAndNewlines)
+                return firstPart.trimmed
             default:
                 break
             }
         }
 
-        return command.trimmingCharacters(in: .whitespacesAndNewlines)
+        return command.trimmed
     }
 
     private static func matchesPrefix(command: String, prefix: String) -> Bool {
-        let normalizedCommand = command.trimmingCharacters(in: .whitespacesAndNewlines)
-        let normalizedPrefix = prefix.trimmingCharacters(in: .whitespacesAndNewlines)
-
-        guard !normalizedPrefix.isEmpty else { return false }
+        let normalizedCommand = command.trimmed
+        guard let normalizedPrefix = prefix.trimmedNonEmpty else { return false }
 
         // Exact match
         if normalizedCommand == normalizedPrefix {

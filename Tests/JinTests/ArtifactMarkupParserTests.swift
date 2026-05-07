@@ -23,6 +23,31 @@ final class ArtifactMarkupParserTests: XCTestCase {
         XCTAssertFalse(result.visibleText.contains("<jinArtifact"))
     }
 
+    func testParseTrimsArtifactAttributesAndContent() throws {
+        let input = """
+        <jinArtifact artifact_id=" demo-card " title=" Demo Card " contentType=" text/html ">
+
+          <div>Hello</div>
+
+        </jinArtifact>
+        """
+
+        let artifact = try XCTUnwrap(ArtifactMarkupParser.parse(input).artifacts.first)
+
+        XCTAssertEqual(artifact.artifactID, "demo-card")
+        XCTAssertEqual(artifact.title, "Demo Card")
+        XCTAssertEqual(artifact.contentType, .html)
+        XCTAssertEqual(artifact.content, "<div>Hello</div>")
+    }
+
+    func testParseUsesTrimmedArtifactIDWhenTitleIsBlank() throws {
+        let input = #"<jinArtifact artifact_id=" demo-card " title="  " contentType="text/html">x</jinArtifact>"#
+
+        let artifact = try XCTUnwrap(ArtifactMarkupParser.parse(input).artifacts.first)
+
+        XCTAssertEqual(artifact.title, "demo-card")
+    }
+
     func testParseFallsBackToRawTextForUnsupportedContentType() {
         let input = "<jinArtifact artifact_id=\"bad\" title=\"Bad\" contentType=\"application/unknown\">x</jinArtifact>"
 
@@ -42,11 +67,19 @@ final class ArtifactMarkupParserTests: XCTestCase {
     }
 
     func testAppendsInstructionsWhenArtifactsEnabled() {
-        let prompt = ArtifactMarkupParser.appendingInstructions(to: "Base prompt.", enabled: true)
+        let prompt = ArtifactMarkupParser.appendingInstructions(to: " \n Base prompt. \t ", enabled: true)
 
         XCTAssertNotNil(prompt)
         XCTAssertTrue(prompt?.contains("<jinArtifact") == true)
         XCTAssertTrue(prompt?.contains("application/vnd.jin.react") == true)
         XCTAssertTrue(prompt?.contains("Base prompt.") == true)
+    }
+
+    func testAppendingInstructionsTrimsDisabledPromptAndDropsBlankPrompt() {
+        XCTAssertEqual(
+            ArtifactMarkupParser.appendingInstructions(to: " \n Base prompt. \t ", enabled: false),
+            "Base prompt."
+        )
+        XCTAssertNil(ArtifactMarkupParser.appendingInstructions(to: " \n\t ", enabled: false))
     }
 }

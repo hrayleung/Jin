@@ -40,15 +40,10 @@ extension SettingsView {
 
     func providerDeletionMessage(_ provider: ProviderConfigEntity) -> String {
         let count = conversations.filter { $0.providerID == provider.id }.count
-        guard count > 0 else {
-            return "This will permanently delete \u{201C}\(provider.name)\u{201D}."
-        }
-
-        return """
-        This will permanently delete \u{201C}\(provider.name)\u{201D}.
-
-        It is currently used by \(count) chat\(count == 1 ? "" : "s"). Those chats will need a different provider selected.
-        """
+        return SettingsDeletionSupport.providerDeletionMessage(
+            providerName: provider.name,
+            chatCount: count
+        )
     }
 
     func requestDeleteSelectedProvider() {
@@ -99,47 +94,23 @@ extension SettingsView {
     }
 
     func ensureValidSelection() {
-        if selectedSection == nil {
-            selectedSection = .providers
-        }
+        let selection = SettingsSelectionSupport.validatedSelection(
+            SettingsSelectionSupport.Selection(
+                section: selectedSection,
+                providerID: selectedProviderID,
+                serverID: selectedServerID,
+                pluginID: selectedPluginID,
+                generalCategory: selectedGeneralCategory
+            ),
+            providerIDs: filteredProviders.map(\.id),
+            serverIDs: filteredMCPServers.map(\.id),
+            pluginIDs: filteredPlugins.map(\.id)
+        )
 
-        if selectedSection != .providers { selectedProviderID = nil }
-        if selectedSection != .mcpServers { selectedServerID = nil }
-        if selectedSection != .plugins { selectedPluginID = nil }
-        if selectedSection != .general { selectedGeneralCategory = nil }
-
-        switch selectedSection {
-        case .providers:
-            let candidates = filteredProviders
-            if let selectedProviderID,
-               candidates.contains(where: { $0.id == selectedProviderID }) {
-                return
-            }
-            selectedProviderID = candidates.first?.id
-
-        case .mcpServers:
-            let candidates = filteredMCPServers
-            if let selectedServerID,
-               candidates.contains(where: { $0.id == selectedServerID }) {
-                return
-            }
-            selectedServerID = candidates.first?.id
-
-        case .plugins:
-            let candidates = filteredPlugins
-            if let selectedPluginID,
-               candidates.contains(where: { $0.id == selectedPluginID }) {
-                return
-            }
-            selectedPluginID = candidates.first?.id
-
-        case .general:
-            if selectedGeneralCategory == nil {
-                selectedGeneralCategory = .appearance
-            }
-
-        case .none:
-            selectedSection = .providers
-        }
+        selectedSection = selection.section
+        selectedProviderID = selection.providerID
+        selectedServerID = selection.serverID
+        selectedPluginID = selection.pluginID
+        selectedGeneralCategory = selection.generalCategory
     }
 }

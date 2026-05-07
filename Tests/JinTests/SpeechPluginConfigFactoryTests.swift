@@ -120,6 +120,31 @@ final class SpeechPluginConfigFactoryTests: XCTestCase {
         XCTAssertEqual(ttsKit.playbackMode, .auto)
     }
 
+    func testTextToSpeechConfigThrowsWhenElevenLabsVoiceIsBlank() {
+        defaults.set(TextToSpeechProvider.elevenlabs.rawValue, forKey: AppPreferenceKeys.ttsProvider)
+        defaults.set("test-key", forKey: AppPreferenceKeys.ttsElevenLabsAPIKey)
+        defaults.set(" \n\t ", forKey: AppPreferenceKeys.ttsElevenLabsVoiceID)
+
+        XCTAssertThrowsError(try SpeechPluginConfigFactory.textToSpeechConfig(defaults: defaults)) { error in
+            guard case SpeechExtensionError.missingElevenLabsVoice = error else {
+                return XCTFail("Expected missingElevenLabsVoice, got \(error)")
+            }
+        }
+    }
+
+    func testTextToSpeechConfigAllowsWhitespaceWrappedElevenLabsVoice() throws {
+        defaults.set(TextToSpeechProvider.elevenlabs.rawValue, forKey: AppPreferenceKeys.ttsProvider)
+        defaults.set("test-key", forKey: AppPreferenceKeys.ttsElevenLabsAPIKey)
+        defaults.set(" voice-id ", forKey: AppPreferenceKeys.ttsElevenLabsVoiceID)
+
+        let config = try SpeechPluginConfigFactory.textToSpeechConfig(defaults: defaults)
+        guard case .elevenlabs(let elevenLabs) = config else {
+            return XCTFail("Expected ElevenLabs config, got \(config)")
+        }
+
+        XCTAssertEqual(elevenLabs.voiceId, " voice-id ")
+    }
+
     func testSpeechToTextConfigDisablesElevenLabsNoVerbatimForScribeV1() throws {
         defaults.set(SpeechToTextProvider.elevenlabs.rawValue, forKey: AppPreferenceKeys.sttProvider)
         defaults.set("test-key", forKey: AppPreferenceKeys.sttElevenLabsAPIKey)

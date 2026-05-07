@@ -7,8 +7,7 @@ enum ToolSearchActivityFactory {
         toolName: String,
         isError: Bool
     ) -> String {
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !trimmed.isEmpty {
+        if let trimmed = text.trimmedNonEmpty {
             return trimmed
         }
         if isError {
@@ -27,8 +26,7 @@ enum ToolSearchActivityFactory {
         let query = (call.arguments["query"]?.value as? String)
             ?? (call.arguments["q"]?.value as? String)
             ?? ""
-        let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !trimmedQuery.isEmpty {
+        if let trimmedQuery = query.trimmedNonEmpty {
             args["query"] = AnyCodable(trimmedQuery)
         }
 

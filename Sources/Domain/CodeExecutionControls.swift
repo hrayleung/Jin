@@ -99,7 +99,7 @@ struct OpenAICodeExecutionOptions: Codable {
     }
 
     var normalizedExistingContainerID: String? {
-        Self.normalizedString(existingContainerID)
+        existingContainerID?.trimmedNonEmpty
     }
 
     func normalized() -> OpenAICodeExecutionOptions? {
@@ -114,11 +114,6 @@ struct OpenAICodeExecutionOptions: Codable {
             container: normalizedContainer,
             existingContainerID: normalizedExistingContainerID
         )
-    }
-
-    private static func normalizedString(_ value: String?) -> String? {
-        let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        return trimmed.isEmpty ? nil : trimmed
     }
 }
 
@@ -142,17 +137,15 @@ struct CodeExecutionContainer: Codable {
     }
 
     var normalizedType: String? {
-        Self.normalizedString(type)
+        type?.trimmedNonEmpty
     }
 
     var normalizedMemoryLimit: String? {
-        Self.normalizedString(memoryLimit)
+        memoryLimit?.trimmedNonEmpty
     }
 
     var normalizedFileIDs: [String]? {
-        let values = (fileIDs ?? [])
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
+        let values = (fileIDs ?? []).compactMap(\.trimmedNonEmpty)
 
         guard !values.isEmpty else { return nil }
 
@@ -172,11 +165,6 @@ struct CodeExecutionContainer: Codable {
         )
         return normalized.isEmpty ? nil : normalized
     }
-
-    private static func normalizedString(_ value: String?) -> String? {
-        let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        return trimmed.isEmpty ? nil : trimmed
-    }
 }
 
 /// Anthropic-specific code execution settings.
@@ -193,8 +181,7 @@ struct AnthropicCodeExecutionOptions: Codable {
     }
 
     var normalizedContainerID: String? {
-        let trimmed = containerID?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        return trimmed.isEmpty ? nil : trimmed
+        containerID?.trimmedNonEmpty
     }
 
     func normalized() -> AnthropicCodeExecutionOptions? {

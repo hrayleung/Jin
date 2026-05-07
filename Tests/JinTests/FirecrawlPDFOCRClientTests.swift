@@ -36,7 +36,7 @@ final class FirecrawlPDFOCRClientTests: XCTestCase {
             let response: [String: Any] = [
                 "success": true,
                 "data": [
-                    "markdown": "# Parsed"
+                    "markdown": " \n# Parsed\n "
                 ]
             ]
             let data = try JSONSerialization.data(withJSONObject: response)
@@ -115,6 +115,39 @@ final class FirecrawlPDFOCRClientTests: XCTestCase {
             XCTFail("Expected Firecrawl scrape to fail when markdown is missing")
         } catch let LLMError.decodingError(message) {
             XCTAssertTrue(message.contains("did not contain markdown"))
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+    }
+
+    func testFirecrawlScrapePDFTrimsFailureMessage() async throws {
+        let (configuration, protocolType) = makeFirecrawlMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+        let client = FirecrawlPDFOCRClient(
+            apiKey: "test-key",
+            networkManager: networkManager
+        )
+
+        protocolType.requestHandler = { request in
+            let response: [String: Any] = [
+                "success": false,
+                "error": " \nBad PDF\n "
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (
+                HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                data
+            )
+        }
+
+        do {
+            _ = try await client.scrapePDF(
+                at: URL(string: "https://files.example.com/doc.pdf")!,
+                mode: .auto
+            )
+            XCTFail("Expected Firecrawl scrape to fail")
+        } catch let LLMError.invalidRequest(message) {
+            XCTAssertEqual(message, "Bad PDF")
         } catch {
             XCTFail("Unexpected error: \(error)")
         }

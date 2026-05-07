@@ -83,4 +83,42 @@ final class ConversationTitleGeneratorTests: XCTestCase {
         XCTAssertTrue(ChatNamingModelSupport.shouldRequestStreaming(providerConfig: provider, modelID: streamingModel.id))
         XCTAssertFalse(ChatNamingModelSupport.shouldRequestStreaming(providerConfig: provider, modelID: nonStreamingModel.id))
     }
+
+    func testChatNamingModelSupportResolvesConfiguredTarget() throws {
+        let provider = ProviderConfig(
+            id: "provider",
+            name: "Provider",
+            type: .openaiCompatible,
+            models: [
+                ModelInfo(id: "chat", name: "Chat", capabilities: [.streaming], contextWindow: 128_000)
+            ]
+        )
+        let entity = try ProviderConfigEntity.fromDomain(provider)
+
+        let target = ChatNamingModelSupport.resolvedTarget(
+            providers: [entity],
+            providerID: " provider ",
+            modelID: " chat "
+        )
+
+        XCTAssertEqual(target?.provider.id, provider.id)
+        XCTAssertEqual(target?.modelID, "chat")
+    }
+
+    func testChatNamingModelSupportRejectsMissingAndUnsupportedTargets() throws {
+        let provider = ProviderConfig(
+            id: "provider",
+            name: "Provider",
+            type: .openaiCompatible,
+            models: [
+                ModelInfo(id: "image", name: "Image", capabilities: [.imageGeneration], contextWindow: 128_000)
+            ]
+        )
+        let entity = try ProviderConfigEntity.fromDomain(provider)
+
+        XCTAssertNil(ChatNamingModelSupport.resolvedTarget(providers: [entity], providerID: "", modelID: "image"))
+        XCTAssertNil(ChatNamingModelSupport.resolvedTarget(providers: [entity], providerID: "missing", modelID: "image"))
+        XCTAssertNil(ChatNamingModelSupport.resolvedTarget(providers: [entity], providerID: "provider", modelID: "missing"))
+        XCTAssertNil(ChatNamingModelSupport.resolvedTarget(providers: [entity], providerID: "provider", modelID: "image"))
+    }
 }

@@ -37,33 +37,58 @@ struct MCPServerConfigFormView: View {
     var body: some View {
         JinSettingsPage(maxWidth: 760) {
             if let configError {
-                JinSettingsSection("Configuration Error", style: .plain) {
-                    HStack {
-                        Text(configError)
-                            .font(.system(.caption, design: .monospaced))
-                            .textSelection(.enabled)
-                            .jinInlineErrorText()
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                        Button {
-                            self.configError = nil
-                        } label: {
-                            Image(systemName: "xmark.circle.fill")
-                                .foregroundStyle(.secondary)
-                        }
-                        .buttonStyle(.plain)
-                    }
+                MCPServerConfigurationErrorSection(message: configError) {
+                    self.configError = nil
                 }
             }
 
-            serverSection
+            MCPServerIdentitySection(
+                server: server,
+                transportKind: $transportKind
+            )
 
             if transportKind == .stdio {
-                stdioSections
+                MCPServerStdioTransportSections(
+                    command: $command,
+                    argsText: $argsText,
+                    envPairs: $envPairs,
+                    argsError: argsError,
+                    showsFirecrawlAPIKeyWarning: isFirecrawlMCP && !hasFirecrawlAPIKey
+                )
             } else {
-                httpSections
+                MCPServerHTTPTransportSections(
+                    endpoint: $endpoint,
+                    httpStreaming: $httpStreaming,
+                    endpointError: endpointError,
+                    httpAuthKind: $httpAuthKind,
+                    bearerToken: $bearerToken,
+                    authHeaderName: $authHeaderName,
+                    authHeaderValue: $authHeaderValue,
+                    headerPairs: $headerPairs,
+                    isBearerTokenVisible: $isBearerTokenVisible,
+                    isHeaderValueVisible: $isHeaderValueVisible,
+                    authenticationError: httpAuthenticationValidationError
+                )
             }
 
-            toolsSection
+            MCPServerToolsSection(
+                verifying: verifying,
+                hasTransportValidationError: hasTransportValidationError,
+                verifyError: verifyError,
+                tools: tools,
+                isToolEnabled: { tool in
+                    !disabledTools.contains(tool.name)
+                },
+                onVerify: verifyTools,
+                onHide: {
+                    tools = []
+                    verifyError = nil
+                },
+                onSetToolEnabled: setToolEnabled,
+                onViewSchema: { tool in
+                    schemaPresentedTool = tool
+                }
+            )
         }
         .navigationTitle(server.name)
         .task {
@@ -81,330 +106,28 @@ struct MCPServerConfigFormView: View {
         .onChange(of: headerPairs) { _, _ in persistTransport() }
         .onChange(of: httpStreaming) { _, _ in persistTransport() }
         .sheet(item: $schemaPresentedTool) { tool in
-            schemaSheet(for: tool)
-        }
-    }
-
-    private var serverSection: some View {
-        JinSettingsSection("MCP Server") {
-            JinSettingsControlRow("Transport") {
-                Picker("Transport", selection: $transportKind) {
-                    Text("Command-line (stdio)").tag(MCPTransportKind.stdio)
-                    Text("Remote HTTP").tag(MCPTransportKind.http)
-                }
-                .labelsHidden()
-                .pickerStyle(.menu)
-                .frame(maxWidth: .infinity, alignment: .leading)
-            }
-
-            JinSettingsControlRow("Name") {
-                TextField("Server name", text: $server.name)
-                    .textFieldStyle(.roundedBorder)
-                    .onChange(of: server.name) { _, _ in try? modelContext.save() }
-            }
-
-            JinSettingsControlRow("Icon") {
-                MCPIconPickerField(
-                    selectedIconID: Binding(
-                        get: { server.iconID },
-                        set: { newValue in
-                            let trimmed = newValue?.trimmingCharacters(in: .whitespacesAndNewlines)
-                            if let trimmed, !trimmed.isEmpty,
-                               trimmed.caseInsensitiveCompare(MCPIconCatalog.defaultIconID) != .orderedSame {
-                                server.iconID = trimmed
-                            } else {
-                                server.iconID = nil
-                            }
-                            try? modelContext.save()
-                        }
-                    ),
-                    defaultIconID: MCPIconCatalog.defaultIconID
-                )
-            }
-
-            JinSettingsControlRow("ID", supportingText: "Short identifier used inside Jin.") {
-                TextField("exa", text: $server.id)
-                    .textFieldStyle(.roundedBorder)
-                    .font(.system(.body, design: .monospaced))
-                    .textSelection(.enabled)
-                    .onChange(of: server.id) { _, _ in try? modelContext.save() }
-            }
-
-            JinSettingsControlRow("Enabled") {
-                Toggle("Enabled", isOn: $server.isEnabled)
-                    .labelsHidden()
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .onChange(of: server.isEnabled) { _, _ in try? modelContext.save() }
-            }
-
-            JinSettingsControlRow("Auto-run Tools") {
-                Toggle("Run tools automatically", isOn: $server.runToolsAutomatically)
-                    .labelsHidden()
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .onChange(of: server.runToolsAutomatically) { _, _ in try? modelContext.save() }
+            MCPToolSchemaSheet(tool: tool) {
+                schemaPresentedTool = nil
             }
         }
-    }
-
-    private var stdioSections: some View {
-        Group {
-            JinSettingsSection("Stdio Transport") {
-                JinSettingsControlRow("Command") {
-                    TextField("npx", text: $command)
-                        .textFieldStyle(.roundedBorder)
-                        .font(.system(.body, design: .monospaced))
-                        .textSelection(.enabled)
-                }
-
-                JinSettingsControlRow("Arguments") {
-                    TextField("-y exa-mcp-server", text: $argsText)
-                        .textFieldStyle(.roundedBorder)
-                        .font(.system(.body, design: .monospaced))
-                }
-
-                if isFirecrawlMCP && !hasFirecrawlAPIKey {
-                    Text("Firecrawl MCP requires `FIRECRAWL_API_KEY` in Environment variables, otherwise initialize may never return.")
-                        .jinInfoCallout()
-                }
-
-                if let argsError {
-                    Text(argsError)
-                        .foregroundStyle(.red)
-                        .font(.caption)
-                }
-            }
-
-            JinSettingsSection("Environment Variables") {
-                EnvironmentVariablesEditor(pairs: $envPairs)
-            }
-        }
-    }
-
-    private var httpSections: some View {
-        Group {
-            JinSettingsSection("HTTP Transport") {
-                JinSettingsControlRow("Endpoint URL") {
-                    TextField("https://mcp.exa.ai/mcp", text: $endpoint)
-                        .textFieldStyle(.roundedBorder)
-                        .font(.system(.body, design: .monospaced))
-                        .textSelection(.enabled)
-                }
-
-                Toggle("Enable streaming (SSE)", isOn: $httpStreaming)
-
-                if let endpointError {
-                    Text(endpointError)
-                        .foregroundStyle(.red)
-                        .font(.caption)
-                }
-            }
-
-            JinSettingsSection("Authentication") {
-                JinSettingsControlRow("Type") {
-                    Picker("Type", selection: $httpAuthKind) {
-                        Text("None").tag(MCPHTTPAuthentication.FormKind.none)
-                        Text("Bearer token").tag(MCPHTTPAuthentication.FormKind.bearerToken)
-                        Text("Custom header").tag(MCPHTTPAuthentication.FormKind.customHeader)
-                    }
-                    .labelsHidden()
-                    .pickerStyle(.menu)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                }
-
-                switch httpAuthKind {
-                case .none:
-                    EmptyView()
-                case .bearerToken:
-                    JinSettingsControlRow("Bearer token") {
-                        JinRevealableSecureField(
-                            title: "Bearer token",
-                            text: $bearerToken,
-                            isRevealed: $isBearerTokenVisible,
-                            usesMonospacedFont: true,
-                            revealHelp: "Show token",
-                            concealHelp: "Hide token"
-                        )
-                    }
-                case .customHeader:
-                    JinSettingsControlRow("Header name") {
-                        TextField("Authorization", text: $authHeaderName)
-                            .textFieldStyle(.roundedBorder)
-                            .font(.system(.body, design: .monospaced))
-                    }
-                    JinSettingsControlRow("Header value") {
-                        JinRevealableSecureField(
-                            title: "Header value",
-                            text: $authHeaderValue,
-                            isRevealed: $isHeaderValueVisible,
-                            usesMonospacedFont: true,
-                            revealHelp: "Show value",
-                            concealHelp: "Hide value"
-                        )
-                    }
-                }
-
-                if let authError = httpAuthenticationValidationError {
-                    Text(authError)
-                        .foregroundStyle(.red)
-                        .font(.caption)
-                }
-            }
-
-            JinSettingsSection("Additional Headers") {
-                EnvironmentVariablesEditor(pairs: $headerPairs)
-            }
-        }
-    }
-
-    private var toolsSection: some View {
-        JinSettingsSection(
-            "Tools",
-            detail: "Verify the server to inspect and selectively disable tools.",
-            style: .plain
-        ) {
-            VStack(alignment: .leading, spacing: 8) {
-                HStack {
-                    Button {
-                        verifyTools()
-                    } label: {
-                        HStack {
-                            Text("Verify (View Tools)")
-                            if verifying {
-                                ProgressView()
-                                    .scaleEffect(0.7)
-                            }
-                        }
-                    }
-                    .disabled(verifying || hasTransportValidationError)
-
-                    Spacer()
-
-                    if !tools.isEmpty {
-                        Button("Hide") {
-                            tools = []
-                            verifyError = nil
-                        }
-                        .disabled(verifying)
-                    }
-                }
-
-                if let verifyError {
-                    Text(verifyError)
-                        .font(.system(.caption, design: .monospaced))
-                        .textSelection(.enabled)
-                        .jinInlineErrorText()
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-
-                if !tools.isEmpty {
-                    LazyVGrid(
-                        columns: [GridItem(.adaptive(minimum: 240), spacing: 12, alignment: .topLeading)],
-                        alignment: .leading,
-                        spacing: 12
-                    ) {
-                        ForEach(tools) { tool in
-                            MCPToolCardView(
-                                tool: tool,
-                                isEnabled: Binding(
-                                    get: { !disabledTools.contains(tool.name) },
-                                    set: { isEnabled in
-                                        let previous = disabledTools
-                                        if isEnabled {
-                                            disabledTools.remove(tool.name)
-                                        } else {
-                                            disabledTools.insert(tool.name)
-                                        }
-                                        do {
-                                            try server.setDisabledTools(disabledTools)
-                                            try modelContext.save()
-                                        } catch {
-                                            disabledTools = previous
-                                            configError = "Failed to save tool settings: \(error.localizedDescription)"
-                                        }
-                                    }
-                                ),
-                                viewSchema: {
-                                    schemaPresentedTool = tool
-                                }
-                            )
-                        }
-                    }
-                    .padding(.top, 8)
-                }
-            }
-            .animation(.easeInOut(duration: 0.18), value: verifyError)
-            .animation(.easeInOut(duration: 0.18), value: tools.count)
-        }
-    }
-
-    private func schemaSheet(for tool: MCPToolInfo) -> some View {
-        NavigationStack {
-            ScrollView {
-                if let schemaText = formattedSchemaText(tool.inputSchema) {
-                    Text(schemaText)
-                        .font(.system(.caption, design: .monospaced))
-                        .foregroundStyle(.secondary)
-                        .textSelection(.enabled)
-                        .padding(JinSpacing.medium)
-                        .jinSurface(.outlined, cornerRadius: JinRadius.medium)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                } else {
-                    Text("No schema available.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .padding(JinSpacing.medium)
-                        .jinSurface(.outlined, cornerRadius: JinRadius.medium)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-            }
-            .background(JinSemanticColor.detailSurface)
-            .navigationTitle(tool.name)
-            .toolbar {
-                ToolbarItem(placement: .primaryAction) {
-                    Button("Done") { schemaPresentedTool = nil }
-                }
-            }
-        }
-        .frame(minWidth: 520, minHeight: 420)
     }
 
     private var hasTransportValidationError: Bool {
-        switch transportKind {
-        case .stdio:
-            return command.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || argsError != nil
-        case .http:
-            let trimmed = endpoint.trimmingCharacters(in: .whitespacesAndNewlines)
-            return trimmed.isEmpty || endpointError != nil || httpAuthenticationValidationError != nil
-        }
+        MCPServerFormSupport.hasTransportValidationError(
+            transportKind: transportKind,
+            command: command,
+            argsError: argsError,
+            endpoint: endpoint,
+            endpointError: endpointError,
+            httpAuthenticationValidationError: httpAuthenticationValidationError
+        )
     }
 
     private func loadFromServer() {
         loading = true
         defer { loading = false }
 
-        let transport = server.transportConfig()
-        transportKind = transport.kind
-
-        switch transport {
-        case .stdio(let stdio):
-            command = stdio.command
-            argsText = CommandLineTokenizer.render(stdio.args)
-            envPairs = stdio.env.keys.sorted().map { EnvironmentVariablePair(key: $0, value: stdio.env[$0] ?? "") }
-            endpoint = ""
-            applyHTTPAuthentication(.none)
-            headerPairs = []
-            httpStreaming = true
-            endpointError = nil
-        case .http(let http):
-            endpoint = http.endpoint.absoluteString
-            applyHTTPAuthentication(http.authentication)
-            headerPairs = http.additionalHeaders.map { EnvironmentVariablePair(key: $0.name, value: $0.value) }
-            httpStreaming = http.streaming
-            command = ""
-            argsText = ""
-            envPairs = []
-            argsError = nil
-        }
+        applyTransportDraft(MCPServerTransportDraftSupport.draft(from: server.transportConfig()))
 
         do {
             disabledTools = try server.disabledTools()
@@ -415,76 +138,44 @@ struct MCPServerConfigFormView: View {
         persistTransport()
     }
 
+    private func applyTransportDraft(_ draft: MCPServerTransportDraftSupport.Draft) {
+        transportKind = draft.transportKind
+        command = draft.command
+        argsText = draft.argsText
+        envPairs = draft.envPairs
+        endpoint = draft.endpoint
+        applyHTTPAuthentication(draft.httpAuthentication)
+        headerPairs = draft.headerPairs
+        httpStreaming = draft.httpStreaming
+        argsError = nil
+        endpointError = nil
+    }
+
     private func persistTransport() {
         guard !loading else { return }
 
-        switch transportKind {
-        case .stdio:
-            let parsedArgs: [String]
-            do {
-                parsedArgs = try CommandLineTokenizer.tokenize(argsText)
-                argsError = nil
-            } catch {
-                argsError = error.localizedDescription
-                return
-            }
-
-            let env: [String: String] = envPairs.reduce(into: [:]) { partial, pair in
-                let key = pair.key.trimmingCharacters(in: .whitespacesAndNewlines)
-                guard !key.isEmpty else { return }
-                partial[key] = pair.value
-            }
-
-            let transport = MCPTransportConfig.stdio(
-                MCPStdioTransportConfig(
-                    command: command.trimmingCharacters(in: .whitespacesAndNewlines),
-                    args: parsedArgs,
-                    env: env
-                )
-            )
-            do {
-                try server.setTransport(transport)
-                configError = nil
-            } catch {
-                configError = "Failed to save transport config: \(error.localizedDescription)"
-                return
-            }
-            endpointError = nil
-
-        case .http:
-            let trimmedEndpoint = endpoint.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !trimmedEndpoint.isEmpty, let endpointURL = URL(string: trimmedEndpoint), endpointURL.scheme != nil else {
-                endpointError = "Invalid endpoint URL."
-                return
-            }
-            guard let authentication = parsedHTTPAuthentication else {
-                return
-            }
-
-            let headers: [MCPHeader] = headerPairs.compactMap { pair in
-                let key = pair.key.trimmingCharacters(in: .whitespacesAndNewlines)
-                guard !key.isEmpty else { return nil }
-                return MCPHeader(name: key, value: pair.value, isSensitive: MCPHTTPTransportConfig.isSensitiveHeaderName(key))
-            }
-
-            let transport = MCPTransportConfig.http(
-                MCPHTTPTransportConfig(
-                    endpoint: endpointURL,
-                    streaming: httpStreaming,
-                    authentication: authentication,
-                    additionalHeaders: headers
-                )
-            )
-            do {
-                try server.setTransport(transport)
-                configError = nil
-            } catch {
-                configError = "Failed to save transport config: \(error.localizedDescription)"
-                return
-            }
-            argsError = nil
-            endpointError = nil
+        let transport: MCPTransportConfig
+        do {
+            transport = try MCPServerTransportDraftSupport.buildTransport(from: transportBuildRequest)
+        } catch let error as MCPServerTransportDraftSupport.BuildError {
+            applyTransportBuildError(error)
+            return
+        } catch {
+            configError = error.localizedDescription
+            return
         }
+        if transportKind == .stdio {
+            argsError = nil
+        }
+
+        do {
+            try server.setTransport(transport)
+            configError = nil
+        } catch {
+            configError = "Failed to save transport config: \(error.localizedDescription)"
+            return
+        }
+        clearTransportBuildError()
 
         server.lifecycleRaw = MCPLifecyclePolicy.persistent.rawValue
         server.isLongRunning = true
@@ -492,6 +183,41 @@ struct MCPServerConfigFormView: View {
             try modelContext.save()
         } catch {
             configError = "Failed to persist server settings: \(error.localizedDescription)"
+        }
+    }
+
+    private var transportBuildRequest: MCPServerTransportDraftSupport.BuildRequest {
+        MCPServerTransportDraftSupport.BuildRequest(
+            transportKind: transportKind,
+            command: command,
+            argsText: argsText,
+            envPairs: envPairs,
+            endpoint: endpoint,
+            httpAuthentication: parsedHTTPAuthentication,
+            headerPairs: headerPairs,
+            httpStreaming: httpStreaming
+        )
+    }
+
+    private func applyTransportBuildError(_ error: MCPServerTransportDraftSupport.BuildError) {
+        switch error {
+        case .invalidArguments(let message):
+            argsError = message
+        case .invalidEndpointURL:
+            endpointError = error.localizedDescription
+        case .invalidAuthentication:
+            break
+        }
+    }
+
+    private func clearTransportBuildError() {
+        switch transportKind {
+        case .stdio:
+            argsError = nil
+            endpointError = nil
+        case .http:
+            argsError = nil
+            endpointError = nil
         }
     }
 
@@ -534,26 +260,12 @@ struct MCPServerConfigFormView: View {
         }
     }
 
-    private func formattedSchemaText(_ schema: ParameterSchema) -> String? {
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        guard let data = try? encoder.encode(schema) else { return nil }
-        return String(data: data, encoding: .utf8)
-    }
-
     private var isFirecrawlMCP: Bool {
-        let cmd = command.lowercased()
-        if cmd.contains("firecrawl-mcp") { return true }
-
-        let args = (try? CommandLineTokenizer.tokenize(argsText)) ?? []
-        return args.contains { $0.lowercased() == "firecrawl-mcp" }
+        MCPServerFormSupport.isFirecrawlMCP(command: command, argsText: argsText)
     }
 
     private var hasFirecrawlAPIKey: Bool {
-        envPairs.contains { pair in
-            pair.key.trimmingCharacters(in: .whitespacesAndNewlines) == "FIRECRAWL_API_KEY"
-                && !pair.value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        }
+        MCPServerFormSupport.hasFirecrawlAPIKey(in: envPairs)
     }
 
     private var httpAuthenticationValidationError: String? {
@@ -581,36 +293,20 @@ struct MCPServerConfigFormView: View {
         authHeaderName = fields.headerName
         authHeaderValue = fields.headerValue
     }
-}
 
-private struct MCPToolCardView: View {
-    let tool: MCPToolInfo
-    @Binding var isEnabled: Bool
-    let viewSchema: () -> Void
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: JinSpacing.small) {
-            Text(tool.name)
-                .font(.headline)
-
-            if !tool.description.isEmpty {
-                Text(tool.description)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(4)
-            }
-
-            Button("… View Input Schema") {
-                viewSchema()
-            }
-            .font(.caption)
-            .buttonStyle(.link)
-
-            Toggle("Enable", isOn: $isEnabled)
-                .toggleStyle(.checkbox)
+    private func setToolEnabled(_ tool: MCPToolInfo, _ isEnabled: Bool) {
+        let previous = disabledTools
+        if isEnabled {
+            disabledTools.remove(tool.name)
+        } else {
+            disabledTools.insert(tool.name)
         }
-        .padding(JinSpacing.medium)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .jinSurface(.outlined, cornerRadius: JinRadius.medium)
+        do {
+            try server.setDisabledTools(disabledTools)
+            try modelContext.save()
+        } catch {
+            disabledTools = previous
+            configError = "Failed to save tool settings: \(error.localizedDescription)"
+        }
     }
 }

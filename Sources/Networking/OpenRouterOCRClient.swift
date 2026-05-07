@@ -2,7 +2,7 @@ import Foundation
 
 actor OpenRouterOCRClient {
     enum Constants {
-        static let defaultBaseURL = URL(string: "https://openrouter.ai/api/v1")!
+        static let defaultBaseURL = OpenRouterProviderSupport.defaultBaseEndpoint
         static let defaultMaxTokens = 8_192
         static let defaultPrompt = "Convert this page to Markdown. Preserve layout and tables. Return only the Markdown."
         static let validationPrompt = "Reply with exactly: OK"
@@ -82,7 +82,7 @@ actor OpenRouterOCRClient {
         let request = try NetworkRequestFactory.makeJSONRequest(
             url: baseURL.appendingPathComponent("chat/completions"),
             timeoutSeconds: timeoutSeconds,
-            headers: Self.headers(apiKey: apiKey),
+            headers: OpenRouterProviderSupport.authorizedHeaders(apiKey: apiKey),
             body: body
         )
 
@@ -98,9 +98,9 @@ actor OpenRouterOCRClient {
             let text = response.choices
                 .compactMap { $0.message?.contentText }
                 .first?
-                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .trimmedNonEmpty
 
-            guard let text, !text.isEmpty else {
+            guard let text else {
                 let raw = String(data: data, encoding: .utf8)
                 let message = raw.map { "Empty response content. Raw response: \($0)" } ?? "Empty response content."
                 throw LLMError.decodingError(message: message)
@@ -113,15 +113,6 @@ actor OpenRouterOCRClient {
             let message = String(data: data, encoding: .utf8) ?? error.localizedDescription
             throw LLMError.decodingError(message: message)
         }
-    }
-
-    private static func headers(apiKey: String) -> [String: String] {
-        [
-            "Authorization": "Bearer \(apiKey)",
-            "Accept": "application/json",
-            "HTTP-Referer": "https://jin.app",
-            "X-Title": "Jin"
-        ]
     }
 }
 
@@ -140,7 +131,7 @@ private struct OpenRouterOCRChatCompletionResponse: Decodable {
         let message: Message?
 
         var providerErrorMessage: String? {
-            let reason = finishReason?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            let reason = finishReason?.trimmedLowercased
             guard reason == "error" || error != nil else { return nil }
             return error?.displayMessage ?? "OpenRouter OCR failed."
         }
@@ -187,17 +178,14 @@ private struct ProviderErrorResponse: Decodable {
     }
 
     var displayMessage: String {
-        let trimmedMessage = message?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        let trimmedCode = code?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-
-        switch (trimmedCode.isEmpty, trimmedMessage.isEmpty) {
-        case (false, false):
-            return "\(trimmedMessage) (code: \(trimmedCode))"
-        case (false, true):
-            return "OpenRouter OCR failed (code: \(trimmedCode))."
-        case (true, false):
-            return trimmedMessage
-        case (true, true):
+        switch (code?.trimmedNonEmpty, message?.trimmedNonEmpty) {
+        case let (code?, message?):
+            return "\(message) (code: \(code))"
+        case let (code?, nil):
+            return "OpenRouter OCR failed (code: \(code))."
+        case let (nil, message?):
+            return message
+        case (nil, nil):
             return "OpenRouter OCR failed."
         }
     }
@@ -220,8 +208,7 @@ private enum OpenRouterOCRMessageContent: Decodable {
             let text = parts
                 .compactMap(\.text)
                 .joined(separator: "\n")
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            return text.isEmpty ? nil : text
+            return text.trimmedNonEmpty
         }
     }
 

@@ -6,149 +6,45 @@ struct AssistantSettingsEditorView: View {
     @Environment(\.modelContext) private var modelContext
 
     @State private var customReplyLanguageDraft = ""
-    @State private var replyLanguageSelectionDraft: ReplyLanguageOption = .default
+    @State private var replyLanguageSelectionDraft: AssistantReplyLanguageOption = .default
     @State private var isIconPickerPresented = false
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: JinSpacing.large) {
-                headerCard
+                AssistantSettingsHeaderCard(
+                    name: nameBinding,
+                    assistantDescription: descriptionBinding,
+                    icon: iconBinding,
+                    isIconPickerPresented: $isIconPickerPresented
+                )
 
-                sectionCard(
+                AssistantSettingsSectionCard(
                     title: "System Prompt",
                     systemImage: "text.quote"
                 ) {
-                    systemInstructionEditor
+                    AssistantSystemInstructionEditor(text: systemInstructionBinding)
                 }
 
-                sectionCard(
-                    title: "Generation Defaults",
-                    systemImage: "dial.high"
-                ) {
-                    VStack(alignment: .leading, spacing: JinSpacing.medium) {
-                        VStack(alignment: .leading, spacing: JinSpacing.small) {
-                            HStack {
-                                Text("Temperature")
-                                Spacer()
-                                Text(assistant.temperature, format: .number.precision(.fractionLength(2)))
-                                    .font(.system(.body, design: .monospaced))
-                                    .foregroundStyle(.secondary)
-                                    .monospacedDigit()
-                            }
-                            Slider(value: temperatureBinding, in: 0...2, step: 0.05)
-                        }
+                AssistantGenerationDefaultsSection(
+                    temperature: assistant.temperature,
+                    temperatureBinding: temperatureBinding,
+                    maxOutputTokens: assistant.maxOutputTokens,
+                    maxOutputTokensBinding: maxOutputTokensBinding,
+                    clearMaxOutputTokens: clearMaxOutputTokens
+                )
 
-                        fieldBlock(title: "Max Output Tokens", footer: "Leave empty to follow model default limit.") {
-                            HStack(spacing: JinSpacing.small) {
-                                TextField("Model default", text: maxOutputTokensBinding)
-                                    .textFieldStyle(.roundedBorder)
-                                    .frame(maxWidth: 160)
+                AssistantConversationLimitsSection(
+                    truncateMessagesSetting: truncateMessagesSettingBinding,
+                    maxHistoryMessages: maxHistoryMessagesBinding
+                )
 
-                                if assistant.maxOutputTokens != nil {
-                                    Button("Clear") {
-                                        assistant.maxOutputTokens = nil
-                                        assistant.updatedAt = Date()
-                                        try? modelContext.save()
-                                    }
-                                    .buttonStyle(.bordered)
-                                    .controlSize(.small)
-                                }
-
-                                if let tokens = assistant.maxOutputTokens {
-                                    Text("\(tokens)")
-                                        .font(.system(.caption, design: .monospaced))
-                                        .foregroundStyle(.secondary)
-                                } else {
-                                    Text("Model default maximum")
-                                        .font(.caption)
-                                        .foregroundStyle(.tertiary)
-                                }
-                            }
-                        }
-                    }
-                }
-
-                sectionCard(
-                    title: "Conversation Limits",
-                    systemImage: "clock.arrow.circlepath"
-                ) {
-                    VStack(alignment: .leading, spacing: JinSpacing.medium) {
-                        VStack(alignment: .leading, spacing: JinSpacing.small) {
-                            Text("Truncate History")
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
-
-                            Picker("Truncate History", selection: truncateMessagesSettingBinding) {
-                                ForEach(TriStateSetting.allCases) { item in
-                                    Text(item.label).tag(item)
-                                }
-                            }
-                            .labelsHidden()
-                            .pickerStyle(.segmented)
-                        }
-
-                        if truncateMessagesSettingBinding.wrappedValue == .on {
-                            fieldBlock(title: "Keep Last Messages") {
-                                HStack(spacing: JinSpacing.small) {
-                                    TextField("50", text: maxHistoryMessagesBinding)
-                                        .font(.system(.body, design: .monospaced))
-                                        .textFieldStyle(.roundedBorder)
-                                        .frame(width: 90)
-                                    Text("messages")
-                                        .foregroundStyle(.secondary)
-                                }
-                            }
-                        }
-
-                        Text("Oldest messages are dropped as history grows.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-
-                sectionCard(
-                    title: "Response Language",
-                    systemImage: "globe"
-                ) {
-                    VStack(alignment: .leading, spacing: JinSpacing.medium) {
-                        HStack {
-                            Text("Preset")
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
-                            Spacer()
-                            Picker("", selection: $replyLanguageSelectionDraft) {
-                                ForEach(ReplyLanguageOption.allCases) { option in
-                                    Text(option.label).tag(option)
-                                }
-                            }
-                            .labelsHidden()
-                            .pickerStyle(.menu)
-                            .onChange(of: replyLanguageSelectionDraft) { _, newValue in
-                                switch newValue {
-                                case .custom:
-                                    break
-                                default:
-                                    assistant.replyLanguage = newValue.value
-                                    assistant.updatedAt = Date()
-                                    try? modelContext.save()
-                                }
-                            }
-                        }
-
-                        if replyLanguageSelectionDraft == .custom {
-                            fieldBlock(title: "Custom Language") {
-                                TextField("e.g. English, \u{4E2D}\u{6587}, \u{65E5}\u{672C}\u{8A9E}", text: $customReplyLanguageDraft)
-                                    .textFieldStyle(.roundedBorder)
-                                    .onChange(of: customReplyLanguageDraft) { _, newValue in
-                                        let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
-                                        assistant.replyLanguage = trimmed.isEmpty ? nil : trimmed
-                                        assistant.updatedAt = Date()
-                                        try? modelContext.save()
-                                    }
-                            }
-                        }
-                    }
-                }
+                AssistantReplyLanguageSection(
+                    selection: $replyLanguageSelectionDraft,
+                    customLanguage: $customReplyLanguageDraft,
+                    didSelectPreset: applyReplyLanguageSelection,
+                    didChangeCustomLanguage: applyCustomReplyLanguage
+                )
 
             }
             .padding(.horizontal, JinSpacing.large)
@@ -164,136 +60,10 @@ struct AssistantSettingsEditorView: View {
         }
     }
 
-    // MARK: - Header
-
-    private var headerCard: some View {
-        HStack(alignment: .center, spacing: JinSpacing.medium) {
-            Button {
-                isIconPickerPresented = true
-            } label: {
-                assistantIcon
-                    .frame(width: 56, height: 56)
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Change icon")
-            .help("Change icon")
-            .sheet(isPresented: $isIconPickerPresented) {
-                AssistantIconPickerSheet(selectedIcon: iconBinding)
-            }
-
-            VStack(alignment: .leading, spacing: JinSpacing.xSmall) {
-                TextField(text: nameBinding, prompt: Text("Assistant name")) { EmptyView() }
-                    .font(.title2)
-                    .fontWeight(.semibold)
-                    .textFieldStyle(.plain)
-
-                TextField(text: descriptionBinding, prompt: Text("Short description\u{2026}")) { EmptyView() }
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .textFieldStyle(.plain)
-            }
-
-            Spacer(minLength: 0)
-        }
-        .padding(JinSpacing.medium + 2)
-        .jinSurface(.raised, cornerRadius: JinRadius.large)
-    }
-
-    // MARK: - Reusable Layout
-
-    private func sectionCard<Content: View>(
-        title: String,
-        systemImage: String,
-        @ViewBuilder content: () -> Content
-    ) -> some View {
-        VStack(alignment: .leading, spacing: JinSpacing.medium) {
-            HStack(alignment: .top, spacing: JinSpacing.small) {
-                Image(systemName: systemImage)
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(Color.accentColor)
-                    .frame(width: 20, height: 20)
-                    .padding(.top, 1)
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(title)
-                        .font(.headline)
-                }
-            }
-
-            content()
-        }
-        .padding(JinSpacing.medium)
-        .jinSurface(.raised, cornerRadius: JinRadius.medium)
-    }
-
-    private func fieldBlock<Content: View>(
-        title: String,
-        footer: String? = nil,
-        @ViewBuilder content: () -> Content
-    ) -> some View {
-        VStack(alignment: .leading, spacing: JinSpacing.xSmall) {
-            Text(title)
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-
-            content()
-
-            if let footer, !footer.isEmpty {
-                Text(footer)
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
-            }
-        }
-    }
-
-    // MARK: - System Instruction
-
-    private var systemInstructionEditor: some View {
-        ZStack(alignment: .topLeading) {
-            TextEditor(text: systemInstructionBinding)
-                .font(.body)
-                .frame(minHeight: 160)
-                .scrollContentBackground(.hidden)
-                .padding(JinSpacing.medium)
-                .jinSurface(.neutral, cornerRadius: JinRadius.small)
-
-            if assistant.systemInstruction.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                Text("Base system prompt")
-                    .foregroundStyle(.tertiary)
-                    .padding(.top, 18)
-                    .padding(.leading, 16)
-                    .allowsHitTesting(false)
-            }
-        }
-    }
-
-    // MARK: - Icon
-
-    private var assistantIcon: some View {
-        Group {
-            let trimmed = (assistant.icon ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-            if trimmed.isEmpty {
-                Image(systemName: "sparkles")
-                    .font(.system(size: JinControlMetrics.assistantLargeGlyphSize, weight: .semibold))
-                    .foregroundStyle(Color.accentColor)
-            } else if AssistantGlyphRendering.isSFSymbolName(trimmed) {
-                Image(systemName: trimmed)
-                    .font(.system(size: JinControlMetrics.assistantLargeGlyphSize, weight: .semibold))
-                    .foregroundStyle(Color.accentColor)
-            } else {
-                Text(trimmed)
-                    .font(.system(size: JinControlMetrics.assistantLargeGlyphSize))
-                    .foregroundStyle(.primary)
-            }
-        }
-        .frame(width: 56, height: 56)
-        .jinSurface(.selected, cornerRadius: JinRadius.large)
-    }
-
     // MARK: - Reply Language
 
     private func syncCustomReplyLanguageDraft() {
-        let resolved = resolvedReplyLanguageOption(from: assistant.replyLanguage)
+        let resolved = AssistantReplyLanguageOption.resolved(from: assistant.replyLanguage)
         replyLanguageSelectionDraft = resolved
 
         guard resolved == .custom else {
@@ -303,15 +73,28 @@ struct AssistantSettingsEditorView: View {
         customReplyLanguageDraft = assistant.replyLanguage ?? ""
     }
 
+    private func applyReplyLanguageSelection(_ selection: AssistantReplyLanguageOption) {
+        guard selection != .custom else { return }
+        persistAssistantChange {
+            assistant.replyLanguage = selection.value
+        }
+    }
+
+    private func applyCustomReplyLanguage(_ language: String) {
+        persistAssistantChange {
+            assistant.replyLanguage = AssistantSettingsEditorSupport.normalizedCustomReplyLanguage(language)
+        }
+    }
+
     // MARK: - Bindings
 
     private var nameBinding: Binding<String> {
         Binding(
             get: { assistant.name },
             set: { newValue in
-                assistant.name = newValue
-                assistant.updatedAt = Date()
-                try? modelContext.save()
+                persistAssistantChange {
+                    assistant.name = newValue
+                }
             }
         )
     }
@@ -320,10 +103,9 @@ struct AssistantSettingsEditorView: View {
         Binding(
             get: { assistant.assistantDescription ?? "" },
             set: { newValue in
-                let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
-                assistant.assistantDescription = trimmed.isEmpty ? nil : trimmed
-                assistant.updatedAt = Date()
-                try? modelContext.save()
+                persistAssistantChange {
+                    assistant.assistantDescription = AssistantSettingsEditorSupport.normalizedAssistantDescription(newValue)
+                }
             }
         )
     }
@@ -332,10 +114,9 @@ struct AssistantSettingsEditorView: View {
         Binding(
             get: { assistant.icon ?? "" },
             set: { newValue in
-                let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
-                assistant.icon = trimmed.isEmpty ? nil : trimmed
-                assistant.updatedAt = Date()
-                try? modelContext.save()
+                persistAssistantChange {
+                    assistant.icon = AssistantSettingsEditorSupport.normalizedIcon(newValue)
+                }
             }
         )
     }
@@ -344,9 +125,9 @@ struct AssistantSettingsEditorView: View {
         Binding(
             get: { assistant.systemInstruction },
             set: { newValue in
-                assistant.systemInstruction = newValue
-                assistant.updatedAt = Date()
-                try? modelContext.save()
+                persistAssistantChange {
+                    assistant.systemInstruction = newValue
+                }
             }
         )
     }
@@ -355,9 +136,9 @@ struct AssistantSettingsEditorView: View {
         Binding(
             get: { assistant.temperature },
             set: { newValue in
-                assistant.temperature = newValue
-                assistant.updatedAt = Date()
-                try? modelContext.save()
+                persistAssistantChange {
+                    assistant.temperature = newValue
+                }
             }
         )
     }
@@ -366,18 +147,8 @@ struct AssistantSettingsEditorView: View {
         Binding(
             get: { assistant.maxOutputTokens.map(String.init) ?? "" },
             set: { newValue in
-                let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
-                if trimmed.isEmpty {
-                    assistant.maxOutputTokens = nil
-                    assistant.updatedAt = Date()
-                    try? modelContext.save()
-                    return
-                }
-
-                if let value = Int(trimmed), value > 0 {
+                applyOptionalPositiveIntegerDraft(newValue) { value in
                     assistant.maxOutputTokens = value
-                    assistant.updatedAt = Date()
-                    try? modelContext.save()
                 }
             }
         )
@@ -387,40 +158,20 @@ struct AssistantSettingsEditorView: View {
         Binding(
             get: { assistant.maxHistoryMessages.map(String.init) ?? "" },
             set: { newValue in
-                let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
-                if trimmed.isEmpty {
-                    assistant.maxHistoryMessages = nil
-                    assistant.updatedAt = Date()
-                    try? modelContext.save()
-                    return
-                }
-
-                if let value = Int(trimmed), value > 0 {
+                applyOptionalPositiveIntegerDraft(newValue) { value in
                     assistant.maxHistoryMessages = value
-                    assistant.updatedAt = Date()
-                    try? modelContext.save()
                 }
             }
         )
     }
 
-    private enum TriStateSetting: String, CaseIterable, Identifiable {
-        case `default`
-        case on
-        case off
-
-        var id: String { rawValue }
-
-        var label: String {
-            switch self {
-            case .default: return "Default"
-            case .on: return "On"
-            case .off: return "Off"
-            }
+    private func clearMaxOutputTokens() {
+        persistAssistantChange {
+            assistant.maxOutputTokens = nil
         }
     }
 
-    private var truncateMessagesSettingBinding: Binding<TriStateSetting> {
+    private var truncateMessagesSettingBinding: Binding<AssistantTruncateHistorySetting> {
         Binding(
             get: {
                 switch assistant.truncateMessages {
@@ -430,63 +181,41 @@ struct AssistantSettingsEditorView: View {
                 }
             },
             set: { newValue in
-                switch newValue {
-                case .default:
-                    assistant.truncateMessages = nil
-                case .on:
-                    assistant.truncateMessages = true
-                case .off:
-                    assistant.truncateMessages = false
+                persistAssistantChange {
+                    switch newValue {
+                    case .default:
+                        assistant.truncateMessages = nil
+                    case .on:
+                        assistant.truncateMessages = true
+                    case .off:
+                        assistant.truncateMessages = false
+                    }
                 }
-                assistant.updatedAt = Date()
-                try? modelContext.save()
             }
         )
     }
 
-    private enum ReplyLanguageOption: String, CaseIterable, Identifiable {
-        case `default`
-        case english
-        case chineseSimplified
-        case chineseTraditional
-        case japanese
-        case korean
-        case custom
-
-        var id: String { rawValue }
-
-        var label: String {
-            switch self {
-            case .default: return "Default"
-            case .english: return "English"
-            case .chineseSimplified: return "\u{4E2D}\u{6587}\u{FF08}\u{7B80}\u{4F53}\u{FF09}"
-            case .chineseTraditional: return "\u{4E2D}\u{6587}\u{FF08}\u{7E41}\u{9AD4}\u{FF09}"
-            case .japanese: return "\u{65E5}\u{672C}\u{8A9E}"
-            case .korean: return "\u{D55C}\u{AD6D}\u{C5B4}"
-            case .custom: return "Custom\u{2026}"
+    private func applyOptionalPositiveIntegerDraft(
+        _ draft: String,
+        assign: (Int?) -> Void
+    ) {
+        switch AssistantSettingsEditorSupport.optionalPositiveIntegerDraft(from: draft) {
+        case .clear:
+            persistAssistantChange {
+                assign(nil)
             }
-        }
-
-        var value: String? {
-            switch self {
-            case .default: return nil
-            case .english: return "English"
-            case .chineseSimplified: return "\u{4E2D}\u{6587}\u{FF08}\u{7B80}\u{4F53}\u{FF09}"
-            case .chineseTraditional: return "\u{4E2D}\u{6587}\u{FF08}\u{7E41}\u{9AD4}\u{FF09}"
-            case .japanese: return "\u{65E5}\u{672C}\u{8A9E}"
-            case .korean: return "\u{D55C}\u{AD6D}\u{C5B4}"
-            case .custom: return nil
+        case .value(let value):
+            persistAssistantChange {
+                assign(value)
             }
+        case .invalid:
+            return
         }
     }
 
-    private func resolvedReplyLanguageOption(from language: String?) -> ReplyLanguageOption {
-        let trimmed = (language ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return .default }
-
-        if let match = ReplyLanguageOption.allCases.first(where: { $0.value == trimmed }) {
-            return match
-        }
-        return .custom
+    private func persistAssistantChange(_ apply: () -> Void) {
+        apply()
+        assistant.updatedAt = Date()
+        try? modelContext.save()
     }
 }

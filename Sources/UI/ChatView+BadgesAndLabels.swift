@@ -7,219 +7,142 @@ extension ChatView {
     // MARK: - Help Text & Labels
 
     var reasoningHelpText: String {
-        guard supportsReasoningControl else { return "Reasoning: Not supported" }
-        switch providerType {
-        case .anthropic, .claudeManagedAgents, .mimoTokenPlanAnthropic, .mimoTokenPlanOpenAI, .gemini, .vertexai:
-            return "Thinking: \(reasoningLabel)"
-        case .perplexity:
-            return "Reasoning: \(reasoningLabel)"
-        case .openai, .openaiWebSocket, .codexAppServer, .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway,
-             .openrouter, .groq, .cohere, .mistral, .deepinfra, .together, .xai, .deepseek,
-             .zhipuCodingPlan, .minimax, .minimaxCodingPlan, .fireworks, .cerebras, .sambanova, .morphllm, .opencodeGo, .none:
-            return "Reasoning: \(reasoningLabel)"
-        }
+        ChatReasoningSupport.reasoningHelpText(
+            supportsReasoningControl: supportsReasoningControl,
+            providerType: providerType,
+            label: reasoningLabel
+        )
     }
 
     var webSearchHelpText: String {
-        guard supportsWebSearchControl else { return "Web Search: Not supported" }
-        guard isWebSearchEnabled else { return "Web Search: Off" }
-        return "Web Search: \(webSearchLabel)"
+        ChatAuxiliaryControlSupport.webSearchHelpText(
+            supportsWebSearchControl: supportsWebSearchControl,
+            isWebSearchEnabled: isWebSearchEnabled,
+            label: webSearchLabel
+        )
     }
 
     var openAIServiceTierHelpText: String {
-        guard supportsOpenAIServiceTierControl else { return "Service Tier: Not supported" }
-        return "Service Tier: \(openAIServiceTierLabel)"
+        ChatAuxiliaryControlSupport.openAIServiceTierHelpText(
+            supportsOpenAIServiceTierControl: supportsOpenAIServiceTierControl,
+            label: openAIServiceTierLabel
+        )
     }
 
     var mcpToolsHelpText: String {
-        guard supportsMCPToolsControl else { return "MCP Tools: Not supported" }
-        guard isMCPToolsEnabled else { return "MCP Tools: Off" }
-        let count = selectedMCPServerIDs.count
-        if count == 0 { return "MCP Tools: On (no servers)" }
-        return "MCP Tools: On (\(count) server\(count == 1 ? "" : "s"))"
+        ChatAuxiliaryControlSupport.mcpToolsHelpText(
+            supportsMCPToolsControl: supportsMCPToolsControl,
+            isMCPToolsEnabled: isMCPToolsEnabled,
+            selectedServerCount: selectedMCPServerIDs.count
+        )
     }
 
     var codexSessionHelpText: String {
-        guard supportsCodexSessionControl else { return "Codex Session: Not supported" }
-
-        var segments: [String] = ["Sandbox: \(controls.codexSandboxMode.displayName)"]
-        if let workingDirectory = controls.codexWorkingDirectory {
-            segments.append("Working Directory: \(workingDirectory)")
-        } else {
-            segments.append("Working Directory: app-server default")
-        }
-        if let personality = controls.codexPersonality {
-            segments.append("Personality: \(personality.displayName)")
-        }
-
-        return "Codex Session: " + segments.joined(separator: " \u{00B7} ")
+        ChatAuxiliaryControlSupport.codexSessionHelpText(
+            supportsCodexSessionControl: supportsCodexSessionControl,
+            controls: controls
+        )
     }
 
     var claudeManagedAgentSessionHelpText: String {
-        guard supportsClaudeManagedAgentSessionControl else { return "Claude Managed Agent: Not supported" }
-
-        var segments: [String] = []
         let resolvedControls = resolvedClaudeManagedControls(
             for: conversationEntity.providerID,
             threadControls: controls
         )
 
-        if resolvedControls.claudeManagedAgentID != nil {
-            let label = resolvedClaudeManagedAgentDisplayName(
+        let agentDisplayName = resolvedControls.claudeManagedAgentID.map { _ in
+            resolvedClaudeManagedAgentDisplayName(
                 for: conversationEntity.providerID,
                 threadModelID: conversationEntity.modelID,
                 threadControls: controls
             )
-            segments.append("Agent: \(label)")
-        } else {
-            segments.append("Agent: not configured")
         }
 
-        if resolvedControls.claudeManagedEnvironmentID != nil,
-           let label = resolvedClaudeManagedEnvironmentDisplayName(
+        let environmentDisplayName = resolvedControls.claudeManagedEnvironmentID.flatMap { _ in
+            resolvedClaudeManagedEnvironmentDisplayName(
                 for: conversationEntity.providerID,
                 threadControls: controls
-           ) {
-            segments.append("Environment: \(label)")
-        } else {
-            segments.append("Environment: not configured")
+            )
         }
 
-        if let sessionID = resolvedControls.claudeManagedSessionID {
-            segments.append("Session: \(sessionID)")
-        }
-
-        return "Claude Managed Agent: " + segments.joined(separator: " \u{00B7} ")
+        return ChatAuxiliaryControlSupport.claudeManagedAgentSessionHelpText(
+            supportsClaudeManagedAgentSessionControl: supportsClaudeManagedAgentSessionControl,
+            resolvedControls: resolvedControls,
+            agentDisplayName: agentDisplayName,
+            environmentDisplayName: environmentDisplayName
+        )
     }
 
     var webSearchLabel: String {
-        if usesBuiltinSearchPlugin {
-            let provider = effectiveSearchPluginProvider.displayName
-            if let maxResults = controls.searchPlugin?.maxResults {
-                return "\(provider) \u{00B7} \(maxResults) results"
-            }
-            return provider
-        }
-
-        switch providerType {
-        case .openai, .openaiWebSocket:
-            return (controls.webSearch?.contextSize ?? .medium).displayName
-        case .perplexity:
-            return (controls.webSearch?.contextSize ?? .low).displayName
-        case .xai:
-            return webSearchSourcesLabel
-        case .codexAppServer, .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter, .anthropic, .claudeManagedAgents,
-             .groq, .cohere, .mistral, .deepinfra, .together, .gemini, .vertexai, .deepseek,
-             .zhipuCodingPlan, .minimax, .minimaxCodingPlan, .mimoTokenPlanAnthropic, .mimoTokenPlanOpenAI,
-             .fireworks, .cerebras, .sambanova, .morphllm, .opencodeGo, .none:
-            return "On"
-        }
+        ChatAuxiliaryControlSupport.webSearchLabel(
+            providerType: providerType,
+            controls: controls,
+            usesBuiltinSearchPlugin: usesBuiltinSearchPlugin,
+            searchPluginProvider: effectiveSearchPluginProvider
+        )
     }
 
     var openAIServiceTierLabel: String {
-        controls.openAIServiceTier?.displayName ?? "Auto"
+        ChatAuxiliaryControlSupport.openAIServiceTierLabel(controls: controls)
     }
 
     var webSearchSourcesLabel: String {
-        let sources = Set(controls.webSearch?.sources ?? [])
-        if sources.isEmpty { return "On" }
-        if sources == [.web] { return "Web" }
-        if sources == [.x] { return "X" }
-        return "Web + X"
+        ChatAuxiliaryControlSupport.webSearchSourcesLabel(controls: controls)
     }
 
     // MARK: - Badge Text
 
     var reasoningBadgeText: String? {
-        guard supportsReasoningControl, isReasoningEnabled else { return nil }
-
-        guard let reasoningType = selectedReasoningConfig?.type, reasoningType != .none else { return nil }
-
-        switch reasoningType {
-        case .budget:
-            switch controls.reasoning?.budgetTokens {
-            case 1024: return "L"
-            case 2048: return "M"
-            case 4096: return "H"
-            case 8192: return "X"
-            default: return "On"
-            }
-        case .effort:
-            guard let effort = controls.reasoning?.effort else { return "On" }
-            switch effort {
-            case .none: return nil
-            case .minimal: return "Min"
-            case .low: return "L"
-            case .medium: return "M"
-            case .high: return "H"
-            case .xhigh: return "X"
-            case .max: return "Max"
-            }
-        case .toggle:
-            return "On"
-        case .none:
-            return nil
-        }
+        ChatReasoningSupport.reasoningBadgeText(
+            supportsReasoningControl: supportsReasoningControl,
+            isReasoningEnabled: isReasoningEnabled,
+            selectedReasoningConfig: selectedReasoningConfig,
+            controls: controls
+        )
     }
 
     var openAIServiceTierBadgeText: String? {
-        guard supportsOpenAIServiceTierControl else { return nil }
-        return controls.openAIServiceTier?.badgeText
+        ChatAuxiliaryControlSupport.openAIServiceTierBadgeText(
+            supportsOpenAIServiceTierControl: supportsOpenAIServiceTierControl,
+            controls: controls
+        )
     }
 
     var webSearchBadgeText: String? {
-        guard supportsWebSearchControl, isWebSearchEnabled else { return nil }
-
-        if usesBuiltinSearchPlugin {
-            return effectiveSearchPluginProvider.shortBadge
-        }
-
-        switch providerType {
-        case .openai, .openaiWebSocket:
-            switch controls.webSearch?.contextSize ?? .medium {
-            case .low: return "L"
-            case .medium: return "M"
-            case .high: return "H"
-            }
-        case .perplexity:
-            switch controls.webSearch?.contextSize ?? .medium {
-            case .low: return "L"
-            case .medium: return "M"
-            case .high: return "H"
-            }
-        case .xai:
-            let sources = Set(controls.webSearch?.sources ?? [])
-            if sources == [.web] { return "W" }
-            if sources == [.x] { return "X" }
-            if sources.contains(.web), sources.contains(.x) { return "W+X" }
-            return "On"
-        case .anthropic, .claudeManagedAgents, .mimoTokenPlanOpenAI:
-            return "On"
-        case .codexAppServer, .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter, .groq,
-             .cohere, .mistral, .deepinfra, .together, .gemini, .vertexai, .deepseek,
-             .zhipuCodingPlan, .minimax, .minimaxCodingPlan, .mimoTokenPlanAnthropic,
-             .fireworks, .cerebras, .sambanova, .morphllm, .opencodeGo, .none:
-            return "On"
-        }
+        ChatAuxiliaryControlSupport.webSearchBadgeText(
+            supportsWebSearchControl: supportsWebSearchControl,
+            isWebSearchEnabled: isWebSearchEnabled,
+            providerType: providerType,
+            controls: controls,
+            usesBuiltinSearchPlugin: usesBuiltinSearchPlugin,
+            searchPluginProvider: effectiveSearchPluginProvider
+        )
     }
 
     var mcpToolsBadgeText: String? {
-        guard supportsMCPToolsControl, isMCPToolsEnabled else { return nil }
-        let count = selectedMCPServerIDs.count
-        guard count > 0 else { return nil }
-        return count > 99 ? "99+" : "\(count)"
+        ChatAuxiliaryControlSupport.mcpToolsBadgeText(
+            supportsMCPToolsControl: supportsMCPToolsControl,
+            isMCPToolsEnabled: isMCPToolsEnabled,
+            selectedServerCount: selectedMCPServerIDs.count
+        )
     }
 
     // MARK: - PDF Processing Menu
 
     func setPDFProcessingMode(_ mode: PDFProcessingMode) {
         guard isPDFProcessingModeAvailable(mode) else { return }
-        controls.pdfProcessingMode = (mode == .native) ? nil : mode
+        controls = ChatModelCapabilitySupport.setPDFProcessingMode(
+            mode,
+            controls: controls
+        )
         persistControlsToConversation()
     }
 
     func setFirecrawlPDFParserMode(_ mode: FirecrawlPDFParserMode) {
-        controls.firecrawlPDFParserMode = (mode == .ocr) ? nil : mode
+        controls = ChatModelCapabilitySupport.setFirecrawlPDFParserMode(
+            mode,
+            controls: controls
+        )
         persistControlsToConversation()
     }
 

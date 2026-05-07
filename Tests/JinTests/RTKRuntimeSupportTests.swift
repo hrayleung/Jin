@@ -75,6 +75,11 @@ final class RTKRuntimeSupportTests: XCTestCase {
         XCTAssertEqual(rewritten, "rtk git status")
     }
 
+    func testPrepareShellCommandTrimsCommandBeforeRewrite() async throws {
+        let rewritten = try await RTKRuntimeSupport.prepareShellCommand(" \n git status \t ")
+        XCTAssertEqual(rewritten, "rtk git status")
+    }
+
     func testPrepareShellCommandRejectsUnsupportedCommand() async {
         do {
             _ = try await RTKRuntimeSupport.prepareShellCommand("unsupported cmd")
@@ -87,6 +92,17 @@ final class RTKRuntimeSupportTests: XCTestCase {
     func testVersionStringUsesHelper() async throws {
         let version = try await RTKRuntimeSupport.versionString()
         XCTAssertEqual(version, "rtk 0.31.0-test")
+    }
+
+    func testFailureDetailsTrimsAndPrefersStderr() {
+        XCTAssertEqual(
+            RTKRuntimeSupport.failureDetails(stdout: " stdout detail ", stderr: " \n stderr detail \t "),
+            "stderr detail"
+        )
+        XCTAssertEqual(
+            RTKRuntimeSupport.failureDetails(stdout: " \n stdout detail \t ", stderr: " \n\t "),
+            "stdout detail"
+        )
     }
 
     func testVersionStringThrowsWhenHelperVersionProbeFails() async {
@@ -151,7 +167,7 @@ final class RTKRuntimeSupportTests: XCTestCase {
         let teeFileURL = teeDirectoryURL.appendingPathComponent("managed.log", isDirectory: false)
         try "managed".write(to: teeFileURL, atomically: true, encoding: .utf8)
 
-        let resolved = RTKRuntimeSupport.resolveRawOutputPath(in: "[full output: \(teeFileURL.path)]")
+        let resolved = RTKRuntimeSupport.resolveRawOutputPath(in: " \n \t [full output:  \(teeFileURL.path)  ] \n ")
         XCTAssertEqual(resolved, teeFileURL.standardizedFileURL.resolvingSymlinksInPath().path)
     }
 
@@ -165,7 +181,7 @@ final class RTKRuntimeSupportTests: XCTestCase {
     }
 
     func testAgentApprovalSessionKeyIncludesCommandAndWorkingDirectory() {
-        let key = ChatStreamingOrchestrator.agentApprovalSessionKey(
+        let key = AgentToolApprovalSupport.sessionKey(
             functionName: AgentToolHub.shellExecuteFunctionName,
             arguments: [
                 "command": AnyCodable("git status"),
@@ -175,6 +191,20 @@ final class RTKRuntimeSupportTests: XCTestCase {
         )
 
         XCTAssertEqual(key, "shell:/tmp/repo:git status")
+    }
+
+    func testAgentApprovalSessionKeyUsesArgumentAliasesAndNumericRanges() {
+        let key = AgentToolApprovalSupport.sessionKey(
+            functionName: AgentToolHub.fileReadFunctionName,
+            arguments: [
+                "file": AnyCodable(" /tmp/repo/README.md "),
+                "line_offset": AnyCodable(10),
+                "max_lines": AnyCodable(20.8)
+            ],
+            controls: AgentModeControls()
+        )
+
+        XCTAssertEqual(key, "file_read:/tmp/repo/README.md:10:20")
     }
 
     // MARK: - Helpers
@@ -204,7 +234,7 @@ final class RTKRuntimeSupportTests: XCTestCase {
               echo "simulated version failure" >&2
               exit 7
             fi
-            echo "rtk 0.31.0-test"
+            echo "  rtk 0.31.0-test  "
             ;;
           rewrite)
             raw_cmd="${1:-}"

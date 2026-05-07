@@ -87,7 +87,7 @@ struct MCPMessageFramer {
 
     private func parseContentLength(from header: String) -> Int? {
         for line in header.components(separatedBy: .newlines) {
-            let parts = line.split(separator: ":", maxSplits: 1).map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            let parts = line.split(separator: ":", maxSplits: 1).map { String($0).trimmed }
             guard parts.count == 2 else { continue }
             if parts[0].lowercased() == "content-length" {
                 return Int(parts[1])

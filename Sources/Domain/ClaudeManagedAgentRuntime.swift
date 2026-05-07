@@ -124,8 +124,7 @@ enum ClaudeManagedAgentRuntime {
     }
 
     private static func normalizedComponent(_ value: String?) -> String? {
-        let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines)
-        return (trimmed?.isEmpty == false) ? trimmed : nil
+        value?.trimmedNonEmpty
     }
 
     private static func decodeSyntheticComponent(

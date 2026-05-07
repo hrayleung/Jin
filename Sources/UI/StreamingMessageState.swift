@@ -87,7 +87,7 @@ final class StreamingMessageState: ObservableObject {
             let parseResult = ArtifactMarkupParser.parse(nextTextStorage, hidesTrailingIncompleteArtifact: true)
             nextVisibleText = parseResult.visibleText
             nextArtifacts = parseResult.artifacts
-            nextHasVisibleText = !nextVisibleText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            nextHasVisibleText = nextVisibleText.trimmedNonEmpty != nil
             parseDurationMs = Int((ProcessInfo.processInfo.systemUptime - parseStartedAt) * 1000)
         }
 

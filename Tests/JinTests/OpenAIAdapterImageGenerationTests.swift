@@ -8,6 +8,28 @@ final class OpenAIAdapterImageGenerationTests: XCTestCase {
         MockURLProtocol.requestHandler = nil
     }
 
+    func testExtractImagePromptTrimsUserTextAndDropsBlankParts() async {
+        let adapter = OpenAIAdapter(
+            providerConfig: ProviderConfig(id: "openai", name: "OpenAI", type: .openai),
+            apiKey: "test-key",
+            networkManager: NetworkManager(configuration: .ephemeral)
+        )
+
+        let prompt = await adapter.extractImagePrompt(
+            from: [
+                Message(role: .user, content: [.text(" older prompt ")]),
+                Message(role: .assistant, content: [.text(" ignored ")]),
+                Message(role: .user, content: [
+                    .text(" \n\t "),
+                    .text("  Draw a scene  "),
+                    .text("\nwith soft light\n")
+                ])
+            ]
+        )
+
+        XCTAssertEqual(prompt, "Draw a scene\n\nwith soft light")
+    }
+
     func testOpenAIImage2ModelIDsRouteToImagesGenerationsEndpoint() async throws {
         let modelIDs = [
             "gpt-image-2",

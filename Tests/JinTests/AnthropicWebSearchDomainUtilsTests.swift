@@ -3,8 +3,17 @@ import XCTest
 
 final class AnthropicWebSearchDomainUtilsTests: XCTestCase {
     func testSplitInputSupportsCommaAndNewline() {
-        let parsed = AnthropicWebSearchDomainUtils.splitInput("example.com,\nfoo.com\nbar.com")
+        let parsed = AnthropicWebSearchDomainUtils.splitInput(" example.com,\nfoo.com\n \nbar.com ")
         XCTAssertEqual(parsed, ["example.com", "foo.com", "bar.com"])
+    }
+
+    func testUserLocationIsEmptyTrimsFields() {
+        XCTAssertTrue(
+            WebSearchUserLocation(city: " \n ", region: nil, country: " ", timezone: nil).isEmpty
+        )
+        XCTAssertFalse(
+            WebSearchUserLocation(city: " Tokyo ", region: nil, country: nil, timezone: nil).isEmpty
+        )
     }
 
     func testNormalizedDomainsDeduplicatesCaseInsensitiveEntries() {

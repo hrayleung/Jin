@@ -9,6 +9,13 @@ final class JinTypographyTests: XCTestCase {
         )
     }
 
+    func testNormalizedFontPreferenceTrimsUnavailablePreference() {
+        XCTAssertEqual(
+            JinTypography.normalizedFontPreference("  Custom Test Font  "),
+            "Custom Test Font"
+        )
+    }
+
     func testClampedChatMessageScaleBounds() {
         XCTAssertEqual(
             JinTypography.clampedChatMessageScale(0.2),

@@ -1,13 +1,5 @@
 import SwiftUI
 
-// MARK: - Tool Call Status
-
-enum ToolCallExecutionStatus: Equatable {
-    case running
-    case success
-    case error
-}
-
 // MARK: - Tool Call View
 
 struct ToolCallView: View {
@@ -19,13 +11,6 @@ struct ToolCallView: View {
 
     @State private var isExpanded = false
     @State private var isRunningPulse = false
-
-    private struct StatusVisualStyle {
-        let accent: Color
-        let text: Color
-        let nodeBackground: Color
-        let nodeBorder: Color
-    }
 
     init(
         toolCall: ToolCall,
@@ -43,46 +28,37 @@ struct ToolCallView: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: JinSpacing.small) {
-            timelineRail(status: resolvedStatus)
+            ToolTimelinePresentationSupport.TerminalTimelineRail(
+                status: resolvedStatus,
+                style: statusStyle(for: resolvedStatus),
+                showsConnectorAbove: showsConnectorAbove,
+                showsConnectorBelow: showsConnectorBelow,
+                isRunningPulse: isRunningPulse
+            )
 
             VStack(alignment: .leading, spacing: JinSpacing.small) {
-                HStack(alignment: .firstTextBaseline, spacing: JinSpacing.small) {
-                    if showsServerTag {
-                        serverTag
-                    }
-
-                    Text(toolLabel)
-                        .font(.system(.caption, design: .monospaced).weight(.semibold))
-                        .foregroundStyle(.primary)
-                        .lineLimit(1)
-
-                    Spacer(minLength: 0)
-
-                    statusPill
-
-                    Button {
-                        withAnimation(.spring(duration: 0.25, bounce: 0)) {
-                            isExpanded.toggle()
-                        }
-                    } label: {
-                        Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(.secondary)
-                    }
-                    .buttonStyle(JinIconButtonStyle())
-                }
+                ToolCallHeaderRow(
+                    serverLabel: serverLabel,
+                    toolLabel: toolLabel,
+                    showsServerTag: showsServerTag,
+                    status: resolvedStatus,
+                    statusLabel: statusLabel(for: resolvedStatus),
+                    durationText: durationText,
+                    statusStyle: statusStyle(for: resolvedStatus),
+                    isExpanded: $isExpanded
+                )
 
                 if !isExpanded, let argumentSummary {
-                    Text("-> \(argumentSummary)")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(2)
-                        .textSelection(.enabled)
+                    ToolCallArgumentSummaryView(argumentSummary: argumentSummary)
                 }
 
                 VStack(spacing: 0) {
                     if isExpanded {
-                        expandedContent
+                        ToolCallExpandedContentView(
+                            formattedArgumentsJSON: formattedArgumentsJSON,
+                            toolResult: toolResult,
+                            signature: toolCall.signature
+                        )
                             .padding(.top, JinSpacing.xSmall)
                     }
                 }
@@ -102,164 +78,18 @@ struct ToolCallView: View {
         }
     }
 
-    // MARK: - Timeline Rail
-
-    @ViewBuilder
-    private func timelineRail(status: ToolCallExecutionStatus) -> some View {
-        VStack(spacing: 2) {
-            Rectangle()
-                .fill(JinSemanticColor.separator.opacity(0.7))
-                .frame(width: JinStrokeWidth.regular, height: 12)
-                .opacity(showsConnectorAbove ? 1 : 0)
-
-            statusNode(status: status)
-
-            Rectangle()
-                .fill(JinSemanticColor.separator.opacity(0.7))
-                .frame(width: JinStrokeWidth.regular, height: 12)
-                .opacity(showsConnectorBelow ? 1 : 0)
-        }
-        .frame(width: 16)
-        .padding(.top, JinSpacing.xSmall)
-    }
-
-    @ViewBuilder
-    private func statusNode(status: ToolCallExecutionStatus) -> some View {
-        let style = statusStyle(for: status)
-
-        ZStack {
-            Circle()
-                .fill(style.nodeBackground)
-                .frame(width: 16, height: 16)
-                .overlay(
-                    Circle()
-                        .stroke(style.nodeBorder, lineWidth: 0.75)
-                )
-
-            switch status {
-            case .running:
-                Circle()
-                    .fill(style.accent)
-                    .frame(width: 6, height: 6)
-                    .scaleEffect(isRunningPulse ? 1.4 : 0.85)
-                    .opacity(isRunningPulse ? 0.35 : 1)
-                    .animation(
-                        .easeInOut(duration: 0.85).repeatForever(autoreverses: true),
-                        value: isRunningPulse
-                    )
-            case .success:
-                Image(systemName: "checkmark")
-                    .font(.system(size: 8.5, weight: .semibold))
-                    .foregroundStyle(style.accent)
-            case .error:
-                Image(systemName: "xmark")
-                    .font(.system(size: 8.5, weight: .semibold))
-                    .foregroundStyle(style.accent)
-            }
-        }
-    }
-
-    // MARK: - Subviews
-
-    @ViewBuilder
-    private var expandedContent: some View {
-        VStack(alignment: .leading, spacing: JinSpacing.medium) {
-            ToolCallCodeBlockView(
-                title: "Arguments",
-                text: formattedArgumentsJSON ?? "{}",
-                showsCopyButton: true
-            )
-
-            if let toolResult {
-                ToolCallCodeBlockView(
-                    title: toolResult.isError ? "Error" : "Output",
-                    text: toolResult.content,
-                    showsCopyButton: true
-                )
-
-                if let rawOutputPath = toolResult.rawOutputPath {
-                    ToolOutputFileActionRowView(rawOutputPath: rawOutputPath)
-                }
-            } else {
-                Text("Waiting for tool result...")
-                    .jinInfoCallout()
-            }
-
-            if let signature = toolCall.signature, !signature.isEmpty {
-                ToolCallCodeBlockView(title: "Signature", text: signature)
-            }
-        }
-        .transition(.move(edge: .top).combined(with: .opacity))
-    }
-
-    // MARK: - Status Pill
-
-    @ViewBuilder
-    private var statusPill: some View {
-        let status = resolvedStatus
-        let style = statusStyle(for: status)
-
-        HStack(spacing: 6) {
-            statusPillGlyph(for: status)
-
-            Text(statusLabel(for: status))
-
-            if let durationText {
-                Text(durationText)
-                    .foregroundStyle(.secondary)
-            }
-        }
-        .font(.caption2.weight(.semibold))
-        .foregroundStyle(style.text)
-        .lineLimit(1)
-    }
-
-    @ViewBuilder
-    private func statusPillGlyph(for status: ToolCallExecutionStatus) -> some View {
-        let style = statusStyle(for: status)
-
-        switch status {
-        case .running:
-            Circle()
-                .fill(style.accent)
-                .frame(width: 4.5, height: 4.5)
-        case .success:
-            Image(systemName: "checkmark.circle")
-                .font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(style.accent)
-        case .error:
-            Image(systemName: "xmark.circle")
-                .font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(style.accent)
-        }
-    }
-
     // MARK: - Computed Properties
 
     private var formattedArgumentsJSON: String? {
-        let raw = toolCall.arguments.mapValues { $0.value }
-        guard JSONSerialization.isValidJSONObject(raw),
-              let argsJSON = try? JSONSerialization.data(withJSONObject: raw, options: [.prettyPrinted, .sortedKeys]),
-              let argsString = String(data: argsJSON, encoding: .utf8) else {
-            return nil
-        }
-        return argsString
+        ToolCallViewSupport.formattedArgumentsJSON(for: toolCall.arguments)
     }
 
-    private var parsedName: (serverID: String, toolName: String) {
-        splitFunctionName(toolCall.name)
+    private var parsedName: ToolCallViewSupport.ParsedFunctionName {
+        ToolCallViewSupport.parseFunctionName(toolCall.name)
     }
 
     private var serverLabel: String {
-        if parsedName.serverID.isEmpty {
-            return "mcp"
-        }
-        return parsedName.serverID
-    }
-
-    private var serverTag: some View {
-        Text(serverLabel)
-            .jinTagStyle()
+        ToolCallViewSupport.serverLabel(for: parsedName)
     }
 
     private var toolLabel: String {
@@ -267,36 +97,15 @@ struct ToolCallView: View {
     }
 
     private var durationText: String? {
-        guard let seconds = toolResult?.durationSeconds, seconds > 0 else { return nil }
-        if seconds < 1 {
-            return "\(Int((seconds * 1000).rounded()))ms"
-        }
-        return "\(Int(seconds.rounded()))s"
+        ToolCallViewSupport.durationText(for: toolResult?.durationSeconds)
     }
 
     private var resolvedStatus: ToolCallExecutionStatus {
-        guard let toolResult else { return .running }
-        return toolResult.isError ? .error : .success
+        ToolCallViewSupport.executionStatus(for: toolResult)
     }
 
     private var argumentSummary: String? {
-        let raw = toolCall.arguments.mapValues { $0.value }
-        guard !raw.isEmpty else { return nil }
-
-        let preferredKeys = ["query", "q", "url", "input", "text"]
-        for key in preferredKeys {
-            if let value = raw[key] as? String {
-                return oneLine(value, maxLength: 200)
-            }
-        }
-
-        guard JSONSerialization.isValidJSONObject(raw),
-              let data = try? JSONSerialization.data(withJSONObject: raw, options: [.sortedKeys]),
-              let json = String(data: data, encoding: .utf8) else {
-            return nil
-        }
-
-        return oneLine(json, maxLength: 200)
+        ToolCallViewSupport.argumentSummary(for: toolCall.arguments)
     }
 
     // MARK: - Helpers
@@ -306,104 +115,11 @@ struct ToolCallView: View {
     }
 
     private func statusLabel(for status: ToolCallExecutionStatus) -> String {
-        switch status {
-        case .running: return "Running"
-        case .success: return "Done"
-        case .error: return "Failed"
-        }
+        ToolCallViewSupport.statusLabel(for: status)
     }
 
-    private func statusStyle(for status: ToolCallExecutionStatus) -> StatusVisualStyle {
-        switch status {
-        case .running:
-            return StatusVisualStyle(
-                accent: .secondary,
-                text: .secondary,
-                nodeBackground: Color.primary.opacity(0.08),
-                nodeBorder: JinSemanticColor.separator.opacity(0.72)
-            )
-        case .success:
-            return StatusVisualStyle(
-                accent: Color(nsColor: .systemGreen).opacity(0.88),
-                text: Color(nsColor: .systemGreen).opacity(0.88),
-                nodeBackground: Color(nsColor: .systemGreen).opacity(0.11),
-                nodeBorder: Color(nsColor: .systemGreen).opacity(0.26)
-            )
-        case .error:
-            return StatusVisualStyle(
-                accent: Color(nsColor: .systemOrange).opacity(0.95),
-                text: Color(nsColor: .systemOrange).opacity(0.95),
-                nodeBackground: Color(nsColor: .systemOrange).opacity(0.14),
-                nodeBorder: Color(nsColor: .systemOrange).opacity(0.36)
-            )
-        }
+    private func statusStyle(for status: ToolCallExecutionStatus) -> ToolTimelinePresentationSupport.StatusVisualStyle {
+        ToolTimelinePresentationSupport.terminalStatusStyle(for: status)
     }
 
-    private func splitFunctionName(_ name: String) -> (serverID: String, toolName: String) {
-        guard let range = name.range(of: "__") else { return ("", name) }
-        let serverID = String(name[..<range.lowerBound])
-        let toolName = String(name[range.upperBound...])
-        return (serverID, toolName.isEmpty ? name : toolName)
-    }
-
-    private func oneLine(_ string: String, maxLength: Int) -> String {
-        let condensed = string
-            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-
-        guard condensed.count > maxLength else { return condensed }
-        return String(condensed.prefix(maxLength - 3)) + "..."
-    }
-}
-
-// MARK: - Tool Call Code Block
-
-struct ToolCallCodeBlockView: View {
-    let title: String
-    let text: String
-    var showsCopyButton: Bool = false
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack {
-                Text(title)
-                    .font(.caption2.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                Spacer(minLength: 0)
-                if showsCopyButton {
-                    CopyToPasteboardButton(
-                        text: text,
-                        helpText: "Copy \(title.lowercased())",
-                        copiedHelpText: "\(title) copied",
-                        useProminentStyle: false
-                    )
-                }
-            }
-            .padding(.horizontal, JinSpacing.medium - 2)
-            .padding(.vertical, JinSpacing.xSmall)
-            .background(JinSemanticColor.subtleSurfaceStrong)
-            .overlay(alignment: .bottom) {
-                Rectangle()
-                    .fill(JinSemanticColor.separator.opacity(0.55))
-                    .frame(height: JinStrokeWidth.hairline)
-            }
-
-            ScrollView {
-                Text(text)
-                    .font(.system(.caption, design: .monospaced))
-                    .foregroundStyle(.secondary)
-                    .textSelection(.enabled)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            .frame(maxHeight: 168)
-            .padding(.horizontal, JinSpacing.medium - 2)
-            .padding(.vertical, JinSpacing.small)
-            .background(JinSemanticColor.raisedSurface)
-        }
-        .clipShape(RoundedRectangle(cornerRadius: JinRadius.small, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: JinRadius.small, style: .continuous)
-                .stroke(JinSemanticColor.separator.opacity(0.75), lineWidth: JinStrokeWidth.hairline)
-        )
-    }
 }

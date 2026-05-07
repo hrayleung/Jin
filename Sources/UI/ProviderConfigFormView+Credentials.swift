@@ -7,19 +7,17 @@ extension ProviderConfigFormView {
     // MARK: - API Key Section
 
     var apiKeyField: some View {
-        JinSettingsControlRow(apiKeyFieldTitle) {
-            JinRevealableSecureField(
-                title: apiKeyFieldTitle,
-                text: $apiKey,
-                isRevealed: $showingAPIKey,
-                revealHelp: "Show API key",
-                concealHelp: "Hide API key"
-            )
-        }
+        JinSettingsSecureFieldRow(
+            apiKeyFieldTitle,
+            text: $apiKey,
+            isRevealed: $showingAPIKey,
+            revealHelp: ProviderFormSupport.apiKeyRevealHelp(for: providerType),
+            concealHelp: ProviderFormSupport.apiKeyConcealHelp(for: providerType)
+        )
     }
 
     var apiKeyFieldTitle: String {
-        providerType == .githubCopilot ? "GitHub Token" : "API Key"
+        ProviderFormSupport.apiKeyFieldTitle(for: providerType)
     }
 
     // MARK: - Vertex AI Section
@@ -29,19 +27,11 @@ extension ProviderConfigFormView {
             "Service Account JSON",
             supportingText: "Paste the full JSON document for this service account."
         ) {
-            TextEditor(text: $serviceAccountJSON)
-                .font(.system(.body, design: .monospaced))
-                .frame(minHeight: 320)
-                .jinTextEditorField(cornerRadius: JinRadius.small)
-                .overlay(alignment: .topLeading) {
-                    if serviceAccountJSON.isEmpty {
-                        Text("Paste JSON content here…")
-                            .foregroundColor(.secondary)
-                            .padding(.top, 8)
-                            .padding(.leading, 5)
-                            .allowsHitTesting(false)
-                    }
-                }
+            JinSettingsTextEditor(
+                text: $serviceAccountJSON,
+                placeholder: "Paste JSON content here…",
+                minHeight: 320
+            )
         }
     }
 
@@ -79,8 +69,10 @@ extension ProviderConfigFormView {
 
     func loadCredentials() async {
         await MainActor.run {
-            switch ProviderType(rawValue: provider.typeRaw) {
-            case .codexAppServer:
+            guard let loadedProviderType = providerType else { return }
+
+            switch ProviderFormSupport.credentialKind(for: loadedProviderType) {
+            case .optionalAPIKey:
                 let storedKey = provider.apiKey?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
                 apiKey = storedKey
                 if provider.apiKeyKeychainID == CodexLocalAuthStore.authModeHint {
@@ -92,17 +84,10 @@ extension ProviderConfigFormView {
                 codexAccount = nil
                 codexRateLimit = nil
                 codexPendingLoginID = nil
-            case .githubCopilot:
+            case .apiKey:
                 apiKey = provider.apiKey ?? ""
-            case .openai, .openaiWebSocket, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter,
-                 .anthropic, .claudeManagedAgents, .perplexity, .groq, .cohere, .mistral, .deepinfra, .together, .xai,
-                 .deepseek, .zhipuCodingPlan, .minimax, .minimaxCodingPlan, .mimoTokenPlanAnthropic, .mimoTokenPlanOpenAI,
-                 .fireworks, .cerebras, .sambanova, .morphllm, .opencodeGo, .gemini:
-                apiKey = provider.apiKey ?? ""
-            case .vertexai:
+            case .serviceAccountJSON:
                 serviceAccountJSON = provider.serviceAccountJSON ?? ""
-            case .none:
-                break
             }
         }
     }
@@ -148,31 +133,30 @@ extension ProviderConfigFormView {
     }
 
     func persistCredentials(validate: Bool) async throws {
-        switch ProviderType(rawValue: provider.typeRaw) {
-        case .codexAppServer:
+        guard let persistedProviderType = providerType else { return }
+
+        switch ProviderFormSupport.credentialKind(for: persistedProviderType) {
+        case .optionalAPIKey:
             let key = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
             await MainActor.run {
                 provider.apiKeyKeychainID = codexAuthMode == .localCodex ? CodexLocalAuthStore.authModeHint : nil
-                provider.apiKey = (codexAuthMode == .apiKey && !key.isEmpty) ? key : nil
+                provider.apiKey = codexAuthMode == .apiKey ? ProviderFormSupport.normalizedOptionalString(key) : nil
                 provider.serviceAccountJSON = nil
                 try? modelContext.save()
             }
 
-        case .githubCopilot, .openai, .openaiWebSocket, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter,
-             .anthropic, .claudeManagedAgents, .perplexity, .groq, .cohere, .mistral, .deepinfra, .together, .xai, .deepseek,
-             .zhipuCodingPlan, .minimax, .minimaxCodingPlan, .mimoTokenPlanAnthropic, .mimoTokenPlanOpenAI,
-             .fireworks, .cerebras, .sambanova, .morphllm, .opencodeGo, .gemini:
+        case .apiKey:
             let key = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
             await MainActor.run {
-                if ProviderType(rawValue: provider.typeRaw) != .claudeManagedAgents {
+                if persistedProviderType != .claudeManagedAgents {
                     provider.apiKeyKeychainID = nil
                 }
-                provider.apiKey = key.isEmpty ? nil : key
+                provider.apiKey = ProviderFormSupport.normalizedOptionalString(key)
                 provider.serviceAccountJSON = nil
                 try? modelContext.save()
             }
 
-        case .vertexai:
+        case .serviceAccountJSON:
             let json = serviceAccountJSON.trimmingCharacters(in: .whitespacesAndNewlines)
 
             if validate {
@@ -181,31 +165,23 @@ extension ProviderConfigFormView {
 
             await MainActor.run {
                 provider.apiKeyKeychainID = nil
-                provider.serviceAccountJSON = json.isEmpty ? nil : json
+                provider.serviceAccountJSON = ProviderFormSupport.normalizedOptionalString(json)
                 provider.apiKey = nil
                 try? modelContext.save()
             }
-
-        case .none:
-            break
         }
     }
 
     // MARK: - Helpers
 
     var isTestDisabled: Bool {
-        switch ProviderType(rawValue: provider.typeRaw) {
-        case .codexAppServer:
-            return !codexCanUseCurrentAuthenticationMode || testStatus == .testing || codexAuthStatus == .working
-        case .githubCopilot, .openai, .openaiWebSocket, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter,
-             .anthropic, .claudeManagedAgents, .perplexity, .groq, .cohere, .mistral, .deepinfra, .together, .xai, .deepseek,
-             .zhipuCodingPlan, .minimax, .minimaxCodingPlan, .mimoTokenPlanAnthropic, .mimoTokenPlanOpenAI,
-             .fireworks, .cerebras, .sambanova, .morphllm, .opencodeGo, .gemini:
-            return apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || testStatus == .testing
-        case .vertexai:
-            return serviceAccountJSON.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || testStatus == .testing
-        case .none:
-            return true
-        }
+        ProviderFormSupport.isTestConnectionDisabled(
+            providerType: providerType,
+            codexCanUseCurrentAuthenticationMode: codexCanUseCurrentAuthenticationMode,
+            codexAuthIsWorking: codexAuthStatus == .working,
+            isTesting: testStatus == .testing,
+            apiKey: apiKey,
+            serviceAccountJSON: serviceAccountJSON
+        )
     }
 }

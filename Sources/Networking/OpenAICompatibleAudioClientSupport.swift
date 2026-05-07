@@ -88,7 +88,7 @@ enum OpenAICompatibleAudioClientSupport {
     }
 
     private static func optionalField(name: String, value: String?) -> MultipartField? {
-        guard let value, !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+        guard let value, value.trimmedNonEmpty != nil else {
             return nil
         }
 
@@ -106,6 +106,6 @@ enum OpenAICompatibleAudioClientSupport {
     }
 
     private static func normalizedResponseFormat(_ responseFormat: String?) -> String {
-        (responseFormat ?? "json").trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        (responseFormat ?? "json").trimmedLowercased
     }
 }

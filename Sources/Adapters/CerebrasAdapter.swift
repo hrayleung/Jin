@@ -10,8 +10,8 @@ actor CerebrasAdapter: LLMProviderAdapter {
     let providerConfig: ProviderConfig
     let capabilities: ModelCapability = [.streaming, .toolCalling, .reasoning]
 
-    private let networkManager: NetworkManager
-    private let apiKey: String
+    let networkManager: NetworkManager
+    let apiKey: String
 
     init(providerConfig: ProviderConfig, apiKey: String, networkManager: NetworkManager = NetworkManager()) {
         self.providerConfig = providerConfig
@@ -45,130 +45,9 @@ actor CerebrasAdapter: LLMProviderAdapter {
         )
     }
 
-    func validateAPIKey(_ key: String) async throws -> Bool {
-        await validateAPIKeyViaGET(
-            url: try validatedURL("\(baseURLRoot)/v1/models"),
-            apiKey: key,
-            networkManager: networkManager
-        )
-    }
-
-    func fetchAvailableModels() async throws -> [ModelInfo] {
-        let request = makeGETRequest(url: try validatedURL("\(baseURLRoot)/v1/models"), apiKey: apiKey)
-        let (data, _) = try await networkManager.sendRequest(request)
-        let response = try JSONDecoder().decode(OpenAIModelsResponse.self, from: data)
-        return response.data.map { makeModelInfo(id: $0.id) }
-    }
-
-    // MARK: - Private
-
-    private var baseURLRoot: String {
+    var baseURLRoot: String {
         let raw = (providerConfig.baseURL ?? "https://api.cerebras.ai")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .trimmed
         return stripTrailingV1(raw)
-    }
-
-    private func buildRequest(
-        messages: [Message],
-        modelID: String,
-        controls: GenerationControls,
-        tools: [ToolDefinition],
-        streaming: Bool
-    ) throws -> URLRequest {
-        var body: [String: Any] = [
-            "model": modelID,
-            "messages": translateMessages(messages),
-            "stream": streaming
-        ]
-
-        if let temperature = controls.temperature {
-            // Cerebras caps temperature at 1.5 (per docs). Clamp to avoid hard failures.
-            body["temperature"] = min(max(temperature, 0), 1.5)
-        }
-        if let maxTokens = controls.maxTokens {
-            body["max_completion_tokens"] = maxTokens
-        }
-        if let topP = controls.topP {
-            body["top_p"] = topP
-        }
-
-        if let reasoning = controls.reasoning {
-            body["disable_reasoning"] = (reasoning.enabled == false)
-            // Prefer parsed reasoning so we can display it as a dedicated Thinking block in the UI.
-            body["reasoning_format"] = (reasoning.enabled == false) ? "none" : "parsed"
-        }
-
-        if !tools.isEmpty, let functionTools = translateTools(tools) as? [[String: Any]] {
-            body["tools"] = functionTools
-        }
-
-        for (key, value) in controls.providerSpecific {
-            body[key] = value.value
-        }
-
-        return try makeAuthorizedJSONRequest(
-            url: validatedURL("\(baseURLRoot)/v1/chat/completions"),
-            apiKey: apiKey,
-            body: body
-        )
-    }
-
-    private func translateMessages(_ messages: [Message]) -> [[String: Any]] {
-        translateMessagesToOpenAIFormat(messages, translateNonToolMessage: translateNonToolMessage)
-    }
-
-    private func translateNonToolMessage(_ message: Message) -> [String: Any] {
-        let split = splitContentParts(
-            message.content,
-            imageUnsupportedMessage: "[Image attachment omitted: this provider does not support vision in Jin yet]"
-        )
-
-        var dict: [String: Any] = [
-            "role": message.role.rawValue
-        ]
-
-        switch message.role {
-        case .system, .user:
-            dict["content"] = split.visible
-
-        case .assistant:
-            let hasToolCalls = (message.toolCalls?.isEmpty == false)
-            let combinedContent: String
-            if !split.thinking.isEmpty {
-                // Cerebras reasoning docs recommend embedding prior thinking in the assistant content using <think> tags.
-                if split.visible.isEmpty {
-                    combinedContent = "<think>\(split.thinking)</think>"
-                } else {
-                    combinedContent = "<think>\(split.thinking)</think>\n\(split.visible)"
-                }
-            } else {
-                combinedContent = split.visible
-            }
-
-            dict["content"] = combinedContent.isEmpty ? (hasToolCalls ? NSNull() : "") : combinedContent
-
-            if let toolCalls = message.toolCalls, !toolCalls.isEmpty {
-                dict["tool_calls"] = translateToolCallsToOpenAIFormat(toolCalls)
-            }
-
-        case .tool:
-            dict["content"] = ""
-        }
-
-        return dict
-    }
-
-    private func makeModelInfo(id: String) -> ModelInfo {
-        if ModelCatalog.entry(for: id, provider: .cerebras) != nil {
-            return ModelCatalog.modelInfo(for: id, provider: .cerebras)
-        }
-
-        return ModelInfo(
-            id: id,
-            name: id,
-            capabilities: [.streaming, .toolCalling],
-            contextWindow: 128_000,
-            reasoningConfig: nil
-        )
     }
 }

@@ -38,7 +38,7 @@ extension MCPServerConfigEntity {
     var transportSummary: String {
         switch transportConfig() {
         case .stdio(let stdio):
-            let command = stdio.command.trimmingCharacters(in: .whitespacesAndNewlines)
+            let command = stdio.command.trimmed
             return command.isEmpty ? "Command-line (stdio)" : command
         case .http(let http):
             return http.endpoint.absoluteString

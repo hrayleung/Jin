@@ -4,11 +4,20 @@ import XCTest
 final class CodexLocalAuthStoreTests: XCTestCase {
     func testAuthFileURLPrefersCodexHomeEnvironment() {
         let url = CodexLocalAuthStore.authFileURL(environment: [
-            "CODEX_HOME": "/tmp/custom-codex-home",
+            "CODEX_HOME": " \n /tmp/custom-codex-home \t ",
             "HOME": "/tmp/ignored-home"
         ])
 
         XCTAssertEqual(url.path, "/tmp/custom-codex-home/auth.json")
+    }
+
+    func testAuthFileURLFallsBackToTrimmedHomeWhenCodexHomeIsBlank() {
+        let url = CodexLocalAuthStore.authFileURL(environment: [
+            "CODEX_HOME": " \n\t ",
+            "HOME": " /tmp/codex-home "
+        ])
+
+        XCTAssertEqual(url.path, "/tmp/codex-home/.codex/auth.json")
     }
 
     func testLoadAPIKeyReadsOpenAIAPIKeyFromAuthFile() throws {
@@ -41,5 +50,14 @@ final class CodexLocalAuthStoreTests: XCTestCase {
         ])
 
         XCTAssertNil(loaded)
+    }
+
+    func testExtractAPIKeySkipsBlankValuesAndTrimsFallbackCandidate() {
+        let key = CodexLocalAuthStore.extractAPIKey(from: [
+            "OPENAI_API_KEY": " \n\t ",
+            "api_key": " \n sk-fallback \t "
+        ])
+
+        XCTAssertEqual(key, "sk-fallback")
     }
 }

@@ -129,8 +129,7 @@ struct VertexAICachedContentClient {
     }
 
     private func normalizedPageToken(_ pageToken: String?) -> String? {
-        let trimmed = pageToken?.trimmingCharacters(in: .whitespacesAndNewlines)
-        return (trimmed?.isEmpty == false) ? trimmed : nil
+        pageToken?.trimmedNonEmpty
     }
 
     private func decode<T: Decodable>(_ type: T.Type, from data: Data) throws -> T {
@@ -161,8 +160,7 @@ struct VertexAICachedContentClient {
     }
 
     private func cachedContentEndpoint(for rawName: String) throws -> String {
-        let trimmed = rawName.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else {
+        guard let trimmed = rawName.trimmedNonEmpty else {
             throw LLMError.invalidRequest(message: "Invalid cachedContent name.")
         }
         if trimmed.lowercased().hasPrefix("projects/") {

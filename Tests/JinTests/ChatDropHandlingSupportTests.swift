@@ -50,4 +50,34 @@ final class ChatDropHandlingSupportTests: XCTestCase {
         XCTAssertTrue(plan.urlsToImport.isEmpty)
         XCTAssertEqual(plan.errors, ["You can attach up to 2 files per message."])
     }
+
+    func testAppendTextChunksToComposerTrimsAndPreservesExistingText() {
+        XCTAssertNil(
+            ChatDropHandlingSupport.appendTextChunksToComposer(
+                [" \n "],
+                currentText: "Existing"
+            )
+        )
+        XCTAssertEqual(
+            ChatDropHandlingSupport.appendTextChunksToComposer(
+                ["First", "Second"],
+                currentText: ""
+            ),
+            "First\nSecond"
+        )
+        XCTAssertEqual(
+            ChatDropHandlingSupport.appendTextChunksToComposer(
+                ["World"],
+                currentText: "Hello"
+            ),
+            "Hello\nWorld"
+        )
+        XCTAssertEqual(
+            ChatDropHandlingSupport.appendTextChunksToComposer(
+                ["World"],
+                currentText: "Hello\n"
+            ),
+            "Hello\nWorld"
+        )
+    }
 }

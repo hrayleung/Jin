@@ -98,12 +98,23 @@ final class AgentToolHubTests: XCTestCase {
 
     // MARK: - Function name prefix
 
+    func testAgentToolHubFunctionNameAliasesMatchPrimaryNames() {
+        XCTAssertEqual(AgentToolHub.serverID, AgentToolNames.serverID)
+        XCTAssertEqual(AgentToolHub.functionNamePrefix, AgentToolNames.functionNamePrefix)
+        XCTAssertEqual(AgentToolHub.shellExecuteFunctionName, AgentToolNames.shellExecute)
+        XCTAssertEqual(AgentToolHub.fileReadFunctionName, AgentToolNames.fileRead)
+        XCTAssertEqual(AgentToolHub.fileWriteFunctionName, AgentToolNames.fileWrite)
+        XCTAssertEqual(AgentToolHub.fileEditFunctionName, AgentToolNames.fileEdit)
+        XCTAssertEqual(AgentToolHub.globSearchFunctionName, AgentToolNames.globSearch)
+        XCTAssertEqual(AgentToolHub.grepSearchFunctionName, AgentToolNames.grepSearch)
+    }
+
     func testFunctionNamePrefix() async {
         let result = await AgentToolHub.shared.toolDefinitions(for: makeControls())
         for definition in result.definitions {
             XCTAssertTrue(
-                definition.name.hasPrefix("agent__"),
-                "Expected '\(definition.name)' to start with 'agent__'"
+                definition.name.hasPrefix(AgentToolNames.functionNamePrefix),
+                "Expected '\(definition.name)' to start with '\(AgentToolNames.functionNamePrefix)'"
             )
         }
     }
@@ -111,8 +122,8 @@ final class AgentToolHubTests: XCTestCase {
     // MARK: - isAgentFunctionName
 
     func testIsAgentFunctionName() {
-        XCTAssertTrue(AgentToolHub.isAgentFunctionName("agent__shell_execute"))
-        XCTAssertTrue(AgentToolHub.isAgentFunctionName("agent__file_read"))
+        XCTAssertTrue(AgentToolHub.isAgentFunctionName(AgentToolNames.shellExecute))
+        XCTAssertTrue(AgentToolHub.isAgentFunctionName(AgentToolNames.fileRead))
         XCTAssertFalse(AgentToolHub.isAgentFunctionName("mcp__shell_execute"))
         XCTAssertFalse(AgentToolHub.isAgentFunctionName("shell_execute"))
     }

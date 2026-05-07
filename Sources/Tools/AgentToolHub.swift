@@ -17,17 +17,17 @@ struct AgentToolRouteSnapshot: Sendable {
 actor AgentToolHub {
     static let shared = AgentToolHub()
 
-    static let serverID = "agent"
-    static let functionNamePrefix = "\(serverID)__"
-    static let shellExecuteFunctionName = "\(functionNamePrefix)shell_execute"
-    static let fileReadFunctionName = "\(functionNamePrefix)file_read"
-    static let fileWriteFunctionName = "\(functionNamePrefix)file_write"
-    static let fileEditFunctionName = "\(functionNamePrefix)file_edit"
-    static let globSearchFunctionName = "\(functionNamePrefix)glob_search"
-    static let grepSearchFunctionName = "\(functionNamePrefix)grep_search"
+    static let serverID = AgentToolNames.serverID
+    static let functionNamePrefix = AgentToolNames.functionNamePrefix
+    static let shellExecuteFunctionName = AgentToolNames.shellExecute
+    static let fileReadFunctionName = AgentToolNames.fileRead
+    static let fileWriteFunctionName = AgentToolNames.fileWrite
+    static let fileEditFunctionName = AgentToolNames.fileEdit
+    static let globSearchFunctionName = AgentToolNames.globSearch
+    static let grepSearchFunctionName = AgentToolNames.grepSearch
 
     static func isAgentFunctionName(_ functionName: String) -> Bool {
-        functionName.hasPrefix(functionNamePrefix)
+        AgentToolNames.isAgentFunctionName(functionName)
     }
 
     struct PreparedShellExecution: Sendable {
@@ -60,7 +60,7 @@ actor AgentToolHub {
             throw LLMError.invalidRequest(message: "Unknown agent tool: \(functionName)")
         }
 
-        let raw = arguments.mapValues { $0.value }
+        let raw = AgentToolArgumentParser.rawArguments(arguments)
 
         switch functionName {
         case AgentToolNames.shellExecute:
@@ -86,7 +86,7 @@ actor AgentToolHub {
         arguments: [String: AnyCodable],
         controls: AgentModeControls
     ) async throws -> PreparedShellExecution {
-        let raw = arguments.mapValues { $0.value }
+        let raw = AgentToolArgumentParser.rawArguments(arguments)
         return try await prepareShellExecution(raw, controls: controls)
     }
 
@@ -123,12 +123,12 @@ actor AgentToolHub {
         _ args: [String: Any],
         controls: AgentModeControls
     ) throws -> MCPToolCallResult {
-        guard let path = AgentToolArgumentParser.stringArg(args, keys: ["path", "file", "file_path", "filePath"]) else {
+        guard let path = AgentToolArgumentParser.stringArg(args, keys: AgentToolArgumentKeys.filePath) else {
             return MCPToolCallResult(text: "Error: missing required parameter 'path'", isError: true)
         }
 
-        let offset = AgentToolArgumentParser.intArg(args, keys: ["offset", "line_offset", "start_line"])
-        let limit = AgentToolArgumentParser.intArg(args, keys: ["limit", "line_count", "max_lines"])
+        let offset = AgentToolArgumentParser.intArg(args, keys: AgentToolArgumentKeys.fileReadOffset)
+        let limit = AgentToolArgumentParser.intArg(args, keys: AgentToolArgumentKeys.fileReadLimit)
 
         let result = try AgentFileOperations.readFile(
             path: path,
@@ -144,11 +144,11 @@ actor AgentToolHub {
         _ args: [String: Any],
         controls: AgentModeControls
     ) throws -> MCPToolCallResult {
-        guard let path = AgentToolArgumentParser.stringArg(args, keys: ["path", "file", "file_path", "filePath"]) else {
+        guard let path = AgentToolArgumentParser.stringArg(args, keys: AgentToolArgumentKeys.filePath) else {
             return MCPToolCallResult(text: "Error: missing required parameter 'path'", isError: true)
         }
 
-        guard let content = AgentToolArgumentParser.stringArg(args, keys: ["content", "text", "data"]) else {
+        guard let content = AgentToolArgumentParser.stringArg(args, keys: AgentToolArgumentKeys.fileContent) else {
             return MCPToolCallResult(text: "Error: missing required parameter 'content'", isError: true)
         }
 
@@ -165,15 +165,15 @@ actor AgentToolHub {
         _ args: [String: Any],
         controls: AgentModeControls
     ) throws -> MCPToolCallResult {
-        guard let path = AgentToolArgumentParser.stringArg(args, keys: ["path", "file", "file_path", "filePath"]) else {
+        guard let path = AgentToolArgumentParser.stringArg(args, keys: AgentToolArgumentKeys.filePath) else {
             return MCPToolCallResult(text: "Error: missing required parameter 'path'", isError: true)
         }
 
-        guard let oldText = AgentToolArgumentParser.stringArg(args, keys: ["old_text", "oldText", "old_string", "search"]) else {
+        guard let oldText = AgentToolArgumentParser.stringArg(args, keys: AgentToolArgumentKeys.fileEditOldText) else {
             return MCPToolCallResult(text: "Error: missing required parameter 'old_text'", isError: true)
         }
 
-        guard let newText = AgentToolArgumentParser.stringArg(args, keys: ["new_text", "newText", "new_string", "replace"]) else {
+        guard let newText = AgentToolArgumentParser.stringArg(args, keys: AgentToolArgumentKeys.fileEditNewText) else {
             return MCPToolCallResult(text: "Error: missing required parameter 'new_text'", isError: true)
         }
 
@@ -191,11 +191,11 @@ actor AgentToolHub {
         _ args: [String: Any],
         controls: AgentModeControls
     ) async throws -> MCPToolCallResult {
-        guard let pattern = AgentToolArgumentParser.stringArg(args, keys: ["pattern", "glob"]) else {
+        guard let pattern = AgentToolArgumentParser.stringArg(args, keys: AgentToolArgumentKeys.globPattern) else {
             return MCPToolCallResult(text: "Error: missing required parameter 'pattern'", isError: true)
         }
 
-        let directory = AgentToolArgumentParser.stringArg(args, keys: ["path", "directory", "dir"]) ?? "."
+        let directory = AgentToolArgumentParser.stringArg(args, keys: AgentToolArgumentKeys.searchDirectory) ?? "."
         let result = try await RTKRuntimeSupport.executeHelperCommand(
             arguments: ["find", pattern, directory],
             workingDirectory: controls.workingDirectory,
@@ -214,12 +214,12 @@ actor AgentToolHub {
         _ args: [String: Any],
         controls: AgentModeControls
     ) async throws -> MCPToolCallResult {
-        guard let pattern = AgentToolArgumentParser.stringArg(args, keys: ["pattern", "regex", "query"]) else {
+        guard let pattern = AgentToolArgumentParser.stringArg(args, keys: AgentToolArgumentKeys.grepPattern) else {
             return MCPToolCallResult(text: "Error: missing required parameter 'pattern'", isError: true)
         }
 
-        let path = AgentToolArgumentParser.stringArg(args, keys: ["path", "directory", "dir"]) ?? "."
-        let include = AgentToolArgumentParser.stringArg(args, keys: ["include", "glob", "file_pattern"])
+        let path = AgentToolArgumentParser.stringArg(args, keys: AgentToolArgumentKeys.searchDirectory) ?? "."
+        let include = AgentToolArgumentParser.stringArg(args, keys: AgentToolArgumentKeys.includePattern)
         var helperArguments = ["grep", pattern, path]
         if let include, !include.isEmpty {
             helperArguments.append(contentsOf: ["--glob", include])
@@ -245,11 +245,11 @@ actor AgentToolHub {
         _ args: [String: Any],
         controls: AgentModeControls
     ) async throws -> PreparedShellExecution {
-        guard let command = AgentToolArgumentParser.stringArg(args, keys: ["command", "cmd"]) else {
+        guard let command = AgentToolArgumentParser.stringArg(args, keys: AgentToolArgumentKeys.command) else {
             throw LLMError.invalidRequest(message: "Agent shell execution requires a non-empty `command`.")
         }
 
-        let cwd = AgentToolArgumentParser.stringArg(args, keys: ["working_directory", "workingDirectory", "cwd"])
+        let cwd = AgentToolArgumentParser.stringArg(args, keys: AgentToolArgumentKeys.workingDirectory)
             ?? controls.workingDirectory
         let rewrittenCommand = try await RTKRuntimeSupport.prepareShellCommand(command)
         return PreparedShellExecution(

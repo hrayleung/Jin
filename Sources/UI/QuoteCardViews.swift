@@ -47,7 +47,7 @@ struct MessageSelectionSnapshot: Identifiable, Hashable, Sendable {
     }
 
     var isEmpty: Bool {
-        selectedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        MessageSelectionSupport.selectionIsEmpty(selectedText)
     }
 }
 
@@ -90,24 +90,10 @@ private struct QuoteCardContainer<Accessory: View>: View {
     }
 
     private var sourceLine: String {
-        let base: String
-        switch quote.sourceRole {
-        case .assistant?:
-            base = "Assistant"
-        case .user?:
-            base = "User"
-        case .system?:
-            base = "System"
-        case .tool?:
-            base = "Tool"
-        case nil:
-            base = "Quoted"
-        }
-
-        if let model = quote.sourceModelName?.trimmingCharacters(in: .whitespacesAndNewlines), !model.isEmpty {
-            return "\(base) · \(model)"
-        }
-        return base
+        QuoteCardPresentationSupport.sourceLine(
+            role: quote.sourceRole,
+            modelName: quote.sourceModelName
+        )
     }
 
     var body: some View {

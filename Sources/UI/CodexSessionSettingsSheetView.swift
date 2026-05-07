@@ -47,7 +47,7 @@ struct CodexSessionSettingsSheetView: View {
     // MARK: - Working Directory
 
     private var workingDirectorySection: some View {
-        VStack(alignment: .leading, spacing: JinSpacing.small) {
+        JinSettingsCard(spacing: JinSpacing.small, padding: JinSpacing.medium) {
             Label("Working Directory", systemImage: "folder")
                 .font(.subheadline.weight(.semibold))
 
@@ -57,18 +57,10 @@ struct CodexSessionSettingsSheetView: View {
                         Button {
                             onSelectPreset(preset)
                         } label: {
-                            Label {
-                                VStack(alignment: .leading) {
-                                    Text(preset.name)
-                                    Text(preset.path)
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                }
-                            } icon: {
-                                if workingDirectoryDraft == preset.path {
-                                    Image(systemName: "checkmark")
-                                }
-                            }
+                            CodexWorkingDirectoryPresetMenuItemLabel(
+                                preset: preset,
+                                isSelected: workingDirectoryDraft == preset.path
+                            )
                         }
                     }
                     Divider()
@@ -89,37 +81,17 @@ struct CodexSessionSettingsSheetView: View {
                 }
                 .disabled(workingDirectoryDraft.isEmpty)
             } label: {
-                HStack(spacing: JinSpacing.small) {
-                    Image(systemName: workingDirectoryDraft.isEmpty ? "minus" : "folder.fill")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundColor(workingDirectoryDraft.isEmpty ? .secondary : .accentColor)
-
-                    Text(workingDirectoryDisplayText)
-                        .font(.system(.caption, design: .monospaced))
-                        .foregroundStyle(workingDirectoryDraft.isEmpty ? .secondary : .primary)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-
-                    Spacer(minLength: 0)
-
-                    Image(systemName: "chevron.up.chevron.down")
-                        .font(.caption2.weight(.semibold))
-                        .foregroundStyle(.secondary)
-                }
-                .padding(.horizontal, JinSpacing.small + 2)
-                .padding(.vertical, JinSpacing.small)
-                .jinSurface(.subtle, cornerRadius: JinRadius.small)
+                CodexWorkingDirectoryMenuLabel(
+                    displayText: workingDirectoryDisplayText,
+                    isDefault: workingDirectoryDraft.isEmpty
+                )
             }
             .menuStyle(.borderlessButton)
 
             if let workingDirectoryDraftError, !workingDirectoryDraftError.isEmpty {
-                Text(workingDirectoryDraftError)
-                    .font(.caption)
-                    .foregroundStyle(.red)
+                JinSettingsErrorText(text: workingDirectoryDraftError)
             }
         }
-        .padding(JinSpacing.medium)
-        .jinSurface(.raised, cornerRadius: JinRadius.large)
     }
 
     private var workingDirectoryDisplayText: String {
@@ -130,31 +102,16 @@ struct CodexSessionSettingsSheetView: View {
     // MARK: - Sandbox Mode
 
     private var sandboxModeSection: some View {
-        VStack(alignment: .leading, spacing: JinSpacing.small) {
+        JinSettingsCard(spacing: JinSpacing.small, padding: JinSpacing.medium) {
             Label("Sandbox", systemImage: "shield.lefthalf.filled")
                 .font(.subheadline.weight(.semibold))
 
             HStack(alignment: .top, spacing: JinSpacing.small) {
                 ForEach(CodexSandboxMode.allCases, id: \.self) { mode in
                     Button { sandboxModeDraft = mode } label: {
-                        VStack(alignment: .leading, spacing: JinSpacing.xSmall) {
-                            HStack(spacing: JinSpacing.xSmall) {
-                                Image(systemName: mode.systemImage)
-                                    .font(.system(size: 11, weight: .semibold))
-                                Text(mode.displayName)
-                                    .font(.caption.weight(.semibold))
-                            }
-                            Text(mode.summary)
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
-                                .multilineTextAlignment(.leading)
-                                .lineLimit(3)
-                        }
-                        .frame(maxWidth: .infinity, alignment: .topLeading)
-                        .padding(JinSpacing.small)
-                        .jinSurface(
-                            sandboxModeDraft == mode ? .selected : .subtle,
-                            cornerRadius: JinRadius.small
+                        CodexSandboxModeTile(
+                            mode: mode,
+                            isSelected: sandboxModeDraft == mode
                         )
                     }
                     .buttonStyle(.plain)
@@ -162,59 +119,35 @@ struct CodexSessionSettingsSheetView: View {
             }
 
             if sandboxModeDraft == .dangerFullAccess {
-                Label("Full Access disables sandbox protection.", systemImage: "exclamationmark.triangle.fill")
-                    .font(.caption)
-                    .foregroundStyle(.orange)
+                CodexDangerFullAccessWarning()
             }
         }
-        .padding(JinSpacing.medium)
-        .jinSurface(.raised, cornerRadius: JinRadius.large)
     }
 
     // MARK: - Personality
 
     private var personalitySection: some View {
-        VStack(alignment: .leading, spacing: JinSpacing.small) {
+        JinSettingsCard(spacing: JinSpacing.small, padding: JinSpacing.medium) {
             Label("Personality", systemImage: "face.smiling")
                 .font(.subheadline.weight(.semibold))
 
             Menu {
                 Button { personalityDraft = nil } label: {
-                    menuItemLabel("Model Default", isSelected: personalityDraft == nil)
+                    CodexSelectedMenuItemLabel("Model Default", isSelected: personalityDraft == nil)
                 }
                 Divider()
                 ForEach(CodexPersonality.allCases, id: \.self) { personality in
                     Button { personalityDraft = personality } label: {
-                        menuItemLabel(personality.displayName, isSelected: personalityDraft == personality)
+                        CodexSelectedMenuItemLabel(
+                            personality.displayName,
+                            isSelected: personalityDraft == personality
+                        )
                     }
                 }
             } label: {
-                HStack {
-                    Text(personalityDraft?.displayName ?? "Model Default")
-                        .font(.subheadline)
-                    Spacer(minLength: 0)
-                    Image(systemName: "chevron.up.chevron.down")
-                        .font(.caption2.weight(.semibold))
-                        .foregroundStyle(.secondary)
-                }
-                .padding(.horizontal, JinSpacing.small + 2)
-                .padding(.vertical, JinSpacing.small)
-                .jinSurface(.subtle, cornerRadius: JinRadius.small)
+                CodexPersonalityMenuLabel(title: personalityDraft?.displayName ?? "Model Default")
             }
             .menuStyle(.borderlessButton)
-        }
-        .padding(JinSpacing.medium)
-        .jinSurface(.raised, cornerRadius: JinRadius.large)
-    }
-
-    private func menuItemLabel(_ title: String, isSelected: Bool) -> some View {
-        HStack(spacing: JinSpacing.small) {
-            Text(title)
-            Spacer(minLength: 12)
-            if isSelected {
-                Image(systemName: "checkmark")
-                    .foregroundStyle(Color.accentColor)
-            }
         }
     }
 }

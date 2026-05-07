@@ -25,10 +25,32 @@ struct GoogleMapsSheetView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: JinSpacing.large) {
-                    basicsCard
-                    locationCard
-                    advancedCard
-                    footerContent
+                    GoogleMapsBasicsCard(
+                        isEnabled: $draft.enabled,
+                        hasLiveLocation: hasLiveLocation
+                    )
+
+                    GoogleMapsLocationBiasCard(
+                        latitudeDraft: $latitudeDraft,
+                        longitudeDraft: $longitudeDraft,
+                        onClearCoordinates: clearCoordinates
+                    ) {
+                        currentLocationButton
+                    }
+
+                    GoogleMapsAdvancedCard(
+                        isExpanded: $advancedExpanded,
+                        languageCodeDraft: $languageCodeDraft,
+                        enableWidget: enableWidgetBinding,
+                        providerType: providerType
+                    )
+
+                    GoogleMapsSheetFooter(
+                        draftError: draftError,
+                        summaryText: summaryText,
+                        hasLiveLocation: hasLiveLocation,
+                        isWidgetEnabled: enableWidgetBinding.wrappedValue
+                    )
                 }
                 .padding(JinSpacing.large)
             }
@@ -72,8 +94,8 @@ struct GoogleMapsSheetView: View {
         #if canImport(CoreLocation)
         .onChange(of: locationRequester.coordinate) { _, coordinate in
             guard let coordinate else { return }
-            latitudeDraft = Self.formattedCoordinateValue(coordinate.latitude)
-            longitudeDraft = Self.formattedCoordinateValue(coordinate.longitude)
+            latitudeDraft = GoogleMapsSheetSupport.formattedCoordinateValue(coordinate.latitude)
+            longitudeDraft = GoogleMapsSheetSupport.formattedCoordinateValue(coordinate.longitude)
             draftError = nil
         }
         .onChange(of: locationRequester.errorMessage) { _, message in
@@ -83,159 +105,47 @@ struct GoogleMapsSheetView: View {
         #endif
     }
 
-    private var basicsCard: some View {
-        VStack(alignment: .leading, spacing: JinSpacing.medium) {
-            HStack(alignment: .center, spacing: JinSpacing.small) {
-                Text("Basics")
-                    .font(.headline)
-                Spacer()
-                Text(draft.enabled ? "On" : "Off")
-                    .jinTagStyle(foreground: draft.enabled ? .accentColor : .secondary)
-                if hasLiveLocation {
-                    Text("Pinned")
-                        .jinTagStyle()
-                }
-            }
-
-            Toggle("Enable Google Maps grounding", isOn: $draft.enabled)
-                .toggleStyle(.switch)
-        }
-        .padding(JinSpacing.large)
-        .jinSurface(.raised, cornerRadius: JinRadius.large)
-    }
-
-    private var locationCard: some View {
-        VStack(alignment: .leading, spacing: JinSpacing.medium) {
-            Text("Location Bias")
-                .font(.headline)
-
-            HStack(spacing: JinSpacing.medium) {
-                JinFormFieldRow("Latitude", supportingText: "-90 to 90") {
-                    TextField("34.050481", text: $latitudeDraft)
-                        .font(.system(.body, design: .monospaced))
-                        .textFieldStyle(.roundedBorder)
-                }
-
-                JinFormFieldRow("Longitude", supportingText: "-180 to 180") {
-                    TextField("-118.248526", text: $longitudeDraft)
-                        .font(.system(.body, design: .monospaced))
-                        .textFieldStyle(.roundedBorder)
-                }
-            }
-
-            HStack(spacing: JinSpacing.small) {
-                #if canImport(CoreLocation)
-                Button {
-                    draftError = nil
-                    locationRequester.requestLocation()
-                } label: {
-                    if locationRequester.isResolving {
-                        Label("Locating…", systemImage: "location.magnifyingglass")
-                    } else {
-                        Label("Use Current Location", systemImage: "location")
-                    }
-                }
-                .disabled(locationRequester.isResolving)
-                #endif
-
-                Button("Clear Coordinates") {
-                    latitudeDraft = ""
-                    longitudeDraft = ""
-                    draftError = nil
-                }
-                .disabled(latitudeDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                    && longitudeDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-            }
-            .font(.caption.weight(.medium))
-        }
-        .padding(JinSpacing.large)
-        .jinSurface(.raised, cornerRadius: JinRadius.large)
-    }
-
-    private var advancedCard: some View {
-        DisclosureGroup(isExpanded: $advancedExpanded) {
-            VStack(alignment: .leading, spacing: JinSpacing.medium) {
-                if providerType == .vertexai {
-                    JinFormFieldRow("Locale", supportingText: "Optional. Example: en_US") {
-                        TextField("en_US", text: $languageCodeDraft)
-                            .font(.system(.body, design: .monospaced))
-                            .textFieldStyle(.roundedBorder)
-                            .frame(maxWidth: 220, alignment: .leading)
-                    }
-                }
-
-                JinFormFieldRow("Widget Token", supportingText: "Experimental.") {
-                    Toggle("Request widget token", isOn: enableWidgetBinding)
-                        .toggleStyle(.switch)
-                }
-            }
-            .padding(.top, JinSpacing.small)
-        } label: {
-            HStack(alignment: .center, spacing: JinSpacing.small) {
-                Text("Advanced")
-                    .font(.headline)
-                Spacer(minLength: 0)
-                Text("Optional")
-                    .jinTagStyle()
-            }
-        }
-        .padding(JinSpacing.large)
-        .jinSurface(.raised, cornerRadius: JinRadius.large)
-    }
-
     @ViewBuilder
-    private var footerContent: some View {
-        VStack(alignment: .leading, spacing: JinSpacing.medium) {
-            if let draftError {
-                Text(draftError)
-                    .jinInlineErrorText()
-                    .padding(.horizontal, JinSpacing.small)
-                    .jinSurface(.subtleStrong, cornerRadius: JinRadius.small)
-            }
-
-            JinDetailsDisclosure {
-                Text(summaryText)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Text("Results appear in the response timeline as grounded place sources.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                if hasLiveLocation {
-                    Text("Saved coordinates only bias this conversation.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                if enableWidgetBinding.wrappedValue {
-                    Text("Jin requests a widget token but does not render the Google widget.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
+    private var currentLocationButton: some View {
+        #if canImport(CoreLocation)
+        Button {
+            draftError = nil
+            locationRequester.requestLocation()
+        } label: {
+            if locationRequester.isResolving {
+                Label("Locating…", systemImage: "location.magnifyingglass")
+            } else {
+                Label("Use Current Location", systemImage: "location")
             }
         }
+        .disabled(locationRequester.isResolving)
+        #else
+        EmptyView()
+        #endif
+    }
+
+    private func clearCoordinates() {
+        latitudeDraft = ""
+        longitudeDraft = ""
+        draftError = nil
     }
 
     private var hasLiveLocation: Bool {
-        let lat = latitudeDraft.trimmingCharacters(in: .whitespacesAndNewlines)
-        let lng = longitudeDraft.trimmingCharacters(in: .whitespacesAndNewlines)
-        return !lat.isEmpty && !lng.isEmpty
+        GoogleMapsSheetSupport.hasLiveLocation(
+            latitudeDraft: latitudeDraft,
+            longitudeDraft: longitudeDraft
+        )
     }
 
     private var summaryText: String {
-        if draft.enabled {
-            if hasLiveLocation {
-                return "Maps grounding is on and uses your pinned coordinates."
-            }
-            return "Maps grounding is on."
-        }
-        if hasLiveLocation {
-            return "A location is saved, but grounding is off."
-        }
-        return "Turn Maps grounding on for place-aware answers."
+        GoogleMapsSheetSupport.summaryText(
+            isEnabled: draft.enabled,
+            hasLiveLocation: hasLiveLocation
+        )
     }
 
     private var trimmedLanguageCode: String? {
-        let trimmed = languageCodeDraft.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? nil : trimmed
+        GoogleMapsSheetSupport.trimmedLanguageCode(languageCodeDraft)
     }
 
     private var enableWidgetBinding: Binding<Bool> {
@@ -243,12 +153,6 @@ struct GoogleMapsSheetView: View {
             get: { draft.enableWidget == true },
             set: { draft.enableWidget = $0 ? true : nil }
         )
-    }
-
-    private static func formattedCoordinateValue(_ value: Double) -> String {
-        let formatted = String(format: "%.6f", value)
-        return formatted.replacingOccurrences(of: #"0+$"#, with: "", options: .regularExpression)
-            .replacingOccurrences(of: #"\.$"#, with: "", options: .regularExpression)
     }
 }
 
@@ -332,26 +236,7 @@ private final class GoogleMapsLocationRequester: NSObject, ObservableObject, @pr
 
     func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
         isResolving = false
-        errorMessage = Self.userFacingMessage(for: error)
-    }
-
-    private static func userFacingMessage(for error: Error) -> String {
-        if let locationError = error as? CLError {
-            switch locationError.code {
-            case .denied:
-                return "Location access was denied."
-            case .locationUnknown:
-                return "Current location is temporarily unavailable. Try again in a moment."
-            default:
-                break
-            }
-        }
-
-        let message = error.localizedDescription.trimmingCharacters(in: .whitespacesAndNewlines)
-        if message.isEmpty {
-            return "Current location could not be determined."
-        }
-        return message
+        errorMessage = GoogleMapsSheetSupport.locationErrorMessage(for: error)
     }
 }
 #endif

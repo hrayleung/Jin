@@ -190,8 +190,7 @@ enum ChatMessageRenderPipeline {
     static func editableUserText(from message: Message) -> String? {
         let parts = message.content.compactMap { part -> String? in
             guard case .text(let text) = part else { return nil }
-            let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-            return trimmed.isEmpty ? nil : trimmed
+            return text.trimmedNonEmpty
         }
 
         guard !parts.isEmpty else { return nil }

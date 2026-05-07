@@ -53,15 +53,19 @@ extension ChatView {
         let selectedArtifactID = selectedArtifactIDByThreadID[threadID]
         let selectedVersion = selectedArtifactVersionByThreadID[threadID]
 
-        if let selectedArtifactID,
-           catalog.version(artifactID: selectedArtifactID, version: selectedVersion) != nil {
+        let selection = ArtifactWorkspaceSupport.selectionAfterSync(
+            in: catalog,
+            selectedArtifactID: selectedArtifactID,
+            selectedArtifactVersion: selectedVersion
+        )
+
+        if selection.artifactID == selectedArtifactID,
+           selection.version == selectedVersion {
             return
         }
 
-        if let latest = catalog.latestVersion {
-            selectedArtifactIDByThreadID[threadID] = latest.artifactID
-            selectedArtifactVersionByThreadID[threadID] = latest.version
-        }
+        selectedArtifactIDByThreadID[threadID] = selection.artifactID
+        selectedArtifactVersionByThreadID[threadID] = selection.version
     }
 
     func openArtifact(_ artifact: RenderedArtifactVersion, threadID: UUID?) {
@@ -80,15 +84,17 @@ extension ChatView {
 
     func autoOpenLatestArtifactIfNeeded(from message: Message, threadID: UUID) {
         guard activeModelThread?.id == threadID else { return }
-        guard renderCache.selectLatestArtifact(
+        guard let selection = ArtifactWorkspaceSupport.latestArtifactSelection(
             from: message,
-            threadID: threadID,
-            selectedArtifactIDByThreadID: &selectedArtifactIDByThreadID,
-            selectedArtifactVersionByThreadID: &selectedArtifactVersionByThreadID
+            in: renderCache.artifactCatalog
         ) else {
             return
         }
 
+        selectedArtifactIDByThreadID[threadID] = selection.artifactID
+        if let version = selection.version {
+            selectedArtifactVersionByThreadID[threadID] = version
+        }
         isArtifactPaneVisible = true
     }
 

@@ -37,6 +37,6 @@ enum MiMoModelIDs {
     static let textToSpeechResponseFormatSet = Set(textToSpeechResponseFormats)
 
     static func isTextToSpeechModelID(_ modelID: String) -> Bool {
-        textToSpeechModelIDs.contains(modelID.trimmingCharacters(in: .whitespacesAndNewlines).lowercased())
+        textToSpeechModelIDs.contains(modelID.trimmedLowercased)
     }
 }

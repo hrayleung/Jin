@@ -48,8 +48,7 @@ extension XAIAdapter {
         for item in output where item.type == "message" {
             for content in item.content ?? [] where content.type == "output_text" {
                 for annotation in content.annotations ?? [] where annotation.type == "url_citation" {
-                    guard let rawURL = annotation.url?.trimmingCharacters(in: .whitespacesAndNewlines),
-                          !rawURL.isEmpty,
+                    guard let rawURL = normalizedTrimmedString(annotation.url),
                           let url = URL(string: rawURL),
                           let scheme = url.scheme?.lowercased(),
                           scheme == "http" || scheme == "https" else {
@@ -97,8 +96,7 @@ extension XAIAdapter {
         candidatesByURLKey.reserveCapacity(urls.count)
 
         for raw in urls {
-            let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !trimmed.isEmpty else { continue }
+            guard let trimmed = normalizedTrimmedString(raw) else { continue }
             guard let url = URL(string: trimmed),
                   let scheme = url.scheme?.lowercased(),
                   scheme == "http" || scheme == "https" else {
@@ -183,9 +181,7 @@ extension XAIAdapter {
     }
 
     func normalizedCitationTitle(_ raw: String?) -> String? {
-        guard let raw else { return nil }
-        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return nil }
+        guard let trimmed = normalizedTrimmedString(raw) else { return nil }
         if trimmed.range(of: #"^\d+$"#, options: .regularExpression) != nil {
             return nil
         }
