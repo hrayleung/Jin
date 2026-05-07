@@ -67,11 +67,46 @@ enum ArtifactMarkupParser {
         pattern: #"([A-Za-z_][A-Za-z0-9_:\-]*)\s*=\s*(?:"([^"]*)"|'([^']*)')"#
     )
 
+    /// Resumable scan state for streaming inputs. Holding this across calls makes
+    /// per-call work O(delta-since-last-call) instead of O(total-text). Reset to
+    /// `.initial` whenever the input is replaced (not just appended).
+    struct ScanState: Sendable {
+        /// NSString position from which the next `parse` call should resume
+        /// scanning for `<jinArtifact` markers. Always advanced past
+        /// fully-closed artifacts and through verified-marker-free tail text
+        /// (with a small retention window so a partial marker straddling
+        /// flush boundaries is caught).
+        fileprivate var cursor: Int = 0
+        fileprivate var lastTextLength: Int = 0
+        /// NSString position where the visible chunk after the last closed
+        /// artifact begins. The "active chunk" of visible text is always
+        /// derived as `nsText.substring([committedActiveChunkBase, end))`.
+        fileprivate var committedActiveChunkBase: Int = 0
+        /// Visible text segments fully bounded by closed artifacts (or by
+        /// the start of the input). Stable across subsequent calls.
+        fileprivate var committedSegments: [String] = []
+        fileprivate var committedArtifacts: [ParsedArtifact] = []
+
+        public static let initial = ScanState()
+    }
+
     static func parse(_ text: String, hidesTrailingIncompleteArtifact: Bool = false) -> ArtifactParseResult {
+        var state = ScanState.initial
+        return parse(text, hidesTrailingIncompleteArtifact: hidesTrailingIncompleteArtifact, state: &state)
+    }
+
+    static func parse(
+        _ text: String,
+        hidesTrailingIncompleteArtifact: Bool = false,
+        state: inout ScanState
+    ) -> ArtifactParseResult {
         let nsText = text as NSString
-        var visibleSegments: [String] = []
-        var artifacts: [ParsedArtifact] = []
-        var cursor = 0
+
+        if nsText.length < state.lastTextLength || nsText.length < state.cursor {
+            state = .initial
+        }
+
+        var cursor = state.cursor
         var hasIncompleteTrailingArtifact = false
 
         while cursor < nsText.length {
@@ -83,16 +118,16 @@ enum ArtifactMarkupParser {
             )
 
             guard openRange.location != NSNotFound else {
-                let trailing = nsText.substring(with: remainingRange)
-                if !trailing.isEmpty {
-                    visibleSegments.append(trailing)
+                // No marker in [cursor, end). We can advance the scan cursor
+                // past everything except a retention window large enough to
+                // catch a partial opening marker that straddles flush
+                // boundaries.
+                let retention = openingTagMarker.count
+                let safeCommitLocation = nsText.length - retention
+                if safeCommitLocation > cursor {
+                    cursor = safeCommitLocation
                 }
                 break
-            }
-
-            let leadingRange = NSRange(location: cursor, length: openRange.location - cursor)
-            if leadingRange.length > 0 {
-                visibleSegments.append(nsText.substring(with: leadingRange))
             }
 
             let openTagSearchRange = NSRange(
@@ -103,9 +138,7 @@ enum ArtifactMarkupParser {
 
             guard tagEndRange.location != NSNotFound else {
                 hasIncompleteTrailingArtifact = true
-                if !hidesTrailingIncompleteArtifact {
-                    visibleSegments.append(nsText.substring(with: NSRange(location: openRange.location, length: nsText.length - openRange.location)))
-                }
+                cursor = openRange.location
                 break
             }
 
@@ -115,10 +148,18 @@ enum ArtifactMarkupParser {
 
             guard closeRange.location != NSNotFound else {
                 hasIncompleteTrailingArtifact = true
-                if !hidesTrailingIncompleteArtifact {
-                    visibleSegments.append(nsText.substring(with: NSRange(location: openRange.location, length: nsText.length - openRange.location)))
-                }
+                cursor = openRange.location
                 break
+            }
+
+            // Complete artifact: commit the active chunk before this
+            // artifact, then commit the artifact itself.
+            if openRange.location > state.committedActiveChunkBase {
+                let chunk = nsText.substring(with: NSRange(
+                    location: state.committedActiveChunkBase,
+                    length: openRange.location - state.committedActiveChunkBase
+                ))
+                state.committedSegments.append(chunk)
             }
 
             let openingTagRange = NSRange(location: openRange.location, length: NSMaxRange(tagEndRange) - openRange.location)
@@ -128,17 +169,53 @@ enum ArtifactMarkupParser {
             let content = nsText.substring(with: contentRange)
 
             if let artifact = parsedArtifact(fromOpeningTag: openingTag, content: content) {
-                artifacts.append(artifact)
+                state.committedArtifacts.append(artifact)
             } else {
-                visibleSegments.append(nsText.substring(with: rawBlockRange))
+                // Unsupported contentType — fall back to surfacing the raw
+                // block as its own visible segment, matching the
+                // non-resumable parser's behaviour.
+                state.committedSegments.append(nsText.substring(with: rawBlockRange))
             }
 
             cursor = NSMaxRange(closeRange)
+            state.committedActiveChunkBase = cursor
+        }
+
+        state.cursor = cursor
+        state.lastTextLength = nsText.length
+
+        var resultSegments = state.committedSegments
+
+        let activeChunkEnd: Int
+        if hasIncompleteTrailingArtifact {
+            activeChunkEnd = state.cursor
+        } else {
+            activeChunkEnd = nsText.length
+        }
+
+        if activeChunkEnd > state.committedActiveChunkBase {
+            let active = nsText.substring(with: NSRange(
+                location: state.committedActiveChunkBase,
+                length: activeChunkEnd - state.committedActiveChunkBase
+            ))
+            if !active.isEmpty {
+                resultSegments.append(active)
+            }
+        }
+
+        if hasIncompleteTrailingArtifact, !hidesTrailingIncompleteArtifact, state.cursor < nsText.length {
+            let raw = nsText.substring(with: NSRange(
+                location: state.cursor,
+                length: nsText.length - state.cursor
+            ))
+            if !raw.isEmpty {
+                resultSegments.append(raw)
+            }
         }
 
         return ArtifactParseResult(
-            visibleTextSegments: visibleSegments,
-            artifacts: artifacts,
+            visibleTextSegments: resultSegments,
+            artifacts: state.committedArtifacts,
             hasIncompleteTrailingArtifact: hasIncompleteTrailingArtifact
         )
     }

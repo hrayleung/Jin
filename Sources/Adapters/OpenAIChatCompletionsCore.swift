@@ -7,16 +7,18 @@ enum OpenAIChatCompletionsReasoningField {
 }
 
 enum OpenAIChatCompletionsCore {
-    static func decodeResponse(_ data: Data) throws -> OpenAIChatCompletionsResponse {
+    private static let snakeDecoder: JSONDecoder = {
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
-        return try decoder.decode(OpenAIChatCompletionsResponse.self, from: data)
+        return decoder
+    }()
+
+    static func decodeResponse(_ data: Data) throws -> OpenAIChatCompletionsResponse {
+        try snakeDecoder.decode(OpenAIChatCompletionsResponse.self, from: data)
     }
 
     static func decodeChunk(_ data: Data) throws -> OpenAIChatCompletionsChunk {
-        let decoder = JSONDecoder()
-        decoder.keyDecodingStrategy = .convertFromSnakeCase
-        return try decoder.decode(OpenAIChatCompletionsChunk.self, from: data)
+        try snakeDecoder.decode(OpenAIChatCompletionsChunk.self, from: data)
     }
 
     static func makeNonStreamingStream(

@@ -22,6 +22,7 @@ final class StreamingMessageState: ObservableObject {
 
     private var textStorage = ""
     private var thinkingStorage = ""
+    private var artifactScanState = ArtifactMarkupParser.ScanState.initial
     private var searchActivitiesByID: OrderedDictionary<String, SearchActivity> = [:]
     private var codeExecutionActivitiesByID: OrderedDictionary<String, CodeExecutionActivity> = [:]
     private var codexToolActivitiesByID: OrderedDictionary<String, CodexToolActivity> = [:]
@@ -35,6 +36,7 @@ final class StreamingMessageState: ObservableObject {
         objectWillChange.send()
         textStorage = ""
         thinkingStorage = ""
+        artifactScanState = .initial
         thinkingChunks = []
         searchActivities = []
         codeExecutionActivities = []
@@ -84,7 +86,11 @@ final class StreamingMessageState: ObservableObject {
 
         if didChangeText {
             let parseStartedAt = ProcessInfo.processInfo.systemUptime
-            let parseResult = ArtifactMarkupParser.parse(nextTextStorage, hidesTrailingIncompleteArtifact: true)
+            let parseResult = ArtifactMarkupParser.parse(
+                nextTextStorage,
+                hidesTrailingIncompleteArtifact: true,
+                state: &artifactScanState
+            )
             nextVisibleText = parseResult.visibleText
             nextArtifacts = parseResult.artifacts
             nextHasVisibleText = nextVisibleText.trimmedNonEmpty != nil

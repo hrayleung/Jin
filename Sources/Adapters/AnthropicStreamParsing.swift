@@ -1,5 +1,13 @@
 import Foundation
 
+private enum AnthropicStreamDecoders {
+    static let snakeDecoder: JSONDecoder = {
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        return decoder
+    }()
+}
+
 extension AnthropicAdapter {
 
     // MARK: - SSE Event Parsing
@@ -20,10 +28,7 @@ extension AnthropicAdapter {
             return nil
         }
 
-        let decoder = JSONDecoder()
-        decoder.keyDecodingStrategy = .convertFromSnakeCase
-
-        let event = try decoder.decode(AnthropicStreamEvent.self, from: data)
+        let event = try AnthropicStreamDecoders.snakeDecoder.decode(AnthropicStreamEvent.self, from: data)
 
         switch event.type {
         case "message_start":

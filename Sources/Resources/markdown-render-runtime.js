@@ -1410,6 +1410,28 @@ function shouldAttemptCodeHighlight(code) {
     return codeLineCount(text) <= MAX_HIGHLIGHT_CODE_LINES;
 }
 
+// LRU cache for Prism's per-block highlight output. Hits whenever an
+// earlier-in-the-message code block is rendered again on a subsequent flush
+// (its content is stable), which is the common shape of streaming output.
+// Misses (live-tail code block whose content keeps growing) are O(1) lookups.
+var _highlightInnerCache = Object.create(null);
+var _highlightInnerCacheKeys = [];
+var _highlightInnerCacheLimit = 256;
+
+function cachedHighlightedInner(str, candidates) {
+    var key = (candidates && candidates.length ? candidates.join('|') : '') + '\x00' + str;
+    var cached = _highlightInnerCache[key];
+    if (typeof cached === 'string') return cached;
+    var html = highlightCodeWithPrism(str, candidates);
+    _highlightInnerCache[key] = html;
+    _highlightInnerCacheKeys.push(key);
+    if (_highlightInnerCacheKeys.length > _highlightInnerCacheLimit) {
+        var dropKey = _highlightInnerCacheKeys.shift();
+        delete _highlightInnerCache[dropKey];
+    }
+    return html;
+}
+
 function highlightCodeBlock(str, lang) {
     var id = ++_codeBlockId;
     _codeBlockSrc[id] = str;
@@ -1432,7 +1454,7 @@ function highlightCodeBlock(str, lang) {
     var candidates = buildHighlightLanguageCandidates(lang, label, renderKind);
     var highlightedInner = '';
     if (shouldAttemptCodeHighlight(str)) {
-        highlightedInner = highlightCodeWithPrism(str, candidates);
+        highlightedInner = cachedHighlightedInner(str, candidates);
     }
 
     var codeHTML;
@@ -1461,6 +1483,76 @@ function installCodeBlockRenderer(instance) {
         var token = tokens[idx];
         return highlightCodeBlock(token.content || '', '') + '\n';
     };
+}
+
+// Minimal morphdom-style diff. Walks both trees in parallel, preserving
+// existing DOM nodes wherever the new HTML's structural prefix matches.
+// Only the diverging suffix is detached + reattached, so per-flush DOM cost
+// scales with delta length instead of total message length.
+function morphContent(target, source) {
+    morphChildren(target, source);
+}
+
+function morphChildren(oldEl, newEl) {
+    var oldNodes = Array.prototype.slice.call(oldEl.childNodes);
+    var newNodes = Array.prototype.slice.call(newEl.childNodes);
+    var i = 0;
+    while (i < oldNodes.length && i < newNodes.length) {
+        if (areNodesSimilar(oldNodes[i], newNodes[i])) {
+            morphNode(oldNodes[i], newNodes[i]);
+            i += 1;
+        } else {
+            break;
+        }
+    }
+    for (var k = oldNodes.length - 1; k >= i; k -= 1) {
+        oldEl.removeChild(oldNodes[k]);
+    }
+    for (var j = i; j < newNodes.length; j += 1) {
+        oldEl.appendChild(newNodes[j]);
+    }
+}
+
+function areNodesSimilar(a, b) {
+    if (a.nodeType !== b.nodeType) return false;
+    if (a.nodeType === Node.TEXT_NODE) return true;
+    if (a.nodeName !== b.nodeName) return false;
+    // Distinct element ids must not be morphed onto each other (e.g. two
+    // adjacent code blocks must keep their identities so their per-block
+    // state lookups via `_codeBlockState[id]` line up correctly).
+    var aId = a.id;
+    var bId = b.id;
+    if (aId && bId && aId !== bId) return false;
+    return true;
+}
+
+function morphNode(oldNode, newNode) {
+    if (oldNode.nodeType === Node.TEXT_NODE) {
+        if (oldNode.nodeValue !== newNode.nodeValue) {
+            oldNode.nodeValue = newNode.nodeValue;
+        }
+        return;
+    }
+    if (oldNode.nodeType !== Node.ELEMENT_NODE) return;
+    morphAttributes(oldNode, newNode);
+    morphChildren(oldNode, newNode);
+}
+
+function morphAttributes(oldEl, newEl) {
+    var newAttrs = newEl.attributes;
+    for (var i = 0; i < newAttrs.length; i += 1) {
+        var attr = newAttrs[i];
+        if (oldEl.getAttribute(attr.name) !== attr.value) {
+            oldEl.setAttribute(attr.name, attr.value);
+        }
+    }
+    var oldAttrs = oldEl.attributes;
+    for (var j = oldAttrs.length - 1; j >= 0; j -= 1) {
+        var oldAttr = oldAttrs[j];
+        if (!newEl.hasAttribute(oldAttr.name)) {
+            oldEl.removeAttribute(oldAttr.name);
+        }
+    }
 }
 
 function createMarkdownParserState() {
@@ -1527,7 +1619,17 @@ function renderMarkdownContent(parserState, text) {
     _codeBlockId = 0;
     _codeBlockSrc = {};
     _codeBlockState = {};
-    document.getElementById('content').innerHTML = parserState.instance.render(text);
+    var content = document.getElementById('content');
+    if (!content) return;
+    var html = parserState.instance.render(text);
+    // Strip persisted-highlight <mark> wrappers before diffing so the new
+    // HTML (which has none) doesn't trigger spurious removes/inserts inside
+    // every paragraph that contained a highlight. applyPersistedHighlights()
+    // re-wraps the relevant ranges below.
+    unwrapHighlightMarks(content);
+    var template = document.createElement('template');
+    template.innerHTML = html;
+    morphContent(content, template.content);
     applyPersistedHighlights();
     scheduleSelectionSnapshotPost();
     reportHeight();
