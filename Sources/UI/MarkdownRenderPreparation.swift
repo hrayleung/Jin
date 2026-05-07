@@ -1,7 +1,44 @@
 import Foundation
+import os
 
 enum MarkdownRenderPreparation {
+    private struct PreparationCacheEntry {
+        var input: String
+        var isStreaming: Bool
+        var result: PreparedMarkdownResult
+    }
+
+    /// Single-slot memo. Hits when the coordinator polls `prepareForRender`
+    /// with the same input twice in a row (font/preference re-renders, or a
+    /// non-text `renderTick` bump). Streaming flushes never hit because the
+    /// text grows each flush; the lock cost on a miss is a single
+    /// uncontended unfair-lock acquire (~50ns).
+    private static let cache = OSAllocatedUnfairLock<PreparationCacheEntry?>(
+        initialState: nil
+    )
+
     static func prepareForRender(_ markdown: String, isStreaming: Bool) -> PreparedMarkdownResult {
+        if let cached = cache.withLock({ entry -> PreparedMarkdownResult? in
+            guard let entry, entry.isStreaming == isStreaming, entry.input == markdown else {
+                return nil
+            }
+            return entry.result
+        }) {
+            return cached
+        }
+
+        let result = computePrepareForRender(markdown, isStreaming: isStreaming)
+        cache.withLock { entry in
+            entry = PreparationCacheEntry(
+                input: markdown,
+                isStreaming: isStreaming,
+                result: result
+            )
+        }
+        return result
+    }
+
+    private static func computePrepareForRender(_ markdown: String, isStreaming: Bool) -> PreparedMarkdownResult {
         guard !markdown.isEmpty else {
             return .passthrough(markdown)
         }

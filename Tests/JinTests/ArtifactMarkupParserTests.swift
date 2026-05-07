@@ -82,4 +82,146 @@ final class ArtifactMarkupParserTests: XCTestCase {
         )
         XCTAssertNil(ArtifactMarkupParser.appendingInstructions(to: " \n\t ", enabled: false))
     }
+
+    // MARK: - Resumable scan
+
+    func testResumableScanMatchesOneShotForPlainText() {
+        let input = "Hello there. This is a long-ish reply with no artifacts at all. Just plain text."
+        assertResumableMatchesOneShot(input, hidesTrailingIncompleteArtifact: false)
+        assertResumableMatchesOneShot(input, hidesTrailingIncompleteArtifact: true)
+    }
+
+    func testResumableScanMatchesOneShotForOneArtifact() {
+        let input = """
+        Intro.
+        <jinArtifact artifact_id="a" title="A" contentType="text/html"><b>x</b></jinArtifact>
+        Outro.
+        """
+        assertResumableMatchesOneShot(input, hidesTrailingIncompleteArtifact: false)
+        assertResumableMatchesOneShot(input, hidesTrailingIncompleteArtifact: true)
+    }
+
+    func testResumableScanMatchesOneShotForTwoArtifacts() {
+        let input = """
+        before
+        <jinArtifact artifact_id="a" title="A" contentType="text/html"><i>1</i></jinArtifact>
+        middle
+        <jinArtifact artifact_id="b" title="B" contentType="text/html"><i>2</i></jinArtifact>
+        after
+        """
+        assertResumableMatchesOneShot(input, hidesTrailingIncompleteArtifact: false)
+        assertResumableMatchesOneShot(input, hidesTrailingIncompleteArtifact: true)
+    }
+
+    func testResumableScanMatchesOneShotForUnsupportedContentTypeFallback() {
+        let input = "x<jinArtifact artifact_id=\"bad\" title=\"Bad\" contentType=\"application/unknown\">y</jinArtifact>z"
+        assertResumableMatchesOneShot(input, hidesTrailingIncompleteArtifact: false)
+        assertResumableMatchesOneShot(input, hidesTrailingIncompleteArtifact: true)
+    }
+
+    func testResumableScanHidesTrailingIncompleteOpeningAcrossDeltas() {
+        let input = "Before<jinArtifact artifact_id=\"demo\" title=\"D\" contentType=\"text/html\"><div>"
+        var state = ArtifactMarkupParser.ScanState.initial
+        var lastVisible = ""
+        for prefix in incrementalPrefixes(of: input) {
+            let result = ArtifactMarkupParser.parse(prefix, hidesTrailingIncompleteArtifact: true, state: &state)
+            lastVisible = result.visibleText
+        }
+        XCTAssertEqual(lastVisible, "Before")
+    }
+
+    func testResumableScanNeverDoubleEmitsArtifacts() {
+        let input = "a<jinArtifact artifact_id=\"x\" title=\"X\" contentType=\"text/html\">payload</jinArtifact>tail"
+        var state = ArtifactMarkupParser.ScanState.initial
+        var maxSeen = 0
+        for prefix in incrementalPrefixes(of: input) {
+            let result = ArtifactMarkupParser.parse(prefix, hidesTrailingIncompleteArtifact: true, state: &state)
+            maxSeen = max(maxSeen, result.artifacts.count)
+            XCTAssertLessThanOrEqual(result.artifacts.count, 1, "duplicate artifacts emitted at prefix length \(prefix.count)")
+        }
+        XCTAssertEqual(maxSeen, 1)
+    }
+
+    func testResumableScanResetsOnShrinkingInput() {
+        var state = ArtifactMarkupParser.ScanState.initial
+        let long = "Hello this is a long bit of text that exceeds the retention window."
+        _ = ArtifactMarkupParser.parse(long, hidesTrailingIncompleteArtifact: true, state: &state)
+        let short = "Hi"
+        let result = ArtifactMarkupParser.parse(short, hidesTrailingIncompleteArtifact: true, state: &state)
+        XCTAssertEqual(result.visibleText, short)
+        XCTAssertTrue(result.artifacts.isEmpty)
+    }
+
+    func testResumableScanHandlesMidMarkerSplit() {
+        // Stream the input one character at a time so the opening marker is
+        // split across many "deltas". The retention window should keep us from
+        // committing past a partial `<jinArtifact` opener.
+        let input = "leading <jinArtifact artifact_id=\"m\" title=\"M\" contentType=\"text/html\">body</jinArtifact> trailing"
+        var state = ArtifactMarkupParser.ScanState.initial
+        var lastResult: ArtifactParseResult?
+        for prefix in incrementalPrefixes(of: input) {
+            lastResult = ArtifactMarkupParser.parse(prefix, hidesTrailingIncompleteArtifact: true, state: &state)
+        }
+        let oneShot = ArtifactMarkupParser.parse(input, hidesTrailingIncompleteArtifact: true)
+        XCTAssertEqual(lastResult?.visibleText, oneShot.visibleText)
+        XCTAssertEqual(lastResult?.artifacts.map(\.artifactID), oneShot.artifacts.map(\.artifactID))
+    }
+
+    // MARK: helpers
+
+    private func assertResumableMatchesOneShot(
+        _ input: String,
+        hidesTrailingIncompleteArtifact: Bool,
+        file: StaticString = #file,
+        line: UInt = #line
+    ) {
+        let oneShot = ArtifactMarkupParser.parse(
+            input,
+            hidesTrailingIncompleteArtifact: hidesTrailingIncompleteArtifact
+        )
+
+        var state = ArtifactMarkupParser.ScanState.initial
+        var resumable: ArtifactParseResult?
+        for prefix in incrementalPrefixes(of: input) {
+            resumable = ArtifactMarkupParser.parse(
+                prefix,
+                hidesTrailingIncompleteArtifact: hidesTrailingIncompleteArtifact,
+                state: &state
+            )
+        }
+
+        XCTAssertEqual(resumable?.visibleText, oneShot.visibleText, "visibleText mismatch", file: file, line: line)
+        XCTAssertEqual(
+            resumable?.artifacts.map(\.artifactID),
+            oneShot.artifacts.map(\.artifactID),
+            "artifact id list mismatch",
+            file: file,
+            line: line
+        )
+        XCTAssertEqual(
+            resumable?.artifacts.map(\.content),
+            oneShot.artifacts.map(\.content),
+            "artifact content mismatch",
+            file: file,
+            line: line
+        )
+        XCTAssertEqual(
+            resumable?.hasIncompleteTrailingArtifact,
+            oneShot.hasIncompleteTrailingArtifact,
+            "hasIncompleteTrailingArtifact mismatch",
+            file: file,
+            line: line
+        )
+    }
+
+    private func incrementalPrefixes(of input: String) -> [String] {
+        let nsInput = input as NSString
+        var out: [String] = []
+        var i = 0
+        while i < nsInput.length {
+            i += 1
+            out.append(nsInput.substring(to: i))
+        }
+        return out
+    }
 }
