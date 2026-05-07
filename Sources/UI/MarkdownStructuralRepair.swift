@@ -1,20 +1,46 @@
 import Foundation
 
-extension MarkdownRenderPreparation {
+/// Per-line structural repairs that reshape malformed model output (heading
+/// concatenations, embedded bullets, inline tables…) into something
+/// markdown-it can parse correctly. Replaces the prior regex-only pipeline
+/// in `MarkdownRenderPreparation+LineRepair.swift`; every break-insertion
+/// step is now guarded against firing inside matched inline emphasis or
+/// inline code, so legitimate `*foo*` and `**bar**` runs survive untouched.
+enum MarkdownStructuralRepair {
     static func repairLine(_ line: String) -> String {
-        preserveInlineCode(in: line) { candidate in
+        MarkdownRenderPreparation.preserveInlineCode(in: line) { candidate in
             var normalized = candidate
             normalized = normalizeHeadingSpacing(normalized)
-            normalized = insertBreaksBeforeEmbeddedHorizontalRules(normalized)
-            normalized = insertBreaksBeforeEmbeddedHeadings(normalized)
-            normalized = insertBreaksBeforeEmbeddedBullets(normalized)
-            normalized = insertBreaksBeforeEmbeddedOrderedListMarkers(normalized)
+            normalized = applyEmphasisAwareTransforms(normalized)
             normalized = unescapeEscapedLeadingEmphasis(normalized)
-            normalized = normalizeInlineTable(normalized)
             normalized = insertBreakBetweenHeadingAndBody(normalized)
             return normalized
         }
     }
+
+    // MARK: - Emphasis-aware transforms
+
+    /// Computes inline-emphasis & inline-code ranges once for the line, then
+    /// applies every break-insertion transform through a helper that skips
+    /// regex matches whose range overlaps protected spans.
+    private static func applyEmphasisAwareTransforms(_ line: String) -> String {
+        var current = line
+        // Emphasis ranges must be recomputed when the string content changes
+        // (table normalization can split a line by inserting `\n`). Each
+        // transform calls `protectedRanges(in: current)` afresh.
+        current = insertBreaksBeforeEmbeddedHorizontalRules(current)
+        current = insertBreaksBeforeEmbeddedHeadings(current)
+        current = insertBreaksBeforeEmbeddedBullets(current)
+        current = insertBreaksBeforeEmbeddedOrderedListMarkers(current)
+        current = normalizeInlineTable(current)
+        return current
+    }
+
+    private static func protectedRanges(in line: String) -> [Range<String.Index>] {
+        MarkdownInlineTokenizer.emphasisRanges(in: line)
+    }
+
+    // MARK: - Heading spacing (unchanged behavior)
 
     static func normalizeHeadingSpacing(_ line: String) -> String {
         let leadingWhitespaceCount = line.prefix(while: { $0 == " " }).count
@@ -38,42 +64,50 @@ extension MarkdownRenderPreparation {
         return leadingWhitespace + headingMarker + " " + remainder
     }
 
+    // MARK: - Break insertions (emphasis-aware)
+
     static func insertBreaksBeforeEmbeddedHorizontalRules(_ line: String) -> String {
-        replacing(
+        MarkdownRenderPreparation.replacingOutsideRanges(
             pattern: #"(?<!^)(?<!\n)(?<!-)(---+)(?=(?:#{1,6}\S| {0,3}[-*+]\s|$))"#,
             in: line,
+            protectedRanges: protectedRanges(in: line),
             with: "\n$1\n"
         )
     }
 
     static func insertBreaksBeforeEmbeddedHeadings(_ line: String) -> String {
-        replacing(
+        MarkdownRenderPreparation.replacingOutsideRanges(
             pattern: #"(?<=\S)\s+(#{1,6})(?=[#\dA-Za-z\p{Han}])"#,
             in: line,
+            protectedRanges: protectedRanges(in: line),
             with: "\n$1"
         )
     }
 
     static func insertBreaksBeforeEmbeddedBullets(_ line: String) -> String {
-        replacing(
+        MarkdownRenderPreparation.replacingOutsideRanges(
             pattern: #"(?<=\S)(?<![*+-])([-*+])\s+(?=(?:\*\*)?[\p{L}\p{N}])"#,
             in: line,
+            protectedRanges: protectedRanges(in: line),
             with: "\n$1 "
         )
     }
 
     static func insertBreaksBeforeEmbeddedOrderedListMarkers(_ line: String) -> String {
-        replacing(
+        MarkdownRenderPreparation.replacingOutsideRanges(
             pattern: #"(?<=[\.:：;；\)])\s*(\d{1,2}[.)])\s+(?=[\p{L}\p{N}])"#,
             in: line,
+            protectedRanges: protectedRanges(in: line),
             with: "\n$1 "
         )
     }
 
+    // MARK: - Escaped emphasis (unchanged behavior)
+
     static func unescapeEscapedLeadingEmphasis(_ line: String) -> String {
         var normalized = line
         for marker in ["***", "**", "*"] {
-            normalized = replacing(
+            normalized = MarkdownRenderPreparation.replacing(
                 pattern: escapedLeadingEmphasisPattern(for: marker),
                 in: normalized,
                 with: "$1\(marker)$2\(marker)"
@@ -84,7 +118,7 @@ extension MarkdownRenderPreparation {
 
     static func hasEscapedLeadingEmphasis(in line: String) -> Bool {
         ["***", "**", "*"].contains { marker in
-            matches(escapedLeadingEmphasisPattern(for: marker), in: line)
+            MarkdownRenderPreparation.matches(escapedLeadingEmphasisPattern(for: marker), in: line)
         }
     }
 
@@ -101,10 +135,51 @@ extension MarkdownRenderPreparation {
         String(repeating: #"\\\*"#, count: marker.count)
     }
 
+    // MARK: - Inline table (delegates to existing helpers, then guarded by emphasis ranges)
+
+    static func normalizeInlineTable(_ line: String) -> String {
+        guard line.contains("|") else { return line }
+        // Tables almost never appear inside emphasis runs; we still use the
+        // emphasis-aware helper for the regex-based steps so the rare case
+        // of `*foo | bar*` doesn't get rewritten.
+
+        let ranges = protectedRanges(in: line)
+
+        var normalized = line
+        if let firstPipeIndex = normalized.firstIndex(of: "|"),
+           !ranges.contains(where: { $0.contains(firstPipeIndex) }) {
+            let prefix = normalized[..<firstPipeIndex].trimmingCharacters(in: .whitespaces)
+            let suffix = String(normalized[firstPipeIndex...])
+            if !prefix.isEmpty,
+               MarkdownRenderPreparation.looksLikeTableRow(suffix),
+               !MarkdownRenderPreparation.looksLikeParagraphWithPipes(prefix) {
+                normalized = String(prefix) + "\n" + suffix
+            }
+        }
+
+        normalized = MarkdownRenderPreparation.replacingOutsideRanges(
+            pattern: #"(\|\s*[^|\n]+?\s*(?:\|\s*[^|\n]+?\s*)+\|)\s*(\|\s*:?-{3,}:?\s*(?:\|\s*:?-{3,}:?\s*)+\|)"#,
+            in: normalized,
+            protectedRanges: protectedRanges(in: normalized),
+            with: "$1\n$2"
+        )
+
+        normalized = MarkdownRenderPreparation.replacingOutsideRanges(
+            pattern: #"(\|\s*:?-{3,}:?\s*(?:\|\s*:?-{3,}:?\s*)+\|)\s*(\|\s*[^|\n]+?\s*(?:\|\s*[^|\n]+?\s*)+\|)"#,
+            in: normalized,
+            protectedRanges: protectedRanges(in: normalized),
+            with: "$1\n$2"
+        )
+
+        return normalized
+    }
+
+    // MARK: - Heading body camelCase split (unchanged behavior)
+
     static func insertBreakBetweenHeadingAndBody(_ line: String) -> String {
         let leadingWhitespace = String(line.prefix { $0.isWhitespace })
         let trimmedLeading = String(line.dropFirst(leadingWhitespace.count)).trimmingCharacters(in: .whitespaces)
-        guard matches(#"^#{1,6}\s+"#, in: trimmedLeading),
+        guard MarkdownRenderPreparation.matches(#"^#{1,6}\s+"#, in: trimmedLeading),
               let splitIndex = headingBodySplitIndex(in: trimmedLeading) else {
             return line
         }
@@ -118,7 +193,7 @@ extension MarkdownRenderPreparation {
 
     static func headingBodySplitIndex(in line: String) -> String.Index? {
         let trimmedLeading = line.trimmingCharacters(in: .whitespaces)
-        guard let headingMatch = firstMatch(
+        guard let headingMatch = MarkdownRenderPreparation.firstMatch(
             pattern: #"^#{1,6}\s+"#,
             in: trimmedLeading
         ) else { return nil }
@@ -136,9 +211,9 @@ extension MarkdownRenderPreparation {
             let nextCharacter = nextIndex < content.endIndex ? content[nextIndex] : nil
 
             if let previousCharacter,
-               isLowercaseLetter(previousCharacter) || isDecimalDigit(previousCharacter),
-               isUppercaseLetter(currentCharacter),
-               nextCharacter.map(isLowercaseLetter) == true {
+               MarkdownRenderPreparation.isLowercaseLetter(previousCharacter) || MarkdownRenderPreparation.isDecimalDigit(previousCharacter),
+               MarkdownRenderPreparation.isUppercaseLetter(currentCharacter),
+               nextCharacter.map(MarkdownRenderPreparation.isLowercaseLetter) == true {
                 let prefixCount = content.distance(from: content.startIndex, to: index)
                 let suffixCount = content.distance(from: index, to: content.endIndex)
                 if prefixCount >= 8, suffixCount >= 8 {
