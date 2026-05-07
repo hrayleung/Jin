@@ -176,4 +176,118 @@ final class MarkdownRenderPreparationTests: XCTestCase {
         XCTAssertFalse(result.didChange)
         XCTAssertEqual(result.text, input)
     }
+
+    // MARK: - Screenshot regression: italic must not turn into a fake bullet
+
+    func testDoesNotBreakValidItalicIntoBulletStreaming() {
+        let input = "That said... yeah, there *is* some naivety here."
+        let result = MarkdownRenderPreparation.prepareForRender(input, isStreaming: true)
+        XCTAssertEqual(result.text, input, "italic *is* must survive intact")
+        XCTAssertFalse(result.text.contains("\n* "))
+    }
+
+    func testDoesNotBreakValidItalicIntoBulletFinal() {
+        let input = "That said... yeah, there *is* some naivety here."
+        let result = MarkdownRenderPreparation.prepareForRender(input, isStreaming: false)
+        XCTAssertEqual(result.text, input)
+    }
+
+    func testDoesNotBreakValidWillItalic() {
+        let input = "But you *will* be if you keep letting it control your happiness."
+        let result = MarkdownRenderPreparation.prepareForRender(input, isStreaming: true)
+        XCTAssertEqual(result.text, input)
+    }
+
+    func testStillBreaksGenuineEmbeddedDashBullets() {
+        // Real malformed: `Apples- bananas- cherries` should still split into
+        // bullets — this regex transform must keep working for non-emphasis
+        // candidates. Block-spacing then inserts a blank line before the
+        // first list item.
+        let input = "Fruits include apples- bananas- cherries"
+        let result = MarkdownRenderPreparation.prepareForRender(input, isStreaming: false)
+        XCTAssertTrue(result.didChange)
+        XCTAssertTrue(result.text.contains("apples\n\n- bananas"))
+        XCTAssertTrue(result.text.contains("- bananas\n- cherries"))
+    }
+
+    // MARK: - Streaming completion: auto-close unclosed inline markers
+
+    func testClosesUnclosedItalicAtParagraphEnd() {
+        let input = "*hello\n\nworld"
+        let result = MarkdownRenderPreparation.prepareForRender(input, isStreaming: true)
+        XCTAssertEqual(result.text, "*hello*\n\nworld")
+    }
+
+    func testClosesUnclosedBoldAtParagraphEnd() {
+        let input = "**hello\n\nworld"
+        let result = MarkdownRenderPreparation.prepareForRender(input, isStreaming: true)
+        XCTAssertEqual(result.text, "**hello**\n\nworld")
+    }
+
+    func testClosesUnclosedItalicAtEndOfStream() {
+        // Mid-stream: trailing unclosed `*` gets closed for stable display.
+        let input = "The next *step"
+        let result = MarkdownRenderPreparation.prepareForRender(input, isStreaming: true)
+        XCTAssertEqual(result.text, "The next *step*")
+    }
+
+    func testClosesUnclosedFenceAtEndOfStream() {
+        let input = "Here is code:\n```python\nprint(1)"
+        let result = MarkdownRenderPreparation.prepareForRender(input, isStreaming: true)
+        XCTAssertTrue(result.text.hasSuffix("\n```"), "expected closing fence appended; got: \(result.text)")
+        XCTAssertTrue(result.text.contains("```python\nprint(1)"))
+    }
+
+    func testDoesNotCloseInsideValidMultilineEmphasis() {
+        // Soft-break inside one paragraph: emphasis is balanced; no synthetic close.
+        let input = "*line1\nline2*"
+        let result = MarkdownRenderPreparation.prepareForRender(input, isStreaming: true)
+        XCTAssertEqual(result.text, input)
+    }
+
+    func testStreamingMidEmphasisIsClosedOnEveryContentPrefix() {
+        // After the `*` is followed by at least one non-whitespace character,
+        // every subsequent streaming prefix must render with the italic auto-
+        // closed (mainstream LLM-chat behavior — no flashing literal `*`).
+        let full = "The next *step* is clear."
+        let openIdx = full.firstIndex(of: "*")!
+        let firstContentIdx = full.index(after: openIdx)
+        let lengths = stride(
+            from: full.distance(from: full.startIndex, to: firstContentIdx) + 1,
+            through: full.count,
+            by: 1
+        )
+        for length in lengths {
+            let prefix = String(full.prefix(length))
+            let result = MarkdownRenderPreparation.prepareForRender(prefix, isStreaming: true)
+            let asterisks = result.text.filter { $0 == "*" }.count
+            XCTAssertEqual(
+                asterisks % 2,
+                0,
+                "prefix \(prefix.debugDescription) → \(result.text.debugDescription) has unbalanced *"
+            )
+        }
+    }
+
+    func testIntraWordUnderscoreIsNotMistakenForEmphasis() {
+        // `snake_case_thing` must not trigger any repair or completion.
+        let input = "Use snake_case_thing for variable names."
+        let result = MarkdownRenderPreparation.prepareForRender(input, isStreaming: true)
+        XCTAssertFalse(result.didChange)
+        XCTAssertEqual(result.text, input)
+    }
+
+    func testInlineCodeWithAsterisksIsLeftAlone() {
+        let input = "Use `*foo*` literally to mean the literal asterisks."
+        let result = MarkdownRenderPreparation.prepareForRender(input, isStreaming: true)
+        XCTAssertFalse(result.didChange)
+        XCTAssertEqual(result.text, input)
+    }
+
+    func testCleanProseIsBypassedEntirely() {
+        let input = "Yeah, maybe a little.\n\nBut not in the way you think."
+        let result = MarkdownRenderPreparation.prepareForRender(input, isStreaming: true)
+        XCTAssertFalse(result.didChange)
+        XCTAssertEqual(result.text, input)
+    }
 }

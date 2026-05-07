@@ -41,9 +41,9 @@ enum MarkdownRenderPreparation {
 
     static func repairMarkdown(_ markdown: String, isStreaming: Bool) -> String {
         let repairedLines = transformOutsideProtectedBlocks(in: markdown) { line in
-            repairLine(line)
+            MarkdownStructuralRepair.repairLine(line)
         }
-
-        return isStreaming ? repairedLines : normalizeBlockSpacing(in: repairedLines)
+        let completed = MarkdownInlineCompletion.completeUnclosedInlineMarkers(in: repairedLines)
+        return isStreaming ? completed : normalizeBlockSpacing(in: completed)
     }
 }

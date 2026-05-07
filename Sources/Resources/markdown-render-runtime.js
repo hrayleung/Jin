@@ -1467,7 +1467,8 @@ function createMarkdownParserState() {
     var instance = window.markdownit({
         html: false,
         linkify: true,
-        typographer: false
+        typographer: false,
+        breaks: true
     });
     installCodeBlockRenderer(instance);
     return {
