@@ -57,6 +57,7 @@ struct ChatView: View {
     // MARK: - Environment & Injected Dependencies
 
     @Environment(\.modelContext) var modelContext
+    @Environment(\.accessibilityReduceMotion) var accessibilityReduceMotion
     @EnvironmentObject var streamingStore: ConversationStreamingStore
     @EnvironmentObject var responseCompletionNotifier: ResponseCompletionNotifier
     @EnvironmentObject var shortcutsStore: AppShortcutsStore

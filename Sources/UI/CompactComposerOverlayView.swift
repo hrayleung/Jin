@@ -4,6 +4,8 @@ import AppKit
 // MARK: - Compact Composer Overlay
 
 struct CompactComposerOverlayView<ControlsRow: View>: View {
+    @Environment(\.accessibilityReduceMotion) var reduceMotion
+
     @Binding var messageText: String
     @Binding var remoteVideoURLText: String
     @Binding var draftAttachments: [DraftAttachment]

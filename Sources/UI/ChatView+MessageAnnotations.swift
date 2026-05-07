@@ -1,8 +1,13 @@
 import Foundation
 import SwiftData
+import SwiftUI
 
 extension ChatView {
-    func draftQuote(from snapshot: MessageSelectionSnapshot, sourceModelName: String?) -> DraftQuote? {
+    func draftQuote(
+        from snapshot: MessageSelectionSnapshot,
+        sourceModelName: String?,
+        sourceProviderIconID: String?
+    ) -> DraftQuote? {
         guard let selectedText = MessageSelectionSupport.normalizedSelectedText(snapshot.selectedText) else {
             return nil
         }
@@ -14,6 +19,7 @@ extension ChatView {
                 // Quotes currently originate from assistant reply selection only.
                 sourceRole: .assistant,
                 sourceModelName: sourceModelName,
+                sourceProviderIconID: sourceProviderIconID,
                 quotedText: selectedText,
                 prefixContext: snapshot.prefixContext,
                 suffixContext: snapshot.suffixContext
@@ -21,8 +27,16 @@ extension ChatView {
         )
     }
 
-    func addDraftQuote(from snapshot: MessageSelectionSnapshot, sourceModelName: String?) {
-        guard let quote = draftQuote(from: snapshot, sourceModelName: sourceModelName) else { return }
+    func addDraftQuote(
+        from snapshot: MessageSelectionSnapshot,
+        sourceModelName: String?,
+        sourceProviderIconID: String?
+    ) {
+        guard let quote = draftQuote(
+            from: snapshot,
+            sourceModelName: sourceModelName,
+            sourceProviderIconID: sourceProviderIconID
+        ) else { return }
         let alreadyExists = draftQuotes.contains {
             $0.content.sourceMessageID == quote.content.sourceMessageID
                 && $0.content.sourceThreadID == quote.content.sourceThreadID
@@ -33,13 +47,21 @@ extension ChatView {
                 && $0.content.suffixContext == quote.content.suffixContext
         }
         if !alreadyExists {
-            draftQuotes.append(quote)
+            withAnimation(quoteListAnimation) {
+                draftQuotes.append(quote)
+            }
         }
         if isComposerHidden {
             showComposer()
         } else {
             isComposerFocused = true
         }
+    }
+
+    var quoteListAnimation: Animation {
+        accessibilityReduceMotion
+            ? .linear(duration: 0.12)
+            : .spring(response: 0.32, dampingFraction: 0.86)
     }
 
     func persistHighlight(from snapshot: MessageSelectionSnapshot) {

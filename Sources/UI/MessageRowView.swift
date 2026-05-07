@@ -24,7 +24,7 @@ struct MessageRow: View {
     let onEditUserMessage: (UUID) -> Void
     let onDeleteMessage: (UUID) -> Void
     let onDeleteResponse: (UUID) -> Void
-    let onQuoteSelection: (MessageSelectionSnapshot, String?) -> Void
+    let onQuoteSelection: (MessageSelectionSnapshot, String?, String?) -> Void
     let onCreateHighlight: (MessageSelectionSnapshot) -> Void
     let onRemoveHighlights: ([UUID]) -> Void
     let editingUserMessageID: UUID?
@@ -245,9 +245,10 @@ struct MessageRow: View {
 
     private var selectionActions: MessageTextSelectionActions {
         guard item.isAssistant else { return .none }
+        let resolvedProviderIconID = item.assistantProviderIconID ?? providerIconID
         return MessageTextSelectionActions(
             onQuote: { snapshot in
-                onQuoteSelection(snapshot, item.assistantModelLabel)
+                onQuoteSelection(snapshot, item.assistantModelLabel, resolvedProviderIconID)
             },
             onHighlight: onCreateHighlight,
             onRemoveHighlights: onRemoveHighlights

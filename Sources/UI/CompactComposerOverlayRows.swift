@@ -52,11 +52,13 @@ extension CompactComposerOverlayView {
     @ViewBuilder
     var quoteCardsRow: some View {
         if !draftQuotes.isEmpty {
-            VStack(alignment: .leading, spacing: JinSpacing.small) {
+            VStack(alignment: .leading, spacing: JinSpacing.xSmall + 2) {
                 ForEach(draftQuotes) { quote in
                     ComposerQuoteCardView(quote: quote) {
                         onRemoveQuote(quote)
                     }
+                    .equatable()
+                    .transition(ComposerQuoteCardView.transition(reduceMotion: reduceMotion))
                 }
             }
         }
